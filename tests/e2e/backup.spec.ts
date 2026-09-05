@@ -14,6 +14,8 @@ import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION } from "@myownnotion/domain";
 import pg from "pg";
 import { sealBackupArchive } from "../../apps/api/src/backup/archive-crypto.ts";
 import { encodeBackupArchive } from "../../apps/api/src/backup/archive-format.ts";
+import { FullBackupReceipts } from "../../apps/api/src/backup/full/receipts.ts";
+import { FullBackupService } from "../../apps/api/src/backup/full/service.ts";
 import { expect, test } from "./fixtures.ts";
 import { openSettingsSection, openWorkspace } from "./helpers.ts";
 
@@ -82,7 +84,33 @@ async function seedVerifiedBackup(checkedAt: Date): Promise<void> {
   }
 }
 
+async function fullBackupSetup() {
+  const keyPath = process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"];
+  const blobRoot = process.env["MYOWNNOTION_BLOB_ROOT"];
+  const backupRoot = process.env["MYOWNNOTION_BACKUP_ROOT"];
+  if (!keyPath || !blobRoot || !backupRoot)
+    throw new Error("Full-backup journeys require isolated matrix paths.");
+  const key = Buffer.from((await readFile(keyPath, "utf8")).trim(), "base64");
+  const root = path.join(backupRoot, "full");
+  return {
+    service: new FullBackupService({
+      connectionString: connectionString(),
+      blobRoot,
+      backupRoot: root,
+      key: () => key,
+    }),
+    receipts: new FullBackupReceipts(root, () => key),
+  };
+}
+
 async function makeLastVerificationStale(): Promise<void> {
+  const full = await fullBackupSetup();
+  for (const receipt of await full.receipts.list()) {
+    await full.receipts.put({
+      ...receipt,
+      verifiedAt: new Date(Date.now() - 27 * 3_600_000).toISOString(),
+    });
+  }
   const client = new pg.Client({ connectionString: connectionString() });
   await client.connect();
   try {
@@ -98,13 +126,14 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
   page,
 }) => {
   await seedVerifiedBackup(new Date());
+  await (await fullBackupSetup()).service.run("manual");
   await openWorkspace(page);
 
   await openSettingsSection(page, "backups");
-  await expect(page.getByTestId("backup-last-verified")).toContainText(
-    "Dernière sauvegarde vérifiée",
+  await expect(page.getByTestId("full-backup-local-status")).toContainText(
+    "Une copie complète récente",
   );
-  await expect(page.getByTestId("backup-stale")).toHaveCount(0);
+  await expect(page.getByTestId("full-backup-source-version")).toBeVisible();
 
   await makeLastVerificationStale();
   await page.getByTestId("back-to-workspace").click();
@@ -117,21 +146,27 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
   await expect(workspaceWarning).toContainText("Aucune sauvegarde vérifiée depuis plus d’un jour");
   await workspaceWarning.getByRole("button", { name: "Vérifier les sauvegardes" }).click();
 
-  const warning = page.getByTestId("backup-stale");
+  const warning = page.getByTestId("full-backup-local-status");
   await expect(warning).toHaveAttribute("role", "alert");
-  await expect(warning).toContainText("Aucune sauvegarde vérifiée depuis plus d’une journée");
-  await expect(warning).toContainText(
-    "n’est actuellement pas protégé contre la perte de cette machine",
-  );
+  await expect(warning).toContainText("26 dernières heures");
+  await page.getByText("Exports portables", { exact: true }).first().click();
+  await expect(page.getByTestId("backup-stale")).toContainText("Aucun export portable");
 });
 
 test("the owner can rehearse the latest backup without touching the live workspace", async ({
   page,
 }) => {
   await seedVerifiedBackup(new Date());
+  await (await fullBackupSetup()).service.run("manual");
   await openWorkspace(page);
   await openSettingsSection(page, "backups");
 
+  await page.getByTestId("run-full-rehearsal").click();
+  await expect(page.getByTestId("full-rehearsal-result")).toContainText(
+    "restauration complète a réussi",
+    { timeout: 30_000 },
+  );
+  await page.getByText("Exports portables", { exact: true }).first().click();
   await page.getByTestId("run-rehearsal").click();
   await expect(page.getByTestId("rehearsal-result")).toContainText(
     "restaurée avec succès dans un environnement isolé",

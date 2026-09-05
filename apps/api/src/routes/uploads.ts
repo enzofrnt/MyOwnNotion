@@ -30,6 +30,7 @@ import {
 import { generateUuidV7, isUuid, type SafeError, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
+import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
@@ -82,14 +83,6 @@ async function completeUpload(
   context: AppContext,
   upload: UploadRecord,
 ): Promise<{ ok: true; itemId: Uuid } | { ok: false; error: SafeError }> {
-  const bytes = await context.partialUploads.read(upload.id);
-  if (bytes === null) {
-    return {
-      ok: false,
-      error: { code: "item.not-found", title: "The transferred bytes could not be read" },
-    };
-  }
-
   // Editor blocks already contain this UUID before any network request. Using
   // the upload identity for the final logical file keeps that durable document
   // reference valid after verification instead of silently creating a second,
@@ -104,6 +97,21 @@ async function completeUpload(
   let committedSequence: number | undefined;
   try {
     await runMutation(context.db, async (tx) => {
+      await shareFullFileMutation(tx);
+      const current = await lockUpload(tx, upload.id);
+      if (current === null || !isComplete(current)) {
+        throw new DomainRejection({
+          code: "item.not-found",
+          title: "The completed transfer is no longer available",
+        });
+      }
+      const bytes = await context.partialUploads.read(upload.id);
+      if (bytes === null || bytes.byteLength !== current.receivedLength) {
+        throw new DomainRejection({
+          code: "item.not-found",
+          title: "The transferred bytes could not be read completely",
+        });
+      }
       const stored = await context.contentStore.ingest(bytes, (sha256, byteLength) =>
         findVerifiedContentByDigest(tx, sha256, byteLength),
       );
@@ -185,6 +193,7 @@ async function storeChunk(
   input: { readonly uploadId: Uuid; readonly offset: number; readonly chunk: Buffer },
 ): Promise<StoredChunkOutcome> {
   return await context.db.transaction(async (tx) => {
+    await shareFullFileMutation(tx);
     const upload = await lockUpload(tx, input.uploadId);
     if (upload === null) return { ok: false, reason: "not-found" };
 
@@ -215,6 +224,7 @@ async function storeChunk(
 /** Repairs and returns the offset from the bytes that are actually present. */
 async function reconciledUpload(context: AppContext, uploadId: Uuid) {
   return await context.db.transaction(async (tx) => {
+    await shareFullFileMutation(tx);
     const upload = await lockUpload(tx, uploadId);
     if (upload === null) return null;
     const storedLength = await context.partialUploads.size(uploadId);

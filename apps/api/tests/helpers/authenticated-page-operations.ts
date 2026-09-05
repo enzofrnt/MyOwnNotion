@@ -23,6 +23,7 @@ const PASSWORD = "correct horse battery staple";
 
 export interface AuthenticatedPageOperationHarness {
   readonly api: ApiHarness;
+  readonly deploymentKeyFile: string;
   reset(): Promise<void>;
   authenticate(): Promise<Record<string, string>>;
   authenticateAsDevice(input: {
@@ -148,6 +149,7 @@ export async function createAuthenticatedPageOperationHarness(
 
   return {
     api,
+    deploymentKeyFile: keyFile,
     reset,
     authenticate,
     authenticateAsDevice: async ({ deviceId, name = "Second device" }) => {

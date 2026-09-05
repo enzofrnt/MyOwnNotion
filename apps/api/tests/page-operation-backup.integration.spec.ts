@@ -1,14 +1,18 @@
 /** Backup/restore of the causal page state with an absent replica (T126/T147, US5). */
 
+import { randomUUID } from "node:crypto";
 import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
+import { startDisposablePostgres } from "@myownnotion/test-utils";
 import { sql } from "drizzle-orm";
+import pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { runBackupCommand } from "../src/admin/commands/backup-commands.ts";
 import { restoreTestCommand } from "../src/admin/commands/restore-test.ts";
+import { buildApp } from "../src/app.ts";
 import { decodeBackupArchive } from "../src/backup/archive-format.ts";
 import { BackupService } from "../src/backup/backup-service.ts";
 import {
@@ -16,8 +20,11 @@ import {
   createDatabaseRestoreTarget,
 } from "../src/backup/database-restore-target.ts";
 import { FilesystemDestination } from "../src/backup/destinations/filesystem.ts";
+import { activateFullRestore, restoreFullBackup } from "../src/backup/full/restore.ts";
+import { FullBackupService } from "../src/backup/full/service.ts";
 import { readPageOperationArchive } from "../src/backup/page-operation-archive.ts";
 import { applyArchive } from "../src/backup/restore-service.ts";
+import { loadSecurityConfig } from "../src/security/security-config.ts";
 import {
   type AuthenticatedPageOperationHarness,
   createAuthenticatedPageOperationHarness,
@@ -468,4 +475,172 @@ describe("operational backup and restore", () => {
       "must disappear after compacted restore",
     );
   });
+});
+
+it("round-trips every SQL table in a full archive and accepts an offline replica after fresh authentication", async () => {
+  const headers = await harness.authenticate();
+  const absentDeviceId = generateUuidV7();
+  const absentBinding = `web-${randomUUID()}`;
+  await harness.authenticateAsDevice({
+    deviceId: absentDeviceId,
+    name: "Absent full-recovery device",
+  });
+  await harness.api.built.database.db.execute(
+    sql`UPDATE authorized_devices SET device_binding_id = ${absentBinding} WHERE id = ${absentDeviceId}::uuid`,
+  );
+  const page = await harness.createLegacyPage("Full recovery convergence");
+  const checkpoint = await activate(page, headers);
+  const online = await replica(page.itemId, checkpoint);
+  const absent = await replica(page.itemId, checkpoint);
+  const onlineTransaction = online.transact([
+    {
+      type: "insert-block",
+      block: {
+        type: "paragraph",
+        id: generateUuidV7(),
+        content: [{ text: "full snapshot entry" }],
+      },
+      parentBlockId: null,
+      beforeBlockId: null,
+    },
+  ]);
+  const accepted = await sync({
+    pageId: page.itemId,
+    headers,
+    replica: online,
+    update: await transportUpdate(onlineTransaction),
+    revisionBoundary: "editor-closed",
+  });
+  expect(accepted.statusCode, accepted.body).toBe(200);
+  const key = Buffer.from((await readFile(harness.deploymentKeyFile, "utf8")).trim(), "base64");
+  const full = new FullBackupService({
+    connectionString: harness.api.postgres.connectionString,
+    blobRoot: harness.api.blobRoot,
+    backupRoot: path.join(destinationRoot, "complete"),
+    key: () => key,
+  });
+  const archived = await full.run("manual");
+  const target = await startDisposablePostgres();
+  const sourceReader = new pg.Client({ connectionString: harness.api.postgres.connectionString });
+  const targetReader = new pg.Client({ connectionString: target.connectionString });
+  const targetDirectory = path.join(destinationRoot, "complete-restored");
+  let restored: Awaited<ReturnType<typeof buildApp>> | undefined;
+  try {
+    await restoreFullBackup({
+      archivePath: archived.path,
+      workingDirectory: destinationRoot,
+      targetDirectory,
+      targetConnectionString: target.connectionString,
+      activeConnectionString: harness.api.postgres.connectionString,
+      activeDirectory: harness.api.blobRoot,
+      key,
+    });
+    await sourceReader.connect();
+    await targetReader.connect();
+    const tables = (
+      await sourceReader.query<{ tablename: string }>(
+        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename",
+      )
+    ).rows;
+    expect(tables.length).toBeGreaterThan(30);
+    for (const { tablename } of tables) {
+      // Names originate from the system catalogue and still use quoted identifiers.
+      const identifier = `"${tablename.replaceAll('"', '""')}"`;
+      const query = `SELECT row_to_json(t)::text AS value FROM public.${identifier} t ORDER BY row_to_json(t)::text`;
+      expect((await targetReader.query(query)).rows, tablename).toEqual(
+        (await sourceReader.query(query)).rows,
+      );
+    }
+    await activateFullRestore({
+      targetDirectory,
+      targetConnectionString: target.connectionString,
+      key,
+    });
+    restored = await buildApp({
+      databaseUrl: target.connectionString,
+      blobRoot: targetDirectory,
+      logger: false,
+      security: loadSecurityConfig({
+        MYOWNNOTION_PUBLIC_ORIGIN: "http://127.0.0.1:5173",
+        MYOWNNOTION_API_HOST: "127.0.0.1",
+        MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
+        MYOWNNOTION_DEPLOYMENT_KEY_FILE: harness.deploymentKeyFile,
+      }),
+    });
+    expect(
+      (await restored.app.inject({ method: "GET", url: `/v1/items/${page.itemId}`, headers }))
+        .statusCode,
+    ).toBe(401);
+    const login = await restored.app.inject({
+      method: "POST",
+      url: "/v1/auth/login/password",
+      payload: {
+        password: "correct horse battery staple",
+        device: {
+          deviceBindingId: absentBinding,
+          name: "Absent full-recovery device",
+          platform: "Test platform",
+        },
+      },
+    });
+    expect(login.statusCode, login.body).toBe(200);
+    const setCookie = login.headers["set-cookie"];
+    const cookie = String(Array.isArray(setCookie) ? setCookie[0] : setCookie).split(";")[0] ?? "";
+    const fresh = {
+      cookie,
+      "x-csrf-token": login.json().csrfToken,
+      "x-myownnotion-client-protocol": "3",
+    };
+    const offlineTransaction = absent.transact([
+      {
+        type: "insert-block",
+        block: {
+          type: "paragraph",
+          id: generateUuidV7(),
+          content: [{ text: "created while the server was recovered" }],
+        },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+    const returned = await restored.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers: fresh,
+      payload: {
+        mode: "active",
+        requestId: generateUuidV7(),
+        operationalVersion: 1,
+        persistedVersionVector: Buffer.from(absent.versionVectorBytes()).toString("base64url"),
+        knownServerPageSequence: 0,
+        updates: [await transportUpdate(offlineTransaction)],
+        maxRemoteBytes: 1024 * 1024,
+        revisionBoundary: "editor-closed",
+      },
+    });
+    expect(returned.statusCode, returned.body).toBe(200);
+    const document = await restored.app.inject({
+      method: "GET",
+      url: `/v1/items/${page.itemId}`,
+      headers: fresh,
+    });
+    expect(document.statusCode, document.body).toBe(200);
+    expect(JSON.stringify(document.json().pageDocument.body)).toContain("full snapshot entry");
+    expect(JSON.stringify(document.json().pageDocument.body)).toContain(
+      "created while the server was recovered",
+    );
+    expect(
+      (
+        await targetReader.query("SELECT state FROM authorized_devices WHERE id = $1", [
+          absentDeviceId,
+        ])
+      ).rows,
+    ).toEqual([{ state: "active" }]);
+  } finally {
+    await restored?.close();
+    await sourceReader.end();
+    await targetReader.end();
+    await target.stop();
+    key.fill(0);
+  }
 });

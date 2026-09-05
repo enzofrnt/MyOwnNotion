@@ -16,6 +16,8 @@ image_key="$({
         apps/web/package.json \
         packages/*/package.json \
         docker/e2e-browser.Dockerfile \
+        docker/postgresql-pgdg.asc \
+        scripts/ci/install-postgres-client.sh \
         scripts/ci/check-toolchain.ts \
         scripts/e2e/bootstrap-container.sh
     printf '%s\n' "${playwright_base}" "${bun_base}"

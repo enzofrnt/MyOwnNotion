@@ -4,13 +4,21 @@
 
 ## Summary
 
+**2026-09-05 refinement**: [Feature 024](../024-full-server-backups/plan.md)
+adds the complete PostgreSQL-and-files recovery format used for daily and
+pre-migration protection. The canonical serialization below remains the
+portable content format; it is not an exhaustive copy of the database. Its
+historical no-second-serialization decision does not forbid this distinct
+server recovery format. Current maintained runtime and tooling are Bun 1.4.0,
+as required by constitution VII and feature 019.
+
 A backup is the existing canonical export, plus the file bytes, plus the
 versions needed to read it back, sealed as one archive and verified twice. A
 restoration is that archive applied to an empty workspace behind the same
 guards. An update is a version change that refuses to migrate until a verified
 backup for the version it is leaving exists.
 
-The load-bearing decision is **not to invent a second serialization**. Feature
+For the portable content format, reuse the existing serialization. Feature
 001 already produces a canonical export with a manifest and a checksum per
 element, and it is already exercised by contract tests. A backup format of its
 own would be a second description of the same workspace, and the two would
@@ -18,7 +26,7 @@ disagree the first time either changed.
 
 ## Technical Context
 
-**Language/Version**: TypeScript on Node.js 24, strict.
+**Language/Version**: TypeScript strict on Bun 1.4.0.
 
 **Primary Dependencies**: none new for the format — `@myownnotion/domain`'s
 canonical export, `@myownnotion/blob-store` for file bytes, the existing
@@ -53,7 +61,7 @@ files are included.
 | --- | --- |
 | I. User Ownership and Local Resilience | This *is* the principle: the owner can leave with their data and can survive losing the machine. The archive is documented and readable without this application. |
 | III. Incremental, Verifiable Delivery | Four user stories, each independently testable; the local destination makes every backup requirement verifiable without an account or a network. |
-| IV. Privacy and Security by Default | Encrypted before transfer; no secret, key or session in the archive, the manifest, the logs or the stored results — asserted by a test that greps the artefacts. |
+| IV. Privacy and Security by Default | Encrypt before transfer; no plaintext secret, usable key or session identifier in exposed metadata, logs or results. Feature 024 preserves historical security records inside authenticated ciphertext while keeping external recovery material separate. |
 | V. Simple, Modular Architecture | One destination boundary, one archive format, and the format is the existing export rather than a new one. |
 | VII. Reproducible Toolchains | CI restores reference backups across supported migration paths, which is what keeps FR-024 honest over time. |
 

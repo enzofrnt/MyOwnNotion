@@ -6,6 +6,10 @@
 ARG BUN_BASE
 
 FROM ${BUN_BASE}
+COPY docker/postgresql-pgdg.asc /tmp/pg-client/docker/postgresql-pgdg.asc
+COPY scripts/ci/install-postgres-client.sh /tmp/pg-client/scripts/ci/install-postgres-client.sh
+RUN bash /tmp/pg-client/scripts/ci/install-postgres-client.sh && rm -rf /tmp/pg-client
+ENV PATH="/usr/lib/postgresql/18/bin:${PATH}"
 WORKDIR /app
 ENV CI=1 \
     TZ=UTC

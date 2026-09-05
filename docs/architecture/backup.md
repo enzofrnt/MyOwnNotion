@@ -1,71 +1,96 @@
 # Backup, restoration and update safety
 
-The backup archive reuses the canonical export instead of defining another
-model of the workspace. Items, hierarchy, relationships, revision lineage and
-owner settings therefore have one portable representation; file bytes are
-added by digest beside that representation. The whole archive is sealed before
-the destination receives it, so no readable manifest or content name is stored
-at the provider.
+## Complete server recovery
 
-Operational pages add a second payload, not a second source of truth:
-`page-operations.json` contains the Loro checkpoints, retained update log,
-device frontiers and ambiguities required for causal convergence, while the
-canonical export remains their readable deterministic projection. Both are
-captured in one repeatable-read transaction and the backup is refused if
-replaying the operational state does not reproduce the canonical digest.
+Feature 024 makes complete backups the source of nightly and pre-migration
+protection. A PostgreSQL 18 custom dump contains the entire application database:
+reviewed and historical tables, indexes, constraints, sequences, owners, sessions,
+key envelopes, operational page state and migration inventory. This is a logical
+backup of one database, not a physical copy of PGDATA, other databases or global
+server roles.
 
-Verification happens twice for different reasons. The first check reads the
-staged sealed object back from disk. The second reads the transferred object
-through the destination boundary. Only the second proves that the durable copy
-is the one that was sent, and only a passing second check counts for retention,
-the 26-hour warning, restoration or an update.
+The archive also contains every durable content-addressed blob and precisely the
+committed prefix of each partial upload. A database-local advisory lock holds
+upload mutations before their row locks; the backup acquires it before opening
+an exported repeatable-read snapshot. File capture and `pg_dump --snapshot` see
+one consistent point. Upload finalization and prefix deletion cannot invalidate
+that capture. Physical blob garbage collection must hold the shared deletion
+lock through deletion. No runtime blob deletion path currently bypasses it.
 
-That same destination read-back is the only event allowed to mark an exact
-operational checkpoint as backed up. Compaction requires this durable evidence,
-the visible-history boundary and every still-authorized device frontier; age or
-absence alone never authorizes deletion.
+Components and their inventory are authenticated separately with AES-256-GCM.
+Only ciphertext is staged; the inventory identifies source application version,
+commit/image when recorded, PostgreSQL version, applied migrations, component
+paths, sizes and SHA-256 hashes. An unrecorded historical version is explicitly
+`V0 — version exacte inconnue`, never the version being installed. Historical
+migration checksums are not invented when the source ledger did not store them.
 
-## Why a rehearsal writes
+Local publication uses an exclusive, fsynced, fully verified archive followed by
+atomic publication and an encrypted receipt. A remote transfer happens afterwards
+and is read back independently. Remote failure keeps the verified local copy and
+is retried separately. Local protection does not imply survival of server loss.
+The archive is self-contained: inspection and restoration need its file and the
+separately retained deployment key, not the application backup catalogue.
 
-A dry run proves that an archive can be parsed. It cannot reveal a foreign-key,
-ordering or schema failure that occurs while writing. A test restoration
-therefore creates a disposable PostgreSQL database and a disposable blob root,
-applies the reviewed migrations, restores every row and file with the same
-writer used by a destructive restore, and drops both afterwards. The live
-database is never selected as the target, which makes isolation structural.
-For operational pages the rehearsal also rebuilds their encrypted causal state,
-projects it, and checks that an archived device identity can be represented;
-the destructive path retains the real authorization inventory so a device that
-was offline during restoration can still send its newer branch.
+Encrypted activity records describe successful, failed and unfinished attempts;
+they cannot qualify as a verified backup. A missing or changed archive does not
+satisfy the 26-hour protection deadline, even with a valid receipt. Retention keeps
+the newest verified local copy regardless of age and refuses to prune a configured
+remote copy when its deletion fails. Incomplete staging left after interruption
+is cleaned under the exclusive run lock; published recovery files remain intact.
 
-The owner-facing backup screen keeps two facts separate: when a backup last
-verified at its destination, and when a restoration was last rehearsed. The
-rehearsal action is safe to expose there because it can only target the
-disposable environment. Destructive restoration remains a host-local command.
+## Nightly runs and migrations
 
-## Where the update guard lives
+The scheduler checks a named IANA time zone, default UTC, and a local hour,
+default 04:00. It catches up at startup, including before today's deadline when
+yesterday's was missed, and retries every five minutes after failure. DST does
+not create a second daily deadline. A database-local run lock serializes manual,
+nightly, remote-maintenance and migration operations; scheduled calls recheck
+the verified deadline after obtaining it.
 
-The guard wraps the migration runner, before pending migration SQL is read. The
-Compose one-shot migration job and `bun run db:migrate` both use that wrapper, so a
-second entrypoint cannot silently bypass it.
+The migration wrapper inspects system catalogues before any current-schema
+initialization. A nonempty source with pending SQL or a changed application
+version must first produce a locally verified complete archive. There is no
+bootstrap exception for migration 0006. A failed backup leaves pending SQL and
+version records untouched. Empty installations initialize without pretending to
+have a previous backup. After migration, canonical integrity and the migration
+inventory are checked before recording the target version and previous full
+backup identity. Nullable provenance columns arrive in migration 0014.
 
-Migration `0006_installation_application_version` bootstraps the columns and
-backup records the guard itself needs. That one introduction can be applied to
-an older installation with no recorded application version. Every migration
-after it requires a verified `pre-update` backup. Once migrations finish, the
-runner checks that none remain, refuses an unfinished restoration, validates a
-fresh canonical export, and only then records the new application version and
-the matching previous-version backup.
+## Restoration and rehearsal
 
-The API healthcheck supplies the deployment-level half of the success decision:
-the migration job must finish and the API must subsequently report healthy
-before Compose starts dependent services.
+Every component authenticates before the first target write. Verification owns
+a private ciphertext copy so changes to the supplied path cannot alter the
+stream between preflight and restore. The target must be an explicitly selected
+empty PostgreSQL 18 database and a separate empty file directory. Existing parent
+symlinks are resolved when checking separation from active file storage.
 
-## Interrupted destructive restoration
+An encrypted marker binds a restore to its target database identity and cluster.
+It blocks application startup while incomplete and after data restore until
+explicit host activation. SQL restores in one transaction; a failure leaves the
+marker, never a silently healthy partial installation. Activation preserves device
+identities, revokes old sessions, requires fresh authentication and invalidates
+bootstrap capabilities and provisional kit downloads. Previously revoked devices
+and active recovery kits retain their states. Passwords, passkeys and protected
+content remain recoverable; a restored historical session is not trusted.
 
-A restoration attempt is inserted before any live write and finished only
-after the restore transaction commits or fails. A row left unfinished makes
-`/health` return 503 with the backup and attempt identifiers. Recovery is to fix
-the cause and re-run the same backup, or return to the safety backup taken by
-the preflight. The installation is never presented as healthy merely because
-the process restarted.
+A rehearsal actually creates an empty disposable database, restores the complete
+archive, reads and hashes restored file bytes, then removes the database and
+files. The owner can request it through a CSRF-protected endpoint; destructive
+restoration remains a host CLI command. The production-image smoke performs this
+same recovery with unknown historical SQL, a sequence, a blob and a partial upload.
+
+## Portable exports retained from feature 007
+
+The existing canonical export plus file payload remains available through
+`backup run`, `backup verify`, `restore test` and `restore apply`. Operational
+exports retain Loro checkpoints, update logs, device frontiers and ambiguities;
+their replay must reproduce the canonical digest. Their destination read-back
+remains the evidence used by existing checkpoint compaction. Complete backups do
+not silently grant new compaction permissions.
+
+Portable recovery has its own catalogue and transactional in-place restore guard.
+An unfinished portable restoration still makes health fail and requires its
+existing recovery procedure. Portable exports are labeled separately in settings
+and never replace the complete nightly, pre-migration or 26-hour safety checks.
+
+See [host recovery commands](../deployment/backups.md) for operator procedures.

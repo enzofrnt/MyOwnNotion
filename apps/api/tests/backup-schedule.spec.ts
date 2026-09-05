@@ -18,10 +18,10 @@ function at(iso: string): Date {
 }
 
 describe("deciding whether a backup is due", () => {
-  it("is not due before the hour", () => {
+  it("protects an installation with no verified backup even before the next nightly hour", () => {
     expect(
       backupIsDue({ now: at("2026-08-18T01:00:00Z"), lastRunAt: null, hour: 4, timeZone: PARIS }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("is due at the hour when nothing has run", () => {
@@ -70,6 +70,43 @@ describe("deciding whether a backup is due", () => {
 });
 
 describe("the days a clock moves", () => {
+  it("does not repeat a configured 02:00 backup during the autumn repeated hour", () => {
+    expect(
+      backupIsDue({
+        now: at("2026-10-25T01:30:00Z"),
+        lastRunAt: at("2026-10-25T00:00:00Z"),
+        hour: 2,
+        timeZone: PARIS,
+      }),
+    ).toBe(false);
+  });
+
+  it("catches up yesterday before today's scheduled hour without repeating an already verified backup", () => {
+    expect(
+      backupIsDue({
+        now: at("2026-08-20T01:00:00Z"),
+        lastRunAt: at("2026-08-18T02:00:00Z"),
+        hour: 4,
+        timeZone: PARIS,
+      }),
+    ).toBe(true);
+    expect(
+      backupIsDue({
+        now: at("2026-08-20T01:00:00Z"),
+        lastRunAt: at("2026-08-19T02:00:00Z"),
+        hour: 4,
+        timeZone: PARIS,
+      }),
+    ).toBe(false);
+    expect(
+      backupIsDue({
+        now: at("2026-08-20T03:00:00Z"),
+        lastRunAt: at("2026-08-20T01:00:00Z"),
+        hour: 4,
+        timeZone: PARIS,
+      }),
+    ).toBe(true);
+  });
   it("runs once on the spring-forward day, when it is 23 hours long", () => {
     // Paris moves 02:00 → 03:00 on 2026-03-29. The day is 23 hours long; a
     // 24-hour interval would push the next run into the following day.
@@ -87,7 +124,7 @@ describe("the days a clock moves", () => {
     // that day; a calendar day fires once.
     const again = backupIsDue({
       now: at("2026-10-25T05:00:00Z"), // still 2026-10-25 in Paris
-      lastRunAt: at("2026-10-25T02:00:00Z"), // 04:00 Paris (CEST), same day
+      lastRunAt: at("2026-10-25T03:00:00Z"), // 04:00 Paris (CET), same day
       hour: 4,
       timeZone: PARIS,
     });
@@ -109,13 +146,34 @@ describe("the days a clock moves", () => {
 });
 
 describe("the schedule loop", () => {
+  it("retries a failed attempt on the next five-minute tick and then stays quiet after success", async () => {
+    vi.useFakeTimers();
+    const now = at("2026-09-05T04:00:00Z");
+    let lastVerified: Date | null = null;
+    let attempts = 0;
+    const schedule = new BackupSchedule({
+      now: () => now,
+      runBackup: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("provider unavailable");
+        lastVerified = now;
+      },
+      lastVerifiedFullBackupAt: async () => lastVerified,
+      logger: { error: () => undefined },
+    });
+    schedule.start();
+    schedule.start();
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    schedule.stop();
+    expect(attempts).toBe(2);
+  });
   afterEach(() => {
     vi.useRealTimers();
   });
 
   function scheduleWith(overrides: {
     readonly runBackup?: () => Promise<void>;
-    readonly lastScheduledRunAt?: () => Promise<Date | null>;
+    readonly lastVerifiedFullBackupAt?: () => Promise<Date | null>;
     readonly logger?: { error: (details: unknown, message: string) => void };
     readonly now?: () => Date;
   }): BackupSchedule & { runs: number[] } {
@@ -126,7 +184,7 @@ describe("the schedule loop", () => {
         (async () => {
           state.runs.push(Date.now());
         }),
-      lastScheduledRunAt: overrides.lastScheduledRunAt ?? (async () => null),
+      lastVerifiedFullBackupAt: overrides.lastVerifiedFullBackupAt ?? (async () => null),
       logger: overrides.logger ?? { error: () => undefined },
       hour: 4,
       timeZone: "UTC",
@@ -140,7 +198,10 @@ describe("the schedule loop", () => {
     await due.evaluate();
     expect(due.runs).toHaveLength(1);
 
-    const early = scheduleWith({ now: () => at("2026-08-18T03:59:00Z") });
+    const early = scheduleWith({
+      now: () => at("2026-08-18T03:59:00Z"),
+      lastVerifiedFullBackupAt: async () => at("2026-08-17T04:00:00Z"),
+    });
     await early.evaluate();
     expect(early.runs).toHaveLength(0);
   });
@@ -158,7 +219,7 @@ describe("the schedule loop", () => {
         calls += 1;
         await gate;
       },
-      lastScheduledRunAt: async () => null,
+      lastVerifiedFullBackupAt: async () => null,
       logger: { error: () => undefined },
       now: () => at("2026-08-18T04:00:00Z"),
     });
@@ -174,7 +235,7 @@ describe("the schedule loop", () => {
     const logged: string[] = [];
     const schedule = new BackupSchedule({
       runBackup: async () => undefined,
-      lastScheduledRunAt: async () => {
+      lastVerifiedFullBackupAt: async () => {
         throw new Error("the ledger is unreadable");
       },
       logger: { error: (_details, message) => logged.push(message) },
@@ -194,6 +255,21 @@ describe("the schedule loop", () => {
     ]);
   });
 
+  it("retries remote transfers while the verified local backup is already current", async () => {
+    const runBackup = vi.fn();
+    const maintenance = vi.fn();
+    const schedule = new BackupSchedule({
+      runBackup,
+      maintenance,
+      lastVerifiedFullBackupAt: async () => at("2026-08-18T04:01:00Z"),
+      logger: { error: () => undefined },
+      now: () => at("2026-08-18T04:05:00Z"),
+    });
+    await schedule.evaluate();
+    expect(runBackup).not.toHaveBeenCalled();
+    expect(maintenance).toHaveBeenCalledOnce();
+  });
+
   it("stops cleanly and releases the timer", async () => {
     vi.useFakeTimers();
     let calls = 0;
@@ -201,7 +277,7 @@ describe("the schedule loop", () => {
       runBackup: async () => {
         calls += 1;
       },
-      lastScheduledRunAt: async () => null,
+      lastVerifiedFullBackupAt: async () => null,
       logger: { error: () => undefined },
       now: () => at("2026-08-18T04:00:00Z"),
       tickMs: 1_000,

@@ -27,8 +27,14 @@ import Fastify, {
 } from "fastify";
 import { restoreTestCommand } from "./admin/commands/restore-test.ts";
 import { openBackupArchive } from "./backup/archive-crypto.ts";
-import { createBackupDestination, loadBackupConfig } from "./backup/backup-config.ts";
+import {
+  createBackupDestination,
+  fullBackupRoot,
+  loadBackupConfig,
+} from "./backup/backup-config.ts";
 import { BACKUP_RECORD_FORMAT_VERSION } from "./backup/backup-service.ts";
+import { assertFullRestoreActivated } from "./backup/full/restore-state.ts";
+import { FullBackupService } from "./backup/full/service.ts";
 import { PageOperationArchiveService } from "./backup/page-operation-archive.ts";
 import type { AppContext } from "./context.ts";
 import {
@@ -106,6 +112,7 @@ import type { WebAuthnChallenge } from "./security/webauthn-service.ts";
 export interface BuildAppOptions {
   readonly databaseUrl: string;
   readonly blobRoot: string;
+  readonly fullBackupRoot?: string;
   readonly logger?: boolean;
   /**
    * Security configuration. Omitted in the feature-001 contract harness, which
@@ -207,6 +214,7 @@ function tryLoadSecurityConfig(
 }
 
 export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
+  await assertFullRestoreActivated(options.blobRoot);
   const database = createDatabase(options.databaseUrl);
   try {
     return await composeApp(options, database);
@@ -501,6 +509,17 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       workspaceId: workspace.id,
       now,
       require: requireOwner,
+      fullBackupService: new FullBackupService({
+        connectionString: options.databaseUrl,
+        blobRoot: options.blobRoot,
+        backupRoot: options.fullBackupRoot ?? fullBackupRoot(loadBackupConfig()),
+        key: () => {
+          const key = deploymentKey();
+          if (key === null) throw new Error("The deployment key is unavailable.");
+          return key;
+        },
+        now,
+      }),
       runRehearsal: async () => {
         const destination = createBackupDestination(loadBackupConfig());
         return await restoreTestCommand(

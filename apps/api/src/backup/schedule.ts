@@ -22,8 +22,10 @@ const TICK_MS = 5 * 60 * 1000;
 export interface BackupScheduleDeps {
   /** Runs one backup. Errors are caught by the schedule, never thrown out of it. */
   readonly runBackup: () => Promise<void>;
-  /** When the last scheduled backup started, so a restart does not repeat it. */
-  readonly lastScheduledRunAt: () => Promise<Date | null>;
+  /** When a complete backup last verified, so a failed attempt never suppresses retry. */
+  readonly lastVerifiedFullBackupAt: () => Promise<Date | null>;
+  /** Remote retries also run on ticks where local protection is already current. */
+  readonly maintenance?: () => Promise<void>;
   readonly logger: { error: (details: unknown, message: string) => void };
   readonly hour?: number;
   /** IANA zone; the server's configured one. */
@@ -60,7 +62,8 @@ export function dayIn(zone: string, instant: Date): string {
 /**
  * Whether a backup is due now.
  *
- * Due means: it is at or past the hour today, and today's backup has not run.
+ * Due means the most recent local calendar deadline has no verified full backup.
+ * Before today's hour, yesterday's missed deadline is still due.
  * Expressed against the *day* rather than against an elapsed duration, which is
  * what makes a clock change harmless — a day is a day whether it held 23 hours
  * or 25.
@@ -71,16 +74,16 @@ export function backupIsDue(input: {
   readonly hour: number;
   readonly timeZone: string;
 }): boolean {
-  if (hourIn(input.timeZone, input.now) < input.hour) {
-    return false;
-  }
-  if (input.lastRunAt === null) {
-    return true;
-  }
-  // Same calendar day in the configured zone means today's run already happened.
-  // A restart at 04:05 therefore does not produce a second backup, and one at
-  // 23:00 after a machine was down all day still produces today's.
-  return dayIn(input.timeZone, input.lastRunAt) !== dayIn(input.timeZone, input.now);
+  const today = dayIn(input.timeZone, input.now);
+  const previousDay = new Date(`${today}T12:00:00.000Z`);
+  previousDay.setUTCDate(previousDay.getUTCDate() - 1);
+  const dueDay =
+    hourIn(input.timeZone, input.now) < input.hour ? previousDay.toISOString().slice(0, 10) : today;
+  if (input.lastRunAt === null) return true;
+  const lastDay = dayIn(input.timeZone, input.lastRunAt);
+  if (lastDay < dueDay) return true;
+  if (lastDay > dueDay) return false;
+  return hourIn(input.timeZone, input.lastRunAt) < input.hour;
 }
 
 export class BackupSchedule {
@@ -105,20 +108,19 @@ export class BackupSchedule {
     try {
       const due = backupIsDue({
         now: this.#now(),
-        lastRunAt: await this.deps.lastScheduledRunAt(),
+        lastRunAt: await this.deps.lastVerifiedFullBackupAt(),
         hour: this.deps.hour ?? DEFAULT_BACKUP_HOUR,
         timeZone: this.deps.timeZone ?? "UTC",
       });
-      if (!due) {
-        return;
-      }
-      await this.deps.runBackup();
+      if (due) await this.deps.runBackup();
+      await this.deps.maintenance?.();
     } finally {
       this.#running = false;
     }
   }
 
   start(): void {
+    if (this.#timer !== null) return;
     // Evaluated immediately, like the rotation scheduler and for the same
     // reason: a process that restarts often would otherwise never reach the
     // interval, and a backup promised as daily would never happen.
@@ -134,7 +136,10 @@ export class BackupSchedule {
     } catch (error) {
       // A failed evaluation must not stop the schedule: tomorrow's may succeed,
       // and losing the schedule turns one bad night into permanent silence.
-      this.deps.logger.error({ err: error }, "scheduled backup failed");
+      this.deps.logger.error(
+        { errorType: error instanceof Error ? error.name : "UnknownError" },
+        "scheduled backup failed",
+      );
     }
   }
 

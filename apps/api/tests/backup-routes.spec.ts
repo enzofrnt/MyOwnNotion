@@ -1,6 +1,11 @@
+import { randomBytes } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Uuid } from "@myownnotion/domain";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FullBackupService } from "../src/backup/full/service.ts";
 import { type BackupRouteDeps, registerBackupRoutes } from "../src/routes/backups.ts";
 
 const repositoryMocks = vi.hoisted(() => ({
@@ -152,4 +157,47 @@ describe("owner-requested restore rehearsals", () => {
     expect(response.statusCode).toBe(status);
     expect(response.json().code).toBe(problemCode);
   });
+});
+
+it("refuses unavailable full backup capabilities without claiming a healthy backup", async () => {
+  const app = await appFor();
+  for (const [method, url] of [
+    ["GET", "/v1/backups/full/status"],
+    ["POST", "/v1/backups/full/rehearsals"],
+  ] as const) {
+    const response = await app.inject({ method, url });
+    expect(response.statusCode).toBe(500);
+    expect(response.json().code).toBe("internal_error");
+  }
+});
+
+it("uses the real clock and returns safe errors for unreadable full metadata and refused rehearsals", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mon-full-routes-"));
+  const app = Fastify({ logger: false });
+  apps.push(app);
+  try {
+    registerBackupRoutes(app, {
+      db: {} as never,
+      workspaceId: "018f2b7c-0000-7000-8000-000000000001" as Uuid,
+      require: () => owner,
+      fullBackupService: new FullBackupService({
+        connectionString: "postgres://fixture@127.0.0.1:1/unavailable",
+        blobRoot: join(root, "blobs"),
+        backupRoot: root,
+        key: () => randomBytes(32),
+      }),
+    });
+    const absent = await app.inject({ method: "GET", url: "/v1/backups/full/status" });
+    expect(absent.statusCode).toBe(200);
+    expect(absent.json()).toMatchObject({ stale: true, lastVerifiedAt: null });
+    await writeFile(join(root, ".full-backup-activity"), "private invalid activity fixture");
+    const unreadable = await app.inject({ method: "GET", url: "/v1/backups/full/status" });
+    expect(unreadable.statusCode).toBe(500);
+    expect(unreadable.body).not.toContain("private invalid");
+    const failed = await app.inject({ method: "POST", url: "/v1/backups/full/rehearsals" });
+    expect(failed.statusCode).toBe(409);
+    expect(failed.body).not.toMatch(/postgres|unavailable|fixture/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

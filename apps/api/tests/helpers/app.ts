@@ -38,6 +38,7 @@ export interface ApiHarnessOptions {
    */
   readonly clientProtocol?: number | "manual";
   readonly pageCheckpointRetention?: BuildAppOptions["pageCheckpointRetention"];
+  readonly fullBackupRoot?: string;
 }
 
 export async function createApiHarness(options: ApiHarnessOptions = {}): Promise<ApiHarness> {
@@ -47,6 +48,7 @@ export async function createApiHarness(options: ApiHarnessOptions = {}): Promise
     databaseUrl: postgres.connectionString,
     blobRoot,
     logger: options.logger ?? false,
+    ...(options.fullBackupRoot === undefined ? {} : { fullBackupRoot: options.fullBackupRoot }),
     ...(options.security === undefined ? {} : { security: options.security }),
     ...(options.now === undefined ? {} : { now: options.now }),
     ...(options.pageCheckpointRetention === undefined

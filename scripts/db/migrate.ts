@@ -12,6 +12,7 @@ import process from "node:process";
 import { APPLICATION_VERSION } from "../../apps/api/src/application-version.ts";
 import {
   createBackupDestination,
+  fullBackupRoot,
   loadBackupConfig,
 } from "../../apps/api/src/backup/backup-config.ts";
 import { runGuardedMigrations } from "../../apps/api/src/backup/guarded-migration.ts";
@@ -24,12 +25,16 @@ if (!connectionString) {
 }
 
 try {
+  const backupConfig = loadBackupConfig();
   const applied = await runGuardedMigrations({
     connectionString,
     runningVersion: APPLICATION_VERSION,
     installationId: "018f2b7c-0000-7000-8000-000000000001",
     blobRoot: process.env["MYOWNNOTION_BLOB_ROOT"]?.trim() || "./.dev-blobs",
-    destination: createBackupDestination(loadBackupConfig()),
+    backupRoot: fullBackupRoot(backupConfig),
+    ...(backupConfig.destination === "filesystem"
+      ? {}
+      : { remote: () => createBackupDestination(backupConfig) }),
     deploymentKey: () => loadDeploymentKey(process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"]).bytes,
   });
   if (applied.length === 0) {

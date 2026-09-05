@@ -5,6 +5,7 @@ import type { Database } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
 import type { BackupService } from "../backup/backup-service.ts";
 import type { BackupDestination } from "../backup/destinations/destination.ts";
+import type { FullBackupReceipt } from "../backup/full/receipts.ts";
 import type { RestoreScope } from "../backup/restore-service.ts";
 import type { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
@@ -34,6 +35,7 @@ export interface BackupAdminContext {
   readonly recordFormatVersion: number;
   readonly runningVersion: string;
   readonly pendingMigrations: readonly string[];
+  readonly fullBackups?: readonly FullBackupReceipt[];
   readonly terminalAvailable: boolean;
   readonly confirmRestore: (scope: RestoreScope) => Promise<boolean>;
 }
@@ -146,6 +148,7 @@ export async function runBackupAdminCommand(
         workspaceId: context.workspaceId,
         runningVersion: context.runningVersion,
         pendingMigrations: context.pendingMigrations,
+        ...(context.fullBackups === undefined ? {} : { fullBackups: context.fullBackups }),
       });
     default:
       throw new CommandUsageError(

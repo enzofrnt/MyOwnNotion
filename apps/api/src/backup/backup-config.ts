@@ -1,6 +1,7 @@
 /** Environment-backed backup configuration shared by the API and host CLI. */
 
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { BackupDestination } from "./destinations/destination.ts";
 import { FilesystemDestination } from "./destinations/filesystem.ts";
 import { GoogleDriveDestination } from "./destinations/google-drive.ts";
@@ -46,6 +47,12 @@ export function loadBackupConfig(
       "MYOWNNOTION_BACKUP_DESTINATION must be filesystem or google-drive",
     );
   }
+  const timeZone = env["MYOWNNOTION_BACKUP_TIME_ZONE"]?.trim() || env["TZ"]?.trim() || "UTC";
+  try {
+    new Intl.DateTimeFormat("en", { timeZone }).format(new Date());
+  } catch {
+    throw new BackupConfigError("MYOWNNOTION_BACKUP_TIME_ZONE must be a valid IANA time zone");
+  }
   return {
     destination: requested,
     root: env["MYOWNNOTION_BACKUP_ROOT"]?.trim() || "./.dev-backups",
@@ -59,7 +66,7 @@ export function loadBackupConfig(
       "MYOWNNOTION_BACKUP_RETENTION_DAYS",
       { min: 1, max: 36_500 },
     ),
-    timeZone: env["TZ"]?.trim() || "UTC",
+    timeZone,
     googleDriveTokenFile: env["MYOWNNOTION_BACKUP_GOOGLE_DRIVE_TOKEN_FILE"]?.trim() || undefined,
     googleDriveFolderId: env["MYOWNNOTION_BACKUP_GOOGLE_DRIVE_FOLDER_ID"]?.trim() || undefined,
   };
@@ -89,4 +96,9 @@ export function createBackupDestination(
     // restart and the credential is never retained in application state.
     accessToken: async () => await readFile(tokenFile, "utf8"),
   });
+}
+
+/** Complete archives are separate from the portable export destination. */
+export function fullBackupRoot(config: Pick<BackupConfig, "root">): string {
+  return join(config.root, "full");
 }

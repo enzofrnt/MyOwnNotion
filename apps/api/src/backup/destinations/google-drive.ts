@@ -63,7 +63,10 @@ export class GoogleDriveDestination implements BackupDestination {
 
   async #request(url: string, init?: RequestInit): Promise<Response> {
     try {
-      return await this.#fetch()(url, init);
+      return await this.#fetch()(url, {
+        ...init,
+        signal: init?.signal ?? AbortSignal.timeout(120_000),
+      });
     } catch {
       // Provider and network exceptions carry URLs and proxy details. Collapse
       // them at the boundary before they can reach a verification row or CLI.
@@ -118,31 +121,42 @@ export class GoogleDriveDestination implements BackupDestination {
         callback(null, chunk);
       },
     });
+    const onSourceError = (error: Error) => counted.destroy(error);
+    contents.on("error", onSourceError);
+    // A rejected request may stop consuming before the source reports an error.
+    counted.on("error", () => undefined);
     contents.pipe(counted);
-    const uploaded = await this.#request(location, {
-      method: "PUT",
-      headers: {
-        ...(await this.#headers()),
-        "content-length": String(byteLength),
-        "content-type": "application/octet-stream",
-      },
-      // Node's fetch accepts a Readable when `duplex` is half. The DOM-shaped
-      // RequestInit type does not expose that Node option, hence this narrow
-      // cast at the provider boundary.
-      body: counted as never,
-      duplex: "half",
-    } as RequestInit & { duplex: "half" });
-    if (!uploaded.ok) {
-      this.#unavailable("upload", uploaded.status);
-    }
-    if (sent !== byteLength) {
-      // The caller told us how large the archive is; a mismatch means the stream
-      // and the record disagree, and recording a size we did not send would make
-      // the after-transfer check compare against a fiction.
-      throw new DestinationUnavailableError(
-        this.name,
-        "the archive read from disk was not the size it was declared as",
-      );
+    try {
+      const uploaded = await this.#request(location, {
+        method: "PUT",
+        headers: {
+          ...(await this.#headers()),
+          "content-length": String(byteLength),
+          "content-type": "application/octet-stream",
+        },
+        // Bun fetch accepts a Readable when `duplex` is half. The DOM-shaped
+        // RequestInit type does not expose that option, hence this narrow
+        // cast at the provider boundary.
+        body: counted as never,
+        duplex: "half",
+      } as RequestInit & { duplex: "half" });
+      if (!uploaded.ok) {
+        this.#unavailable("upload", uploaded.status);
+      }
+      if (sent !== byteLength) {
+        // The caller told us how large the archive is; a mismatch means the stream
+        // and the record disagree, and recording a size we did not send would make
+        // the after-transfer check compare against a fiction.
+        throw new DestinationUnavailableError(
+          this.name,
+          "the archive read from disk was not the size it was declared as",
+        );
+      }
+    } finally {
+      contents.unpipe(counted);
+      contents.off("error", onSourceError);
+      contents.destroy();
+      counted.destroy();
     }
   }
 

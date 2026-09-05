@@ -35,6 +35,47 @@ describe("the unified local administration entrypoint", () => {
     expect(output.join("\n")).toContain("backup run");
   });
 
+  it("lists full recovery archives before touching the current schema and reports an absent inventory honestly", async () => {
+    vi.stubEnv("DATABASE_URL", "postgres://unavailable:private@127.0.0.1:1/missing");
+    try {
+      const output: string[] = [];
+      expect(
+        await runAdminCli(["backup", "full", "list", "--json"], (line) => output.push(line)),
+      ).toBe(EXIT_CODES.ok);
+      expect(JSON.parse(output.at(-1) ?? "{}")).toMatchObject({
+        ok: true,
+        data: {
+          backups: [],
+          unavailableArtifacts: 0,
+          invalidReceipts: 0,
+          uncataloguedArtifacts: [],
+        },
+      });
+    } finally {
+      vi.stubEnv("DATABASE_URL", harness.postgres.connectionString);
+    }
+  });
+
+  it("creates a full archive and verifies it through the unified entrypoint", async () => {
+    const output: string[] = [];
+    expect(
+      await runAdminCli(["backup", "full", "run", "--json"], (line) => output.push(line)),
+    ).toBe(EXIT_CODES.ok);
+    const result = JSON.parse(output.at(-1) ?? "{}");
+    expect(result).toMatchObject({ ok: true, data: { remote: "not-configured" } });
+    const archive = path.join(directory, "backups", "full", `${result.data.backupId}.monfull`);
+    const verification: string[] = [];
+    expect(
+      await runAdminCli(["backup", "full", "verify", "--file", archive, "--json"], (line) =>
+        verification.push(line),
+      ),
+    ).toBe(EXIT_CODES.ok);
+    expect(JSON.parse(verification.at(-1) ?? "{}")).toMatchObject({
+      ok: true,
+      data: { componentCount: 1 },
+    });
+  });
+
   it("runs and then verifies a real backup through JSON output", async () => {
     const created: string[] = [];
     expect(await runAdminCli(["backup", "run", "--json"], (line) => created.push(line))).toBe(

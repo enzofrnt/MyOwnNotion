@@ -348,6 +348,7 @@ describe("reviewed SQL migrations", () => {
         "0011_page_operation_compaction_indexes",
         "0012_upload_attachment_parent",
         "0013_item_icons",
+        "0014_full_backup_provenance",
       ]);
       const { rows } = await client.query<{
         format_version: number;

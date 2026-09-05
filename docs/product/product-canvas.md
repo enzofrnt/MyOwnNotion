@@ -1289,6 +1289,16 @@ Aucune télémétrie externe n'est activée par défaut. Toute télémétrie fut
 
 Une sauvegarde automatique est exécutée chaque jour à 4 h selon le fuseau horaire configuré sur le serveur.
 
+La protection de référence est une sauvegarde complète de la base applicative
+et des fichiers durables du serveur, indépendante de l'export de contenus. Elle
+conserve aussi les états que les pages ne montrent pas : authentification,
+enveloppes de clés, opérations en attente et préfixes validés des uploads.
+La feature [024](../../specs/024-full-server-backups/spec.md) précise ce contrat.
+Chaque sauvegarde complète vérifiée reste disponible dans un répertoire
+configurable, même si le transfert distant échoue. Un essai échoué ne compte
+pas comme réussite quotidienne ; les échéances manquées sont rattrapées au
+redémarrage et les erreurs réessayées le même jour.
+
 Elle contient :
 
 - contenus ;
@@ -1315,6 +1325,9 @@ Chaque sauvegarde doit être :
 - chiffrée avant transfert ;
 - vérifiée après création et après transfert ;
 - associée à une version de l'application ;
+- associée à la version source réellement connue et à l'inventaire des
+  migrations ; pour les anciennes installations non tracées, porter
+  explicitement « V0 — version exacte inconnue », jamais la version cible ;
 - restaurable ;
 - testable sans écraser l'installation active ;
 - observable depuis l'interface et les commandes administratives.
@@ -1328,6 +1341,9 @@ La rétention par défaut est de trois mois et reste configurable. La suppressio
 
 Le propriétaire doit être averti de manière visible si aucune sauvegarde vérifiée n'a réussi depuis plus de 26 heures.
 
+L'état de protection complète est distinct de celui d'un export portable.
+La réussite d'un export ne masque pas l'absence de sauvegarde complète.
+
 Le kit de récupération et les secrets nécessaires ne doivent pas être sauvegardés en clair avec les données. La documentation doit expliquer précisément ce qui est nécessaire pour restaurer sur une nouvelle machine.
 
 ---
@@ -1340,6 +1356,15 @@ La restauration doit pouvoir être exécutée :
 - sur une installation vide ;
 - après perte du serveur ;
 - vers une version explicitement compatible.
+
+Une sauvegarde complète peut être inspectée et restaurée depuis son artefact et
+les secrets externes requis, sans accès au catalogue de l'ancien serveur. La
+commande de restauration complète cible un environnement explicitement vide,
+valide toutes les données avant écriture et refuse l'installation active.
+Sa remise en service exige une réactivation de sécurité explicite : les anciens
+enregistrements d'appareils et de sessions ne rétablissent pas silencieusement
+la confiance. Les identités nécessaires à la reprise des opérations hors ligne
+sont conservées.
 
 Avant une restauration destructive, le système doit :
 
@@ -1376,6 +1401,11 @@ Avant toute mise à jour :
 6. si la sauvegarde échoue, la mise à jour échoue ;
 7. si sa vérification échoue, la mise à jour échoue ;
 8. la migration commence uniquement après validation.
+
+Cette protection précède aussi les anciennes migrations d'initialisation qui
+ajoutent les tables utilisées par le garde lui-même. L'inspection préalable
+d'un schéma ancien est en lecture seule ; seule une base réellement vide peut
+être initialisée sans sauvegarde de données inexistantes.
 
 Le système doit conserver les informations permettant de revenir :
 

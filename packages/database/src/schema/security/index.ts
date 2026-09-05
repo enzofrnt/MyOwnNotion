@@ -72,6 +72,10 @@ export const installations = pgTable(
      * carries on from.
      */
     applicationVersion: text("application_version"),
+    applicationCommit: text("application_commit"),
+    applicationImage: text("application_image"),
+    /** Independent full recovery artifact; never a portable-catalogue foreign key. */
+    previousFullBackupId: uuid("previous_full_backup_id"),
     /** What to go back to, and which backup belongs to it (FR-025). */
     previousApplicationVersion: text("previous_application_version"),
     previousBackupId: uuid("previous_backup_id"),
@@ -80,6 +84,10 @@ export const installations = pgTable(
   },
   (table) => [
     singleton("installations_singleton_idx"),
+    check(
+      "installations_application_commit_check",
+      sql`${table.applicationCommit} IS NULL OR ${table.applicationCommit} ~ '^[0-9a-f]{40,64}$'`,
+    ),
     check(
       "installations_state_check",
       sql`${table.state} IN ('uninitialized', 'bootstrap-in-progress', 'recovery-required', 'ready', 'migration-in-progress', 'degraded')`,

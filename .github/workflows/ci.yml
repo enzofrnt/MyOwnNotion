@@ -145,6 +145,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.impact.outputs.unit_mode != 'none'
       - uses: ./.github/actions/setup-bun
+        with:
+          postgres-client: "true"
         if: needs.impact.outputs.unit_mode != 'none'
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         if: needs.impact.outputs.unit_mode != 'none'
@@ -189,6 +191,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.impact.outputs.integration_mode != 'none'
       - uses: ./.github/actions/setup-bun
+        with:
+          postgres-client: "true"
         if: needs.impact.outputs.integration_mode != 'none'
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         if: needs.impact.outputs.integration_mode != 'none'
@@ -204,6 +208,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-bun
+        with:
+          postgres-client: "true"
       # This is intentionally not impact-filtered. A committed reference
       # archive is compatibility evidence for every candidate, including one
       # whose apparent source impact does not reach the restore code.
@@ -220,6 +226,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.impact.outputs.contract_mode != 'none'
       - uses: ./.github/actions/setup-bun
+        with:
+          postgres-client: "true"
         if: needs.impact.outputs.contract_mode != 'none'
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         if: needs.impact.outputs.contract_mode != 'none'
@@ -243,6 +251,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: matrix.project != 'none'
       - uses: ./.github/actions/setup-bun
+        with:
+          postgres-client: "true"
         if: matrix.project != 'none'
       - name: Prepare disposable protected-storage fixtures
         if: matrix.project != 'none'

@@ -81,6 +81,8 @@ export function renderResult(result: CommandResult, options: RenderOptions): str
 export function exitCodeFor(error: unknown): ExitCode {
   if (error instanceof Error) {
     switch (error.name) {
+      case "FullRestoreRefusal":
+        return EXIT_CODES.refused;
       case "KeyUnavailableError":
       case "DeploymentKeyUnavailableError":
         return EXIT_CODES.keyUnavailable;

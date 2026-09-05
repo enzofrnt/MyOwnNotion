@@ -91,3 +91,5 @@ if [[ "$server_output" != *"ECONNREFUSED"* ]]; then
 fi
 
 echo "Packaged API runtime smoke passed (Bun 1.4.0, no standalone Node.js runtime, migration entrypoint, server entrypoint)."
+
+bash "$(dirname -- "${BASH_SOURCE[0]}")/smoke-full-backup-image.sh" "$image"

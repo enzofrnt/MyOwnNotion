@@ -28,6 +28,8 @@ import {
   type BrowserDeviceClaimDto,
   CSRF_TOKEN_HEADER,
   type DeviceDto,
+  type FullBackupRehearsal,
+  type FullBackupStatus,
   type InstallationStatusDto,
   type PasskeyViewDto,
   type RotationPolicyViewDto,
@@ -523,6 +525,17 @@ export class SecurityApi {
 
   async backupStatus(): Promise<SecurityResult<BackupStatusView>> {
     return await this.#authenticatedJson<BackupStatusView>("/v1/backups/status");
+  }
+
+  async fullBackupStatus(): Promise<SecurityResult<FullBackupStatus>> {
+    return await this.#authenticatedJson<FullBackupStatus>("/v1/backups/full/status");
+  }
+
+  async runFullBackupRehearsal(): Promise<SecurityResult<FullBackupRehearsal>> {
+    return await this.#authenticatedJson<FullBackupRehearsal>("/v1/backups/full/rehearsals", {
+      method: "POST",
+      csrf: true,
+    });
   }
 
   async runBackupRehearsal(): Promise<SecurityResult<BackupRehearsalResult>> {

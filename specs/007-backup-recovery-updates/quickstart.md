@@ -1,10 +1,12 @@
 # Quickstart: Backup, Recovery and Updates
 
+> Feature 024 now owns complete nightly and pre-migration protection. This guide
+> describes retained portable exports. See [complete recovery](../../docs/deployment/backups.md).
+
 
 > **Chaîne actuelle (feature 019, livrée)** : Bun 1.4.0 exclusivement. Installer
-> avec `bun ci` et orchestrer avec `bun run`. Les mentions de pnpm ou Node.js
-> plus bas décrivent l'époque de construction de cette feature ; elles ne sont
-> plus la procédure à exécuter. Guide vivant :
+> avec `bun ci` et orchestrer avec `bun run`. Les anciens exemples pnpm ou Node.js
+> ne sont plus la procédure à exécuter. Guide vivant :
 > [`docs/development.md`](../../docs/development.md).
 
 How to prove this feature works, by hand, in about ten minutes. Every step here
@@ -14,8 +16,8 @@ uses the local destination, so none of it needs an account or a network.
 
 ```bash
 docker compose up -d --wait postgres
-pnpm db:migrate
-pnpm dev
+bun run db:migrate
+bun run dev
 ```
 
 Set a destination for the run:
@@ -28,7 +30,7 @@ export MYOWNNOTION_BACKUP_ROOT=./.dev-backups
 ## 1. Produce a backup and watch it verify
 
 ```bash
-pnpm admin backup run --json
+bun run admin -- backup run --json
 ```
 
 Expect exit 0 and two verification results — `after-creation` and
@@ -56,7 +58,7 @@ stronger form.
 ## 3. Rehearse a restoration
 
 ```bash
-pnpm admin restore test --latest --json
+bun run admin -- restore test --latest --json
 ```
 
 Expect exit 0, a count of restored items, and — the point of the exercise — a
@@ -83,7 +85,7 @@ Reload. The warning is stated plainly, not badged.
 ## 5. Refuse an incompatible restoration
 
 ```bash
-pnpm admin restore apply --id <backup-id> --dry-run
+bun run admin -- restore apply --id <backup-id> --dry-run
 ```
 
 Then edit the archive's manifest `schemaVersion` to a future number and try
@@ -96,7 +98,7 @@ Simulate a version change with no verified backup:
 ```bash
 psql "$DATABASE_URL" -c "UPDATE installations SET application_version = '0.0.1'"
 psql "$DATABASE_URL" -c "DELETE FROM backup_verifications"
-pnpm dev
+bun run dev
 ```
 
 Expect the application to refuse to run migrations and to say why. This is the

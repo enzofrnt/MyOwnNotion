@@ -1,31 +1,26 @@
-/** The one migration path: bootstrap the guard, back up, migrate, then verify. */
-
+/** Inspect first, protect the complete source, migrate, verify, then record the build. */
 import { ContentStore, FilesystemBlobStore, PartialUploadStore } from "@myownnotion/blob-store";
 import {
   createDatabase,
   createInstallation,
-  findInstallation,
   getOrCreateWorkspace,
   migrate,
   migrationInventory,
-  recordApplicationUpdate,
-  recordInitialApplicationVersion,
+  recordFullApplicationUpdate,
   unfinishedRestoration,
 } from "@myownnotion/database";
-import { type Uuid, validateCanonicalExport } from "@myownnotion/domain";
-import { runBackupCommand } from "../admin/commands/backup-commands.ts";
+import { validateCanonicalExport } from "@myownnotion/domain";
+import pg from "pg";
 import type { AppContext } from "../context.ts";
 import { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import { buildManifest } from "../routes/export.ts";
 import { createProtectedContentRuntime } from "../security/protected-content-runtime.ts";
-import { sealBackupArchiveFile } from "./archive-crypto.ts";
-import { BackupService } from "./backup-service.ts";
 import type { BackupDestination } from "./destinations/destination.ts";
+import { acquireFullRunLock } from "./full/locks.ts";
+import { assertFullRestoreActivated } from "./full/restore-state.ts";
+import { FullBackupService } from "./full/service.ts";
+import { inspectFullSource } from "./full/source.ts";
 import { PageOperationArchiveService } from "./page-operation-archive.ts";
-import { decideUpdate } from "./update-guard.ts";
-
-/** The migration that adds the columns the guard itself needs to read. */
-export const UPDATE_GUARD_BOOTSTRAP_MIGRATION = "0006_installation_application_version";
 
 export class UpdateRefusedError extends Error {
   constructor(message: string) {
@@ -38,9 +33,12 @@ export interface GuardedMigrationInput {
   readonly connectionString: string;
   readonly migrationsDir?: string;
   readonly runningVersion: string;
+  readonly runningCommit?: string;
+  readonly runningImage?: string;
   readonly installationId: string;
   readonly blobRoot: string;
-  readonly destination: BackupDestination;
+  readonly backupRoot: string;
+  readonly remote?: () => BackupDestination;
   readonly deploymentKey: () => Uint8Array;
   readonly logger?: {
     info(details: unknown, message: string): void;
@@ -48,176 +46,114 @@ export interface GuardedMigrationInput {
   };
 }
 
-/**
- * Applies migrations only through the guard's own schema first.
- *
- * An installation older than feature 007 has no application-version column to
- * inspect and no backup tables to record into. That one bootstrap is therefore
- * necessarily unguarded. Every migration shipped after it goes through the
- * verified-backup path below.
- */
 export async function runGuardedMigrations(input: GuardedMigrationInput): Promise<string[]> {
-  const migrationOptions = {
-    ...(input.migrationsDir === undefined ? {} : { migrationsDir: input.migrationsDir }),
-  };
-  const applied = await migrate(input.connectionString, {
-    ...migrationOptions,
-    throughVersion: UPDATE_GUARD_BOOTSTRAP_MIGRATION,
+  await assertFullRestoreActivated(input.blobRoot);
+  const migrationOptions =
+    input.migrationsDir === undefined ? {} : { migrationsDir: input.migrationsDir };
+  const coordinator = new pg.Client({
+    connectionString: input.connectionString,
+    connectionTimeoutMillis: 15_000,
   });
-
-  const database = createDatabase(input.connectionString);
+  let release: (() => Promise<void>) | undefined;
   try {
-    const workspace = await getOrCreateWorkspace(database.db);
-    await createInstallation(database.db, {
-      id: input.installationId,
-      sourceLineageId: input.installationId,
-      schemaVersion: workspace.schemaVersion,
-    });
-    const installation = await findInstallation(database.db);
-    if (installation === null) {
-      throw new UpdateRefusedError("the installation version could not be inspected");
-    }
-
+    await coordinator.connect();
+    release = await acquireFullRunLock(coordinator);
+    const before = await inspectFullSource(coordinator);
     const inventory = await migrationInventory(input.connectionString, migrationOptions);
-    const remainingMigrations = inventory.pending;
-    const contentStore = new ContentStore(new FilesystemBlobStore(input.blobRoot));
-    const protectedRuntime = createProtectedContentRuntime({
-      db: database.db,
-      installationId: input.installationId,
-      workspaceId: workspace.id,
-      deploymentKey: () => Buffer.from(input.deploymentKey()),
-    });
-    const pageOperationArchive = new PageOperationArchiveService({
-      workspaceId: workspace.id,
-      crypto: new PageOperationCrypto(protectedRuntime.records),
-    });
-    const context: AppContext = {
-      db: database.db,
-      workspaceId: workspace.id,
-      schemaVersion: workspace.schemaVersion,
-      contentStore,
-      partialUploads: new PartialUploadStore(input.blobRoot),
-      protectedContent: protectedRuntime.content,
-      pageOperationArchive,
-    };
-
-    const backupForUpdate = async (
-      applicationVersion: string,
-      supersededByVersion?: string,
-    ): Promise<Uuid | null> => {
+    if (inventory.applied.some((version) => !inventory.available.includes(version))) {
+      throw new UpdateRefusedError(
+        "The source contains migrations unknown to this build. No migration has run.",
+      );
+    }
+    const changingVersion = before.source.applicationVersion !== input.runningVersion;
+    let fullBackupId: string | null = null;
+    if (before.nonempty && (inventory.pending.length > 0 || changingVersion)) {
       try {
-        const service = new BackupService({
-          context,
-          destination: input.destination,
-          applicationVersion,
-          seal: async (plaintextPath, sealedPath) =>
-            await sealBackupArchiveFile(input.deploymentKey(), plaintextPath, sealedPath),
+        const backup = new FullBackupService({
+          connectionString: input.connectionString,
+          blobRoot: input.blobRoot,
+          backupRoot: input.backupRoot,
+          key: input.deploymentKey,
+          ...(input.remote === undefined ? {} : { remote: input.remote }),
         });
-        const result = await runBackupCommand(
-          {
-            db: database.db,
-            workspaceId: workspace.id,
-            service,
-            destination: input.destination,
-          },
-          "pre-update",
-          supersededByVersion,
-        );
-        const backupId = result.data?.["backupId"];
-        return result.code === 0 && typeof backupId === "string" ? (backupId as Uuid) : null;
+        const result = await backup.run("pre-update", coordinator);
+        fullBackupId = result.manifest.backupId;
       } catch (error) {
         input.logger?.error(
           { errorType: error instanceof Error ? error.name : "UnknownError" },
-          "pre-update backup failed",
+          "complete pre-update backup failed",
         );
-        return null;
+        throw new UpdateRefusedError(
+          "A verified complete backup could not be produced. No migration or schema bootstrap has run.",
+        );
       }
-    };
-
-    let updateBackupId: Uuid | null = null;
-    if (installation.applicationVersion === null) {
-      // The first observed version is not a change. If a newer migration than
-      // the guard is already waiting, however, it still gets a backup before it
-      // runs — the absence of history does not waive the migration invariant.
-      if (remainingMigrations.length > 0) {
-        updateBackupId = await backupForUpdate(input.runningVersion);
-        if (updateBackupId === null) {
-          throw new UpdateRefusedError(
-            "A verified backup could not be produced before the pending migration. No pending migration has run.",
-          );
-        }
-      }
-    } else if (installation.applicationVersion === input.runningVersion) {
-      if (remainingMigrations.length > 0) {
-        updateBackupId = await backupForUpdate(installation.applicationVersion);
-        if (updateBackupId === null) {
-          throw new UpdateRefusedError(
-            "A verified backup could not be produced before the pending migration. No pending migration has run.",
-          );
-        }
-      }
-    } else {
-      const decision = await decideUpdate({
-        runningVersion: input.runningVersion,
-        recordedVersion: installation.applicationVersion,
-        backupForUpdate: async (from, to) => await backupForUpdate(from, to),
-      });
-      if (decision.kind === "refused") {
-        throw new UpdateRefusedError(decision.reason);
-      }
-      if (decision.kind !== "proceed") {
-        throw new UpdateRefusedError("the application version change was not resolved safely");
-      }
-      updateBackupId = decision.backupId;
     }
 
-    const migrated = await migrate(input.connectionString, migrationOptions);
-    applied.push(...migrated);
-
-    // Integrity and health are checked before the new version is committed as
-    // successful. The deployment's HTTP healthcheck is the second half once the
-    // API starts; this verifies the database side while the migration job still
-    // has authority to fail the rollout.
-    const after = await migrationInventory(input.connectionString, migrationOptions);
-    if (after.pending.length > 0) {
-      throw new UpdateRefusedError("one or more reviewed migrations remain unapplied");
-    }
-    if ((await unfinishedRestoration(database.db)) !== null) {
-      throw new UpdateRefusedError(
-        "an unfinished restoration exists; the installation cannot be reported healthy",
-      );
-    }
-    const exportIssues = validateCanonicalExport(await buildManifest(context));
-    if (exportIssues.length > 0) {
-      throw new UpdateRefusedError(
-        "the post-migration canonical integrity check failed; the update is not marked successful",
-      );
-    }
-
-    if (installation.applicationVersion === null) {
-      await recordInitialApplicationVersion(database.db, {
-        installationId: installation.id,
-        applicationVersion: input.runningVersion,
-      });
-    } else if (installation.applicationVersion !== input.runningVersion) {
-      if (updateBackupId === null) {
-        throw new UpdateRefusedError("the verified pre-update backup record is missing");
-      }
-      await recordApplicationUpdate(database.db, {
-        installationId: installation.id,
-        from: installation.applicationVersion,
-        to: input.runningVersion,
-        backupId: updateBackupId,
+    // First schema mutation, including sources older than the guard's own tables.
+    const applied = await migrate(input.connectionString, migrationOptions);
+    const database = createDatabase(input.connectionString);
+    try {
+      const workspace = await getOrCreateWorkspace(database.db);
+      const installationId = before.source.installationId ?? input.installationId;
+      await createInstallation(database.db, {
+        id: installationId,
+        sourceLineageId: installationId,
         schemaVersion: workspace.schemaVersion,
       });
+      const protectedRuntime = createProtectedContentRuntime({
+        db: database.db,
+        installationId,
+        workspaceId: workspace.id,
+        deploymentKey: () => Buffer.from(input.deploymentKey()),
+      });
+      const context: AppContext = {
+        db: database.db,
+        workspaceId: workspace.id,
+        schemaVersion: workspace.schemaVersion,
+        contentStore: new ContentStore(new FilesystemBlobStore(input.blobRoot)),
+        partialUploads: new PartialUploadStore(input.blobRoot),
+        protectedContent: protectedRuntime.content,
+        pageOperationArchive: new PageOperationArchiveService({
+          workspaceId: workspace.id,
+          crypto: new PageOperationCrypto(protectedRuntime.records),
+        }),
+      };
+      if ((await migrationInventory(input.connectionString, migrationOptions)).pending.length > 0) {
+        throw new UpdateRefusedError("One or more reviewed migrations remain unapplied.");
+      }
+      if ((await unfinishedRestoration(database.db)) !== null) {
+        throw new UpdateRefusedError(
+          "An unfinished restoration exists; the installation cannot be reported healthy.",
+        );
+      }
+      if (validateCanonicalExport(await buildManifest(context)).length > 0) {
+        throw new UpdateRefusedError(
+          "Post-migration canonical integrity failed; the target version is not recorded as successful.",
+        );
+      }
+      await recordFullApplicationUpdate(database.db, {
+        installationId,
+        from: before.source.applicationVersion,
+        to: input.runningVersion,
+        fullBackupId,
+        schemaVersion: workspace.schemaVersion,
+        commit:
+          input.runningCommit ?? /^sha-([0-9a-f]{40})$/.exec(input.runningVersion)?.[1] ?? null,
+        image: input.runningImage ?? null,
+      });
+      input.logger?.info(
+        { migrationCount: applied.length, fullBackupId },
+        "guarded migrations completed",
+      );
+      return applied;
+    } finally {
+      await database.close();
     }
-
-    input.logger?.info(
-      { migrationCount: applied.length },
-      applied.length === 0 ? "database is already up to date" : "guarded migrations completed",
-    );
-    return applied;
   } finally {
-    await database.close();
+    try {
+      await release?.();
+    } finally {
+      await coordinator.end();
+    }
   }
 }

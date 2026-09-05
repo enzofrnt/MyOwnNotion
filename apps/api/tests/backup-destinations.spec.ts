@@ -97,6 +97,22 @@ function recordedDrive(): { destination: BackupDestination; stored: Map<string, 
   };
 }
 
+it("propagates a source read failure through Drive upload, cleans the stream and keeps private diagnostics local", async () => {
+  const { destination, stored } = recordedDrive();
+  const source = Readable.from(
+    (async function* () {
+      yield Buffer.from("partial archive");
+      throw new Error("private source read failure");
+    })(),
+  );
+  await expect(destination.put("failed.bin", source, 100)).rejects.toThrow(
+    "provider could not be reached",
+  );
+  expect(source.destroyed).toBe(true);
+  expect(source.listenerCount("error")).toBe(0);
+  expect(stored.size).toBe(0);
+});
+
 let root: string;
 
 beforeAll(() => {
