@@ -1,6 +1,6 @@
 # Implementation Plan: Shared UI quality skill
 
-**Branch**: `codex/pre-v1-data-quality` | **Date**: 2026-09-05 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/023-ui-quality-guidance` | **Date**: 2026-09-05 | **Spec**: [spec.md](spec.md)
 
 ## Summary
 

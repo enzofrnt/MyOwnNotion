@@ -1,6 +1,6 @@
 # Feature Specification: Shared UI quality skill
 
-**Feature Branch**: `codex/pre-v1-data-quality`
+**Feature Branch**: `codex/023-ui-quality-guidance`
 **Created**: 2026-09-05
 **Status**: Specified
 **Input**: The owner requests a reusable in-repository UI skill covering buttons,
