@@ -134,3 +134,5 @@ Firefox dans le conteneur documenté, sans retry (48,5 s), ainsi que dix tests
 unitaires de résolution/navigation et la vérification des types Web. La passe
 complète précédente a été arrêtée après collecte de l'échec Firefox pour
 relancer tous les contrôles sur le commit corrigé.
+
+La passe complète sur `5b16f216` valide Chromium, Firefox et WebKit desktop. Le contrôle visuel Chromium mobile détecte une alerte coffre OS indue dans le navigateur Web. Le composant garde désormais le silence sans bridge natif ; un véritable refus IPC natif produit un état indisponible expurgé, y compris dans les diagnostics. Cinq tests de rendu couvrent navigateur, coffre disponible/verrouillé/indisponible et rejet IPC ; ils passent, ainsi que les types Web. La référence visuelle existante est conservée. La passe complète devra être relancée sur le correctif.

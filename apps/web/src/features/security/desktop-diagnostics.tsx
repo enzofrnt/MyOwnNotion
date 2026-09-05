@@ -9,13 +9,22 @@ export function DesktopDiagnostics() {
     if (desktop === undefined) {
       return;
     }
-    void desktop.getKeyState().then((state) => {
+    let mounted = true;
+    const showState = (state: string) => {
+      if (!mounted) return;
       setLines([
         `${FR_COPY.desktop.diagnostics.platform}: ${desktop.platform}`,
         `${FR_COPY.desktop.diagnostics.version}: ${desktop.appVersion}`,
-        `${FR_COPY.desktop.diagnostics.key}: ${state.state}`,
+        `${FR_COPY.desktop.diagnostics.key}: ${state}`,
       ]);
-    });
+    };
+    void desktop.getKeyState().then(
+      (result) => showState(result.state),
+      () => showState("unavailable"),
+    );
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (lines.length === 0) {

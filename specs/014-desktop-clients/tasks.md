@@ -257,3 +257,5 @@ fichier concret.
 - [X] T085 Replace the Bun-incompatible legacy DMG addon chain with a Forge maker using macOS `ditto` and `hdiutil` in `apps/desktop/makers/dmg.ts`; verify clean frozen installs, actual DMG creation/mounting and preserved app contents through `apps/desktop/tests/dmg-maker.spec.ts`.
 
 - [X] T086 Resolve internal page navigation from the committed local record instead of a stale rendered tree in `apps/web/src/features/hierarchy/page-link-target.ts` and `hierarchy-explorer.tsx`; prove the immediate slash-created child opens with focused title in the existing browser journey after the Firefox parity matrix exposed the race.
+
+- [X] T087 Keep native vault warnings and diagnostics specific to the desktop bridge, handle rejected key-state IPC without leaking native errors, and restore the existing mobile Web security reference in `apps/web/src/features/security/desktop-{vault-status,diagnostics}.tsx`.

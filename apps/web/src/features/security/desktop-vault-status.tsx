@@ -9,10 +9,20 @@ export function DesktopVaultStatus() {
   useEffect(() => {
     const desktop = window.myownnotionDesktop;
     if (desktop === undefined) {
-      setState("unavailable");
       return;
     }
-    void desktop.getKeyState().then((result) => setState(result.state));
+    let mounted = true;
+    void desktop.getKeyState().then(
+      (result) => {
+        if (mounted) setState(result.state);
+      },
+      () => {
+        if (mounted) setState("unavailable");
+      },
+    );
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (state === "checking" || state === "available") {
