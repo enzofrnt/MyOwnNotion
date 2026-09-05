@@ -95,7 +95,7 @@ describe("private files through authenticated HTTP", () => {
     const append = ProtectedUploadService.prototype.append;
     const interleaving = vi
       .spyOn(ProtectedUploadService.prototype, "append")
-      .mockImplementationOnce(async function (tx, input) {
+      .mockImplementationOnce(async function (this: ProtectedUploadService, tx, input) {
         entered();
         await resume;
         return append.call(this, tx, input);
