@@ -180,3 +180,25 @@ the server candidate index must use that same value before narrowing rows.
 An invalid operand or missing property stays on canonical validation instead of
 being accepted by the index. Differential filter, incremental refresh and cursor
 tests compare observable ordered results and refusals, without relaxing budgets.
+
+### Bounded file allocations under the shipped runtime
+
+The maintained isolated 2 GiB fixture exceeded its unchanged 256 MiB additional
+RSS budget even under the performance runner's existing `--smol` flag. Profile
+retained and transient buffers across chunk assembly, encryption, blob writes,
+authenticated reads and ranges; remove redundant copies or unbounded retention
+in production code. Also run the same fixture under standard Bun, matching API
+start/image entrypoints. Forced test-only GC, relaxed thresholds or reduced
+sampling cannot establish SC-004. Preserve authenticated chunk boundaries,
+one-shot stream behavior, transaction publication and byte-exact range tests.
+
+The measured amplification comes from full-payload input/concat/output copies in
+`packages/domain/src/security/crypto.ts`, a second complete persisted-byte read
+in `packages/blob-store/src/filesystem-blob-store.ts`, and copied comparison
+inputs in `apps/api/src/files/protected-file-service.ts`. Transfer independently
+allocated cipher/read output storage as Uint8Array views, authenticate before
+returning plaintext, and verify persisted bytes through 64 KiB scratch space.
+Keep exact-length/digest checks, short-read handling, fsync and immutable
+publication. Verify input/output independence against WebCrypto and real disk
+corruption, truncation and extension. Record three isolated runs in each Bun
+mode; focused success does not replace the final integrated performance gate.

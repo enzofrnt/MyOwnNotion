@@ -8,7 +8,7 @@
  */
 import { createHash, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
-import { link, lstat, mkdir, open, rm } from "node:fs/promises";
+import { type FileHandle, link, lstat, mkdir, open, rm } from "node:fs/promises";
 import path from "node:path";
 import type { BlobStore, StoredBlob } from "./blob-store.ts";
 
@@ -29,6 +29,26 @@ async function syncDirectory(directory: string): Promise<void> {
   } finally {
     await handle.close();
   }
+}
+
+/** Verify persisted bytes with bounded scratch space, including short reads and extra tails. */
+async function verifyPersistedBlob(
+  handle: FileHandle,
+  expectedDigest: string,
+  expectedLength: number,
+): Promise<void> {
+  const scratch = Buffer.allocUnsafe(64 * 1024);
+  const digest = createHash("sha256");
+  let offset = 0;
+  while (true) {
+    const { bytesRead } = await handle.read(scratch, 0, scratch.length, offset);
+    if (bytesRead === 0) break;
+    offset += bytesRead;
+    if (offset > expectedLength) throw new Error("Blob verification failed after write.");
+    digest.update(scratch.subarray(0, bytesRead));
+  }
+  if (offset !== expectedLength || digest.digest("hex") !== expectedDigest)
+    throw new Error("Blob verification failed after write.");
 }
 
 export class FilesystemBlobStore implements BlobStore {
@@ -68,9 +88,7 @@ export class FilesystemBlobStore implements BlobStore {
         if (written.bytesWritten === 0) throw new Error("Blob write made no progress.");
         offset += written.bytesWritten;
       }
-      const persisted = await handle.readFile();
-      if (digestHex(persisted) !== hex || persisted.byteLength !== bytes.byteLength)
-        throw new Error("Blob verification failed after write.");
+      await verifyPersistedBlob(handle, hex, bytes.byteLength);
       await handle.sync();
       try {
         await link(temporaryPath, finalPath);
@@ -110,7 +128,8 @@ export class FilesystemBlobStore implements BlobStore {
         if (!(await handle.stat()).isFile()) throw new Error("Blob is not a regular file.");
         const bytes = await handle.readFile();
         if (digestHex(bytes) !== storageKey) throw new Error("Stored blob digest mismatch.");
-        return new Uint8Array(bytes);
+        // readFile owns this fresh storage; callers receive it without a second full copy.
+        return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
       } finally {
         await handle.close();
       }

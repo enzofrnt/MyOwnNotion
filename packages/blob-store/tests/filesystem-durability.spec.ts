@@ -94,15 +94,65 @@ describe("durable immutable blob publication", () => {
     expect(await blobs.get(key)).toBeNull();
   });
 
-  it("removes staging when persisted bytes fail verification", async () => {
+  it.each(["modified", "truncated", "extended"] as const)(
+    "removes staging when persisted bytes are %s before verification",
+    async (damage) => {
+      vi.mocked(open).mockImplementation(async (...args) => {
+        const handle = await actual.open(...args);
+        if (String(args[0]).includes(".tmp-")) {
+          const read = handle.read.bind(handle);
+          vi.spyOn(handle, "read").mockImplementationOnce((async (
+            buffer: Buffer,
+            offset: number,
+            length: number,
+            position: number,
+          ) => {
+            if (damage === "truncated") await handle.truncate(payload.length - 1);
+            else
+              await handle.write(
+                Buffer.from([0xff]),
+                0,
+                1,
+                damage === "extended" ? payload.length : 0,
+              );
+            return read(buffer, offset, length, position);
+          }) as typeof handle.read);
+        }
+        return handle;
+      });
+      await expect(blobs.put(payload)).rejects.toThrow("verification failed");
+      expect(await readdir(path.join(root, "blobs", prefix))).toEqual([]);
+    },
+  );
+
+  it("verifies complete persisted bytes across short reads with bounded scratch space", async () => {
+    const large = Buffer.alloc(150 * 1024 + 17, 0x93);
+    const lengths: number[] = [];
     vi.mocked(open).mockImplementation(async (...args) => {
       const handle = await actual.open(...args);
-      if (String(args[0]).includes(".tmp-"))
-        vi.spyOn(handle, "readFile").mockResolvedValue(Buffer.from("corrupted write"));
+      if (String(args[0]).includes(".tmp-")) {
+        const read = handle.read.bind(handle);
+        vi.spyOn(handle, "read").mockImplementation((async (
+          buffer: Buffer,
+          offset: number,
+          length: number,
+          position: number,
+        ) => {
+          lengths.push(length);
+          return read(buffer, offset, Math.min(length, 7919), position);
+        }) as typeof handle.read);
+      }
       return handle;
     });
-    await expect(blobs.put(payload)).rejects.toThrow("verification failed");
-    expect(await readdir(path.join(root, "blobs", prefix))).toEqual([]);
+    const stored = await blobs.put(large);
+    expect(lengths.length).toBeGreaterThan(19);
+    expect(Math.max(...lengths)).toBeLessThanOrEqual(64 * 1024);
+    const opened = await blobs.get(stored.storageKey);
+    expect(opened).not.toBeNull();
+    expect(Buffer.compare(opened as Uint8Array, large)).toBe(0);
+    opened?.fill(0);
+    expect(Buffer.compare((await blobs.get(stored.storageKey)) as Uint8Array, large)).toBe(0);
+    expect(large[0]).toBe(0x93);
   });
 
   it("refuses success after a publication-directory sync failure and can safely retry", async () => {

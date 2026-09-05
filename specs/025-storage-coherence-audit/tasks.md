@@ -91,6 +91,7 @@ survive projection updates; active caret/style and native runtime are exercised.
 - [x] T046 [US4] Remove the uncalled plaintext staging writer and obsolete readable-digest lookup in `apps/api/src/backup/archive-format.ts` and `packages/database/src/repositories/file-repository.ts`; move archive framing/failure proofs onto the production streaming boundary (FR-001/FR-012).
 - [x] T047 [US4] Share canonical operand preparation between `packages/domain/src/databases/query.ts` and `apps/api/src/databases/database-query-service.ts`; reproduce and correct normalized equality filters losing valid rows, and compare indexed filters, incremental changes and cursor refusals with canonical results in `apps/api/tests/database-query-service.spec.ts` (FR-011/FR-013).
 - [x] T048 [US1] Reconcile authenticated current content/upload manifests with their complete chunk indexes before rotation completion and key revocation in `apps/api/src/files/` and `apps/api/src/admin/commands/rotation-data-key.ts`; prove that missing indexes remain recoverable and cannot authorize revoking a referenced generation in `apps/api/tests/protected-file-references.integration.spec.ts` (FR-006/FR-008, SC-002).
+- [x] T049 [US1] Bound production allocations in `packages/domain/src/security/crypto.ts`, `packages/blob-store/src/filesystem-blob-store.ts` and `apps/api/src/files/protected-file-service.ts`; correct the measured 271.8 MiB additional RSS overrun without weakening the 256 MiB budget, verify three isolated 2 GiB ingest/full-read/range runs per standard/maintained Bun mode in `tests/performance/protected-files.perf.spec.ts`, and retain crypto ownership, durable publication and file corruption/concurrency tests. Implementation and focused checks pass; renewed complete gates remain T038/T040 (SC-004, FR-004).
 
 ## Dependencies and strategy
 
@@ -105,8 +106,8 @@ US2 fixture construction and operational documentation after the format is fixed
 US3 occupied-target tests while US4 browser reproduction runs. These are dependency
 opportunities, not a requirement to run extra agents or overlap heavy DB suites.
 
-All 48 task lines follow the checklist/ID/path format. Counts: setup 2,
-foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 3. Each story's acceptance
+All 49 task lines follow the checklist/ID/path format. Counts: setup 2,
+foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4. Each story's acceptance
 criteria precede its implementation and its completion requires recorded proof.
 
 T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferred beyond this audit delivery.

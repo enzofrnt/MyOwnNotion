@@ -167,10 +167,7 @@ export class ProtectedFileService {
           const incoming = chunks[index++];
           if (
             incoming === undefined ||
-            Buffer.compare(
-              Buffer.from(existing),
-              Buffer.from(await this.chunkStore(tx).readChunk(incoming, binding)),
-            ) !== 0
+            Buffer.compare(existing, await this.chunkStore(tx).readChunk(incoming, binding)) !== 0
           ) {
             equal = false;
             break;

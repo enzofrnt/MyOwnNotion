@@ -33,8 +33,19 @@ it("streams and authenticates 2 GiB plus chunk-crossing ranges below 256 MiB add
     const expected = createHash("sha256");
     const baseline = process.memoryUsage().rss;
     let peak = baseline;
+    let phase: "ingest" | "read" | "ranges" = "ingest";
+    const phasePeaks = {
+      ingest: { rss: baseline, external: 0, heap: 0 },
+      read: { rss: baseline, external: 0, heap: 0 },
+      ranges: { rss: baseline, external: 0, heap: 0 },
+    };
     const sample = () => {
-      peak = Math.max(peak, process.memoryUsage().rss);
+      const usage = process.memoryUsage();
+      peak = Math.max(peak, usage.rss);
+      const current = phasePeaks[phase];
+      current.rss = Math.max(current.rss, usage.rss);
+      current.external = Math.max(current.external, usage.external);
+      current.heap = Math.max(current.heap, usage.heapUsed);
     };
     const timer = setInterval(sample, 5);
     try {
@@ -48,6 +59,8 @@ it("streams and authenticates 2 GiB plus chunk-crossing ranges below 256 MiB add
       const stored = await handle.db.transaction((tx) =>
         runtime.files.ingest(tx, source(), { maxBytes: total }),
       );
+      sample();
+      phase = "read";
       const actual = createHash("sha256");
       let length = 0;
       for await (const bytes of runtime.files.read(handle.db, stored.contentId)) {
@@ -57,6 +70,7 @@ it("streams and authenticates 2 GiB plus chunk-crossing ranges below 256 MiB add
       }
       expect(length).toBe(total);
       expect(actual.digest("hex")).toBe(expected.digest("hex"));
+      phase = "ranges";
       for (const start of [4 * 1024 ** 2 - 17, 1024 ** 3 - 17, total - 131]) {
         let offset = start;
         const end = Math.min(total - 1, start + 130);
@@ -69,6 +83,11 @@ it("streams and authenticates 2 GiB plus chunk-crossing ranges below 256 MiB add
       console.info(
         `[perf] protected 2GiB ingest/full-read/ranges baselineRSS=${(baseline / 1024 ** 2).toFixed(1)}MiB peakRSS=${(peak / 1024 ** 2).toFixed(1)}MiB additionalRSS=${((peak - baseline) / 1024 ** 2).toFixed(1)}MiB`,
       );
+      for (const [name, usage] of Object.entries(phasePeaks)) {
+        console.info(
+          `[perf] protected ${name} peakRSS=${(usage.rss / 1024 ** 2).toFixed(1)}MiB external=${(usage.external / 1024 ** 2).toFixed(1)}MiB heap=${(usage.heap / 1024 ** 2).toFixed(1)}MiB`,
+        );
+      }
       expect(peak - baseline).toBeLessThan(256 * 1024 ** 2);
     } finally {
       clearInterval(timer);
