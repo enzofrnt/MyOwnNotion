@@ -110,6 +110,8 @@ import {
   visibleWarmedPageIds,
 } from "./page-canvas-selection.ts";
 
+import { resolveLocalPageLinkTarget } from "./page-link-target.ts";
+
 type LoadState = "loading" | "ready";
 type LoadPhase = "initializing" | "reading-local" | "seeding" | "navigation" | "refreshing";
 
@@ -1094,32 +1096,18 @@ export function HierarchyExplorer({
   }, [openTabIds, selectedItem, selectedStructuredKind, showSelectedDatabase, showSelectedEntry]);
 
   const openPageLink = useCallback(
-    (rawItemId: string) => {
+    async (rawItemId: string) => {
       setProblem(null);
-      if (!isUuid(rawItemId)) {
-        setProblem({
-          code: "validation.invalid-identifier",
-          title: "The internal page link has an invalid target identity",
-        });
-        return;
-      }
-      if (items.some((item) => item.id === rawItemId)) {
-        selectItemById(rawItemId);
-        return;
-      }
-      if (trashedItems.some((item) => item.id === rawItemId)) {
-        setProblem({
-          code: "item.not-active",
-          title: "This internal page link points to an item in the trash",
-        });
-        return;
-      }
-      setProblem({
-        code: "item.not-found",
-        title: "This internal page link target is unavailable on this device",
-      });
+      const generation = selectionGeneration.current;
+      // Creation is durable before its React tree projection necessarily
+      // renders. Resolve the local record, rather than rejecting the new child
+      // against the click handler's older items array.
+      const target = await resolveLocalPageLinkTarget(rawItemId, (id) => service.getItem(id));
+      if (!refreshMounted.current || generation !== selectionGeneration.current) return;
+      if (target.ok) selectItemById(target.itemId);
+      else setProblem(target.error);
     },
-    [items, selectItemById, trashedItems],
+    [selectItemById, service],
   );
 
   const selectedDatabaseId = selectedDatabase?.databaseId as Uuid | undefined;
