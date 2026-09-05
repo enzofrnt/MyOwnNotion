@@ -335,3 +335,12 @@ PR run 33989013305 is complete: all five browser projects, Linux x64/ARM64,
 macOS ARM64 and every other application/security check passed. Windows x64 and
 ARM64 native lifecycle failures keep its quality gate red; no merge or main
 validation is claimed by this run.
+
+The full attempt on `e2e79947` passes all test assertions but retains one uncovered
+branch above the absolute limit (2,466 versus 2,465). That branch was an impossible
+empty-iterator fallback inside a map known to contain more than eight entries.
+Eviction now visits and removes its first key directly, without a cast or a
+synthetic test for an unreachable state. The real eight-entry/LRU regression and
+all 59 loader/permission cases still pass, along with API types and Biome.
+The full gate remains required on the resulting commit. Logs:
+`/tmp/mon-full-gate-desktop-acl-loader-errors.log`, `/tmp/mon-acl-final-focused.log`.

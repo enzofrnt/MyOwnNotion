@@ -68,8 +68,10 @@ export class WindowsKeyAclVerifier {
       if (fileIdentity(this.readStat(absolute)) !== before) return false;
       this.verified.set(absolute, before);
       if (this.verified.size > 8) {
-        const oldest = this.verified.keys().next().value;
-        if (oldest !== undefined) this.verified.delete(oldest);
+        for (const oldest of this.verified.keys()) {
+          this.verified.delete(oldest);
+          break;
+        }
       }
       return true;
     } catch {
