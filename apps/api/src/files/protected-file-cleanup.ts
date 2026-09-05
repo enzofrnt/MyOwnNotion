@@ -90,12 +90,15 @@ export async function cleanupProtectedFiles(
         EXISTS (SELECT 1 FROM protected_upload_chunks WHERE storage_key = ${storageKey}) OR
         EXISTS (SELECT 1 FROM protected_file_quarantine WHERE storage_key = ${storageKey}) OR
         EXISTS (SELECT 1 FROM file_contents WHERE storage_key = ${storageKey}) AS present`);
-      if (references.rows[0]?.present !== false) continue;
-      await files.deps.blobs.delete(storageKey);
+      const referenced = references.rows[0]?.present;
+      if (referenced === undefined) throw new Error("File references could not be verified.");
+      if (!referenced) {
+        await files.deps.blobs.delete(storageKey);
+        deleted++;
+      }
       await tx
         .delete(schema.protectedFileGarbage)
         .where(eq(schema.protectedFileGarbage.storageKey, storageKey));
-      deleted++;
     }
     return { expired, deleted };
   });

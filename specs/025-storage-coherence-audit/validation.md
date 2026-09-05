@@ -140,3 +140,13 @@ Startup and bounded minute batches share this path and shutdown awaits active
 work. Evidence: `/tmp/mon-protected-cleanup-fixed.log`,
 `/tmp/mon-protected-cleanup-typecheck.log`. Unclassified interruption orphans are
 retained for the historical transition; this is not forensic storage erasure.
+
+Historical projection/fixture convergence: 34 existing file/tus contract cases
+pass with real protected owner fixtures, retaining their placement, copy-on-write
+and refusal assertions. Encrypted HEAD uses authenticated committed state and
+refuses a contradictory offset; it never adopts unauthenticated stray bytes.
+Eleven secured HTTP cases include trashing a folder containing differently named
+files and verifying each descendant's own decrypted revision metadata. Two full
+backup consistency cases prove capture pins the accepted encrypted prefix while
+concurrent finalization waits. Evidence: `/tmp/mon-protected-existing-contracts-fixed.log`,
+`/tmp/mon-protected-branch-history.log`, `/tmp/mon-protected-backup-consistency.log`.

@@ -11,7 +11,7 @@ import { createDatabaseRestoreTarget } from "../src/backup/database-restore-targ
 import { FilesystemDestination } from "../src/backup/destinations/filesystem.ts";
 import { applyArchive } from "../src/backup/restore-service.ts";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
-import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
+import { type ApiHarness, createApiHarness, createItemViaApi } from "./helpers/app.ts";
 import { authenticatedContent } from "./helpers/content-owner.ts";
 
 let harness: ApiHarness;
@@ -48,13 +48,15 @@ async function physicalContains(directory: string, sentinel: string): Promise<bo
   return false;
 }
 
-async function directImport(): Promise<string> {
+async function directImport(
+  options: { filename?: string; parentItemId?: string } = {},
+): Promise<string> {
   const boundary = `mon-${generateUuidV7()}`;
   const payload = Buffer.from(
     [
       `--${boundary}\r\nContent-Disposition: form-data; name="placement"\r\n\r\n`,
-      '{"kind":"hierarchy","parentItemId":null,"positionKey":"V"}\r\n',
-      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${NAME}"\r\nContent-Type: text/plain\r\n\r\n`,
+      `${JSON.stringify({ kind: "hierarchy", parentItemId: options.parentItemId ?? null, positionKey: "V" })}\r\n`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${options.filename ?? NAME}"\r\nContent-Type: text/plain\r\n\r\n`,
       BODY,
       `\r\n--${boundary}--\r\n`,
     ].join(""),
@@ -73,6 +75,35 @@ async function directImport(): Promise<string> {
 }
 
 describe("private files through authenticated HTTP", () => {
+  it("keeps each descendant file's own private metadata when a folder is trashed", async () => {
+    const folder = await createItemViaApi(harness, {
+      kind: "folder",
+      name: "Folder title",
+      headers: owner.headers,
+    });
+    const ids = [];
+    for (const filename of ["first-private-child.txt", "second-private-child.txt"])
+      ids.push({ id: await directImport({ filename, parentItemId: folder.itemId }), filename });
+    const trashed = await owner({
+      method: "POST",
+      url: `/v1/items/${folder.itemId}/trash`,
+      headers: { "idempotency-key": generateUuidV7() },
+    });
+    expect(trashed.statusCode, trashed.body).toBe(200);
+    for (const { id, filename } of ids) {
+      const item = await owner({ method: "GET", url: `/v1/items/${id}` });
+      expect(item.json()).toMatchObject({ lifecycle: "trashed", name: filename });
+      const revision = await owner({
+        method: "GET",
+        url: `/v1/revisions/${item.json().currentRevisionId}`,
+      });
+      expect(revision.statusCode, revision.body).toBe(200);
+      expect(revision.json().snapshot).toMatchObject({
+        name: filename,
+        file: { originalName: filename },
+      });
+    }
+  });
   it("restores a sealed portable archive into protected storage and downloads exact attachment bytes", async () => {
     const id = await directImport();
     const destinationRoot = await mkdtemp(path.join(os.tmpdir(), "mon-private-portable-"));

@@ -2,13 +2,17 @@ import { randomBytes } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { listProtectedFileChunks } from "@myownnotion/database";
+import type { Uuid } from "@myownnotion/domain";
 import pg from "pg";
 import { expect, it } from "vitest";
 import { VerifiedFullArchive } from "../src/backup/full/archive.ts";
 import { acquireFullBackupLocks, shareFullBlobDeletion } from "../src/backup/full/locks.ts";
 import { PostgresFullBackupTools } from "../src/backup/full/postgres.ts";
 import { FullBackupService } from "../src/backup/full/service.ts";
+import { ProtectedUploadService } from "../src/files/protected-upload-service.ts";
 import { createApiHarness } from "./helpers/app.ts";
+import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 
 it("holds physical deletion until file capture is released while retaining run coordination", async () => {
   const harness = await createApiHarness();
@@ -59,7 +63,7 @@ it("holds physical deletion until file capture is released while retaining run c
 });
 
 it("keeps upload finalization and prefix deletion behind the snapshot, then coalesces concurrent nightly calls", async () => {
-  const harness = await createApiHarness();
+  const harness = await createProtectedFileHarness();
   const root = await mkdtemp(join(tmpdir(), "mon-full-consistency-"));
   const observer = new pg.Client({ connectionString: harness.postgres.connectionString });
   const key = randomBytes(32);
@@ -89,7 +93,7 @@ it("keeps upload finalization and prefix deletion behind the snapshot, then coal
   });
   try {
     await observer.connect();
-    const created = await harness.built.app.inject({
+    const created = await harness.owner({
       method: "POST",
       url: "/v1/uploads",
       headers: { "upload-length": "8" },
@@ -97,19 +101,28 @@ it("keeps upload finalization and prefix deletion behind the snapshot, then coal
     expect(created.statusCode).toBe(201);
     const url = String(created.headers["location"]);
     const uploadId = url.split("/").at(-1) ?? "";
-    const prefix = await harness.built.app.inject({
+    const prefix = await harness.owner({
       method: "PATCH",
       url,
       headers: { "upload-offset": "0", "content-type": "application/offset+octet-stream" },
       payload: Buffer.from("head"),
     });
     expect(prefix.statusCode).toBe(204);
+    const files = harness.built.context.protectedFiles;
+    if (files === undefined) throw new Error("Missing protected file fixture");
+    const transfers = new ProtectedUploadService(files);
+    const [chunk] = await listProtectedFileChunks(
+      harness.built.context.db,
+      files.scope("upload", uploadId),
+    );
+    if (chunk === undefined) throw new Error("Missing committed upload chunk");
+    const ciphertext = await files.deps.blobs.get(chunk.storageKey);
     const backup = service.run("manual");
     pending.push(backup);
     void backup.catch(() => undefined);
     await paused;
-    const completed = harness.built.app
-      .inject({
+    const completed = harness
+      .owner({
         method: "PATCH",
         url,
         headers: { "upload-offset": "4", "content-type": "application/offset+octet-stream" },
@@ -129,22 +142,28 @@ it("keeps upload finalization and prefix deletion behind the snapshot, then coal
         ),
       )
       .toBeGreaterThan(0);
-    expect(
-      Buffer.from((await harness.built.context.partialUploads.read(uploadId)) ?? []).toString(),
-    ).toBe("head");
+    const committed = await transfers.get(harness.built.context.db, uploadId as Uuid);
+    if (committed === null) throw new Error("Missing partial transfer");
+    const prefixParts = [];
+    for await (const bytes of transfers.read(harness.built.context.db, committed))
+      prefixParts.push(bytes);
+    expect(Buffer.concat(prefixParts).toString()).toBe("head");
     releaseDump();
     const result = await backup;
     expect((await completed).statusCode).toBe(201);
-    expect(await harness.built.context.partialUploads.read(uploadId)).toBeNull();
+    expect(await transfers.get(harness.built.context.db, uploadId as Uuid)).toBeNull();
     const archive = await VerifiedFullArchive.open(result.path, key, root);
     try {
       const index = archive.manifest.components.findIndex(
-        (entry) => entry.path === `uploads/${uploadId}`,
+        (entry) => entry.path === `${chunk.storageKey.slice(0, 2)}/${chunk.storageKey}`,
       );
       const parts: Buffer[] = [];
       for await (const part of archive.component(index)) parts.push(Buffer.from(part));
-      expect(Buffer.concat(parts).toString()).toBe("head");
-      expect(archive.manifest.components.filter((entry) => entry.kind === "blob")).toHaveLength(0);
+      expect(Buffer.concat(parts)).toEqual(Buffer.from(ciphertext ?? []));
+      expect(Buffer.concat(parts).toString()).not.toBe("head");
+      expect(archive.manifest.components.filter((entry) => entry.kind === "upload")).toHaveLength(
+        0,
+      );
     } finally {
       await archive.close();
     }

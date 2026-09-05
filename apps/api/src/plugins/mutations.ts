@@ -117,17 +117,41 @@ async function sealPayloads(
   for (const [revisionId, snapshot] of snapshots) {
     const file = snapshot["file"];
     const isFile = file !== null && typeof file === "object";
+    const revision = isFile
+      ? (
+          await tx
+            .select({ itemId: schema.revisions.itemId })
+            .from(schema.revisions)
+            .where(eq(schema.revisions.id, revisionId))
+            .limit(1)
+        )[0]
+      : undefined;
+    if (isFile && revision === undefined) throw new Error("File revision identity is unavailable.");
     const presentation =
-      isFile && snapshot["name"] === SCRUBBED_PLACEHOLDER && primaryItemId !== undefined
-        ? await protectedContent.readItemPresentation(tx, primaryItemId)
+      revision !== undefined && snapshot["name"] === SCRUBBED_PLACEHOLDER
+        ? await protectedContent.readItemPresentation(tx, revision.itemId)
         : null;
+    const historicalMetadata =
+      revision !== undefined &&
+      isFile &&
+      "originalName" in file &&
+      file.originalName === SCRUBBED_PLACEHOLDER
+        ? await protectedContent.readFileMetadata(tx, { kind: "file", id: revision.itemId })
+        : null;
+    if (
+      isFile &&
+      "originalName" in file &&
+      file.originalName === SCRUBBED_PLACEHOLDER &&
+      historicalMetadata === null
+    )
+      throw new Error("File revision metadata is unavailable.");
     const openedSnapshot = isFile
       ? {
           ...snapshot,
           ...(presentation === null ? {} : { name: presentation.name, icon: presentation.icon }),
           file:
             "originalName" in file && file.originalName === SCRUBBED_PLACEHOLDER
-              ? { ...file, ...fileMetadata }
+              ? { ...file, ...historicalMetadata }
               : file,
         }
       : snapshot;

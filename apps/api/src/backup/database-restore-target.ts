@@ -174,7 +174,10 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
           item.kind === "file" && options.protectedContent !== undefined
             ? SCRUBBED_PLACEHOLDER
             : item.name,
-        icon: item.icon ?? null,
+        icon:
+          item.kind === "file" && options.protectedContent !== undefined
+            ? null
+            : (item.icon ?? null),
         lifecycle: item.lifecycle,
         trashedAt: item.trashedAt === null ? null : new Date(item.trashedAt),
         purgeAfter: item.purgeAfter === null ? null : new Date(item.purgeAfter),

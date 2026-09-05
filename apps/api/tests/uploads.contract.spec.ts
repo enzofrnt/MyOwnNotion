@@ -1,3 +1,4 @@
+import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 /**
  * The resumable upload endpoints (T045, FR-006, FR-008, FR-009).
  *
@@ -17,12 +18,11 @@ import { generateUuidV7 } from "@myownnotion/domain";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { maxFileBytes, parseUploadMetadata } from "../src/routes/uploads.ts";
-import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
 
-let harness: ApiHarness;
+let harness: Awaited<ReturnType<typeof createProtectedFileHarness>>;
 
 beforeAll(async () => {
-  harness = await createApiHarness();
+  harness = await createProtectedFileHarness();
 }, 180_000);
 
 afterAll(async () => {
@@ -36,7 +36,7 @@ function encodeMetadata(values: Record<string, string>): string {
 }
 
 async function createUploadOf(length: number, name = "transfer.txt") {
-  return harness.built.app.inject({
+  return harness.owner({
     method: "POST",
     url: "/v1/uploads",
     headers: {
@@ -51,7 +51,7 @@ async function createUploadWithIdentity(
   itemId: string,
   attachmentParentItemId?: string,
 ) {
-  return harness.built.app.inject({
+  return harness.owner({
     method: "POST",
     url: "/v1/uploads",
     headers: {
@@ -80,7 +80,7 @@ describe("creating an upload", () => {
     expect(created.statusCode, created.body).toBe(201);
     expect(created.json()).toMatchObject({ id: itemId });
 
-    const completed = await harness.built.app.inject({
+    const completed = await harness.owner({
       method: "PATCH",
       url: created.headers["location"] as string,
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
@@ -89,12 +89,12 @@ describe("creating an upload", () => {
 
     expect(completed.statusCode, completed.body).toBe(201);
     expect(completed.json()).toEqual({ itemId, verified: true });
-    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${itemId}` });
+    const item = await harness.owner({ method: "GET", url: `/v1/items/${itemId}` });
     expect(item.statusCode).toBe(200);
   });
 
   it("finalizes an editor upload as a content attachment of its source page", async () => {
-    const page = await harness.built.app.inject({
+    const page = await harness.owner({
       method: "POST",
       url: "/v1/items",
       headers: {
@@ -120,7 +120,7 @@ describe("creating an upload", () => {
     const created = await createUploadWithIdentity(4, itemId, pageId);
     expect(created.statusCode, created.body).toBe(201);
 
-    const completed = await harness.built.app.inject({
+    const completed = await harness.owner({
       method: "PATCH",
       url: created.headers["location"] as string,
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
@@ -128,7 +128,7 @@ describe("creating an upload", () => {
     });
     expect(completed.statusCode, completed.body).toBe(201);
 
-    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${itemId}` });
+    const item = await harness.owner({ method: "GET", url: `/v1/items/${itemId}` });
     expect(item.statusCode, item.body).toBe(200);
     expect(
       (item.json() as { placements: Array<{ kind: string; parentItemId: string | null }> })
@@ -139,7 +139,7 @@ describe("creating an upload", () => {
       ]),
     );
 
-    const roots = await harness.built.app.inject({
+    const roots = await harness.owner({
       method: "GET",
       url: "/v1/items?parentItemId=root",
     });
@@ -170,7 +170,7 @@ describe("creating an upload", () => {
   });
 
   it("refuses a missing or nonsensical length", async () => {
-    const missing = await harness.built.app.inject({ method: "POST", url: "/v1/uploads" });
+    const missing = await harness.owner({ method: "POST", url: "/v1/uploads" });
     expect(missing.statusCode).toBe(400);
     const negative = await createUploadOf(-1);
     expect(negative.statusCode).toBe(400);
@@ -182,12 +182,12 @@ describe("resuming", () => {
     const created = await createUploadOf(10);
     const location = created.headers["location"] as string;
 
-    const before = await harness.built.app.inject({ method: "HEAD", url: location });
+    const before = await harness.owner({ method: "HEAD", url: location });
     expect(before.statusCode).toBe(200);
     expect(before.headers["upload-offset"]).toBe("0");
     expect(before.headers["upload-length"]).toBe("10");
 
-    const sent = await harness.built.app.inject({
+    const sent = await harness.owner({
       method: "PATCH",
       url: location,
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
@@ -196,13 +196,13 @@ describe("resuming", () => {
     expect(sent.statusCode).toBe(204);
     expect(sent.headers["upload-offset"]).toBe("4");
 
-    const after = await harness.built.app.inject({ method: "HEAD", url: location });
+    const after = await harness.owner({ method: "HEAD", url: location });
     // What a resuming client seeks to. It keeps no count of its own, which is
     // why this number has to be right.
     expect(after.headers["upload-offset"]).toBe("4");
   });
 
-  it("recovers bytes appended before an interrupted database commit", async () => {
+  it("does not acknowledge uncommitted bytes outside the authenticated upload inventory", async () => {
     const created = await createUploadOf(6);
     const body = created.json() as { id: string };
     const location = created.headers["location"] as string;
@@ -210,19 +210,19 @@ describe("resuming", () => {
     await mkdir(path.dirname(partial), { recursive: true });
     await writeFile(partial, "abc");
 
-    const recovered = await harness.built.app.inject({ method: "HEAD", url: location });
-    expect(recovered.headers["upload-offset"]).toBe("3");
+    const recovered = await harness.owner({ method: "HEAD", url: location });
+    expect(recovered.headers["upload-offset"]).toBe("0");
 
-    const completed = await harness.built.app.inject({
+    const completed = await harness.owner({
       method: "PATCH",
       url: location,
-      headers: { "content-type": "application/offset+octet-stream", "upload-offset": "3" },
-      payload: Buffer.from("def"),
+      headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
+      payload: Buffer.from("abcdef"),
     });
     expect(completed.statusCode, completed.body).toBe(201);
   });
 
-  it("repairs a historical database offset that is ahead of durable bytes", async () => {
+  it("refuses an offset contradicting its authenticated manifest", async () => {
     const created = await createUploadOf(6);
     const body = created.json() as { id: string };
     const location = created.headers["location"] as string;
@@ -234,21 +234,22 @@ describe("resuming", () => {
       await client.end();
     }
 
-    const recovered = await harness.built.app.inject({ method: "HEAD", url: location });
-    expect(recovered.headers["upload-offset"]).toBe("0");
+    const recovered = await harness.owner({ method: "HEAD", url: location });
+    expect(recovered.statusCode).toBe(500);
+    expect(recovered.headers["upload-offset"]).toBeUndefined();
   });
 
   it("refuses a chunk written from the wrong offset, and says where to resume", async () => {
     const created = await createUploadOf(20);
     const location = created.headers["location"] as string;
-    await harness.built.app.inject({
+    await harness.owner({
       method: "PATCH",
       url: location,
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
       payload: Buffer.from("abcde"),
     });
 
-    const wrong = await harness.built.app.inject({
+    const wrong = await harness.owner({
       method: "PATCH",
       url: location,
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "12" },
@@ -259,7 +260,7 @@ describe("resuming", () => {
     expect(wrong.statusCode).toBe(409);
     expect(wrong.headers["upload-offset"]).toBe("5");
 
-    const unchanged = await harness.built.app.inject({ method: "HEAD", url: location });
+    const unchanged = await harness.owner({ method: "HEAD", url: location });
     expect(unchanged.headers["upload-offset"]).toBe("5");
   });
 
@@ -267,7 +268,7 @@ describe("resuming", () => {
     const created = await createUploadOf(6);
     const location = created.headers["location"] as string;
 
-    const partial = await harness.built.app.inject({
+    const partial = await harness.owner({
       method: "PATCH",
       url: location,
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
@@ -275,7 +276,7 @@ describe("resuming", () => {
     });
     expect(partial.headers["upload-complete"]).toBe("false");
 
-    const rest = await harness.built.app.inject({
+    const rest = await harness.owner({
       method: "PATCH",
       url: location,
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "3" },
@@ -290,7 +291,7 @@ describe("resuming", () => {
     expect(body.verified).toBe(true);
 
     // And it is a real file now, with its content served like any other.
-    const item = await harness.built.app.inject({
+    const item = await harness.owner({
       method: "GET",
       url: `/v1/items/${body.itemId}`,
     });
@@ -306,7 +307,7 @@ describe("resuming", () => {
       [3, "def"],
       [6, "ghi"],
     ] as const) {
-      await harness.built.app.inject({
+      await harness.owner({
         method: "PATCH",
         url: location,
         headers: {
@@ -317,14 +318,14 @@ describe("resuming", () => {
       });
     }
 
-    const head = await harness.built.app.inject({ method: "HEAD", url: location });
-    // The upload is gone once it became a file: its record and its partial
-    // bytes are both released, so nothing lingers unaccounted for.
-    expect(head.statusCode).toBe(404);
+    const head = await harness.owner({ method: "HEAD", url: location });
+    // A durable completion receipt answers a client whose last response was lost.
+    expect(head.statusCode).toBe(200);
+    expect(head.headers["upload-complete"]).toBe("true");
   });
 
   it("answers 404 for an upload that never existed", async () => {
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "HEAD",
       url: `/v1/uploads/${generateUuidV7()}`,
     });
@@ -351,7 +352,7 @@ describe("upload metadata", () => {
 
 describe("refusals during a transfer", () => {
   it("refuses a chunk for an upload that does not exist", async () => {
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "PATCH",
       url: `/v1/uploads/${generateUuidV7()}`,
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
@@ -365,7 +366,7 @@ describe("refusals during a transfer", () => {
   it("refuses a chunk that would exceed the declared length", async () => {
     const created = await createUploadOf(4);
     const location = created.headers["location"] as string;
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "PATCH",
       url: location,
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
@@ -374,13 +375,13 @@ describe("refusals during a transfer", () => {
     // The declared length is a promise the client made; letting it overrun
     // would mean the size shown before the transfer was fiction.
     expect(response.statusCode).toBe(400);
-    const still = await harness.built.app.inject({ method: "HEAD", url: location });
+    const still = await harness.owner({ method: "HEAD", url: location });
     expect(still.headers["upload-offset"]).toBe("0");
   });
 
   it("refuses a nonsensical offset", async () => {
     const created = await createUploadOf(10);
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "PATCH",
       url: created.headers["location"] as string,
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "-3" },
@@ -390,7 +391,7 @@ describe("refusals during a transfer", () => {
   });
 
   it("refuses an identifier that is not an upload identity", async () => {
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "HEAD",
       url: "/v1/uploads/not-a-uuid",
     });

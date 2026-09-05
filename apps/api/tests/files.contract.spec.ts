@@ -1,20 +1,16 @@
+import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 /**
  * Import, placement, and file-content replacement contract tests (T052, US2).
  */
 
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  type ApiHarness,
-  createApiHarness,
-  createItemViaApi,
-  idempotencyHeaders,
-} from "./helpers/app.ts";
+import { createItemViaApi, idempotencyHeaders } from "./helpers/app.ts";
 
-let harness: ApiHarness;
+let harness: Awaited<ReturnType<typeof createProtectedFileHarness>>;
 
 beforeAll(async () => {
-  harness = await createApiHarness();
+  harness = await createProtectedFileHarness();
 }, 120_000);
 
 afterAll(async () => {
@@ -51,7 +47,7 @@ async function importFile(
     { placement: JSON.stringify(placement) },
     { name, type: "text/plain", content },
   );
-  const response = await harness.built.app.inject({
+  const response = await harness.owner({
     method: "POST",
     url: "/v1/files",
     headers: { ...headers, ...idempotencyHeaders() },
@@ -77,7 +73,7 @@ describe("file import (T059)", () => {
       positionKey: "F1x",
     });
     expect(result.status).toBe(201);
-    const item = await harness.built.app.inject({
+    const item = await harness.owner({
       method: "GET",
       url: `/v1/items/${result.itemId}`,
     });
@@ -95,7 +91,7 @@ describe("file import (T059)", () => {
     });
     expect(result.status).toBe(201);
     // Hierarchy children of the page do not include the attachment.
-    const children = await harness.built.app.inject({
+    const children = await harness.owner({
       method: "GET",
       url: `/v1/items?parentItemId=${page.itemId}`,
     });
@@ -104,7 +100,7 @@ describe("file import (T059)", () => {
     );
     expect(childIds).not.toContain(result.itemId);
     // But the item itself shows the attachment placement.
-    const item = await harness.built.app.inject({
+    const item = await harness.owner({
       method: "GET",
       url: `/v1/items/${result.itemId}`,
     });
@@ -131,7 +127,7 @@ describe("file import (T059)", () => {
     const payload = Buffer.from(
       `--${boundary}\r\ncontent-disposition: form-data; name="placement"\r\n\r\n{}\r\n--${boundary}--\r\n`,
     );
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "POST",
       url: "/v1/files",
       headers: {
@@ -154,14 +150,14 @@ describe("multi-placement resolution (FR-028..FR-031)", () => {
       positionKey: "M1x",
     });
 
-    const attach = await harness.built.app.inject({
+    const attach = await harness.owner({
       method: "POST",
       url: `/v1/items/${file.itemId}/placements`,
       headers: idempotencyHeaders(),
       payload: { kind: "attachment", parentItemId: pageA.itemId, positionKey: "M2x" },
     });
     expect(attach.statusCode).toBe(201);
-    const attach2 = await harness.built.app.inject({
+    const attach2 = await harness.owner({
       method: "POST",
       url: `/v1/items/${file.itemId}/placements`,
       headers: idempotencyHeaders(),
@@ -169,20 +165,20 @@ describe("multi-placement resolution (FR-028..FR-031)", () => {
     });
     expect(attach2.statusCode).toBe(201);
 
-    const item = await harness.built.app.inject({
+    const item = await harness.owner({
       method: "GET",
       url: `/v1/items/${file.itemId}`,
     });
     const placements = (item.json() as { placements: Array<{ id: string }> }).placements;
     expect(placements.length).toBe(3);
 
-    const removal = await harness.built.app.inject({
+    const removal = await harness.owner({
       method: "DELETE",
       url: `/v1/placements/${placements[1]?.id}`,
       headers: idempotencyHeaders(),
     });
     expect(removal.statusCode).toBe(200);
-    const after = await harness.built.app.inject({
+    const after = await harness.owner({
       method: "GET",
       url: `/v1/items/${file.itemId}`,
     });
@@ -209,7 +205,7 @@ describe("copy-on-write content replacement (FR-030/FR-036)", () => {
       { baseRevisionId: original.revisionId },
       { name: "updated.txt", type: "text/plain", content: "updated bytes" },
     );
-    const replacement = await harness.built.app.inject({
+    const replacement = await harness.owner({
       method: "PUT",
       url: `/v1/files/${original.itemId}/content`,
       headers: { ...headers, ...idempotencyHeaders() },
@@ -217,7 +213,7 @@ describe("copy-on-write content replacement (FR-030/FR-036)", () => {
     });
     expect(replacement.statusCode).toBe(200);
 
-    const updated = await harness.built.app.inject({
+    const updated = await harness.owner({
       method: "GET",
       url: `/v1/items/${original.itemId}`,
     });
@@ -225,7 +221,7 @@ describe("copy-on-write content replacement (FR-030/FR-036)", () => {
     expect(updatedRevision).not.toBe(original.revisionId);
 
     // The independently imported file is untouched.
-    const other = await harness.built.app.inject({
+    const other = await harness.owner({
       method: "GET",
       url: `/v1/items/${independent.itemId}`,
     });
@@ -244,7 +240,7 @@ describe("copy-on-write content replacement (FR-030/FR-036)", () => {
       { baseRevisionId: file.revisionId },
       { name: "v2.txt", type: "text/plain", content: "v2" },
     );
-    await harness.built.app.inject({
+    await harness.owner({
       method: "PUT",
       url: `/v1/files/${file.itemId}/content`,
       headers: { ...first.headers, ...idempotencyHeaders() },
@@ -254,7 +250,7 @@ describe("copy-on-write content replacement (FR-030/FR-036)", () => {
       { baseRevisionId: file.revisionId },
       { name: "v3.txt", type: "text/plain", content: "v3" },
     );
-    const conflict = await harness.built.app.inject({
+    const conflict = await harness.owner({
       method: "PUT",
       url: `/v1/files/${file.itemId}/content`,
       headers: { ...second.headers, ...idempotencyHeaders() },
@@ -277,7 +273,7 @@ describe("what uses a file (feature 005, FR-005)", () => {
     });
     expect(result.status).toBe(201);
 
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "GET",
       url: `/v1/files/${result.itemId}/usages`,
     });
@@ -299,7 +295,7 @@ describe("what uses a file (feature 005, FR-005)", () => {
       parentItemId: null,
       positionKey: "U2x",
     });
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "GET",
       url: `/v1/files/${result.itemId}/usages`,
     });
@@ -310,7 +306,7 @@ describe("what uses a file (feature 005, FR-005)", () => {
   });
 
   it("answers for an unknown id rather than failing", async () => {
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "GET",
       url: `/v1/files/${generateUuidV7()}/usages`,
     });
@@ -333,7 +329,7 @@ describe("serving file content inertly (feature 005, FR-013)", () => {
     });
     expect(result.status).toBe(201);
 
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "GET",
       url: `/v1/files/${result.itemId}/content`,
     });
@@ -352,7 +348,7 @@ describe("serving file content inertly (feature 005, FR-013)", () => {
       parentItemId: null,
       positionKey: "S2x",
     });
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "GET",
       url: `/v1/files/${result.itemId}/content`,
     });
@@ -365,7 +361,7 @@ describe("serving file content inertly (feature 005, FR-013)", () => {
       parentItemId: null,
       positionKey: "S3x",
     });
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "GET",
       url: `/v1/files/${result.itemId}/content`,
     });
@@ -377,7 +373,7 @@ describe("serving file content inertly (feature 005, FR-013)", () => {
   });
 
   it("answers not-found for a file that does not exist", async () => {
-    const response = await harness.built.app.inject({
+    const response = await harness.owner({
       method: "GET",
       url: `/v1/files/${generateUuidV7()}/content`,
     });
