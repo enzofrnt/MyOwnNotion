@@ -48,6 +48,15 @@ export interface DatabaseCommandContext {
   readonly workspaceId: Uuid;
   readonly mutationId: Uuid;
   readonly acceptedAt: Date;
+  readonly resolveRevisionSnapshot?: (
+    tx: Transaction,
+    revisionId: Uuid,
+  ) => Promise<Record<string, unknown> | null>;
+}
+
+function snapshotResolver(tx: Transaction, context: DatabaseCommandContext) {
+  return (revisionId: Uuid) =>
+    context.resolveRevisionSnapshot?.(tx, revisionId) ?? Promise.resolve(null);
 }
 
 export interface DatabaseCommandExecution {
@@ -289,7 +298,11 @@ async function executeReplaceDefinition(
   // queue that Promise.all relied on.
   const record = await readDatabaseRecord(tx, command.databaseId);
   const item = await getItem(tx, command.databaseId);
-  const currentDefinition = await readCurrentDatabaseDefinition(tx, command.databaseId);
+  const currentDefinition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+  );
   if (record === null || item === null || currentDefinition === null) {
     return err("database.not-found", "Database does not exist");
   }
@@ -306,7 +319,11 @@ async function executeReplaceDefinition(
   const entryRecords = await listDatabaseEntryRecords(tx, command.databaseId);
   const entryValues: EntryValues[] = [];
   for (const entry of entryRecords) {
-    const values = await readCurrentDatabaseEntryValues(tx, entry.entryId);
+    const values = await readCurrentDatabaseEntryValues(
+      tx,
+      entry.entryId,
+      snapshotResolver(tx, context),
+    );
     if (values !== null) entryValues.push(values);
   }
   const impact = await previewDefinitionImpact({
@@ -363,7 +380,11 @@ async function executeResolveDefinitionConflict(
 ): Promise<DomainResult<DatabaseCommandExecution>> {
   const record = await readDatabaseRecord(tx, command.databaseId);
   const item = await getItem(tx, command.databaseId);
-  const currentDefinition = await readCurrentDatabaseDefinition(tx, command.databaseId);
+  const currentDefinition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+  );
   if (record === null || item === null || currentDefinition === null) {
     return err("database.not-found", "Database does not exist");
   }
@@ -379,7 +400,11 @@ async function executeResolveDefinitionConflict(
   const entryRecords = await listDatabaseEntryRecords(tx, command.databaseId);
   const entryValues: EntryValues[] = [];
   for (const entry of entryRecords) {
-    const values = await readCurrentDatabaseEntryValues(tx, entry.entryId);
+    const values = await readCurrentDatabaseEntryValues(
+      tx,
+      entry.entryId,
+      snapshotResolver(tx, context),
+    );
     if (values !== null) entryValues.push(values);
   }
   const impact = await previewDefinitionImpact({
@@ -438,7 +463,11 @@ async function executeCreateEntry(
 ): Promise<DomainResult<DatabaseCommandExecution>> {
   const database = await readDatabaseRecord(tx, command.databaseId);
   const databaseItem = await getItem(tx, command.databaseId);
-  const definition = await readCurrentDatabaseDefinition(tx, command.databaseId);
+  const definition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+  );
   const existingItem = await getItem(tx, command.id);
   const existingMembership = await readDatabaseEntryRecord(tx, command.id);
   if (database === null || databaseItem === null || definition === null) {
@@ -549,8 +578,16 @@ async function executeReplaceEntryValues(
 ): Promise<DomainResult<DatabaseCommandExecution>> {
   const entry = await readDatabaseEntryRecord(tx, command.entryId);
   const item = await getItem(tx, command.entryId);
-  const definition = await readCurrentDatabaseDefinition(tx, command.databaseId);
-  const priorValues = await readCurrentDatabaseEntryValues(tx, command.entryId);
+  const definition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+  );
+  const priorValues = await readCurrentDatabaseEntryValues(
+    tx,
+    command.entryId,
+    snapshotResolver(tx, context),
+  );
   if (entry === null || item === null || entry.databaseId !== command.databaseId) {
     return err("database.entry-not-found", "Database entry does not exist");
   }
@@ -618,8 +655,16 @@ async function executeResolveEntryValuesConflict(
 ): Promise<DomainResult<DatabaseCommandExecution>> {
   const entry = await readDatabaseEntryRecord(tx, command.entryId);
   const item = await getItem(tx, command.entryId);
-  const definition = await readCurrentDatabaseDefinition(tx, command.databaseId);
-  const priorValues = await readCurrentDatabaseEntryValues(tx, command.entryId);
+  const definition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+  );
+  const priorValues = await readCurrentDatabaseEntryValues(
+    tx,
+    command.entryId,
+    snapshotResolver(tx, context),
+  );
   if (entry === null || item === null || entry.databaseId !== command.databaseId) {
     return err("database.entry-not-found", "Database entry does not exist");
   }

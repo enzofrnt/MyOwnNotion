@@ -4,6 +4,7 @@ import { createProtectedFileHarness } from "./helpers/protected-files.ts";
  */
 
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createItemViaApi, idempotencyHeaders } from "./helpers/app.ts";
 
@@ -287,6 +288,15 @@ describe("what uses a file (feature 005, FR-005)", () => {
     expect(body.usages[0]?.usedByName).toBe("Usage host");
     expect(body.usages[0]?.usedByItemId).toBe(page.itemId);
     expect(body.usages[0]?.usageKind).toBe("attachment");
+    await harness.built.context.db.execute(sql`
+      DELETE FROM protected_envelopes
+      WHERE entity_type = 'item.name' AND entity_id = ${page.itemId}
+    `);
+    const unavailable = await harness.owner({
+      method: "GET",
+      url: `/v1/files/${result.itemId}/usages`,
+    });
+    expect(unavailable.statusCode).toBe(500);
   });
 
   it("answers with an empty list for a file nothing points at", async () => {

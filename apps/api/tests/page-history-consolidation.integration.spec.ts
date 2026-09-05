@@ -542,11 +542,18 @@ describe("visible history consolidation", () => {
     `);
     const parent = (
       restoredParent as unknown as {
-        rows: Array<{ parent_revision_id: Uuid; snapshot: Record<string, unknown> }>;
+        rows: Array<{ parent_revision_id: Uuid; snapshot: null }>;
       }
     ).rows[0];
     expect(parent?.parent_revision_id).not.toBe(secondRevisionId);
-    expect(JSON.stringify(parent?.snapshot)).toContain("Server newer draft");
+    expect(parent?.snapshot).toBeNull();
+    const retained = await harness.api.built.app.inject({
+      method: "GET",
+      url: `/v1/revisions/${parent?.parent_revision_id}`,
+      headers,
+    });
+    expect(retained.statusCode, retained.body).toBe(200);
+    expect(retained.body).toContain("Server newer draft");
 
     const caughtUp = await sync({
       pageId: page.itemId,

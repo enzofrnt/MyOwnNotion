@@ -36,3 +36,14 @@ SC-005 to T029/T031; SC-006 to T032/T038; SC-007 to T036/T039.
 Proceed through speckit-implement in dependency order. This result says nothing
 about implementation correctness or completed delivery; those require the tests,
 convergence and CI evidence recorded in tasks/validation.
+
+## Confirmed canonical privacy extension
+
+A17 reproduces retained readable current names and revision snapshots on a
+secured installation. FR-014 maps to T042–T045 and extends existing constitution
+IV privacy obligations; it changes no product boundary. The updated set has
+14 requirements and 45 tasks. T044 includes historical transition as well as
+portable restoration, so fresh-write test success cannot close that task.
+The implementation must resolve payloads before neutral edits/snapshots and
+neutralize source copies within the same transaction. Cross-artifact review
+found no contradictory behavior in spec, plan, data model or task dependencies.

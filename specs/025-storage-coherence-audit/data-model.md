@@ -113,3 +113,14 @@ Administrative import occupancy remains authoritative: any owner/workspace/item/
 protected content refuses adoption. No source device trust is imported. Complete
 restore activation remains 024's atomic invalidation flow. Audit findings record
 whether a suspect helper is actually reachable through those rules.
+
+## Canonical payload cutover (FR-014)
+
+New secured writes retain structural identity, lineage and placements in SQL.
+Current names use the existing U+FFFD scrub marker; icons are null; page bodies
+and private relationship metadata use the reserved `{$myownnotionProtected: 1}`
+marker; revision snapshots are null. Actual presentation, bodies, snapshots,
+definitions, values and metadata reside in authenticated protected envelopes.
+Neutral edits and snapshot generation resolve these envelopes first. Missing
+protected data behind a marker fails closed. Portable restoration applies the
+same boundary before committing; historical copies join the durable transition.

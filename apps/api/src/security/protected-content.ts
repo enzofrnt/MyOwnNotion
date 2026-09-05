@@ -3,20 +3,13 @@
  *
  * The bridge between the encryption machinery and the content the application
  * actually stores. It names the payload-bearing fields, one entity type each,
- * and provides the dual write the migration story depends on.
+ * and seals them into authenticated envelopes. Secured mutation, page-state
+ * and restore boundaries resolve these values before constructing snapshots,
+ * then neutralize readable canonical copies in the same transaction (025).
  *
- * **Dual write, on purpose.** Every protected payload is written twice for
- * now: once into the feature-001 column as before, and once as an envelope.
- * The plaintext column is scrubbed later, by the migration phase, only after a
- * verified cutover. Encrypting in place instead would mean a single deploy
- * where every existing row becomes unreadable if anything is wrong with the
- * key — and there would be no copy left to recover from. Writing both costs
- * storage and buys the ability to stop.
- *
- * **Reads prefer the envelope.** Once an envelope exists it is the truth,
- * because it is what a rotation and a later scrub will keep. The plaintext
- * column is a fallback for rows written before this landed, and it disappears
- * when the migration scrubs them.
+ * Historical columns remain a compatibility fallback until the verified storage
+ * transition processes them. A neutralized field without its protected envelope
+ * is unavailable; callers must never return the marker as owner content.
  */
 
 import type { Database, Transaction } from "@myownnotion/database";

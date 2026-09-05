@@ -129,3 +129,12 @@ Revocation takes FILE maintenance and the generation row lock, then recounts
 both envelopes and completed/partial chunks in that transaction. Ordinary and
 batched protected-record publication also lock their selected writable generation;
 a stale selection fails instead of publishing after retirement.
+
+Canonical-copy audit extension (FR-014): cover the same seal-without-neutralize
+pattern in ordinary mutations and portable restore, not just attachments.
+Reproduce current item/revision exposure through secured HTTP before changing
+it. Resolve protected presentation, bodies, structured values and relationship
+metadata at the mutation/snapshot boundary; domain logic must never consume a
+scrub marker as user content. Neutralize relational payloads in the same accepted
+transaction, and extend historical transition metadata coverage. Test subsequent
+neutral writes, dirty/offline sync, structured revisions and portable recovery.

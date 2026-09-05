@@ -179,3 +179,24 @@ partial row. The route now rereads the durable completion receipt after that
 wait and returns the same item identity/offset. The fixture downloads the exact
 four accepted bytes afterward. Secured file tests plus the existing resumable
 contract pass (32 tests); the failing baseline is retained in the task log.
+
+### Canonical payload privacy boundary (A17, FR-014)
+
+A secured ordinary-page SQL sentinel test failed before the change: names and
+retained snapshots remained readable despite protected envelopes. New mutation,
+page-state history/materialization and portable-restore boundaries now resolve
+protected payloads and neutralize their canonical copies atomically. Neutral
+favourite/icon/rename/no-op conversion preserves body and icon. Database privacy
+checks now include items, revisions and page documents instead of excluding them.
+
+Focused protected/read/structured/restore checks passed 56 tests across six files;
+page-history consolidation passed eight after restoring a consistent test clock
+at revision expiry. The complete contract run passed 1,448 of 1,449 tests and
+identified a remaining file-usage name read using the raw title. That read now
+resolves the protected presentation and refuses a missing envelope. Historical
+transition, browser parity and the complete audit gate remain unverified.
+
+The corrected file-usage read and missing-envelope refusal pass alongside the
+canonical privacy cases (16 tests). API strict TypeScript, changed-source Biome
+format/lint and `git diff --check` pass. This checkpoint closes the reproduced
+fresh-write defect; it does not close T044's historical migration obligation.

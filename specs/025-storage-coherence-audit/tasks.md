@@ -79,6 +79,13 @@ survive projection updates; active caret/style and native runtime are exercised.
 - [ ] T040 Read `docs/development.md`, pass `bun run checks:local` and required image scans on the exact commit, then push and open the feature PR with concrete evidence (FR-013).
 - [ ] T041 Review and pass every PR CI, merge, verify all main CI/images and record commit-addressable delivery in `specs/025-storage-coherence-audit/validation.md` (FR-013).
 
+## Additional confirmed privacy boundary — required before delivery
+
+- [x] T042 [US1] Reproduce readable canonical presentation/snapshots and restored payloads through secured HTTP in `apps/api/tests/canonical-storage-privacy.integration.spec.ts`, recording SQL sentinel evidence (FR-014).
+- [ ] T043 [US1] Resolve protected canonical payloads at mutation/snapshot boundaries and neutralize committed plaintext copies in `apps/api/src/plugins/mutations.ts`, content resolution and database mutation/revision repositories; preserve neutral edits, structured values, restore and sync (FR-014).
+- [ ] T044 [US2] Apply the same canonical privacy boundary to portable restoration and historical transition in `apps/api/src/backup/database-restore-target.ts` and `apps/api/src/security/file-storage-migration.ts` (FR-007/FR-014).
+- [ ] T045 [US4] Verify secured canonical SQL sentinel absence, subsequent edits/history, database definitions/values, offline sync and portable/full restored reads; update the audit and convergence evidence (FR-014).
+
 ## Dependencies and strategy
 
 T001–T002 → T003–T009 → US1 → US2 → cross-cutting delivery. US3/US4 have
@@ -92,6 +99,8 @@ US2 fixture construction and operational documentation after the format is fixed
 US3 occupied-target tests while US4 browser reproduction runs. These are dependency
 opportunities, not a requirement to run extra agents or overlap heavy DB suites.
 
-All 41 task lines follow the checklist/ID/path format. Counts: setup 2,
-foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5. Each story's acceptance
+All 45 task lines follow the checklist/ID/path format. Counts: setup 2,
+foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4. Each story's acceptance
 criteria precede its implementation and its completion requires recorded proof.
+
+T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferred beyond this audit delivery.

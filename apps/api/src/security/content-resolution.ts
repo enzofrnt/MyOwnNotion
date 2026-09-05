@@ -39,6 +39,7 @@ import {
   type Transaction,
 } from "@myownnotion/database";
 import type { DatabaseDefinition, EntryValues, RelationTargets, Uuid } from "@myownnotion/domain";
+import { isProtectedPayload } from "./canonical-payloads.ts";
 import type { ProtectedContent } from "./protected-content.ts";
 
 export class ProtectedContentUnavailableError extends Error {
@@ -88,6 +89,9 @@ export async function resolveProtectedContent(
       // The plaintext was scrubbed and the envelope is gone. Serving the
       // placeholder would present an empty title as content; this is the one
       // case where refusing is the honest answer.
+      throw new ProtectedContentUnavailableError(model.id);
+    }
+    if (sealedBody === null && isProtectedPayload(model.pageDocument?.body)) {
       throw new ProtectedContentUnavailableError(model.id);
     }
     const fileMetadata =
@@ -188,6 +192,8 @@ export async function resolveProtectedRelationships(
       executor,
       relationship.id,
     );
+    if (metadata === null && isProtectedPayload(relationship.metadata))
+      throw new ProtectedContentUnavailableError(relationship.id);
     resolved.push({ ...relationship, metadata: metadata ?? relationship.metadata });
   }
   return resolved;

@@ -603,3 +603,9 @@ File encryption and progressive chunk rotation remain required. Feature 025 wire
 See the [canonical plan](../025-storage-coherence-audit/plan.md) and
 [implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
 does not mark that follow-up implemented or delivered.
+
+The same 025 follow-up closes confirmed readable canonical copies (A17): new
+secured mutations and restored pages seal presentation/body/snapshot values and
+neutralize legacy columns atomically. Legacy dual-write is a transition state,
+not the delivered privacy guarantee. Historical cleanup and restart safety remain
+part of 025's verified storage transition.

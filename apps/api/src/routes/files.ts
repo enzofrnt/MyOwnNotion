@@ -17,6 +17,7 @@ import {
   readItem,
   recordChange,
   runMutation,
+  SCRUBBED_PLACEHOLDER,
   schema,
 } from "@myownnotion/database";
 import { generateUuidV7, isUuid, replayResult, type Uuid } from "@myownnotion/domain";
@@ -31,7 +32,10 @@ import {
 } from "../files/protected-file-service.ts";
 import { sendProblem } from "../plugins/errors.ts";
 import { acceptedWriteGuards, attributionFor, mutationIdFrom } from "../plugins/mutations.ts";
-import { resolveProtectedContent } from "../security/content-resolution.ts";
+import {
+  ProtectedContentUnavailableError,
+  resolveProtectedContent,
+} from "../security/content-resolution.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
 import { maxFileBytes } from "./uploads.ts";
 
@@ -380,7 +384,18 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
       // `file_contents.reference_count` already gives, and it is not enough to
       // decide with.
       const usages = await namedUsagesOfFile(context.db, itemId as Uuid);
-      return { usages };
+      const resolved = await Promise.all(
+        usages.map(async (usage) => {
+          const presentation = await context.protectedContent?.readItemPresentation(
+            context.db,
+            usage.usedByItemId,
+          );
+          if (presentation == null && usage.usedByName === SCRUBBED_PLACEHOLDER)
+            throw new ProtectedContentUnavailableError(usage.usedByItemId);
+          return { ...usage, usedByName: presentation?.name ?? usage.usedByName };
+        }),
+      );
+      return { usages: resolved };
     },
   );
 

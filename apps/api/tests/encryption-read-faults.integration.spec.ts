@@ -111,6 +111,12 @@ describe("the cutover itself", () => {
       .update(schema.items)
       .set({ name: "the pre-migration title" })
       .where(eq(schema.items.id, itemId));
+    // A historical source also has its original body; the current route now
+    // replaces that column after sealing, so deleting its envelope alone is corruption.
+    await harness.built.database.db
+      .update(schema.pageDocuments)
+      .set({ body: {} })
+      .where(eq(schema.pageDocuments.pageId, itemId));
 
     const response = await fetchItem(itemId);
     expect(response.statusCode).toBe(200);

@@ -877,7 +877,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   registerFileRoutes(app, context);
   registerUploadRoutes(app, context);
   registerRelationshipRoutes(app, context);
-  registerRevisionRoutes(app, context, { history: pageHistory });
+  registerRevisionRoutes(app, context, { history: pageHistory, now: options.now });
   registerChangeRoutes(app, context);
   registerChangeStreamRoutes(app, context);
   registerSnapshotRoutes(app, context);

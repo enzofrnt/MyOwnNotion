@@ -17,10 +17,8 @@ import {
   readDatabaseEntryRecord,
   readDatabaseRecord,
   readItem,
-  readItemPresentation,
   readRelationshipMetadata,
   readRevisionSnapshots,
-  SCRUBBED_PLACEHOLDER,
   schema,
   submitMutation,
   type Transaction,
@@ -30,6 +28,12 @@ import { eq } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { DatabaseQueryService } from "../databases/database-query-service.ts";
 import type { SearchService } from "../search/search-service.ts";
+import {
+  isProtectedPayload,
+  PROTECTED_PAYLOAD,
+  protectCurrentItem,
+  resolveSnapshotPayload,
+} from "../security/canonical-payloads.ts";
 import { resolveProtectedContent } from "../security/content-resolution.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import { requestContext } from "../security/request-context.ts";
@@ -87,100 +91,36 @@ async function sealPayloads(
   primaryItemId: string | undefined,
   revisionIds: readonly string[],
 ): Promise<void> {
-  const logicalFile =
-    primaryItemId === undefined
-      ? undefined
-      : (
-          await tx
-            .select()
-            .from(schema.logicalFiles)
-            .where(eq(schema.logicalFiles.itemId, primaryItemId))
-            .limit(1)
-        )[0];
-  const fileMetadata =
-    logicalFile === undefined
-      ? null
-      : logicalFile.originalName === SCRUBBED_PLACEHOLDER
-        ? await protectedContent.readFileMetadata(tx, { kind: "file", id: logicalFile.itemId })
-        : { originalName: logicalFile.originalName, mediaType: logicalFile.mediaType };
-  if (logicalFile !== undefined && fileMetadata === null)
-    throw new Error("Protected file metadata is unavailable.");
-  // **The snapshots first, because they are the largest exposure.** A snapshot
-  // is the whole record as it stood, so sealing only the current title and
-  // body would leave every previous state of every page readable in the
-  // clear — and a scrub of the current rows would then remove nothing that
-  // mattered.
-  //
-  // A revision is immutable, so each snapshot is sealed once, at record
-  // version 1, and never rewritten.
+  const itemIds = new Set<string>(primaryItemId === undefined ? [] : [primaryItemId]);
   const snapshots = await readRevisionSnapshots(tx, revisionIds);
   for (const [revisionId, snapshot] of snapshots) {
-    const file = snapshot["file"];
-    const isFile = file !== null && typeof file === "object";
-    const revision = isFile
-      ? (
-          await tx
-            .select({ itemId: schema.revisions.itemId })
-            .from(schema.revisions)
-            .where(eq(schema.revisions.id, revisionId))
-            .limit(1)
-        )[0]
-      : undefined;
-    if (isFile && revision === undefined) throw new Error("File revision identity is unavailable.");
-    const presentation =
-      revision !== undefined && snapshot["name"] === SCRUBBED_PLACEHOLDER
-        ? await protectedContent.readItemPresentation(tx, revision.itemId)
-        : null;
-    const historicalMetadata =
-      revision !== undefined &&
-      isFile &&
-      "originalName" in file &&
-      file.originalName === SCRUBBED_PLACEHOLDER
-        ? await protectedContent.readFileMetadata(tx, { kind: "file", id: revision.itemId })
-        : null;
-    if (
-      isFile &&
-      "originalName" in file &&
-      file.originalName === SCRUBBED_PLACEHOLDER &&
-      historicalMetadata === null
-    )
-      throw new Error("File revision metadata is unavailable.");
-    const openedSnapshot = isFile
-      ? {
-          ...snapshot,
-          ...(presentation === null ? {} : { name: presentation.name, icon: presentation.icon }),
-          file:
-            "originalName" in file && file.originalName === SCRUBBED_PLACEHOLDER
-              ? { ...file, ...historicalMetadata }
-              : file,
-        }
-      : snapshot;
-    await protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot: openedSnapshot });
-    if (isFile)
-      await tx
-        .update(schema.revisions)
-        .set({ snapshot: null })
-        .where(eq(schema.revisions.id, revisionId));
+    const [revision] = await tx
+      .select({ itemId: schema.revisions.itemId })
+      .from(schema.revisions)
+      .where(eq(schema.revisions.id, revisionId));
+    if (revision === undefined) throw new Error("Accepted revision is unavailable.");
+    itemIds.add(revision.itemId);
+    if (snapshot === null) {
+      if ((await protectedContent.readRevisionSnapshot(tx, revisionId)) === null)
+        throw new Error("Accepted revision payload is unavailable.");
+      continue;
+    }
+    const opened = await resolveSnapshotPayload(
+      tx,
+      protectedContent,
+      revision.itemId,
+      snapshot,
+      command.type === "item.icon" && command.itemId === revision.itemId,
+    );
+    await protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot: opened });
+    await tx
+      .update(schema.revisions)
+      .set({ snapshot: null })
+      .where(eq(schema.revisions.id, revisionId));
   }
+  const resolveSnapshot = (revisionId: Uuid) =>
+    protectedContent.readRevisionSnapshot<Record<string, unknown>>(tx, revisionId);
 
-  if (command.type === "page.document.replace" || command.type === "document.resolve-conflict") {
-    // A resolution writes a page body exactly as an edit does, so it is sealed
-    // by the same branch. Sealing is about what a command *stored*, never about
-    // why it stored it — and a resolution left out of this list would be the one
-    // write that commits an owner's words in the clear.
-    await protectedContent.writePageBody(tx, {
-      pageId: command.itemId,
-      recordVersion: 1,
-      body: command.document.body,
-    });
-  }
-  if (command.type === "database.entry.create" && command.document !== undefined) {
-    await protectedContent.writePageBody(tx, {
-      pageId: command.id,
-      recordVersion: 1,
-      body: command.document.body,
-    });
-  }
   // A relationship's metadata: the free-form note explaining *why* two items
   // are related, which is often more revealing than either title. The
   // endpoints and the relation type stay in the clear so the graph can be
@@ -193,6 +133,10 @@ async function sealPayloads(
         recordVersion: 1,
         metadata,
       });
+      await tx
+        .update(schema.relationships)
+        .set({ metadata: PROTECTED_PAYLOAD })
+        .where(eq(schema.relationships.id, command.id));
     }
   }
   if (
@@ -202,7 +146,7 @@ async function sealPayloads(
   ) {
     const databaseId = command.type === "database.create" ? command.id : command.databaseId;
     const record = await readDatabaseRecord(tx, databaseId);
-    const definition = await readCurrentDatabaseDefinition(tx, databaseId);
+    const definition = await readCurrentDatabaseDefinition(tx, databaseId, resolveSnapshot);
     if (record !== null && definition !== null) {
       await protectedContent.writeDatabaseDefinition(tx, {
         databaseId,
@@ -218,7 +162,7 @@ async function sealPayloads(
   ) {
     const entryId = command.type === "database.entry.create" ? command.id : command.entryId;
     const record = await readDatabaseEntryRecord(tx, entryId);
-    const values = await readCurrentDatabaseEntryValues(tx, entryId);
+    const values = await readCurrentDatabaseEntryValues(tx, entryId, resolveSnapshot);
     const propertyRelationships = await listDatabasePropertyRelationships(tx, entryId);
     if (record !== null && values !== null) {
       await protectedContent.writeDatabaseEntryValues(tx, {
@@ -235,51 +179,13 @@ async function sealPayloads(
       });
     }
   }
-  // The title, whatever created or renamed it. Read back from the row the
-  // mutation just wrote rather than taken from the command, so a rename and a
-  // creation are handled by one branch and a command shape that carries the
-  // name differently cannot slip past.
-  if (primaryItemId !== undefined) {
-    // A successful command returning a primary item id has just written that
-    // row in this transaction. Treating a missing row as a recoverable branch
-    // would let accepted content escape sealing; a broken invariant must throw
-    // and roll the transaction back instead.
-    const presentation = (await readItemPresentation(tx, primaryItemId)) as {
-      readonly name: string;
-      readonly icon: string | null;
-    };
-    // After encryption cutover the relational title is deliberately replaced
-    // by U+FFFD. Presentation-neutral writes (favourite, offline intent) and
-    // icon-only writes must not seal that marker over the real title. Read
-    // the current envelope in the same transaction and retain its title;
-    // an actual rename has already written a non-placeholder title and takes
-    // the ordinary branch.
-    const current =
-      presentation.name === SCRUBBED_PLACEHOLDER
-        ? await protectedContent.readItemPresentation(tx, primaryItemId)
-        : null;
-    await protectedContent.writeItemPresentation(tx, {
-      itemId: primaryItemId,
-      recordVersion: 1,
-      name: current?.name ?? presentation.name,
-      icon: presentation.icon,
-    });
-    if (logicalFile !== undefined && fileMetadata !== null) {
-      await protectedContent.writeFileMetadata(tx, {
-        kind: "file",
-        id: primaryItemId,
-        recordVersion: 1,
-        metadata: fileMetadata,
-      });
-      await tx
-        .update(schema.logicalFiles)
-        .set({ originalName: SCRUBBED_PLACEHOLDER, mediaType: "application/octet-stream" })
-        .where(eq(schema.logicalFiles.itemId, primaryItemId));
-      await tx
-        .update(schema.items)
-        .set({ name: SCRUBBED_PLACEHOLDER, icon: null })
-        .where(eq(schema.items.id, primaryItemId));
-    }
+  for (const itemId of itemIds) {
+    await protectCurrentItem(
+      tx,
+      protectedContent,
+      itemId,
+      command.type === "item.icon" && command.itemId === itemId,
+    );
   }
 }
 
@@ -312,6 +218,7 @@ export function acceptedWriteGuards(
    */
   attribution?: { readonly mutationId: Uuid; readonly deviceId: string } | undefined,
 ): {
+  resolvePageBody?: (tx: Transaction, pageId: Uuid, stored: unknown) => Promise<unknown>;
   resolveRevisionSnapshot?: (
     tx: Transaction,
     revisionId: Uuid,
@@ -331,6 +238,12 @@ export function acceptedWriteGuards(
     ...(protectedContent === undefined
       ? {}
       : {
+          resolvePageBody: async (tx: Transaction, pageId: Uuid, stored: unknown) => {
+            const body = await protectedContent.readPageBody(tx, pageId);
+            if (body === null && isProtectedPayload(stored))
+              throw new Error("Protected page body is unavailable.");
+            return body ?? stored;
+          },
           resolveRevisionSnapshot: (tx: Transaction, revisionId: Uuid) =>
             protectedContent.readRevisionSnapshot<Record<string, unknown>>(tx, revisionId),
         }),

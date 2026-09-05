@@ -9,6 +9,7 @@ import {
 import { serialiseDocumentV3, type Uuid, validateDocumentV3 } from "@myownnotion/domain";
 import type { CanonicalProjectionResult } from "@myownnotion/page-state";
 import { eq } from "drizzle-orm";
+import { PROTECTED_PAYLOAD } from "../security/canonical-payloads.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import { PageOperationServiceError } from "./page-operation-errors.ts";
 
@@ -85,11 +86,11 @@ export class CanonicalMaterializer {
         pageId: input.pageId,
         format: "myownnotion.document+json",
         formatVersion: 3,
-        body,
+        body: PROTECTED_PAYLOAD,
       })
       .onConflictDoUpdate({
         target: schema.pageDocuments.pageId,
-        set: { format: "myownnotion.document+json", formatVersion: 3, body },
+        set: { format: "myownnotion.document+json", formatVersion: 3, body: PROTECTED_PAYLOAD },
       });
     await this.#protectedContent.writePageBody(tx, {
       pageId: input.pageId,

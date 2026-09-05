@@ -32,8 +32,12 @@ import { requestContext } from "../security/request-context.ts";
 export function registerRevisionRoutes(
   app: FastifyInstance,
   context: AppContext,
-  deps: { readonly history?: PageHistoryService | undefined } = {},
+  deps: {
+    readonly history?: PageHistoryService | undefined;
+    readonly now?: (() => Date) | undefined;
+  } = {},
 ): void {
+  const now = deps.now ?? (() => new Date());
   app.get(
     "/v1/revisions/:revisionId",
     {
@@ -47,7 +51,7 @@ export function registerRevisionRoutes(
       const { revision, attribution } = await context.db.transaction(async (tx) => {
         const raw = await getRevision(tx, revisionId as Uuid);
         const expired =
-          raw?.snapshotExpiresAt != null && Date.parse(raw.snapshotExpiresAt) <= Date.now();
+          raw?.snapshotExpiresAt != null && Date.parse(raw.snapshotExpiresAt) <= now().getTime();
         const sealed =
           raw === null || expired
             ? null
@@ -66,7 +70,7 @@ export function registerRevisionRoutes(
       const expired =
         revision.snapshot === null ||
         (revision.snapshotExpiresAt !== null &&
-          Date.parse(revision.snapshotExpiresAt) <= Date.now());
+          Date.parse(revision.snapshotExpiresAt) <= now().getTime());
       if (revision.snapshot === null) {
         // Header exists but content is no longer retained.
         return sendProblem(reply, {

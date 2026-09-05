@@ -175,21 +175,28 @@ export async function advanceDatabaseEntryValueVersion(
 async function currentSnapshot(
   executor: Executor,
   itemId: Uuid,
+  resolve?: (revisionId: Uuid) => Promise<Record<string, unknown> | null>,
 ): Promise<Readonly<Record<string, unknown>> | null> {
   const [row] = await executor
-    .select({ snapshot: revisions.snapshot })
+    .select({ id: revisions.id, snapshot: revisions.snapshot })
     .from(items)
     .innerJoin(revisions, eq(revisions.id, items.currentRevisionId))
     .where(eq(items.id, itemId))
     .limit(1);
-  return row === undefined ? null : (row.snapshot as Readonly<Record<string, unknown>>);
+  if (row === undefined) return null;
+  return (
+    (row.snapshot as Readonly<Record<string, unknown>> | null) ??
+    (await resolve?.(row.id as Uuid)) ??
+    null
+  );
 }
 
 export async function readCurrentDatabaseDefinition(
   executor: Executor,
   databaseId: Uuid,
+  resolve?: (revisionId: Uuid) => Promise<Record<string, unknown> | null>,
 ): Promise<DatabaseDefinition | null> {
-  const snapshot = await currentSnapshot(executor, databaseId);
+  const snapshot = await currentSnapshot(executor, databaseId, resolve);
   const definition = snapshot?.["databaseDefinition"];
   return typeof definition === "object" && definition !== null
     ? (definition as DatabaseDefinition)
@@ -199,8 +206,9 @@ export async function readCurrentDatabaseDefinition(
 export async function readCurrentDatabaseEntryValues(
   executor: Executor,
   entryId: Uuid,
+  resolve?: (revisionId: Uuid) => Promise<Record<string, unknown> | null>,
 ): Promise<EntryValues | null> {
-  const snapshot = await currentSnapshot(executor, entryId);
+  const snapshot = await currentSnapshot(executor, entryId, resolve);
   const values = snapshot?.["databaseEntryValues"];
   return typeof values === "object" && values !== null ? (values as EntryValues) : null;
 }

@@ -31,6 +31,11 @@ import {
   ProtectedFileUnavailableError,
 } from "../files/protected-file-service.ts";
 import type { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
+import {
+  PROTECTED_PAYLOAD,
+  protectCurrentItem,
+  resolveSnapshotPayload,
+} from "../security/canonical-payloads.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import { PageOperationArchiveService, readPageOperationArchive } from "./page-operation-archive.ts";
 import type { RestoreTarget } from "./restore-service.ts";
@@ -330,7 +335,11 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
         sourceItemId: relationship.sourceItemId,
         targetItemId: relationship.targetItemId,
         relationType: relationship.relationType,
-        metadata: relationship.metadata,
+        metadata:
+          options.protectedContent !== undefined &&
+          relationship.relationType !== "database:property"
+            ? PROTECTED_PAYLOAD
+            : relationship.metadata,
         createdRevisionId: relationship.createdRevisionId,
         removedRevisionId: relationship.removedRevisionId,
       });
@@ -374,8 +383,9 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       for (const [itemId, item] of itemsById) {
         const database = restoredDatabases.get(itemId);
         const entry = restoredEntries.get(itemId);
-        if (database === undefined && entry === undefined) continue;
-        const snapshot = await buildItemSnapshot(options.tx, itemId);
+        if (database === undefined && entry === undefined && options.protectedContent === undefined)
+          continue;
+        let snapshot = await buildItemSnapshot(options.tx, itemId);
         if (database !== undefined) {
           snapshot["databaseDefinition"] = database.definition;
           snapshot["databaseDefinitionVersion"] = database.definitionVersion;
@@ -385,14 +395,23 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
           snapshot["databaseEntryValues"] = entry.values;
           snapshot["databaseEntryValueVersion"] = entry.valueVersion;
         }
+        if (options.protectedContent !== undefined)
+          snapshot = await resolveSnapshotPayload(
+            options.tx,
+            options.protectedContent,
+            itemId,
+            snapshot,
+          );
         await options.tx
           .update(schema.revisions)
-          .set({ snapshot })
+          .set({ snapshot: options.protectedContent === undefined ? snapshot : null })
           .where(eq(schema.revisions.id, item.currentRevisionId));
         await options.protectedContent?.writeRevisionSnapshot(options.tx, {
           revisionId: item.currentRevisionId,
           snapshot,
         });
+        if (options.protectedContent !== undefined)
+          await protectCurrentItem(options.tx, options.protectedContent, itemId);
       }
     },
   };

@@ -79,6 +79,7 @@ export interface CommandExecution {
 }
 
 export interface MutationContext {
+  readonly resolvePageBody?: (tx: Transaction, pageId: Uuid, stored: unknown) => Promise<unknown>;
   readonly workspaceId: Uuid;
   readonly mutationId: Uuid;
   readonly acceptedAt: Date;
@@ -720,6 +721,12 @@ export async function executeCommand(
         acceptedAt: context.acceptedAt,
         insertRevision: (revision) => insertRevision(tx, revision),
         buildItemSnapshot: (itemId) => buildItemSnapshot(tx, itemId),
+        ...(context.resolvePageBody === undefined
+          ? {}
+          : {
+              resolvePageBody: (pageId: Uuid, stored: unknown) =>
+                context.resolvePageBody?.(tx, pageId, stored) ?? Promise.resolve(stored),
+            }),
         supersedeRevision: (revisionId, at) => supersedeRevision(tx, revisionId, at),
       });
       return result.ok
@@ -911,6 +918,7 @@ export async function submitMutation(
     readonly command: MutationCommand;
     readonly now?: () => Date;
     readonly resolveRevisionSnapshot?: MutationContext["resolveRevisionSnapshot"];
+    readonly resolvePageBody?: MutationContext["resolvePageBody"];
     /**
      * Runs inside the mutation's transaction, after the command is accepted.
      *
@@ -959,6 +967,7 @@ export async function submitMutation(
         workspaceId: input.workspaceId,
         mutationId: input.mutationId,
         acceptedAt,
+        ...(input.resolvePageBody === undefined ? {} : { resolvePageBody: input.resolvePageBody }),
         ...(input.resolveRevisionSnapshot === undefined
           ? {}
           : { resolveRevisionSnapshot: input.resolveRevisionSnapshot }),

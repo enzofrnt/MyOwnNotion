@@ -34,7 +34,7 @@ export interface InsertRevisionInput {
   readonly itemId: Uuid;
   readonly mutationId: Uuid;
   readonly parentRevisionIds: ReadonlyArray<Uuid>;
-  readonly snapshot: Readonly<Record<string, unknown>>;
+  readonly snapshot: Readonly<Record<string, unknown>> | null;
   readonly acceptedAt: Date;
 }
 
@@ -291,6 +291,7 @@ export async function buildItemSnapshot(
   }
   const snapshot: Record<string, unknown> = {
     name: item.name,
+    icon: item.icon,
     kind: item.kind,
     lifecycle: item.lifecycle,
     trashedAt: item.trashedAt?.toISOString() ?? null,

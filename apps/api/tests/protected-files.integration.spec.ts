@@ -160,6 +160,24 @@ describe("private files through authenticated HTTP", () => {
   });
   it("restores a sealed portable archive into protected storage and downloads exact attachment bytes", async () => {
     const id = await directImport();
+    const pageId = generateUuidV7();
+    const privatePage = await owner({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: {
+        id: pageId,
+        kind: "page",
+        name: `${NAME} page`,
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 1,
+          body: { note: BODY },
+        },
+      },
+    });
+    expect(privatePage.statusCode, privatePage.body).toBe(201);
     const destinationRoot = await mkdtemp(path.join(os.tmpdir(), "mon-private-portable-"));
     const destination = new FilesystemDestination(destinationRoot);
     const archiveKey = randomBytes(32);
@@ -208,6 +226,19 @@ describe("private files through authenticated HTTP", () => {
         sql`SELECT i.name, l.original_name, c.sha256, c.storage_key FROM items i JOIN logical_files l ON l.item_id = i.id JOIN file_contents c ON c.id = l.content_id WHERE i.id = ${id}`,
       );
       expect(JSON.stringify(rows.rows)).not.toContain(NAME);
+      const restoredPage = await targetOwner({ method: "GET", url: `/v1/items/${pageId}` });
+      expect(restoredPage.statusCode, restoredPage.body).toBe(200);
+      expect(restoredPage.json()).toMatchObject({
+        name: `${NAME} page`,
+        pageDocument: { body: { note: BODY } },
+      });
+      const canonical = await target.built.database.db.execute(sql`
+        SELECT to_jsonb(i)::text AS payload FROM items i
+        UNION ALL SELECT to_jsonb(p)::text FROM page_documents p
+        UNION ALL SELECT to_jsonb(r)::text FROM revisions r
+      `);
+      expect(JSON.stringify(canonical.rows)).not.toContain(NAME);
+      expect(JSON.stringify(canonical.rows)).not.toContain(BODY);
       expect(rows.rows[0]).toMatchObject({ sha256: null, storage_key: null });
     } finally {
       await target.close();

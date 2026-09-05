@@ -26,6 +26,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
+import { PROTECTED_PAYLOAD } from "../security/canonical-payloads.ts";
 import { resolveProtectedContent } from "../security/content-resolution.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
@@ -183,11 +184,15 @@ export class PageActivationService {
               pageId: input.pageId,
               format: "myownnotion.document+json",
               formatVersion: 3,
-              body,
+              body: PROTECTED_PAYLOAD,
             })
             .onConflictDoUpdate({
               target: schema.pageDocuments.pageId,
-              set: { format: "myownnotion.document+json", formatVersion: 3, body },
+              set: {
+                format: "myownnotion.document+json",
+                formatVersion: 3,
+                body: PROTECTED_PAYLOAD,
+              },
             });
           await this.#deps.protectedContent.writePageBody(tx, {
             pageId: input.pageId,

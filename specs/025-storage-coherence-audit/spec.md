@@ -250,3 +250,21 @@ behavior while structured content refreshes.
 - **SC-007**: Every listed audit boundary has an evidence entry, and every
   confirmed critical/high finding is fixed and verified before this feature is
   marked delivered. Other findings have explicit disposition and limitations.
+
+## Audit extension: canonical plaintext copies
+
+Inspection during T013/T016 identified a broader instance of the same privacy
+inconsistency: ordinary item/snapshot writes and portable restoration create
+protected envelopes while retaining readable payload columns. This is an
+existing constitution IV / feature 002 promise, not a new product feature.
+
+- **FR-014**: Accepted canonical mutations and portable restoration MUST leave
+  sensitive item presentation, page bodies, relationship metadata and revision
+  payloads only in protected storage after commit. Authorized reads, subsequent
+  snapshots, structured definitions/values, revision restore and synchronization
+  MUST resolve those protected values without overwriting them with placeholders.
+  Historical readable copies MUST be included in the verified 025 transition.
+
+Extend SC-001 sentinel inspection to those canonical fields through real secured
+requests and a portable round trip. The logical-storage and historical WAL scope
+limits above still apply. T042–T045 record reproduction, implementation and proof.
