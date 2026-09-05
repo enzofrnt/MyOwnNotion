@@ -215,6 +215,7 @@ test("the content graph stays distinct from folders and supports ten pointer jou
 
 test("backlinks, local graph, global filters and offline restart stay coherent", async ({
   page,
+  request,
 }) => {
   test.slow();
   await openWorkspace(page);
@@ -233,7 +234,7 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
     throw new Error("Les éléments du graphe doivent conserver leur identité.");
   }
   for (let occurrence = 0; occurrence < 2; occurrence += 1) {
-    await createBusinessRelationship(page.context().request, sourceId, targetId);
+    await createBusinessRelationship(request, sourceId, targetId);
   }
   await page.evaluate(async () => {
     await window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.().synchronize();

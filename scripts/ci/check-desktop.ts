@@ -21,7 +21,7 @@ const PINNED_PACKAGES = [
   "electron",
   "@electron-forge/cli",
   "@electron-forge/maker-squirrel",
-  "@electron-forge/maker-dmg",
+  "@electron-forge/maker-base",
   "@electron-forge/maker-deb",
   "@electron-forge/maker-rpm",
   "@reforged/maker-appimage",

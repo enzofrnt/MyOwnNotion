@@ -87,3 +87,35 @@ La couverture d'accessibilité desktop et la parité exhaustive de tous les
 parcours Web doivent être distinguées des sept parcours ciblés. Les critères
 SC-001, SC-002, SC-006, SC-007 et SC-008 ne sont pas déclarés intégralement
 validés à ce stade. Aucun merge ou publication n'est attesté dans ce document.
+
+Le passage complet isolé sur `934c29ff` a validé 373 fichiers / 3555 tests avec
+couverture, huit benchmarks, 333 tests d'intégration et 1290 contrats. Chromium
+a ensuite terminé avec 258 succès et neuf échecs ; Firefox a reproduit les
+symptômes. La passe a été interrompue et n'autorise aucun push. Le diagnostic
+isolé a montré que la détection runtime Web recréait SecurityApi pendant sa
+première authentification, laissant le canal temps réel `idle` jusqu'au prochain
+événement réseau. Le Web conserve désormais son runtime final et le desktop
+attend son profil avant l'authentification. Le scénario de graphe utilise aussi
+la fixture API authentifiée. Les scénarios ciblés graphe, convergence de pages
+fermées, temps réel, révocation/restauration et références visuelles passent
+ensemble sur Chromium. Quinze tests de routage passent, dont le profil natif
+retardé qui interdit toute authentification prématurée. La passe complète sur
+le nouveau commit reste obligatoire.
+
+Une installation depuis zéro a révélé les dépendances natives historiques du
+maker DMG : `fs-xattr` déclenchait une compilation implicite non épinglée et
+`macos-alias` repose sur V8/NAN, incompatible avec Bun. Le prototype de compilation
+épinglée a été abandonné après l'échec réel de fabrication du DMG. Le maker est
+remplacé par les outils natifs macOS sous Forge/Bun. La passe sur `110d2468`
+avait validé couverture, performance, intégration et contrats ; elle a été
+interrompue pendant les navigateurs pour intégrer cette correction. Elle ne
+constitue pas une preuve complète pour le nouveau lockfile.
+
+Le maker `hdiutil` a ensuite produit le DMG réel macOS ARM64 avec succès via
+`bun run desktop:make`. Ses deux tests passent : montage réel avec vérification
+des octets, modes exécutables, attributs macOS, symlinks internes et raccourci
+Applications ; refus d'un nom sortant du répertoire de sortie. Types et format
+passent. Deux installations figées depuis une copie neuve des manifests passent
+avec Bun seul dans le PATH (aucun Node) et une empreinte du lockfile inchangée.
+Les dépendances appdmg, fs-xattr et macos-alias ont disparu du lockfile. Le DMG
+local reste non signé pour distribution et n'est pas publié.

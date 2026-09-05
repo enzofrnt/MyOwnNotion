@@ -10,6 +10,13 @@ uniquement le serveur de développement et de preview du Web.
 exactement le rendu Web. Le hook Forge generateAssets invoque le build Bun;
 aucun plugin de bundling Vite ne participe aux artefacts de production.
 
+La fabrication DMG utilise un maker Forge local autour de `ditto` et `hdiutil`.
+L'installation propre et un vrai essai de fabrication ont révélé que la chaîne
+appdmg/macos-alias exige un addon V8/NAN incompatible avec Bun. Les outils macOS
+évitent ce runtime supplémentaire et conservent le même format d'installation.
+La copie préserve signatures, attributs et symlinks ; l'image est vérifiée avant
+publication. Le test natif monte réellement l'image et contrôle son contenu.
+
 **Alternatives considered**: `electron-builder` fournirait un autre chemin de
 packaging, mais ajouterait un second choix d’outillage et une autre convention
 de release sans besoin identifié; une copie générée de l’application Web
