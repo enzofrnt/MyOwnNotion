@@ -172,8 +172,8 @@ it("adds encrypted file storage without changing existing content identities or 
       [envelope, entry],
     );
     await client.query(
-      "INSERT INTO protected_file_quarantine(id, transition_entry_id, storage_key, manifest_envelope_id) VALUES ($1, $2, $3, $4)",
-      [randomUUID(), entry, "ab".repeat(32), envelope],
+      "INSERT INTO protected_file_quarantine(id, transition_entry_id, storage_key, manifest_envelope_id, content_id) VALUES ($1, $2, $3, $4, $5)",
+      [randomUUID(), entry, "ab".repeat(32), envelope, content],
     );
     await expect(
       client.query("DELETE FROM file_storage_transitions WHERE id = $1", [transition]),

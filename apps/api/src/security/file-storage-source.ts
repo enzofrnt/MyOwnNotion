@@ -13,6 +13,10 @@ export interface LegacyFileSource {
   readonly path: string;
   readonly byteLength: number;
   readonly sha256: string;
+  readonly referenceCount?: number;
+  readonly declaredLength?: number;
+  readonly expiresAt?: string;
+  readonly metadata?: { readonly originalName: string; readonly mediaType: string };
 }
 
 function validPath(path: string): boolean {
@@ -149,6 +153,7 @@ export async function inventoryLegacyFileSources(
       path,
       byteLength: row.byteLength,
       sha256: physical.sha256,
+      referenceCount: row.referenceCount,
     });
     known.add(path);
   }
@@ -158,7 +163,7 @@ export async function inventoryLegacyFileSources(
     schema.protectedFileQuarantine,
   ]) {
     for (const row of await db.select({ storageKey: table.storageKey }).from(table))
-      known.add(`${row.storageKey.slice(0, 2)}/${row.storageKey}`);
+      if (row.storageKey !== null) known.add(`${row.storageKey.slice(0, 2)}/${row.storageKey}`);
   }
   for (const row of await db
     .select()
@@ -172,6 +177,9 @@ export async function inventoryLegacyFileSources(
       path,
       byteLength: row.receivedLength,
       sha256: physical.sha256,
+      declaredLength: row.declaredLength,
+      expiresAt: row.expiresAt.toISOString(),
+      metadata: { originalName: row.originalName, mediaType: row.mediaType },
     });
     // Retain unacknowledged tails in quarantine before retiring the source file.
     if (physical.physicalLength === physical.byteLength) known.add(path);

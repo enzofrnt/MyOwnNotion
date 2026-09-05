@@ -229,3 +229,20 @@ payload, such as relationship removal. The corrected migration guard cases pass
 six tests; fourteen additional canonical/page-operation/guarded-backup integration
 tests pass, including offline convergence and request rollback. No source backup
 or current test installation was silently skipped by the startup check.
+
+Durable source publication now has authenticated source/inventory/replacement
+records and compare-and-advance checkpoints. Backup-evidence refusal creates no
+transition; an interrupted ciphertext write leaves every source checkpoint
+unadvanced; restart reuses the original transition and backup ID. Each published
+replacement is fully authenticated and compared with original length/digest before
+verification advances. Corrupt ciphertext leaves that checkpoint pending until
+repaired. Current upload metadata/lifetime and content reference counts are also
+part of the authenticated source inventory.
+
+Quarantine references preserve empty and nonempty recovery objects, follow chunk
+rotation and survive portable workspace replacement. Twenty-one targeted storage,
+portable-restore and backup-locking tests pass; the enhanced seven-case migration
+suite additionally passes ciphertext-corruption verification/retry. The additive
+schema integration and API strict types pass. These are source/checkpoint proofs;
+canonical metadata backfill, global cutover, source retirement, actual 024 receipt
+composition and all durable driver interruption tests remain unfinished.

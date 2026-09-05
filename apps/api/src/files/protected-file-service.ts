@@ -156,7 +156,7 @@ export class ProtectedFileService {
     const verifiedAt = this.deps.now();
     // A keyed digest narrows candidates; only an authenticated byte comparison permits reuse.
     const candidates =
-      legacyDigest === undefined
+      legacyDigest === undefined && options.contentId === undefined
         ? await findProtectedContentCandidates(tx, lookupTag, byteLength)
         : [];
     for (const candidate of candidates) {

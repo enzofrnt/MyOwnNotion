@@ -124,3 +124,11 @@ definitions, values and metadata reside in authenticated protected envelopes.
 Neutral edits and snapshot generation resolve these envelopes first. Missing
 protected data behind a marker fails closed. Portable restoration applies the
 same boundary before committing; historical copies join the durable transition.
+
+Quarantine keeps an explicit content UUID reference as well as current chunk
+locators. An empty orphan has one row with a null chunk locator; every nonempty
+chunk has a row. The FK prevents ordinary content cleanup from destroying the
+recoverable object, and rotation updates its locators atomically. Its manifest
+reference names the stable transition replacement envelope, which resolves the
+content's current authenticated manifest rather than pinning an obsolete version.
+Portable workspace replacement preserves these recovery objects/checkpoints.

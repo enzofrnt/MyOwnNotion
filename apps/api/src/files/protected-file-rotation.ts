@@ -90,6 +90,10 @@ export async function rotateProtectedFileBatch(
         chunk.chunkIndex,
       );
       await putProtectedFileChunk(tx, scope, replacement, files.deps.now());
+      await tx
+        .update(schema.protectedFileQuarantine)
+        .set({ storageKey: replacement.storageKey })
+        .where(eq(schema.protectedFileQuarantine.storageKey, chunk.storageKey));
       chunks[index] = replacement;
       retired.push(chunk.storageKey);
     } finally {

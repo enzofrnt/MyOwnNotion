@@ -798,7 +798,10 @@ export const protectedFileQuarantine = pgTable(
     transitionEntryId: uuid("transition_entry_id")
       .notNull()
       .references(() => fileStorageTransitionEntries.id),
-    storageKey: text("storage_key").notNull().unique(),
+    contentId: uuid("content_id")
+      .notNull()
+      .references(() => fileContents.id),
+    storageKey: text("storage_key").unique(),
     manifestEnvelopeId: uuid("manifest_envelope_id")
       .notNull()
       .references(() => protectedEnvelopes.id),

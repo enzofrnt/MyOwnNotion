@@ -98,7 +98,8 @@ CREATE UNIQUE INDEX file_storage_transition_entries_object_idx
 CREATE TABLE protected_file_quarantine (
     id uuid PRIMARY KEY,
     transition_entry_id uuid NOT NULL REFERENCES file_storage_transition_entries(id),
-    storage_key text NOT NULL UNIQUE CHECK (storage_key ~ '^[0-9a-f]{64}$'),
+    content_id uuid NOT NULL REFERENCES file_contents(id),
+    storage_key text UNIQUE CHECK (storage_key ~ '^[0-9a-f]{64}$'),
     manifest_envelope_id uuid NOT NULL REFERENCES protected_envelopes(id),
     created_at timestamptz NOT NULL DEFAULT now()
 );

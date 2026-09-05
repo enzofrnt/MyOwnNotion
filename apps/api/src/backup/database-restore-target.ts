@@ -37,6 +37,7 @@ import {
   resolveSnapshotPayload,
 } from "../security/canonical-payloads.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
+import { shareFullFileMutation } from "./full/locks.ts";
 import { PageOperationArchiveService, readPageOperationArchive } from "./page-operation-archive.ts";
 import type { RestoreTarget } from "./restore-service.ts";
 
@@ -65,6 +66,7 @@ export interface DatabaseRestoreTargetOptions {
 
 /** Removes the state the archive replaces, inside the restore transaction. */
 export async function clearWorkspaceForRestore(tx: Transaction, workspaceId: Uuid): Promise<void> {
+  await shareFullFileMutation(tx);
   // The current-revision foreign key is deferred, which lets the old revisions
   // and items disappear in one transaction without ever exposing half a tree.
   await tx.execute(sql`SET CONSTRAINTS ALL DEFERRED`);
@@ -83,8 +85,16 @@ export async function clearWorkspaceForRestore(tx: Transaction, workspaceId: Uui
   await tx.execute(sql`DELETE FROM page_operation_updates WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM page_operation_checkpoints WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM page_operation_states WHERE workspace_id = ${workspaceId}`);
-  await tx.execute(sql`DELETE FROM protected_blob_chunks WHERE workspace_id = ${workspaceId}`);
-  await tx.execute(sql`DELETE FROM protected_envelopes WHERE workspace_id = ${workspaceId}`);
+  // Quarantine belongs to recovery, not the logical workspace being replaced.
+  await tx.execute(sql`DELETE FROM protected_blob_chunks b WHERE b.workspace_id = ${workspaceId}
+    AND NOT EXISTS (SELECT 1 FROM protected_file_quarantine q WHERE q.content_id = b.content_id)`);
+  await tx.execute(sql`DELETE FROM protected_envelopes p WHERE p.workspace_id = ${workspaceId}
+    AND NOT EXISTS (SELECT 1 FROM file_storage_transitions t WHERE t.source_inventory_envelope_id = p.id)
+    AND NOT EXISTS (SELECT 1 FROM file_storage_transition_entries e
+      WHERE e.source_envelope_id = p.id OR e.replacement_envelope_id = p.id)
+    AND NOT EXISTS (SELECT 1 FROM protected_file_quarantine q
+      WHERE q.manifest_envelope_id = p.id OR
+        (p.entity_type = 'file.content-manifest' AND p.entity_id = q.content_id))`);
   // Pending transfers and generated exports describe the old workspace and
   // cannot truthfully survive replacing it.
   await tx.execute(sql`DELETE FROM uploads WHERE workspace_id = ${workspaceId}`);
@@ -110,7 +120,8 @@ export async function clearWorkspaceForRestore(tx: Transaction, workspaceId: Uui
   await tx.execute(sql`DELETE FROM mutations WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM items WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM file_contents WHERE NOT EXISTS
-    (SELECT 1 FROM logical_files WHERE logical_files.content_id = file_contents.id)`);
+    (SELECT 1 FROM logical_files WHERE logical_files.content_id = file_contents.id)
+    AND NOT EXISTS (SELECT 1 FROM protected_file_quarantine q WHERE q.content_id = file_contents.id)`);
 }
 
 export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOptions): RestoreTarget {

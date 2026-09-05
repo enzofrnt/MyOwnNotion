@@ -4,14 +4,18 @@ import { join } from "node:path";
 import { createUpload, getUpload, schema } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { buildApp } from "../src/app.ts";
+import { clearWorkspaceForRestore } from "../src/backup/database-restore-target.ts";
+import { rotateProtectedFileBatch } from "../src/files/protected-file-rotation.ts";
 import { ProtectedUploadService } from "../src/files/protected-upload-service.ts";
+import { FileStorageMigration } from "../src/security/file-storage-migration.ts";
 import {
   inventoryLegacyFileSources,
   readLegacyFileSource,
 } from "../src/security/file-storage-source.ts";
 import { enterStorageTransition } from "../src/security/file-storage-transition-guard.ts";
+import { ProtectedRecordService } from "../src/security/protected-record-service.ts";
 import { createItemViaApi } from "./helpers/app.ts";
 import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 
@@ -301,6 +305,139 @@ it("blocks existing HTTP writers and a new server until the transaction-local mi
       name: "resumed",
     });
   } finally {
+    await harness.close();
+  }
+});
+
+it("requires source backup evidence and resumes atomic publication without losing orphan recovery references", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedFiles: files } = harness.built.context;
+    if (files === undefined) throw new Error("Missing protected runtime");
+    const contentId = generateUuidV7();
+    const original = Buffer.from("checkpoint-preserved original bytes");
+    const raw = await files.deps.blobs.put(original);
+    await db.insert(schema.fileContents).values({ id: contentId, ...raw, referenceCount: 2 });
+    await mkdir(join(harness.blobRoot, "ab"), { recursive: true });
+    await writeFile(join(harness.blobRoot, "ab/.tmp-0123456789abcdef"), "recoverable orphan");
+    await writeFile(join(harness.blobRoot, "ab/.tmp-fedcba9876543210"), "");
+    const backupId = generateUuidV7();
+    const verify = vi
+      .fn<(id: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error("missing verified archive"))
+      .mockResolvedValue(undefined);
+    const records = new ProtectedRecordService({
+      db,
+      keys: files.deps.keys,
+      workspaceId: files.deps.workspaceId,
+      installationId: files.deps.installationId,
+      now: () => new Date(),
+    });
+    const migration = new FileStorageMigration({
+      db,
+      files,
+      records,
+      blobRoot: harness.blobRoot,
+      verifySourceBackup: verify,
+    });
+    await expect(migration.prepare(backupId)).rejects.toThrow("verified archive");
+    expect(await db.select().from(schema.fileStorageTransitions)).toHaveLength(0);
+    expect(
+      (await db.select().from(schema.fileContents).where(eq(schema.fileContents.id, contentId)))[0]
+        ?.storageFormat,
+    ).toBe("legacy-v1");
+    const prepared = await migration.prepare(backupId);
+    const publish = files.deps.blobs.put.bind(files.deps.blobs);
+    vi.spyOn(files.deps.blobs, "put").mockImplementationOnce(async (bytes) => {
+      await publish(bytes);
+      throw new Error("interrupted after physical publication");
+    });
+    await expect(migration.publishNext(prepared.id)).rejects.toThrow("interrupted");
+    expect(
+      (await db.select().from(schema.fileStorageTransitionEntries)).every(
+        (entry) => entry.phase === "inventoried",
+      ),
+    ).toBe(true);
+    vi.restoreAllMocks();
+    const resumed = await migration.prepare(generateUuidV7());
+    expect(resumed.id).toBe(prepared.id);
+    expect(verify).toHaveBeenLastCalledWith(backupId);
+    let published = 0;
+    while (await migration.publishNext(prepared.id)) published++;
+    expect(published).toBe(3);
+    expect(
+      (await db.select().from(schema.fileStorageTransitionEntries)).every(
+        (entry) => entry.phase === "published",
+      ),
+    ).toBe(true);
+    const [firstChunk] = await db
+      .select()
+      .from(schema.protectedBlobChunks)
+      .where(eq(schema.protectedBlobChunks.contentId, contentId));
+    if (firstChunk === undefined) throw new Error("Missing published ciphertext");
+    const encrypted = await files.deps.blobs.get(firstChunk.storageKey);
+    if (encrypted === null) throw new Error("Missing ciphertext fixture");
+    const physicalPath = join(
+      harness.blobRoot,
+      firstChunk.storageKey.slice(0, 2),
+      firstChunk.storageKey,
+    );
+    const damaged = Buffer.from(encrypted);
+    damaged[0] = (damaged[0] ?? 0) ^ 1;
+    await writeFile(physicalPath, damaged);
+    await expect(migration.verifyNext(prepared.id)).rejects.toThrow();
+    expect(
+      (await db.select().from(schema.fileStorageTransitionEntries)).every(
+        (entry) => entry.phase === "published",
+      ),
+    ).toBe(true);
+    await writeFile(physicalPath, encrypted);
+    let verified = 0;
+    while (await migration.verifyNext(prepared.id)) verified++;
+    expect(verified).toBe(3);
+    expect(
+      (await db.select().from(schema.fileStorageTransitionEntries)).every(
+        (entry) => entry.phase === "verified",
+      ),
+    ).toBe(true);
+    const quarantine = await db.select().from(schema.protectedFileQuarantine);
+    expect(quarantine).toHaveLength(2);
+    expect(quarantine.filter((row) => row.storageKey === null)).toHaveLength(1);
+    await db.transaction(async (tx) => {
+      await enterStorageTransition(tx, prepared.id);
+      const chunks = [];
+      for await (const bytes of files.read(tx, contentId)) chunks.push(Buffer.from(bytes));
+      expect(Buffer.concat(chunks)).toEqual(original);
+      for (const orphan of quarantine) {
+        const manifest = await files.manifest(tx, orphan.contentId);
+        expect(manifest.byteLength).toBe(orphan.storageKey === null ? 0 : 18);
+      }
+    });
+    expect(await files.deps.blobs.get(raw.storageKey)).toEqual(new Uint8Array(original));
+    expect((await db.select().from(schema.fileStorageTransitions))[0]?.phase).toBe("backfilling");
+    // Isolate post-transition recovery boundaries; this fixture does not claim full cutover.
+    await db
+      .update(schema.fileStorageTransitions)
+      .set({ phase: "complete", completedAt: new Date() })
+      .where(eq(schema.fileStorageTransitions.id, prepared.id));
+    await db.transaction((tx) => files.deps.keys.startNextGeneration(tx));
+    while (await db.transaction((tx) => rotateProtectedFileBatch(tx, files, 1, 2, 1))) {
+      /* bounded rotation */
+    }
+    const rotated = await db.select().from(schema.protectedFileQuarantine);
+    for (const row of rotated.filter((row) => row.storageKey !== null))
+      expect(quarantine.some((old) => old.storageKey === row.storageKey)).toBe(false);
+    await db.transaction((tx) => clearWorkspaceForRestore(tx, files.deps.workspaceId as Uuid));
+    expect(await db.select().from(schema.protectedFileQuarantine)).toHaveLength(2);
+    for (const orphan of rotated) {
+      const chunks = [];
+      for await (const bytes of files.read(db, orphan.contentId)) chunks.push(Buffer.from(bytes));
+      expect(Buffer.concat(chunks).toString()).toBe(
+        orphan.storageKey === null ? "" : "recoverable orphan",
+      );
+    }
+  } finally {
+    vi.restoreAllMocks();
     await harness.close();
   }
 });
