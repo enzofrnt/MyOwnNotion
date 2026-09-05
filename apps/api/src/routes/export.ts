@@ -77,6 +77,7 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
   const fileRows = await tx
     .select({
       itemId: schema.logicalFiles.itemId,
+      contentId: schema.logicalFiles.contentId,
       mediaType: schema.logicalFiles.mediaType,
       originalName: schema.logicalFiles.originalName,
       byteLength: schema.logicalFiles.byteLength,
@@ -84,7 +85,22 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
     })
     .from(schema.logicalFiles)
     .innerJoin(schema.fileContents, eq(schema.logicalFiles.contentId, schema.fileContents.id));
-  const filesByItem = new Map(fileRows.map((row) => [row.itemId, row]));
+  const filesByItem = new Map<
+    string,
+    { mediaType: string; originalName: string; byteLength: number; sha256: string }
+  >();
+  for (const row of fileRows) {
+    const manifest =
+      row.sha256 === null ? await context.protectedFiles?.manifest(tx, row.contentId) : null;
+    const metadata = await context.protectedContent?.readFileMetadata(tx, {
+      kind: "file",
+      id: row.itemId,
+    });
+    const digest = row.sha256 === null ? manifest?.sha256 : Buffer.from(row.sha256).toString("hex");
+    if (digest === undefined || (row.sha256 === null && metadata == null))
+      throw new Error("Protected file metadata must be resolved before export.");
+    filesByItem.set(row.itemId, { ...row, ...metadata, sha256: digest });
+  }
 
   const revisionRows = await tx.select().from(schema.revisions);
   const parentRows = await tx.select().from(schema.revisionParents);
@@ -121,9 +137,6 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
 
   const items: ExportedItem[] = models.map((model) => {
     const file = filesByItem.get(model.id);
-    if (file?.sha256 === null) {
-      throw new Error("Protected file metadata must be resolved before export.");
-    }
     return {
       id: model.id,
       workspaceId: context.workspaceId,
@@ -144,7 +157,7 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
               mediaType: file.mediaType,
               originalName: file.originalName,
               byteLength: file.byteLength,
-              sha256: Buffer.from(file.sha256).toString("hex"),
+              sha256: file.sha256,
             },
       placements: (placementsByItem.get(model.id) ?? []).map((placement) => ({
         id: placement.id as Uuid,

@@ -206,6 +206,37 @@ export async function writeBackupArchiveFile(input: {
   }
 }
 
+/** Same TAR layout, with attachment chunks flowing directly into the sealer. */
+export async function* streamBackupArchive(input: {
+  readonly manifest: BackupManifest;
+  readonly canonicalExport: string;
+  readonly operationalState?: string | null;
+  readonly readFile: (digest: string) => AsyncIterable<Uint8Array>;
+}): AsyncGenerator<Uint8Array> {
+  const modifiedAt = new Date(input.manifest.createdAt);
+  if (Number.isNaN(modifiedAt.getTime())) throw new Error("The backup creation date is invalid.");
+  yield* encodeEntry(MANIFEST_PATH, Buffer.from(JSON.stringify(input.manifest)), modifiedAt);
+  yield* encodeEntry(CANONICAL_EXPORT_PATH, Buffer.from(input.canonicalExport), modifiedAt);
+  if (input.operationalState != null)
+    yield* encodeEntry(PAGE_OPERATIONS_PATH, Buffer.from(input.operationalState), modifiedAt);
+  for (const file of [...input.manifest.files].sort((a, b) => a.digest.localeCompare(b.digest))) {
+    yield entryHeader(`files/${file.digest.slice("sha256:".length)}`, file.byteLength, modifiedAt);
+    const hash = createHash("sha256");
+    let length = 0;
+    for await (const bytes of input.readFile(file.digest)) {
+      length += bytes.byteLength;
+      if (length > file.byteLength) throw new Error("Backup file exceeds its declared length.");
+      hash.update(bytes);
+      yield bytes;
+    }
+    if (length !== file.byteLength || `sha256:${hash.digest("hex")}` !== file.digest)
+      throw new Error("Backup file does not match its authenticated inventory.");
+    const padding = (TAR_BLOCK_BYTES - (length % TAR_BLOCK_BYTES)) % TAR_BLOCK_BYTES;
+    if (padding > 0) yield Buffer.alloc(padding);
+  }
+  yield Buffer.alloc(TAR_BLOCK_BYTES * 2);
+}
+
 function readText(source: Buffer, offset: number, width: number): string {
   const field = source.subarray(offset, offset + width);
   const end = field.indexOf(0);

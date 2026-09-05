@@ -1,7 +1,7 @@
 /** Backup/restore of the causal page state with an absent replica (T126/T147, US5). */
 
 import { randomUUID } from "node:crypto";
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
@@ -129,7 +129,7 @@ function backupRuntime(destination: FilesystemDestination) {
     context: harness.api.built.context,
     destination,
     applicationVersion: "0.1.0-operation-test",
-    seal: async (plaintextPath, sealedPath) => await copyFile(plaintextPath, sealedPath),
+    seal: async (plaintext, sealedPath) => await writeFile(sealedPath, plaintext),
   });
 }
 
@@ -513,6 +513,32 @@ it("round-trips every SQL table in a full archive and accepts an offline replica
   });
   expect(accepted.statusCode, accepted.body).toBe(200);
   const key = Buffer.from((await readFile(harness.deploymentKeyFile, "utf8")).trim(), "base64");
+  const transferIds: string[] = [];
+  for (const length of [4, 8]) {
+    const created = await harness.api.built.app.inject({
+      method: "POST",
+      url: "/v1/uploads",
+      headers: {
+        ...headers,
+        "upload-length": String(length),
+        "upload-metadata": `filename ${Buffer.from("Recovered private attachment.txt").toString("base64")}`,
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = created.json().id as string;
+    transferIds.push(id);
+    const accepted = await harness.api.built.app.inject({
+      method: "PATCH",
+      url: `/v1/uploads/${id}`,
+      headers: {
+        ...headers,
+        "upload-offset": "0",
+        "content-type": "application/offset+octet-stream",
+      },
+      payload: Buffer.from("head"),
+    });
+    expect(accepted.statusCode, accepted.body).toBe(length === 4 ? 201 : 204);
+  }
   const full = new FullBackupService({
     connectionString: harness.api.postgres.connectionString,
     blobRoot: harness.api.blobRoot,
@@ -591,6 +617,38 @@ it("round-trips every SQL table in a full archive and accepts an offline replica
       "x-csrf-token": login.json().csrfToken,
       "x-myownnotion-client-protocol": "3",
     };
+    const attachment = await restored.app.inject({
+      method: "GET",
+      url: `/v1/files/${transferIds[0]}/content`,
+      headers: fresh,
+    });
+    expect(attachment.statusCode, attachment.body).toBe(200);
+    expect(attachment.body).toBe("head");
+    const partial = await restored.app.inject({
+      method: "HEAD",
+      url: `/v1/uploads/${transferIds[1]}`,
+      headers: fresh,
+    });
+    expect(partial.statusCode).toBe(200);
+    expect(partial.headers["upload-offset"]).toBe("4");
+    const completed = await restored.app.inject({
+      method: "PATCH",
+      url: `/v1/uploads/${transferIds[1]}`,
+      headers: {
+        ...fresh,
+        "upload-offset": "4",
+        "content-type": "application/offset+octet-stream",
+      },
+      payload: Buffer.from("tail"),
+    });
+    expect(completed.statusCode, completed.body).toBe(201);
+    const resumed = await restored.app.inject({
+      method: "GET",
+      url: `/v1/files/${transferIds[1]}/content`,
+      headers: fresh,
+    });
+    expect(resumed.statusCode, resumed.body).toBe(200);
+    expect(resumed.body).toBe("headtail");
     const offlineTransaction = absent.transact([
       {
         type: "insert-block",

@@ -5,7 +5,7 @@ import { createInterface } from "node:readline/promises";
 import { ContentStore, FilesystemBlobStore, PartialUploadStore } from "@myownnotion/blob-store";
 import { createDatabase, getOrCreateWorkspace, migrationInventory } from "@myownnotion/database";
 import { APPLICATION_VERSION } from "../application-version.ts";
-import { openBackupArchive, sealBackupArchiveFile } from "../backup/archive-crypto.ts";
+import { openBackupArchive, sealBackupArchiveStream } from "../backup/archive-crypto.ts";
 import {
   createBackupDestination,
   fullBackupRoot,
@@ -14,9 +14,9 @@ import {
 import { BACKUP_RECORD_FORMAT_VERSION, BackupService } from "../backup/backup-service.ts";
 import { FullBackupService } from "../backup/full/service.ts";
 import { PageOperationArchiveService } from "../backup/page-operation-archive.ts";
+import { createProtectedFileRuntime } from "../files/protected-file-runtime.ts";
 import { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import { loadDeploymentKey } from "../security/deployment-key.ts";
-import { createProtectedContentRuntime } from "../security/protected-content-runtime.ts";
 import { runBackupAdminCommand } from "./backup-admin-commands.ts";
 import { type CommandResult, EXIT_CODES, exitCodeFor, renderResult } from "./command-output.ts";
 import { parseCommand, wantsJson } from "./command-parser.ts";
@@ -99,7 +99,8 @@ export async function runAdminCli(
         return null;
       }
     };
-    const protectedRuntime = createProtectedContentRuntime({
+    const protectedRuntime = createProtectedFileRuntime({
+      blobRoot: blobRoot,
       db: database.db,
       workspaceId: workspace.id,
       deploymentKey,
@@ -116,6 +117,7 @@ export async function runAdminCli(
       contentStore,
       partialUploads: new PartialUploadStore(blobRoot),
       protectedContent: protectedRuntime.content,
+      protectedFiles: protectedRuntime.files,
       pageOperationArchive,
     };
     const key = () => {
@@ -129,8 +131,8 @@ export async function runAdminCli(
       context,
       destination,
       applicationVersion: APPLICATION_VERSION,
-      seal: async (plaintextPath, sealedPath) =>
-        await sealBackupArchiveFile(key(), plaintextPath, sealedPath),
+      seal: async (plaintext, sealedPath) =>
+        await sealBackupArchiveStream(key(), plaintext, sealedPath),
     });
     const inventory = await migrationInventory(databaseUrl);
     const result = await runBackupAdminCommand(command, {
@@ -141,6 +143,7 @@ export async function runAdminCli(
       destination,
       contentStore,
       protectedContent: protectedRuntime.content,
+      protectedFiles: protectedRuntime.files,
       pageOperationCrypto,
       deploymentKey: key,
       open: async (ciphertext) => openBackupArchive(key(), ciphertext),

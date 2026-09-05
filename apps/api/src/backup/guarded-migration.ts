@@ -12,9 +12,9 @@ import {
 import { validateCanonicalExport } from "@myownnotion/domain";
 import pg from "pg";
 import type { AppContext } from "../context.ts";
+import { createProtectedFileRuntime } from "../files/protected-file-runtime.ts";
 import { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import { buildManifest } from "../routes/export.ts";
-import { createProtectedContentRuntime } from "../security/protected-content-runtime.ts";
 import type { BackupDestination } from "./destinations/destination.ts";
 import { acquireFullRunLock } from "./full/locks.ts";
 import { assertFullRestoreActivated } from "./full/restore-state.ts";
@@ -100,7 +100,8 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
         sourceLineageId: installationId,
         schemaVersion: workspace.schemaVersion,
       });
-      const protectedRuntime = createProtectedContentRuntime({
+      const protectedRuntime = createProtectedFileRuntime({
+        blobRoot: input.blobRoot,
         db: database.db,
         installationId,
         workspaceId: workspace.id,
@@ -113,6 +114,7 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
         contentStore: new ContentStore(new FilesystemBlobStore(input.blobRoot)),
         partialUploads: new PartialUploadStore(input.blobRoot),
         protectedContent: protectedRuntime.content,
+        protectedFiles: protectedRuntime.files,
         pageOperationArchive: new PageOperationArchiveService({
           workspaceId: workspace.id,
           crypto: new PageOperationCrypto(protectedRuntime.records),

@@ -41,7 +41,8 @@ import {
   createDatabaseQueryService,
   type DatabaseQueryService,
 } from "./databases/database-query-service.ts";
-import { ProtectedFileService } from "./files/protected-file-service.ts";
+import { createProtectedFileRuntime } from "./files/protected-file-runtime.ts";
+import type { ProtectedFileService } from "./files/protected-file-service.ts";
 import { CanonicalMaterializer } from "./page-state/canonical-materializer.ts";
 import {
   type PageCheckpointRetentionPolicy,
@@ -91,11 +92,10 @@ import { BootstrapService } from "./security/bootstrap-service.ts";
 import { setSessionCookie } from "./security/cookie-policy.ts";
 import { loadDeploymentKey } from "./security/deployment-key.ts";
 import { DeviceService } from "./security/device-service.ts";
-import { KeyHierarchy } from "./security/key-hierarchy.ts";
+import type { KeyHierarchy } from "./security/key-hierarchy.ts";
 import { createOwnerPrincipalResolver } from "./security/owner-principal.ts";
-import { ProtectedContent } from "./security/protected-content.ts";
+import type { ProtectedContent } from "./security/protected-content.ts";
 import { INSTALLATION_ID } from "./security/protected-content-runtime.ts";
-import { ProtectedRecordService } from "./security/protected-record-service.ts";
 import { isWebSocketUpgradeRequest } from "./security/realtime-authorization.ts";
 import { RecoveryKitService } from "./security/recovery-kit-service.ts";
 import {
@@ -374,13 +374,41 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     //
     // `dataKey` creates it on the first protected write instead. See the
     // comment there.
-    keyHierarchy = new KeyHierarchy({
+    const protectedRuntime = createProtectedFileRuntime({
       db: database.db,
       installationId: INSTALLATION_ID,
       workspaceId: workspace.id,
+      blobRoot: options.blobRoot,
       deploymentKey,
       now,
+      reportIntegrityFailure: async (failure) => {
+        await audit.record(
+          {
+            installationId: INSTALLATION_ID,
+            workspaceId: workspace.id,
+            // No request is in scope here — this is reached from inside a
+            // repository read — so the event carries its own correlation id
+            // rather than borrowing one it cannot verify.
+            correlationId: randomUUID(),
+            actorClass: "system",
+          },
+          {
+            eventType: "integrity.envelope-rejected",
+            outcome: "failure",
+            objectKind: failure.entityType,
+            objectId: failure.entityId,
+            // Reason, generation and version only. No ciphertext, no key,
+            // no opened bytes — the audit trail must stay safe to read.
+            metadata: {
+              reason: failure.reason,
+              keyGeneration: failure.keyGeneration,
+              recordVersion: failure.recordVersion,
+            },
+          },
+        );
+      },
     });
+    keyHierarchy = protectedRuntime.keys;
 
     // One policy object, shared by the service and the routes. Two calls would
     // be two objects that could drift the moment the policy takes an argument.
@@ -429,53 +457,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     // route can seal its payload without knowing anything about key
     // generations. Absent when security is not configured, which is what keeps
     // the feature-001 harness behaving exactly as it did.
-    const protectedRecords = new ProtectedRecordService({
-      db: database.db,
-      keys: keyHierarchy,
-      installationId: INSTALLATION_ID,
-      workspaceId: workspace.id,
-      now,
-      // A refused envelope is the one integrity signal an operator cannot
-      // reconstruct afterwards: the request is answered with an opaque
-      // refusal and nothing is left behind. `AuditService.record` swallows
-      // its own failures, so recording can never turn the refusal into a
-      // different error.
-      reportIntegrityFailure: async (failure) => {
-        await audit.record(
-          {
-            installationId: INSTALLATION_ID,
-            workspaceId: workspace.id,
-            // No request is in scope here — this is reached from inside a
-            // repository read — so the event carries its own correlation id
-            // rather than borrowing one it cannot verify.
-            correlationId: randomUUID(),
-            actorClass: "system",
-          },
-          {
-            eventType: "integrity.envelope-rejected",
-            outcome: "failure",
-            objectKind: failure.entityType,
-            objectId: failure.entityId,
-            // Reason, generation and version only. No ciphertext, no key,
-            // no opened bytes — the audit trail must stay safe to read.
-            metadata: {
-              reason: failure.reason,
-              keyGeneration: failure.keyGeneration,
-              recordVersion: failure.recordVersion,
-            },
-          },
-        );
-      },
-    });
-    protectedContent = new ProtectedContent({ records: protectedRecords });
-    protectedFiles = new ProtectedFileService({
-      installationId: INSTALLATION_ID,
-      workspaceId: workspace.id,
-      blobs: new FilesystemBlobStore(options.blobRoot),
-      keys: keyHierarchy,
-      content: protectedContent,
-      now,
-    });
+    const protectedRecords = protectedRuntime.records;
+    protectedContent = protectedRuntime.content;
+    protectedFiles = protectedRuntime.files;
 
     search = createDatabaseSearchService({
       db: database.db,

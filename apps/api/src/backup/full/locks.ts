@@ -25,6 +25,11 @@ export async function shareFullBlobDeletion(tx: Transaction): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock_shared(${NAMESPACE}, ${BLOB_DELETION})`);
 }
 
+/** Portable archive reads pin physical bytes while their separate snapshot is consumed. */
+export async function protectFullBlobReads(tx: Transaction): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${NAMESPACE}, ${BLOB_DELETION})`);
+}
+
 /** Acquire before beginning the exported snapshot so waits cannot age the snapshot. */
 export interface FullBackupLockRelease {
   (): Promise<void>;

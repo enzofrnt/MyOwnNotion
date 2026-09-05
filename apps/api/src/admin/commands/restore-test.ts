@@ -13,11 +13,9 @@ import {
   readPageOperationArchive,
 } from "../../backup/page-operation-archive.ts";
 import { applyArchive } from "../../backup/restore-service.ts";
+import { createProtectedFileRuntime } from "../../files/protected-file-runtime.ts";
 import { PageOperationCrypto } from "../../page-state/page-operation-crypto.ts";
-import {
-  createProtectedContentRuntime,
-  INSTALLATION_ID,
-} from "../../security/protected-content-runtime.ts";
+import { INSTALLATION_ID } from "../../security/protected-content-runtime.ts";
 import type { CommandResult } from "../command-output.ts";
 import { type RestoreRunnerDeps, runRestore } from "./restore-runner.ts";
 
@@ -75,7 +73,8 @@ export async function restoreTestCommand(
           }
         }
         const rehearsalDeploymentKey = deps.deploymentKey?.() ?? randomBytes(32);
-        const protectedRuntime = createProtectedContentRuntime({
+        const protectedRuntime = createProtectedFileRuntime({
+          blobRoot: rehearsal.blobRoot,
           db: rehearsal.handle.db,
           workspaceId: workspace.id,
           deploymentKey: () => rehearsalDeploymentKey,
@@ -90,6 +89,7 @@ export async function restoreTestCommand(
               workspaceId: workspace.id,
               contentStore,
               protectedContent: protectedRuntime.content,
+              protectedFiles: protectedRuntime.files,
               pageOperationCrypto,
             }),
           ),

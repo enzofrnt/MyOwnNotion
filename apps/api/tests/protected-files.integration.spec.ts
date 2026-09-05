@@ -5,6 +5,11 @@ import path from "node:path";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { openBackupArchive, sealBackupArchiveStream } from "../src/backup/archive-crypto.ts";
+import { BackupService } from "../src/backup/backup-service.ts";
+import { createDatabaseRestoreTarget } from "../src/backup/database-restore-target.ts";
+import { FilesystemDestination } from "../src/backup/destinations/filesystem.ts";
+import { applyArchive } from "../src/backup/restore-service.ts";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
 import { authenticatedContent } from "./helpers/content-owner.ts";
@@ -12,20 +17,20 @@ import { authenticatedContent } from "./helpers/content-owner.ts";
 let harness: ApiHarness;
 let owner: Awaited<ReturnType<typeof authenticatedContent>>;
 let keyRoot: string;
+let security: ReturnType<typeof loadSecurityConfig>;
 const BODY = "Private attachment content sentinel from secured HTTP upload";
 const NAME = "Private-confidential-filename-sentinel.txt";
 beforeAll(async () => {
   keyRoot = await mkdtemp(path.join(os.tmpdir(), "mon-protected-http-key-"));
   const keyFile = path.join(keyRoot, "deployment-key");
   await writeFile(keyFile, randomBytes(32).toString("base64"), { mode: 0o600 });
-  harness = await createApiHarness({
-    security: loadSecurityConfig({
-      MYOWNNOTION_PUBLIC_ORIGIN: "http://127.0.0.1:5173",
-      MYOWNNOTION_API_HOST: "127.0.0.1",
-      MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
-      MYOWNNOTION_DEPLOYMENT_KEY_FILE: keyFile,
-    }),
+  security = loadSecurityConfig({
+    MYOWNNOTION_PUBLIC_ORIGIN: "http://127.0.0.1:5173",
+    MYOWNNOTION_API_HOST: "127.0.0.1",
+    MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
+    MYOWNNOTION_DEPLOYMENT_KEY_FILE: keyFile,
   });
+  harness = await createApiHarness({ security });
   owner = await authenticatedContent(harness);
 });
 afterAll(async () => {
@@ -68,6 +73,62 @@ async function directImport(): Promise<string> {
 }
 
 describe("private files through authenticated HTTP", () => {
+  it("restores a sealed portable archive into protected storage and downloads exact attachment bytes", async () => {
+    const id = await directImport();
+    const destinationRoot = await mkdtemp(path.join(os.tmpdir(), "mon-private-portable-"));
+    const destination = new FilesystemDestination(destinationRoot);
+    const archiveKey = randomBytes(32);
+    const target = await createApiHarness({ security });
+    try {
+      const targetOwner = await authenticatedContent(target);
+      const service = new BackupService({
+        context: harness.built.context,
+        destination,
+        applicationVersion: "0.1.0-test",
+        seal: (source, filename) => sealBackupArchiveStream(archiveKey, source, filename),
+      });
+      const outcome = await service.run("manual");
+      expect(outcome.verifiedAfterTransfer).toBe(true);
+      const archive = openBackupArchive(
+        archiveKey,
+        await readFile(path.join(destinationRoot, outcome.name)),
+      );
+      const { protectedContent, protectedFiles } = target.built.context;
+      const { pageOperationCrypto } = target.built;
+      if (
+        protectedContent === undefined ||
+        protectedFiles === undefined ||
+        pageOperationCrypto === undefined
+      )
+        throw new Error("Missing protected restore fixture runtime");
+      await target.built.database.db.transaction((tx) =>
+        applyArchive(
+          archive,
+          createDatabaseRestoreTarget({
+            tx,
+            workspaceId: target.built.context.workspaceId,
+            contentStore: target.built.context.contentStore,
+            protectedContent,
+            protectedFiles,
+            pageOperationCrypto,
+          }),
+        ),
+      );
+      const read = await targetOwner({ method: "GET", url: `/v1/files/${id}/content` });
+      expect(read.statusCode, read.body).toBe(200);
+      expect(read.body).toBe(BODY);
+      expect((await targetOwner({ method: "GET", url: `/v1/items/${id}` })).json().name).toBe(NAME);
+      expect(await physicalContains(target.blobRoot, BODY)).toBe(false);
+      const rows = await target.built.database.db.execute(
+        sql`SELECT i.name, l.original_name, c.sha256, c.storage_key FROM items i JOIN logical_files l ON l.item_id = i.id JOIN file_contents c ON c.id = l.content_id WHERE i.id = ${id}`,
+      );
+      expect(JSON.stringify(rows.rows)).not.toContain(NAME);
+      expect(rows.rows[0]).toMatchObject({ sha256: null, storage_key: null });
+    } finally {
+      await target.close();
+      await rm(destinationRoot, { recursive: true, force: true });
+    }
+  });
   it("serves authenticated single ranges, refuses invalid ranges and honors If-Range", async () => {
     const id = await directImport();
     const url = `/v1/files/${id}/content`;

@@ -31,7 +31,7 @@ import {
   runBackupCommand,
   verifyBackupCommand,
 } from "../src/admin/commands/backup-commands.ts";
-import { sealBackupArchiveFile } from "../src/backup/archive-crypto.ts";
+import { sealBackupArchiveStream } from "../src/backup/archive-crypto.ts";
 import { decodeBackupArchive } from "../src/backup/archive-format.ts";
 import { BackupService } from "../src/backup/backup-service.ts";
 import type { BackupDestination } from "../src/backup/destinations/destination.ts";
@@ -60,8 +60,8 @@ function serviceFor(): BackupService {
     context: harness.built.context,
     destination: new FilesystemDestination(destinationRoot),
     applicationVersion: "0.1.0-test",
-    seal: async (plaintextPath, sealedPath) =>
-      await sealBackupArchiveFile(ARCHIVE_KEY, plaintextPath, sealedPath),
+    seal: async (plaintext, sealedPath) =>
+      await sealBackupArchiveStream(ARCHIVE_KEY, plaintext, sealedPath),
   });
 }
 
@@ -205,8 +205,8 @@ describe("producing an archive", () => {
       context: harness.built.context,
       destination,
       applicationVersion: "0.1.0-test",
-      seal: async (plaintextPath, sealedPath) =>
-        await sealBackupArchiveFile(ARCHIVE_KEY, plaintextPath, sealedPath),
+      seal: async (plaintext, sealedPath) =>
+        await sealBackupArchiveStream(ARCHIVE_KEY, plaintext, sealedPath),
     });
 
     const result = await runBackupCommand(
@@ -263,8 +263,8 @@ describe("producing an archive", () => {
       context: harness.built.context,
       destination,
       applicationVersion: "0.1.0-test",
-      seal: async (plaintextPath, sealedPath) =>
-        await sealBackupArchiveFile(ARCHIVE_KEY, plaintextPath, sealedPath),
+      seal: async (plaintext, sealedPath) =>
+        await sealBackupArchiveStream(ARCHIVE_KEY, plaintext, sealedPath),
     });
     const deps = {
       db: harness.built.context.db,
@@ -309,8 +309,8 @@ describe("producing an archive", () => {
       context: harness.built.context,
       destination,
       applicationVersion: "0.1.0-test",
-      seal: async (plaintextPath, sealedPath) =>
-        await sealBackupArchiveFile(ARCHIVE_KEY, plaintextPath, sealedPath),
+      seal: async (plaintext, sealedPath) =>
+        await sealBackupArchiveStream(ARCHIVE_KEY, plaintext, sealedPath),
     });
     const deps = {
       db: harness.built.context.db,

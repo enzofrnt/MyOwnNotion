@@ -13,6 +13,7 @@ import {
   rebuildEmbedUsages,
   recordPlacementUsage,
   registerContent,
+  SCRUBBED_PLACEHOLDER,
   schema,
   type Transaction,
 } from "@myownnotion/database";
@@ -25,6 +26,10 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { eq, sql } from "drizzle-orm";
+import {
+  type ProtectedFileService,
+  ProtectedFileUnavailableError,
+} from "../files/protected-file-service.ts";
 import type { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import { PageOperationArchiveService, readPageOperationArchive } from "./page-operation-archive.ts";
@@ -40,20 +45,14 @@ interface ExportedRelationship {
   readonly removedRevisionId: Uuid | null;
 }
 
-interface StoredFile {
-  readonly contentId: Uuid;
-  readonly sha256: Uint8Array;
-  readonly byteLength: number;
-  readonly storageKey: string;
-  readonly verifiedAt: Date;
-  readonly reusedExisting: boolean;
-}
+type StoredFile = Parameters<typeof registerContent>[1];
 
 export interface DatabaseRestoreTargetOptions {
   readonly tx: Transaction;
   readonly workspaceId: Uuid;
   readonly contentStore: ContentStore;
   readonly protectedContent?: ProtectedContent;
+  readonly protectedFiles?: ProtectedFileService;
   readonly pageOperationCrypto?: PageOperationCrypto;
   /** Destructive targets clear their old state only after archive verification. */
   readonly prepare?: () => Promise<void>;
@@ -146,7 +145,18 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
     },
 
     writeFile: async (digest, bytes) => {
-      const stored = await options.contentStore.ingest(bytes, async () => null);
+      if (options.protectedContent !== undefined && options.protectedFiles === undefined)
+        throw new ProtectedFileUnavailableError();
+      const stored =
+        options.protectedFiles === undefined
+          ? await options.contentStore.ingest(bytes, async () => null)
+          : await options.protectedFiles.ingest(
+              options.tx,
+              (async function* () {
+                yield bytes;
+              })(),
+              { maxBytes: bytes.byteLength, expectedLength: bytes.byteLength },
+            );
       if (`sha256:${Buffer.from(stored.sha256).toString("hex")}` !== digest) {
         throw new Error("restored file bytes changed while being stored");
       }
@@ -160,7 +170,10 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
         id: item.id,
         workspaceId: options.workspaceId,
         kind: item.kind,
-        name: item.name,
+        name:
+          item.kind === "file" && options.protectedContent !== undefined
+            ? SCRUBBED_PLACEHOLDER
+            : item.name,
         icon: item.icon ?? null,
         lifecycle: item.lifecycle,
         trashedAt: item.trashedAt === null ? null : new Date(item.trashedAt),
@@ -201,9 +214,19 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
         await options.tx.insert(schema.logicalFiles).values({
           itemId: item.id,
           contentId,
-          mediaType: item.file.mediaType,
-          originalName: item.file.originalName,
+          mediaType:
+            options.protectedContent === undefined
+              ? item.file.mediaType
+              : "application/octet-stream",
+          originalName:
+            options.protectedContent === undefined ? item.file.originalName : SCRUBBED_PLACEHOLDER,
           byteLength: item.file.byteLength,
+        });
+        await options.protectedContent?.writeFileMetadata(options.tx, {
+          kind: "file",
+          id: item.id,
+          recordVersion: 1,
+          metadata: { originalName: item.file.originalName, mediaType: item.file.mediaType },
         });
       }
 

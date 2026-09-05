@@ -17,7 +17,7 @@ import type { DatabaseDefinition, Uuid } from "@myownnotion/domain";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { sealBackupArchiveFile } from "../src/backup/archive-crypto.ts";
+import { sealBackupArchiveStream } from "../src/backup/archive-crypto.ts";
 import { BackupService } from "../src/backup/backup-service.ts";
 import type { BackupDestination, StoredBackup } from "../src/backup/destinations/destination.ts";
 import { createApplicationLogger } from "../src/plugins/logging.ts";
@@ -334,8 +334,8 @@ describe("structured security sentinels", () => {
       context: harness.built.context,
       destination,
       applicationVersion: "0.1.0-security-test",
-      seal: async (plaintextPath, sealedPath) =>
-        await sealBackupArchiveFile(backupKey, plaintextPath, sealedPath),
+      seal: async (plaintext, sealedPath) =>
+        await sealBackupArchiveStream(backupKey, plaintext, sealedPath),
     }).run("manual");
 
     expect(outcome.verifiedAfterCreation).toBe(true);

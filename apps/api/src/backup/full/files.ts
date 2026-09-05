@@ -53,24 +53,42 @@ async function inventory(client: pg.Client, root: string): Promise<DurableFile[]
       blobs.add(basename);
     }
   }
-  for (const table of ["file_contents", "protected_blob_chunks"]) {
+  for (const table of [
+    "file_contents",
+    "protected_blob_chunks",
+    "protected_upload_chunks",
+    "protected_file_quarantine",
+  ]) {
     if (!(await tableExists(client, table))) continue;
     // Only these fixed relation names are interpolated, never archive input.
     const references = await client.query<{ storage_key: string }>(
-      `SELECT DISTINCT storage_key FROM public.${table}`,
+      `SELECT DISTINCT storage_key FROM public.${table} WHERE storage_key IS NOT NULL`,
     );
     if (references.rows.some((row) => !blobs.has(row.storage_key))) {
       throw new Error("A database-referenced blob is missing; the full backup is refused.");
     }
   }
   if (await tableExists(client, "uploads")) {
-    const uploads = await client.query<{ id: string; received_length: string }>(
-      "SELECT id, received_length FROM public.uploads ORDER BY id",
+    const hasFormat =
+      (
+        await client.query<{ present: boolean }>(
+          "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'uploads' AND column_name = 'storage_format') AS present",
+        )
+      ).rows[0]?.present === true;
+    const uploads = await client.query<{
+      id: string;
+      received_length: string;
+      storage_format: string;
+    }>(
+      `SELECT id, received_length, ${hasFormat ? "storage_format" : "'legacy-v1' AS storage_format"} FROM public.uploads ORDER BY id`,
     );
     for (const upload of uploads.rows) {
       const length = Number(upload.received_length);
       if (!isUuid(upload.id) || !Number.isSafeInteger(length) || length < 0)
         throw new Error("The committed upload inventory is invalid.");
+      if (upload.storage_format === "encrypted-chunks-v1") continue;
+      if (upload.storage_format !== "legacy-v1")
+        throw new Error("Unsupported upload storage format.");
       files.push({ kind: "upload", path: `uploads/${upload.id}`, length });
     }
   }

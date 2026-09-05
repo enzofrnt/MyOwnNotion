@@ -108,3 +108,26 @@ the requested chunks does not force an unrelated read, while a corrupt selected
 chunk throws before yielding its bytes. Anonymous range requests refuse with 401.
 Evidence: `/tmp/mon-protected-ranges.log`, `/tmp/mon-protected-range-typecheck.log`.
 Semantics follow [RFC 9110 sections 13–14](https://www.rfc-editor.org/rfc/rfc9110.html#name-range-requests).
+
+T015–T017 checkpoint: API, administrative commands, rehearsal and migration
+composition use the shared protected file runtime. Canonical export resolves
+private names/digests; portable restore ingests ciphertext and neutralizes file
+metadata. The portable TAR producer streams attachments into the existing sealed
+framing without creating a plaintext stage, and pins physical files before its
+consistent snapshot until sealing finishes. Producer interruption removes partial
+output; an existing destination refuses before consuming input.
+
+Seventeen crypto/secured HTTP tests pass, including an actual portable attachment
+restore into an isolated protected runtime and authorized download. Fifteen
+existing archive contract tests and three operational backup tests also pass.
+Full capture now checks completed/upload/quarantine ciphertext references, skips
+nullable protected content locators and distinguishes legacy upload prefixes from
+encrypted upload state. Four full/operational cases pass, including exact equality
+of every public SQL table before activation, rejection of old authentication,
+download of a completed attachment and resumption of an encrypted partial transfer
+after fresh authentication. Legacy schema/prefix backup remains covered.
+
+Evidence: `/tmp/mon-protected-portable-restore.log`,
+`/tmp/mon-protected-portable-composition.log`, `/tmp/mon-protected-full-restore.log`,
+`/tmp/mon-protected-composition-typecheck.log`. These are focused checks; remaining
+fixture composition, historical transition and full gates are still open.
