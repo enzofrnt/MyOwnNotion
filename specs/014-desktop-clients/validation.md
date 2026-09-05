@@ -276,3 +276,46 @@ The initial local helper attempt failed because it requested the process after
 Playwright disposal; that attempt is not validation evidence. The corrected
 run is `/tmp/mon-desktop-process-native-corrected.log`. Full local and fresh
 Windows CI evidence remain required for T094.
+
+### Native Windows follow-up — repeated ACL inspection cost
+
+The complete local gate passed on `7e368060` (five browser profiles, nine native
+macOS journeys, production/multi-architecture builds and security checks).
+PR run 33989013305 confirms Windows x64 now restarts the crashed host, restores
+the queued creation and recovers the offline page text. Eight of nine native
+journeys pass; the remaining failure is synchronization after connectivity
+returns, against the unchanged 20-second wait. Session validation returns 200.
+The server log shows roughly 0.7-second multiples for ordinary protected
+requests and an unfinished multi-mutation replay at the deadline. The Windows
+key loader invokes a new PowerShell ACL inspection on every key lookup. T095
+addresses that cost while retaining permission enforcement and key-file changes.
+
+Evidence: `/tmp/mon-full-gate-desktop-process-tree.log`,
+`/tmp/mon-desktop-7e-windows-x64.log`, and
+`/tmp/mon-win7e-x64/.e2e-logs/chromium-desktop.log`. The permission cache design
+requires verification against Bun 1.4.0's Windows stat implementation and actual
+Windows metadata-change tests; elapsed-time correlation alone is not proof that
+the pending replay will succeed after the correction.
+
+T095 now passes 54 focused ACL/key-loader/native-fixture cases on macOS, strict
+API/desktop types and Biome. Only positive permission verdicts are cached, with
+an eight-file bound and exact BigInt identity/ChangeTime checks before and after
+lookup. Key bytes are still freshly read. Native Windows tests exercise warm
+cache invalidation for Everyone access, inherited ACLs, file replacement and
+deletion/recreation; their Windows execution remains a required CI result.
+
+The pinned runtime delegates stat through
+[Bun 1.4.0's libuv binding](https://github.com/oven-sh/bun/blob/bun-v1.4.0/src/sys/sys_uv.rs#L509).
+Its [pinned Windows libuv implementation](https://github.com/oven-sh/libuv/blob/8023581113b276e7c1aee3f82da57ca0893faab1/src/win/fs.c#L1927)
+maps ChangeTime to ctime separately from CreationTime;
+[Bun's BigInt conversion](https://github.com/oven-sh/bun/blob/bun-v1.4.0/src/runtime/node/Stat.rs#L64)
+preserves nanoseconds. Microsoft's
+[security-descriptor update contract](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fsa/2e97fa70-e1f5-410b-ba87-f1ffda39a8ed)
+updates LastChangeTime when that descriptor changes. Full source chain and
+local results: `/tmp/mon-windows-acl-cache-runtime-proof.md`,
+`/tmp/mon-windows-acl-cache-tests.log`, `/tmp/mon-windows-acl-cache-types.log`.
+
+The same PR run also reports the Windows ARM64 onboarding tree still loading
+after restart at the unchanged 15-second readiness deadline, alongside the
+offline replay failure. Both need fresh native confirmation; local success is
+not a Windows success claim. Artifact: `/tmp/mon-win7e-arm/`.

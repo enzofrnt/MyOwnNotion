@@ -302,3 +302,15 @@ registered `/v1/page-sync/socket` route. An Upgrade header on any other route
 must retain ordinary owner and CSRF enforcement. Contracts reproduce anonymous
 HTTP reads and authenticated writes with forged Upgrade headers; native
 onboarding and cold offline restart verify the real socket still works.
+
+Windows fixture requests currently revalidate the mounted deployment-key ACL by
+starting PowerShell for each key lookup. Native logs show roughly 0.7 s per
+inspection and multi-second ordinary requests; replaying several offline writes
+misses the unchanged synchronization deadline. Keep permission enforcement and
+on-demand key-file reads. A bounded positive ACL cache may reuse only the
+permission verdict for an unchanged exact file identity and metadata change
+stamp, after verifying Bun's Windows stat mapping to NTFS ChangeTime. Validate
+identity before and after inspection; invalidate on replacement, content or ACL
+change, missing/unavailable metadata and inspection failure. Never retain key
+bytes in this cache. Native tests must warm the cache, grant another SID access
+and require immediate refusal, then verify repair and file replacement.
