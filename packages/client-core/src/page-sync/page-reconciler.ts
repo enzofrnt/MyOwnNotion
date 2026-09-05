@@ -966,6 +966,12 @@ export class PageReconciler {
     }
 
     const serverVersionVector = decodePageOperationBytes(response.serverVersionVector);
+    if (
+      state.serverVersionVector !== null &&
+      !versionVectorDominates(serverVersionVector, state.serverVersionVector)
+    ) {
+      throw new InvalidPageSyncResponseError("the confirmed server page frontier cannot retreat");
+    }
     for (const result of acknowledged) {
       const update = updateById.get(result.updateId as Uuid);
       if (update === undefined || update.status !== "sending") {

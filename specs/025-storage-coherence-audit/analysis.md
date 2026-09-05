@@ -108,3 +108,23 @@ Review of the recorded code boundaries and joined T045 proofs finds no further
 untracked implementation gap, so no new convergence phase is appended. The
 audit inventory closes T036. Native image compatibility, complete integrated
 local gates and PR/main delivery remain explicitly open in T037/T038/T040/T041.
+
+## T051 — bounded synchronization convergence
+
+The complementary review checked FR-011/FR-012/FR-013, two relevant plan decisions
+(real runtime boundary proofs and unchanged gates), and constitution I/III/IV. It
+identified one medium partial-evidence gap: active-response rejection was not
+proved to retain the durable checkpoint/cursor/content. Phase 9 appended T051
+before implementation. The original missing-acknowledgement case already tested
+an active response, so it was strengthened rather than duplicated.
+
+Eight additional public transport cases use real Loro documents and encrypted
+IndexedDB. One exposed a confirmed monotonicity defect: empty-batch reconciliation
+could replace an already confirmed server vector with an older vector while
+advancing the page cursor. No false synchronized result or authored-byte loss
+was observed. The minimal guard in `page-reconciler.ts` now refuses that retreat
+before any durable change; the fixture verifies unchanged state and healthy
+subsequent catch-up. Other cases cover acknowledgement identity/causality, remote
+integrity/identity, omitted operations and cursor retreat. The focused source and
+proof review finds no remaining T051 gap; full delivery duties remain in
+T037/T038/T040/T041. See [the commands, failed reproduction and final evidence](validation.md#t051--active-page-response-rejection-and-frontier-monotonicity).

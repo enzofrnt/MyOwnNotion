@@ -7,6 +7,7 @@ import {
   LocalPageStateStore,
   MemorySecureStorage,
   openLocalDatabase,
+  PageEditingSession,
   PageReconciler,
   type PageSyncTransport,
   pageSynchronizationResource,
@@ -412,6 +413,7 @@ describe("PageReconciler", () => {
   it("blocks a submitted batch when a successful response violates the negotiated contract", async () => {
     const { pageId, blockId, page } = fixture();
     const committed = await commitEdit(page, blockId, " local", 1);
+    const before = await db.pageOperationStates.get(pageId);
     const transport: PageSyncTransport = {
       async sync(_pageId, request) {
         if (request.mode !== "active") throw new Error("expected active sync");
@@ -421,8 +423,15 @@ describe("PageReconciler", () => {
             // A submitted update must appear in accepted or repeated. An HTTP
             // 200 that omits it cannot leave the immutable row stuck in
             // `sending`, nor can it be retried forever as if it were offline.
-            serverVersionVector: encodePageOperationBytes(committed.update.baseVersionVector),
-            latestPageSequence: 0,
+            serverVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+            latestPageSequence: 1,
+            canonical: {
+              format: "myownnotion.document+json",
+              formatVersion: 3,
+              digest: (await page.project()).canonicalDigest,
+              lastConsolidatedRevisionId: null,
+              hasUnconsolidatedChanges: true,
+            },
           }),
         };
       },
@@ -437,7 +446,16 @@ describe("PageReconciler", () => {
       kind: "blocked",
       problemCode: "page-operations.projection-invalid",
     });
-    expect((await log.getUpdate(committed.update.updateId))?.status).toBe("blocked");
+    expect(await db.pageOperationStates.get(pageId)).toEqual(before);
+    expect(await log.listUpdates(pageId)).toEqual([
+      { ...committed.update, status: "blocked", recordVersion: committed.update.recordVersion + 2 },
+    ]);
+    const resumed = await PageEditingSession.resume({
+      pageId,
+      log,
+      store: new LocalPageStateStore(log),
+    });
+    expect(resumed?.read()).toEqual(committed.state.projection?.document);
   });
 
   it("does not turn a durable synchronization into failure when a UI listener throws", async () => {

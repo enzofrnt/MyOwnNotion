@@ -179,3 +179,60 @@ and 3,875 tests**, with no changed thresholds (2,452 uncovered branches, budget
 buffer changes, durable blob verification and T045's expanded protected portable
 fixture. It is complete coverage evidence, not the remaining full `checks:local`
 or a main-delivery result.
+
+## T051 — active page response rejection and frontier monotonicity
+
+Starting from `585b595b`, the focused public transport tests now use real Loro
+transactions, a genuinely synchronized baseline at page sequence 1, encrypted
+IndexedDB, and otherwise valid response metadata/canonical digests. The existing
+missing-acknowledgement test is enriched rather than duplicated. Four new write
+cases reject a foreign acknowledgement, a regressive acknowledged vector, an
+incompatible server vector and a remote update that reuses a local identity.
+Four passive pull cases reject a corrupted digest, omitted announced operations,
+a regressive cursor and a regressive previously confirmed server frontier.
+
+Each refusal preserves the complete sealed state row (checkpoint, cursor and
+projection), and write refusals preserve the exact local operation bytes and
+semantic changes. Reopening the local database/editor recovers the authored
+content. The four passive cases then synchronize successfully with a healthy
+response. Blocked write batches remain recoverable: tests do not reset them using
+an otherwise unconnected helper to claim automatic retry. No private reconciler
+method is called and no internal detail is mocked.
+
+The eighth new case reproduced a production defect before its correction:
+`/tmp/mon-t051-regression-repro.log` records **7 PASS / 1 FAIL**. A passive response
+with a server vector older than the sealed confirmed frontier was accepted and
+persisted together with a cursor advance from 1 to 2. With one exchange allowed,
+the observable result was `pending / page-operations.exchange-limit`, not the
+required refusal. **No false `synced` result or loss of authored bytes was
+observed.** This is a confirmed rollback of durable causal metadata, not a claim
+of a broader reproduced data-loss scenario.
+
+`packages/client-core/src/page-sync/page-reconciler.ts` now requires every new
+server vector to dominate the previously confirmed vector before reconstructing
+or persisting a response. This also covers empty submitted batches, for which
+per-update acknowledgement checks cannot enforce monotonicity. Failure follows
+the existing blocked-response path without changing checkpoint/cursor/journal; a
+healthy subsequent pull is still allowed. No timeout, budget, format, unrelated
+response behavior or coverage exclusion changed.
+
+Focused verification:
+
+- **48 PASS** across rejection (8), existing reconciler (19), encryption (5)
+  and atomicity (16), 1.66 s: `/tmp/mon-t051-page-rejection.log`.
+- **31 PASS** for active editing sessions (13) and legacy editing/conversion
+  sessions (18), 2.01 s: `/tmp/mon-t051-editing-composition.log`.
+- Client-core typecheck PASS: `/tmp/mon-t051-client-types.log`.
+- Focused Biome (`/tmp/mon-t051-biome.log`) and `git diff --check` PASS. Feature prerequisites and all 16
+  existing requirements-checklist items pass.
+
+```sh
+bun run --bun vitest run --project client-core packages/client-core/tests/page-reconciler-rejection.spec.ts packages/client-core/tests/page-reconciler.property.spec.ts packages/client-core/tests/page-operation-encryption.spec.ts packages/client-core/tests/page-operation-atomicity.spec.ts --maxWorkers=2
+bun run --bun vitest run --project client-core packages/client-core/tests/page-editing-session.spec.ts packages/client-core/tests/legacy-page-editing-session.spec.ts --maxWorkers=2
+bun run --filter @myownnotion/client-core typecheck
+bun run biome check packages/client-core/src/page-sync/page-reconciler.ts packages/client-core/tests/page-reconciler-rejection.spec.ts packages/client-core/tests/page-reconciler.property.spec.ts
+```
+
+Only disposable IndexedDB fixtures were used. This pass did not run browser/native
+journeys, full coverage or `checks:local`; T037/T038/T040/T041 remain open for
+combined integration and delivery.
