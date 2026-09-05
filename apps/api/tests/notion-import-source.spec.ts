@@ -1,13 +1,16 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, truncate, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { deflateRawSync } from "node:zlib";
+import { crc32, deflateRawSync } from "node:zlib";
 import { validatePageDocument } from "@myownnotion/domain";
-import { hash } from "bun";
 import { afterEach, describe, expect, it } from "vitest";
 import { safeYaml } from "../src/imports/notion/markdown.ts";
 import { planNotionImport } from "../src/imports/notion/plan.ts";
-import { normalizeSourcePath, readImportSource } from "../src/imports/notion/source.ts";
+import {
+  normalizeSourcePath,
+  readImportSource,
+  SOURCE_LIMITS,
+} from "../src/imports/notion/source.ts";
 
 const roots: string[] = [];
 async function fixture(files: Record<string, string | Uint8Array>) {
@@ -39,7 +42,7 @@ function zip(
     const name = Buffer.from(entry.name),
       plain = Buffer.from(entry.text),
       bytes = entry.compress ? deflateRawSync(plain) : plain;
-    const crc = hash.crc32(plain) ^ (entry.corrupt ? 1 : 0);
+    const crc = crc32(plain) ^ (entry.corrupt ? 1 : 0);
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50);
     local.writeUInt16LE(20, 4);
@@ -194,5 +197,120 @@ describe("Notion source preview", () => {
       }),
     ).toThrow("import.invalid-csv");
     expect(await readFile(join(invalid, "Data.csv"), "utf8")).toContain("unclosed");
+  });
+  it("keeps distinct membership references separate and preserves each exported display order", async () => {
+    const root = await fixture({
+      "First.base":
+        'filters: note.base == link("Shared")\nviews:\n  - type: table\n    name: First\n    order: [note.Owner, note.Status]\n',
+      "Second.base":
+        'filters: note.base == link("Shared")\nviews:\n  - type: table\n    name: Second\n    order: [note.Status, note.Owner]\n    limit: 20\n',
+      "EmptyA.base": 'filters: note.base == link("Separate A")\nviews: []\n',
+      "EmptyB.base": 'filters: note.base == link("Separate B")\nviews: []\n',
+      "Entry.md": '---\nbase: "[[Shared]]"\nOwner: Person\nStatus: Done\n---\n# Entry',
+      "Parent.md": "# Parent",
+      "Parent/Child.md": "# Child",
+      "Parent/picture.png": new Uint8Array([1, 2]),
+    });
+    const plan = planNotionImport(await readImportSource(root));
+    expect(plan.databases).toHaveLength(3);
+    const shared = plan.databases.find((source) => source.memberIds.length === 1);
+    expect(shared?.definition.embeddings).toHaveLength(2);
+    const names = shared?.definition.embeddings?.map((display) =>
+      display.views[0]?.properties.map(
+        (entry) =>
+          shared.definition.properties.find((property) => property.id === entry.propertyId)?.name,
+      ),
+    );
+    expect(names?.[0]?.slice(0, 2)).toEqual(["Owner", "Status"]);
+    expect(names?.[1]?.slice(0, 2)).toEqual(["Status", "Owner"]);
+    const parent = plan.pages.find((page) => page.path === "Parent.md");
+    expect(plan.report.pages.find((page) => page.sourcePath === "Parent/Child.md")?.parentId).toBe(
+      parent?.id,
+    );
+    expect(plan.report.files.find((file) => file.path === "Parent/picture.png")?.parentId).toBe(
+      parent?.id,
+    );
+    expect(plan.report.databases).toHaveLength(4);
+    expect(plan.report.databases.find((source) => source.members === 1)?.memberIds).toEqual(
+      shared?.memberIds,
+    );
+    expect(
+      plan.report.issues.some((issue) => issue.code === "import.base-settings-preserved-in-source"),
+    ).toBe(true);
+  });
+  it("rejects oversized text before reading it and invalid encodings without a target", async () => {
+    const root = await fixture({ "Huge.md": "", "invalid.md": new Uint8Array([255, 254, 255]) });
+    await truncate(join(root, "Huge.md"), SOURCE_LIMITS.textBytes + 1);
+    await expect(readImportSource(root)).rejects.toMatchObject({ code: "import.source-too-large" });
+    await rm(join(root, "Huge.md"));
+    expect(() =>
+      planNotionImport({
+        files: [{ path: "invalid.md", bytes: new Uint8Array([255]), sha256: "bad" }],
+        totalBytes: 1,
+        digest: "bad",
+      }),
+    ).toThrow("import.invalid-utf8");
+  });
+  it("refuses generated identity collisions and duplicate CSV bindings instead of merging pages", async () => {
+    const root = await fixture({
+      "Data.csv": "Name,Status\nEntry,Done\nEntry,Todo\n",
+      "Entry.md": "# Entry",
+    });
+    const plan = planNotionImport(await readImportSource(root));
+    expect(plan.report.issues).toContainEqual(
+      expect.objectContaining({ code: "import.csv-row-ambiguous", blocking: true }),
+    );
+    const conflict = await fixture({
+      "Data.base": 'filters: note.base == link("Data")\nviews: []',
+      "Data.import-host.md": "# Existing source",
+    });
+    expect(() =>
+      planNotionImport({
+        files: [
+          {
+            path: "Data.base",
+            bytes: Buffer.from('filters: note.base == link("Data")\nviews: []'),
+            sha256: "a",
+          },
+          { path: "Data.import-host.md", bytes: Buffer.from("# Existing source"), sha256: "b" },
+        ],
+        totalBytes: 60,
+        digest: "conflict",
+      }),
+    ).toThrow("import.duplicate-identity");
+    expect(await readFile(join(conflict, "Data.import-host.md"), "utf8")).toContain(
+      "Existing source",
+    );
+  });
+  it("keeps wikilink examples literal inside code and preserves empty directories", async () => {
+    const root = await fixture({
+      "Code.md": "# Code\n\n```md\n[[Target]]\n![[Data.base]]\n```\n\n`[[Target]]`\n\n[[Target]]",
+      "Target.md": "# Target",
+      "Data.base": 'filters: note.base == link("Data")\nviews: []',
+    });
+    await mkdir(join(root, "Empty", "Nested"), { recursive: true });
+    const plan = planNotionImport(await readImportSource(root));
+    const code = plan.pages.find((page) => page.path === "Code.md");
+    expect(JSON.stringify(code?.document)).toContain("[[Target]]");
+    expect(plan.report.links.filter((link) => link.sourcePath === "Code.md")).toHaveLength(1);
+    expect(plan.databases[0]?.hostPageId).not.toBe(code?.id);
+    expect(plan.report.folders.some((folder) => folder.name === "Nested")).toBe(true);
+    const before = plan.snapshot.digest;
+    await mkdir(join(root, "New empty"));
+    expect((await readImportSource(root)).digest).not.toBe(before);
+  });
+  it("preserves imprecise integers and invalid civil dates as text and reports cyclic memberships", async () => {
+    const root = await fixture({
+      "Data.base": 'filters: note.base == link("Data")\nviews: []',
+      "Data.md": '---\nbase: "[[Data]]"\nHuge: 900719925474099312345\nDue: 2026-02-31\n---\n# Data',
+    });
+    const plan = planNotionImport(await readImportSource(root));
+    expect(plan.pages[0]?.properties["Huge"]).toBe("900719925474099312345");
+    expect(plan.report.properties).toContainEqual(
+      expect.objectContaining({ name: "Due", representation: "text" }),
+    );
+    expect(plan.report.issues).toContainEqual(
+      expect.objectContaining({ code: "import.cyclic-dependencies", blocking: true }),
+    );
   });
 });

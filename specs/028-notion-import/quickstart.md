@@ -1,8 +1,14 @@
 # Validation
 
-Preview a synthetic native archive and converted folder first. Confirm report
-coverage for every input, missing configuration and ambiguous references.
-Run focused parser/CLI tests and encrypted disposable target integration tests.
-Inspect ordinary API readback, canonical files, database sources/embeddings,
-protected checkpoints and restart/replay. Never apply the real source during
-feature implementation. The integration branch owns full checks before push.
+Use the [owner CLI guide](../../docs/notion-import.md) for native export, preview,
+explicit apply and resume. Preview needs no target configuration.
+
+Synthetic fixtures validate native ZIP/CSV and converted folders. Confirm every
+source file, hierarchy, property, membership, unavailable setting and uncertain
+link in the detailed report. Encrypted integration tests exercise normal API
+readback, canonical file publication,026 sources/displays,024 safety backups,
+protected checkpoints and restart/replay.
+
+The actual candidate folder was previewed only. Committed evidence contains
+aggregates and synthetic tests, with no private source paths or data. See
+[validation.md](validation.md) for commands, outcomes and delivery boundaries.

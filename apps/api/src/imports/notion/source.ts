@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open, readdir, realpath } from "node:fs/promises";
 import { extname, join, relative, resolve, sep } from "node:path";
-import { hash } from "bun";
+import { crc32 } from "node:zlib";
 import * as yauzl from "yauzl";
 
 export class NotionImportError extends Error {
@@ -25,6 +25,7 @@ export interface SourceFile {
 }
 export interface ImportSnapshot {
   files: SourceFile[];
+  directories?: string[];
   digest: string;
   totalBytes: number;
 }
@@ -85,6 +86,7 @@ export async function readImportSource(sourcePath: string): Promise<ImportSnapsh
   if (rootStat.isSymbolicLink()) throw new NotionImportError("import.symlink-refused");
   const files: SourceFile[] = [];
   const names = new Set<string>();
+  const directories = new Set<string>();
   let entries = 0;
   let totalBytes = 0;
   const register = (raw: string, size: number) => {
@@ -118,7 +120,7 @@ export async function readImportSource(sourcePath: string): Promise<ImportSnapsh
         if (info.isSymbolicLink()) throw new NotionImportError("import.symlink-refused");
         await assertContained(path);
         if (info.isDirectory()) {
-          register(relative(root, path).split(sep).join("/"), 0);
+          directories.add(register(relative(root, path).split(sep).join("/"), 0));
           await walk(path, depth + 1);
         } else if (info.isFile()) {
           const normalized = register(relative(root, path).split(sep).join("/"), info.size);
@@ -164,7 +166,11 @@ export async function readImportSource(sourcePath: string): Promise<ImportSnapsh
             const path = register(entry.fileName, entry.uncompressedSize);
             if (entry.uncompressedSize > Math.max(1, entry.compressedSize) * SOURCE_LIMITS.ratio)
               throw new NotionImportError("import.archive-ratio-exceeded");
-            if (!entry.fileName.endsWith("/")) {
+            if (entry.fileName.endsWith("/")) {
+              if (entry.uncompressedSize !== 0)
+                throw new NotionImportError("import.invalid-archive");
+              directories.add(path);
+            } else {
               const stream = await new Promise<NodeJS.ReadableStream>((resolveStream, reject) =>
                 zip.openReadStream(entry, (error, value) => {
                   if (error || !value) reject(error);
@@ -182,7 +188,7 @@ export async function readImportSource(sourcePath: string): Promise<ImportSnapsh
               if (size !== entry.uncompressedSize)
                 throw new NotionImportError("import.invalid-archive");
               const bytes = Buffer.concat(chunks);
-              if (hash.crc32(bytes) !== entry.crc32)
+              if (crc32(bytes) !== entry.crc32)
                 throw new NotionImportError("import.archive-integrity-failed");
               accept(path, bytes);
             }
@@ -195,12 +201,22 @@ export async function readImportSource(sourcePath: string): Promise<ImportSnapsh
       zip.close();
     }
   } else throw new NotionImportError("import.unsupported-source");
-  files.sort((a, b) => a.path.localeCompare(b.path));
+  files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  for (const file of files) {
+    const parts = file.path.split("/");
+    for (let length = 1; length < parts.length; length++)
+      directories.add(parts.slice(0, length).join("/"));
+  }
+  const sortedDirectories = [...directories].sort();
   return {
     files,
+    directories: sortedDirectories,
     totalBytes,
     digest: digest(
-      JSON.stringify(files.map(({ path, sha256, bytes }) => [path, sha256, bytes.length])),
+      JSON.stringify({
+        files: files.map(({ path, sha256, bytes }) => [path, sha256, bytes.length]),
+        directories: sortedDirectories,
+      }),
     ),
   };
 }

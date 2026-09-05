@@ -251,6 +251,14 @@ Autorisation depuis les réglages, permissions granulaires, révocation et audit
 MCP. Canevas : sections 26, 28–30, 42, 47 et 49.
 
 
+### 028 — Import Notion local avant V1
+
+Dépend de024 et026. CLI avec aperçu par défaut pour Markdown/CSV/ZIP natifs et
+dossier Obsidian converti ; contenu, liens, fichiers, propriétés et membres de
+sources réutilisables. Sauvegarde préalable sur cible occupée, provenance
+chiffrée et reprise idempotente. Les réglages absents restent explicitement
+inconnus. Aucun parcours UI ni synchronisation Notion continue.
+
 ### 021 — Readable and actionable server logs
 
 **État** : spécification initiale créée ; planification et implémentation
@@ -350,11 +358,3 @@ Une feature ne passe à l’état terminé que lorsque :
 - l’analyse et la convergence ne trouvent plus de travail bloquant ;
 - les contrôles locaux et la CI réussissent ;
 - la documentation et les preuves de validation sont à jour.
-
-### 028 — Import Notion local avant V1
-
-Dépend de024 et026. CLI avec aperçu par défaut pour Markdown/CSV/ZIP natifs et
-dossier Obsidian converti ; contenu, liens, fichiers, propriétés et membres de
-sources réutilisables. Sauvegarde préalable sur cible occupée, provenance
-chiffrée et reprise idempotente. Les réglages absents restent explicitement
-inconnus. Aucun parcours UI ni synchronisation Notion continue.

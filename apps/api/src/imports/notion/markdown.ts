@@ -9,9 +9,22 @@ import { NotionImportError } from "./source.ts";
 
 export function safeYaml(text: string): unknown {
   try {
-    const document = parseDocument(text, { uniqueKeys: true, strict: true });
+    const document = parseDocument(text, { uniqueKeys: true, strict: true, intAsBigInt: true });
     if (document.errors.length || document.warnings.length) throw new Error();
-    return document.toJS({ maxAliasCount: 0 });
+    const normalize = (value: unknown): unknown => {
+      if (typeof value === "bigint")
+        return value <= BigInt(Number.MAX_SAFE_INTEGER) && value >= BigInt(Number.MIN_SAFE_INTEGER)
+          ? Number(value)
+          : value.toString();
+      if (typeof value === "number" && !Number.isFinite(value)) return String(value);
+      if (Array.isArray(value)) return value.map(normalize);
+      if (value && typeof value === "object")
+        return Object.fromEntries(
+          Object.entries(value).map(([key, part]) => [key, normalize(part)]),
+        );
+      return value;
+    };
+    return normalize(document.toJS({ maxAliasCount: 0 }));
   } catch {
     throw new NotionImportError("import.invalid-yaml");
   }
@@ -29,6 +42,19 @@ export interface LinkResolution {
   kind?: "page" | "file" | "base";
   status: ImportLink["status"];
 }
+/** Wiki embeds are considered only in prose, never literal code examples. */
+export function markdownEmbeds(markdown: string): string[] {
+  const references: string[] = [];
+  const visit = (node: Nodes) => {
+    if (node.type === "text")
+      for (const match of node.value.matchAll(/!\[\[([^\]\r\n]+)\]\]/g))
+        references.push(match[1] ?? "");
+    if (node.type === "image") references.push(node.url);
+    if ("children" in node) for (const child of node.children) visit(child);
+  };
+  visit(fromMarkdown(markdown, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] }));
+  return references;
+}
 export function convertMarkdown(input: {
   jobId: Uuid;
   path: string;
@@ -37,13 +63,7 @@ export function convertMarkdown(input: {
   issues: ImportIssue[];
   links: ImportLink[];
 }): PageDocument {
-  const markdown = input.markdown.replace(
-    /(!?)\[\[([^\]\r\n]+)\]\]/g,
-    (_full, embed: string, value: string) => {
-      const [target = "", label] = value.split("|");
-      return `${embed}[${(label ?? target).replace(/[[\]]/g, "")}](<${encodeURI(target).replace(/[<>]/g, "")}>)`;
-    },
-  );
+  const markdown = input.markdown;
   const tree = fromMarkdown(markdown, {
     extensions: [gfm()],
     mdastExtensions: [gfmFromMarkdown()],
@@ -69,15 +89,48 @@ export function convertMarkdown(input: {
     if (target.includes("#") && result.id) report("import.link-anchor-preserved-in-source");
     return result;
   };
-  const source = (node: Nodes) =>
-    markdown.slice(node.position?.start.offset ?? 0, node.position?.end.offset ?? 0);
+  const source = (node: Nodes) => {
+    const raw = (node.data as { importRaw?: unknown } | undefined)?.importRaw;
+    return typeof raw === "string"
+      ? raw
+      : markdown.slice(node.position?.start.offset ?? 0, node.position?.end.offset ?? 0);
+  };
   const inline = (
     nodes: readonly Nodes[],
     marks: readonly Mark[] = [],
     attachments: JsonObject[] = [],
   ): Inline[] =>
     nodes.flatMap((node): Inline[] => {
-      if (node.type === "text") return [{ text: node.value, ...(marks.length ? { marks } : {}) }];
+      if (node.type === "text") {
+        const result: Inline[] = [];
+        let offset = 0;
+        for (const match of node.value.matchAll(/(!?)\[\[([^\]\r\n]+)\]\]/g)) {
+          const prefix = node.value.slice(offset, match.index);
+          if (prefix) result.push({ text: prefix, ...(marks.length ? { marks } : {}) });
+          const [target = "", label] = (match[2] ?? "").split("|");
+          const data = { importRaw: match[0] };
+          result.push(
+            ...inline(
+              [
+                match[1]
+                  ? { type: "image", url: target, alt: label ?? target, data }
+                  : {
+                      type: "link",
+                      url: target,
+                      children: [{ type: "text", value: label ?? target }],
+                      data,
+                    },
+              ],
+              marks,
+              attachments,
+            ),
+          );
+          offset = (match.index ?? 0) + match[0].length;
+        }
+        const tail = node.value.slice(offset);
+        if (tail) result.push({ text: tail, ...(marks.length ? { marks } : {}) });
+        return result;
+      }
       if (node.type === "break") return [{ text: "\n", ...(marks.length ? { marks } : {}) }];
       if (node.type === "inlineCode")
         return [{ text: node.value, marks: [...marks, { type: "code" }] }];
@@ -101,8 +154,10 @@ export function convertMarkdown(input: {
         const target =
           node.type === "link" ? node.url : (definitions.get(node.identifier) ?? node.identifier);
         const result = resolved(target);
+        if (result.id && result.kind === "file")
+          attachments.push({ type: "fileEmbed", id: id(), fileItemId: result.id, caption: null });
         const mark: Mark[] =
-          result.id && result.kind !== "base"
+          result.id && result.kind === "page"
             ? [{ type: "pageLink", targetItemId: result.id }]
             : result.status === "external"
               ? [{ type: "link", href: target }]

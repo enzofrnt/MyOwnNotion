@@ -271,6 +271,12 @@ cookies or service-worker caches.
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.
 
+### Notion import CLI
+
+`bun run import:notion --source PATH` performs a source-only preview. Explicit
+apply uses canonical mutation services, protected files and a verified complete
+safety backup. See the [source formats, setup, reports and resume guide](notion-import.md).
+
 ### Backup and recovery commands
 
 Complete nightly and pre-migration backups use PostgreSQL 18 `pg_dump` and

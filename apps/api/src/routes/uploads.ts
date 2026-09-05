@@ -16,10 +16,8 @@
 import {
   type Database,
   DomainRejection,
-  executeImportFile,
   isComplete,
   lockUpload,
-  recordChange,
   runMutation,
   schema,
   type Transaction,
@@ -31,6 +29,7 @@ import { and, eq } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { AppContext } from "../context.ts";
+import { publishCanonicalFile } from "../files/canonical-file-import.ts";
 import { retireProtectedUpload } from "../files/protected-file-cleanup.ts";
 import { ProtectedFileUnavailableError } from "../files/protected-file-service.ts";
 import {
@@ -38,7 +37,7 @@ import {
   UploadLengthExceededError,
 } from "../files/protected-upload-service.ts";
 import { sendProblem } from "../plugins/errors.ts";
-import { acceptedWriteGuards, attributionFor } from "../plugins/mutations.ts";
+import { attributionFor } from "../plugins/mutations.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
 
 /** 2 GB by default, and bounded in practice by what the deployment carries. */
@@ -153,9 +152,9 @@ async function completeUpload(
         protectedTransfers.read(tx, resolved),
         { maxBytes: resolved.declaredLength, expectedLength: resolved.declaredLength },
       );
-      const execution = await executeImportFile(tx, {
+      const acceptedAt = new Date();
+      const published = await publishCanonicalFile(tx, context, {
         mutationId,
-        workspaceId: context.workspaceId,
         itemId,
         name: resolved.originalName,
         mediaType: resolved.mediaType,
@@ -163,42 +162,11 @@ async function completeUpload(
         placement:
           upload.attachmentParentItemId === null
             ? { kind: "hierarchy", parentItemId: null, positionKey: "V" }
-            : {
-                kind: "attachment",
-                parentItemId: upload.attachmentParentItemId,
-                positionKey: "V",
-              },
-        acceptedAt: new Date(),
-      });
-      if (!execution.ok) {
-        throw new DomainRejection(execution.error);
-      }
-      await acceptedWriteGuards(
-        { type: "file.import" },
-        context.protectedContent,
-        context.rotationPolicies,
-        attributionFor(request, mutationId),
-      ).onAccepted?.(tx, { primaryItemId: itemId, revisionIds: [execution.value.revisionId] });
-      // The mutation record and the change envelope belong in the same
-      // transaction as the file. Without them the file exists and no client
-      // learns of it: the change feed is how every other device finds out, so
-      // an item outside it is invisible everywhere except here.
-      const acceptedAt = new Date();
-      await tx.insert(schema.mutations).values({
-        id: mutationId,
-        workspaceId: context.workspaceId,
-        commandType: "file.import",
-        status: "accepted",
-        submittedAt: acceptedAt,
+            : { kind: "attachment", parentItemId: upload.attachmentParentItemId, positionKey: "V" },
         acceptedAt,
-        resultRevisionIds: [execution.value.revisionId],
+        attribution: attributionFor(request, mutationId),
       });
-      committedSequence = await recordChange(tx, {
-        workspaceId: context.workspaceId,
-        mutationId,
-        revisionIds: [execution.value.revisionId],
-        changedItemIds: [execution.value.itemId],
-      });
+      committedSequence = published.committedSequence;
       await retireProtectedUpload(tx, protectedTransfers.files, upload.id);
       await tx.insert(schema.protectedUploadCompletions).values({
         uploadId: upload.id,

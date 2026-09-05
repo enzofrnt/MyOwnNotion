@@ -81,7 +81,25 @@ export interface ImportReport {
     links: number;
     issues: number;
   };
-  files: Array<{ path: string; bytes: number; sha256: string; outcome: string; canonicalId: Uuid }>;
+  pages: Array<{
+    sourcePath: string;
+    id: Uuid;
+    title: string;
+    parentId: Uuid;
+    databaseId: Uuid | null;
+    blocks: number;
+    synthesized: boolean;
+  }>;
+  folders: ImportFolder[];
+  files: Array<{
+    path: string;
+    bytes: number;
+    sha256: string;
+    outcome: string;
+    canonicalId: Uuid;
+    parentId: Uuid;
+    original: boolean;
+  }>;
   links: ImportLink[];
   properties: Array<{ sourcePath: string; name: string; representation: string }>;
   databases: Array<{
@@ -89,6 +107,10 @@ export interface ImportReport {
     id: Uuid;
     hostPageId: Uuid;
     members: number;
+    memberIds: Uuid[];
+    embeddingId: Uuid;
+    membershipReference: string;
+    retained: string[];
     presentation: "exported-table" | "default-table";
     missing: string[];
   }>;

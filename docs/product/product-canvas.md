@@ -192,6 +192,7 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - détection et résolution sûre des conflits ;
 - sauvegarde chiffrée, vérification et restauration ;
 - export complet et documenté ;
+- import Notion local avec aperçu, reprise et conservation des sources ;
 - mise à jour avec sauvegarde préalable et retour arrière ;
 - accès MCP avec autorisation depuis les réglages, périmètres et révocation ;
 - commandes administratives essentielles ;
@@ -2117,12 +2118,13 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 23. application Electron Linux connectée au serveur auto-hébergé ;
 24. journaux serveur lisibles, actionnables et toujours collectables ;
 25. accès MCP autorisé, limité et révocable ;
-26. convergence V1 de l'espace de travail, de l'éditeur et des vues de
+26. import local Notion en CLI, avec aperçu, provenance et reprise ;
+27. convergence V1 de l'espace de travail, de l'éditeur et des vues de
     connaissance proches de Notion.
 
 Le prochain travail d'implémentation est la feature 014 (étapes 21 à 23).
 Les journaux (021) et la convergence finale 017 suivent. L'achèvement de cette
-phase, y compris les hôtes desktop et MCP, constitue la V1 fonctionnelle, sous réserve
+phase, y compris les hôtes desktop, MCP et l’import Notion, constitue la V1 fonctionnelle, sous réserve
 de satisfaire tous les critères de qualité et d'exploitation.
 
 ### Phase 4 — Fonctions avancées

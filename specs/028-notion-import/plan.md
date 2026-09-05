@@ -37,16 +37,23 @@ branch retains the full local delivery gates. No exception is requested.
   settings receive report records. Summary output contains counts/safe codes;
   explicit JSON report contains owner-directed source paths and mappings.
 - `apply.ts`: obtain a PostgreSQL advisory lock per import job; validate target
-  ready state, migrations, external key and rotation/maintenance guards. Take
-  FullBackupService024 verified snapshot before writes when canonical items
-  exist. Do not add a weaker backup receipt shortcut.
+  ready state, migrations, external key and rotation/maintenance guards. Reuse
+  assertFullRestoreActivated at target open and before every operation, including
+  resumed jobs that retain their first backup. Take
+  FullBackupService024 verified snapshot before every new job, including an
+  empty workspace. This covers concurrent owner writes without an occupancy
+  check race; resumed jobs retain their first verified receipt.
 - Submit ordinary create/document/definition/value commands through
   submitCanonicalMutation. File originals and attachments use existing
-  ProtectedFileService.ingest and executeImportFile finalization boundaries,
+  ProtectedFileService.ingest and the shared publishCanonicalFile finalization
+  used by ordinary resumable uploads,
   keeping acceptedWriteGuards, revisions and canonical notifications. Protect
   checkpoints in the same transaction as accepted operations.
-- ProtectedRecordService entity `import.job` stores the fingerprint, mapping,
-  backup reference and progress. Original source files are encrypted canonical
+- ProtectedRecordService entity `import.job` stores fingerprint, backup reference
+  and completion; `import.provenance` stores the full report, `import.step` one
+  accepted operation, and `import.head` each last imported revision. Separate
+  operation records avoid repeatedly rewriting a growing checkpoint. Source
+  heads use026 definitionRevisionId; editorial pages use currentRevisionId. Original source files are encrypted canonical
   attachments in the dedicated import root so complete portable exports retain
   every unsupported source representation. No SQL migration expected;0018 is
   reserved only if concrete storage evidence requires it.
@@ -80,3 +87,16 @@ symlink/traversal/bomb/normalization conflicts; exact reports and source hashes;
 encrypted disposable integration for ordinary readback/files/database026,
 backup-before-write failure, interruption/replay and conflicting fingerprints.
 The real folder is inventory/preview only, with no private fixtures committed.
+
+## Implementation decisions
+
+Bases displays share a source only when their normalized exported membership
+reference matches. Identical current member sets are insufficient. Each display
+retains its own first table name and property order. Other exported settings
+are reported and kept in the encrypted original; missing original Notion
+settings are listed separately. No0018 migration was required.
+
+The parser accounts for empty source directories as well as files. Pages added
+for missing CSV bodies or display hosts are identified as synthesized in the
+report. Detailed reports expose canonical page/file parents, memberships and
+property conversions intentionally to the owner; ordinary output uses counts.

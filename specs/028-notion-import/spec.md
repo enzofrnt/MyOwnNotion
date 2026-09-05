@@ -133,6 +133,8 @@ The export is a snapshot, not an ongoing Notion synchronization. No remote API,
 credential collection or network fetching of linked assets is included. Import
 creates a dedicated root; it never merges by title into existing owner pages.
 An intentional detailed report is owner-directed output, not diagnostic logging.
+Every new import takes the verified safety backup, even when the target is
+empty; resume retains that receipt.
 Source edits require a new explicit import identity and preview; resume is bound
 to the exact original snapshot. Unsupported formatting preserves original text
 and source material, rather than promising full editor parity.
