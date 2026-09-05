@@ -205,3 +205,9 @@ missing assets with misleading source maps and incorrectly located workers;
 all pass, along with a real production build. Full local and fresh native
 Windows validation are still required for this correction. GitGuardian's
 field-name-list false positive remains unresolved externally.
+
+The first full gate for the asset correction stops on one obsolete source-text
+assertion in the toolchain contract (3,576 other tests pass). That contract now
+checks the extracted validator's build wiring; its actual asset acceptance and
+refusal behavior is covered by the eight executable cases. The failed pass is
+not pre-push evidence; the complete gate is rerun on the corrected commit.
