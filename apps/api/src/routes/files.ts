@@ -24,6 +24,7 @@ import { Type } from "@sinclair/typebox";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
+import { parseFileRange } from "../files/file-range.ts";
 import {
   ProtectedFileUnavailableError,
   type ProtectedStoredContent,
@@ -298,9 +299,26 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
       });
       if (content.storageFormat === "encrypted-chunks-v1" && metadata == null)
         throw new ProtectedFileUnavailableError();
+      const etag = `"content.${content.id}"`;
+      const range = parseFileRange(
+        request.method !== "GET" ||
+          (request.headers["if-range"] !== undefined && request.headers["if-range"] !== etag)
+          ? undefined
+          : request.headers.range,
+        content.byteLength,
+      );
+      if (range === "unsatisfiable")
+        return reply
+          .status(416)
+          .header("content-range", `bytes */${content.byteLength}`)
+          .header("accept-ranges", "bytes")
+          .header("cache-control", "no-store")
+          .send();
       const bytes =
         content.storageFormat === "encrypted-chunks-v1" && files !== undefined
-          ? Readable.from(files.read(context.db, content.id), { objectMode: false })
+          ? Readable.from(files.read(context.db, content.id, range ?? undefined), {
+              objectMode: false,
+            })
           : content.storageKey === null
             ? null
             : await context.contentStore.read(content.storageKey);
@@ -324,8 +342,12 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
       //
       // Any one of them alone has a known bypass shape, which is why all three
       // are set rather than whichever seems sufficient.
+      if (range !== null)
+        reply.header("content-range", `bytes ${range.start}-${range.end}/${content.byteLength}`);
       return reply
-        .status(200)
+        .status(range === null ? 200 : 206)
+        .header("accept-ranges", "bytes")
+        .header("etag", etag)
         .header("content-type", metadata?.mediaType ?? logical.mediaType)
         .header(
           "content-disposition",
@@ -334,8 +356,12 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
         .header("x-content-type-options", "nosniff")
         .header("content-security-policy", "default-src 'none'; sandbox")
         .header("cache-control", "private, max-age=0, must-revalidate")
-        .header("content-length", content.byteLength)
-        .send(bytes instanceof Readable ? bytes : Buffer.from(bytes));
+        .header("content-length", range === null ? content.byteLength : range.end - range.start + 1)
+        .send(
+          bytes instanceof Readable
+            ? bytes
+            : Buffer.from(range === null ? bytes : bytes.subarray(range.start, range.end + 1)),
+        );
     },
   );
 

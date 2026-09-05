@@ -10,11 +10,17 @@ import {
   schema,
   type Transaction,
 } from "@myownnotion/database";
-import { generateUuidV7, type ProtectedFileManifest, type Uuid } from "@myownnotion/domain";
+import {
+  generateUuidV7,
+  PROTECTED_FILE_CHUNK_BYTES,
+  type ProtectedFileManifest,
+  type Uuid,
+} from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
 import { shareFullBlobDeletion, shareFullFileMutation } from "../backup/full/locks.ts";
 import type { KeyHierarchy } from "../security/key-hierarchy.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
+import type { FileByteRange } from "./file-range.ts";
 
 export interface ProtectedStoredContent {
   readonly contentId: Uuid;
@@ -199,9 +205,53 @@ export class ProtectedFileService {
     return manifest;
   }
 
-  async *read(executor: Database | Transaction, contentId: string): AsyncGenerator<Uint8Array> {
+  async *read(
+    executor: Database | Transaction,
+    contentId: string,
+    range?: FileByteRange,
+  ): AsyncGenerator<Uint8Array> {
     const manifest = await this.manifest(executor, contentId);
     const chunks = await listProtectedFileChunks(executor, this.scope("content", contentId));
+    if (range !== undefined) {
+      if (
+        !Number.isSafeInteger(range.start) ||
+        !Number.isSafeInteger(range.end) ||
+        range.start < 0 ||
+        range.end < range.start ||
+        range.end >= manifest.byteLength ||
+        chunks.length !== manifest.chunks.length
+      )
+        throw new ProtectedFileUnavailableError();
+      const first = Math.floor(range.start / PROTECTED_FILE_CHUNK_BYTES);
+      const last = Math.floor(range.end / PROTECTED_FILE_CHUNK_BYTES);
+      for (let index = first; index <= last; index++) {
+        const chunk = chunks[index];
+        const trusted = manifest.chunks[index];
+        if (
+          chunk === undefined ||
+          trusted === undefined ||
+          chunk.chunkIndex !== trusted.index ||
+          chunk.storageKey !== trusted.storageKey ||
+          chunk.byteLength !== trusted.byteLength ||
+          chunk.keyGeneration !== trusted.keyGeneration ||
+          chunk.recordVersion !== trusted.recordVersion
+        )
+          throw new ProtectedFileUnavailableError();
+        const bytes = await this.chunkStore(executor).readChunk(chunk, {
+          installationId: this.deps.installationId,
+          workspaceId: this.deps.workspaceId,
+          contentId,
+          keyGeneration: chunk.keyGeneration,
+          recordVersion: chunk.recordVersion,
+        });
+        const offset = index * PROTECTED_FILE_CHUNK_BYTES;
+        yield bytes.subarray(
+          Math.max(0, range.start - offset),
+          Math.min(bytes.length, range.end - offset + 1),
+        );
+      }
+      return;
+    }
     yield* this.chunkStore(executor).readStream(
       chunks,
       {

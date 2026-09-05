@@ -61,6 +61,33 @@ async function collect(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
 }
 
 describe("shared protected file runtime", () => {
+  it("decrypts only overlapping range chunks and refuses a tampered selected chunk before yielding", async () => {
+    const bytes = randomBytes(PROTECTED_FILE_CHUNK_BYTES * 2 + 17);
+    const stored = await database.db.transaction((tx) =>
+      runtime.files.ingest(tx, source(bytes), { maxBytes: bytes.length }),
+    );
+    const chunks = await listProtectedFileChunks(
+      database.db,
+      runtime.files.scope("content", stored.contentId),
+    );
+    const range = { start: PROTECTED_FILE_CHUNK_BYTES - 5, end: PROTECTED_FILE_CHUNK_BYTES + 5 };
+    expect(await collect(runtime.files.read(database.db, stored.contentId, range))).toEqual(
+      bytes.subarray(range.start, range.end + 1),
+    );
+    const first = chunks[0];
+    if (first === undefined) throw new Error("Missing chunk fixture");
+    await writeFile(
+      path.join(root, first.storageKey.slice(0, 2), first.storageKey),
+      Buffer.from("corrupt ciphertext"),
+    );
+    const tail = { start: bytes.length - 9, end: bytes.length - 1 };
+    expect(await collect(runtime.files.read(database.db, stored.contentId, tail))).toEqual(
+      bytes.subarray(tail.start),
+    );
+    const broken = runtime.files.read(database.db, stored.contentId, { start: 0, end: 2 });
+    await expect(broken.next()).rejects.toThrow();
+  });
+
   it("resumes across a full chunk boundary, rewrites only the tail and reopens the accepted prefix", async () => {
     const transfers = new ProtectedUploadService(runtime.files);
     const upload = await database.db.transaction((tx) =>

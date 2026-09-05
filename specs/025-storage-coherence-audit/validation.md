@@ -98,3 +98,13 @@ Evidence: `/tmp/mon-protected-http-completion.log` (16 tests),
 ciphertext/transfer envelopes, projection/export composition, migration and the
 remaining failure/concurrency contracts still require convergence. This checkpoint
 has not passed the full local gate and has not been pushed.
+
+T014: 18 protected service/HTTP tests pass with strict API types. Full, prefix,
+suffix, open-ended and clamped ranges return exact bytes and lengths; malformed,
+unsatisfiable and unsupported multiple ranges return 416. If-Range compares the
+opaque content identity and falls back to the full representation on mismatch.
+A range crossing the real 4 MiB boundary returns exact bytes; corruption outside
+the requested chunks does not force an unrelated read, while a corrupt selected
+chunk throws before yielding its bytes. Anonymous range requests refuse with 401.
+Evidence: `/tmp/mon-protected-ranges.log`, `/tmp/mon-protected-range-typecheck.log`.
+Semantics follow [RFC 9110 sections 13–14](https://www.rfc-editor.org/rfc/rfc9110.html#name-range-requests).

@@ -68,6 +68,58 @@ async function directImport(): Promise<string> {
 }
 
 describe("private files through authenticated HTTP", () => {
+  it("serves authenticated single ranges, refuses invalid ranges and honors If-Range", async () => {
+    const id = await directImport();
+    const url = `/v1/files/${id}/content`;
+    const full = await owner({ method: "GET", url });
+    for (const [range, start, end] of [
+      ["bytes=0-6", 0, 6],
+      ["bytes=8-", 8, BODY.length - 1],
+      ["bytes=-5", BODY.length - 5, BODY.length - 1],
+      ["bytes=0-999999", 0, BODY.length - 1],
+    ] as const) {
+      const response = await owner({ method: "GET", url, headers: { range } });
+      expect(response.statusCode, response.body).toBe(206);
+      expect(response.body).toBe(BODY.slice(start, end + 1));
+      expect(response.headers["content-range"]).toBe(`bytes ${start}-${end}/${BODY.length}`);
+      expect(response.headers["content-length"]).toBe(String(end - start + 1));
+      expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    }
+    for (const range of [
+      "bytes=999-",
+      "bytes=-0",
+      "bytes=8-2",
+      "bytes=0-1,3-4",
+      "bytes=-",
+      "bytes=9007199254740993-",
+    ]) {
+      const response = await owner({ method: "GET", url, headers: { range } });
+      expect(response.statusCode).toBe(416);
+      expect(response.headers["content-range"]).toBe(`bytes */${BODY.length}`);
+      expect(response.body).toBe("");
+    }
+    const changed = await owner({
+      method: "GET",
+      url,
+      headers: { range: "bytes=0-2", "if-range": '"old-content"' },
+    });
+    expect(changed.statusCode).toBe(200);
+    expect(changed.body).toBe(BODY);
+    const same = await owner({
+      method: "GET",
+      url,
+      headers: { range: "bytes=0-2", "if-range": full.headers.etag as string },
+    });
+    expect(same.statusCode).toBe(206);
+    const refused = await harness.built.app.inject({
+      method: "GET",
+      url,
+      headers: { range: "bytes=0-2" },
+    });
+    expect(refused.statusCode).toBe(401);
+    expect(refused.body).not.toContain(BODY);
+  });
+
   it("keeps independent logical identities while reusing verified bytes and attributing revisions", async () => {
     const first = await directImport();
     const second = await directImport();
