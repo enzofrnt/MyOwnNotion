@@ -1,16 +1,23 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, open, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FULL_BACKUP_FORMAT, type FullBackupManifest } from "@myownnotion/domain";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   FULL_ARCHIVE_MAGIC,
   MAX_FULL_MANIFEST_BYTES,
   VerifiedFullArchive,
   writeFullArchive,
 } from "../src/backup/full/archive.ts";
-import { componentAad, sealFullManifest, sealFullStream } from "../src/backup/full/crypto.ts";
+import {
+  componentAad,
+  openFullManifest,
+  openFullStream,
+  sealFullManifest,
+  sealFullStream,
+  writeExactly,
+} from "../src/backup/full/crypto.ts";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -105,6 +112,62 @@ describe("complete encrypted archives", () => {
     expect((await readdir(fixture.directory)).some((name) => name.startsWith(".full-"))).toBe(
       false,
     );
+  });
+
+  it("refuses oversized manifests before publication and truncated authenticated headers", async () => {
+    const fixture = await setup();
+    expect(() => openFullManifest(fixture.key, Buffer.alloc(27))).toThrow("truncated");
+    const manifest = {
+      ...fixture.manifest,
+      source: {
+        ...fixture.manifest.source,
+        appliedMigrations: ["a".repeat(MAX_FULL_MANIFEST_BYTES)],
+      },
+    };
+    await expect(writeFullArchive({ ...fixture, manifest })).rejects.toThrow("manifest exceeds");
+    await expect(stat(fixture.destination)).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await readdir(fixture.directory)).some((name) => name.startsWith(".full-"))).toBe(
+      false,
+    );
+  });
+
+  it("refuses zero-progress disk writes and invalid stream keys without consuming the source", async () => {
+    const fixture = await setup();
+    const component = fixture.encryptedComponents[0];
+    if (component === undefined) throw new Error("fixture component missing");
+    const handle = await open(component, "r+");
+    try {
+      const write = vi.spyOn(handle, "write").mockResolvedValueOnce({ bytesWritten: 0 } as never);
+      await expect(writeExactly(handle, Buffer.from("must not loop"), 0)).rejects.toThrow(
+        "could not be written",
+      );
+      expect(write).toHaveBeenCalledOnce();
+      write.mockRestore();
+      await expect(
+        collect(
+          openFullStream(
+            handle,
+            0,
+            fixture.plaintext[0]?.byteLength ?? 0,
+            Buffer.alloc(3),
+            componentAad(fixture.manifest.backupId, 0, "database.dump"),
+          ),
+        ),
+      ).rejects.toThrow();
+      expect(
+        await collect(
+          openFullStream(
+            handle,
+            0,
+            fixture.plaintext[0]?.byteLength ?? 0,
+            fixture.key,
+            componentAad(fixture.manifest.backupId, 0, "database.dump"),
+          ),
+        ),
+      ).toEqual(fixture.plaintext[0]);
+    } finally {
+      await handle.close();
+    }
   });
 
   it("retains verified bytes if the external source changes afterwards", async () => {

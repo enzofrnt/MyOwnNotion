@@ -128,10 +128,10 @@ export async function* openFullStream(
 ): AsyncGenerator<Buffer> {
   const header = await readExactly(handle, FULL_CIPHER_OVERHEAD, offset);
   const ownedKey = Buffer.from(key);
-  const decipher = createDecipheriv("aes-256-gcm", ownedKey, header.subarray(0, 12));
-  decipher.setAAD(aad);
-  decipher.setAuthTag(header.subarray(12));
   try {
+    const decipher = createDecipheriv("aes-256-gcm", ownedKey, header.subarray(0, 12));
+    decipher.setAAD(aad);
+    decipher.setAuthTag(header.subarray(12));
     if (byteLength > 0) {
       const source = handle.createReadStream({
         start: offset + FULL_CIPHER_OVERHEAD,

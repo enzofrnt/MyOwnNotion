@@ -6,7 +6,11 @@ import { seal } from "@myownnotion/domain/security";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { FullBackupActivities, type FullBackupActivity } from "../src/backup/full/activity.ts";
 import { type FullBackupReceipt, FullBackupReceipts } from "../src/backup/full/receipts.ts";
-import { readFullRestoreState, writeFullRestoreState } from "../src/backup/full/restore-state.ts";
+import {
+  assertFullRestoreActivated,
+  readFullRestoreState,
+  writeFullRestoreState,
+} from "../src/backup/full/restore-state.ts";
 import { FullBackupService } from "../src/backup/full/service.ts";
 import { fullBackupStatus } from "../src/backup/full/status.ts";
 
@@ -175,4 +179,10 @@ it("reports absent protection, interrupted attempts and expired rehearsal indepe
     true,
   );
   expect((await fullBackupStatus(service, new Date(now))).rehearsalDue).toBe(false);
+});
+
+it("refuses an unreadable restore-marker location instead of assuming activation", async () => {
+  const file = join(root, "not-a-directory");
+  await writeFile(file, "private fixture");
+  await expect(assertFullRestoreActivated(file)).rejects.toMatchObject({ code: "ENOTDIR" });
 });

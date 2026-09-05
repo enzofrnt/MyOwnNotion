@@ -204,6 +204,24 @@ describe("complete server backup orchestration", () => {
     await expect(fullArchiveDigest(backupRoot)).rejects.toThrow("regular file");
   });
 
+  it.each(["missing", "file"])(
+    "refuses a blob root replaced during preflight: %s",
+    async (replacement) => {
+      class ReplacedRoot extends PostgresFullBackupTools {
+        override async checkVersions(connection: string) {
+          await super.checkVersions(connection);
+          await rm(blobRoot, { recursive: true });
+          if (replacement === "file") await writeFile(blobRoot, "unexpected storage object");
+        }
+      }
+      await expect(service(new ReplacedRoot()).run("manual")).rejects.toThrow(
+        replacement === "missing" ? "blob is missing" : "real directory",
+      );
+      expect((await readdir(backupRoot)).filter((name) => name.endsWith(".monfull"))).toEqual([]);
+      expect((await service().activities.read("backup"))?.outcome).toBe("failed");
+    },
+  );
+
   it("cleans unpublished capture even when the external key disappears after the activity record", async () => {
     let reads = 0;
     const unavailable = new FullBackupService({

@@ -49,6 +49,7 @@ describe("backup configuration", () => {
 
   it.each([
     [{ MYOWNNOTION_BACKUP_DESTINATION: "s3" }, /filesystem or google-drive/],
+    [{ TZ: "Invalid/Timezone" }, /time zone/i],
     [{ MYOWNNOTION_BACKUP_HOUR: "24" }, /BACKUP_HOUR/],
     [{ MYOWNNOTION_BACKUP_HOUR: "1.5" }, /BACKUP_HOUR/],
     [{ MYOWNNOTION_BACKUP_RETENTION_DAYS: "0" }, /RETENTION_DAYS/],

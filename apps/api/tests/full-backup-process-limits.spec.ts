@@ -14,6 +14,17 @@ it.skipIf(process.platform === "win32")(
       await writeFile(executable, "#!/usr/bin/env bun\nsetInterval(() => {}, 1000);\n", {
         mode: 0o700,
       });
+      await writeFile(
+        executable,
+        "#!/usr/bin/env bun\nconsole.log('pg_dump (PostgreSQL) 17.6');\n",
+        { mode: 0o700 },
+      );
+      await expect(
+        new PostgresFullBackupTools({ binDirectory: directory }).checkVersions(connection),
+      ).rejects.toThrow("availability check");
+      await writeFile(executable, "#!/usr/bin/env bun\nsetInterval(() => {}, 1000);\n", {
+        mode: 0o700,
+      });
       const started = Date.now();
       await expect(
         new PostgresFullBackupTools({ binDirectory: directory, timeoutMs: 100 }).checkVersions(

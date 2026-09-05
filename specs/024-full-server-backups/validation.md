@@ -116,3 +116,13 @@ These are focused proofs, not a completed full workspace gate or delivery claim.
 - Whole-workspace strict TypeScript passed after these additions. Aggregate
   coverage run 5 is in progress; full local gates and PR/main checks remain
   outstanding. No user installation or user data was modified for these tests.
+
+- Aggregate coverage run 5: all 3,678 tests passed; statement and branch budgets
+  remained over by 23 and 50. Subsequent compatibility/storage/refusal tests
+  passed, including V0 activation without authentication tables, native client
+  major-version rejection, preflight storage replacement, malformed metadata,
+  no-progress writes and recovery CLI provider-key loss. The decryptor now wipes
+  its private key copy even if cipher construction rejects the key length.
+- Aggregate coverage run 6: all tests passed, with 2,223 uncovered statements
+  (limit 2,216) and 2,498 uncovered branches (limit 2,465). Lines and functions
+  passed. These results still block the pre-push gate; limits are unchanged.

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type DisposablePostgres, startDisposablePostgres } from "@myownnotion/test-utils";
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { componentAad, openFullStream, sealFullStream } from "../src/backup/full/crypto.ts";
 import { PostgresFullBackupTools, postgresToolEnvironment } from "../src/backup/full/postgres.ts";
 import { inspectFullSource } from "../src/backup/full/source.ts";
@@ -35,6 +35,18 @@ afterAll(async () => {
 });
 
 describe("native PostgreSQL full backup tools", () => {
+  it.each([undefined, 170006, 190000])(
+    "refuses an unsupported server identity before querying application tables: %s",
+    async (version) => {
+      const client = new pg.Client();
+      const query = vi
+        .spyOn(client, "query")
+        .mockResolvedValueOnce({ rows: version === undefined ? [] : [{ version }] } as never);
+      await expect(inspectFullSource(client)).rejects.toThrow("require PostgreSQL 18");
+      expect(query).toHaveBeenCalledOnce();
+    },
+  );
+
   it("inspects a blank source without creating current-schema guard tables", async () => {
     const before = await inspectFullSource(sourceClient);
     expect(before.nonempty).toBe(false);

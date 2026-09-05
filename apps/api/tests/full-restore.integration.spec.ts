@@ -184,6 +184,56 @@ describe("full restore and explicit security activation", () => {
     }
   });
 
+  it("restores and activates a V0 database that predates the application authentication tables", async () => {
+    const source = await startDisposablePostgres();
+    targets.push(source);
+    const sourceFiles = join(directory, `v0-files-${randomUUID()}`);
+    const client = new pg.Client({ connectionString: source.connectionString });
+    await client.connect();
+    try {
+      await client.query(
+        "CREATE TABLE historical_records(id serial PRIMARY KEY, contents bytea NOT NULL); INSERT INTO historical_records(contents) VALUES (decode('00ff','hex'))",
+      );
+    } finally {
+      await client.end();
+    }
+    const backup = await new FullBackupService({
+      connectionString: source.connectionString,
+      blobRoot: sourceFiles,
+      backupRoot: join(directory, `v0-backups-${randomUUID()}`),
+      key: () => key,
+    }).run("pre-update");
+    expect(backup.manifest.source).toMatchObject({
+      installationId: null,
+      applicationVersion: null,
+      appliedMigrations: [],
+    });
+    const destination = await target();
+    await restoreFullBackup({
+      ...destination,
+      archivePath: backup.path,
+      activeConnectionString: source.connectionString,
+      activeDirectory: sourceFiles,
+    });
+    expect(await activateFullRestore(destination)).toMatchObject({
+      sessionsInvalidated: 0,
+      devicesRequireAuthentication: 0,
+    });
+    const restored = new pg.Client({ connectionString: destination.targetConnectionString });
+    await restored.connect();
+    try {
+      expect(
+        (
+          await restored.query(
+            "SELECT id, encode(contents, 'hex') AS contents FROM historical_records",
+          )
+        ).rows,
+      ).toEqual([{ id: 1, contents: "00ff" }]);
+    } finally {
+      await restored.end();
+    }
+  });
+
   it("authenticates corruption before creating any target files or database tables", async () => {
     const input = await target();
     const corruptPath = join(directory, `damaged-${randomUUID()}`);
@@ -295,6 +345,29 @@ describe("full restore and explicit security activation", () => {
     }
   });
 
+  it("refuses provenance drift after the native restore and leaves activation blocked", async () => {
+    const input = await target();
+    class DriftedRestore extends PostgresFullBackupTools {
+      override async restore(connection: string, source: AsyncIterable<Uint8Array>) {
+        await super.restore(connection, source);
+        const client = new pg.Client({ connectionString: connection });
+        await client.connect();
+        try {
+          await client.query(
+            "DELETE FROM schema_migrations WHERE version = '0014_full_backup_provenance'",
+          );
+        } finally {
+          await client.end();
+        }
+      }
+    }
+    await expect(restoreFullBackup({ ...input, tools: new DriftedRestore() })).rejects.toThrow(
+      "provenance does not match",
+    );
+    expect((await readFullRestoreState(input.targetDirectory, key)).stage).toBe("incomplete");
+    await expect(activateFullRestore(input)).rejects.toThrow("incomplete");
+  });
+
   it("keeps an incomplete marker after restore failure and refuses activation of that target", async () => {
     const input = await target();
     class FailingRestore extends PostgresFullBackupTools {
@@ -366,6 +439,40 @@ it("inspects without live access, refuses unauthorized apply and rehearses actua
   expect(failed.code).toBe(5);
   expect(JSON.stringify(failed)).not.toContain("private broken data");
 
+  const activeTargetRefusal = await runFullBackupCommand(
+    parseCommand([
+      "restore",
+      "full",
+      "apply",
+      "--file",
+      archivePath,
+      "--target-directory",
+      join(directory, "active-target-refusal"),
+      "--yes",
+    ]),
+    { ...env, MYOWNNOTION_RESTORE_DATABASE_URL: env.DATABASE_URL },
+  );
+  expect(activeTargetRefusal.code).toBe(3);
+  await expect(readdir(join(directory, "active-target-refusal"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  const badCommand = parseCommand(["backup", "full", "unknown"]);
+  await expect(runFullBackupCommand(badCommand, env)).rejects.toThrow(
+    "Unknown complete-backup command",
+  );
+  const lostRemote = await runFullBackupCommand(parseCommand(["backup", "full", "run"]), {
+    ...env,
+    MYOWNNOTION_BACKUP_DESTINATION: "google-drive",
+    MYOWNNOTION_BACKUP_GOOGLE_DRIVE_FOLDER_ID: "fixture-folder",
+    MYOWNNOTION_BACKUP_GOOGLE_DRIVE_TOKEN_FILE: join(directory, "missing-remote-token"),
+  });
+  expect(lostRemote).toMatchObject({ code: 0, data: { remote: "failed" } });
+  // This local safety archive is real and remains inspectable despite losing
+  // the configured provider credential; no remote request can authenticate.
+  expect(await readdir(join(env.MYOWNNOTION_BACKUP_ROOT, "full"))).toContain(
+    `${lostRemote.data?.["backupId"]}.monfull`,
+  );
+  await rm(join(env.MYOWNNOTION_BACKUP_ROOT, "full"), { recursive: true });
   const created = await runFullBackupCommand(parseCommand(["backup", "full", "run"]), env);
   expect(created).toMatchObject({ code: 0, data: { remote: "not-configured" } });
   const listed = await runFullBackupCommand(parseCommand(["backup", "full", "list"]), env);

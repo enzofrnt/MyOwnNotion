@@ -61,6 +61,20 @@ describe("complete-backup inventory", () => {
     ])
       expect(() => readFullBackupManifest(altered)).toThrow();
   });
+  it("requires the database dump before any file components", () => {
+    const value = manifest();
+    const upload = {
+      kind: "upload",
+      path: "uploads/22222222-2222-4222-8222-222222222222",
+      byteLength: 0,
+      sha256: "d".repeat(64),
+    };
+    for (const components of [[upload], [upload, ...value.components]]) {
+      expect(() => readFullBackupManifest({ ...value, components })).toThrow(
+        "begin with exactly one database dump",
+      );
+    }
+  });
   it("accepts an immutable blob and a committed upload prefix", () => {
     const value = manifest();
     expect(
