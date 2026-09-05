@@ -1200,6 +1200,22 @@ L'export peut être chiffré à la demande. Si un export chiffré est produit, s
 
 ---
 
+### 27.1 Import Notion avant V1
+
+La V1 comprend un import local Notion en ligne de commande, spécifié séparément
+par028. Il accepte les exports Markdown/CSV natifs, leurs archives ZIP et un
+dossier local converti pour Obsidian. L'aperçu est le comportement par défaut ;
+il décrit exhaustivement contenus, hiérarchie, liens, fichiers, propriétés et
+membres des sources de données026. Les configurations absentes de l'export sont
+signalées, sans inventer les vues, aperçus ou automatismes d'origine.
+
+L'application explicite protège une cible déjà occupée par une sauvegarde
+complète024 préalable et conserve provenance et reprise chiffrées. Les sources
+restent intactes ; une reprise conserve les identités et les modifications
+ultérieures du propriétaire. Aucun import distant ou compte tiers n'est requis.
+
+---
+
 ## 28. Chiffrement des données et gestion des clés
 
 ### 28.1 Données en transit
