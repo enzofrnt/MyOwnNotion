@@ -1147,6 +1147,9 @@ Un mécanisme de limitation et de modération doit protéger les annotations con
 
 ## 26. Serveur MCP
 
+La feature 013 est obligatoire avant la V1, sur décision du propriétaire du
+5 septembre 2026 ; elle conserve le parcours de réglages et d’autorisation.
+
 Le serveur MCP est géré depuis les réglages.
 
 Le propriétaire génère un jeton temporaire. L'assistant ouvre une page d'autorisation et échange ce jeton contre un accès dédié.
@@ -2097,12 +2100,13 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 22. application Electron macOS connectée au serveur auto-hébergé ;
 23. application Electron Linux connectée au serveur auto-hébergé ;
 24. journaux serveur lisibles, actionnables et toujours collectables ;
-25. convergence V1 de l'espace de travail, de l'éditeur et des vues de
+25. accès MCP autorisé, limité et révocable ;
+26. convergence V1 de l'espace de travail, de l'éditeur et des vues de
     connaissance proches de Notion.
 
 Le prochain travail d'implémentation est la feature 014 (étapes 21 à 23).
 Les journaux (021) et la convergence finale 017 suivent. L'achèvement de cette
-phase, y compris les hôtes desktop, constitue la V1 fonctionnelle, sous réserve
+phase, y compris les hôtes desktop et MCP, constitue la V1 fonctionnelle, sous réserve
 de satisfaire tous les critères de qualité et d'exploitation.
 
 ### Phase 4 — Fonctions avancées
@@ -2110,8 +2114,7 @@ de satisfaire tous les critères de qualité et d'exploitation.
 26. bases de données et tâches avancées ;
 27. tableaux blancs puis, si le besoin est confirmé, import ou édition de
     diagrammes par un moteur interne à MyOwnNotion ;
-28. partage public et annotations ;
-29. MCP.
+28. partage public et annotations.
 
 ### Phase 5 — Clients supplémentaires
 
