@@ -253,3 +253,26 @@ Seven focused tests pass, including Windows paths with spaces and empty-value
 defaults. An actual workspace preview serves a temporary directory containing
 spaces on the requested port; web TypeScript checks also pass. Complete local
 validation and native Windows confirmation remain required before delivery.
+
+### Native Windows follow-up — crash fixture process lifetime
+
+The full local gate and a fresh image scan passed on `00235bcb`. In PR run
+33984962742, both Windows architectures reach actual workspace journeys.
+The offline restart fails after killing only the main Electron PID: the next
+host exits with code zero while attaching its debugger. Windows x64 also
+reports an `EBUSY` profile removal after an otherwise successful revocation
+journey. This is consistent with descendant processes retaining profile handles;
+it is not evidence of lost offline content.
+
+The disposable crash fixture now uses PID-scoped Windows `taskkill /T /F`,
+which terminates descendants as documented by
+[Microsoft](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill).
+It awaits termination before restart, captures the process handle before
+Playwright disposes the application, and retries transient profile-removal
+locks with a bounded delay. Normal shutdown still first requests graceful close.
+All nine native macOS journeys pass in 26 seconds, preserving the original
+offline creation/text/reconciliation, trust revocation and update assertions.
+The initial local helper attempt failed because it requested the process after
+Playwright disposal; that attempt is not validation evidence. The corrected
+run is `/tmp/mon-desktop-process-native-corrected.log`. Full local and fresh
+Windows CI evidence remain required for T094.
