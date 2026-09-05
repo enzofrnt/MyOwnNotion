@@ -119,3 +119,18 @@ passent. Deux installations figées depuis une copie neuve des manifests passent
 avec Bun seul dans le PATH (aucun Node) et une empreinte du lockfile inchangée.
 Les dépendances appdmg, fs-xattr et macos-alias ont disparu du lockfile. Le DMG
 local reste non signé pour distribution et n'est pas publié.
+
+La passe complète sur `642187a2` a validé couverture, performance, intégration,
+contrats et les 267 scénarios Chromium desktop. Firefox a exposé une course
+sur `/page` : la création locale était durable et le lien présent, mais le
+gestionnaire de navigation consultait encore le tableau React antérieur.
+Le second essai passe ; la politique `--fail-on-flaky-tests` refuse cette passe.
+La correction résout l'identité depuis le stockage local, en conservant le
+refus des cibles supprimées et la priorité d'une navigation plus récente.
+La validation complète du prochain commit reste nécessaire.
+
+La correction de navigation passe dix répétitions du parcours `/page` sur
+Firefox dans le conteneur documenté, sans retry (48,5 s), ainsi que dix tests
+unitaires de résolution/navigation et la vérification des types Web. La passe
+complète précédente a été arrêtée après collecte de l'échec Firefox pour
+relancer tous les contrôles sur le commit corrigé.
