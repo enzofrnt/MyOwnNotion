@@ -5,6 +5,13 @@ commands you run locally, and what blocks a merge.
 
 ## Toolchain policy
 
+For UI planning, implementation and review, use the maintained
+[UI quality skill](../.agents/skills/ui-quality/SKILL.md). Reference it from the
+active feature plan and UI tasks, then record that feature's relevant states,
+interaction checks and actual visual evidence. Its conventions complement the
+canonical specification and existing primitives; they do not attest that
+unchanged screens have passed a new review.
+
 | Concern | Tool | Where it is pinned |
 | --- | --- | --- |
 | Runtime, package manager and bundler | Bun 1.4.0 exactly | `packageManager` and `engines.bun` in `package.json` |

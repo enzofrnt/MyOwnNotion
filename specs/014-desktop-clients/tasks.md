@@ -1,5 +1,10 @@
 # Tasks: Applications Desktop Electron Windows, macOS et Linux
 
+**Phases UI** : charger le [skill UI partagé](../../.agents/skills/ui-quality/SKILL.md)
+pour la conception, la réalisation et la revue. Conserver les états, critères
+et preuves propres à cette feature dans ses artefacts ; cette référence ne
+valide pas rétroactivement les écrans existants.
+
 **Input**: Design documents from `/specs/014-desktop-clients/`
 
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`,
