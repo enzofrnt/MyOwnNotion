@@ -94,3 +94,20 @@ existing recovery procedure. Portable exports are labeled separately in settings
 and never replace the complete nightly, pre-migration or 26-hour safety checks.
 
 See [host recovery commands](../deployment/backups.md) for operator procedures.
+
+## Deployment-key history
+
+Full archives and their authenticated operational records are encrypted with
+the deployment key present when written. Wrapping-key rotation changes live
+root-key envelopes only. Explicit external historical secret files extend read
+authentication for archives, receipts and activity; all writes keep the current
+key. Archive verification owns one encrypted copy and selects a key through
+manifest authentication before streaming component verification. Remote retry
+may update the receipt under the current key but cannot rewrite the archive.
+Configuration/secret failures occur before catalogue corruption filtering.
+
+Actual restore/activation keep an explicitly selected deployment key; isolated
+rehearsals may receive the configured historical archive keys. No historical
+key is inserted into the restored database or used as a fallback for live root
+keys. The operator retains keys for both the outer archive and the SQL dump's
+root-key wrapping version. See [custody and deployment](../deployment/backups.md).

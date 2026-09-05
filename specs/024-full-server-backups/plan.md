@@ -123,3 +123,35 @@ Feature 025 follows delivery of this feature. Its historical storage transition 
 See the [canonical plan](../025-storage-coherence-audit/plan.md) and
 [implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
 does not mark that follow-up implemented or delivered.
+
+## T028: retain external backup key history across wrapping rotation
+
+Use `MYOWNNOTION_BACKUP_HISTORICAL_KEY_FILES`, a JSON array of at most 16 unique
+absolute file paths (at most 16 KiB total configuration, 4096 characters per
+path; 4096 bytes per secret file), empty by default. Resolve configured keys outside blob/backup storage,
+including symlink aliases; reuse the authoritative private deployment-key loader
+and its cached Windows secret-file ACL validation. Load candidate keys for each operation,
+clear owned buffers, and authenticate with the current key followed by historical
+keys. Invalid configured files fail the operation before catalogue filtering.
+No key discovery, database key table, archive rewrite or new service is added.
+
+Share bounded authenticated decryption between receipts and activities; writes
+keep the current-key callback. Archive reads own one encrypted snapshot and
+authenticate its manifest with the candidate keys, then stream its components
+once using the matching key. Wire API, scheduler, pre-update backup and CLI
+inspection/verification/rehearsal. CLI restore/activation keep their explicit
+current deployment-key input; rehearsal alone supplies historical archive read
+keys to its isolated restore.
+
+Ship an optional Compose override mounting an explicitly configured directory
+read-only into API/migration containers, with no host-directory auto-creation.
+Document custody by rotation version and fingerprint, separating the outer
+archive key from the root-key wrapping state captured in its SQL dump. Correct
+the rotation completion instruction: retaining historical recovery keys is
+necessary even after live SQL envelopes have been rewrapped.
+
+Validation uses synthetic private key files, actual A→B wrapping rotation, PG18
+dumps/restores and disposable databases on the test server. Cover mixed-key
+receipts/activity, historical rehearsal, remote retry/prune, scheduling B,
+explicit A restore and restored data-key access, plus configuration/integrity
+refusals. Full delivery gates remain T023/T024 and run during parent integration.

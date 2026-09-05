@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { isUuid } from "@myownnotion/domain";
 import { open as decrypt, seal } from "@myownnotion/domain/security";
 
+import { authenticateWithBackupKeys } from "./read-keys.ts";
+
 const AAD = Buffer.from("myownnotion.full-backup.receipt.v1");
 export interface FullBackupReceipt {
   readonly formatVersion: 1;
@@ -56,6 +58,7 @@ export class FullBackupReceipts {
   constructor(
     private readonly root: string,
     private readonly key: () => Uint8Array,
+    private readonly readKeys: () => Buffer[] = () => [Buffer.from(key())],
   ) {}
 
   async put(value: FullBackupReceipt): Promise<void> {
@@ -108,57 +111,65 @@ export class FullBackupReceipts {
   }
 
   async scan(): Promise<{ receipts: FullBackupReceipt[]; invalidCount: number }> {
-    let names: string[];
+    const keys = this.readKeys();
     try {
-      names = await readdir(this.root);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT")
-        return { receipts: [], invalidCount: 0 };
-      throw error;
-    }
-    const results: FullBackupReceipt[] = [];
-    let invalidCount = 0;
-    for (const name of names.filter((name) => name.endsWith(".receipt"))) {
+      let names: string[];
       try {
-        const id = name.slice(0, -8);
-        fullArchiveName(id);
-        const handle = await open(join(this.root, name), constants.O_RDONLY | constants.O_NOFOLLOW);
-        let bytes: Buffer;
-        try {
-          const metadata = await handle.stat();
-          if (!metadata.isFile() || metadata.size < 28 || metadata.size > 16_384)
-            throw new Error("Invalid encrypted backup receipt size.");
-          bytes = await handle.readFile();
-        } finally {
-          await handle.close();
-        }
-        const key = Buffer.from(this.key());
-        let clear: Uint8Array | undefined;
-        try {
-          clear = decrypt(
-            key,
-            {
-              nonce: bytes.subarray(0, 12),
-              tag: bytes.subarray(12, 28),
-              ciphertext: bytes.subarray(28),
-            },
-            AAD,
-          );
-          const checked = receipt(JSON.parse(Buffer.from(clear).toString("utf8")));
-          if (checked.backupId !== id)
-            throw new Error("A backup receipt identity does not match its file.");
-          results.push(checked);
-        } finally {
-          key.fill(0);
-          clear?.fill(0);
-        }
-      } catch {
-        invalidCount += 1;
+        names = await readdir(this.root);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT")
+          return { receipts: [], invalidCount: 0 };
+        throw error;
       }
+      const results: FullBackupReceipt[] = [];
+      let invalidCount = 0;
+      for (const name of names.filter((name) => name.endsWith(".receipt"))) {
+        try {
+          const id = name.slice(0, -8);
+          fullArchiveName(id);
+          const handle = await open(
+            join(this.root, name),
+            constants.O_RDONLY | constants.O_NOFOLLOW,
+          );
+          let bytes: Buffer;
+          try {
+            const metadata = await handle.stat();
+            if (!metadata.isFile() || metadata.size < 28 || metadata.size > 16_384)
+              throw new Error("Invalid encrypted backup receipt size.");
+            bytes = await handle.readFile();
+          } finally {
+            await handle.close();
+          }
+          let clear: Uint8Array | undefined;
+          try {
+            clear = authenticateWithBackupKeys(keys, (key) =>
+              decrypt(
+                key,
+                {
+                  nonce: bytes.subarray(0, 12),
+                  tag: bytes.subarray(12, 28),
+                  ciphertext: bytes.subarray(28),
+                },
+                AAD,
+              ),
+            ).value;
+            const checked = receipt(JSON.parse(Buffer.from(clear).toString("utf8")));
+            if (checked.backupId !== id)
+              throw new Error("A backup receipt identity does not match its file.");
+            results.push(checked);
+          } finally {
+            clear?.fill(0);
+          }
+        } catch {
+          invalidCount += 1;
+        }
+      }
+      return {
+        receipts: results.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        invalidCount,
+      };
+    } finally {
+      for (const key of keys) key.fill(0);
     }
-    return {
-      receipts: results.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-      invalidCount,
-    };
   }
 }

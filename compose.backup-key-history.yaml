@@ -1,0 +1,19 @@
+# Optional external secret mount; combine explicitly with compose.yaml.
+# Values in MYOWNNOTION_BACKUP_HISTORICAL_KEY_FILES are container paths.
+services:
+  api:
+    volumes:
+      - type: bind
+        source: ${MYOWNNOTION_BACKUP_HISTORICAL_KEYS_DIRECTORY:?Set the absolute private historical-key directory}
+        target: /run/secrets/backup-key-history
+        read_only: true
+        bind:
+          create_host_path: false
+  migrate:
+    volumes:
+      - type: bind
+        source: ${MYOWNNOTION_BACKUP_HISTORICAL_KEYS_DIRECTORY:?Set the absolute private historical-key directory}
+        target: /run/secrets/backup-key-history
+        read_only: true
+        bind:
+          create_host_path: false
