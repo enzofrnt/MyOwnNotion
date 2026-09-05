@@ -241,3 +241,15 @@ journey setup then exited while starting a Playwright web server. The emitted
 log omitted server stdout. Preserve both servers' output and failed native
 reports so the next run identifies the cause. This is diagnostic coverage,
 not evidence that the Windows journeys or feature delivery pass.
+
+### Native Windows follow-up — portable Vite startup
+
+The complete local gate passed on `2deadab1`. Native Windows run 33959629066
+then exposed the startup failure: the preview script passed the POSIX expression
+`${MYOWNNOTION_WEB_DIST_DIR:-dist}` literally as its output directory on Windows.
+Vite now reads the host, port and output directory directly from environment
+variables in its configuration. Package scripts contain no shell substitution.
+Seven focused tests pass, including Windows paths with spaces and empty-value
+defaults. An actual workspace preview serves a temporary directory containing
+spaces on the requested port; web TypeScript checks also pass. Complete local
+validation and native Windows confirmation remain required before delivery.
