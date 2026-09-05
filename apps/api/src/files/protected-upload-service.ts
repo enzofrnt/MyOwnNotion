@@ -59,11 +59,44 @@ export class ProtectedUploadService {
       originalName: SCRUBBED_PLACEHOLDER,
       mediaType: "application/octet-stream",
     });
+    const resolved = { ...upload, originalName: input.originalName, mediaType: input.mediaType };
+    await this.writeInitialState(tx, resolved);
+    return resolved;
+  }
+
+  /** Atomically replaces a legacy acknowledged prefix while preserving its transfer identity. */
+  async protectLegacyUpload(
+    tx: Transaction,
+    id: Uuid,
+    source: AsyncIterable<Uint8Array>,
+  ): Promise<UploadRecord> {
+    await this.lockGeneration(tx);
+    const legacy = await lockUpload(tx, id);
+    if (legacy === null || legacy.storageFormat !== "legacy-v1")
+      throw new ProtectedFileUnavailableError();
+    await tx
+      .update(schema.uploads)
+      .set({
+        storageFormat: "encrypted-chunks-v1",
+        manifestVersion: 1,
+        receivedLength: 0,
+        originalName: SCRUBBED_PLACEHOLDER,
+        mediaType: "application/octet-stream",
+      })
+      .where(eq(schema.uploads.id, id));
+    await this.writeInitialState(tx, legacy);
+    const result = await this.append(tx, { id, offset: 0, source });
+    if (!result.ok || result.upload.receivedLength !== legacy.receivedLength)
+      throw new ProtectedFileUnavailableError();
+    return result.upload;
+  }
+
+  private async writeInitialState(tx: Transaction, upload: UploadRecord): Promise<void> {
     await this.files.deps.content.writeFileMetadata(tx, {
       kind: "upload",
       id: upload.id,
       recordVersion: 1,
-      metadata: { originalName: input.originalName, mediaType: input.mediaType },
+      metadata: { originalName: upload.originalName, mediaType: upload.mediaType },
     });
     await this.files.deps.content.writeFileManifest(tx, {
       format: "myownnotion.protected-file",
@@ -76,7 +109,6 @@ export class ProtectedUploadService {
       sha256: null,
       chunks: [],
     });
-    return { ...upload, originalName: input.originalName, mediaType: input.mediaType };
   }
 
   async state(executor: Database | Transaction, upload: UploadRecord): Promise<UploadManifest> {

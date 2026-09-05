@@ -17,7 +17,11 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
-import { shareFullBlobDeletion, shareFullFileMutation } from "../backup/full/locks.ts";
+import {
+  lockFullFileMaintenance,
+  shareFullBlobDeletion,
+  shareFullFileMutation,
+} from "../backup/full/locks.ts";
 import type { KeyHierarchy } from "../security/key-hierarchy.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { FileByteRange } from "./file-range.ts";
@@ -75,6 +79,42 @@ export class ProtectedFileService {
     source: AsyncIterable<Uint8Array>,
     options: { maxBytes: number; expectedLength?: number; contentId?: Uuid },
   ): Promise<ProtectedStoredContent> {
+    return this.ingestContent(tx, source, options);
+  }
+
+  /** Transition only: preserve a referenced legacy identity and verify its original digest. */
+  async protectLegacyContent(
+    tx: Transaction,
+    contentId: Uuid,
+    source: AsyncIterable<Uint8Array>,
+  ): Promise<ProtectedStoredContent> {
+    await lockFullFileMaintenance(tx);
+    const [legacy] = await tx
+      .select()
+      .from(schema.fileContents)
+      .where(eq(schema.fileContents.id, contentId))
+      .for("update")
+      .limit(1);
+    if (legacy === undefined || legacy.storageFormat !== "legacy-v1" || legacy.sha256 === null)
+      throw new ProtectedFileUnavailableError();
+    return this.ingestContent(
+      tx,
+      source,
+      {
+        contentId,
+        maxBytes: legacy.byteLength,
+        expectedLength: legacy.byteLength,
+      },
+      legacy.sha256,
+    );
+  }
+
+  private async ingestContent(
+    tx: Transaction,
+    source: AsyncIterable<Uint8Array>,
+    options: { maxBytes: number; expectedLength?: number; contentId?: Uuid },
+    legacyDigest?: Uint8Array,
+  ): Promise<ProtectedStoredContent> {
     if (
       !Number.isSafeInteger(options.maxBytes) ||
       options.maxBytes < 0 ||
@@ -110,10 +150,16 @@ export class ProtectedFileService {
     if (options.expectedLength !== undefined && byteLength !== options.expectedLength)
       throw new Error("The file stream did not match its declared length.");
     const sha256 = new Uint8Array(digest.digest());
+    if (legacyDigest !== undefined && !Buffer.from(sha256).equals(legacyDigest))
+      throw new ProtectedFileUnavailableError();
     const lookupTag = await this.deps.keys.fileContentLookupTag(tx, sha256, byteLength);
     const verifiedAt = this.deps.now();
     // A keyed digest narrows candidates; only an authenticated byte comparison permits reuse.
-    for (const candidate of await findProtectedContentCandidates(tx, lookupTag, byteLength)) {
+    const candidates =
+      legacyDigest === undefined
+        ? await findProtectedContentCandidates(tx, lookupTag, byteLength)
+        : [];
+    for (const candidate of candidates) {
       let equal = true;
       let index = 0;
       try {
@@ -163,15 +209,29 @@ export class ProtectedFileService {
         recordVersion: chunk.recordVersion,
       })),
     };
-    await tx.insert(schema.fileContents).values({
-      id: contentId,
-      storageFormat: "encrypted-chunks-v1",
+    const protectedValues = {
+      storageFormat: "encrypted-chunks-v1" as const,
       manifestVersion: 1,
       lookupTag,
       byteLength,
       verifiedAt,
-      referenceCount: 0,
-    });
+    };
+    if (legacyDigest === undefined) {
+      await tx.insert(schema.fileContents).values({
+        id: contentId,
+        ...protectedValues,
+        referenceCount: 0,
+      });
+    } else {
+      await tx
+        .update(schema.fileContents)
+        .set({
+          ...protectedValues,
+          sha256: null,
+          storageKey: null,
+        })
+        .where(eq(schema.fileContents.id, contentId));
+    }
     for (const chunk of chunks) await putProtectedFileChunk(tx, scope, chunk, verifiedAt);
     await this.deps.content.writeFileManifest(tx, manifest);
     return {

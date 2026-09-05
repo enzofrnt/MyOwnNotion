@@ -200,3 +200,11 @@ The corrected file-usage read and missing-envelope refusal pass alongside the
 canonical privacy cases (16 tests). API strict TypeScript, changed-source Biome
 format/lint and `git diff --check` pass. This checkpoint closes the reproduced
 fresh-write defect; it does not close T044's historical migration obligation.
+
+Historical conversion primitives preserve content UUID/reference counts without
+merging equal-byte objects, verify original digest/length before changing the
+canonical row, and leave source bytes intact for later retirement. Partial
+conversion retains upload UUID, expiry, declared length and acknowledged offset;
+a truncated prefix rolls back and a converted transfer resumes at that offset.
+All 35 focused file/upload/migration tests and API strict types pass. This is
+preparation for T023–T027, not a completed guarded transition.
