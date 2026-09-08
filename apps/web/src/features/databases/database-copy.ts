@@ -262,6 +262,8 @@ export const DATABASE_COPY = {
     viewLabel: (name: string) => `Vue liste ${name}`,
   },
   entry: {
+    valuesUnavailable:
+      "Ces propriétés ne sont pas présentes sur cet appareil. Reconnectez-vous pour les retrouver ; leurs valeurs sont conservées sur le serveur.",
     saved: "Propriétés enregistrées localement.",
     saveFailed:
       "Les propriétés n'ont pas pu être enregistrées. Les valeurs saisies sont conservées.",

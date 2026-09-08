@@ -401,7 +401,9 @@ export function HierarchyExplorer({
   }, []);
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseDto | null>(null);
   const [databaseEntries, setDatabaseEntries] = useState<readonly DatabaseEntryDto[]>([]);
-  const [selectedEntry, setSelectedEntry] = useState<DatabaseEntryDto | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<
+    (DatabaseEntryDto & { readonly valuesAvailable?: boolean }) | null
+  >(null);
   const selectedDatabaseRef = useRef<DatabaseDto | null>(null);
   const selectedEntryRef = useRef<DatabaseEntryDto | null>(null);
   selectedDatabaseRef.current = selectedDatabase;
@@ -1034,6 +1036,7 @@ export function HierarchyExplorer({
       setDatabaseEntries([]);
       setSelectedEntry({
         databaseId: entryRow.databaseId,
+        valuesAvailable: entryRow.availability === "present",
         entryId: selectedItem.id,
         revisionId: selectedItem.currentRevisionId,
         lifecycle: selectedItem.lifecycle,
@@ -2611,6 +2614,7 @@ export function HierarchyExplorer({
           <EntryPanel
             key={selectedItem.id}
             entry={selectedEntry}
+            valuesAvailable={selectedEntry.valuesAvailable ?? true}
             definition={entryDefinition}
             {...(entryDraftSession?.entryId === selectedItem.id
               ? { initialDrafts: entryDraftSession.drafts }

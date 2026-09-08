@@ -128,4 +128,26 @@ retains the proposed state, refuses a duplicate click, handles acceptance or
 refusal, and follows later confirmed props. The combined opening and database
 interaction/view suites pass 34 tests; web/root types and Biome pass. Logs:
 `/tmp/mon-column-pending-red.log`, `/tmp/mon-linked-ui-regressions-final.log`.
-The original browser journeys and reviewed screenshots are still pending.
+The corrected creation, host-trash/source-reuse, column persistence and partial
+coverage journeys pass on Chromium desktop and the four remaining profiles.
+The empty database host now has an editable body and no missing-item error;
+its macOS/Linux references were inspected before replacement. The Linux
+reference passes a fresh pinned-container run, without snapshot updating.
+Logs: `/tmp/mon-linked-ui-focused-browser-updated.log`,
+`/tmp/mon-linked-ui-focused-four-profiles.log`,
+`/tmp/mon-linked-linux-visual-confirmed.log`.
+
+Aggregate coverage at `1a0ba5d0` passes 432 suites / 4,219 tests with the unchanged
+uncovered-item budgets (`/tmp/mon-linked-ui-integrated-coverage.log`). This is
+standalone coverage evidence, not a complete pre-push gate.
+
+T019 follows the direct offline entry journey: released properties were shown
+as empty editable inputs even though the mutation boundary refuses them.
+No data loss was reproduced. The component regression fails before correction;
+ten interaction tests pass afterward, including hydration, a retained owner
+draft and an independent page document. Web types pass. Logs:
+`/tmp/mon-offloaded-entry-ui-red.log`, `/tmp/mon-offloaded-entry-ui-final.log`.
+The five-profile focused replay with this additional state passes: thirteen
+journeys and seven intentional platform-owned visual skips, no retries or
+relaxed expectations (`/tmp/mon-linked-ui-five-profiles-final.log`). The full
+exact-commit gate and PR/main checks remain pending.

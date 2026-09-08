@@ -35,6 +35,8 @@
 
 ## Phase 6: Convergence
 
-- [ ] T016 Inclure les créations de base et d'entrée dans la barrière du journal de page avant activation éditoriale dans `apps/web/src/services/local-content.ts` ; couvrir création retardée, hors ligne et conflit conservé, puis ouverture et édition réelles de la page hôte (FR-002/FR-004/FR-008, partial, HIGH).
-- [ ] T017 Conserver immédiatement le choix de visibilité d'une colonne pendant sa sauvegarde, bloquer les doubles gestes et restaurer l'état confirmé en cas d'échec ; vérifier la réponse retardée et la persistance sur deux navigateurs dans `database-toolbar.tsx` et ses tests (FR-003/FR-010, partial, MEDIUM).
+- [x] T019 Distinguer les propriétés déchargées des propriétés vides dans le panneau d'entrée : conserver titre et contenu indépendants, afficher l'indisponibilité locale à la place du formulaire, puis retrouver les valeurs confirmées après hydratation ; vérifier composant et ouverture directe hors ligne (FR-008/FR-011, partial, MEDIUM).
+
+- [x] T016 Inclure les créations de base et d'entrée dans la barrière du journal de page avant activation éditoriale dans `apps/web/src/services/local-content.ts` ; couvrir création retardée, hors ligne et conflit conservé, puis ouverture et édition réelles de la page hôte (FR-002/FR-004/FR-008, partial, HIGH).
+- [x] T017 Conserver immédiatement le choix de visibilité d'une colonne pendant sa sauvegarde, bloquer les doubles gestes et restaurer l'état confirmé en cas d'échec ; vérifier la réponse retardée et la persistance sur deux navigateurs dans `database-toolbar.tsx` et ses tests (FR-003/FR-010, partial, MEDIUM).
 - [ ] T018 Aligner les parcours historiques de couverture locale et de corbeille sur les entrées sans placement et la conservation des sources ; vérifier la nouvelle référence visuelle sans erreur après T016, puis relancer le gate complet (FR-005/FR-010/FR-011/FR-012, partial, MEDIUM).

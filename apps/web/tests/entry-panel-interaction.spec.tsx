@@ -82,6 +82,50 @@ describe("entry panel interaction durability", () => {
     vi.restoreAllMocks();
   });
 
+  it("distinguishes released properties from empty values and restores hydrated values", () => {
+    const { definition, entry, notesId } = entryFixture();
+    const save = vi.fn();
+    const render = (valuesAvailable: boolean, current = entry) =>
+      root.render(
+        <EntryPanel
+          entry={current}
+          definition={definition}
+          valuesAvailable={valuesAvailable}
+          pageContent={<p>Document conservé</p>}
+          onSaveValues={save}
+          onClose={vi.fn()}
+        />,
+      );
+    act(() => render(false));
+    expect(container.textContent).toContain("Migration");
+    expect(container.textContent).toContain("Document conservé");
+    expect(container.textContent).toContain(
+      "Ces propriétés ne sont pas présentes sur cet appareil",
+    );
+    expect(container.querySelector("input")).toBeNull();
+    expect(container.textContent).not.toContain("Enregistrer les propriétés");
+    act(() =>
+      render(true, {
+        ...entry,
+        values: { [notesId]: { kind: "text", value: "Valeur retrouvée" } },
+      }),
+    );
+    expect(container.querySelector<HTMLInputElement>(`#database-value-${notesId}`)?.value).toBe(
+      "Valeur retrouvée",
+    );
+    const notes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
+    if (notes === null) throw new Error("hydrated notes field missing");
+    act(() => typeInto(notes, "Brouillon conservé"));
+    act(() => render(false));
+    act(() =>
+      render(true, { ...entry, values: { [notesId]: { kind: "text", value: "Valeur distante" } } }),
+    );
+    expect(container.querySelector<HTMLInputElement>(`#database-value-${notesId}`)?.value).toBe(
+      "Brouillon conservé",
+    );
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it("submits the final property input when save follows it in the same interaction turn", async () => {
     const { definition, entry, notesId, ownerId } = entryFixture();
     const onSaveValues = vi.fn().mockResolvedValue(undefined);

@@ -481,7 +481,15 @@ test.describe("structured offline convergence (US5)", () => {
       ).toBeVisible();
       await second.page.goto(`/notes/${entryId}`);
       await expect(second.page.locator(".entry-panel")).toBeVisible();
-      await expect(second.page.getByTestId("active-item-title")).toHaveValue(entryName);
+      await expect(
+        second.page.locator(".entry-panel").getByRole("heading", { name: entryName, exact: true }),
+      ).toBeVisible();
+      await expect(
+        second.page.getByText(/Ces propriétés ne sont pas présentes sur cet appareil/),
+      ).toBeVisible();
+      await expect(
+        second.page.getByRole("button", { name: "Enregistrer les propriétés", exact: true }),
+      ).toHaveCount(0);
     } finally {
       await second.context.close();
     }

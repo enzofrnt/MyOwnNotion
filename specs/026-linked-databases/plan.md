@@ -4,6 +4,8 @@
 
 ## Summary
 
+Convergence T019 : le parcours hors ligne révèle que les valeurs déchargées sont affichées comme un formulaire vide. La mutation refuse déjà cet état ; aucune perte n'est reproduite. Transmettre l'état local de disponibilité au panneau sans changer le DTO réseau, remplacer uniquement le formulaire par un message explicite, et conserver les brouillons lors d'une hydratation. La disponibilité des propriétés est indépendante de celle du document.
+
 Séparer la révision de définition de la révision courante de l'ancienne page hôte. Le registre `databases` devient l'autorité de la source. Une ancre d'item existante peut rester pour le journal immutable et la compatibilité des enveloppes ; ni sa visibilité ni son cycle de vie ne déterminent la disponibilité de la source. Les configurations d'emplacements, noms et vues restent dans le payload de définition chiffré et empruntent les mutations, projections et exports existants.
 
 ## Technical Context

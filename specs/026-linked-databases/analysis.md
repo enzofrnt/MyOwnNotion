@@ -32,4 +32,9 @@ T016 and T017 address those runtime gaps under FR-002/003/004/008/010. T018
 corrects two obsolete host-ownership expectations and verifies the updated
 visual reference only after the host editor is actually ready. The specs keep
 their current product behavior; no cascade or implicit placement is reintroduced.
-Browser evidence and full delivery remain outstanding for these three tasks.
+Browser evidence now confirms T016/T017 on all five profiles. The reviewed
+macOS/Linux references show the expected ordinary editable host with its shared
+source. T019 separately fixes the released-property form exposed by the direct
+offline entry journey: local availability is presentation state, not a new wire
+field or a change to source ownership. T018 retains the complete local gate and
+PR/main verification as outstanding delivery work.
