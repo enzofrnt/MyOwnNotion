@@ -112,7 +112,7 @@ import {
 
 import { resolveLocalPageLinkTarget } from "./page-link-target.ts";
 
-type LoadState = "loading" | "ready";
+type LoadState = "loading" | "ready" | "error";
 type LoadPhase = "initializing" | "reading-local" | "seeding" | "navigation" | "refreshing";
 
 interface TreeNode {
@@ -657,9 +657,13 @@ export function HierarchyExplorer({
         // collapse a branch the owner has just opened.
         setLoadState("ready");
       }
-    })();
+    })().catch(() => {
+      if (!cancelled) setLoadState("error");
+    });
     const unsubscribeProjection = service.subscribeProjection((change) => {
-      void refresh(change);
+      void refresh(change).catch(() => {
+        if (!cancelled) setLoadState("error");
+      });
     });
     return () => {
       cancelled = true;
@@ -2015,6 +2019,8 @@ export function HierarchyExplorer({
     >
       {loadState === "loading" ? (
         <BranchState kind="loading" />
+      ) : loadState === "error" ? (
+        <p className="muted">Stockage local indisponible.</p>
       ) : tree.length === 0 ? (
         <p className="workspace-navigation__empty" data-testid="empty-state">
           Aucune page pour le moment.
@@ -2236,75 +2242,444 @@ export function HierarchyExplorer({
         </details>
       ) : null}
 
-      {graphScope !== null ? (
-        loadState === "loading" ? (
-          <WorkspaceState kind="loading" phase={loadPhase} />
-        ) : (
-          <KnowledgeGraphView
-            service={service}
-            items={[...items, ...trashedItems]}
-            initialScope={graphScope}
-            onOpenItem={openItem}
-          />
-        )
-      ) : null}
-      <div hidden={graphScope !== null}>
-        {loadState === "loading" && selectedItem === null ? (
-          selectedId !== null ? (
-            <article className="workspace-page-canvas" data-testid="workspace-page-opening">
-              <PageContentSkeleton variant="page" />
-            </article>
-          ) : (
-            <WorkspaceState kind="loading" phase={loadPhase} />
-          )
-        ) : selectedItem === null ? (
-          routedItemState === "unavailable-local" ? (
-            <WorkspaceState
-              kind="offline"
-              detail="Cette note n’est pas présente sur cet appareil. Reconnectez-vous pour la charger."
-            />
-          ) : routedItemState === "trashed" ? (
-            <WorkspaceState
-              kind="error"
-              detail="Cette note se trouve dans la corbeille. Ouvrez la corbeille pour la restaurer."
-            />
-          ) : routedItemState === "not-found" ? (
-            <WorkspaceState kind="error" detail="Cette note est introuvable ou a été supprimée." />
-          ) : (
-            <WorkspaceState
-              kind="empty"
-              detail={
-                items.length === 0
-                  ? "Créez une première page depuis la barre latérale."
-                  : "Choisissez une page dans la barre latérale pour reprendre votre travail."
-              }
-            />
-          )
-        ) : null}
+      {loadState === "error" ? (
+        <WorkspaceState
+          kind="error"
+          detail="Le stockage local est inaccessible. Vérifiez l’accès au stockage et au coffre de cet appareil, puis réessayez. Vos données locales sont conservées."
+          onRetry={() => window.location.reload()}
+        />
+      ) : (
+        <>
+          {graphScope !== null ? (
+            loadState === "loading" ? (
+              <WorkspaceState kind="loading" phase={loadPhase} />
+            ) : (
+              <KnowledgeGraphView
+                service={service}
+                items={[...items, ...trashedItems]}
+                initialScope={graphScope}
+                onOpenItem={openItem}
+              />
+            )
+          ) : null}
+          <div hidden={graphScope !== null}>
+            {loadState === "loading" && selectedItem === null ? (
+              selectedId !== null ? (
+                <article className="workspace-page-canvas" data-testid="workspace-page-opening">
+                  <PageContentSkeleton variant="page" />
+                </article>
+              ) : (
+                <WorkspaceState kind="loading" phase={loadPhase} />
+              )
+            ) : selectedItem === null ? (
+              routedItemState === "unavailable-local" ? (
+                <WorkspaceState
+                  kind="offline"
+                  detail="Cette note n’est pas présente sur cet appareil. Reconnectez-vous pour la charger."
+                />
+              ) : routedItemState === "trashed" ? (
+                <WorkspaceState
+                  kind="error"
+                  detail="Cette note se trouve dans la corbeille. Ouvrez la corbeille pour la restaurer."
+                />
+              ) : routedItemState === "not-found" ? (
+                <WorkspaceState
+                  kind="error"
+                  detail="Cette note est introuvable ou a été supprimée."
+                />
+              ) : (
+                <WorkspaceState
+                  kind="empty"
+                  detail={
+                    items.length === 0
+                      ? "Créez une première page depuis la barre latérale."
+                      : "Choisissez une page dans la barre latérale pour reprendre votre travail."
+                  }
+                />
+              )
+            ) : null}
 
-        {selectedItem !== null && selectedItem.kind === "page" ? (
-          <DatabaseConflictResolution
-            service={service}
-            itemId={selectedItem.id}
-            onResolved={() => void refresh()}
-          />
-        ) : null}
+            {selectedItem !== null && selectedItem.kind === "page" ? (
+              <DatabaseConflictResolution
+                service={service}
+                itemId={selectedItem.id}
+                onResolved={() => void refresh()}
+              />
+            ) : null}
 
-        {(selectedItem !== null && selectedItem.kind === "page" && !showSelectedEntry) ||
-        pageEditorSessionIds.length > 0 ? (
-          <article
-            className="workspace-page-canvas"
-            hidden={selectedItem === null || selectedItem.kind !== "page" || showSelectedEntry}
-            data-testid={
-              selectedItem !== null && selectedItem.kind === "page" && !showSelectedEntry
-                ? holdStructuredCanvasBody
-                  ? "workspace-page-opening"
-                  : "workspace-page-canvas"
-                : undefined
-            }
-          >
-            {selectedItem !== null && selectedItem.kind === "page" && !showSelectedEntry ? (
-              <>
+            {(selectedItem !== null && selectedItem.kind === "page" && !showSelectedEntry) ||
+            pageEditorSessionIds.length > 0 ? (
+              <article
+                className="workspace-page-canvas"
+                hidden={selectedItem === null || selectedItem.kind !== "page" || showSelectedEntry}
+                data-testid={
+                  selectedItem !== null && selectedItem.kind === "page" && !showSelectedEntry
+                    ? holdStructuredCanvasBody
+                      ? "workspace-page-opening"
+                      : "workspace-page-canvas"
+                    : undefined
+                }
+              >
+                {selectedItem !== null && selectedItem.kind === "page" && !showSelectedEntry ? (
+                  <>
+                    <PageTitleEditor
+                      key={`title-${selectedItem.id}`}
+                      {...titleEditingProps(selectedItem.id, selectedItem.name)}
+                      discoverable={graphScope === null}
+                      breadcrumbs={
+                        <PathBreadcrumbs path={pathCrumbs} onOpen={(id) => openItem(id as Uuid)} />
+                      }
+                      pathActions={
+                        <Button
+                          size="compact"
+                          variant="ghost"
+                          className="workspace-page-title__graph"
+                          data-testid="open-local-graph"
+                          title="Voir les relations"
+                          onClick={() => onOpenGraph(selectedItem.id)}
+                        >
+                          <AppIcon name="graph" size="small" />
+                          <span className="workspace-page-title__graph-label">
+                            Voir les relations
+                          </span>
+                        </Button>
+                      }
+                      icon={selectedItem.icon}
+                      title={selectedItem.name}
+                      onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
+                      onMoveToContent={() => {
+                        if (
+                          selectedDatabase !== null &&
+                          selectedDatabase.databaseId === selectedItem.id
+                        ) {
+                          document
+                            .querySelector<HTMLElement>(
+                              ".database-page button:not([disabled]), .database-page input:not([disabled])",
+                            )
+                            ?.focus();
+                          return;
+                        }
+                        document
+                          .querySelector<HTMLElement>(
+                            '[data-testid="operational-editor"] .ProseMirror',
+                          )
+                          ?.focus();
+                      }}
+                    />
+                    {holdStructuredCanvasBody ? (
+                      <PageContentSkeleton />
+                    ) : selectedDatabase !== null && showSelectedDatabase ? (
+                      <DatabasePage
+                        database={selectedDatabase}
+                        entries={databaseEntries}
+                        onPreviewDefinitionImpact={async (definition) => {
+                          const current = await service.getItem(selectedItem.id);
+                          return current === null
+                            ? null
+                            : await service.previewDatabaseDefinitionImpact(
+                                selectedItem.id,
+                                current.currentRevisionId,
+                                definition,
+                              );
+                        }}
+                        onReplaceDefinition={(
+                          definition: DatabaseDefinition,
+                          confirmation?: DefinitionConfirmation,
+                        ) => {
+                          const previousDatabase = selectedDatabase;
+                          optimisticDatabaseDefinition.current = {
+                            databaseId: selectedItem.id,
+                            definition,
+                          };
+                          setSelectedDatabase({
+                            ...previousDatabase,
+                            definition,
+                          } as unknown as DatabaseDto);
+                          const rollbackOptimisticDefinition = (): void => {
+                            if (
+                              optimisticDatabaseDefinition.current?.databaseId ===
+                                selectedItem.id &&
+                              jsonValuesEqual(
+                                optimisticDatabaseDefinition.current.definition,
+                                definition,
+                              )
+                            ) {
+                              optimisticDatabaseDefinition.current = null;
+                            }
+                            setSelectedDatabase((current) =>
+                              current !== null && jsonValuesEqual(current.definition, definition)
+                                ? previousDatabase
+                                : current,
+                            );
+                          };
+                          const operation = async (): Promise<void> => {
+                            for (let attempt = 0; attempt < 3; attempt += 1) {
+                              const [currentItem, currentDatabase] = await Promise.all([
+                                service.getItem(selectedItem.id),
+                                service.getDatabase(selectedItem.id),
+                              ]);
+                              if (
+                                currentItem === null ||
+                                currentDatabase === null ||
+                                !jsonValuesEqual(
+                                  currentDatabase.definition,
+                                  previousDatabase.definition,
+                                )
+                              ) {
+                                const error: SafeError = {
+                                  code: "database.definition-conflict",
+                                  title: DATABASE_COPY.hierarchy.schemaChanged,
+                                };
+                                rollbackOptimisticDefinition();
+                                setProblem(error);
+                                throw new Error(error.title);
+                              }
+                              const body = {
+                                baseRevisionId: currentItem.currentRevisionId,
+                                definition,
+                                ...(confirmation === undefined
+                                  ? {}
+                                  : { impactConfirmation: confirmation }),
+                              } as unknown as ReplaceDefinitionRequestDto;
+                              const result = await service.replaceDatabaseDefinition(
+                                selectedItem.id,
+                                body,
+                              );
+                              if (result.ok) {
+                                let syncState = await service.synchronize();
+                                for (let pass = 0; pass < 3; pass += 1) {
+                                  if (
+                                    syncState === "conflict" ||
+                                    syncState === "offline" ||
+                                    (await service.outbox.pending()).length === 0
+                                  ) {
+                                    break;
+                                  }
+                                  syncState = await service.synchronize();
+                                }
+                                if (syncState === "conflict") {
+                                  const error: SafeError = {
+                                    code: "database.definition-conflict",
+                                    title: DATABASE_COPY.hierarchy.viewChanged,
+                                  };
+                                  rollbackOptimisticDefinition();
+                                  setProblem(error);
+                                  throw new Error(error.title);
+                                }
+                                const [updatedItem, updatedDatabase] = await Promise.all([
+                                  service.getItem(selectedItem.id),
+                                  service.getDatabase(selectedItem.id),
+                                ]);
+                                if (updatedItem !== null && updatedDatabase !== null) {
+                                  const refreshed = {
+                                    databaseId: selectedItem.id,
+                                    definitionRevisionId: updatedItem.currentRevisionId,
+                                    lifecycle: updatedItem.lifecycle,
+                                    name: updatedItem.name,
+                                    definition: updatedDatabase.definition,
+                                  } as unknown as DatabaseDto;
+                                  setSelectedDatabase((current) =>
+                                    current !== null &&
+                                    jsonValuesEqual(current.definition, definition)
+                                      ? refreshed
+                                      : current,
+                                  );
+                                }
+                                if (
+                                  optimisticDatabaseDefinition.current?.databaseId ===
+                                    selectedItem.id &&
+                                  jsonValuesEqual(
+                                    optimisticDatabaseDefinition.current.definition,
+                                    definition,
+                                  )
+                                ) {
+                                  optimisticDatabaseDefinition.current = null;
+                                }
+                                return;
+                              }
+                              if (result.error.code !== "revision.stale-base") {
+                                rollbackOptimisticDefinition();
+                                setProblem(result.error);
+                                throw new Error(result.error.title);
+                              }
+                            }
+                            const error: SafeError = {
+                              code: "revision.stale-base",
+                              title: DATABASE_COPY.hierarchy.propertySaveChanged,
+                            };
+                            rollbackOptimisticDefinition();
+                            setProblem(error);
+                            throw new Error(error.title);
+                          };
+                          const queued = definitionMutationQueue.current.then(operation, operation);
+                          definitionMutationQueue.current = queued.catch(() => undefined);
+                          return queued;
+                        }}
+                        onCreateEntry={async (title) => {
+                          const keys = siblingKeys(selectedItem.id);
+                          const result = await service.createDatabaseEntry(selectedItem.id, {
+                            id: generateUuidV7(),
+                            title,
+                            placement: {
+                              id: generateUuidV7(),
+                              parentItemId: selectedItem.id,
+                              positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
+                            },
+                            document: {
+                              format: "myownnotion.document+json",
+                              formatVersion: 1,
+                              body: {},
+                            },
+                            values: {},
+                            relationTargets: {},
+                          });
+                          if (!result.ok) {
+                            setProblem(result.error);
+                            throw new Error(result.error.title);
+                          }
+                          setExpanded((current) => new Set(current).add(selectedItem.id));
+                        }}
+                        onQueryView={querySelectedDatabaseView}
+                        onUpdateEntry={updateSelectedDatabaseEntry}
+                        relationOptions={items
+                          .filter((item) => item.kind === "page" && item.lifecycle === "active")
+                          .map((item) => ({ id: item.id, label: item.name }))}
+                        returnFocusEntryId={entryReturnFocusId}
+                        onReturnFocusRestored={clearEntryReturnFocus}
+                        onOpenEntry={openSelectedDatabaseEntry}
+                      />
+                    ) : null}
+                  </>
+                ) : null}
+                {pageEditorSessionIds.map((pageId) => {
+                  const sessionIsActive =
+                    selectedItem !== null &&
+                    selectedItem.kind === "page" &&
+                    !showSelectedEntry &&
+                    !showSelectedDatabase &&
+                    !holdStructuredCanvasBody &&
+                    pageId === selectedItem.id;
+                  return (
+                    <div
+                      key={pageId}
+                      className="workspace-page-session"
+                      data-testid={sessionIsActive ? "workspace-page-session-active" : undefined}
+                      hidden={!sessionIsActive}
+                      inert={sessionIsActive ? undefined : true}
+                    >
+                      <EditorView
+                        service={service}
+                        itemId={pageId as Uuid}
+                        items={items}
+                        onCreateSubpage={(request) => createSubpage(pageId as Uuid, request)}
+                        initialScrollAnchor={
+                          presentationRef.current === null
+                            ? null
+                            : scrollAnchorFor(presentationRef.current, pageId as Uuid)
+                        }
+                        onCaptureScrollAnchor={onCaptureScrollAnchor}
+                        onOpenPage={openPageLink}
+                        discoverable={sessionIsActive}
+                      />
+                    </div>
+                  );
+                })}
+              </article>
+            ) : null}
+
+            {selectedItem !== null &&
+            selectedEntry !== null &&
+            selectedEntry.entryId === selectedItem.id &&
+            entryDefinition !== null ? (
+              <EntryPanel
+                key={selectedItem.id}
+                entry={selectedEntry}
+                definition={entryDefinition}
+                {...(entryDraftSession?.entryId === selectedItem.id
+                  ? { initialDrafts: entryDraftSession.drafts }
+                  : {})}
+                onDraftsChange={(drafts) =>
+                  setEntryDraftSession({ entryId: selectedItem.id, drafts })
+                }
+                relationOptions={items
+                  .filter((item) => item.kind === "page" && item.lifecycle === "active")
+                  .map((item) => ({ id: item.id, label: item.name }))}
+                onSaveValues={async (values, relationTargets) => {
+                  for (let attempt = 0; attempt < 3; attempt += 1) {
+                    const [currentItem, currentEntry, currentRelations] = await Promise.all([
+                      service.getItem(selectedItem.id),
+                      service.getDatabaseEntry(selectedItem.id),
+                      service.getDatabaseEntryRelationTargets(
+                        selectedEntry.databaseId as Uuid,
+                        selectedItem.id,
+                      ),
+                    ]);
+                    if (
+                      currentItem === null ||
+                      currentEntry === null ||
+                      !jsonValuesEqual(currentEntry.values.values, selectedEntry.values) ||
+                      !jsonValuesEqual(currentRelations, selectedEntry.relationTargets)
+                    ) {
+                      const error: SafeError = {
+                        code: "database.definition-conflict",
+                        title: DATABASE_COPY.hierarchy.entryChanged,
+                      };
+                      setProblem(error);
+                      throw new Error(error.title);
+                    }
+                    const result = await service.replaceDatabaseEntryValues(
+                      selectedEntry.databaseId as Uuid,
+                      selectedItem.id,
+                      {
+                        baseRevisionId: currentItem.currentRevisionId,
+                        values,
+                        relationTargets,
+                      } as unknown as ReplaceEntryValuesRequestDto,
+                    );
+                    if (result.ok) return;
+                    if (result.error.code !== "revision.stale-base") {
+                      setProblem(result.error);
+                      throw new Error(result.error.title);
+                    }
+                  }
+                  const error: SafeError = {
+                    code: "revision.stale-base",
+                    title: DATABASE_COPY.hierarchy.entrySaveChanged,
+                  };
+                  setProblem(error);
+                  throw new Error(error.title);
+                }}
+                onClose={() => {
+                  const databaseId = selectedEntry.databaseId as Uuid;
+                  setEntryDraftSession((current) =>
+                    current?.entryId === selectedItem.id ? null : current,
+                  );
+                  selectItemById(databaseId, { replace: true });
+                  remotelyOpenedEntry.current = null;
+                }}
+                pageContent={
+                  <EditorView
+                    service={service}
+                    itemId={selectedItem.id}
+                    items={items}
+                    onCreateSubpage={(request) => createSubpage(selectedItem.id, request)}
+                    onOpenPage={openPageLink}
+                    initialScrollAnchor={
+                      presentationRef.current === null
+                        ? null
+                        : scrollAnchorFor(presentationRef.current, selectedItem.id)
+                    }
+                    onCaptureScrollAnchor={onCaptureScrollAnchor}
+                  />
+                }
+              />
+            ) : null}
+
+            {selectedItem !== null && selectedItem.kind === "folder" ? (
+              <article
+                className="workspace-page-canvas workspace-folder-canvas"
+                data-testid="workspace-folder-canvas"
+              >
                 <PageTitleEditor
                   key={`title-${selectedItem.id}`}
                   {...titleEditingProps(selectedItem.id, selectedItem.name)}
@@ -2325,384 +2700,36 @@ export function HierarchyExplorer({
                       <span className="workspace-page-title__graph-label">Voir les relations</span>
                     </Button>
                   }
+                  kind="folder"
+                  kindActions={
+                    <FolderInlineCreate
+                      folderName={selectedItem.name}
+                      onCreate={(kind) => void createItem(kind, selectedItem.id)}
+                    />
+                  }
                   icon={selectedItem.icon}
                   title={selectedItem.name}
                   onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
-                  onMoveToContent={() => {
-                    if (
-                      selectedDatabase !== null &&
-                      selectedDatabase.databaseId === selectedItem.id
-                    ) {
-                      document
-                        .querySelector<HTMLElement>(
-                          ".database-page button:not([disabled]), .database-page input:not([disabled])",
-                        )
-                        ?.focus();
-                      return;
-                    }
-                    document
-                      .querySelector<HTMLElement>('[data-testid="operational-editor"] .ProseMirror')
-                      ?.focus();
-                  }}
                 />
-                {holdStructuredCanvasBody ? (
-                  <PageContentSkeleton />
-                ) : selectedDatabase !== null && showSelectedDatabase ? (
-                  <DatabasePage
-                    database={selectedDatabase}
-                    entries={databaseEntries}
-                    onPreviewDefinitionImpact={async (definition) => {
-                      const current = await service.getItem(selectedItem.id);
-                      return current === null
-                        ? null
-                        : await service.previewDatabaseDefinitionImpact(
-                            selectedItem.id,
-                            current.currentRevisionId,
-                            definition,
-                          );
-                    }}
-                    onReplaceDefinition={(
-                      definition: DatabaseDefinition,
-                      confirmation?: DefinitionConfirmation,
-                    ) => {
-                      const previousDatabase = selectedDatabase;
-                      optimisticDatabaseDefinition.current = {
-                        databaseId: selectedItem.id,
-                        definition,
-                      };
-                      setSelectedDatabase({
-                        ...previousDatabase,
-                        definition,
-                      } as unknown as DatabaseDto);
-                      const rollbackOptimisticDefinition = (): void => {
-                        if (
-                          optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
-                          jsonValuesEqual(
-                            optimisticDatabaseDefinition.current.definition,
-                            definition,
-                          )
-                        ) {
-                          optimisticDatabaseDefinition.current = null;
-                        }
-                        setSelectedDatabase((current) =>
-                          current !== null && jsonValuesEqual(current.definition, definition)
-                            ? previousDatabase
-                            : current,
-                        );
-                      };
-                      const operation = async (): Promise<void> => {
-                        for (let attempt = 0; attempt < 3; attempt += 1) {
-                          const [currentItem, currentDatabase] = await Promise.all([
-                            service.getItem(selectedItem.id),
-                            service.getDatabase(selectedItem.id),
-                          ]);
-                          if (
-                            currentItem === null ||
-                            currentDatabase === null ||
-                            !jsonValuesEqual(
-                              currentDatabase.definition,
-                              previousDatabase.definition,
-                            )
-                          ) {
-                            const error: SafeError = {
-                              code: "database.definition-conflict",
-                              title: DATABASE_COPY.hierarchy.schemaChanged,
-                            };
-                            rollbackOptimisticDefinition();
-                            setProblem(error);
-                            throw new Error(error.title);
-                          }
-                          const body = {
-                            baseRevisionId: currentItem.currentRevisionId,
-                            definition,
-                            ...(confirmation === undefined
-                              ? {}
-                              : { impactConfirmation: confirmation }),
-                          } as unknown as ReplaceDefinitionRequestDto;
-                          const result = await service.replaceDatabaseDefinition(
-                            selectedItem.id,
-                            body,
-                          );
-                          if (result.ok) {
-                            let syncState = await service.synchronize();
-                            for (let pass = 0; pass < 3; pass += 1) {
-                              if (
-                                syncState === "conflict" ||
-                                syncState === "offline" ||
-                                (await service.outbox.pending()).length === 0
-                              ) {
-                                break;
-                              }
-                              syncState = await service.synchronize();
-                            }
-                            if (syncState === "conflict") {
-                              const error: SafeError = {
-                                code: "database.definition-conflict",
-                                title: DATABASE_COPY.hierarchy.viewChanged,
-                              };
-                              rollbackOptimisticDefinition();
-                              setProblem(error);
-                              throw new Error(error.title);
-                            }
-                            const [updatedItem, updatedDatabase] = await Promise.all([
-                              service.getItem(selectedItem.id),
-                              service.getDatabase(selectedItem.id),
-                            ]);
-                            if (updatedItem !== null && updatedDatabase !== null) {
-                              const refreshed = {
-                                databaseId: selectedItem.id,
-                                definitionRevisionId: updatedItem.currentRevisionId,
-                                lifecycle: updatedItem.lifecycle,
-                                name: updatedItem.name,
-                                definition: updatedDatabase.definition,
-                              } as unknown as DatabaseDto;
-                              setSelectedDatabase((current) =>
-                                current !== null && jsonValuesEqual(current.definition, definition)
-                                  ? refreshed
-                                  : current,
-                              );
-                            }
-                            if (
-                              optimisticDatabaseDefinition.current?.databaseId ===
-                                selectedItem.id &&
-                              jsonValuesEqual(
-                                optimisticDatabaseDefinition.current.definition,
-                                definition,
-                              )
-                            ) {
-                              optimisticDatabaseDefinition.current = null;
-                            }
-                            return;
-                          }
-                          if (result.error.code !== "revision.stale-base") {
-                            rollbackOptimisticDefinition();
-                            setProblem(result.error);
-                            throw new Error(result.error.title);
-                          }
-                        }
-                        const error: SafeError = {
-                          code: "revision.stale-base",
-                          title: DATABASE_COPY.hierarchy.propertySaveChanged,
-                        };
-                        rollbackOptimisticDefinition();
-                        setProblem(error);
-                        throw new Error(error.title);
-                      };
-                      const queued = definitionMutationQueue.current.then(operation, operation);
-                      definitionMutationQueue.current = queued.catch(() => undefined);
-                      return queued;
-                    }}
-                    onCreateEntry={async (title) => {
-                      const keys = siblingKeys(selectedItem.id);
-                      const result = await service.createDatabaseEntry(selectedItem.id, {
-                        id: generateUuidV7(),
-                        title,
-                        placement: {
-                          id: generateUuidV7(),
-                          parentItemId: selectedItem.id,
-                          positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
-                        },
-                        document: {
-                          format: "myownnotion.document+json",
-                          formatVersion: 1,
-                          body: {},
-                        },
-                        values: {},
-                        relationTargets: {},
-                      });
-                      if (!result.ok) {
-                        setProblem(result.error);
-                        throw new Error(result.error.title);
-                      }
-                      setExpanded((current) => new Set(current).add(selectedItem.id));
-                    }}
-                    onQueryView={querySelectedDatabaseView}
-                    onUpdateEntry={updateSelectedDatabaseEntry}
-                    relationOptions={items
-                      .filter((item) => item.kind === "page" && item.lifecycle === "active")
-                      .map((item) => ({ id: item.id, label: item.name }))}
-                    returnFocusEntryId={entryReturnFocusId}
-                    onReturnFocusRestored={clearEntryReturnFocus}
-                    onOpenEntry={openSelectedDatabaseEntry}
-                  />
-                ) : null}
-              </>
-            ) : null}
-            {pageEditorSessionIds.map((pageId) => {
-              const sessionIsActive =
-                selectedItem !== null &&
-                selectedItem.kind === "page" &&
-                !showSelectedEntry &&
-                !showSelectedDatabase &&
-                !holdStructuredCanvasBody &&
-                pageId === selectedItem.id;
-              return (
-                <div
-                  key={pageId}
-                  className="workspace-page-session"
-                  data-testid={sessionIsActive ? "workspace-page-session-active" : undefined}
-                  hidden={!sessionIsActive}
-                  inert={sessionIsActive ? undefined : true}
-                >
-                  <EditorView
-                    service={service}
-                    itemId={pageId as Uuid}
-                    items={items}
-                    onCreateSubpage={(request) => createSubpage(pageId as Uuid, request)}
-                    initialScrollAnchor={
-                      presentationRef.current === null
-                        ? null
-                        : scrollAnchorFor(presentationRef.current, pageId as Uuid)
-                    }
-                    onCaptureScrollAnchor={onCaptureScrollAnchor}
-                    onOpenPage={openPageLink}
-                    discoverable={sessionIsActive}
-                  />
-                </div>
-              );
-            })}
-          </article>
-        ) : null}
-
-        {selectedItem !== null &&
-        selectedEntry !== null &&
-        selectedEntry.entryId === selectedItem.id &&
-        entryDefinition !== null ? (
-          <EntryPanel
-            key={selectedItem.id}
-            entry={selectedEntry}
-            definition={entryDefinition}
-            {...(entryDraftSession?.entryId === selectedItem.id
-              ? { initialDrafts: entryDraftSession.drafts }
-              : {})}
-            onDraftsChange={(drafts) => setEntryDraftSession({ entryId: selectedItem.id, drafts })}
-            relationOptions={items
-              .filter((item) => item.kind === "page" && item.lifecycle === "active")
-              .map((item) => ({ id: item.id, label: item.name }))}
-            onSaveValues={async (values, relationTargets) => {
-              for (let attempt = 0; attempt < 3; attempt += 1) {
-                const [currentItem, currentEntry, currentRelations] = await Promise.all([
-                  service.getItem(selectedItem.id),
-                  service.getDatabaseEntry(selectedItem.id),
-                  service.getDatabaseEntryRelationTargets(
-                    selectedEntry.databaseId as Uuid,
-                    selectedItem.id,
-                  ),
-                ]);
-                if (
-                  currentItem === null ||
-                  currentEntry === null ||
-                  !jsonValuesEqual(currentEntry.values.values, selectedEntry.values) ||
-                  !jsonValuesEqual(currentRelations, selectedEntry.relationTargets)
-                ) {
-                  const error: SafeError = {
-                    code: "database.definition-conflict",
-                    title: DATABASE_COPY.hierarchy.entryChanged,
-                  };
-                  setProblem(error);
-                  throw new Error(error.title);
-                }
-                const result = await service.replaceDatabaseEntryValues(
-                  selectedEntry.databaseId as Uuid,
-                  selectedItem.id,
-                  {
-                    baseRevisionId: currentItem.currentRevisionId,
-                    values,
-                    relationTargets,
-                  } as unknown as ReplaceEntryValuesRequestDto,
-                );
-                if (result.ok) return;
-                if (result.error.code !== "revision.stale-base") {
-                  setProblem(result.error);
-                  throw new Error(result.error.title);
-                }
-              }
-              const error: SafeError = {
-                code: "revision.stale-base",
-                title: DATABASE_COPY.hierarchy.entrySaveChanged,
-              };
-              setProblem(error);
-              throw new Error(error.title);
-            }}
-            onClose={() => {
-              const databaseId = selectedEntry.databaseId as Uuid;
-              setEntryDraftSession((current) =>
-                current?.entryId === selectedItem.id ? null : current,
-              );
-              selectItemById(databaseId, { replace: true });
-              remotelyOpenedEntry.current = null;
-            }}
-            pageContent={
-              <EditorView
-                service={service}
-                itemId={selectedItem.id}
-                items={items}
-                onCreateSubpage={(request) => createSubpage(selectedItem.id, request)}
-                onOpenPage={openPageLink}
-                initialScrollAnchor={
-                  presentationRef.current === null
-                    ? null
-                    : scrollAnchorFor(presentationRef.current, selectedItem.id)
-                }
-                onCaptureScrollAnchor={onCaptureScrollAnchor}
-              />
-            }
-          />
-        ) : null}
-
-        {selectedItem !== null && selectedItem.kind === "folder" ? (
-          <article
-            className="workspace-page-canvas workspace-folder-canvas"
-            data-testid="workspace-folder-canvas"
-          >
-            <PageTitleEditor
-              key={`title-${selectedItem.id}`}
-              {...titleEditingProps(selectedItem.id, selectedItem.name)}
-              discoverable={graphScope === null}
-              breadcrumbs={
-                <PathBreadcrumbs path={pathCrumbs} onOpen={(id) => openItem(id as Uuid)} />
-              }
-              pathActions={
-                <Button
-                  size="compact"
-                  variant="ghost"
-                  className="workspace-page-title__graph"
-                  data-testid="open-local-graph"
-                  title="Voir les relations"
-                  onClick={() => onOpenGraph(selectedItem.id)}
-                >
-                  <AppIcon name="graph" size="small" />
-                  <span className="workspace-page-title__graph-label">Voir les relations</span>
-                </Button>
-              }
-              kind="folder"
-              kindActions={
-                <FolderInlineCreate
+                <FolderChildrenList
                   folderName={selectedItem.name}
-                  onCreate={(kind) => void createItem(kind, selectedItem.id)}
+                  items={folderChildren}
+                  onOpen={(id) => openItem(id as Uuid)}
+                  onReorder={(request) =>
+                    handleTreeDrop({
+                      kind: "place",
+                      itemId: request.itemId,
+                      targetId: request.targetId,
+                      parentId: selectedItem.id,
+                      edge: request.edge,
+                    })
+                  }
                 />
-              }
-              icon={selectedItem.icon}
-              title={selectedItem.name}
-              onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
-            />
-            <FolderChildrenList
-              folderName={selectedItem.name}
-              items={folderChildren}
-              onOpen={(id) => openItem(id as Uuid)}
-              onReorder={(request) =>
-                handleTreeDrop({
-                  kind: "place",
-                  itemId: request.itemId,
-                  targetId: request.targetId,
-                  parentId: selectedItem.id,
-                  edge: request.edge,
-                })
-              }
-            />
-          </article>
-        ) : null}
-      </div>
+              </article>
+            ) : null}
+          </div>
+        </>
+      )}
     </WorkspaceShell>
   );
 }
