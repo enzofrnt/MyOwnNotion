@@ -628,3 +628,20 @@ lifecycle stages. Sixteen focused cleanup/evidence tests pass, including a real
 owned Bun process, absence versus permission refusal, bounded records and
 redaction. Strict workspace types pass. Complete local, native PR and renewed
 main checks remain pending; this change is diagnostic, not a claimed repair.
+
+### T103 authentication fixture follow-up
+
+The 0a43f6c1 complete local run failed the strict Firefox gate: one beforeEach
+exceeded 60 seconds before any browser action. Its trace does not identify which
+setup operation waited, and PostgreSQL logged no corresponding error. The run
+was interrupted after recording that failure; it is not pre-push evidence.
+
+Password setup still had an unbounded connection/query/final close. Its extracted
+fixture now uses the existing bounded client and preserves a single credential
+ID/hash across idempotent insert retries. Two fault-injection regressions first
+failed against the old helper, then passed: a permanently pending socket close,
+and a committed insert followed by a lost reply. Strict workspace types and
+changed-file formatting/lint pass. Named setup steps will retain the precise
+operation if another stall occurs. These focused checks establish the new
+bounds; they do not prove the original stall's precise cause. Real browser and
+complete delivery evidence remain pending on this revision.

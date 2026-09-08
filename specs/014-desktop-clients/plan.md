@@ -493,3 +493,20 @@ unexpected context closure before requested shutdown, await bounded diagnostic
 collection during fixture cleanup, and prevent a failed trace export from
 replacing the original test failure. Keep this observation passive; no launch,
 evaluation or test retries are added.
+
+### T103: bound authentication fixture setup
+
+The renewed local Firefox gate on 0a43f6c1 timed out in authentication's
+beforeEach before any browser action. No PostgreSQL error was recorded in the
+corresponding interval; the trace does not identify the individual setup
+operation, so the precise stalled operation remains unconfirmed. Inspection
+finds that password seeding alone still uses an unbounded disposable client,
+including its final socket close. Move it to the existing bounded fixture
+boundary, retaining the actual stored scrypt format. Generate one credential
+identity and hash per fixture invocation, outside retried work, and make its
+insertion idempotent so a lost commit reply cannot create duplicate credentials.
+Add explicit setup steps to preserve the failing operation in future traces.
+Inject a committed insert with a lost reply and a stalled final close in focused
+regressions; retain real authentication journeys and unchanged test deadlines.
+This hardens a demonstrated missing bound, not a proven diagnosis of the earlier
+Firefox timeout. Full delivery checks must run again on the resulting commit.
