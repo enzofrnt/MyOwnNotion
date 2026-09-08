@@ -7,6 +7,7 @@ import {
   normalizeInstant,
   type Uuid,
 } from "@myownnotion/domain";
+import { type InputHTMLAttributes, useLayoutEffect, useRef } from "react";
 import { DATABASE_COPY } from "./database-copy.ts";
 
 export type ValueDraft = string | boolean | readonly string[];
@@ -104,6 +105,23 @@ export interface RelationOption {
   readonly label: string;
 }
 
+/** Preserve a native edit that arrives just before React receives its input event. */
+function DraftTextInput({
+  value,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "defaultValue"> & {
+  readonly value: string;
+}) {
+  const elementRef = useRef<HTMLInputElement>(null);
+  const projectedValue = useRef(value);
+  useLayoutEffect(() => {
+    const element = elementRef.current;
+    if (element !== null && element.value === projectedValue.current) element.value = value;
+    projectedValue.current = value;
+  }, [value]);
+  return <input {...props} ref={elementRef} defaultValue={value} />;
+}
+
 export function ValueEditor({
   property,
   input,
@@ -192,7 +210,7 @@ export function ValueEditor({
     );
   } else {
     control = (
-      <input
+      <DraftTextInput
         id={controlId}
         type={property.type === "date" && property.config.mode === "date" ? "date" : "text"}
         inputMode={property.type === "number" ? "decimal" : undefined}

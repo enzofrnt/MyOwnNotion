@@ -1,7 +1,11 @@
 import { readdirSync } from "node:fs";
 import process from "node:process";
 import { startDisposablePostgres } from "@myownnotion/test-utils";
+import { prepareDesktopTestElectron } from "../desktop/prepare-test-electron.ts";
 import { planVitestInvocations, usesVitestProject } from "./vitest-run-plan.js";
+
+const vitestArguments = process.argv.slice(2);
+if (usesVitestProject(vitestArguments, "desktop")) prepareDesktopTestElectron();
 
 const inheritedDatabaseUrl = process.env["TEST_DATABASE_URL"];
 const postgres =
@@ -14,7 +18,6 @@ if (databaseUrl === undefined) {
   throw new Error("The shared PostgreSQL test server did not provide a connection URL");
 }
 
-const vitestArguments = process.argv.slice(2);
 const usesPerformanceProject = usesVitestProject(vitestArguments, "performance");
 const discoveredPerformanceTests = usesPerformanceProject
   ? readdirSync("tests/performance", { withFileTypes: true })

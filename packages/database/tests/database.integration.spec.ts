@@ -1,5 +1,7 @@
 import {
+  buildItemSnapshot,
   executeCommand,
+  insertRevision,
   type MutationContext,
   readCurrentDatabaseDefinition,
   readCurrentDatabaseEntryValues,
@@ -306,7 +308,17 @@ describe("database capability and entries (T019)", () => {
     });
   });
 
-  it("records structured conflict resolutions as revisions with two parents", async () => {
+  it.each([
+    "none",
+    "consolidated",
+    "chain-64",
+    "chain-65",
+    "foreign",
+    "branching",
+    "missing-parent",
+    "rejected",
+    "structured-edit",
+  ] as const)("records structured resolutions after %s with safe ancestry", async (advance) => {
     const create = databaseCreate();
     const created = await submit(create);
     const createdRevisionId = created.result.revisionIds?.[0];
@@ -361,6 +373,57 @@ describe("database capability and entries (T019)", () => {
     });
     const entryReplacedRevisionId = entryReplaced.result.revisionIds?.[0];
     if (entryReplacedRevisionId === undefined) throw new Error("entry edit revision missing");
+    let currentHead = entryReplacedRevisionId;
+    if (advance !== "none" && advance !== "structured-edit") {
+      // Persist the timer's headers, including malformed lineage refusals.
+      const count = advance === "chain-64" ? 64 : advance === "chain-65" ? 65 : 1;
+      await runMutation(context.handle.db, async (tx) => {
+        for (let index = 0; index < count; index += 1) {
+          const consolidatedId = generateUuidV7();
+          const mutationId = generateUuidV7();
+          const acceptedAt = new Date();
+          await tx.insert(schema.mutations).values({
+            id: mutationId,
+            workspaceId: context.workspaceId,
+            commandType: "page-operations.consolidated",
+            status: advance === "rejected" ? "rejected" : "accepted",
+            submittedAt: acceptedAt,
+            acceptedAt,
+            resultRevisionIds: [consolidatedId],
+          });
+          await insertRevision(tx, {
+            id: consolidatedId,
+            itemId: advance === "foreign" ? create.id : entryId,
+            mutationId,
+            parentRevisionIds:
+              advance === "missing-parent"
+                ? []
+                : advance === "branching"
+                  ? [currentHead, entryCreatedRevisionId]
+                  : [currentHead],
+            snapshot: await buildItemSnapshot(tx, entryId),
+            acceptedAt,
+          });
+          currentHead = consolidatedId;
+        }
+        await tx
+          .update(schema.items)
+          .set({ currentRevisionId: currentHead })
+          .where(eq(schema.items.id, entryId));
+      });
+    } else if (advance === "structured-edit") {
+      const intervening = await submit({
+        type: "database.entry.values.replace",
+        databaseId: create.id,
+        entryId,
+        baseRevisionId: entryReplacedRevisionId,
+        values: { [textPropertyId]: { kind: "text", value: "new unseen edit" } },
+        relationTargets: {},
+      });
+      const head = intervening.result.revisionIds?.[0];
+      if (head === undefined) throw new Error("intervening edit missing");
+      currentHead = head;
+    }
     const entryResolution = await submit({
       type: "database.entry.values.resolve-conflict",
       databaseId: create.id,
@@ -369,10 +432,23 @@ describe("database capability and entries (T019)", () => {
       values: { [textPropertyId]: { kind: "text", value: "resolved" } },
       relationTargets: {},
     });
+    if (!["none", "consolidated", "chain-64"].includes(advance)) {
+      expect(entryResolution.result.status).toBe("conflict");
+      expect(await readCurrentDatabaseEntryValues(context.handle.db, entryId)).toMatchObject({
+        values: {
+          [textPropertyId]: {
+            kind: "text",
+            value: advance === "structured-edit" ? "new unseen edit" : "local",
+          },
+        },
+      });
+      return;
+    }
+    expect(entryResolution.result.status).toBe("accepted");
     const entryResolutionId = entryResolution.result.revisionIds?.[0];
     if (entryResolutionId === undefined) throw new Error("entry resolution revision missing");
     expect(await parentRevisionIds(entryResolutionId)).toEqual(
-      expect.arrayContaining([entryReplacedRevisionId, entryCreatedRevisionId]),
+      expect.arrayContaining([currentHead, entryCreatedRevisionId]),
     );
     expect(await readCurrentDatabaseEntryValues(context.handle.db, entryId)).toMatchObject({
       values: { [textPropertyId]: { kind: "text", value: "resolved" } },
