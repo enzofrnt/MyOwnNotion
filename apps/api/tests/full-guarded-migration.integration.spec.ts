@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { cp, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,9 +16,12 @@ import { type DisposablePostgres, startDisposablePostgres } from "@myownnotion/t
 import { eq } from "drizzle-orm";
 import pg from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { runCli } from "../src/admin/security-cli.ts";
 import { VerifiedFullArchive } from "../src/backup/full/archive.ts";
 import { FullBackupReceipts } from "../src/backup/full/receipts.ts";
+import { FullBackupService } from "../src/backup/full/service.ts";
 import { runGuardedMigrations } from "../src/backup/guarded-migration.ts";
+import { createProtectedFileRuntime } from "../src/files/protected-file-runtime.ts";
 import { FileStorageMigration } from "../src/security/file-storage-migration.ts";
 import { createAuthenticatedPageOperationHarness } from "./helpers/authenticated-page-operations.ts";
 
@@ -318,3 +321,187 @@ it.each(["missing", "corrupted"] as const)(
     }
   },
 );
+
+it("resumes the original A archive with B after actual wrapping rotation during a pending transition", async () => {
+  const harness = await createAuthenticatedPageOperationHarness();
+  const directory = await mkdtemp(join(tmpdir(), "mon-guarded-historical-key-"));
+  directories.push(directory);
+  const keyA = Buffer.from(await readFile(harness.deploymentKeyFile, "utf8"), "base64");
+  const keyB = randomBytes(32);
+  try {
+    await harness.reset();
+    await harness.createLegacyPage("Historical key migration sentinel");
+    const { db, protectedFiles: files, workspaceId } = harness.api.built.context;
+    if (files === undefined) throw new Error("Missing protected runtime");
+    const bytes = Buffer.from("Original readable file survives wrapping and storage migration");
+    const raw = await files.deps.blobs.put(bytes);
+    const contentId = generateUuidV7();
+    await db.insert(schema.fileContents).values({ id: contentId, ...raw, referenceCount: 1 });
+    const installationId = files.deps.installationId;
+    await db
+      .insert(schema.rotationPolicies)
+      .values({
+        id: randomUUID(),
+        installationId,
+        kind: "wrapping-key",
+        mode: "scheduled",
+        dueIntervalDays: 365,
+        dueAt: new Date(),
+        writeBlockAt: new Date(Date.now() + 86_400_000),
+        currentGeneration: 1,
+        state: "due",
+      })
+      .onConflictDoNothing();
+    const keyBFile = join(directory, "key-B");
+    await writeFile(keyBFile, keyB.toString("base64"), { mode: 0o600 });
+    const migrationsDir = join(directory, "migrations");
+    await cp(workspaceMigrationsDir, migrationsDir, { recursive: true });
+    const input = {
+      connectionString: harness.api.postgres.connectionString,
+      migrationsDir,
+      runningVersion: "0.2.0",
+      installationId,
+      blobRoot: harness.api.blobRoot,
+      backupRoot: join(directory, "backups"),
+      deploymentKey: () => keyA,
+    };
+    const cutover = FileStorageMigration.prototype.cutover;
+    const interruption = vi
+      .spyOn(FileStorageMigration.prototype, "cutover")
+      .mockImplementationOnce(async function (this: FileStorageMigration, id) {
+        await cutover.call(this, id);
+        throw new Error("synthetic interruption after cutover");
+      });
+    await expect(runGuardedMigrations(input)).rejects.toThrow("synthetic interruption");
+    interruption.mockRestore();
+    const transition = await readStorageTransition(db, installationId);
+    expect(transition?.phase).toBe("cutover");
+    if (transition === null) throw new Error("Missing transition");
+    const receiptsA = new FullBackupReceipts(input.backupRoot, () => keyA);
+    const receiptA = (await receiptsA.list())[0];
+    if (receiptA === undefined) throw new Error("Missing source receipt");
+    expect(receiptA.backupId).toBe(transition.sourceBackupId);
+    const archivePath = join(input.backupRoot, `${transition.sourceBackupId}.monfull`);
+    const archiveBytes = await readFile(archivePath);
+
+    vi.stubEnv("DATABASE_URL", input.connectionString);
+    vi.stubEnv("MYOWNNOTION_DEPLOYMENT_KEY_FILE", harness.deploymentKeyFile);
+    vi.stubEnv("MYOWNNOTION_BLOB_ROOT", input.blobRoot);
+    vi.stubEnv("MYOWNNOTION_PUBLIC_ORIGIN", "http://127.0.0.1:5173");
+    vi.stubEnv("MYOWNNOTION_API_HOST", "127.0.0.1");
+    vi.stubEnv("MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE", "1");
+    const output: string[] = [];
+    expect(
+      await runCli(
+        ["security", "rotation", "wrapping-key", "--new-key-file", keyBFile, "--yes", "--json"],
+        (line) => output.push(line),
+      ),
+    ).toBe(0);
+    expect(output.join("\n")).toContain('"toVersion":2');
+    expect(await readStorageTransition(db, installationId)).toEqual(transition);
+    const runtimeB = createProtectedFileRuntime({
+      db,
+      workspaceId,
+      installationId,
+      blobRoot: input.blobRoot,
+      deploymentKey: () => keyB,
+    });
+    expect((await runtimeB.keys.dataKey(db, { writable: false })).material.byteLength).toBe(32);
+    const freshA = createProtectedFileRuntime({
+      db,
+      workspaceId,
+      installationId,
+      blobRoot: input.blobRoot,
+      deploymentKey: () => keyA,
+    });
+    await expect(freshA.keys.dataKey(db, { writable: false })).rejects.toThrow();
+
+    const currentB = { ...input, deploymentKey: () => keyB };
+    const configuredB = { ...currentB, historicalKeyFiles: [harness.deploymentKeyFile] };
+    await writeFile(
+      join(migrationsDir, "9999_historical_key_probe.sql"),
+      "BEGIN; CREATE TABLE historical_key_probe (id integer PRIMARY KEY); INSERT INTO historical_key_probe VALUES (1); INSERT INTO schema_migrations (version) VALUES ('9999_historical_key_probe'); COMMIT;",
+    );
+    const snapshot = async () => ({
+      installation: await findInstallation(db),
+      transition: await readStorageTransition(db, installationId),
+      items: await db.select().from(schema.items),
+      contents: await db.select().from(schema.fileContents),
+      inventory: await migrationInventory(input.connectionString, { migrationsDir }),
+    });
+    const before = await snapshot();
+    const owned: Buffer[] = [];
+    const readKeys = FullBackupService.prototype.readKeys;
+    vi.spyOn(FullBackupService.prototype, "readKeys").mockImplementation(function (
+      this: FullBackupService,
+    ) {
+      const keys = readKeys.call(this);
+      owned.push(...keys);
+      return keys;
+    });
+    const assertUnchanged = async () => {
+      expect(await snapshot()).toEqual(before);
+      expect(
+        (
+          await harness.api.built.database.pool.query(
+            "SELECT to_regclass('public.historical_key_probe') AS relation",
+          )
+        ).rows[0].relation,
+      ).toBeNull();
+      expect(await files.deps.blobs.get(raw.storageKey)).toEqual(new Uint8Array(bytes));
+      expect(owned.every((key) => key.equals(Buffer.alloc(32)))).toBe(true);
+    };
+    // An A receipt needs explicit history even before archive authentication.
+    await expect(runGuardedMigrations(currentB)).rejects.toThrow(
+      "original verified pre-update archive is unavailable",
+    );
+    await assertUnchanged();
+    // A receipt updated under B (as by remote retry) cannot authorize an unreadable A archive.
+    await new FullBackupReceipts(input.backupRoot, () => keyB).put(receiptA);
+    await expect(runGuardedMigrations(currentB)).rejects.toThrow(
+      "No configured backup key authenticated",
+    );
+    await assertUnchanged();
+    for (const damage of ["missing", "corrupt"]) {
+      if (damage === "missing") await rm(archivePath);
+      else await writeFile(archivePath, Buffer.alloc(archiveBytes.length));
+      await expect(runGuardedMigrations(configuredB)).rejects.toThrow(
+        "original verified pre-update archive is unavailable",
+      );
+      await assertUnchanged();
+      await writeFile(archivePath, archiveBytes, { mode: 0o600 });
+    }
+    expect(await runGuardedMigrations(configuredB)).toEqual(["9999_historical_key_probe"]);
+    expect(owned.every((key) => key.equals(Buffer.alloc(32)))).toBe(true);
+    expect(await readStorageTransition(db, installationId)).toMatchObject({
+      id: transition.id,
+      sourceBackupId: transition.sourceBackupId,
+      phase: "complete",
+    });
+    expect(await findInstallation(db)).toMatchObject({
+      applicationVersion: "0.2.0",
+      previousFullBackupId: transition.sourceBackupId,
+    });
+    expect(await readFile(archivePath)).toEqual(archiveBytes);
+    const serviceB = new FullBackupService({
+      connectionString: input.connectionString,
+      blobRoot: input.blobRoot,
+      backupRoot: input.backupRoot,
+      key: () => keyB,
+      historicalKeyFiles: [harness.deploymentKeyFile],
+    });
+    expect(await serviceB.verifiedReceipts()).toHaveLength(1);
+    const restored: Buffer[] = [];
+    for await (const chunk of runtimeB.files.read(db, contentId)) restored.push(Buffer.from(chunk));
+    expect(Buffer.concat(restored)).toEqual(bytes);
+    await expect(
+      readFile(join(input.blobRoot, raw.storageKey.slice(0, 2), raw.storageKey)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  } finally {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    keyA.fill(0);
+    keyB.fill(0);
+    await harness.close();
+  }
+}, 60_000);

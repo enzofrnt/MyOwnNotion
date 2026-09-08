@@ -246,3 +246,25 @@ the local cursor. `page-reconciler.ts` must reject that retreat before importing
 or persisting the response; per-update acknowledgement proofs alone cannot
 protect an empty batch. This T051 correction preserves the existing blocked
 response outcome, with subsequent healthy passive pulls still permitted.
+
+### T052: historical source-backup authentication after wrapping rotation
+
+Integrate 024 T028 (`56135049`) while retaining the T050 resumed-archive verifier
+before the first SQL migration under RUN and T051 frontier monotonicity. The
+verifier obtains owned current/historical key buffers from `FullBackupService`
+and passes the current key plus historical candidates to `VerifiedFullArchive`;
+all owned buffers must be cleared even when archive opening or identity checks
+fail. Receipt discovery uses the same configured history. No live root-key
+fallback, archive rewrite or new secret store is introduced.
+
+Before adapting the reader, drive the real security CLI on a fixture interrupted
+after storage cutover. Establish whether wrapping-key rotation is actually
+permitted there (data-key rotation already has a separate transition guard).
+If A→B succeeds, retain A explicitly, authenticate the original A backup with B
+as current deployment key, resume the same transition and compare exact protected
+file bytes under B. Missing/corrupted source archives must still leave new SQL,
+ledger, canonical rows, transition and source blobs unchanged. Use only generated
+keys/disposable PostgreSQL on port 55433. Record A23 as corrected by 024 plus
+this integration and A24 using T051's existing real transport proof; no full
+gate or delivery claim belongs to the focused correction. Canvas 28.4/28.5 and
+30, constitution IV, and existing FR-007/FR-008 remain unchanged.
