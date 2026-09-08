@@ -19,7 +19,10 @@
 
 import { createHash } from "node:crypto";
 import { accessSync, constants as fsConstants, readFileSync, statSync } from "node:fs";
-import { hasPrivateWindowsKeyAcl } from "./windows-key-permissions.ts";
+import {
+  forgetCachedWindowsKeyAcl,
+  hasCachedPrivateWindowsKeyAcl,
+} from "./windows-key-permissions.ts";
 
 /** AES-256: the wrapping key is exactly 32 bytes. */
 export const DEPLOYMENT_KEY_BYTES = 32;
@@ -151,12 +154,14 @@ export function loadDeploymentKey(
   try {
     stats = statSync(path);
   } catch {
+    if (process.platform === "win32") forgetCachedWindowsKeyAcl(path);
     throw new DeploymentKeyUnavailableError(
       "missing",
       `deployment key file does not exist: ${path}`,
     );
   }
   if (!stats.isFile()) {
+    if (process.platform === "win32") forgetCachedWindowsKeyAcl(path);
     throw new DeploymentKeyUnavailableError(
       "not-a-file",
       `deployment key path is not a regular file: ${path}`,
@@ -164,7 +169,9 @@ export function loadDeploymentKey(
   }
   if (
     (options.enforcePermissions ?? true) &&
-    (process.platform === "win32" ? !hasPrivateWindowsKeyAcl(path) : isTooPermissive(stats.mode))
+    (process.platform === "win32"
+      ? !hasCachedPrivateWindowsKeyAcl(path)
+      : isTooPermissive(stats.mode))
   ) {
     throw new DeploymentKeyUnavailableError(
       "world-readable",
@@ -176,6 +183,7 @@ export function loadDeploymentKey(
   try {
     accessSync(path, fsConstants.R_OK);
   } catch {
+    if (process.platform === "win32") forgetCachedWindowsKeyAcl(path);
     throw new DeploymentKeyUnavailableError(
       "unreadable",
       `deployment key at ${path} cannot be read by this process`,
@@ -186,6 +194,7 @@ export function loadDeploymentKey(
   try {
     raw = readFileSync(path, "utf8");
   } catch {
+    if (process.platform === "win32") forgetCachedWindowsKeyAcl(path);
     throw new DeploymentKeyUnavailableError(
       "unreadable",
       `deployment key at ${path} could not be read`,

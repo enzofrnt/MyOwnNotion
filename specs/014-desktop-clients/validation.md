@@ -276,3 +276,173 @@ The initial local helper attempt failed because it requested the process after
 Playwright disposal; that attempt is not validation evidence. The corrected
 run is `/tmp/mon-desktop-process-native-corrected.log`. Full local and fresh
 Windows CI evidence remain required for T094.
+
+### Native Windows follow-up — repeated ACL inspection cost
+
+The complete local gate passed on `7e368060` (five browser profiles, nine native
+macOS journeys, production/multi-architecture builds and security checks).
+PR run 33989013305 confirms Windows x64 now restarts the crashed host, restores
+the queued creation and recovers the offline page text. Eight of nine native
+journeys pass; the remaining failure is synchronization after connectivity
+returns, against the unchanged 20-second wait. Session validation returns 200.
+The server log shows roughly 0.7-second multiples for ordinary protected
+requests and an unfinished multi-mutation replay at the deadline. The Windows
+key loader invokes a new PowerShell ACL inspection on every key lookup. T095
+addresses that cost while retaining permission enforcement and key-file changes.
+
+Evidence: `/tmp/mon-full-gate-desktop-process-tree.log`,
+`/tmp/mon-desktop-7e-windows-x64.log`, and
+`/tmp/mon-win7e-x64/.e2e-logs/chromium-desktop.log`. The permission cache design
+requires verification against Bun 1.4.0's Windows stat implementation and actual
+Windows metadata-change tests; elapsed-time correlation alone is not proof that
+the pending replay will succeed after the correction.
+
+T095 now passes 54 focused ACL/key-loader/native-fixture cases on macOS, strict
+API/desktop types and Biome. Only positive permission verdicts are cached, with
+an eight-file bound and exact BigInt identity/ChangeTime checks before and after
+lookup. Key bytes are still freshly read. Native Windows tests exercise warm
+cache invalidation for Everyone access, inherited ACLs, file replacement and
+deletion/recreation; their Windows execution remains a required CI result.
+
+The pinned runtime delegates stat through
+[Bun 1.4.0's libuv binding](https://github.com/oven-sh/bun/blob/bun-v1.4.0/src/sys/sys_uv.rs#L509).
+Its [pinned Windows libuv implementation](https://github.com/oven-sh/libuv/blob/8023581113b276e7c1aee3f82da57ca0893faab1/src/win/fs.c#L1927)
+maps ChangeTime to ctime separately from CreationTime;
+[Bun's BigInt conversion](https://github.com/oven-sh/bun/blob/bun-v1.4.0/src/runtime/node/Stat.rs#L64)
+preserves nanoseconds. Microsoft's
+[security-descriptor update contract](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fsa/2e97fa70-e1f5-410b-ba87-f1ffda39a8ed)
+updates LastChangeTime when that descriptor changes. Full source chain and
+local results: `/tmp/mon-windows-acl-cache-runtime-proof.md`,
+`/tmp/mon-windows-acl-cache-tests.log`, `/tmp/mon-windows-acl-cache-types.log`.
+
+The same PR run also reports the Windows ARM64 onboarding tree still loading
+after restart at the unchanged 15-second readiness deadline, alongside the
+offline replay failure. Both need fresh native confirmation; local success is
+not a Windows success claim. Artifact: `/tmp/mon-win7e-arm/`.
+
+The complete local attempt on `83269ec5` stops at the unchanged absolute coverage
+gate: 338 uncovered functions (budget 337), 2,218 statements (2,216), and 2,471
+branches (2,465). The missing Windows loader-error paths now have executable
+regressions: a warm verdict is discarded after deletion, directory replacement,
+access denial or a failed read; repaired access still requires a fresh descriptor
+inspection. POSIX I/O failures also remain closed. Both permission/loader suites
+pass 59 cases, with 100% functions, 99.06% statements and 97.8% branches for these
+two production modules; API types and Biome pass. Full aggregate validation must
+be repeated, with no changed thresholds. Evidence:
+`/tmp/mon-full-gate-desktop-acl-cache.log`, `/tmp/mon-acl-loader-failures.log`.
+
+PR run 33989013305 is complete: all five browser projects, Linux x64/ARM64,
+macOS ARM64 and every other application/security check passed. Windows x64 and
+ARM64 native lifecycle failures keep its quality gate red; no merge or main
+validation is claimed by this run.
+
+The full attempt on `e2e79947` passes all test assertions but retains one uncovered
+branch above the absolute limit (2,466 versus 2,465). That branch was an impossible
+empty-iterator fallback inside a map known to contain more than eight entries.
+Eviction now visits and removes its first key directly, without a cast or a
+synthetic test for an unreachable state. The real eight-entry/LRU regression and
+all 59 loader/permission cases still pass, along with API types and Biome.
+The full gate remains required on the resulting commit. Logs:
+`/tmp/mon-full-gate-desktop-acl-loader-errors.log`, `/tmp/mon-acl-final-focused.log`.
+
+
+### T096 — Cold restart diagnostics prepared (2026-09-08)
+
+CI 33993754133: all five browser profiles, API/contracts/migrations, unit coverage,
+performance, builds/security, native macOS and both Linux targets pass. Both
+Windows targets fail cold offline readiness (8/9 native journeys); GitGuardian
+still reports the separately identified false-positive incident. No merge or
+main verification is claimed.
+
+The unchanged macOS restart journey passes ten consecutive repetitions
+(`/tmp/mon-desktop-restart-repeat.log`). The explicit native-context tracing
+version also passes (`/tmp/mon-desktop-native-tracing.log`). A temporary local
+failure probe confirms the original exception remains visible and the separate
+Electron trace plus content-free state attachment are emitted; the probe was
+removed and is not part of the repository. Its trace is retained at
+`/tmp/mon-native-diagnostic-probe.zip`. This instrumentation localizes the next
+Windows result; it is not a claimed product fix. T096 remains open.
+
+The exact `bcd083f7` full local gate passes on 2026-09-08: all five browser
+profiles, all nine macOS native journeys, coverage, performance, database,
+migration, contract, image, security and Compose gates. Evidence:
+`/tmp/mon-full-gate-desktop-native-diagnostics-final.log`. It was pushed to PR 171
+only after that successful gate.
+
+CI 34197827585 passes native macOS and Linux but reproduces the Windows cold
+restart failure on both architectures. The new traces contain the same rejected
+native unwrap, `The wrapped key could not be opened.`, during local content
+initialization. No Web Lock is held or pending. Artifacts:
+`/tmp/mon-bcd-win-x64` and `/tmp/mon-bcd-win-arm`.
+
+Electron 44.1.1 stores Windows DPAPI key metadata in Chromium `Local State` and
+commits pending preferences at orderly shutdown; the preferences writer also
+uses a deferred write. The fixture terminates its first Windows x64 process
+about five seconds after launch. This supports investigating missing durable
+key metadata, but does not yet prove it. The next diagnostic compares only
+presence and equality around the same abrupt stop. No timing assertion,
+crash behavior, key format or application write path changes in this step.
+
+Source references:
+[pinned Electron preferences](https://github.com/electron/electron/blob/v44.1.1/shell/browser/browser_process_impl.cc),
+[pinned Chromium DPAPI provider](https://github.com/chromium/chromium/blob/152.0.7977.65/components/os_crypt/async/browser/dpapi_key_provider.cc),
+[preferences writer](https://github.com/chromium/chromium/blob/152.0.7977.65/base/files/important_file_writer.cc).
+
+## Refus explicite du stockage local — 8 septembre 2026
+
+T097 reproduit dans le navigateur le chargement sans fin après refus temporaire
+réel d'ouverture d'IndexedDB. Le parcours échoue avant correction, puis passe sur
+les cinq profils : erreur expurgée, arbre/éditeur indisponibles, rétablissement
+du stockage et bouton Réessayer retrouvant la même page et son texte. Aucune
+base ni enveloppe n'est supprimée. Les sept tests de hiérarchie, types Web et
+Biome passent. Logs : `/tmp/mon-workspace-initialization-red.log`,
+`/tmp/mon-workspace-initialization-five-profiles.log`,
+`/tmp/mon-workspace-initialization-unit.log`.
+Cette reprise UI ne répare pas le déchiffrement Windows ; le prochain commit
+exécutable exige encore le gate local complet avant push.
+
+## Clé Windows non enregistrée — preuve et correction en cours
+
+La CI 34203443742 sur e02693c6 reproduit le même état sur Windows x64 et ARM64 :
+Local State et la clé protégée sont absents avant l'arrêt brutal, puis présents
+après redémarrage avec une nouvelle clé. Les traces natives antérieures montrent
+le refus de déchiffrement correspondant. Les pièces jointes ne contiennent que
+des booléens ; aucune clé, empreinte ou donnée personnelle n'est publiée.
+
+La préparation Windows utilise désormais un mode interne du même exécutable,
+sans fenêtre ni service applicatif. Electron prépare son chiffrement OS, quitte
+normalement pour enregistrer ses préférences, puis le parent vérifie et force
+sur disque le fichier avant de terminer son propre bootstrap. Le verrou
+applicatif évite deux préparations concurrentes ; l'enfant ne l'acquiert pas.
+Le démarrage refuse un enfant en échec, un délai dépassé ou des métadonnées
+absentes/corrompues. Les enveloppes et données existantes ne sont pas réécrites.
+
+Ordre vérifié dans les sources épinglées :
+[bootstrap Electron 44.1.1](https://github.com/electron/electron/blob/v44.1.1/shell/browser/electron_browser_main_parts.cc),
+[commit des préférences à la fermeture](https://github.com/electron/electron/blob/v44.1.1/shell/browser/browser_process_impl.cc),
+[verrou déjà détenu](https://github.com/electron/electron/blob/v44.1.1/shell/browser/api/electron_api_app.cc).
+Les seize tests ciblés passent (arguments avec espaces, démarrage empaqueté ou
+de développement, enfant en échec, anciennes métadonnées conservées, fichier
+absent/corrompu/trop grand et chemins relatifs refusés), ainsi que les types.
+Le parcours natif exige maintenant la présence de la clé avant l'arrêt brutal,
+sans attente supplémentaire. Le gate complet et les deux CI natives restent
+obligatoires ; T096 n'est pas déclaré terminé.
+Les 26 tests combinés de préparation Windows, coffre, migration et cycle de
+fenêtre passent ; le build desktop passe également. Logs :
+`/tmp/mon-windows-key-prime-focused.log`, `/tmp/mon-windows-key-prime-build.log`.
+
+Le gate sur b5a9b60d passe 382 suites / 3 618 tests de couverture, les huit
+benchmarks, 333 tests de base, douze scénarios de migration et 1 312 contrats.
+Chromium révèle ensuite une régression T097 : remettre l'état à loading lors
+d'un changement du callback de navigation retire momentanément la ligne
+focalisée. Le test de clavier échoue dix fois sur dix. Le gate est arrêté
+en échec, sans push (`/tmp/mon-desktop-windows-key-prime-full-gate.log`).
+
+L'état initial fournit déjà le squelette et Réessayer recharge l'application.
+Retirer cette remise à loading conserve donc la reprise après refus réel sans
+recréer l'arbre pendant la navigation. Les vingt répétitions Chromium
+(clavier et refus/récupération) passent, puis les huit cas des quatre autres
+profils passent. Logs : `/tmp/mon-keyboard-b5a-repeat.log`,
+`/tmp/mon-keyboard-recovery-corrected-repeat.log`,
+`/tmp/mon-keyboard-recovery-four-profiles.log`. Le nouveau commit doit repasser
+le gate complet avant push.

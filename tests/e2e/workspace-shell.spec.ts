@@ -15,9 +15,46 @@ import {
   returnToWorkspace,
   selectItem,
   triggerAndSampleCssTransition,
+  typeIntoEditor,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
+
+test("recovers the same local page after an explicit storage initialization refusal", async ({
+  page,
+}) => {
+  await openWorkspace(page);
+  const title = uniqueName("Storage recovery");
+  await createRootItem(page, "page", title);
+  await typeIntoEditor(page, "Text retained through a storage refusal");
+  await waitForSynchronized(page);
+  await page.addInitScript(() => {
+    const original = IDBFactory.prototype.open;
+    IDBFactory.prototype.open = function (name, version) {
+      if (
+        name === "myownnotion-local" &&
+        sessionStorage.getItem("fixture-storage-refusal") === "1"
+      ) {
+        throw new DOMException("fixture private storage detail", "UnknownError");
+      }
+      return version === undefined ? original.call(this, name) : original.call(this, name, version);
+    };
+  });
+  await page.evaluate(() => sessionStorage.setItem("fixture-storage-refusal", "1"));
+  await page.reload();
+  const failure = page.getByTestId("workspace-state-error");
+  await expect(failure).toBeVisible();
+  await expect(failure).not.toContainText("fixture private storage detail");
+  await expect(page.getByTestId("block-editor")).not.toBeVisible();
+  await expect(page.getByRole("tree", { name: "Arborescence" })).not.toBeVisible();
+  await page.evaluate(() => sessionStorage.removeItem("fixture-storage-refusal"));
+  await failure.getByRole("button", { name: "Réessayer", exact: true }).click();
+  await openWorkspace(page);
+  await expect(page.getByTestId("active-item-title")).toHaveValue(title);
+  await expect(page.getByTestId("block-editor").locator(".ProseMirror")).toContainText(
+    "Text retained through a storage refusal",
+  );
+});
 
 interface StoredPresentationState {
   readonly sidebarOpen?: boolean;

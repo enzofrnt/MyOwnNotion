@@ -307,3 +307,83 @@ registered `/v1/page-sync/socket` route. An Upgrade header on any other route
 must retain ordinary owner and CSRF enforcement. Contracts reproduce anonymous
 HTTP reads and authenticated writes with forged Upgrade headers; native
 onboarding and cold offline restart verify the real socket still works.
+
+Windows fixture requests currently revalidate the mounted deployment-key ACL by
+starting PowerShell for each key lookup. Native logs show roughly 0.7 s per
+inspection and multi-second ordinary requests; replaying several offline writes
+misses the unchanged synchronization deadline. Keep permission enforcement and
+on-demand key-file reads. A bounded positive ACL cache may reuse only the
+permission verdict for an unchanged exact file identity and metadata change
+stamp, after verifying Bun's Windows stat mapping to NTFS ChangeTime. Validate
+identity before and after inspection; invalidate on replacement, content or ACL
+change, missing/unavailable metadata and inspection failure. Never retain key
+bytes in this cache. Native tests must warm the cache, grant another SID access
+and require immediate refusal, then verify repair and file replacement.
+
+### Windows cold offline restart investigation (T096)
+
+CI 33993754133 passes all five browser profiles and native macOS/Linux targets,
+but both Windows targets stall at cold offline workspace readiness. The prior
+ACL latency fix is verified by native permission tests and ordinary request
+latency; it does not prove cold restart is repaired. Ten unchanged macOS restart
+repetitions pass. Capture the manually launched Electron context explicitly:
+the default Playwright fixture trace contains test actions but omits that native
+context's DOM/network details. Keep the trace only on failure in this generated
+fixture; attach loading phase, browser connectivity, Web Lock inventory and
+error class names without reading private application records or native keys.
+No readiness timeout or replay assertion may be weakened. The cause and renewed
+Windows result remain required before closing T096 or delivering desktop.
+
+The first explicit trace localizes both Windows failures to native key unwrap,
+with no pending or held Web Locks. Before choosing a repair, capture whether the
+generated fixture's Chromium `Local State` contains its protected Windows key
+before process death and whether that same persisted key survives relaunch.
+Compare fingerprints only inside the test process; attach presence/equality
+booleans, never the protected key, fingerprint, path or application records.
+T097 addresses the separately demonstrated unhandled initialization refusal:
+the shell must show the existing safe WorkspaceState error with a reload retry,
+not native error text or an endless skeleton. Hide the tree and page surfaces
+until initialization succeeds, preserve IndexedDB and native envelopes, and
+verify a temporary storage refusal followed by recovery of the same page.
+This does not fix or disguise the underlying Windows decryption failure.
+
+Retain an already-ready shell when the route callback changes. Resetting it to
+loading on every effect invocation briefly removes focused tree rows during
+navigation and breaks ArrowDown/ArrowUp. Initial state already supplies the
+first-boot skeleton; error retry reloads the application without deleting data.
+
+The suspected delayed preferences commit remains a hypothesis until this native
+evidence confirms it. Do not add a pre-crash sleep or flush to the test.
+
+### T096 — Windows key commitment repair
+
+CI 34203443742 on e02693c6 confirms the missing dependency on Windows x64:
+both attempts have no Local State/protected key before process death, then a
+new protected key after restart. Native unwrap consequently fails. The exact
+Electron 44.1.1 source waits for bootstrap code (`JoinAppCode`) before Windows
+`OSCrypt::Init`; a graceful main-loop exit commits Local State. Its
+`RequestSingleInstanceLock` explicitly succeeds when already held.
+
+Before importing the regular Windows main entrypoint, acquire the existing
+single-instance lock and run the same installed executable in a narrowly scoped
+internal initialization mode. That child creates no window or application
+service: after Electron readiness it verifies OS encryption availability, then
+quits normally so Chromium commits its own key/preferences. The parent waits
+for successful exit, validates the bounded committed Local State and fsyncs
+that file before its own Chromium crypto initialization. Always prime, including
+existing profiles, so a replaced or repaired OS key cannot be confused with old
+on-disk metadata. Preserve the original master key when valid, all envelopes,
+cookies, application records and profile partitions. Use a bounded child timeout
+and fail closed with a safe native message. The helper never calls the
+single-instance lock, so it cannot displace its parent. No arbitrary sleep,
+pre-crash test flush, plaintext fallback, custom cryptography or new dependency.
+
+This lifecycle choice relies on the exact pinned Electron initialization order;
+recheck that order on runtime upgrades. Native Windows cold restart is the
+required end-to-end proof; mocked process tests alone cannot close T096.
+
+The pinned Chromium 152.0.7977.65 `JsonPrefStore` default file task runner uses
+`BLOCK_SHUTDOWN`, so a normal child exit waits for queued preference writes;
+see [constructor defaults](https://github.com/chromium/chromium/blob/152.0.7977.65/components/prefs/json_pref_store.h).
+The parent additionally fsyncs the committed metadata and never treats a killed
+or timed-out child as success.
