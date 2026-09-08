@@ -1,5 +1,30 @@
 import type { ChildProcess } from "node:child_process";
 
+/** Capture a refused native command without retrying it or replacing its error. */
+export async function observeNativeCommand<T>(
+  command: () => Promise<T>,
+  report: () => Promise<void>,
+): Promise<T> {
+  try {
+    return await command();
+  } catch (error) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.resolve()
+          .then(report)
+          .catch(() => undefined),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, 1000);
+        }),
+      ]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+    throw error;
+  }
+}
+
 const stages = new Set([
   "preload",
   "uncaught-exception",

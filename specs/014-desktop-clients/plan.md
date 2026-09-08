@@ -498,3 +498,75 @@ unexpected context closure before requested shutdown, await bounded diagnostic
 collection during fixture cleanup, and prevent a failed trace export from
 replacing the original test failure. Keep this observation passive; no launch,
 evaluation or test retries are added.
+
+### T103: bound authentication fixture setup
+
+The renewed local Firefox gate on 0a43f6c1 timed out in authentication's
+beforeEach before any browser action. No PostgreSQL error was recorded in the
+corresponding interval; the trace does not identify the individual setup
+operation, so the precise stalled operation remains unconfirmed. Inspection
+finds that password seeding alone still uses an unbounded disposable client,
+including its final socket close. Move it to the existing bounded fixture
+boundary, retaining the actual stored scrypt format. Generate one credential
+identity and hash per fixture invocation, outside retried work, and make its
+insertion idempotent so a lost commit reply cannot create duplicate credentials.
+Add explicit setup steps to preserve the failing operation in future traces.
+Inject a committed insert with a lost reply and a stalled final close in focused
+regressions; retain real authentication journeys and unchanged test deadlines.
+This hardens a demonstrated missing bound, not a proven diagnosis of the earlier
+Firefox timeout. Full delivery checks must run again on the resulting commit.
+### Native channel evidence from UI PR 172
+
+Run 34252039882 on documentation-only 2362b444 reproduces native failures on
+both Windows architectures; the other native targets and all remaining required
+jobs pass. It is not a reason to rerun for luck or accept flaky native journeys.
+
+On x64 the offline journey confirms the recovered text, then the native main
+inspector rejects `setDesktopOffline(false)` (test trace call 181). The subsequent
+native inspector probe also fails (182), but renderer `page.evaluate` still
+succeeds (184) and its native browser trace can be exported. The process log
+records `Debugger ending`. This distinguishes an inspector transport loss from
+an established application exit. The failing evaluation's effect is not known.
+
+A separate x64 onboarding attempt reaches preload, ready and window-created.
+Both inspector and browser CDP sockets connect, then browser CDP disconnects
+with code 1006 before Electron initialization completes. Only afterwards does
+Playwright forcibly kill the still present Electron process tree. No preload
+quit or uncaught-exception event is recorded. Thus this case is also not proven
+to be an application-requested shutdown.
+
+On ARM the original browser locator channel closes; the existing trace-export
+error masks it. The pending T102 change preserves the original exception and
+adds bounded lifecycle/owned-process evidence, but has not yet run remotely.
+
+Upstream historical Bun issues 27977 and 9911 describe different extra-pipe
+connection and HTTP-upgrade failures fixed before the pinned 1.4.0 release.
+Neither establishes the cause of these post-connect losses. No runtime switch,
+WebSocket patch, retries, timeout extension or weakened native assertions is
+justified by those reports alone.
+
+Extend T102 to report a rejected native command before requested cleanup even
+when the browser context stays open. Keep reporting independent of another
+inspector evaluation: use the captured owned identities, allowlisted preload
+stages and cached window-close state. Bound diagnostic waiting to one second,
+preserve the original thrown value if reporting fails or hangs, and never retry
+the command. Cover success, refusal, diagnostic failure and timeout explicitly.
+
+### T104: package with the pinned Bun toolchain alone
+
+The isolated Windows checkout on ccb450d5 passes all nine native journeys and
+five additional offline-restart/onboarding pairs, but `bun run package` fails
+immediately with `spawn npm ENOENT`. This machine has Bun 1.4.0 and no Node/npm.
+Forge 7.11.2's CLI always resolves npm/yarn/pnpm for its startup version check;
+existing developer machines and CI images masked that undeclared requirement.
+
+Call the same pinned Forge core API from a Bun entry point for package, make and
+publish. Keep the existing Forge config, signing hooks, pruning, makers and
+release matrix. Declare core directly and retire the unused CLI dependency.
+Forward the maintained release platform/architecture arguments, support Bun's
+separator, reject unsupported targets/options before invoking the API, and do
+not introduce a home-directory skip marker or install a second package manager.
+Prove real packaging and installed smoke on Windows without Node/npm, test
+argument forwarding/failures, and renew local/PR/main delivery gates and Trivy
+because the dependency lock changes. This is separate from T102's unresolved
+intermittent inspector loss; no causal claim links them.
