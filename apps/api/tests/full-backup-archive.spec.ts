@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { EventEmitter } from "node:events";
 import { mkdtemp, open, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -98,6 +99,7 @@ describe("complete encrypted archives", () => {
       if (source === undefined || component === undefined) throw new Error("Missing file fixture");
       const handle = await open(source, "r");
       try {
+        if (!(handle instanceof EventEmitter)) throw new Error("File handles must emit close");
         const listeners = handle.listenerCount("close");
         for (let index = 0; index < 32; index++) {
           const stream = openFullStream(

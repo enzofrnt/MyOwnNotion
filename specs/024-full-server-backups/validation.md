@@ -261,3 +261,11 @@ The integrated gate at `51baab5f` was deliberately interrupted during coverage
 (exit 130) to fix this reproduced issue. It is not delivery evidence:
 `/tmp/mon-pre-v1-entry-activation-full-gate.log`. The complete gate must restart
 on the corrected commit; PR and main remain pending.
+
+The first restarted gate on `85a1cd68` stops at API typechecking: the pinned
+Node types omit FileHandle's EventEmitter methods. The resource test now narrows
+the actual runtime object with `instanceof EventEmitter` before counting its
+listeners. API types and all nineteen archive tests pass; application code is
+unchanged. Failed gate: `/tmp/mon-pre-v1-reader-resources-full-gate.log`.
+Focused proof: `/tmp/mon-backup-reader-api-types.log` and
+`/tmp/mon-backup-reader-typed-final.log`.
