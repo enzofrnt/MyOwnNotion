@@ -476,3 +476,34 @@ vérifiant la stabilité de la clé sans afficher ses octets. Il doit encore pas
 sur les deux runners natifs, puis les parcours d'arrêt brutal d'origine restent
 obligatoires. Logs : `/tmp/mon-windows-child-launch-focused.log`,
 `/tmp/mon-windows-child-launch-types.log`. T096 reste ouvert.
+
+## T098 — Native property input durability — 2026-09-08
+
+CI 34212459656 additionally reports a WebKit mobile flake in the visual database
+journey: immediately after filling Beta's Summary, its value is empty. The retry
+passes, so the no-flaky gate correctly fails. Three isolated unmodified replays
+pass, but a component reproduction and a two-device native reproduction both
+fail before correction when a projection arrives between native text insertion
+and input-event delivery.
+
+The text/date control preserves that pending native edit while still accepting
+untouched projection changes. Entry/property keys prevent an undelivered edit
+from crossing entry identities. No validation, event timing, retry or assertion
+threshold is weakened. The new native scenario saves and reopens the retained
+value after the remote schema update.
+
+Fifteen focused form, grid and value-editor cases pass, including unchanged
+hydration and latest-input save, plus fourteen native journeys across all five
+profiles: six WebKit mobile runs (three repetitions of the new and original
+journeys), and two on each other profile. No retries. Web/root types and Biome
+pass. The complete desktop gate and updated native Windows CI remain separate
+pending delivery requirements.
+
+Evidence: `/tmp/mon-9e9-webkit-mobile-ci.log`,
+`/tmp/mon-native-field-projection-red.log`,
+`/tmp/mon-native-field-projection-webkit-red.log`,
+`/tmp/mon-native-field-identity-fixed.log`,
+`/tmp/mon-native-field-related-tests.log`,
+`/tmp/mon-native-field-editor-tests.log`,
+`/tmp/mon-native-field-projection-webkit-fixed.log`,
+`/tmp/mon-native-field-projection-other-profiles.log`.

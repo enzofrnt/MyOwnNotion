@@ -406,3 +406,16 @@ Sources: [pinned Windows entry](https://github.com/electron/electron/blob/v44.1.
 and [Microsoft getenv_s contract](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/getenv-s-wgetenv-s).
 The Windows launch fix still requires native confirmation; the macOS CLI probe
 with an empty environment value does not reproduce Windows mode selection.
+
+## T098 — Native property input during projection refresh
+
+CI 34212459656's WebKit mobile journey loses the freshly filled Summary field
+before save (first attempt fails, retry passes). Three isolated replays pass,
+but a component test deterministically reproduces a native DOM edit being
+repainted by an intervening same-entry projection before input event delivery.
+Use an uncontrolled text/date input with a last-projected-value comparison:
+apply external values only while the DOM still equals the previous projection;
+preserve a native edit until its input event updates the existing draft refs.
+Scope entry field identity by entry/property so an unreported draft cannot leak
+into a different entry. Keep untouched hydration, latest-value save, date and
+number validation, keyboard/IME behavior and existing journey deadlines.
