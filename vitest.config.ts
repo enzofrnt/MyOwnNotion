@@ -76,6 +76,7 @@ export default defineConfig({
         test: {
           name: "desktop",
           root: "apps/desktop",
+          globalSetup: ["tests/setup-electron.ts"],
           environment: "node",
           include: ["tests/**/*.spec.ts"],
         },

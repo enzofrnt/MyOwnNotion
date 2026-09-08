@@ -513,3 +513,35 @@ state and both sets of regression tests. Twenty-eight component cases, web/root
 types and the two WebKit mobile journeys pass after conflict resolution:
 `/tmp/mon-pre-v1-native-input-merge-tests.log`,
 `/tmp/mon-pre-v1-native-input-merge-browser.log`.
+
+## T099 — Deterministic native test preparation — 2026-09-08
+
+CI 34220219342 runs the real parent/child test successfully on Windows x64
+(7.2 seconds, two launches, preserved key). That job fails collection of the
+WebAuthn parser suite during Electron installation. ARM fails reading null
+stderr before its spawn verdict can be reported. Both logs contain overlapping
+first-use Electron downloads from independent workers. Native macOS and both
+Linux jobs pass. Packaged Windows launch and cold restart remain unverified.
+
+The installed Electron 44.1.1 module starts its installer on first require;
+Vitest 3.2.7 resolves project global setup before worker collection. A desktop
+global setup now completes that installation once and requires an absolute
+executable file. Native test errors tolerate missing stdout/stderr and expose
+only a bounded spawn code and status. Application behavior is unchanged.
+
+A disposable copied Electron package without its binary or path marker passes
+two concurrent Vitest workers with exactly one installation invocation:
+`/tmp/mon-electron-cold-setup-probe.log` (`status: 0, downloads: 1, workers: 2`).
+No installed dependency or owner profile is modified by the probe. All 73 local
+desktop cases pass (one Windows-only case skipped); desktop/root types pass.
+Logs: `/tmp/mon-electron-test-preparation-unit.log`,
+`/tmp/mon-electron-test-preparation-types.log`,
+`/tmp/mon-711-windows-x64-job.log`, `/tmp/mon-711-windows-arm-job.log`.
+
+The complete a495126b local attempt passes 3,624 coverage cases, performance,
+database and migration gates, then is interrupted during contracts to correct
+this newly observed CI preparation race. The 4e08971c integrated attempt passes
+4,250 coverage cases, all pre-browser gates and is interrupted during its first
+browser project. Both exit 130 and neither is an accepted complete gate.
+Their logs are `/tmp/mon-desktop-native-input-full-gate.log` and
+`/tmp/mon-pre-v1-native-drafts-full-gate.log` respectively.
