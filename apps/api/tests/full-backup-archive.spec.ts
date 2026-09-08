@@ -89,6 +89,40 @@ async function collect(input: AsyncIterable<Buffer>): Promise<Buffer> {
 }
 
 describe("complete encrypted archives", () => {
+  it.each(["completed", "cancelled"] as const)(
+    "does not retain per-component resources after repeated %s reads",
+    async (mode) => {
+      const fixture = await setup();
+      const source = fixture.encryptedComponents[1];
+      const component = fixture.manifest.components[1];
+      if (source === undefined || component === undefined) throw new Error("Missing file fixture");
+      const handle = await open(source, "r");
+      try {
+        const listeners = handle.listenerCount("close");
+        for (let index = 0; index < 32; index++) {
+          const stream = openFullStream(
+            handle,
+            0,
+            component.byteLength,
+            fixture.key,
+            componentAad(fixture.manifest.backupId, 1, component.path),
+          );
+          if (mode === "completed") {
+            expect((await collect(stream)).equals(fixture.plaintext[1] as Buffer)).toBe(true);
+          } else {
+            expect((await stream.next()).done).toBe(false);
+            await stream.return(undefined);
+          }
+          expect(handle.listenerCount("close")).toBe(listeners);
+        }
+        expect((await handle.stat()).isFile()).toBe(true);
+      } finally {
+        await handle.close();
+        fixture.key.fill(0);
+      }
+    },
+  );
+
   it("round-trips streamed files and empty upload prefixes without a source catalogue", async () => {
     const fixture = await setup();
     await writeFullArchive(fixture);
