@@ -8,6 +8,7 @@ import {
   createRootItem,
   createUnopenedPage,
   expectNoHorizontalOverflow,
+  openSecondDevice,
   openWorkspace,
   selectItem,
   typeIntoEditor,
@@ -15,6 +16,93 @@ import {
   waitForDatabaseDefinitionSaved,
   waitForSynchronized,
 } from "./helpers.ts";
+
+test("keeps entry activation and cancellation intact while another device updates a column", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  test.slow();
+  await openWorkspace(page);
+  const hostName = uniqueName("Stable entry host");
+  const entryName = uniqueName("Stable entry");
+  await createRootItem(page, "page", hostName);
+  await page.getByRole("button", { name: "Ajouter une base", exact: true }).click();
+  await page.getByLabel("Nouvelle base", { exact: true }).fill(uniqueName("Stable source"));
+  await page.getByRole("button", { name: "Créer et insérer", exact: true }).click();
+  await expect(page.locator(".database-grid")).toBeVisible();
+  await createDatabaseEntry(page, entryName);
+  await waitForSynchronized(page);
+  const second = await openSecondDevice(browser, baseURL);
+  try {
+    await openWorkspace(second.page);
+    await selectItem(second.page, hostName);
+    await closeMobileNavigation(second.page);
+    await closeMobileNavigation(page);
+    for (const [width, cancel] of [
+      [280, false],
+      [300, true],
+    ] as const) {
+      const trigger = page.locator("[data-entry-trigger]").filter({ hasText: entryName }).first();
+      await trigger.click({ trial: true });
+      const original = await trigger.elementHandle();
+      const box = await trigger.boundingBox();
+      if (original === null || box === null) throw new Error("Missing visible entry trigger");
+      const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const pointerStillHitsTrigger = () =>
+        trigger.evaluate(
+          (element, point) => element.contains(document.elementFromPoint(point.x, point.y)),
+          point,
+        );
+      expect(await pointerStillHitsTrigger()).toBe(true);
+      await page.mouse.move(point.x, point.y);
+      await page.mouse.down();
+      // A second physical click would share Firefox’s virtual mouse with the
+      // held pointer. Activate the other device semantically instead.
+      await second.page
+        .getByRole("button", { name: "Augmenter la largeur de Titre", exact: true })
+        .evaluate((element) => (element as HTMLButtonElement).click());
+      await waitForDatabaseDefinitionSaved(second.page);
+      await expect(
+        page.getByRole("group", { name: `Largeur de Titre : ${width} pixels`, exact: true }),
+      ).toBeVisible();
+      await expect(page.locator(".database-pagination")).toBeVisible();
+      expect(await original.evaluate((element) => element.isConnected)).toBe(true);
+      expect(await trigger.evaluate((element, previous) => element === previous, original)).toBe(
+        true,
+      );
+      expect(await pointerStillHitsTrigger()).toBe(true);
+      await expect(page.locator(".entry-panel")).toHaveCount(0);
+      if (cancel) {
+        await page.mouse.move(1, 1);
+        await page.mouse.up();
+        await expect(page.locator(".entry-panel")).toHaveCount(0);
+        await expect(page.getByTestId("active-item-title")).toHaveValue(hostName);
+      } else {
+        await page.mouse.up();
+        await expect(
+          page.locator(".entry-panel").getByRole("heading", { name: entryName }),
+        ).toBeVisible();
+        await page.getByRole("button", { name: "Fermer l'entrée", exact: true }).click();
+        await expect(page.getByTestId("active-item-title")).toHaveValue(hostName);
+      }
+      await original.dispose();
+    }
+    for (const key of ["Enter", "Space"]) {
+      const trigger = page.locator("[data-entry-trigger]").filter({ hasText: entryName }).first();
+      await trigger.focus();
+      await page.keyboard.press(key);
+      await expect(
+        page.locator(".entry-panel").getByRole("heading", { name: entryName }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Fermer l'entrée", exact: true }).click();
+      await expect(page.getByTestId("active-item-title")).toHaveValue(hostName);
+    }
+  } finally {
+    await page.mouse.up();
+    await second.context.close();
+  }
+});
 
 test("embeds one source in ordinary pages with independent views and shared canonical entries", async ({
   page,

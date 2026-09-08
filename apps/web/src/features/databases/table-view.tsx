@@ -187,8 +187,6 @@ export function TableView({
 }) {
   const stableProperties = useDeepStableValue(properties);
   const stablePresentations = useDeepStableValue(view.properties);
-  const openEntry = useRef(onOpenEntry);
-  openEntry.current = onOpenEntry;
   const visible = useMemo(
     () => visibleProperties(stableProperties, stablePresentations),
     [stablePresentations, stableProperties],
@@ -204,22 +202,6 @@ export function TableView({
             id: property.id,
             header: property.name,
             size: presentation?.width ?? (property.type === "title" ? 260 : 180),
-            cell: (info) =>
-              property.type === "title" ? (
-                <StableActionButton
-                  type="button"
-                  className="link database-cell-title"
-                  data-entry-trigger={info.row.original.entryId}
-                  tabIndex={-1}
-                  onActivate={(trigger) =>
-                    openEntry.current(info.row.original.entryId as Uuid, trigger)
-                  }
-                >
-                  {String(info.getValue())}
-                </StableActionButton>
-              ) : (
-                <span>{String(info.getValue())}</span>
-              ),
           });
         }),
       ),
@@ -356,6 +338,9 @@ export function TableView({
       }
       return;
     }
+    // Nested buttons own their native keyboard activation. Grid shortcuts
+    // apply to the cell itself, after the editor-specific handling above.
+    if (event.target !== event.currentTarget) return;
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
       event.preventDefault();
       const next = nextGridCell(position, event.key, rows.length, visible.length, event.ctrlKey);
@@ -592,8 +577,23 @@ export function TableView({
                                 </StableActionButton>
                               </div>
                             </div>
+                          ) : property.type === "title" ? (
+                            // Column changes must not replace the pressed/focused
+                            // button. Inline column renderer functions are new
+                            // React component types whenever columns are rebuilt.
+                            <StableActionButton
+                              type="button"
+                              className="link database-cell-title"
+                              data-entry-trigger={row.original.entryId}
+                              tabIndex={-1}
+                              onActivate={(trigger) =>
+                                onOpenEntry(row.original.entryId as Uuid, trigger)
+                              }
+                            >
+                              {String(cell.getValue())}
+                            </StableActionButton>
                           ) : (
-                            <table.FlexRender cell={cell} />
+                            <span>{String(cell.getValue())}</span>
                           )}
                         </td>
                       );

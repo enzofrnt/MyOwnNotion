@@ -209,6 +209,68 @@ describe("database page interaction durability", () => {
     });
   });
 
+  it("keeps the entry loading region mounted during projection refresh", () => {
+    const value = database();
+    const viewId = value.definition.views[0]?.id;
+    if (viewId === undefined) throw new Error("Missing view");
+    const page: DatabaseViewPage = {
+      databaseId: value.databaseId,
+      viewId,
+      definitionRevisionId: value.definitionRevisionId,
+      generation: 1,
+      coverage: "complete",
+      availableCount: 1,
+      expectedCount: 1,
+      rows: [
+        {
+          entryId: generateUuidV7(),
+          revisionId: generateUuidV7(),
+          title: "Stable entry",
+          values: {},
+          relationTargets: {},
+          groupId: null,
+          syncState: "synced",
+        },
+      ],
+      groups: [],
+      nextCursor: "local.next",
+      source: "local",
+      staleCursorRecovered: false,
+    };
+    const query = vi.fn<() => Promise<DatabaseViewResult>>(() => new Promise(() => undefined));
+    const render = (state: "ready" | "loading") =>
+      root.render(
+        <MemoryRouter>
+          <DatabasePage
+            database={value}
+            entries={[]}
+            queryPage={page}
+            queryState={state}
+            onQueryView={query}
+            onReplaceDefinition={vi.fn()}
+            onCreateEntry={vi.fn()}
+            onOpenEntry={vi.fn()}
+          />
+        </MemoryRouter>,
+      );
+    act(() => render("ready"));
+    const region = container.querySelector(".database-pagination");
+    const trigger = container.querySelector("[data-entry-trigger]");
+    expect(region).not.toBeNull();
+    expect(trigger).not.toBeNull();
+    act(() => render("loading"));
+    expect(region?.isConnected).toBe(true);
+    expect(container.querySelector(".database-pagination")).toBe(region);
+    expect(container.querySelector("[data-entry-trigger]")).toBe(trigger);
+    expect(region?.getAttribute("aria-busy")).toBe("true");
+    expect(region?.textContent).toContain("Actualisation");
+    expect(region?.querySelector("button")?.disabled).toBe(true);
+    act(() => render("ready"));
+    expect(container.querySelector(".database-pagination")).toBe(region);
+    expect(region?.textContent).toContain("1 entrée chargée");
+    expect(region?.querySelector("button")?.disabled).toBe(false);
+  });
+
   it("appends cursor rows and retains them when loading the next page fails", async () => {
     const value = database();
     const viewId = value.definition.views[0]?.id;

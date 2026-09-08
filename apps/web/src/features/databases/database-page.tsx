@@ -697,13 +697,22 @@ export function DatabasePage({
         )}
       </div>
 
-      {page === null || effectiveQueryState !== "ready" ? null : (
-        <section className="database-pagination" aria-label="Chargement des entrées">
-          <span role="status">{`${page.rows.length} ${page.rows.length === 1 ? "entrée chargée" : "entrées chargées"}`}</span>
+      {page === null ? null : (
+        <section
+          className="database-pagination"
+          aria-label="Chargement des entrées"
+          aria-busy={effectiveQueryState === "loading"}
+        >
+          <span role="status">
+            {effectiveQueryState === "loading"
+              ? "Actualisation des entrées…"
+              : `${page.rows.length} ${page.rows.length === 1 ? "entrée chargée" : "entrées chargées"}`}
+          </span>
           {page.nextCursor !== null && onQueryView !== undefined ? (
             <StableActionButton
               type="button"
               busy={loadingMore}
+              disabled={effectiveQueryState !== "ready"}
               onActivate={() => {
                 void loadMore();
               }}

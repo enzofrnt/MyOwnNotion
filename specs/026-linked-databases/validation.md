@@ -166,3 +166,29 @@ Desktop delivery remains the first dependency. Its Windows key repair and
 workspace recovery changes must enter this branch from the actual merged main;
 the complete exact-commit gate, including both mobile profiles, then runs again.
 The focused database replay on all five profiles remains separate valid evidence.
+
+## T020 — Entry activation convergence — 2026-09-08
+
+The complete attempt at `3de2c67a` passes 433 suites / 4,236 coverage cases,
+nine performance budgets, 341 database tests, twelve migration cases and 1,664
+API contracts. Chromium passes; Firefox has a first-attempt entry activation
+failure whose retry passes. The gate is interrupted (exit 130), not accepted:
+`/tmp/mon-pre-v1-full-gate-desktop-integrated.log`.
+
+Focused DOM regressions reproduce two replaced column buttons, removal of the
+loading region and Enter/Space being intercepted by the containing grid cell.
+The corrected component suites pass fourteen cases. Logs:
+`/tmp/mon-entry-button-remount-red.log`, `/tmp/mon-pagination-refresh-red.log`,
+`/tmp/mon-entry-grid-keyboard-red.log`,
+`/tmp/mon-entry-activation-complete-unit.log`.
+
+The native pointer diagnostic records pointerdown/mousedown/focus/pointerup/
+mouseup/click in order. With stable cells and pagination, both held activation
+and cancellation pass; the remaining keyboard failure identified the grid's
+bubbling handler. Temporary event logging is removed. The final browser replay
+covers both keyboard keys as well as the unchanged structured offline journey.
+All fourteen runs pass without retries: six Firefox cases (three repetitions)
+and two cases on each other profile. Logs:
+`/tmp/mon-entry-activation-complete-firefox.log`,
+`/tmp/mon-entry-activation-other-profiles.log`. Web and root types, Biome and
+whitespace checks pass. A complete exact-commit gate remains pending.

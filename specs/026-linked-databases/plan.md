@@ -114,3 +114,31 @@ The full attempt at `1c562317` passed types, formatting, 4,209 coverage tests,
 nine performance budgets, database/migration/contract tests; it failed Chromium
 and was interrupted before running all remaining browsers. It is not a passing
 delivery gate. Log: `/tmp/mon-pre-v1-full-gate-integrated.log`.
+
+### T020 — Entry activation during projection refresh
+
+The complete integrated gate on 3de2c67a passes Chromium but fails Firefox's
+existing structured offline journey on its first entry click (retry passes).
+The trace places the click across accepted-write/query refreshes; the entry
+stays visible, but no entry route opens. Test DOM identity during actual column
+changes and row updates. Inline column cell renderer functions may remount the
+semantic button when the columns are rebuilt. Preserve the existing row/cell
+keys and use stable rendered controls if the regression confirms that boundary.
+Keep click-after-release semantics and cancellation; do not reintroduce the
+pointerdown shortcut or increase the existing journey's timeout. Add a native
+pointer journey with a column update while the button is held.
+
+The DOM test confirms column changes remount the pressed button; stable cell
+content fixes that boundary. The native trace also shows the pagination region
+being removed during query loading, shifting clickable rows. Keep that region
+mounted for an available page, mark refresh busy, and disable further pagination
+until ready. Verify DOM continuity and pointer hit geometry across the refresh.
+The second-device test must activate its update without a second physical mouse:
+Firefox contexts share an emulated pointer, unlike two independent devices.
+
+The pointer event trace now proves down/up/click delivery, entry opening and
+cancellation. The remaining failure is keyboard activation: the grid cell's
+bubbling key handler intercepts Enter/Space from its nested entry button and
+starts editing instead. Scope grid navigation/edit shortcuts to the focused
+cell; retain editor handling and native nested control activation. Verify both
+keys and that Enter on the cell itself still starts editing.
