@@ -70,6 +70,9 @@ at integration branch before push. No production/local-owner databases touched.
 
 ## Owner interface design (before UI implementation)
 
+Apply the shared [UI and UX skill](../../.agents/skills/ui-quality/SKILL.md)
+during implementation and visual review of this settings panel.
+
 The Security settings panel uses existing Button/Field/AsyncState/ConfirmDialog
 primitives and semantic theme tokens. A labelled form has independent action
 checkboxes, branch choices (descendants included), explicit whole-workspace and
