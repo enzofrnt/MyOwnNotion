@@ -577,3 +577,12 @@ root types pass (`/tmp/mon-resolution-types-local.log`). The reproduction
 checkout uses local workspace package links; its vendor dependencies are
 read-only links, and the primary checkout remained unchanged during diagnosis.
 Native replay, the complete renewed gate and PR/main evidence remain pending.
+
+T100 native replay: the original `survives restart, merges compatible fields`
+journey passes twice on each of Chromium desktop/mobile, Firefox desktop and
+WebKit desktop/mobile (10 cases, all five projects, 100 seconds; no retries).
+Firefox/WebKit use the maintained Linux container. Evidence:
+`/tmp/mon-resolution-five-browser-replay.log`. This includes restart durability,
+compatible field convergence, explicit conflict review and two-parent lineage.
+The full gate on the preceding `5ecbfa2b` was deliberately interrupted once this
+new CI defect was reproduced; it is not successful pre-push evidence.
