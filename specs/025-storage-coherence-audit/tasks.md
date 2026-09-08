@@ -127,3 +127,9 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
 ## Phase 11: Convergence — selective graph coverage
 
 - [x] T053 [US4] Reproduce and correct graph tests omitted by `scripts/ci/run-affected-vitest.ts` for changed graph sources; verify the public impact-plan consumer against declared unit projects in `tests/contract/test-impact.spec.ts`, run actual related graph tests, and record A33 plus focused evidence (FR-011/FR-012). Complete delivery remains T038/T040/T041.
+
+## Phase 12: Convergence — page title reflow
+
+- [x] T054 Keep the complete page title visible when its reading column narrows or widens without a title edit. Reproduce clipped native title geometry after a viewport/column resize, observe layout changes without replacing the draft or selection, and verify both themes, 320 px, and restored wide layout before complete delivery gates (FR-010/FR-012/FR-013, UI-quality, audit A35).
+- [x] T055 Explain and recover a transient multipart publication conflict without replaying a consumed server stream: reproduce PostgreSQL serialization rollback after ingestion, return an explicit safe retryable response, retry fresh client multipart requests with the same mutation identity at most three times, preserve stale/unrelated/offline failures and verify exact file bytes, unique canonical acceptance and the original Firefox hierarchy-file journey (FR-004/FR-005/FR-008/FR-010/FR-013, audit A36).
+- [x] T056 Stabilize the editor loading-to-ready boundary above embedded database controls: reproduce the real WebKit 32 px scroll displacement with a held property-save pointer while the page checkpoint finishes, contain the history toolbar's negative margin without moving it from the title row, and verify retained control position, pointer release/cancellation and all browser profiles (FR-010/FR-012/FR-013, audit A37).

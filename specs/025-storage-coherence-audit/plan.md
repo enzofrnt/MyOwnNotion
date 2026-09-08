@@ -5,6 +5,36 @@
 
 ## Summary
 
+Follow-up A35: `PageTitleEditor` currently measures its textarea only when the
+draft changes. Real narrow-view screenshots show a wrapped title clipped after
+resizing without editing. Observe the title's available inline size and repeat
+the existing height measurement on width changes; keep the live textarea,
+selection and draft authoritative. Verify actual browser overflow and return to
+wide layout, with no timeout, typography or screenshot masking changes.
+
+Follow-up A36: the native Firefox hierarchy-file upload at 14:53:06.989 UTC
+received HTTP 500; the isolated PostgreSQL log at 14:53:07.031 UTC records
+SQLSTATE 40001 while reading protected envelopes. Multipart ingestion correctly
+uses one transaction attempt because its stream cannot be replayed server-side.
+Return a dedicated safe 409 for an exhausted serialization/deadlock conflict in
+file import/replacement. The browser may retry only that explicit response, at
+most three requests with bounded backoff, fresh multipart bodies and the same
+mutation identity and File. Keep SERIALIZABLE isolation, streaming bounds,
+rollback, stale-revision refusal and all other errors unchanged. Test a real
+transaction rollback after consuming encrypted bytes, subsequent same-identity
+success, exact content, bounded client retries and the original browser journey.
+Accepted replacement replay must return the same result only for its original
+workspace, command type and file revision. Reusing its identity for another file
+or reusing an import identity for a replacement is refused before consumption.
+
+Follow-up A37: WebKit's failed property click spans the actual editor skeleton
+replacement, with `workspace-main.scrollTop` changing from 453 to 421 between
+pointer targeting and release. Both skeleton and text surface reserve 18 rem,
+but the ready editor's first history toolbar has a negative top margin that can
+collapse through its parent. Reproduce with a delayed real page checkpoint and
+a held pointer, then establish a formatting context at the page editor so the
+toolbar still occupies the caption row without moving the surrounding anchor.
+
 Enforce existing attachment privacy and durability through the real composed
 runtime, migrate historical readable storage after a verified 024 full backup,
 and correct proven recovery/UI/test coherence defects. Publish an evidence-based
@@ -278,3 +308,12 @@ the generated command includes every declared non-database unit project and
 execute its actual graph-related tests. This closes a test blind spot under
 FR-011/FR-012 without changing product behavior. Root desktop validation stays
 on its immutable commit; this correction belongs to the integrated audit gate.
+
+### T056 — touch target geometry
+
+The A37 held-pointer regression also exposes a separate 12 px residual shift
+on touch WebKit: its toolbar buttons expand from 32 to 44 px while the negative
+toolbar margin stays 32 px. Share the toolbar row-height token with that margin
+and select the existing 44 px target for coarse pointers. Keep both activation
+and release-outside cancellation, followed by keyboard activation, in the native
+regression across all five profiles.

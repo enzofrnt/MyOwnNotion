@@ -71,6 +71,39 @@ const page: DatabaseViewPage = {
 };
 
 describe("database table accessibility (T042)", () => {
+  it("keeps the returned entry button's cell active after clearing the temporary return target", () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const render = (returnFocusEntryId: typeof ids.entryB | null) =>
+      root.render(
+        <TableView
+          properties={properties}
+          view={view}
+          page={page}
+          returnFocusEntryId={returnFocusEntryId}
+          onOpenEntry={vi.fn()}
+          onResize={vi.fn()}
+        />,
+      );
+    try {
+      act(() => render(ids.entryB));
+      const button = container.querySelector<HTMLButtonElement>(
+        `[data-entry-trigger="${ids.entryB}"]`,
+      );
+      if (button === null) throw new Error("Missing returned entry");
+      act(() => button.focus());
+      act(() => render(null));
+      expect(document.activeElement).toBe(button);
+      expect(button.closest("[role=gridcell]")?.getAttribute("tabindex")).toBe("0");
+      expect(container.querySelectorAll('[role=gridcell][tabindex="0"]')).toHaveLength(1);
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
   it.each(["column-width", "property-name", "row-values"] as const)(
     "keeps the pressed entry button and current callback through %s updates",
     (change) => {

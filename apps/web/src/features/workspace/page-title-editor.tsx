@@ -109,6 +109,22 @@ export function PageTitleEditor({
   useEffect(() => resize(draft), [draft, resize]);
 
   useEffect(() => {
+    const element = textarea.current;
+    if (element === null || typeof ResizeObserver === "undefined") return;
+    let lastWidth = -1;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries.find((candidate) => candidate.target === element);
+      if (entry === undefined || entry.contentRect.width === lastWidth) return;
+      lastWidth = entry.contentRect.width;
+      // Autosizing also changes height. Only width changes require another
+      // measurement, including a hidden keep-alive becoming visible again.
+      if (lastWidth > 0) resize(element.value);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [resize]);
+
+  useEffect(() => {
     if (!restoreFocus || autoFocusConsumed.current) return;
     autoFocusConsumed.current = true;
     const element = textarea.current;

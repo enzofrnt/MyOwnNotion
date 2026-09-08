@@ -192,3 +192,25 @@ and two cases on each other profile. Logs:
 `/tmp/mon-entry-activation-complete-firefox.log`,
 `/tmp/mon-entry-activation-other-profiles.log`. Web and root types, Biome and
 whitespace checks pass. A complete exact-commit gate remains pending.
+
+
+## T018 / T021 — retour à une grande table
+
+Le comptage des racines est effectué navigation ouverte sur mobile ; sélectionner
+la page ferme ensuite normalement cette navigation. Le test conserve ses 1 001
+entrées canoniques et tous ses curseurs.
+
+Le retour au bouton de la dernière entrée reproduit deux défauts : son focus
+n'active pas sa cellule, puis le positionnement absolu des lignes sort du cadre
+défilable sous WebKit. Le test de cellule échoue avant correction ; les quinze
+tests de table/pagination passent ensuite. Les lignes normales et les espaces
+masqués entre plages virtuelles conservent la virtualisation et les index
+accessibles. Le moteur réconcilie la hauteur mesurée de la ligne de retour.
+
+Les parcours complets à 1 001 entrées passent sur WebKit desktop et mobile. Une
+vérification mobile supplémentaire exige 100 % du bouton dans le viewport :
+elle passe, et la capture large-table-return.png a été inspectée. La table, ses
+dernières lignes et le bouton de retour restent dans leurs surfaces. Une
+saturation des verrous PostgreSQL pendant un essai concurrent a été identifiée
+et les suites ont été séparées sur deux serveurs de test ; aucun seuil produit
+n'a été relâché. Le gate intégré et toutes les CI restent requis.

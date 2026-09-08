@@ -2002,6 +2002,8 @@ textarea {
    ------------------------------------------------------------------------ */
 
 .page-editor {
+  /* Contain the toolbar margin so hydration cannot shift controls below it. */
+  display: flow-root;
   position: relative;
   width: 100%;
   max-width: 100%;
@@ -2009,15 +2011,16 @@ textarea {
 }
 
 .editor-history-controls {
+  --editor-history-target: var(--ui-target-compact);
   display: flex;
   box-sizing: border-box;
   width: max-content;
   max-width: 100%;
-  min-height: var(--ui-target-compact);
+  min-height: var(--editor-history-target);
   justify-content: flex-end;
   gap: var(--ui-space-1);
   /* Sit on the same row as the Page/Folder caption under the title. */
-  margin: calc(-1 * var(--ui-target-compact)) 0 0 auto;
+  margin: calc(-1 * var(--editor-history-target)) 0 0 auto;
   padding-inline: var(--ui-space-1) var(--workspace-page-inline-end, var(--ui-space-2));
   /* The empty leading space of a full-width toolbar must not eat clicks on
      notices or title actions that share this vertical band. */
@@ -3111,6 +3114,10 @@ code,
 }
 
 @media (pointer: coarse) {
+  .editor-history-controls {
+    --editor-history-target: var(--ui-target);
+  }
+
   .editor-history-controls .ui-button,
   .page-editor .bn-ak-button,
   .editor-code-toolbar select,

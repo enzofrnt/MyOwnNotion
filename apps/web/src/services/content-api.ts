@@ -315,15 +315,44 @@ export class ContentApi {
     });
   }
 
+  async #requestFile(
+    path: string,
+    method: "POST" | "PUT",
+    mutationId: Uuid,
+    multipart: () => FormData,
+  ): Promise<ApiResult<MutationResultDto>> {
+    for (let attempt = 0; ; attempt += 1) {
+      const result = await this.#request<MutationResultDto>(path, {
+        method,
+        mutationId,
+        body: multipart(),
+      });
+      // Only this explicit response proves that publication rolled back. The
+      // retained File supplies a fresh stream; never replay a server-side stream
+      // or treat a stale revision / uncertain network result as this conflict.
+      if (
+        result.ok ||
+        result.offline ||
+        result.problem.status !== 409 ||
+        result.problem.code !== "file.concurrent-write" ||
+        attempt >= 2
+      )
+        return result;
+      await new Promise<void>((resolve) => setTimeout(resolve, 50 * 2 ** attempt));
+    }
+  }
+
   async importFile(
     mutationId: Uuid,
     file: File,
     placement: { kind: "hierarchy" | "attachment"; parentItemId: Uuid | null; positionKey: string },
   ): Promise<ApiResult<MutationResultDto>> {
-    const form = new FormData();
-    form.set("placement", JSON.stringify(placement));
-    form.set("file", file);
-    return this.#request("/v1/files", { method: "POST", body: form, mutationId });
+    return this.#requestFile("/v1/files", "POST", mutationId, () => {
+      const form = new FormData();
+      form.set("placement", JSON.stringify(placement));
+      form.set("file", file);
+      return form;
+    });
   }
 
   async replaceFileContent(
@@ -332,13 +361,11 @@ export class ContentApi {
     baseRevisionId: Uuid,
     file: File,
   ): Promise<ApiResult<MutationResultDto>> {
-    const form = new FormData();
-    form.set("baseRevisionId", baseRevisionId);
-    form.set("file", file);
-    return this.#request(`/v1/files/${itemId}/content`, {
-      method: "PUT",
-      body: form,
-      mutationId,
+    return this.#requestFile(`/v1/files/${itemId}/content`, "PUT", mutationId, () => {
+      const form = new FormData();
+      form.set("baseRevisionId", baseRevisionId);
+      form.set("file", file);
+      return form;
     });
   }
 

@@ -5,7 +5,8 @@ import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { ProtectedFileService } from "../src/files/protected-file-service.ts";
 import { createItemViaApi, idempotencyHeaders } from "./helpers/app.ts";
 
 let harness: Awaited<ReturnType<typeof createProtectedFileHarness>>;
@@ -67,6 +68,103 @@ async function importFile(
 }
 
 describe("file import (T059)", () => {
+  it.each([
+    ["import", "40001"],
+    ["import", "40P01"],
+    ["replace", "40001"],
+    ["replace", "40P01"],
+  ] as const)(
+    "rolls back a consumed %s stream on %s and accepts a fresh same-identity request",
+    async (operation, code) => {
+      const original =
+        operation === "replace"
+          ? await importFile("before-conflict.txt", "original bytes", {
+              kind: "hierarchy",
+              parentItemId: null,
+              positionKey: "V",
+            })
+          : undefined;
+      const itemId = original?.itemId ?? generateUuidV7();
+      const mutationId = generateUuidV7();
+      const nextBytes = `retained exact bytes ${mutationId}`;
+      const fields =
+        original === undefined
+          ? {
+              itemId,
+              placement: JSON.stringify({
+                kind: "hierarchy",
+                parentItemId: null,
+                positionKey: "V",
+              }),
+            }
+          : { baseRevisionId: original.revisionId };
+      const { payload, headers } = multipartBody(fields, {
+        name: "private-conflict-file.txt",
+        type: "text/plain",
+        content: nextBytes,
+      });
+      const request = {
+        method: original === undefined ? ("POST" as const) : ("PUT" as const),
+        url: original === undefined ? "/v1/files" : `/v1/files/${itemId}/content`,
+        headers: { ...headers, ...idempotencyHeaders(mutationId) },
+        payload,
+      };
+      const ingest = ProtectedFileService.prototype.ingest;
+      let rolledBackContentId: string | undefined;
+      const conflict = vi
+        .spyOn(ProtectedFileService.prototype, "ingest")
+        .mockImplementationOnce(async function (this: ProtectedFileService, tx, source, options) {
+          const stored = await ingest.call(this, tx, source, options);
+          rolledBackContentId = stored.contentId;
+          await tx.execute(
+            sql.raw(
+              `DO $$ BEGIN RAISE EXCEPTION 'forced publication conflict' USING ERRCODE = '${code}'; END $$`,
+            ),
+          );
+          return stored;
+        });
+      try {
+        const refused = await harness.owner(request);
+        expect(refused.statusCode).toBe(409);
+        expect(refused.json()).toMatchObject({ code: "file.concurrent-write" });
+        expect(refused.body).not.toContain("private-conflict-file");
+        expect(refused.body).not.toContain("forced publication conflict");
+        expect(conflict).toHaveBeenCalledOnce();
+        const rolledBack = await harness.built.context.db.execute(sql`
+        SELECT (SELECT count(*) FROM mutations WHERE id = ${mutationId}) AS mutations,
+          (SELECT count(*) FROM file_contents WHERE id = ${rolledBackContentId}) AS contents
+      `);
+        expect(rolledBack.rows[0]).toEqual({ mutations: "0", contents: "0" });
+        if (original !== undefined) {
+          const old = await harness.owner({ method: "GET", url: `/v1/files/${itemId}/content` });
+          expect(old.body).toBe("original bytes");
+        }
+        const accepted = await harness.owner(request);
+        expect(accepted.statusCode).toBe(original === undefined ? 201 : 200);
+        const content = await harness.owner({ method: "GET", url: `/v1/files/${itemId}/content` });
+        expect(content.statusCode).toBe(200);
+        expect(content.body).toBe(nextBytes);
+        const replay = await harness.owner(request);
+        expect(replay.statusCode).toBe(accepted.statusCode);
+        expect(conflict).toHaveBeenCalledTimes(2);
+        const foreignReplay = await harness.owner({
+          ...request,
+          method: "PUT",
+          url: `/v1/files/${original === undefined ? itemId : generateUuidV7()}/content`,
+        });
+        expect(foreignReplay.statusCode).toBe(409);
+        expect(foreignReplay.json()).toMatchObject({ code: "mutation.rejected" });
+        expect(conflict).toHaveBeenCalledTimes(2);
+        const acceptedOnce = await harness.built.context.db.execute(sql`
+        SELECT count(*) AS count FROM mutations WHERE id = ${mutationId}
+      `);
+        expect(acceptedOnce.rows[0]).toEqual({ count: "1" });
+      } finally {
+        conflict.mockRestore();
+      }
+    },
+  );
+
   it("imports a file into the hierarchy (201)", async () => {
     const result = await importFile("hello.txt", "hello bytes", {
       kind: "hierarchy",

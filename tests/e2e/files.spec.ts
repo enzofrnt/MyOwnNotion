@@ -107,6 +107,23 @@ test.describe("canonical files (US2)", () => {
   test("keeps a hierarchy file under a page distinct from that page's attachments", async ({
     page,
   }) => {
+    const attempts: Array<string | undefined> = [];
+    await page.route("**/v1/files", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      attempts.push(route.request().headers()["idempotency-key"]);
+      if (attempts.length === 1) {
+        return route.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            code: "file.concurrent-write",
+            status: 409,
+            title: "Publication rolled back; resend the file",
+          }),
+        });
+      }
+      return route.continue();
+    });
     await openWorkspace(page);
     const pageName = uniqueName("FileContainer");
     const fileName = `${uniqueName("standalone")}.txt`;
@@ -124,6 +141,10 @@ test.describe("canonical files (US2)", () => {
     });
 
     await ensureNavigationRowVisible(page, fileName);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]).toBeTruthy();
+    expect(attempts[1]).toBe(attempts[0]);
+    await expect(page.getByTestId(`tree-item-${fileName}`)).toHaveCount(1);
     await openPageAttachments(page, pageName);
     await expect(page.getByTestId("attachments-empty")).toBeVisible();
     await expect(page.getByTestId(`attachment-${fileName}`)).toHaveCount(0);

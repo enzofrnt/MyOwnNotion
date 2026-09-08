@@ -18,12 +18,13 @@ import {
   recordChange,
   runMutation,
   SCRUBBED_PLACEHOLDER,
+  SerializationRetryExceededError,
   schema,
 } from "@myownnotion/database";
 import { generateUuidV7, isUuid, replayResult, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
-import { eq } from "drizzle-orm";
-import type { FastifyInstance } from "fastify";
+import { and, eq } from "drizzle-orm";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import type { AppContext } from "../context.ts";
 import { parseFileRange } from "../files/file-range.ts";
 import {
@@ -116,6 +117,19 @@ function parsePlacementField(raw: unknown): {
   } catch {
     return null;
   }
+}
+
+function fileWriteError(reply: FastifyReply, error: unknown): FastifyReply {
+  if (error instanceof DomainRejection) return sendProblem(reply, error.safeError);
+  if (error instanceof SerializationRetryExceededError) {
+    return reply.status(409).header("content-type", "application/problem+json").send({
+      type: "https://myownnotion.dev/problems/file.concurrent-write",
+      title: "Une autre écriture a interrompu le transfert. Réessayez avec le même fichier.",
+      status: 409,
+      code: "file.concurrent-write",
+    });
+  }
+  throw error;
 }
 
 export function registerFileRoutes(app: FastifyInstance, context: AppContext): void {
@@ -255,10 +269,7 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
           ...(item !== null ? { item } : {}),
         });
       } catch (error) {
-        if (error instanceof DomainRejection) {
-          return sendProblem(reply, error.safeError);
-        }
-        throw error;
+        return fileWriteError(reply, error);
       }
     },
   );
@@ -420,6 +431,37 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
       if (files === undefined) throw new ProtectedFileUnavailableError();
       const acceptedAt = new Date();
 
+      const [prior] = await context.db
+        .select()
+        .from(schema.mutations)
+        .where(eq(schema.mutations.id, mutationId))
+        .limit(1);
+      if (prior !== undefined) {
+        const revisionId = prior.resultRevisionIds[0];
+        const [revision] =
+          revisionId === undefined
+            ? []
+            : await context.db
+                .select({ id: schema.revisions.id })
+                .from(schema.revisions)
+                .where(
+                  and(eq(schema.revisions.id, revisionId), eq(schema.revisions.itemId, itemId)),
+                )
+                .limit(1);
+        if (
+          prior.status === "accepted" &&
+          prior.workspaceId === context.workspaceId &&
+          prior.commandType === "file.content.replace" &&
+          prior.resultRevisionIds.length === 1 &&
+          revision !== undefined
+        )
+          return reply.status(200).send({ mutationId, revisionIds: prior.resultRevisionIds });
+        return sendProblem(reply, {
+          code: "mutation.rejected",
+          title: "Mutation identity does not identify an accepted replacement of this file",
+        });
+      }
+
       try {
         const result = await runMutation(
           context.db,
@@ -501,10 +543,7 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
           ...(item !== null ? { item } : {}),
         });
       } catch (error) {
-        if (error instanceof DomainRejection) {
-          return sendProblem(reply, error.safeError);
-        }
-        throw error;
+        return fileWriteError(reply, error);
       }
     },
   );

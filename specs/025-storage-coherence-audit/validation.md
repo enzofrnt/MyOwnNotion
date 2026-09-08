@@ -291,3 +291,55 @@ mobile (49 seconds, no retries). The run uses its own PostgreSQL database and
 retains independent source placement plus protected canonical storage. Evidence:
 `/tmp/mon-resolution-integrated-webkit.log`. Complete local and PR/main gates
 remain pending.
+
+## T054 — title reflow after a width change
+
+The integrated Chromium `code-narrow.png` at 320 px shows the second title line
+clipped after a desktop-to-narrow resize. `PageTitleEditor` previously measured
+height only when its draft changed; no title edit occurs during this resize.
+A new component regression fails on the previous implementation (one failure,
+eleven passes, `/tmp/mon-title-reflow-red.log`). The correction observes available
+width, remeasures the live textarea value and avoids reacting to its own height
+changes. It keeps focus, selection, text and the original element intact, does
+not trigger a save, shrinks after widening and disconnects on unmount.
+
+All twelve component cases, strict workspace types and Biome pass
+(`/tmp/mon-title-reflow-green.log`, `/tmp/mon-title-reflow-types.log`,
+`/tmp/mon-title-reflow-biome.log`). The maintained code-block journey now checks
+actual title overflow at 320 px in both themes and height recovery at 1280 px.
+The native title/code journeys pass on all five profiles, including 320 px, both
+themes and restored wide geometry. An original-code native run also reproduced
+the clipped title. The renewed complete integration gate remains required.
+
+
+## T055 — multipart conflict recovery
+
+Actual PostgreSQL serialization/deadlock rollback after encrypted ingestion
+reproduces the old 500 response. The corrected server returns the dedicated safe
+409 without replaying its consumed stream. The client retains the File and
+mutation identity across at most three fresh multipart bodies; stale, unrelated,
+unauthorized, offline and uncertain failures retain their existing outcomes.
+Replacement replay binds the accepted identity to the original workspace, command
+and item. Tests verify exact recovered bytes, unchanged original replacement
+content, one canonical acceptance and no repeated ingestion on accepted replay.
+
+The combined title/file component and real API suites pass 46 cases. The original
+client fails a native injected-conflict journey, then the corrected hierarchy
+upload and all existing file journeys pass on every browser profile. Complete
+integration and remote delivery remain pending.
+
+## T056 — stable editor loading geometry
+
+Holding a real pointer on property save while releasing the initial page
+checkpoint reproduces a 32 px WebKit displacement. Containing the history toolbar
+margin fixes desktop; the same regression then identifies a 12 px touch-target
+difference. Sharing the existing compact/touch size with the negative toolbar
+margin fixes both. All ten activation/cancellation journeys pass across the five
+profiles, including release outside followed by keyboard activation. Original
+property, code and file journeys also pass in their selected profile runs.
+These focused checks do not claim the complete integration gate has passed.
+
+Final combined focused verification passes 61 tests across five title, file API,
+retry-client and table interaction suites. Strict workspace types and changed
+source Biome checks pass; Spec Kit prerequisites and unique task identifiers
+were checked for 025/026. Complete delivery checks remain open.

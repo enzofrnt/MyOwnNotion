@@ -142,3 +142,34 @@ bubbling key handler intercepts Enter/Space from its nested entry button and
 starts editing instead. Scope grid navigation/edit shortcuts to the focused
 cell; retain editor handling and native nested control activation. Verify both
 keys and that Enter on the cell itself still starts editing.
+
+## T021 — Focused virtualized rows
+
+The integrated WebKit desktop 1,001-entry journey reloads every cursor but loses
+the last entry trigger after return. TableView pins the temporary return index
+and its active grid cell. Its focus handler updates that active cell only for
+the cell itself, so focusing the nested entry button leaves row zero active;
+clearing the temporary return target can unmount the focused row. Track focus
+within a cell as the active row/column too, preserving existing descendant
+keyboard handling. Verify the roving cell state before and after clearing the
+return target and retain the original native focus assertion.
+
+The strengthened mobile assertion keeps focus but exposes an offscreen target.
+Actual WebKit geometry shows the table already scrolled to its bottom (48,674 px
+of 49,137 px), while the row's content coordinate is roughly 99,475 px. The
+absolute row lacks a stable containing block in WebKit's internal table layout;
+an explicit top/left origin instead lets rows intercept controls above the table.
+Keep native table rows in normal flow and represent every omitted interval with
+an aria-hidden spacer row, including gaps around pinned focus rows. Retain the
+virtualizer's measured sizes, bounded rendered range and logical row indexes.
+Proposed scrollToIndex and absolute-origin changes did not fix that geometry and
+were removed.
+Require the returned trigger to intersect the viewport, not merely remain
+focused in the DOM; preserve ordinary scrolling and all original deadlines.
+
+Normal table flow removes the tens-of-thousands-of-pixels displacement. The
+remaining mobile measurement shows the row 91 px below the scroll viewport as
+visible rows receive their real heights. With the containing-block defect gone,
+use the virtualizer's measured-index scroll reconciliation while a return target
+exists, so late measurements preserve its visibility without extending the
+application's focus-restoration deadline or interfering with ordinary scrolling.

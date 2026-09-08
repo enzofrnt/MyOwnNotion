@@ -7,6 +7,7 @@ import {
   createDatabaseEntry,
   createRootItem,
   createUnopenedPage,
+  ensureNavigationVisible,
   expectNoHorizontalOverflow,
   openSecondDevice,
   openWorkspace,
@@ -279,8 +280,9 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   const seedMs = Date.now() - seedStarted;
   const openStarted = Date.now();
   await openWorkspace(page);
-  await selectItem(page, hostName);
+  await ensureNavigationVisible(page);
   await expect(page.getByRole("treeitem")).toHaveCount(1);
+  await selectItem(page, hostName);
   const loaded = page.locator(".database-pagination");
   await expect(loaded).toContainText("100 entrées chargées", { timeout: 30_000 });
   const firstPageMs = Date.now() - openStarted;
@@ -307,6 +309,35 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   await page.locator(".entry-panel").getByRole("button", { name: "Fermer l'entrée" }).click();
   await expect(loaded).toContainText("1001 entrées chargées", { timeout: 30_000 });
   await expect(last).toBeFocused();
+  await expect(last)
+    .toBeInViewport({ ratio: 1 })
+    .catch(async (error: unknown) => {
+      console.error(
+        "[table-return] geometry",
+        await last.evaluate((element) => {
+          const rect = (node: Element | null) => node?.getBoundingClientRect().toJSON();
+          const table = element.closest(".database-table-scroll");
+          const main = document.querySelector(".workspace-main");
+          return {
+            target: rect(element),
+            row: rect(element.closest("tr")),
+            table: rect(table),
+            tableScroll: table?.scrollTop,
+            tableHeight: table?.scrollHeight,
+            main: rect(main),
+            mainScroll: main?.scrollTop,
+            viewport: window.innerHeight,
+          };
+        }),
+      );
+      throw error;
+    });
+  const returnScreenshot = testInfo.outputPath("large-table-return.png");
+  await page.screenshot({ path: returnScreenshot });
+  await testInfo.attach("large-table-return", {
+    path: returnScreenshot,
+    contentType: "image/png",
+  });
   await testInfo.attach("pagination-timings", {
     body: JSON.stringify({ seedMs, firstPageMs, nextPageMs }),
     contentType: "application/json",

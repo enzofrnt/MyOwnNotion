@@ -23,6 +23,62 @@ async function openSearch(page: Page, query: string) {
   return dialog;
 }
 
+for (const cancel of [false, true]) {
+  test(`keeps a property action under the pointer while the page editor opens${cancel ? " and permits cancellation" : ""}`, async ({
+    page,
+  }) => {
+    await openWorkspace(page);
+    let releaseCheckpoint = () => {};
+    const checkpointGate = new Promise<void>((resolve) => {
+      releaseCheckpoint = resolve;
+    });
+    await page.route("**/v1/page-operations/*/sync", async (route) => {
+      if (route.request().method() === "POST" && route.request().postDataJSON()?.mode === "empty") {
+        await checkpointGate;
+      }
+      await route.continue();
+    });
+    try {
+      await openRootDatabaseCreation(page);
+      const creation = page.getByRole("form", { name: "Créer une base de données" });
+      await creation.getByLabel("Créer une base de données").fill(uniqueName("Stable property"));
+      await creation.getByRole("button", { name: "Créer la base de données" }).click();
+      await expect(page.getByTestId("editor-loading-skeleton")).toBeVisible();
+      await page.getByRole("button", { name: "Ajouter une propriété" }).click();
+      const form = page.getByRole("form", { name: "Éditeur de propriété" });
+      await form.getByLabel("Nom").fill("Notes");
+      const save = form.getByRole("button", { name: "Enregistrer la propriété" });
+      await save.scrollIntoViewIfNeeded();
+      const before = await save.boundingBox();
+      if (before === null) throw new Error("Property save action is not visible");
+      const held = await save.elementHandle();
+      await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+      await page.mouse.down();
+      releaseCheckpoint();
+      await expect(page.getByTestId("block-editor")).toHaveAttribute("data-editor-settled", "true");
+      await expect(page.getByTestId("editor-loading-skeleton")).toHaveCount(0);
+      const after = await save.boundingBox();
+      expect(await held?.evaluate((element) => element.isConnected)).toBe(true);
+      expect(Math.abs((after?.y ?? Number.POSITIVE_INFINITY) - before.y)).toBeLessThanOrEqual(1);
+      if (cancel) await page.mouse.move(0, 0);
+      await page.mouse.up();
+      if (cancel) {
+        await expect(form).toBeVisible();
+        await expect(form.getByLabel("Nom")).toHaveValue("Notes");
+        await save.focus();
+        await page.keyboard.press("Enter");
+      }
+      await expect(
+        page.locator(".database-schema").getByText("Notes", { exact: true }),
+      ).toBeVisible();
+      await waitForDatabaseDefinitionSaved(page);
+    } finally {
+      releaseCheckpoint();
+      await page.mouse.up();
+    }
+  });
+}
+
 test("tracks one task page through roles, notes, relations, search and an independent checkbox", async ({
   page,
 }) => {
