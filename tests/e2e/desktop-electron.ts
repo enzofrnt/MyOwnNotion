@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { type ElectronApplication, _electron as electron, type Page } from "@playwright/test";
 
 import { closeProcess, crashProcess, removeProfile } from "./desktop-process.ts";
+import { nativeShutdownEvidence } from "./desktop-process-evidence.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const desktopRoot = path.join(repoRoot, "apps", "desktop");
@@ -70,6 +71,7 @@ export async function launchDesktopElectron(
       throw error;
     });
   const child = app.process();
+  const electronPid = await app.evaluate(() => process.pid);
   const window = await app.firstWindow();
   return {
     app,
@@ -77,7 +79,16 @@ export async function launchDesktopElectron(
     userData,
     crash: () => crashProcess(child),
     close: async (options) => {
-      await closeProcess(child, () => app.close());
+      try {
+        await closeProcess(child, () => app.close());
+      } catch (error) {
+        const trace = await readFile(tracePath, "utf8").catch(() => "");
+        console.error(
+          "[desktop-test] shutdown evidence:",
+          JSON.stringify(nativeShutdownEvidence(child, electronPid, trace)),
+        );
+        throw error;
+      }
       if (options?.keepUserData !== true) {
         // Windows may release native file handles just after process exit.
         await removeProfile(userData);
