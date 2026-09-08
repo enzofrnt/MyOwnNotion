@@ -434,3 +434,20 @@ CI preparation step. Document preparation before direct desktop-only Vitest
 commands. Keep the existing prohibition on Vitest global setup and preserve
 parallel tests after preparation. Native spawn diagnostics must handle absent output
 and report only a bounded error code/status, never a path or native key data.
+
+### T100: structured resolution across page-history consolidation
+
+CI run 34220219342 accepted the divergent remote property edit, then generated
+`page-operations.consolidated` with identical structured values/version while
+the owner reviewed the conflict. The resolution was refused solely because
+that new canonical head was absent from the reviewed pair. Implement the
+existing independent-field convergence boundary in database command execution:
+walk at most 64 single-parent revisions belonging to this entry and authored
+by accepted `page-operations.consolidated` mutations. Only when that chain
+reaches a reviewed parent may the current head replace that parent in the
+resolution lineage. Preserve the other reviewed parent and build from current
+canonical state. A missing/foreign/branching history, unrelated mutation,
+structured edit or exceeded bound remains stale. No snapshot decryption or
+comparison, timeout changes, UI retries or invented successful state.
+Reproduce both transparent consolidation and refused real structured edits at
+the transaction boundary, then replay the original native offline journey.

@@ -282,3 +282,5 @@ fichier concret.
 - [ ] T098 Preserve native property text through a same-entry projection before input-event delivery; scope controls to entry identity, verify hydration and no cross-entry draft carry, and replay the original WebKit mobile journey without retries or timeout changes before full delivery checks.
 
 - [ ] T099 Prepare the pinned Electron executable before parallel desktop test workers, handle absent native spawn output without masking its status, verify local desktop tests/types and rerun the complete gate plus both Windows native jobs before accepting T096.
+
+- [ ] T100 Reproduce the WebKit mobile structured-resolution refusal when an automatic page-history consolidation advances the reviewed entry head; preserve the current page and both resolution ancestries across consolidation-only descendants, keep genuine structured edits stale, and verify targeted database/native journeys plus renewed delivery gates.

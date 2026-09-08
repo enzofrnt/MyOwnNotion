@@ -553,3 +553,27 @@ Logs: `/tmp/mon-desktop-prepared-electron-full-gate.log`,
 `/tmp/mon-electron-parent-preparation-unit.log`,
 `/tmp/mon-electron-parent-preparation-types.log`,
 `/tmp/mon-electron-cold-parent-preparation.log`.
+
+### T100 — reviewed entry resolution and automatic history (2026-09-08)
+
+CI 34220219342 WebKit mobile failed the offline structured journey at line 383:
+after explicit resolution the aggregate status remained `conflict`. The trace
+shows the reviewed remote property revision followed by an automatic
+`page-operations.consolidated` revision with identical structured values/version.
+The server refused the subsequent resolution solely because its head advanced.
+
+A transaction regression reproduces this refusal. The real authenticated API,
+operational page edits and controlled 30-second history timer reproduce it too
+on unmodified code (`/tmp/mon-resolution-real-history-red.log`). The correction
+recognizes at most 64 accepted, same-entry, single-parent consolidation headers;
+it advances only the reviewed parent, keeps the other ancestry and preserves
+current body contents. Genuine structured edits, foreign/branching/missing
+lineage, rejected mutations and an excessive chain remain refused.
+
+Fifteen transaction tests and nine actual page-history/API tests pass
+(`/tmp/mon-resolution-bounded-history.log`), including exact lineage, encrypted
+readback, retained body edits and unchanged unseen values on refusal. Strict
+root types pass (`/tmp/mon-resolution-types-local.log`). The reproduction
+checkout uses local workspace package links; its vendor dependencies are
+read-only links, and the primary checkout remained unchanged during diagnosis.
+Native replay, the complete renewed gate and PR/main evidence remain pending.
