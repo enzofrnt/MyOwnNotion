@@ -676,3 +676,21 @@ unsupported-target refusal, nested publication options and error propagation.
 Strict workspace types, formatting/lint and the desktop policy check pass.
 Installer creation and renewed complete/PR/main gates remain pending; this fix
 is separate from the unresolved intermittent Windows inspector failures.
+
+### T105 demonstrated Windows runtime ownership defect
+
+A two-core Windows reproduction of the original cleanup records both owned
+processes absent, ended pipes, a closed window and normal quit stages while Bun
+still exposes no exit notification. A polling-only experiment passes its unit
+cases but does not address Playwright's own process observers and is not retained.
+The next constrained run also loses a native launch. The maintained regression
+then reproduces Bun 1.4.0 invalidating four unrelated descriptors after extra-pipe
+cleanup and passes on 1.4.2. All nine native journeys pass on 1.4.2 under the same
+CPU constraint without the polling experiment. See feature 019's maintenance
+plan and validation for the exact pin change and upstream ownership fix.
+
+The 55d74ada full local gate passed 3,667 coverage tests, eight performance groups,
+341 database cases, 12 migration cases, 1,313 contracts and Chromium desktop.
+It was deliberately stopped during the browser matrix to incorporate the proven
+runtime repair, so it is not pre-push success. Full local and remote gates remain
+required on the updated candidate.

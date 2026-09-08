@@ -565,3 +565,40 @@ Prove real packaging and installed smoke on Windows without Node/npm, test
 argument forwarding/failures, and renew local/PR/main delivery gates and Trivy
 because the dependency lock changes. This is separate from T102's unresolved
 intermittent inspector loss; no causal claim links them.
+
+### T105: confirm the owned native processes have actually exited
+
+The two-core Windows fixture reproduces T102 locally: after successful revocation
+assertions and requested normal shutdown, both captured wrapper and Electron PIDs
+are absent, stdout/stderr have ended, the window is closed and the preload records
+before-quit/will-quit/process-exit/quit, while Bun still exposes null exit/signal
+codes. The old helper waits its deadlines and fails `taskkill` against an already
+absent wrapper. This is confirmed process-exit notification loss, not a surviving
+application or a reason to repeat a product operation.
+
+On Windows, pass a read-only exit confirmation bound to both captured process
+identities into native fixture cleanup. Require ESRCH for each valid PID; an
+alive process, missing identity, permission error or unavailable probe is not
+success. Observe confirmation within the existing graceful/forced deadlines and
+remove temporary listeners/timers on every path. Never synthesize a ChildProcess
+exit event/status or kill unrelated processes. Other platforms keep their existing
+notification path. Cover missing notification, wrapper-only exit, unavailable
+probe and permanent survival, then replay native Windows with the same two-core
+constraint. Retain separate inspector-loss and packaged-startup uncertainties;
+renew full local, PR and main gates before delivery.
+
+T105 investigation update: the confirmation-only experiment passes its 24 focused
+cases but is not a sufficient runtime repair (Playwright also owns pending child
+exit listeners). The next constrained run fails a distinct launch with null exit
+and signal state. Do not ship the polling experiment. Bun's upstream fix #39966
+identifies double-closing extra Windows stdio handles, potentially closing other
+process, pipe, thread or socket handles after reuse. Its isolated child-process
+regression reproduces four unrelated handle closures on the pinned 1.4.0 and
+passes on official 1.4.2 with identical input. Update the maintained exact Bun
+runtime and image/types pins after validating constrained native journeys without
+the experimental cleanup changes. Keep the diagnostic improvements and existing
+assertions/deadlines; renew all local, image, PR and main gates.
+
+Sources: https://github.com/oven-sh/bun/pull/39966 and
+https://bun.sh/blog/bun-v1.4.1 (Windows corrections); 1.4.2 includes subsequent
+regression corrections documented at https://bun.sh/blog/bun-v1.4.2.

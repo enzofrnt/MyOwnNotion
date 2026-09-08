@@ -262,3 +262,9 @@ US1 local/dev      US2 production
   de production.
 - Les cases ne sont cochées qu'après preuve correspondante ; un outil requis
   indisponible reste bloquant.
+
+## Maintenance — propriété des ressources natives Windows
+
+- [ ] T051 Aligner tous les pins runtime/types/images et le quickstart sur Bun 1.4.2 dans `package.json`, `bun.lock`, `.github/`, `docker/`, les scripts de gates et leurs contrats ; conserver les preuves historiques et documenter le lien avec 014 T105.
+- [ ] T052 Ajouter dans `apps/desktop/tests/` une régression Windows réelle des pipes supplémentaires et de la survie des fichiers indépendants, prouver l'échec sous 1.4.0 et la réussite sous 1.4.2, puis vérifier les parcours natifs contraints sans adapter les notifications.
+- [ ] T053 Renouveler `bun run checks:local`, les scans/images, toute la CI de PR et de main, et consigner les preuves exactes dans `specs/019-bun-toolchain/validation.md` avant de fermer cette maintenance.

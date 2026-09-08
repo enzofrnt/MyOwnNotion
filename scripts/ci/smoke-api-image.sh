@@ -14,7 +14,7 @@ bun_output="$(docker run --rm "$image" bun --version 2>&1)" || {
     echo "$bun_output" >&2
     exit 1
 }
-if [[ "$bun_output" != "1.4.0" ]]; then
+if [[ "$bun_output" != "1.4.2" ]]; then
     echo "Unexpected Bun runtime version: $bun_output" >&2
     exit 1
 fi
@@ -90,4 +90,4 @@ if [[ "$server_output" != *"ECONNREFUSED"* ]]; then
     exit 1
 fi
 
-echo "Packaged API runtime smoke passed (Bun 1.4.0, no standalone Node.js runtime, migration entrypoint, server entrypoint)."
+echo "Packaged API runtime smoke passed (Bun 1.4.2, no standalone Node.js runtime, migration entrypoint, server entrypoint)."

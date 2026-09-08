@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Bun `1.4.0` exactement ;
+- Bun `1.4.2` exactement ;
 - a running MyOwnNotion API/server from the preceding features;
 - a Windows x64 runner, a Windows ARM64 runner, a macOS Apple Silicon runner,
   and a Linux runner for each Linux architecture;
