@@ -10,3 +10,15 @@ Clarification de convergence avant T013 : le défaut de placement racine contred
 ## Convergence finale
 
 FR-001–012 et SC-001–005 sont couverts : T002–005 pour identité/registre/protection/synchronisation ; T006–009 pour sources réutilisées et conservation ; T011 pour curseurs, couverture locale et retour ; T012 pour lectures protégées groupées/versionnées ; T013 pour pages d'entrée sans placement implicite. Les 13 tâches sont réalisées. La comparaison finale du code et des artifacts n'a trouvé aucun travail fonctionnel restant dans 026 ; aucune nouvelle tâche n'est ajoutée artificiellement. Les limites de purge planifiée et de démarrage hors réseau non préparé sont explicites dans [validation.md](validation.md). La livraison reste conditionnée au gate global du parent après intégration des corrections 025.
+
+
+## T015 post-implementation consistency review
+
+The correction enforces FR-008's existing finite property/view vocabularies and
+adds no property or view kind. The same validator handles legacy source views
+and embedded views. Public command refusal tests protect explicit placements,
+identities, typed values, conflict parents and impact confirmation. Task mapping
+and impact tests verify existing recovery semantics; the bulk relationship
+fixture checks the performance path against individual scoped reads. All 15
+feature task IDs are unique. Aggregate coverage passes on d1f2911d, while final
+full local, PR and main delivery gates remain explicit outstanding work.

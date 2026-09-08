@@ -84,6 +84,25 @@ complete `checks:local` delivery gate.
 The local relationship fixture additionally verifies the bulk reader against
 the individual reader for duplicate targets, foreign database metadata, invalid
 property metadata, unrelated relation kinds, unrequested entries and empty
-batches. Its six-suite-test cases pass with client-core types and Biome
+batches. All six tests in that suite pass with client-core types and Biome
 (`/tmp/mon-db-bulk-relation-boundary.log`). No runtime code changed in this
 additional boundary verification.
+
+
+## Integrated packaging and security (833cd23c, 2026-09-08)
+
+- `bun run images:build` passes both API/web images for linux/amd64 and
+  linux/arm64. The native compiled API smoke and full SQL/blob backup/restore,
+  committed upload prefix, rehearsal and activation pass
+  (`/tmp/mon-pre-v1-images-integrated.log`). No image was published.
+- Production dependency audit has no high/critical finding; four findings are
+  below that threshold. License policy passes 431 production packages with
+  zero violations (`/tmp/mon-pre-v1-dependency-audit.log`,
+  `/tmp/mon-pre-v1-licenses.log`).
+- The equivalent pinned Trivy scan of a freshly built linux/amd64 API image
+  passes the same HIGH/CRITICAL-with-fix gate. Full SARIF remains at
+  `/tmp/mon-pre-v1-container-scan.sarif`, log `/tmp/mon-pre-v1-trivy.log`.
+  Manifest/lock/Docker inputs are those of 833cd23c.
+
+These focused integrated gates complement aggregate coverage; they do not
+replace the full exact-commit pre-push gate or PR/main verification.
