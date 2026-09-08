@@ -53,6 +53,8 @@ jobs:
         run: bun scripts/ci/check-desktop.ts
       - name: Typecheck the desktop host
         run: bun run --filter @myownnotion/desktop typecheck
+      - name: Prepare the pinned Electron executable
+        run: bun scripts/desktop/prepare-test-electron.ts
       - name: Desktop unit tests
         run: bun run --bun vitest run --project desktop
       - name: Secret scan
