@@ -65,7 +65,7 @@ test("recovers a durable offline creation after process death and reconciles it 
         .evaluate(async () => ({
           online: navigator.onLine,
           visibility: document.visibilityState,
-          loadingPhases: [...document.querySelectorAll("[data-load-phase]")].map((node) =>
+          loadingPhases: Array.from(document.querySelectorAll("[data-load-phase]")).map((node) =>
             node.getAttribute("data-load-phase"),
           ),
           locks: await navigator.locks.query(),
