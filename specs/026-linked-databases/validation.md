@@ -151,3 +151,18 @@ The five-profile focused replay with this additional state passes: sixteen
 journeys and four intentional platform-owned visual skips, no retries or
 relaxed expectations (`/tmp/mon-linked-ui-five-profiles-final.log`). The full
 exact-commit gate and PR/main checks remain pending.
+
+## Integrated gate checkpoint before desktop merge — 2026-09-08
+
+The full gate on `07115de3` passes 432 suites / 4,220 coverage tests, all nine
+performance budgets, 341 database tests, twelve migration cases and 1,664 API
+contracts. Complete Chromium desktop, Firefox desktop and WebKit desktop
+projects pass. Chromium mobile reaches 38 passing cases before deliberate
+interruption; WebKit mobile does not run. The runner exits 130 and cleans its
+isolated stacks (`/tmp/mon-pre-v1-full-gate-ui-final.log`). This is explicitly
+an incomplete gate and authorizes no push.
+
+Desktop delivery remains the first dependency. Its Windows key repair and
+workspace recovery changes must enter this branch from the actual merged main;
+the complete exact-commit gate, including both mobile profiles, then runs again.
+The focused database replay on all five profiles remains separate valid evidence.
