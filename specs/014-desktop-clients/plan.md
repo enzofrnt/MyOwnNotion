@@ -486,3 +486,10 @@ exceptions, synthesize process events, suppress failure or increase deadlines.
 This diagnostic addition is not a claimed repair. The Linux ARM failure in the
 same run was an upstream Electron download HTTP 500; a targeted infrastructure
 retry passed after the upstream URL recovered.
+
+The naturally subsequent backup PR run 34246091846 also reports a native
+evaluation channel closing on ARM and a tracing-stop failure on x64. Observe
+unexpected context closure before requested shutdown, await bounded diagnostic
+collection during fixture cleanup, and prevent a failed trace export from
+replacing the original test failure. Keep this observation passive; no launch,
+evaluation or test retries are added.

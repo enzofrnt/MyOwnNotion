@@ -72,22 +72,36 @@ export async function launchDesktopElectron(
     });
   const child = app.process();
   const electronPid = await app.evaluate(() => process.pid);
+  let expectedExit = false;
+  let unexpectedExitEvidence: Promise<void> | undefined;
+  const report = async (stage: "unexpected-context-close" | "shutdown-failure") => {
+    const trace = await readFile(tracePath, "utf8").catch(() => "");
+    console.error(
+      `[desktop-test] ${stage}:`,
+      JSON.stringify(nativeShutdownEvidence(child, electronPid, trace)),
+    );
+  };
+  app.context().once("close", () => {
+    if (!expectedExit) unexpectedExitEvidence = report("unexpected-context-close");
+  });
   const window = await app.firstWindow();
   return {
     app,
     window,
     userData,
-    crash: () => crashProcess(child),
+    crash: () => {
+      expectedExit = true;
+      return crashProcess(child);
+    },
     close: async (options) => {
+      expectedExit = true;
       try {
         await closeProcess(child, () => app.close());
       } catch (error) {
-        const trace = await readFile(tracePath, "utf8").catch(() => "");
-        console.error(
-          "[desktop-test] shutdown evidence:",
-          JSON.stringify(nativeShutdownEvidence(child, electronPid, trace)),
-        );
+        await report("shutdown-failure");
         throw error;
+      } finally {
+        await unexpectedExitEvidence;
       }
       if (options?.keepUserData !== true) {
         // Windows may release native file handles just after process exit.
