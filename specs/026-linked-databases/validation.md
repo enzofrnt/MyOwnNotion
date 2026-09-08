@@ -147,7 +147,7 @@ No data loss was reproduced. The component regression fails before correction;
 ten interaction tests pass afterward, including hydration, a retained owner
 draft and an independent page document. Web types pass. Logs:
 `/tmp/mon-offloaded-entry-ui-red.log`, `/tmp/mon-offloaded-entry-ui-final.log`.
-The five-profile focused replay with this additional state passes: thirteen
-journeys and seven intentional platform-owned visual skips, no retries or
+The five-profile focused replay with this additional state passes: sixteen
+journeys and four intentional platform-owned visual skips, no retries or
 relaxed expectations (`/tmp/mon-linked-ui-five-profiles-final.log`). The full
 exact-commit gate and PR/main checks remain pending.
