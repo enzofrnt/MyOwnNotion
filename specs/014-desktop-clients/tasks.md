@@ -302,3 +302,5 @@ the same bounded evidence boundary; verify diagnostic failure cannot mask or
 retry the original command. Remote validation and root-cause repair remain open.
 
 - [ ] T104 Remove Forge CLI's demonstrated undeclared npm requirement through a pinned Forge core API entry point under Bun. Preserve the five release targets, argument forwarding, makers/signing/pruning and error propagation; verify package and installed smoke on the Windows fixture without Node/npm, focused command tests, renewed complete gates and dependency-image scan.
+
+- [ ] T105 Correct the reproduced Bun 1.4.0 Windows extra-stdio handle ownership defect through the maintained 1.4.2 runtime/image/types pins. Keep the existing cleanup and native assertions without the experimental polling adapter; prove the upstream handle regression, constrained native journeys, complete local/image checks and PR/main CI.

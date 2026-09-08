@@ -16,7 +16,7 @@ les fichiers ou pages référencés. Consulter les
 [instructions d’export de Notion](https://www.notion.com/help/export-your-content).
 Les liens externes et images distantes ne sont jamais téléchargés.
 
-Lancer depuis le dépôt avec Bun 1.4.0 :
+Lancer depuis le dépôt avec Bun 1.4.2 :
 
 ```bash
 bun run import:notion --source /chemin/vers/export.zip

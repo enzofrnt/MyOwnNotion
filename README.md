@@ -13,13 +13,13 @@ Mise à jour du 3 septembre 2026.
 
 **Prochain travail** : feature 014 — applications Electron Windows, macOS et
 Linux ([`specs/014-desktop-clients`](specs/014-desktop-clients/)). La chaîne
-Bun 1.4.0 est déjà livrée ; ne pas réintroduire pnpm. Les journaux 021 et la
+Bun 1.4.2 est déjà livrée ; ne pas réintroduire pnpm. Les journaux 021 et la
 convergence finale 017 suivent.
 
 | Grande étape | Fait | Reste à faire (RAF) |
 | --- | --- | --- |
 | Fondations fonctionnelles — features 001 à 008 | Implémentées et fusionnées dans `main`. | Protocoles humains 002 après le desktop. |
-| Chaîne d'outils Bun — feature 019 | Livrée et convergée : `packageManager bun@1.4.0`, `bun.lock`, CI, images. | Conserver l'exclusivité Bun. Les mentions de pnpm dans d'anciennes specs sont historiques. |
+| Chaîne d'outils Bun — feature 019 | Livrée et convergée : `packageManager bun@1.4.2`, `bun.lock`, CI, images. | Conserver l'exclusivité Bun. Les mentions de pnpm dans d'anciennes specs sont historiques. |
 | Clients desktop — feature 014 | Spec, plan et tâches prêts ; Bun exclusif. | **Implémenter maintenant** (cinq installateurs : Windows x64/ARM, macOS ARM, Linux x64/ARM). |
 | Convergence V1 — feature 017 | Éditeur, shell et arbre livrés dans `main`. | T319 après 014. |
 | Fil d'Ariane, onglets, vue dossier — feature 022 | Composants et tests unitaires dans `main`. | Journey Playwright T040 après 014. |
@@ -41,7 +41,7 @@ feature reste dans son fichier `tasks.md`, pas dans ce résumé.
 ## Prérequis
 
 - Git ;
-- Bun `1.4.0` exactement ;
+- Bun `1.4.2` exactement ;
 - Docker avec Compose pour PostgreSQL, les navigateurs isolés et les images ;
 - Codex et/ou Cursor ;
 - le CLI `specify` uniquement pour installer, mettre à jour ou diagnostiquer Spec Kit.
@@ -89,7 +89,7 @@ Le mot de passe factice est `knowledge-graph-demo` ; cette commande détruit
 uniquement les volumes de la stack locale `myownnotion-dev` et refuse toute
 cible distante ou déjà remplie.
 
-`bun --version` doit afficher exactement `1.4.0`. Avant de pousser une
+`bun --version` doit afficher exactement `1.4.2`. Avant de pousser une
 modification de code, de dépendance, de build, de configuration ou de
 déploiement, exécuter la porte complète :
 

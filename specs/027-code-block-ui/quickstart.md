@@ -1,6 +1,6 @@
 # Validation guide
 
-Use pinned Bun 1.4.0 and `bun install --frozen-lockfile`. Run focused Vitest web
+Use pinned Bun 1.4.2 and `bun install --frozen-lockfile`. Run focused Vitest web
 editor/highlighter tests and `bun run --filter @myownnotion/web typecheck`.
 Build using `MYOWNNOTION_E2E_BUILD=1 bun run --filter @myownnotion/web build`.
 With an isolated test PostgreSQL database and the standard E2E environment, run

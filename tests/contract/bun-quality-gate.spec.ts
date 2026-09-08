@@ -23,12 +23,12 @@ describe("Bun quality gate", () => {
   it("installs exact Bun from an immutable action before frozen materialization", () => {
     const action = read(".github/actions/setup-bun/action.yml");
     expect(action).toContain("oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6");
-    expect(action).toContain("bun-version: 1.4.0");
+    expect(action).toContain("bun-version: 1.4.2");
     expect(action).not.toContain("actions/cache@");
     expect(action).not.toContain("~/.bun/install/cache");
     expect(action).not.toContain("node_modules");
     expect(action.indexOf("run: bun ci")).toBeLessThan(
-      action.indexOf('run: test "$(bun --version)" = "1.4.0"'),
+      action.indexOf('run: test "$(bun --version)" = "1.4.2"'),
     );
   });
 

@@ -2,7 +2,7 @@
   "name": "@myownnotion/desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Electron host for the MyOwnNotion web client. Installed only with Bun 1.4.0; Electron Forge reads this package's node_modules (no pnpm, npm, or Yarn).",
+  "description": "Electron host for the MyOwnNotion web client. Installed only with Bun 1.4.2; Electron Forge reads this package's node_modules (no pnpm, npm, or Yarn).",
   "type": "module",
   "main": ".vite/build/bootstrap.js",
   "productName": "MyOwnNotion",

@@ -1680,7 +1680,7 @@ En développement :
 Les commandes utilisées localement et en CI doivent appeler les mêmes scripts de projet afin d'éviter deux comportements divergents.
 
 La chaîne JavaScript/TypeScript doit rester unique et reproductible. Elle
-utilise une version patch exacte de Bun — `1.4.0` lors de la feature 019 — pour
+utilise une version patch exacte de Bun — `1.4.2` après la maintenance des ressources Windows de la feature 019 — pour
 les workspaces, l'installation verrouillée, les scripts, le runtime et les
 builds de production. Un seul `bun.lock` est versionné ; Node.js, npm, pnpm et
 Yarn ne sont pas maintenus comme chemins de secours. Les outils spécialisés

@@ -5,7 +5,7 @@ Ce guide valide la feature 019 depuis un environnement propre. Il ne doit pas
 
 ## Prérequis
 
-- Bun 1.4.0 exactement ;
+- Bun 1.4.2 exactement ;
 - Git ;
 - Docker avec Buildx et Compose ;
 - navigateurs Playwright supportés ;
@@ -27,7 +27,7 @@ bun run toolchain:check
 
 Attendu :
 
-- la version affichée est `1.4.0` ;
+- la version affichée est `1.4.2` ;
 - les neuf workspaces sont installés ;
 - `bun.lock` n'est pas modifié ;
 - aucun autre gestionnaire ou runtime n'est invoqué ;
@@ -168,7 +168,7 @@ node_path="$(command -v node || true)"
 test -z "$node_path" || test "$(readlink -f "$node_path")" = "$(readlink -f "$(command -v bun)")"
 ~~~
 
-Attendu : Bun retourne `1.4.0`, aucun runtime Node.js autonome n'existe (le
+Attendu : Bun retourne `1.4.2`, aucun runtime Node.js autonome n'existe (le
 possible alias `node` de l'image officielle pointe vers Bun), l'utilisateur
 est `bun`, les volumes restent inscriptibles, la migration termine et
 `/health` devient sain. Les deux images doivent être construites pour
@@ -227,7 +227,7 @@ que lorsqu'ils sont explicitement jetables et précisément identifiés.
 
 | Symptôme | Vérification |
 | --- | --- |
-| Version refusée | `bun --version` doit être exactement `1.4.0` |
+| Version refusée | `bun --version` doit être exactement `1.4.2` |
 | Installation gelée refuse | mettre à jour volontairement manifestes et `bun.lock`, ne pas utiliser `--no-save` |
 | Worker 404 | vérifier l'URL hachée dans le bundle et le fichier sous `dist/assets` |
 | PWA incomplète hors ligne | vérifier que worker et Wasm figurent dans `service-worker.js` |
