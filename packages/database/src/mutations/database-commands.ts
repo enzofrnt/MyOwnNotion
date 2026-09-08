@@ -42,7 +42,14 @@ import {
   insertRevision,
   supersedeRevision,
 } from "../repositories/revision-repository.ts";
-import { items, pageDocuments, placements } from "../schema/index.ts";
+import {
+  items,
+  mutations,
+  pageDocuments,
+  placements,
+  revisionParents,
+  revisions,
+} from "../schema/index.ts";
 
 export interface DatabaseCommandContext {
   readonly workspaceId: Uuid;
@@ -652,6 +659,52 @@ async function executeReplaceEntryValues(
   });
 }
 
+/** Advance a reviewed parent only through automatic page history boundaries.
+ * These revisions preserve structured values. Other commands require review.
+ * Read headers only: encrypted snapshot payloads are not needed for this proof.
+ */
+async function resolutionParentsAfterConsolidation(
+  tx: Transaction,
+  entryId: Uuid,
+  currentHead: Uuid,
+  reviewedParents: readonly [Uuid, Uuid],
+): Promise<readonly [Uuid, Uuid] | null> {
+  let cursor = currentHead;
+  for (let depth = 0; depth <= 64; depth += 1) {
+    if (reviewedParents.includes(cursor)) {
+      return [
+        reviewedParents[0] === cursor ? currentHead : reviewedParents[0],
+        reviewedParents[1] === cursor ? currentHead : reviewedParents[1],
+      ];
+    }
+    if (depth === 64) return null;
+    const [header] = await tx
+      .select({
+        itemId: revisions.itemId,
+        commandType: mutations.commandType,
+        status: mutations.status,
+      })
+      .from(revisions)
+      .innerJoin(mutations, eq(mutations.id, revisions.mutationId))
+      .where(eq(revisions.id, cursor))
+      .limit(1);
+    if (
+      header?.itemId !== entryId ||
+      header.commandType !== "page-operations.consolidated" ||
+      header.status !== "accepted"
+    )
+      return null;
+    const parents = await tx
+      .select({ id: revisionParents.parentRevisionId })
+      .from(revisionParents)
+      .where(eq(revisionParents.revisionId, cursor))
+      .limit(2);
+    if (parents.length !== 1 || parents[0] === undefined) return null;
+    cursor = parents[0].id as Uuid;
+  }
+  return null;
+}
+
 async function executeResolveEntryValuesConflict(
   tx: Transaction,
   context: DatabaseCommandContext,
@@ -675,7 +728,13 @@ async function executeResolveEntryValuesConflict(
   if (definition === null || priorValues === null) {
     return err("database.not-found", "Database definition is unavailable");
   }
-  if (!command.resolvedRevisionIds.includes(item.currentRevisionId)) {
+  const parentRevisionIds = await resolutionParentsAfterConsolidation(
+    tx,
+    command.entryId,
+    item.currentRevisionId,
+    command.resolvedRevisionIds,
+  );
+  if (parentRevisionIds === null) {
     return err("revision.stale-base", "Database entry changed since this conflict was reviewed", {
       competingRevisionIds: [item.currentRevisionId],
     });
@@ -707,7 +766,7 @@ async function executeResolveEntryValuesConflict(
     id: revisionId,
     itemId: command.entryId,
     mutationId: context.mutationId,
-    parentRevisionIds: [...command.resolvedRevisionIds],
+    parentRevisionIds: [...parentRevisionIds],
     snapshot,
     acceptedAt: context.acceptedAt,
   });
@@ -718,7 +777,7 @@ async function executeResolveEntryValuesConflict(
     revisionId,
     relationTargets: structured.value.relations,
   });
-  for (const parentRevisionId of command.resolvedRevisionIds) {
+  for (const parentRevisionId of parentRevisionIds) {
     await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
   }
   return ok({

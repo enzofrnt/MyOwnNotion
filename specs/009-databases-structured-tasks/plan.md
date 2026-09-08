@@ -341,3 +341,12 @@ gates constitutionnels restent PASS.
 | decimal.js-light | Les nombres doivent garder une forme et un ordre identiques sans perte binaire entre Node et navigateurs | `Number` perd des chiffres à partir de certaines saisies et rend la valeur canonique dépendante d'un aller-retour flottant |
 
 026 rend le champ placement optionnel exclusivement pour database.entry.create ; les flux des vues omettent ce champ. Les autres créations et les placements explicitement fournis conservent leur contrat.
+
+### Desktop convergence: consolidation-only entry heads (014 T100)
+
+A structured conflict review remains valid across automatic single-parent
+`page-operations.consolidated` revisions of the same entry. Execution may
+advance the reviewed parent through a bounded chain of those revisions while
+preserving the current page and the other reviewed ancestry. All other head
+changes retain stale-review refusal. This implements independent-field
+convergence; it does not permit replacing newly edited structured values.

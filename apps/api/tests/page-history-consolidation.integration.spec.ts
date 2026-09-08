@@ -1,7 +1,14 @@
 /** Operational history windows and restore-as-operations (T126/T146, US5). */
 
 import { insertRevision, schema } from "@myownnotion/database";
-import { generateUuidV7, normaliseDocumentV3, type Uuid } from "@myownnotion/domain";
+import {
+  type DatabaseDefinition,
+  documentDigestV3,
+  generateUuidV7,
+  type MutationCommand,
+  normaliseDocumentV3,
+  type Uuid,
+} from "@myownnotion/domain";
 import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -250,6 +257,130 @@ describe("visible history consolidation", () => {
     });
     expect(boundary.canonical.hasUnconsolidatedChanges).toBe(false);
     expect((await operationState(page.itemId))?.revision_window_started_at).toBeNull();
+  });
+
+  it("accepts a reviewed structured resolution after the actual history timer and preserves page edits", async () => {
+    const headers = await harness.authenticate();
+    const app = harness.api.built.app;
+    async function mutate(command: MutationCommand): Promise<Uuid> {
+      const { type, ...payload } = command;
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/mutations/batch",
+        headers,
+        payload: {
+          mutations: [
+            { mutationId: generateUuidV7(), commandType: type, payload, baseRevisionIds: [] },
+          ],
+        },
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      expect(response.json().results[0], response.body).toMatchObject({ status: "accepted" });
+      return response.json().results[0].revisionIds[0] as Uuid;
+    }
+    const databaseId = generateUuidV7();
+    const created = await mutate({
+      type: "database.create",
+      id: databaseId,
+      name: "History resolution fixture",
+      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "V" },
+      titlePropertyId: generateUuidV7(),
+      initialViewId: generateUuidV7(),
+      initialViewName: "Table",
+    });
+    const database = await app.inject({
+      method: "GET",
+      url: `/v1/databases/${databaseId}`,
+      headers,
+    });
+    const definition = database.json().definition as DatabaseDefinition;
+    const propertyId = generateUuidV7();
+    await mutate({
+      type: "database.definition.replace",
+      databaseId,
+      baseRevisionId: created,
+      definition: {
+        ...definition,
+        properties: [
+          ...definition.properties,
+          {
+            id: propertyId,
+            name: "Notes",
+            type: "text",
+            state: "active",
+            positionKey: "b",
+            config: {},
+          },
+        ],
+      },
+    });
+    const entryId = generateUuidV7();
+    const ancestor = await mutate({
+      type: "database.entry.create",
+      databaseId,
+      id: entryId,
+      title: "Entry",
+      placement: { id: generateUuidV7(), parentItemId: databaseId, positionKey: "a" },
+      values: { [propertyId]: { kind: "text", value: "ancestor" } },
+      relationTargets: {},
+    });
+    const checkpoint = await activate(
+      {
+        itemId: entryId,
+        revisionId: ancestor,
+        canonicalDigest: await documentDigestV3({ blocks: [] }),
+      },
+      headers,
+    );
+    const author = await replica(entryId, checkpoint);
+    const edit = author.transact([
+      {
+        type: "insert-block",
+        block: {
+          type: "paragraph",
+          id: generateUuidV7(),
+          content: [{ text: "Body retained after resolution" }],
+        },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+    await sync({ pageId: entryId, headers, replica: author, transaction: edit });
+    const reviewed = await mutate({
+      type: "database.entry.values.replace",
+      databaseId,
+      entryId,
+      baseRevisionId: ancestor,
+      values: { [propertyId]: { kind: "text", value: "remote" } },
+      relationTargets: {},
+    });
+    nowMs += 30_000;
+    expect(await history().consolidateDue()).toMatchObject({ consolidated: 1 });
+    const consolidated = (await operationState(entryId))?.last_revision_id;
+    expect(consolidated).toBeDefined();
+    expect(consolidated).not.toBe(reviewed);
+    const resolved = await mutate({
+      type: "database.entry.values.resolve-conflict",
+      databaseId,
+      entryId,
+      resolvedRevisionIds: [reviewed, ancestor],
+      values: { [propertyId]: { kind: "text", value: "reviewed choice" } },
+      relationTargets: {},
+    });
+    const lineage = await app.inject({ method: "GET", url: `/v1/revisions/${resolved}`, headers });
+    expect(lineage.json().parentRevisionIds.toSorted()).toEqual(
+      [consolidated, ancestor].toSorted(),
+    );
+    const stored = await app.inject({
+      method: "GET",
+      url: `/v1/databases/${databaseId}/entries/${entryId}`,
+      headers,
+    });
+    expect(stored.statusCode, stored.body).toBe(200);
+    expect(stored.json()).toMatchObject({
+      values: { [propertyId]: { kind: "text", value: "reviewed choice" } },
+      document: { body: { blocks: [{ content: [{ text: "Body retained after resolution" }] }] } },
+    });
   });
 
   it("consolidates an open editing window on top of a newer rename revision", async () => {
