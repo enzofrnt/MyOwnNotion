@@ -268,3 +268,13 @@ keys/disposable PostgreSQL on port 55433. Record A23 as corrected by 024 plus
 this integration and A24 using T051's existing real transport proof; no full
 gate or delivery claim belongs to the focused correction. Canvas 28.4/28.5 and
 30, constitution IV, and existing FR-007/FR-008 remain unchanged.
+
+### T053: selective graph test coverage
+
+Reproduce the selective PR launcher omitting the declared `graph` Vitest project
+for `packages/graph/src/layout.ts`. Keep the existing impact policy and full-run
+commands intact; add the missing project to unit dependency selection. Verify
+the generated command includes every declared non-database unit project and
+execute its actual graph-related tests. This closes a test blind spot under
+FR-011/FR-012 without changing product behavior. Root desktop validation stays
+on its immutable commit; this correction belongs to the integrated audit gate.

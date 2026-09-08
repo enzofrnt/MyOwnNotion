@@ -259,3 +259,17 @@ with explicit A history and reads the original file under B. Owned key buffers
 are zeroed on refusal and success; the source archive remains byte-identical.
 API typecheck and focused Biome pass. Only generated keys and disposable
 PostgreSQL fixtures were used. Full local, PR and main gates remain pending.
+
+
+### T053 — selective graph test selection (2026-09-08)
+
+A changed `packages/graph/src/layout.ts` yields a related unit plan, but its
+launcher excluded `graph`. The new consumer contract failed with exactly that
+missing project against the real Vitest inventory. Adding it restores the
+existing dependency selection; full-run commands and thresholds are unchanged.
+Forty-one impact/Bun quality contracts pass. Executing the generated related
+command passes 18 suites and 79 cases, including the graph tests. Strict root
+types and focused Biome pass. Logs: `/tmp/mon-graph-selection-red.log`,
+`/tmp/mon-graph-selection-green.log`, `/tmp/mon-graph-selection-runtime.log`,
+`/tmp/mon-graph-selection-types.log`. This is focused correction evidence only;
+T038/T040/T041 remain the complete local/PR/main delivery gates.

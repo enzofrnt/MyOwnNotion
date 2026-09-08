@@ -106,8 +106,8 @@ US2 fixture construction and operational documentation after the format is fixed
 US3 occupied-target tests while US4 browser reproduction runs. These are dependency
 opportunities, not a requirement to run extra agents or overlap heavy DB suites.
 
-All 52 task lines follow the checklist/ID/path format. Counts: setup 2,
-foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1, active page response convergence 1, historical source-key convergence 1. Each story's acceptance
+All 53 task lines follow the checklist/ID/path format. Counts: setup 2,
+foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1, active page response convergence 1, historical source-key convergence 1, selective graph coverage 1. Each story's acceptance
 criteria precede its implementation and its completion requires recorded proof.
 
 T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferred beyond this audit delivery.
@@ -123,3 +123,7 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
 ## Phase 10: Convergence — historical source-backup keys
 
 - [x] T052 [US2] Integrate corrected 024 backup-key history without losing T050/T051; adapt `apps/api/src/backup/guarded-migration.ts` to authenticate the original source archive with the explicitly configured read keys and clear owned copies on success/failure. Exercise actual wrapping-key CLI rotation during an interrupted storage transition, then prove source A/current B plus historical A either resumes the same transition or is refused by the actual rotation guard; preserve T050 refusal-before-SQL for absent/corrupt archives in `apps/api/tests/full-guarded-migration.integration.spec.ts`. Update A23/A24 in `docs/audits/2026-09-pre-v1.md` and targeted validation, retaining full delivery gates (FR-007/FR-008/FR-011, SC-003).
+
+## Phase 11: Convergence — selective graph coverage
+
+- [x] T053 [US4] Reproduce and correct graph tests omitted by `scripts/ci/run-affected-vitest.ts` for changed graph sources; verify the public impact-plan consumer against declared unit projects in `tests/contract/test-impact.spec.ts`, run actual related graph tests, and record A33 plus focused evidence (FR-011/FR-012). Complete delivery remains T038/T040/T041.

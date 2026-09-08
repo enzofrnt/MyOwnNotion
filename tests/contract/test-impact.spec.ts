@@ -11,6 +11,7 @@ import {
   renderImpactSummary,
   validateImpactPolicy,
 } from "../../scripts/ci/test-impact.js";
+import vitestConfig from "../../vitest.config.js";
 import { BROWSER_PROJECTS } from "../e2e/projects.js";
 
 const repoRoot = path.resolve(import.meta.dirname, "../..");
@@ -329,6 +330,29 @@ describe("plan consumers", () => {
         ],
       ],
     ]);
+  });
+
+  it("retains every declared unit project when selecting changed graph dependencies", () => {
+    const plan = pullRequestPlan(["packages/graph/src/layout.ts"]);
+    expect(plan.vitest.mode).toBe("related");
+    const commands = commandsForVitestGroup(plan, "unit");
+    expect(commands).toHaveLength(1);
+    const arguments_ = commands[0]?.[1] ?? [];
+    const selectedProjects = arguments_.flatMap((value, index) =>
+      value === "--project" ? [arguments_[index + 1]] : [],
+    );
+    const declaredUnitProjects = vitestConfig.test?.projects?.flatMap((project) => {
+      if (typeof project !== "object" || !("test" in project)) return [];
+      const name = project.test?.name;
+      return typeof name === "string" &&
+        !["database-integration", "api-contract", "workspace-contract", "performance"].includes(
+          name,
+        )
+        ? [name]
+        : [];
+    });
+    expect(selectedProjects.toSorted()).toEqual(declaredUnitProjects?.toSorted());
+    expect(arguments_).toContain("packages/graph/src/layout.ts");
   });
 
   it("runs a changed Vitest file directly", () => {
