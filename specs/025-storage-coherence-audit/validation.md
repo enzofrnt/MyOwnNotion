@@ -284,3 +284,10 @@ Evidence: `/tmp/mon-resolution-integrated-history.log` and
 `/tmp/mon-resolution-integrated-types.log`. The unchanged native offline
 journey also passes twice across every browser profile on the desktop branch.
 No full integrated gate or delivery is inferred from these focused results.
+
+On integrated commit `c0ed3096`, the original offline convergence/restart and
+explicit structured-resolution journey passes twice on native Linux WebKit
+mobile (49 seconds, no retries). The run uses its own PostgreSQL database and
+retains independent source placement plus protected canonical storage. Evidence:
+`/tmp/mon-resolution-integrated-webkit.log`. Complete local and PR/main gates
+remain pending.
