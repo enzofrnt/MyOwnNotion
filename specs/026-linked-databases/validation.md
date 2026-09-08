@@ -61,3 +61,14 @@ prove normalization, stable identities, deterministic replay and unchanged input
 All nine database domain suites pass (187 tests), with domain types and Biome
 passing (`/tmp/mon-db-definition-boundaries.log`). Full integrated coverage and
 delivery remain required; neither thresholds nor exclusions were changed.
+
+
+The follow-up integrated run passes 432 suites / 4 197 tests but still exceeds
+the same uncovered-branch budget: 2 488 / 2 465
+(`/tmp/mon-pre-v1-coverage-database-boundaries.log`). Additional domain tests
+exercise missing/disabled/invalid task fields, typed alternative representations,
+retired option impact counts, removed properties and foreign definition refusal.
+The complete database domain set now passes 195 tests with strict types
+(`/tmp/mon-db-task-boundaries.log`). These tests protect recovery decisions and
+canonical task value interpretation; they do not change runtime behavior.
+The renewed combined coverage is still required.

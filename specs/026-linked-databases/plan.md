@@ -74,3 +74,9 @@ par le parseur public, avec commandes JSON malformées et preuves positives de
 normalisation/rejeu ; aucune méthode privée ni exclusion de couverture. Les
 valeurs inconnues sont refusées, pas converties silencieusement. FR-008 et les
 limites existantes de la 009 restent inchangés.
+
+Task-field projections must preserve missing values and reject incompatible
+retained data. Destructive-definition previews must count only actually affected
+entry/property pairs, including retired choices and removed properties, and
+refuse invalid or foreign definitions. Add public domain tests for these
+existing safeguards as part of T015's shared validation review.
