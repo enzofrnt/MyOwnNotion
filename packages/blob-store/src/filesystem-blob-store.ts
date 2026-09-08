@@ -125,11 +125,20 @@ export class FilesystemBlobStore implements BlobStore {
         constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
       );
       try {
-        if (!(await handle.stat()).isFile()) throw new Error("Blob is not a regular file.");
-        const bytes = await handle.readFile();
+        const status = await handle.stat();
+        if (!status.isFile()) throw new Error("Blob is not a regular file.");
+        const bytes = new Uint8Array(status.size);
+        let offset = 0;
+        while (offset < bytes.byteLength) {
+          const { bytesRead } = await handle.read(bytes, offset, bytes.byteLength - offset, offset);
+          if (bytesRead === 0) throw new Error("Stored blob length mismatch.");
+          offset += bytesRead;
+        }
+        const tail = new Uint8Array(1);
+        if ((await handle.read(tail, 0, 1, offset)).bytesRead !== 0)
+          throw new Error("Stored blob length mismatch.");
         if (digestHex(bytes) !== storageKey) throw new Error("Stored blob digest mismatch.");
-        // readFile owns this fresh storage; callers receive it without a second full copy.
-        return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        return bytes;
       } finally {
         await handle.close();
       }

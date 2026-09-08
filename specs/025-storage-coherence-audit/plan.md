@@ -222,6 +222,15 @@ tests compare observable ordered results and refusals, without relaxing budgets.
 
 ### Bounded file allocations under the shipped runtime
 
+T058: the integrated Bun 1.4.2 run measured 265.5 MiB additional RSS
+(90.8 MiB baseline, 356.4 MiB peak), exceeding SC-004 during reads.
+Investigate filesystem read allocation: allocate the stat-sized destination
+once and read directly into it, handling short reads, premature EOF and growth
+without returning unauthenticated bytes. Preserve independent caller ownership
+and the existing digest, regular-file and symlink checks. Validate disk races
+and repeat the unchanged 2 GiB fixture in both runtime modes before renewing
+the full delivery gate. No threshold, sampling or test-only GC changes.
+
 The maintained isolated 2 GiB fixture exceeded its unchanged 256 MiB additional
 RSS budget even under the performance runner's existing `--smol` flag. Profile
 retained and transient buffers across chunk assembly, encryption, blob writes,

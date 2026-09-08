@@ -354,3 +354,25 @@ intermediate response, the final acceptance, stable identity and unique
 hierarchy entry. The focused native journey passes all five browser profiles
 with one worker (48 seconds). Production retry policy is unchanged.
 The previous complete gate failed; renewed complete delivery remains open.
+
+
+## T058 — direct bounded reads under Bun 1.4.2
+
+The integrated gate on d4274088 failed the unchanged 2 GiB fixture at
+265.5 MiB additional RSS (90.8 MiB baseline, 356.4 MiB peak). Replacing
+FileHandle.readFile with one stat-sized destination and direct positional
+reads removes transient read allocation amplification. Short reads are
+completed; premature EOF, an extra tail byte, or a digest mismatch refuses
+the result. Each successful call returns independently owned storage.
+
+The original failed gate is recorded in `/tmp/mon-integrated-142-full-gate.log`.
+The initial correction passes at 193.8 MiB. Three subsequent isolated runs
+pass at 181.5/224.3/195.1 MiB with the maintained `--smol` mode, and
+220.2/216.7/222.9 MiB with ordinary Bun 1.4.2. The fixture, 256 MiB budget,
+sampling and authentication assertions are unchanged; no forced GC is added.
+Logs are `/tmp/mon-142-direct-read-{smol,standard}-{1,2,3}.log`.
+
+All 61 blob-store tests pass, including real file modification, truncation and
+growth after stat, short reads, empty files, immutable publication and output
+independence. Strict workspace types and changed-source Biome checks pass.
+Complete integration and PR/main delivery remain open under T040/T041.

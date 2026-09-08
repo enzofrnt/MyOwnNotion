@@ -155,6 +155,65 @@ describe("durable immutable blob publication", () => {
     expect(large[0]).toBe(0x93);
   });
 
+  it("reads a complete independent result when the filesystem returns short reads", async () => {
+    await blobs.put(payload);
+    const filename = path.join(root, "blobs", prefix, key);
+    vi.mocked(open).mockImplementation(async (...args) => {
+      const handle = await actual.open(...args);
+      if (String(args[0]) === filename) {
+        const read = handle.read.bind(handle);
+        vi.spyOn(handle, "read").mockImplementation((async (
+          buffer: Uint8Array,
+          offset: number,
+          length: number,
+          position: number,
+        ) => read(buffer, offset, Math.min(length, 3), position)) as typeof handle.read);
+      }
+      return handle;
+    });
+    const first = await blobs.get(key);
+    expect(first).toEqual(new Uint8Array(payload));
+    first?.fill(0);
+    expect(await blobs.get(key)).toEqual(new Uint8Array(payload));
+  });
+
+  it.each(["modified", "truncated", "extended"] as const)(
+    "refuses bytes %s after measuring their stored length",
+    async (damage) => {
+      await blobs.put(payload);
+      const filename = path.join(root, "blobs", prefix, key);
+      vi.mocked(open).mockImplementation(async (...args) => {
+        const handle = await actual.open(...args);
+        if (String(args[0]) === filename) {
+          const read = handle.read.bind(handle);
+          vi.spyOn(handle, "read").mockImplementationOnce((async (
+            buffer: Uint8Array,
+            offset: number,
+            length: number,
+            position: number,
+          ) => {
+            const writer = await actual.open(filename, "r+");
+            try {
+              if (damage === "truncated") await writer.truncate(payload.length - 1);
+              else
+                await writer.write(
+                  Buffer.from([0xff]),
+                  0,
+                  1,
+                  damage === "extended" ? payload.length : 0,
+                );
+            } finally {
+              await writer.close();
+            }
+            return read(buffer, offset, length, position);
+          }) as typeof handle.read);
+        }
+        return handle;
+      });
+      await expect(blobs.get(key)).rejects.toThrow(/Stored blob (length|digest) mismatch/);
+    },
+  );
+
   it("refuses success after a publication-directory sync failure and can safely retry", async () => {
     const directory = path.join(root, "blobs", prefix);
     vi.mocked(open).mockImplementation(async (...args) => {
