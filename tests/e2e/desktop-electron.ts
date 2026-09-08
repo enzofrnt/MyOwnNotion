@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { type ElectronApplication, _electron as electron, type Page } from "@playwright/test";
 
 import { closeProcess, crashProcess, removeProfile } from "./desktop-process.ts";
+import { nativeShutdownEvidence } from "./desktop-process-evidence.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const desktopRoot = path.join(repoRoot, "apps", "desktop");
@@ -18,6 +19,7 @@ export interface DesktopElectronSession {
   readonly app: ElectronApplication;
   readonly window: Page;
   readonly userData: string;
+  diagnoseFailure(): Promise<void>;
   crash(): Promise<void>;
   close(options?: { readonly keepUserData?: boolean }): Promise<void>;
 }
@@ -70,14 +72,48 @@ export async function launchDesktopElectron(
       throw error;
     });
   const child = app.process();
-  const window = await app.firstWindow();
+  const electronPid = await app.evaluate(() => process.pid);
+  let expectedExit = false;
+  let unexpectedExitEvidence: Promise<void> | undefined;
+  let window: Page | undefined;
+  const report = async (
+    stage: "unexpected-context-close" | "shutdown-failure" | "native-command-failure",
+  ) => {
+    const trace = await readFile(tracePath, {
+      encoding: "utf8",
+      signal: AbortSignal.timeout(500),
+    }).catch(() => "");
+    console.error(
+      `[desktop-test] ${stage}:`,
+      JSON.stringify({
+        ...nativeShutdownEvidence(child, electronPid, trace),
+        windowClosed: window?.isClosed() ?? null,
+      }),
+    );
+  };
+  app.context().once("close", () => {
+    if (!expectedExit) unexpectedExitEvidence = report("unexpected-context-close");
+  });
+  window = await app.firstWindow();
   return {
     app,
     window,
     userData,
-    crash: () => crashProcess(child),
+    diagnoseFailure: () => report("native-command-failure"),
+    crash: () => {
+      expectedExit = true;
+      return crashProcess(child);
+    },
     close: async (options) => {
-      await closeProcess(child, () => app.close());
+      expectedExit = true;
+      try {
+        await closeProcess(child, () => app.close());
+      } catch (error) {
+        await report("shutdown-failure");
+        throw error;
+      } finally {
+        await unexpectedExitEvidence;
+      }
       if (options?.keepUserData !== true) {
         // Windows may release native file handles just after process exit.
         await removeProfile(userData);

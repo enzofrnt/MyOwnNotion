@@ -122,11 +122,17 @@ test("recovers a durable offline creation after process death and reconciles it 
         contentType: "application/json",
       });
       const tracePath = testInfo.outputPath("native-restart-trace.zip");
-      await tracing.stop({ path: tracePath });
-      await testInfo.attach("native-restart-trace", {
-        path: tracePath,
-        contentType: "application/zip",
-      });
+      try {
+        await tracing.stop({ path: tracePath });
+        await testInfo.attach("native-restart-trace", {
+          path: tracePath,
+          contentType: "application/zip",
+        });
+      } catch {
+        // A disconnected inspector cannot export its trace. Preserve the
+        // original failure instead of replacing it with this diagnostic error.
+        console.error("[desktop-test] native restart trace unavailable");
+      }
       throw error;
     } finally {
       await restarted.close();

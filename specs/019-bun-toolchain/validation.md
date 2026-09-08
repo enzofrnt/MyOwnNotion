@@ -265,3 +265,24 @@ ainsi que ses attestations. Un déploiement local vierge a ensuite exécuté les
 deux tags exacts, passé leurs healthchecks et répondu en HTTPS avec l'état
 `uninitialized` et les comptes `0/0`. T050 est terminée : la migration Bun ne
 conserve plus aucune preuve de livraison ouverte.
+
+## Maintenance Windows — 2026-09-08 (014 T105, 019 T051–T053)
+
+On the isolated Windows x64 fixture, the maintained extra-pipe regression fails
+with four unrelated read-only file descriptors invalidated under Bun
+1.4.0+34cbb9a40. The identical TypeScript fixture under official
+1.4.2+744846f84 retains all 96 independent descriptors and receives all nine pipe
+messages. Both binaries were verified against official release SHA-256 values.
+This reproduces the ownership mechanism fixed by upstream Bun PR 39966.
+
+The original nine native journeys, without the experimental OS polling cleanup,
+pass with 1.4.2 under the same two-logical-CPU affinity that exposed missing exit
+notifications and failed launches under 1.4.0 (52.5 seconds; complete matrix
+54 seconds). An observational socket probe was present for this comparison;
+unmodified exact-commit native/CI and complete delivery gates remain required.
+No owner data or globally installed runtime was modified.
+
+The macOS focused run passes 152 desktop/toolchain/release contract cases with
+two platform-specific skips; strict workspace types pass. The retained pin
+updates change only Bun and its matching types in the dependency lock. Runtime
+images and every full local/PR/main check must be renewed for the new pins.

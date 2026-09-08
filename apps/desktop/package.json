@@ -2,7 +2,7 @@
   "name": "@myownnotion/desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Electron host for the MyOwnNotion web client. Installed only with Bun 1.4.0; Electron Forge reads this package's node_modules (no pnpm, npm, or Yarn).",
+  "description": "Electron host for the MyOwnNotion web client. Installed only with Bun 1.4.2; Electron Forge reads this package's node_modules (no pnpm, npm, or Yarn).",
   "type": "module",
   "main": ".vite/build/bootstrap.js",
   "productName": "MyOwnNotion",
@@ -10,12 +10,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "bun ../../scripts/desktop/dev.ts",
     "build": "bun build.ts",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
-    "publish": "electron-forge publish"
+    "package": "bun forge.ts package",
+    "make": "bun forge.ts make",
+    "publish": "bun forge.ts publish"
   },
   "devDependencies": {
-    "@electron-forge/cli": "7.11.2",
+    "@electron-forge/core": "7.11.2",
     "@electron-forge/maker-base": "7.11.2",
     "@electron-forge/maker-deb": "7.11.2",
     "@electron-forge/maker-rpm": "7.11.2",
