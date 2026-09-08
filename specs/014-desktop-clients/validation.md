@@ -645,3 +645,21 @@ changed-file formatting/lint pass. Named setup steps will retain the precise
 operation if another stall occurs. These focused checks establish the new
 bounds; they do not prove the original stall's precise cause. Real browser and
 complete delivery evidence remain pending on this revision.
+
+### T102 additional native-channel observation
+
+UI PR run 34252039882 reproduces Windows failures on unchanged desktop code.
+Its x64 offline trace loses only the main inspector while renderer evaluation
+and browser trace export still succeed; its onboarding trace loses browser CDP
+before initialization, while the process tree is still present. These details
+are recorded in the plan. Extend the diagnostic boundary to rejected offline
+commands before cleanup: report captured process identities and cached window
+state without querying the broken inspector. The command is never retried.
+Four focused tests pass for success, original-error preservation, unavailable
+reporting and a one-second reporting deadline. Strict workspace types and
+changed-file format/lint pass. No application behavior or deadline is relaxed.
+
+The preceding 1036fadc full local run passed 3,651 coverage tests, performance,
+database/migration and 1,313 contract tests. It was held before its browser stage
+and then deliberately stopped to include the additional diagnostic; it is not
+a completed pre-push gate. A fresh complete run is required on this commit.

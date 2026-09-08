@@ -290,3 +290,8 @@ fichier concret.
 - [ ] T102 Diagnose the main-CI Windows ARM shutdown after all offline recovery assertions pass: retain bounded native lifecycle stages, owned wrapper/Electron process status and pipe state on teardown failure, without secrets, content, arbitrary process termination or relaxed deadlines. Distinguish actual process survival from a missing runtime exit notification before choosing a repair; renewed local, native PR and main gates remain required.
 
 - [ ] T103 Bound the remaining authentication password fixture through the shared disposable-client boundary, preserve one credential across lost-reply retries, and identify each setup step in traces. Verify stalled close, committed retry, actual authentication and renewed complete gates without claiming the opaque Firefox timeout's exact cause is established.
+
+T102 follow-up evidence: UI run 34252039882 also loses only the main inspector
+while its renderer still answers. Capture command failure before cleanup through
+the same bounded evidence boundary; verify diagnostic failure cannot mask or
+retry the original command. Remote validation and root-cause repair remain open.

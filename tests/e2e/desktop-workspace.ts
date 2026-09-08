@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { FR_COPY } from "../../apps/web/src/ui/copy/fr.ts";
 import { type DesktopElectronSession, launchDesktopElectron } from "./desktop-electron.ts";
+import { observeNativeCommand } from "./desktop-process-evidence.ts";
 import { openWorkspace } from "./helpers.ts";
 
 export async function openDesktopWorkspace(
@@ -47,20 +48,26 @@ export async function setDesktopOffline(
   session: DesktopElectronSession,
   offline: boolean,
 ): Promise<void> {
-  await session.app.evaluate(({ BrowserWindow }, value) => {
-    const window = BrowserWindow.getAllWindows()[0];
-    if (window === undefined) throw new Error("Missing desktop window");
-    if (value) {
-      window.webContents.session.enableNetworkEmulation({ offline: true });
-      window.webContents.session.webRequest.onBeforeRequest((request, callback) => {
-        const url = new URL(request.url);
-        callback({ cancel: url.pathname.startsWith("/v1/") || url.pathname.startsWith("/health") });
-      });
-    } else {
-      window.webContents.session.disableNetworkEmulation();
-      window.webContents.session.webRequest.onBeforeRequest(null);
-    }
-  }, offline);
+  await observeNativeCommand(
+    () =>
+      session.app.evaluate(({ BrowserWindow }, value) => {
+        const window = BrowserWindow.getAllWindows()[0];
+        if (window === undefined) throw new Error("Missing desktop window");
+        if (value) {
+          window.webContents.session.enableNetworkEmulation({ offline: true });
+          window.webContents.session.webRequest.onBeforeRequest((request, callback) => {
+            const url = new URL(request.url);
+            callback({
+              cancel: url.pathname.startsWith("/v1/") || url.pathname.startsWith("/health"),
+            });
+          });
+        } else {
+          window.webContents.session.disableNetworkEmulation();
+          window.webContents.session.webRequest.onBeforeRequest(null);
+        }
+      }, offline),
+    session.diagnoseFailure,
+  );
 }
 
 /** Read the durable encrypted mutation payload, not an in-memory UI counter. */

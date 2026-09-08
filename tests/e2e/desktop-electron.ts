@@ -19,6 +19,7 @@ export interface DesktopElectronSession {
   readonly app: ElectronApplication;
   readonly window: Page;
   readonly userData: string;
+  diagnoseFailure(): Promise<void>;
   crash(): Promise<void>;
   close(options?: { readonly keepUserData?: boolean }): Promise<void>;
 }
@@ -74,21 +75,31 @@ export async function launchDesktopElectron(
   const electronPid = await app.evaluate(() => process.pid);
   let expectedExit = false;
   let unexpectedExitEvidence: Promise<void> | undefined;
-  const report = async (stage: "unexpected-context-close" | "shutdown-failure") => {
-    const trace = await readFile(tracePath, "utf8").catch(() => "");
+  let window: Page | undefined;
+  const report = async (
+    stage: "unexpected-context-close" | "shutdown-failure" | "native-command-failure",
+  ) => {
+    const trace = await readFile(tracePath, {
+      encoding: "utf8",
+      signal: AbortSignal.timeout(500),
+    }).catch(() => "");
     console.error(
       `[desktop-test] ${stage}:`,
-      JSON.stringify(nativeShutdownEvidence(child, electronPid, trace)),
+      JSON.stringify({
+        ...nativeShutdownEvidence(child, electronPid, trace),
+        windowClosed: window?.isClosed() ?? null,
+      }),
     );
   };
   app.context().once("close", () => {
     if (!expectedExit) unexpectedExitEvidence = report("unexpected-context-close");
   });
-  const window = await app.firstWindow();
+  window = await app.firstWindow();
   return {
     app,
     window,
     userData,
+    diagnoseFailure: () => report("native-command-failure"),
     crash: () => {
       expectedExit = true;
       return crashProcess(child);
