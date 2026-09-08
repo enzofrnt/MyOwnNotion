@@ -133,16 +133,20 @@ export async function* openFullStream(
     decipher.setAAD(aad);
     decipher.setAuthTag(header.subarray(12));
     if (byteLength > 0) {
-      const source = handle.createReadStream({
-        start: offset + FULL_CIPHER_OVERHEAD,
-        end: offset + FULL_CIPHER_OVERHEAD + byteLength - 1,
-        autoClose: false,
-      });
+      // FileHandle.createReadStream retains a close listener per component in
+      // the pinned runtime. Reuse bounded scratch space with the borrowed fd.
+      const scratch = Buffer.allocUnsafe(Math.min(64 * 1024, byteLength));
       let received = 0;
-      for await (const chunk of source) {
-        const bytes = chunk as Buffer;
-        received += bytes.byteLength;
-        const clear = decipher.update(bytes);
+      while (received < byteLength) {
+        const { bytesRead } = await handle.read(
+          scratch,
+          0,
+          Math.min(scratch.byteLength, byteLength - received),
+          offset + FULL_CIPHER_OVERHEAD + received,
+        );
+        if (bytesRead === 0) break;
+        received += bytesRead;
+        const clear = decipher.update(scratch.subarray(0, bytesRead));
         if (clear.byteLength > 0) yield clear;
       }
       if (received !== byteLength) throw new Error("The encrypted component is truncated.");

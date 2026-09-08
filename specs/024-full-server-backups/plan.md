@@ -146,3 +146,15 @@ dumps/restores and disposable databases on the test server. Cover mixed-key
 receipts/activity, historical rehearsal, remote retry/prune, scheduling B,
 explicit A restore and restored data-key access, plus configuration/integrity
 refusals. Full delivery gates remain T023/T024 and run during parent integration.
+
+## T029 — Bounded archive reader resources
+
+An integrated Bun 1.4.0 run emits `MaxListenersExceededWarning` during archive
+reads. A synthetic public `openFullStream` probe confirms a single borrowed
+FileHandle retains 100 close listeners after 100 completed reads. Whole-archive
+verification and restoration reuse that handle for every component, so retained
+resources grow with the file inventory until close. Replace per-component
+FileHandle streams with bounded positional reads; preserve AES-GCM final
+verification, truncated-input refusal, caller-owned handles and key-buffer
+cleanup. Test repeated completed and cancelled reads with the same handle,
+then archive integrity, real restoration and the existing performance budget.

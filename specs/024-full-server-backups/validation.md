@@ -235,3 +235,37 @@ Limits: no full application gate, production image build or real Windows ACL
 execution was run for this isolated correction. The existing authoritative key
 loader remains responsible for Windows ACL validation. These delivery/runtime
 checks belong to T023/T024 and parent integration. No push, PR or merge.
+
+## T029 — Bounded reader resources — 2026-09-08
+
+A public synthetic `openFullStream` probe reproduces 100 retained FileHandle
+close listeners after 100 reads. Completed and cancelled stream regressions
+both fail before correction. Bounded positional reads preserve the borrowed
+handle and leave zero listeners after the same probe. No listener limit is
+raised and no warning is suppressed.
+
+Five archive, consistency, PostgreSQL restore and historical-key suites pass
+56 cases, including truncated/tampered input and actual A→B recovery. The
+existing 1,000-item backup/restore and 2 GiB protected-file budgets pass; the
+latter measures 224.6 MiB additional RSS under its unchanged 256 MiB limit.
+These are distinct checks; the protected-file benchmark is not a measurement
+of the new complete-archive component loop. Root types, Biome and whitespace
+checks pass. Evidence:
+`/tmp/mon-full-backup-listener-probe.log`,
+`/tmp/mon-full-backup-listener-probe-final.log`,
+`/tmp/mon-backup-reader-resources-red.log`,
+`/tmp/mon-backup-reader-recovery-final.log`,
+`/tmp/mon-backup-reader-performance.log`.
+
+The integrated gate at `51baab5f` was deliberately interrupted during coverage
+(exit 130) to fix this reproduced issue. It is not delivery evidence:
+`/tmp/mon-pre-v1-entry-activation-full-gate.log`. The complete gate must restart
+on the corrected commit; PR and main remain pending.
+
+The first restarted gate on `85a1cd68` stops at API typechecking: the pinned
+Node types omit FileHandle's EventEmitter methods. The resource test now narrows
+the actual runtime object with `instanceof EventEmitter` before counting its
+listeners. API types and all nineteen archive tests pass; application code is
+unchanged. Failed gate: `/tmp/mon-pre-v1-reader-resources-full-gate.log`.
+Focused proof: `/tmp/mon-backup-reader-api-types.log` and
+`/tmp/mon-backup-reader-typed-final.log`.
