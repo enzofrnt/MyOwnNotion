@@ -58,6 +58,10 @@ test("recovers a durable offline creation after process death and reconciles it 
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
     await returnToWorkspace(page);
     const beforeCrash = await nativeKeyCommitState(session);
+    if (process.platform === "win32") {
+      expect(beforeCrash.filePresent).toBe(true);
+      expect(beforeCrash.keyFingerprint !== null).toBe(true);
+    }
     await session.crash();
     killed = true;
     const restarted = await launchDesktopElectron(userData);

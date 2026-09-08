@@ -400,3 +400,33 @@ Biome passent. Logs : `/tmp/mon-workspace-initialization-red.log`,
 `/tmp/mon-workspace-initialization-unit.log`.
 Cette reprise UI ne répare pas le déchiffrement Windows ; le prochain commit
 exécutable exige encore le gate local complet avant push.
+
+## Clé Windows non enregistrée — preuve et correction en cours
+
+La CI 34203443742 sur e02693c6 reproduit le même état sur Windows x64 et ARM64 :
+Local State et la clé protégée sont absents avant l'arrêt brutal, puis présents
+après redémarrage avec une nouvelle clé. Les traces natives antérieures montrent
+le refus de déchiffrement correspondant. Les pièces jointes ne contiennent que
+des booléens ; aucune clé, empreinte ou donnée personnelle n'est publiée.
+
+La préparation Windows utilise désormais un mode interne du même exécutable,
+sans fenêtre ni service applicatif. Electron prépare son chiffrement OS, quitte
+normalement pour enregistrer ses préférences, puis le parent vérifie et force
+sur disque le fichier avant de terminer son propre bootstrap. Le verrou
+applicatif évite deux préparations concurrentes ; l'enfant ne l'acquiert pas.
+Le démarrage refuse un enfant en échec, un délai dépassé ou des métadonnées
+absentes/corrompues. Les enveloppes et données existantes ne sont pas réécrites.
+
+Ordre vérifié dans les sources épinglées :
+[bootstrap Electron 44.1.1](https://github.com/electron/electron/blob/v44.1.1/shell/browser/electron_browser_main_parts.cc),
+[commit des préférences à la fermeture](https://github.com/electron/electron/blob/v44.1.1/shell/browser/browser_process_impl.cc),
+[verrou déjà détenu](https://github.com/electron/electron/blob/v44.1.1/shell/browser/api/electron_api_app.cc).
+Les seize tests ciblés passent (arguments avec espaces, démarrage empaqueté ou
+de développement, enfant en échec, anciennes métadonnées conservées, fichier
+absent/corrompu/trop grand et chemins relatifs refusés), ainsi que les types.
+Le parcours natif exige maintenant la présence de la clé avant l'arrêt brutal,
+sans attente supplémentaire. Le gate complet et les deux CI natives restent
+obligatoires ; T096 n'est pas déclaré terminé.
+Les 26 tests combinés de préparation Windows, coffre, migration et cycle de
+fenêtre passent ; le build desktop passe également. Logs :
+`/tmp/mon-windows-key-prime-focused.log`, `/tmp/mon-windows-key-prime-build.log`.

@@ -344,3 +344,36 @@ This does not fix or disguise the underlying Windows decryption failure.
 
 The suspected delayed preferences commit remains a hypothesis until this native
 evidence confirms it. Do not add a pre-crash sleep or flush to the test.
+
+### T096 — Windows key commitment repair
+
+CI 34203443742 on e02693c6 confirms the missing dependency on Windows x64:
+both attempts have no Local State/protected key before process death, then a
+new protected key after restart. Native unwrap consequently fails. The exact
+Electron 44.1.1 source waits for bootstrap code (`JoinAppCode`) before Windows
+`OSCrypt::Init`; a graceful main-loop exit commits Local State. Its
+`RequestSingleInstanceLock` explicitly succeeds when already held.
+
+Before importing the regular Windows main entrypoint, acquire the existing
+single-instance lock and run the same installed executable in a narrowly scoped
+internal initialization mode. That child creates no window or application
+service: after Electron readiness it verifies OS encryption availability, then
+quits normally so Chromium commits its own key/preferences. The parent waits
+for successful exit, validates the bounded committed Local State and fsyncs
+that file before its own Chromium crypto initialization. Always prime, including
+existing profiles, so a replaced or repaired OS key cannot be confused with old
+on-disk metadata. Preserve the original master key when valid, all envelopes,
+cookies, application records and profile partitions. Use a bounded child timeout
+and fail closed with a safe native message. The helper never calls the
+single-instance lock, so it cannot displace its parent. No arbitrary sleep,
+pre-crash test flush, plaintext fallback, custom cryptography or new dependency.
+
+This lifecycle choice relies on the exact pinned Electron initialization order;
+recheck that order on runtime upgrades. Native Windows cold restart is the
+required end-to-end proof; mocked process tests alone cannot close T096.
+
+The pinned Chromium 152.0.7977.65 `JsonPrefStore` default file task runner uses
+`BLOCK_SHUTDOWN`, so a normal child exit waits for queued preference writes;
+see [constructor defaults](https://github.com/chromium/chromium/blob/152.0.7977.65/components/prefs/json_pref_store.h).
+The parent additionally fsyncs the committed metadata and never treats a killed
+or timed-out child as success.
