@@ -387,3 +387,16 @@ Source references:
 [pinned Electron preferences](https://github.com/electron/electron/blob/v44.1.1/shell/browser/browser_process_impl.cc),
 [pinned Chromium DPAPI provider](https://github.com/chromium/chromium/blob/152.0.7977.65/components/os_crypt/async/browser/dpapi_key_provider.cc),
 [preferences writer](https://github.com/chromium/chromium/blob/152.0.7977.65/base/files/important_file_writer.cc).
+
+## Refus explicite du stockage local — 8 septembre 2026
+
+T097 reproduit dans le navigateur le chargement sans fin après refus temporaire
+réel d'ouverture d'IndexedDB. Le parcours échoue avant correction, puis passe sur
+les cinq profils : erreur expurgée, arbre/éditeur indisponibles, rétablissement
+du stockage et bouton Réessayer retrouvant la même page et son texte. Aucune
+base ni enveloppe n'est supprimée. Les sept tests de hiérarchie, types Web et
+Biome passent. Logs : `/tmp/mon-workspace-initialization-red.log`,
+`/tmp/mon-workspace-initialization-five-profiles.log`,
+`/tmp/mon-workspace-initialization-unit.log`.
+Cette reprise UI ne répare pas le déchiffrement Windows ; le prochain commit
+exécutable exige encore le gate local complet avant push.

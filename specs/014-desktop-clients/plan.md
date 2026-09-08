@@ -335,5 +335,12 @@ generated fixture's Chromium `Local State` contains its protected Windows key
 before process death and whether that same persisted key survives relaunch.
 Compare fingerprints only inside the test process; attach presence/equality
 booleans, never the protected key, fingerprint, path or application records.
+T097 addresses the separately demonstrated unhandled initialization refusal:
+the shell must show the existing safe WorkspaceState error with a reload retry,
+not native error text or an endless skeleton. Hide the tree and page surfaces
+until initialization succeeds, preserve IndexedDB and native envelopes, and
+verify a temporary storage refusal followed by recovery of the same page.
+This does not fix or disguise the underlying Windows decryption failure.
+
 The suspected delayed preferences commit remains a hypothesis until this native
 evidence confirms it. Do not add a pre-crash sleep or flush to the test.
