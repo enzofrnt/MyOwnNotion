@@ -43,3 +43,7 @@
 ## Phase 8: CSV membership scope
 
 - [x] T020 Correct native CSV row matching in `apps/api/src/imports/notion/plan.ts`: prefer the matching subpage inside that CSV's exported folder before global title/link fallback, refuse ambiguous local matches, and preserve explicit path support. Prove same-title unrelated pages and independent databases retain their own page identities/content/properties using synthetic preview and canonical import tests (FR-004/FR-007; confirmed wrong membership).
+
+## Phase 9: Integrated delivery
+
+- [ ] T021 Run the required complete local gate on the integration commit, verify every PR check, merge after green checks and verify all main CI; record commit-addressable evidence in `specs/028-notion-import/validation.md`. T014's focused handoff does not complete delivery. Personal source application remains separate from implementation and validation.
