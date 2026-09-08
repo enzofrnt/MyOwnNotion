@@ -106,8 +106,8 @@ US2 fixture construction and operational documentation after the format is fixed
 US3 occupied-target tests while US4 browser reproduction runs. These are dependency
 opportunities, not a requirement to run extra agents or overlap heavy DB suites.
 
-All 51 task lines follow the checklist/ID/path format. Counts: setup 2,
-foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1, active page response convergence 1. Each story's acceptance
+All 52 task lines follow the checklist/ID/path format. Counts: setup 2,
+foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1, active page response convergence 1, historical source-key convergence 1. Each story's acceptance
 criteria precede its implementation and its completion requires recorded proof.
 
 T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferred beyond this audit delivery.
@@ -119,3 +119,7 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
 ## Phase 9: Convergence — active page response rejection
 
 - [x] T051 [US4] Prove active `PageReconciler` transport refusals with real Loro transactions in `packages/client-core/tests/page-reconciler-rejection.spec.ts`: missing/foreign acknowledgements, regressive/incompatible frontiers, corrupt remote digests or reused local update identities, and regressive cursors must retain the checkpoint, cursor, content and recoverable local updates without false synchronization; prove a healthy subsequent response resumes the supported path, reject the confirmed passive frontier regression in `packages/client-core/src/page-sync/page-reconciler.ts`, and record focused tests/types/Biome in `specs/025-storage-coherence-audit/validation.md` (FR-011/FR-012/FR-013; partial evidence).
+
+## Phase 10: Convergence — historical source-backup keys
+
+- [x] T052 [US2] Integrate corrected 024 backup-key history without losing T050/T051; adapt `apps/api/src/backup/guarded-migration.ts` to authenticate the original source archive with the explicitly configured read keys and clear owned copies on success/failure. Exercise actual wrapping-key CLI rotation during an interrupted storage transition, then prove source A/current B plus historical A either resumes the same transition or is refused by the actual rotation guard; preserve T050 refusal-before-SQL for absent/corrupt archives in `apps/api/tests/full-guarded-migration.integration.spec.ts`. Update A23/A24 in `docs/audits/2026-09-pre-v1.md` and targeted validation, retaining full delivery gates (FR-007/FR-008/FR-011, SC-003).

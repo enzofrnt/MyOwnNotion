@@ -83,3 +83,7 @@ Feature 025 follows delivery of this feature. Its historical storage transition 
 See the [canonical plan](../025-storage-coherence-audit/plan.md) and
 [implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
 does not mark that follow-up implemented or delivered.
+
+## Phase 9 — Historical backup keys
+
+- [x] T028 Preserve complete-backup recovery across wrapping-key rotation: implement bounded external historical-key configuration and private loading, current-only writes and authenticated historical reads for archives/receipts/activity/rehearsal, wire all runtime and CLI entry points, preserve explicit restore keys and immutable archives, document optional Docker mounting and version/fingerprint custody, remove destructive rotation advice, and verify real A→B rotation/catalogue/scheduling/retry/retention/A restoration with restored root-key access and refusal tests. Record focused checks in `validation.md`; T023/T024 remain integration delivery gates.

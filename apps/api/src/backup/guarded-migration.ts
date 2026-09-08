@@ -47,6 +47,7 @@ export interface GuardedMigrationInput {
   readonly backupRoot: string;
   readonly remote?: () => BackupDestination;
   readonly deploymentKey: () => Uint8Array;
+  readonly historicalKeyFiles?: readonly string[];
   readonly logger?: {
     info(details: unknown, message: string): void;
     error(details: unknown, message: string): void;
@@ -93,6 +94,9 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
       blobRoot: input.blobRoot,
       backupRoot: input.backupRoot,
       key: input.deploymentKey,
+      ...(input.historicalKeyFiles === undefined
+        ? {}
+        : { historicalKeyFiles: input.historicalKeyFiles }),
       ...(input.remote === undefined ? {} : { remote: input.remote }),
     });
     const verifySourceBackup = async (backupId: string) => {
@@ -103,20 +107,26 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
         throw new UpdateRefusedError(
           "The original verified pre-update archive is unavailable; storage migration cannot resume.",
         );
-      const archive = await VerifiedFullArchive.open(
-        join(input.backupRoot, fullArchiveName(backupId)),
-        input.deploymentKey(),
-        input.backupRoot,
-      );
+      const keys = backup.readKeys();
       try {
-        if (
-          archive.manifest.backupId !== backupId ||
-          (archive.manifest.source.installationId !== null &&
-            archive.manifest.source.installationId !== installationId)
-        )
-          throw new UpdateRefusedError("The source archive belongs to another installation.");
+        const archive = await VerifiedFullArchive.open(
+          join(input.backupRoot, fullArchiveName(backupId)),
+          keys[0] as Buffer,
+          input.backupRoot,
+          keys.slice(1),
+        );
+        try {
+          if (
+            archive.manifest.backupId !== backupId ||
+            (archive.manifest.source.installationId !== null &&
+              archive.manifest.source.installationId !== installationId)
+          )
+            throw new UpdateRefusedError("The source archive belongs to another installation.");
+        } finally {
+          await archive.close();
+        }
       } finally {
-        await archive.close();
+        for (const key of keys) key.fill(0);
       }
     };
     // Resuming a storage transition can also introduce later SQL migrations.

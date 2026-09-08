@@ -28,3 +28,12 @@ Follow existing `EXIT_CODES`: argument errors, refusal, integrity failure,
 unexpected failure and success remain distinct. Help works without a database
 connection. Results contain safe stage codes and provenance, not SQL/stderr,
 private paths in logs, session identifiers or source content.
+
+Historical complete-backup reads use the current deployment key followed by
+explicit `MYOWNNOTION_BACKUP_HISTORICAL_KEY_FILES` secret paths (bounded JSON,
+private external files). No new command or secret-valued argument is added.
+`backup full run` writes only under the current key; list/inspect/verify and
+`restore full test` support configured history. `restore full apply` and
+`activate` still require `MYOWNNOTION_DEPLOYMENT_KEY_FILE` explicitly selecting
+the archive/activation key; configuring history does not authorize fallback.
+The restored application additionally needs its SQL root-key wrapping version.

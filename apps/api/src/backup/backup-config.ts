@@ -5,10 +5,12 @@ import { join } from "node:path";
 import type { BackupDestination } from "./destinations/destination.ts";
 import { FilesystemDestination } from "./destinations/filesystem.ts";
 import { GoogleDriveDestination } from "./destinations/google-drive.ts";
+import { historicalBackupKeyFiles, loadHistoricalBackupKeys } from "./full/read-keys.ts";
 
 export type BackupDestinationName = "filesystem" | "google-drive";
 
 export interface BackupConfig {
+  readonly historicalKeyFiles: readonly string[];
   readonly destination: BackupDestinationName;
   readonly root: string;
   readonly hour: number;
@@ -53,7 +55,8 @@ export function loadBackupConfig(
   } catch {
     throw new BackupConfigError("MYOWNNOTION_BACKUP_TIME_ZONE must be a valid IANA time zone");
   }
-  return {
+  const config: BackupConfig = {
+    historicalKeyFiles: historicalBackupKeyFiles(env["MYOWNNOTION_BACKUP_HISTORICAL_KEY_FILES"]),
     destination: requested,
     root: env["MYOWNNOTION_BACKUP_ROOT"]?.trim() || "./.dev-backups",
     hour: integer(env["MYOWNNOTION_BACKUP_HOUR"], 4, "MYOWNNOTION_BACKUP_HOUR", {
@@ -70,6 +73,12 @@ export function loadBackupConfig(
     googleDriveTokenFile: env["MYOWNNOTION_BACKUP_GOOGLE_DRIVE_TOKEN_FILE"]?.trim() || undefined,
     googleDriveFolderId: env["MYOWNNOTION_BACKUP_GOOGLE_DRIVE_FOLDER_ID"]?.trim() || undefined,
   };
+  const keys = loadHistoricalBackupKeys(config.historicalKeyFiles, [
+    config.root,
+    env["MYOWNNOTION_BLOB_ROOT"]?.trim() || "./.dev-blobs",
+  ]);
+  for (const key of keys) key.fill(0);
+  return config;
 }
 
 /** Constructs only the configured provider; credentials remain mounted files. */

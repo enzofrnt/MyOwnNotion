@@ -165,3 +165,73 @@ Whole-workspace formatting, Biome and TypeScript pass:
 `/tmp/mon-backup-integration-types.log`. No backup runtime code changed during
 this merge. This preparation does not claim a new complete local gate, a push
 or delivery; the final branch must incorporate verified main before those gates.
+
+## T028 — Historical deployment-key recovery (2026-09-05)
+
+Candidate: `codex/024-backup-key-history`, based on `4877f7c6`; tests executed on
+the T028 working tree before its dedicated commit. Fixture material is generated
+under temporary directories and removed; no owner data or personal stack is used.
+Bun 1.4.0, PostgreSQL 18 client binaries from `/opt/homebrew/opt/libpq/bin`,
+`TEST_DATABASE_URL` points to the disposable-test server on `127.0.0.1:55433`,
+with `--maxWorkers=2`. The source/restore databases are distinct disposable DBs.
+
+The original review reproduced the defect: after A→B wrapping rotation an A
+archive remained readable with A only, B saw zero historical receipts, and
+retention left the expired A copy outside its catalogue. The former completion
+message additionally instructed destroying A. The correction preserves external
+A custody and current B writes without rewriting any archive.
+
+Focused validation: **14 suites / 186 tests PASS**, log
+`/tmp/mon-backup-key-history-validation.log`. Run with
+`bun run --bun vitest run --project api-contract --project workspace-contract
+--project database-integration --maxWorkers=2`, selecting:
+
+- API `full-backup-key-history.integration.spec.ts`, `full-backup-read-keys.spec.ts`,
+  `full-backup-archive.spec.ts`, `full-backup-metadata.spec.ts`,
+  `full-backup-service.integration.spec.ts`, `full-restore.integration.spec.ts`,
+  `full-backup-consistency.integration.spec.ts`, `full-backup.integration.spec.ts`,
+  `backup-config.spec.ts`, `wrapping-key-rotation.integration.spec.ts`, and
+  `backup-admin-commands.spec.ts` under `apps/api/tests/`.
+- `packages/database/tests/update-guard.integration.spec.ts`.
+- `tests/contract/compose-security.spec.ts` and `test-impact.spec.ts`.
+
+The new real rotation test proves: both A receipts and A activity authenticate
+after B rotation; old archives verify through CLI; rehearsal restores A into
+isolation; actual restore refuses B even with A configured in history; explicit
+A restore/activation reopens the original data key with A and refuses B. The
+separate cutover case creates an outer A archive after SQL rewrap B, restores and
+activates with A, verifies the A marker is gone, then starts `buildApp` with B,
+reads the original data key and canonical private page, refuses SQL key A, and
+gets HTTP 200 from health. Remote retry preserves immutable A bytes and writes
+its new receipt with B; subsequent B scheduling opens only with B and coalesces
+a second run; retention prunes old A receipts/archives, including remote copies,
+while retaining the final verified B copy.
+
+Read-key tests cover bounded JSON/file sizes, relative/duplicate/NUL paths,
+missing/malformed/permissive secrets, non-files, symlink aliases into data,
+external secrets replaced after service construction, configured secret failures
+before catalogue filtering, and owned-buffer cleanup. Archive tests additionally
+prove historical key ownership and component corruption refusal after manifest
+key selection. Existing interrupted-key activity behavior remains intact.
+
+Targeted Istanbul measurement for the new `read-keys.ts` module: **100% lines,
+100% functions, 98.36% statements, 97.14% branches**. Report:
+`/tmp/mon-backup-key-history-coverage/coverage-final.json`, log
+`/tmp/mon-backup-key-history-coverage.log`. The remaining defensive branch rejects
+ENOENT for the filesystem root during canonicalization; the root exists on our
+target and no impossible filesystem state was fabricated just to mark it covered.
+This scoped measurement is not a full-project coverage gate. No thresholds or
+exclusions changed; combined coverage remains an integration gate.
+
+API and root TypeScript checks, whole-repository Biome CI/format checks, secret
+scan, static security scan and Compose contract check all PASS. The new optional
+override also passes actual `docker compose -f compose.yaml -f
+compose.backup-key-history.yaml config --format json` with synthetic external
+paths: both API/migrate resolve a read-only bind with `create_host_path: false`,
+and receive the explicit container-path JSON. No services or user volumes were
+started or changed. Expanded Compose/test-impact contracts pass.
+
+Limits: no full application gate, production image build or real Windows ACL
+execution was run for this isolated correction. The existing authoritative key
+loader remains responsible for Windows ACL validation. These delivery/runtime
+checks belong to T023/T024 and parent integration. No push, PR or merge.

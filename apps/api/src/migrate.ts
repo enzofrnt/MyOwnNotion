@@ -52,6 +52,7 @@ try {
     installationId: "018f2b7c-0000-7000-8000-000000000001",
     blobRoot: process.env["MYOWNNOTION_BLOB_ROOT"]?.trim() || "./.dev-blobs",
     backupRoot: fullBackupRoot(backupConfig),
+    historicalKeyFiles: backupConfig.historicalKeyFiles,
     ...(backupConfig.destination === "filesystem"
       ? {}
       : { remote: () => createBackupDestination(backupConfig) }),

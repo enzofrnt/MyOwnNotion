@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { isUuid } from "@myownnotion/domain";
 import { open as decrypt, seal } from "@myownnotion/domain/security";
 
+import { authenticateWithBackupKeys } from "./read-keys.ts";
+
 export interface FullBackupActivity {
   readonly startedAt: string;
   readonly finishedAt: string | null;
@@ -36,41 +38,46 @@ export class FullBackupActivities {
   constructor(
     private readonly root: string,
     private readonly key: () => Uint8Array,
+    private readonly readKeys: () => Buffer[] = () => [Buffer.from(key())],
   ) {}
 
   async read(kind: ActivityKind): Promise<FullBackupActivity | null> {
-    let handle: FileHandle;
+    const keys = this.readKeys();
     try {
-      handle = await open(
-        join(this.root, `.full-${kind}-activity`),
-        constants.O_RDONLY | constants.O_NOFOLLOW,
-      );
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-      throw error;
-    }
-    let key: Buffer | undefined;
-    let clear: Uint8Array | undefined;
-    try {
-      key = Buffer.from(this.key());
-      const metadata = await handle.stat();
-      if (!metadata.isFile() || metadata.size < 28 || metadata.size > 4096)
-        throw new Error("Invalid backup activity size.");
-      const bytes = await handle.readFile();
-      clear = decrypt(
-        key,
-        {
-          nonce: bytes.subarray(0, 12),
-          tag: bytes.subarray(12, 28),
-          ciphertext: bytes.subarray(28),
-        },
-        Buffer.from(`myownnotion.full-backup.activity.v1:${kind}`),
-      );
-      return activity(JSON.parse(Buffer.from(clear).toString("utf8")));
+      let handle: FileHandle;
+      try {
+        handle = await open(
+          join(this.root, `.full-${kind}-activity`),
+          constants.O_RDONLY | constants.O_NOFOLLOW,
+        );
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+      }
+      let clear: Uint8Array | undefined;
+      try {
+        const metadata = await handle.stat();
+        if (!metadata.isFile() || metadata.size < 28 || metadata.size > 4096)
+          throw new Error("Invalid backup activity size.");
+        const bytes = await handle.readFile();
+        clear = authenticateWithBackupKeys(keys, (key) =>
+          decrypt(
+            key,
+            {
+              nonce: bytes.subarray(0, 12),
+              tag: bytes.subarray(12, 28),
+              ciphertext: bytes.subarray(28),
+            },
+            Buffer.from(`myownnotion.full-backup.activity.v1:${kind}`),
+          ),
+        ).value;
+        return activity(JSON.parse(Buffer.from(clear).toString("utf8")));
+      } finally {
+        clear?.fill(0);
+        await handle.close();
+      }
     } finally {
-      key?.fill(0);
-      clear?.fill(0);
-      await handle.close();
+      for (const key of keys) key.fill(0);
     }
   }
 

@@ -15,6 +15,7 @@ afterEach(() => {
 describe("backup configuration", () => {
   it("uses conservative local defaults", () => {
     expect(loadBackupConfig({})).toEqual({
+      historicalKeyFiles: [],
       destination: "filesystem",
       root: "./.dev-backups",
       hour: 4,
@@ -37,6 +38,7 @@ describe("backup configuration", () => {
         TZ: " Europe/Paris ",
       }),
     ).toEqual({
+      historicalKeyFiles: [],
       destination: "google-drive",
       root: "/backups",
       hour: 23,

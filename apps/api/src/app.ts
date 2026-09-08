@@ -516,6 +516,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
         connectionString: options.databaseUrl,
         blobRoot: options.blobRoot,
         backupRoot: options.fullBackupRoot ?? fullBackupRoot(loadBackupConfig()),
+        historicalKeyFiles: loadBackupConfig().historicalKeyFiles,
         key: () => {
           const key = deploymentKey();
           if (key === null) throw new Error("The deployment key is unavailable.");

@@ -14,6 +14,8 @@ import {
   writeExactly,
 } from "./crypto.ts";
 
+import { authenticateWithBackupKeys } from "./read-keys.ts";
+
 export const FULL_ARCHIVE_MAGIC = Buffer.from("MYOWNNOTION-FULL-1\n");
 export const MAX_FULL_MANIFEST_BYTES = 64 * 1024 * 1024;
 
@@ -42,8 +44,9 @@ async function appendFile(
 
 async function inventory(
   handle: FileHandle,
-  key: Uint8Array,
+  keys: readonly Uint8Array[],
 ): Promise<{
+  key: Uint8Array;
   manifest: FullBackupManifest;
   offsets: readonly number[];
 }> {
@@ -56,7 +59,9 @@ async function inventory(
     throw new Error("The encrypted manifest length is invalid.");
   }
   const sealed = await readExactly(handle, length, prefix.byteLength);
-  const clear = openFullManifest(key, sealed);
+  const { key, value: clear } = authenticateWithBackupKeys(keys, (candidate) =>
+    openFullManifest(candidate, sealed),
+  );
   let manifest: FullBackupManifest;
   try {
     manifest = readFullBackupManifest(JSON.parse(clear.toString("utf8")));
@@ -73,7 +78,7 @@ async function inventory(
   if ((await handle.stat()).size !== position) {
     throw new Error("The complete backup is truncated or contains trailing data.");
   }
-  return { manifest, offsets };
+  return { key, manifest, offsets };
 }
 
 async function verifyComponents(
@@ -140,7 +145,7 @@ export async function writeFullArchive(input: {
         }
       }
       await handle.sync();
-      const checked = await inventory(handle, input.key);
+      const checked = await inventory(handle, [input.key]);
       await verifyComponents(handle, input.key, checked.manifest, checked.offsets);
     } finally {
       await handle.close();
@@ -173,6 +178,7 @@ export class VerifiedFullArchive {
     sourcePath: string,
     key: Uint8Array,
     workingDirectory: string,
+    historicalKeys: readonly Uint8Array[] = [],
   ): Promise<VerifiedFullArchive> {
     await mkdir(workingDirectory, { recursive: true, mode: 0o700 });
     const directory = await mkdtemp(join(workingDirectory, ".full-verify-"));
@@ -186,7 +192,8 @@ export class VerifiedFullArchive {
       } finally {
         await source.close();
       }
-      const checked = await inventory(handle, ownedKey);
+      const checked = await inventory(handle, [ownedKey, ...historicalKeys]);
+      ownedKey.set(checked.key);
       await verifyComponents(handle, ownedKey, checked.manifest, checked.offsets);
       return new VerifiedFullArchive(
         checked.manifest,

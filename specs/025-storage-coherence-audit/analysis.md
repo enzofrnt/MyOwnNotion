@@ -128,3 +128,13 @@ subsequent catch-up. Other cases cover acknowledgement identity/causality, remot
 integrity/identity, omitted operations and cursor retreat. The focused source and
 proof review finds no remaining T051 gap; full delivery duties remain in
 T037/T038/T040/T041. See [the commands, failed reproduction and final evidence](validation.md#t051--active-page-response-rejection-and-frontier-monotonicity).
+
+## T052 pre-implementation integration analysis
+
+The 024 merge adds historical keys to the shared backup service, but T050's
+source-archive reader still supplies only the current key. This is a consistency
+gap in FR-007/FR-008 recovery, not a new product direction. T052 preserves the
+existing pre-SQL verification order and explicit external secret configuration.
+The real rotation/transition fixture determines reachability before claiming
+a recoverable path. T050 and T051 remain implemented; no threshold or exclusion
+change is authorized. The updated task set contains 52 unique IDs.

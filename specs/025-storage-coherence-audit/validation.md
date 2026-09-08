@@ -236,3 +236,26 @@ bun run biome check packages/client-core/src/page-sync/page-reconciler.ts packag
 Only disposable IndexedDB fixtures were used. This pass did not run browser/native
 journeys, full coverage or `checks:local`; T037/T038/T040/T041 remain open for
 combined integration and delivery.
+
+
+## T052 — Historical source keys during resumed migration
+
+The new real CLI fixture first failed against the merged 024 implementation:
+receipt history worked but the resumed-archive verifier still supplied only B
+to an archive sealed under A (`/tmp/mon-t052-red.log`). Wrapping-key rotation
+is actually permitted after interrupted storage cutover, so this is reachable.
+
+The verifier now uses owned current/historical keys from `FullBackupService`,
+authenticates the original immutable archive, and clears every owned buffer in
+`finally`, including archive-open failures. It still runs before any SQL and
+again when preparing the storage transition. No live SQL key fallback is added.
+
+Two focused suites pass, 10 tests total (`/tmp/mon-t052-final.log`): all nine
+guarded migration scenarios and the full historical-backup lifecycle. The new
+case rotates A→B through the real security CLI, confirms B opens the live root
+while A cannot, refuses missing history and missing/corrupt archives without
+changing ledger/data/transition/source bytes, then resumes the same transition
+with explicit A history and reads the original file under B. Owned key buffers
+are zeroed on refusal and success; the source archive remains byte-identical.
+API typecheck and focused Biome pass. Only generated keys and disposable
+PostgreSQL fixtures were used. Full local, PR and main gates remain pending.

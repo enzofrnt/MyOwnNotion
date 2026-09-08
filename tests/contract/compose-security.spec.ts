@@ -16,6 +16,17 @@ interface ComposeDocument {
       ports?: Array<string | { host_ip?: string; published?: number | string }>;
       image?: string;
       restart?: string;
+      environment?: Record<string, string>;
+      volumes?: Array<
+        | string
+        | {
+            type: string;
+            source: string;
+            target: string;
+            read_only: boolean;
+            bind: { create_host_path: boolean };
+          }
+      >;
       command?: string[];
       depends_on?: Record<string, { condition?: string }>;
     }
@@ -308,4 +319,24 @@ describe("one baseline, not two", () => {
     // no `secrets` section of its own.
     expect(override.secrets).toBeUndefined();
   });
+});
+
+it("mounts explicitly configured historical backup secrets read-only in both backup processes", () => {
+  const base = loadCompose("compose.yaml");
+  const override = loadCompose("compose.backup-key-history.yaml");
+  expect(Object.keys(override.services ?? {}).sort()).toEqual(["api", "migrate"]);
+  for (const name of ["api", "migrate"]) {
+    expect(base.services?.[name]?.environment?.["MYOWNNOTION_BACKUP_HISTORICAL_KEY_FILES"]).toBe(
+      `\${MYOWNNOTION_BACKUP_HISTORICAL_KEY_FILES:-[]}`,
+    );
+    expect(override.services?.[name]?.volumes).toEqual([
+      {
+        type: "bind",
+        source: `\${MYOWNNOTION_BACKUP_HISTORICAL_KEYS_DIRECTORY:?Set the absolute private historical-key directory}`,
+        target: "/run/secrets/backup-key-history",
+        read_only: true,
+        bind: { create_host_path: false },
+      },
+    ]);
+  }
 });

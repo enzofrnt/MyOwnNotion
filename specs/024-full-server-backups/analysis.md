@@ -20,3 +20,28 @@ not inferred from the target. Exact historical restore is verified before the
 separate security reactivation boundary; identity preservation does not grant
 old sessions trust. No live-data migration or restore is authorized by these
 fixture validation tasks. Required gates are retained and not replaced by CI.
+
+## T028 pre-implementation consistency review
+
+The review reproduced a 024 recovery defect: after A→B rotation, A archives,
+receipts and activities remain encrypted with A while readers try only B; the
+rotation CLI additionally tells the operator to destroy A. New B scheduling
+works, but historical catalogue/retry/retention and eventual recovery fail.
+T028 refines FR-004/FR-006/FR-014/FR-018 and canvas 28.4 without changing release
+scope. Historical files are explicit external secrets; only read authentication
+uses them. No fallback is added to live data-key access or actual CLI restore.
+The full SQL dump's root-key envelopes require the corresponding original
+wrapping key as well. No unresolved product ambiguity or constitution exception.
+
+### T028 convergence result
+
+PASS for the bounded correction: spec/plan/contract and current implementation
+agree on explicit external history, current-only writes, immutable archives,
+conservative catalogue/retention, and explicit actual restore/activation keys.
+The real integration test additionally covers outer archive A with SQL root
+keys already rewrapped B: activation authenticates/removes the A marker, then
+the B-configured application opens protected content and passes health.
+Configuration, API/CLI/scheduler/migration wiring, Compose mounts, operational
+docs and tests are included. No unbuilt T028 requirement remains; T023/T024
+are deliberately left pending for integration/full delivery gates. Feature 025
+readers are reviewed by the integrating agent, outside this 024-based commit.
