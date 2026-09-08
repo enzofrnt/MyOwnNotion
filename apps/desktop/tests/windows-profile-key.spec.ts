@@ -6,6 +6,7 @@ import {
   commitWindowsProfileKey,
   WINDOWS_KEY_PRIME_SWITCH,
   WINDOWS_SESSION_DATA_SWITCH,
+  windowsProfileKeyEnvironment,
 } from "../src/windows-profile-key.ts";
 
 const directories: string[] = [];
@@ -32,6 +33,21 @@ function fixture() {
 }
 
 describe("Windows native profile key commitment", () => {
+  it.each([
+    {},
+    { ELECTRON_RUN_AS_NODE: "" },
+    { ELECTRON_RUN_AS_NODE: "1" },
+    { electron_run_as_node: "1", Electron_Run_As_Node: "" },
+  ])("removes inherited runtime selectors without changing the parent: %j", (selectors) => {
+    const source = { ...selectors, PATH: "runtime search path", APPDATA: "profile parent" };
+    const before = { ...source };
+    expect(windowsProfileKeyEnvironment(source)).toEqual({
+      PATH: "runtime search path",
+      APPDATA: "profile parent",
+    });
+    expect(source).toEqual(before);
+  });
+
   it("waits for successful native initialization and preserves the exact committed metadata", () => {
     const { directory, options, state, metadata } = fixture();
     const envelope = path.join(directory, "device-key.envelope");

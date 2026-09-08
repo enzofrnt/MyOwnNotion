@@ -387,3 +387,27 @@ The pinned Chromium 152.0.7977.65 `JsonPrefStore` default file task runner uses
 see [constructor defaults](https://github.com/chromium/chromium/blob/152.0.7977.65/components/prefs/json_pref_store.h).
 The parent additionally fsyncs the committed metadata and never treats a killed
 or timed-out child as success.
+
+### T096 — Native child launch boundary follow-up
+
+CI 34212459656 on 9e9dcdc6 passes macOS and both Linux native targets, but Windows
+fails packaged launch before the crash journey. The child launch boundary needs
+native coverage: injected runner tests did not exercise its environment or entry.
+Electron 44.1.1's Windows entry checks presence of ELECTRON_RUN_AS_NODE through
+getenv_s, so an empty value is not a reliable way to select application mode.
+Remove every case-insensitive spelling from the child environment without
+mutating the parent's environment. Keep native exit diagnostics to fixed codes
+and numeric statuses; never print a native error, path or child output.
+
+A real local Electron inspection also confirms that getAppPath() is the build
+directory when Playwright launches bootstrap.js directly, not a runnable package.
+For unpackaged hosts, pass the absolute current bootstrap module file instead.
+Add a Windows-native unit fixture that builds and launches the real bootstrap's
+windowless mode and requires committed native key metadata on a fresh profile.
+This runs before packaged smoke and cannot be replaced by mocked key bytes.
+The original full cold-restart journey and deadlines stay unchanged.
+
+Sources: [pinned Windows entry](https://github.com/electron/electron/blob/v44.1.1/shell/app/electron_main_win.cc)
+and [Microsoft getenv_s contract](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/getenv-s-wgetenv-s).
+The Windows launch fix still requires native confirmation; the macOS CLI probe
+with an empty environment value does not reproduce Windows mode selection.
