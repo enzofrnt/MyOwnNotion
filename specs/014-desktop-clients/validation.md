@@ -517,11 +517,13 @@ stderr before its spawn verdict can be reported. Both logs contain overlapping
 first-use Electron downloads from independent workers. Native macOS and both
 Linux jobs pass. Packaged Windows launch and cold restart remain unverified.
 
-The installed Electron 44.1.1 module starts its installer on first require;
-Vitest 3.2.7 resolves project global setup before worker collection. A desktop
-global setup now completes that installation once and requires an absolute
-executable file. Native test errors tolerate missing stdout/stderr and expose
-only a bounded spawn code and status. Application behavior is unchanged.
+The installed Electron 44.1.1 module starts its installer on first require.
+The initial global-setup prototype proves serialized installation but conflicts
+with the repository's existing Bun quality contract. The final shared preparation
+runs in the Bun parent launcher (full/affected tests), and native CI calls that
+same entrypoint before Vitest. It requires an absolute executable file. Native
+test errors tolerate missing stdout/stderr and expose only a bounded spawn code
+and status. Application behavior and the no-global-setup contract are unchanged.
 
 A disposable copied Electron package without its binary or path marker passes
 two concurrent Vitest workers with exactly one installation invocation:
@@ -539,3 +541,15 @@ this newly observed CI preparation race. The 4e08971c integrated attempt passes
 browser project. Both exit 130 and neither is an accepted complete gate.
 Their logs are `/tmp/mon-desktop-native-input-full-gate.log` and
 `/tmp/mon-pre-v1-native-drafts-full-gate.log` respectively.
+
+The c382dc53 complete attempt fails exactly that existing no-global-setup
+contract (3,623 cases pass); its gate is not accepted. After moving preparation
+to the Bun parent, all 46 quality/impact/invocation contracts and 73 desktop
+cases pass, plus root types. A fresh disposable package again requires exactly
+one installation for two parallel workers, now with separate Bun preparation
+and no Vitest setup hook: `preparationStatus: 0, status: 0, downloads: 1, workers: 2`.
+Logs: `/tmp/mon-desktop-prepared-electron-full-gate.log`,
+`/tmp/mon-electron-parent-preparation-contracts.log`,
+`/tmp/mon-electron-parent-preparation-unit.log`,
+`/tmp/mon-electron-parent-preparation-types.log`,
+`/tmp/mon-electron-cold-parent-preparation.log`.

@@ -427,8 +427,10 @@ another suite fails Electron installation. ARM fails before reporting its
 spawn result because stderr is null. Both logs show concurrent first-use
 Electron downloads from separate test workers. Electron 44.1.1's installed
 `index.js` synchronously runs `install.js` on first require, without a process
-lock. Prepare and validate the pinned executable once in the desktop project's
-Vitest global setup, before worker collection. This also applies to local and
-coverage runs, without a separate CI-only installation path. Preserve parallel
-tests after preparation. Native spawn diagnostics must handle absent output
+lock. Prepare and validate the pinned executable once in the Bun parent before
+worker collection. Use the same preparation function from the PostgreSQL test
+wrapper when desktop is selected, the affected unit-test launcher and the native
+CI preparation step. Document preparation before direct desktop-only Vitest
+commands. Keep the existing prohibition on Vitest global setup and preserve
+parallel tests after preparation. Native spawn diagnostics must handle absent output
 and report only a bounded error code/status, never a path or native key data.
