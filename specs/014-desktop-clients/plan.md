@@ -387,3 +387,72 @@ The pinned Chromium 152.0.7977.65 `JsonPrefStore` default file task runner uses
 see [constructor defaults](https://github.com/chromium/chromium/blob/152.0.7977.65/components/prefs/json_pref_store.h).
 The parent additionally fsyncs the committed metadata and never treats a killed
 or timed-out child as success.
+
+### T096 — Native child launch boundary follow-up
+
+CI 34212459656 on 9e9dcdc6 passes macOS and both Linux native targets, but Windows
+fails packaged launch before the crash journey. The child launch boundary needs
+native coverage: injected runner tests did not exercise its environment or entry.
+Electron 44.1.1's Windows entry checks presence of ELECTRON_RUN_AS_NODE through
+getenv_s, so an empty value is not a reliable way to select application mode.
+Remove every case-insensitive spelling from the child environment without
+mutating the parent's environment. Keep native exit diagnostics to fixed codes
+and numeric statuses; never print a native error, path or child output.
+
+A real local Electron inspection also confirms that getAppPath() is the build
+directory when Playwright launches bootstrap.js directly, not a runnable package.
+For unpackaged hosts, pass the absolute current bootstrap module file instead.
+Add a Windows-native unit fixture that builds and launches the real bootstrap's
+windowless mode and requires committed native key metadata on a fresh profile.
+This runs before packaged smoke and cannot be replaced by mocked key bytes.
+The original full cold-restart journey and deadlines stay unchanged.
+
+Sources: [pinned Windows entry](https://github.com/electron/electron/blob/v44.1.1/shell/app/electron_main_win.cc)
+and [Microsoft getenv_s contract](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/getenv-s-wgetenv-s).
+The Windows launch fix still requires native confirmation; the macOS CLI probe
+with an empty environment value does not reproduce Windows mode selection.
+
+## T098 — Native property input during projection refresh
+
+CI 34212459656's WebKit mobile journey loses the freshly filled Summary field
+before save (first attempt fails, retry passes). Three isolated replays pass,
+but a component test deterministically reproduces a native DOM edit being
+repainted by an intervening same-entry projection before input event delivery.
+Use an uncontrolled text/date input with a last-projected-value comparison:
+apply external values only while the DOM still equals the previous projection;
+preserve a native edit until its input event updates the existing draft refs.
+Scope entry field identity by entry/property so an unreported draft cannot leak
+into a different entry. Keep untouched hydration, latest-value save, date and
+number validation, keyboard/IME behavior and existing journey deadlines.
+
+## T099 — Prepare native test dependencies before parallel collection
+
+CI 34220219342 proves the real parent/child key test passes on Windows x64, but
+another suite fails Electron installation. ARM fails before reporting its
+spawn result because stderr is null. Both logs show concurrent first-use
+Electron downloads from separate test workers. Electron 44.1.1's installed
+`index.js` synchronously runs `install.js` on first require, without a process
+lock. Prepare and validate the pinned executable once in the Bun parent before
+worker collection. Use the same preparation function from the PostgreSQL test
+wrapper when desktop is selected, the affected unit-test launcher and the native
+CI preparation step. Document preparation before direct desktop-only Vitest
+commands. Keep the existing prohibition on Vitest global setup and preserve
+parallel tests after preparation. Native spawn diagnostics must handle absent output
+and report only a bounded error code/status, never a path or native key data.
+
+### T100: structured resolution across page-history consolidation
+
+CI run 34220219342 accepted the divergent remote property edit, then generated
+`page-operations.consolidated` with identical structured values/version while
+the owner reviewed the conflict. The resolution was refused solely because
+that new canonical head was absent from the reviewed pair. Implement the
+existing independent-field convergence boundary in database command execution:
+walk at most 64 single-parent revisions belonging to this entry and authored
+by accepted `page-operations.consolidated` mutations. Only when that chain
+reaches a reviewed parent may the current head replace that parent in the
+resolution lineage. Preserve the other reviewed parent and build from current
+canonical state. A missing/foreign/branching history, unrelated mutation,
+structured edit or exceeded bound remains stale. No snapshot decryption or
+comparison, timeout changes, UI retries or invented successful state.
+Reproduce both transparent consolidation and refused real structured edits at
+the transaction boundary, then replay the original native offline journey.

@@ -4,8 +4,10 @@ import {
   createDatabaseEntry,
   ensureNavigationVisible,
   openRootDatabaseCreation,
+  openSecondDevice,
   openWorkspace,
   saveEntryProperties,
+  selectItem,
   uniqueName,
   waitForDatabaseDefinitionSaved,
   waitForSynchronized,
@@ -63,6 +65,51 @@ async function createView(page: Page, buttonName: string, tabName: RegExp): Prom
   await expect(tab).toHaveAttribute("aria-selected", "true");
   await waitForDatabaseDefinitionSaved(page);
 }
+
+test("preserves native property input across a remote projection before input delivery", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  test.slow();
+  await openWorkspace(page);
+  const databaseName = uniqueName("Draft projection");
+  const title = uniqueName("Draft entry");
+  await ensureNavigationVisible(page);
+  await openRootDatabaseCreation(page);
+  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
+  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
+  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
+  await expect(createDatabase).toBeHidden();
+  await waitForSynchronized(page);
+  await addProperty(page, "Summary", "text");
+  const trigger = await createDatabaseEntry(page, title);
+  await waitForSynchronized(page);
+  await trigger.click();
+  const summary = page.locator(".entry-panel").getByLabel("Summary", { exact: true });
+  await expect(summary).toBeVisible();
+  const second = await openSecondDevice(browser, baseURL);
+  try {
+    await openWorkspace(second.page);
+    await selectItem(second.page, databaseName);
+    await summary.evaluate((element) => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+        element,
+        "Native pending summary",
+      );
+    });
+    await addProperty(second.page, "Extra", "text");
+    await expect(page.locator(".entry-panel").getByLabel("Extra", { exact: true })).toBeVisible();
+    await expect(summary).toHaveValue("Native pending summary");
+    await summary.dispatchEvent("input");
+    await saveEntryProperties(page);
+    await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+    await trigger.click();
+    await expect(summary).toHaveValue("Native pending summary");
+  } finally {
+    await second.context.close();
+  }
+});
 
 test("uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts", async ({
   page,

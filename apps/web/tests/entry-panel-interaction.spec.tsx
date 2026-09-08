@@ -82,6 +82,71 @@ describe("entry panel interaction durability", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps a native field edit through projection refresh before input delivery", async () => {
+    const { definition, entry, notesId } = entryFixture();
+    const saveValues = vi.fn().mockResolvedValue(undefined);
+    const render = (current: DatabaseEntryDto) =>
+      root.render(
+        <EntryPanel
+          entry={current}
+          definition={definition}
+          onSaveValues={saveValues}
+          onClose={vi.fn()}
+        />,
+      );
+    act(() => render(entry));
+    const notes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
+    if (notes === null) throw new Error("Missing property field");
+    notes.focus();
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+      notes,
+      "native pending draft",
+    );
+    act(() => render({ ...entry, revisionId: generateUuidV7() }));
+    expect(notes.value).toBe("native pending draft");
+    await act(async () => {
+      notes.dispatchEvent(new Event("input", { bubbles: true }));
+      const save = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+        (button) => button.textContent === "Enregistrer les propriétés",
+      );
+      if (save === undefined) throw new Error("Missing save control");
+      save.click();
+    });
+    expect(saveValues.mock.calls[0]?.[0]).toMatchObject({
+      [notesId]: { kind: "text", value: "native pending draft" },
+    });
+  });
+
+  it("does not carry an undelivered field edit into another entry", () => {
+    const { definition, entry, notesId } = entryFixture();
+    const render = (current: DatabaseEntryDto) =>
+      root.render(
+        <EntryPanel
+          entry={current}
+          definition={definition}
+          onSaveValues={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+    act(() => render(entry));
+    const notes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
+    if (notes === null) throw new Error("Missing property field");
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+      notes,
+      "previous entry draft",
+    );
+    act(() =>
+      render({
+        ...entry,
+        entryId: generateUuidV7(),
+        values: { [notesId]: { kind: "text", value: "other entry" } },
+      }),
+    );
+    expect(container.querySelector<HTMLInputElement>(`#database-value-${notesId}`)?.value).toBe(
+      "other entry",
+    );
+  });
+
   it("submits the final property input when save follows it in the same interaction turn", async () => {
     const { definition, entry, notesId, ownerId } = entryFixture();
     const onSaveValues = vi.fn().mockResolvedValue(undefined);

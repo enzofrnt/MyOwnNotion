@@ -103,8 +103,15 @@ bun run desktop:build    # web dist, then desktop bootstrap/main/preload
 bun run desktop:make     # native installer for this machine
 bun run desktop:smoke    # installed-host smoke without signing secrets
 bun run desktop:check    # build, package, installed smoke and Electron journeys
+bun scripts/desktop/prepare-test-electron.ts
 bun run --bun vitest run --project desktop
 ```
+
+Electron 44 downloads its executable on first require. Before direct desktop-only
+unit tests, run the preparation command above so parallel workers cannot race the
+installer. The shared Bun test wrapper and affected unit launcher prepare it
+before spawning Vitest; native CI uses the same preparation entrypoint. No Vitest
+global setup or extra PostgreSQL owner is introduced.
 
 `bun run dev` starts the API and web workspaces only.
 The native package, installed smoke and Electron lifecycle journeys run in
@@ -404,7 +411,7 @@ substitutes for the behavioral layers.
 | `bun run test:security` | Owner security foundation suites across every project | **yes** |
 | `bun run test:e2e` | Playwright journeys, 5 browser/viewport projects | **yes** |
 | `bun run desktop:smoke` | Desktop host first-launch/profile smoke, no signing secrets | no |
-| `bun run --bun vitest run --project desktop` | Electron policy, IPC, update, and vault unit tests | no |
+| `bun scripts/desktop/prepare-test-electron.ts` then `bun run --bun vitest run --project desktop` | Electron policy, IPC, update, and vault unit tests | no |
 | `bun run test:coverage` | Maintained unit/integration/contract code under coverage thresholds | **yes** |
 | `bun run test:performance` | 10,000-item / 1,000-operation suites | **yes** |
 | `bun run db:test-migrations` | Alias of `test:migration`, kept for existing scripts | **yes** |

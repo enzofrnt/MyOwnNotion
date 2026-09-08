@@ -6,6 +6,7 @@ import {
   commitWindowsProfileKey,
   WINDOWS_KEY_PRIME_SWITCH,
   WINDOWS_SESSION_DATA_SWITCH,
+  WindowsProfileKeyInitializationError,
 } from "./windows-profile-key.ts";
 
 const profileDirectory = app.commandLine.getSwitchValue("user-data-dir");
@@ -40,12 +41,19 @@ if (process.platform === "win32" && app.commandLine.hasSwitch(WINDOWS_KEY_PRIME_
     try {
       commitWindowsProfileKey({
         executable: process.execPath,
-        ...(app.isPackaged ? {} : { applicationPath: app.getAppPath() }),
+        ...(app.isPackaged ? {} : { applicationPath: fileURLToPath(import.meta.url) }),
         userData: app.getPath("userData"),
         sessionData: app.getPath("sessionData"),
       });
       committed = true;
-    } catch {
+    } catch (error) {
+      // Only fixed categories and numeric exit status; native exceptions may
+      // contain profile paths or OS details that must not enter diagnostics.
+      const status =
+        error instanceof WindowsProfileKeyInitializationError
+          ? `child-exit:${error.exitStatus ?? "unavailable"}`
+          : "metadata-unavailable";
+      console.error(`[desktop] protected-storage:${status}`);
       dialog.showErrorBox(
         "Le stockage protégé est indisponible",
         "Windows n’a pas pu préparer le stockage protégé. Vérifiez l’accès au profil, puis relancez l’application. Vos données locales sont conservées.",

@@ -446,3 +446,143 @@ profils passent. Logs : `/tmp/mon-keyboard-b5a-repeat.log`,
 `/tmp/mon-keyboard-recovery-corrected-repeat.log`,
 `/tmp/mon-keyboard-recovery-four-profiles.log`. Le nouveau commit doit repasser
 le gate complet avant push.
+
+## Préparation Windows — frontière de lancement
+
+Le gate local complet passe sur 9e9dcdc6 : 382 suites / 3 618 tests de couverture,
+huit benchmarks, 333 tests de base, douze migrations, 1 312 contrats, les cinq
+profils navigateur, neuf parcours macOS, le paquet installé, les deux
+architectures d'images et les contrôles de sécurité/Compose. Le commit est poussé
+après relecture de l'inventaire. Log :
+`/tmp/mon-desktop-key-prime-focus-final-gate.log`.
+
+La CI 34212459656 confirme macOS et Linux x64/ARM64, mais les deux Windows
+échouent désormais au lancement du paquet, avant les parcours de reprise.
+Les tests injectant le processus auxiliaire n'exerçaient pas son environnement.
+Le sélecteur ELECTRON_RUN_AS_NODE est maintenant retiré, toutes casses comprises,
+au lieu d'être fourni vide : l'entrée Windows épinglée vérifie sa présence.
+Le comportement macOS ne suffit pas à confirmer cette frontière Windows.
+
+Une inspection réelle du host local confirme aussi que getAppPath() est le
+dossier .vite/build lorsque bootstrap.js est lancé directement. Le lancement
+auxiliaire non empaqueté reçoit désormais le fichier bootstrap courant. Les
+erreurs de préparation ne publient qu'une catégorie fixe et un statut numérique.
+
+Les 73 tests desktop exécutables sur macOS et les types passent. Quatre nouveaux
+cas vérifient le retrait du sélecteur sans modifier l'environnement parent.
+Un nouveau cas réservé à Windows compile et lance le vrai bootstrap avec une
+continuation sans fenêtre, exige son démarrage puis relance le même profil en
+vérifiant la stabilité de la clé sans afficher ses octets. Il doit encore passer
+sur les deux runners natifs, puis les parcours d'arrêt brutal d'origine restent
+obligatoires. Logs : `/tmp/mon-windows-child-launch-focused.log`,
+`/tmp/mon-windows-child-launch-types.log`. T096 reste ouvert.
+
+## T098 — Native property input durability — 2026-09-08
+
+CI 34212459656 additionally reports a WebKit mobile flake in the visual database
+journey: immediately after filling Beta's Summary, its value is empty. The retry
+passes, so the no-flaky gate correctly fails. Three isolated unmodified replays
+pass, but a component reproduction and a two-device native reproduction both
+fail before correction when a projection arrives between native text insertion
+and input-event delivery.
+
+The text/date control preserves that pending native edit while still accepting
+untouched projection changes. Entry/property keys prevent an undelivered edit
+from crossing entry identities. No validation, event timing, retry or assertion
+threshold is weakened. The new native scenario saves and reopens the retained
+value after the remote schema update.
+
+Fifteen focused form, grid and value-editor cases pass, including unchanged
+hydration and latest-input save, plus fourteen native journeys across all five
+profiles: six WebKit mobile runs (three repetitions of the new and original
+journeys), and two on each other profile. No retries. Web/root types and Biome
+pass. The complete desktop gate and updated native Windows CI remain separate
+pending delivery requirements.
+
+Evidence: `/tmp/mon-9e9-webkit-mobile-ci.log`,
+`/tmp/mon-native-field-projection-red.log`,
+`/tmp/mon-native-field-projection-webkit-red.log`,
+`/tmp/mon-native-field-identity-fixed.log`,
+`/tmp/mon-native-field-related-tests.log`,
+`/tmp/mon-native-field-editor-tests.log`,
+`/tmp/mon-native-field-projection-webkit-fixed.log`,
+`/tmp/mon-native-field-projection-other-profiles.log`.
+
+## T099 — Deterministic native test preparation — 2026-09-08
+
+CI 34220219342 runs the real parent/child test successfully on Windows x64
+(7.2 seconds, two launches, preserved key). That job fails collection of the
+WebAuthn parser suite during Electron installation. ARM fails reading null
+stderr before its spawn verdict can be reported. Both logs contain overlapping
+first-use Electron downloads from independent workers. Native macOS and both
+Linux jobs pass. Packaged Windows launch and cold restart remain unverified.
+
+The installed Electron 44.1.1 module starts its installer on first require.
+The initial global-setup prototype proves serialized installation but conflicts
+with the repository's existing Bun quality contract. The final shared preparation
+runs in the Bun parent launcher (full/affected tests), and native CI calls that
+same entrypoint before Vitest. It requires an absolute executable file. Native
+test errors tolerate missing stdout/stderr and expose only a bounded spawn code
+and status. Application behavior and the no-global-setup contract are unchanged.
+
+A disposable copied Electron package without its binary or path marker passes
+two concurrent Vitest workers with exactly one installation invocation:
+`/tmp/mon-electron-cold-setup-probe.log` (`status: 0, downloads: 1, workers: 2`).
+No installed dependency or owner profile is modified by the probe. All 73 local
+desktop cases pass (one Windows-only case skipped); desktop/root types pass.
+Logs: `/tmp/mon-electron-test-preparation-unit.log`,
+`/tmp/mon-electron-test-preparation-types.log`,
+`/tmp/mon-711-windows-x64-job.log`, `/tmp/mon-711-windows-arm-job.log`.
+
+The complete a495126b local attempt passes 3,624 coverage cases, performance,
+database and migration gates, then is interrupted during contracts to correct
+this newly observed CI preparation race. The 4e08971c integrated attempt passes
+4,250 coverage cases, all pre-browser gates and is interrupted during its first
+browser project. Both exit 130 and neither is an accepted complete gate.
+Their logs are `/tmp/mon-desktop-native-input-full-gate.log` and
+`/tmp/mon-pre-v1-native-drafts-full-gate.log` respectively.
+
+The c382dc53 complete attempt fails exactly that existing no-global-setup
+contract (3,623 cases pass); its gate is not accepted. After moving preparation
+to the Bun parent, all 46 quality/impact/invocation contracts and 73 desktop
+cases pass, plus root types. A fresh disposable package again requires exactly
+one installation for two parallel workers, now with separate Bun preparation
+and no Vitest setup hook: `preparationStatus: 0, status: 0, downloads: 1, workers: 2`.
+Logs: `/tmp/mon-desktop-prepared-electron-full-gate.log`,
+`/tmp/mon-electron-parent-preparation-contracts.log`,
+`/tmp/mon-electron-parent-preparation-unit.log`,
+`/tmp/mon-electron-parent-preparation-types.log`,
+`/tmp/mon-electron-cold-parent-preparation.log`.
+
+### T100 — reviewed entry resolution and automatic history (2026-09-08)
+
+CI 34220219342 WebKit mobile failed the offline structured journey at line 383:
+after explicit resolution the aggregate status remained `conflict`. The trace
+shows the reviewed remote property revision followed by an automatic
+`page-operations.consolidated` revision with identical structured values/version.
+The server refused the subsequent resolution solely because its head advanced.
+
+A transaction regression reproduces this refusal. The real authenticated API,
+operational page edits and controlled 30-second history timer reproduce it too
+on unmodified code (`/tmp/mon-resolution-real-history-red.log`). The correction
+recognizes at most 64 accepted, same-entry, single-parent consolidation headers;
+it advances only the reviewed parent, keeps the other ancestry and preserves
+current body contents. Genuine structured edits, foreign/branching/missing
+lineage, rejected mutations and an excessive chain remain refused.
+
+Fifteen transaction tests and nine actual page-history/API tests pass
+(`/tmp/mon-resolution-bounded-history.log`), including exact lineage, encrypted
+readback, retained body edits and unchanged unseen values on refusal. Strict
+root types pass (`/tmp/mon-resolution-types-local.log`). The reproduction
+checkout uses local workspace package links; its vendor dependencies are
+read-only links, and the primary checkout remained unchanged during diagnosis.
+Native replay, the complete renewed gate and PR/main evidence remain pending.
+
+T100 native replay: the original `survives restart, merges compatible fields`
+journey passes twice on each of Chromium desktop/mobile, Firefox desktop and
+WebKit desktop/mobile (10 cases, all five projects, 100 seconds; no retries).
+Firefox/WebKit use the maintained Linux container. Evidence:
+`/tmp/mon-resolution-five-browser-replay.log`. This includes restart durability,
+compatible field convergence, explicit conflict review and two-parent lineage.
+The full gate on the preceding `5ecbfa2b` was deliberately interrupted once this
+new CI defect was reproduced; it is not successful pre-push evidence.
