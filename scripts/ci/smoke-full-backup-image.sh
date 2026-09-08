@@ -67,7 +67,7 @@ full_admin() {
         "$full_image" bun dist/admin/admin-cli.js "$@"
 }
 full_receipt="$(full_admin backup full run --json)"
-full_backup_id="$(printf '%s' "$full_receipt" | bun --eval '
+full_backup_id="$(printf '%s' "$full_receipt" | docker run --rm -i --entrypoint bun "$full_image" --eval '
     const result = JSON.parse(await Bun.stdin.text());
     if (!result.ok || !/^[0-9a-f-]{36}$/.test(result.data?.backupId)) process.exit(1);
     console.log(result.data.backupId);

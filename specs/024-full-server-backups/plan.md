@@ -158,3 +158,13 @@ FileHandle streams with bounded positional reads; preserve AES-GCM final
 verification, truncated-input refusal, caller-owned handles and key-buffer
 cleanup. Test repeated completed and cancelled reads with the same handle,
 then archive integrity, real restoration and the existing performance budget.
+
+## T030 — Self-contained image verification
+
+PR 173 run 34246091846 fails the container job because the image smoke parser
+invokes host Bun, which that Docker-only job does not install. Parse the bounded
+backup receipt through Bun inside the exact tested image, with stdin and no
+mounted host data. The verifier should need only shell utilities and Docker on
+the host. Reproduce the original failure and run the complete restore/activation
+script with host Bun absent from PATH; do not add an unpinned runtime or omit
+the image recovery checks.

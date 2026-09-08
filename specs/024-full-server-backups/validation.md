@@ -279,3 +279,13 @@ actual A→B wrapping-history cases pass (`/tmp/mon-024-reader-delivery-focus.lo
 The full 024 local gate and PR/main checks remain required; these focused cases
 are not permission to push. Delivery order remains desktop, UI guidance,
 complete backups, then the integrated audit and remaining pre-V1 features.
+# T030 — Image verifier host boundary
+
+PR 173 run 34246091846 reaches the complete image recovery check, then fails
+because the host has no Bun executable. The original script reproduces that
+failure locally with Bun absent from PATH. With the receipt parsed by the tested
+image's Bun, the same restricted-host check passes real SQL/blob restoration,
+committed upload prefix, rehearsal and activation against the retained ARM64
+full-backup fixture image. The renewed exact-commit complete local gate and
+remote image verification remain pending. No host runtime dependency or skipped
+recovery assertion was introduced.
