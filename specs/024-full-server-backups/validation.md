@@ -269,3 +269,13 @@ listeners. API types and all nineteen archive tests pass; application code is
 unchanged. Failed gate: `/tmp/mon-pre-v1-reader-resources-full-gate.log`.
 Focused proof: `/tmp/mon-backup-reader-api-types.log` and
 `/tmp/mon-backup-reader-typed-final.log`.
+
+### Backup delivery branch refresh (2026-09-08)
+
+The standalone 024 delivery branch now includes desktop corrections through
+`a2f2eb9b` and the T029 bounded-reader/type correction from the integrated audit.
+At `c31eabe0`, all 56 archive, PostgreSQL, consistency, complete restore and
+actual A→B wrapping-history cases pass (`/tmp/mon-024-reader-delivery-focus.log`).
+The full 024 local gate and PR/main checks remain required; these focused cases
+are not permission to push. Delivery order remains desktop, UI guidance,
+complete backups, then the integrated audit and remaining pre-V1 features.
