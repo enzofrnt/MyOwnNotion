@@ -344,3 +344,105 @@ synthetic test for an unreachable state. The real eight-entry/LRU regression and
 all 59 loader/permission cases still pass, along with API types and Biome.
 The full gate remains required on the resulting commit. Logs:
 `/tmp/mon-full-gate-desktop-acl-loader-errors.log`, `/tmp/mon-acl-final-focused.log`.
+
+
+### T096 — Cold restart diagnostics prepared (2026-09-08)
+
+CI 33993754133: all five browser profiles, API/contracts/migrations, unit coverage,
+performance, builds/security, native macOS and both Linux targets pass. Both
+Windows targets fail cold offline readiness (8/9 native journeys); GitGuardian
+still reports the separately identified false-positive incident. No merge or
+main verification is claimed.
+
+The unchanged macOS restart journey passes ten consecutive repetitions
+(`/tmp/mon-desktop-restart-repeat.log`). The explicit native-context tracing
+version also passes (`/tmp/mon-desktop-native-tracing.log`). A temporary local
+failure probe confirms the original exception remains visible and the separate
+Electron trace plus content-free state attachment are emitted; the probe was
+removed and is not part of the repository. Its trace is retained at
+`/tmp/mon-native-diagnostic-probe.zip`. This instrumentation localizes the next
+Windows result; it is not a claimed product fix. T096 remains open.
+
+The exact `bcd083f7` full local gate passes on 2026-09-08: all five browser
+profiles, all nine macOS native journeys, coverage, performance, database,
+migration, contract, image, security and Compose gates. Evidence:
+`/tmp/mon-full-gate-desktop-native-diagnostics-final.log`. It was pushed to PR 171
+only after that successful gate.
+
+CI 34197827585 passes native macOS and Linux but reproduces the Windows cold
+restart failure on both architectures. The new traces contain the same rejected
+native unwrap, `The wrapped key could not be opened.`, during local content
+initialization. No Web Lock is held or pending. Artifacts:
+`/tmp/mon-bcd-win-x64` and `/tmp/mon-bcd-win-arm`.
+
+Electron 44.1.1 stores Windows DPAPI key metadata in Chromium `Local State` and
+commits pending preferences at orderly shutdown; the preferences writer also
+uses a deferred write. The fixture terminates its first Windows x64 process
+about five seconds after launch. This supports investigating missing durable
+key metadata, but does not yet prove it. The next diagnostic compares only
+presence and equality around the same abrupt stop. No timing assertion,
+crash behavior, key format or application write path changes in this step.
+
+Source references:
+[pinned Electron preferences](https://github.com/electron/electron/blob/v44.1.1/shell/browser/browser_process_impl.cc),
+[pinned Chromium DPAPI provider](https://github.com/chromium/chromium/blob/152.0.7977.65/components/os_crypt/async/browser/dpapi_key_provider.cc),
+[preferences writer](https://github.com/chromium/chromium/blob/152.0.7977.65/base/files/important_file_writer.cc).
+
+## Refus explicite du stockage local — 8 septembre 2026
+
+T097 reproduit dans le navigateur le chargement sans fin après refus temporaire
+réel d'ouverture d'IndexedDB. Le parcours échoue avant correction, puis passe sur
+les cinq profils : erreur expurgée, arbre/éditeur indisponibles, rétablissement
+du stockage et bouton Réessayer retrouvant la même page et son texte. Aucune
+base ni enveloppe n'est supprimée. Les sept tests de hiérarchie, types Web et
+Biome passent. Logs : `/tmp/mon-workspace-initialization-red.log`,
+`/tmp/mon-workspace-initialization-five-profiles.log`,
+`/tmp/mon-workspace-initialization-unit.log`.
+Cette reprise UI ne répare pas le déchiffrement Windows ; le prochain commit
+exécutable exige encore le gate local complet avant push.
+
+## Clé Windows non enregistrée — preuve et correction en cours
+
+La CI 34203443742 sur e02693c6 reproduit le même état sur Windows x64 et ARM64 :
+Local State et la clé protégée sont absents avant l'arrêt brutal, puis présents
+après redémarrage avec une nouvelle clé. Les traces natives antérieures montrent
+le refus de déchiffrement correspondant. Les pièces jointes ne contiennent que
+des booléens ; aucune clé, empreinte ou donnée personnelle n'est publiée.
+
+La préparation Windows utilise désormais un mode interne du même exécutable,
+sans fenêtre ni service applicatif. Electron prépare son chiffrement OS, quitte
+normalement pour enregistrer ses préférences, puis le parent vérifie et force
+sur disque le fichier avant de terminer son propre bootstrap. Le verrou
+applicatif évite deux préparations concurrentes ; l'enfant ne l'acquiert pas.
+Le démarrage refuse un enfant en échec, un délai dépassé ou des métadonnées
+absentes/corrompues. Les enveloppes et données existantes ne sont pas réécrites.
+
+Ordre vérifié dans les sources épinglées :
+[bootstrap Electron 44.1.1](https://github.com/electron/electron/blob/v44.1.1/shell/browser/electron_browser_main_parts.cc),
+[commit des préférences à la fermeture](https://github.com/electron/electron/blob/v44.1.1/shell/browser/browser_process_impl.cc),
+[verrou déjà détenu](https://github.com/electron/electron/blob/v44.1.1/shell/browser/api/electron_api_app.cc).
+Les seize tests ciblés passent (arguments avec espaces, démarrage empaqueté ou
+de développement, enfant en échec, anciennes métadonnées conservées, fichier
+absent/corrompu/trop grand et chemins relatifs refusés), ainsi que les types.
+Le parcours natif exige maintenant la présence de la clé avant l'arrêt brutal,
+sans attente supplémentaire. Le gate complet et les deux CI natives restent
+obligatoires ; T096 n'est pas déclaré terminé.
+Les 26 tests combinés de préparation Windows, coffre, migration et cycle de
+fenêtre passent ; le build desktop passe également. Logs :
+`/tmp/mon-windows-key-prime-focused.log`, `/tmp/mon-windows-key-prime-build.log`.
+
+Le gate sur b5a9b60d passe 382 suites / 3 618 tests de couverture, les huit
+benchmarks, 333 tests de base, douze scénarios de migration et 1 312 contrats.
+Chromium révèle ensuite une régression T097 : remettre l'état à loading lors
+d'un changement du callback de navigation retire momentanément la ligne
+focalisée. Le test de clavier échoue dix fois sur dix. Le gate est arrêté
+en échec, sans push (`/tmp/mon-desktop-windows-key-prime-full-gate.log`).
+
+L'état initial fournit déjà le squelette et Réessayer recharge l'application.
+Retirer cette remise à loading conserve donc la reprise après refus réel sans
+recréer l'arbre pendant la navigation. Les vingt répétitions Chromium
+(clavier et refus/récupération) passent, puis les huit cas des quatre autres
+profils passent. Logs : `/tmp/mon-keyboard-b5a-repeat.log`,
+`/tmp/mon-keyboard-recovery-corrected-repeat.log`,
+`/tmp/mon-keyboard-recovery-four-profiles.log`. Le nouveau commit doit repasser
+le gate complet avant push.
