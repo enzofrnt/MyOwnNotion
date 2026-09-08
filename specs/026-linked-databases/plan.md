@@ -80,3 +80,8 @@ retained data. Destructive-definition previews must count only actually affected
 entry/property pairs, including retired choices and removed properties, and
 refuse invalid or foreign definitions. Add public domain tests for these
 existing safeguards as part of T015's shared validation review.
+
+The bulk local relationship reader introduced for large sources must enforce
+the same database/property boundary as individual reads, deduplicate targets,
+and exclude unrequested pages. Extend the existing mixed-source fixture to
+compare bulk and individual results and cover empty batches.

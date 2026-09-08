@@ -72,3 +72,18 @@ The complete database domain set now passes 195 tests with strict types
 (`/tmp/mon-db-task-boundaries.log`). These tests protect recovery decisions and
 canonical task value interpretation; they do not change runtime behavior.
 The renewed combined coverage is still required.
+
+
+The integrated run on d1f2911d passes all 432 suites / 4 209 tests and the
+unchanged coverage gate: 2 465 uncovered branches (maximum 2 465), exit 0
+(`/tmp/mon-pre-v1-coverage-import-membership.log`). This combines historical
+backup keys, native CSV scope correction, shared definition rejection and task
+recovery tests with 026/027/013/028. It is aggregate coverage evidence, not the
+complete `checks:local` delivery gate.
+
+The local relationship fixture additionally verifies the bulk reader against
+the individual reader for duplicate targets, foreign database metadata, invalid
+property metadata, unrelated relation kinds, unrequested entries and empty
+batches. Its six-suite-test cases pass with client-core types and Biome
+(`/tmp/mon-db-bulk-relation-boundary.log`). No runtime code changed in this
+additional boundary verification.

@@ -292,6 +292,18 @@ describe("structured local durability and coverage (T070)", () => {
     expect(await repository.getRelationTargets(databaseId, entryId)).toEqual({
       [propertyId]: [targetA, targetB].sort(),
     });
+    const outsideBatch = generateUuidV7();
+    await db.relationships.put({
+      id: generateUuidV7(),
+      sourceItemId: outsideBatch,
+      targetItemId: generateUuidV7(),
+      relationType: "database:property",
+      metadata: { databaseId, propertyId },
+    });
+    expect(await repository.getRelationTargetsForEntries(databaseId, [])).toEqual(new Map());
+    expect(
+      await repository.getRelationTargetsForEntries(databaseId, [entryId, generateUuidV7()]),
+    ).toEqual(new Map([[entryId, await repository.getRelationTargets(databaseId, entryId)]]));
     db.close();
   });
 
