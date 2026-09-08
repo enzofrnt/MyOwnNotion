@@ -34,3 +34,11 @@ changing the guidance scope: the difference from that desktop commit is still
 skill-creator validator pass. Local Markdown links in the skill and feature
 artifacts resolve. No application suite was run for this documentation update;
 PR/main delivery still follows the desktop merge.
+
+2026-09-08 delivery update: desktop PR 171 merged as fb36befc. UI PR 172 is
+retargeted to main and that main commit is integrated without changing the UI
+scope: the complete difference remains 19 maintained Markdown files. The prior
+PR run 34238596213 passed its aggregate gate and all five native desktop targets;
+its browser impact selection was an explicit no-op, not a new full browser run.
+The main native Windows failure is being investigated in 014 T102. Documentation
+checks are renewed for this base update; new PR and main results remain pending.
