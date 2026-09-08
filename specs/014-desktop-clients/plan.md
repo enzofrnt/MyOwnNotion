@@ -456,3 +456,21 @@ structured edit or exceeded bound remains stale. No snapshot decryption or
 comparison, timeout changes, UI retries or invented successful state.
 Reproduce both transparent consolidation and refused real structured edits at
 the transaction boundary, then replay the original native offline journey.
+
+### T101: deterministic native fixture teardown
+
+UI-only stacked CI 34230311557 exercises the same a2f2eb9b executable tree.
+Windows x64 passes every offline recovery/reconciliation assertion, then fails
+because taskkill sees an already gone process before the ChildProcess exit
+notification. ARM also passes the journey but removal reports EBUSY. Bun 1.4.0
+parses maxRetries/retryDelay but its recursive native rm implementation does
+not consume them. Use an owned-process observer registered before shutdown and
+the existing 10 retries with linear 100 ms backoff, only for transient filesystem
+errors; do not accept a surviving process or a permanently locked directory.
+Keep this in the test harness with event-order and bounded-failure regressions.
+The separate x64 initial onboarding launch ends at 277 ms after inspector
+connection, before browser DevTools output; its cause remains under investigation.
+Do not claim teardown fixes that startup failure or relax native flaky gates.
+
+Sources: pinned Playwright coreBundle.js Electron waitForLine/close implementation;
+[Bun 1.4.0 recursive rm](https://github.com/oven-sh/bun/blob/bun-v1.4.0/src/runtime/node/node_fs.rs).
