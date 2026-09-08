@@ -289,3 +289,5 @@ fichier concret.
 - [ ] T099 Prepare the pinned Electron executable before parallel desktop test workers, handle absent native spawn output without masking its status, verify local desktop tests/types and rerun the complete gate plus both Windows native jobs before accepting T096.
 
 - [ ] T100 Reproduce the WebKit mobile structured-resolution refusal when an automatic page-history consolidation advances the reviewed entry head; preserve the current page and both resolution ancestries across consolidation-only descendants, keep genuine structured edits stale, and verify targeted database/native journeys plus renewed delivery gates.
+
+- [ ] T101 Correct demonstrated Windows native fixture cleanup races: await owned process exit after graceful close or a racing taskkill result, apply the existing bounded directory cleanup retry policy under Bun, and retain failures for a surviving process/permanent lock. Diagnose the separate early inspector launch failure without retrying it away; require renewed native and complete delivery gates.
