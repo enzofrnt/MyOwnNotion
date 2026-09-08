@@ -474,3 +474,27 @@ Do not claim teardown fixes that startup failure or relax native flaky gates.
 
 Sources: pinned Playwright coreBundle.js Electron waitForLine/close implementation;
 [Bun 1.4.0 recursive rm](https://github.com/oven-sh/bun/blob/bun-v1.4.0/src/runtime/node/node_fs.rs).
+
+### T102: retain native shutdown evidence
+
+Desktop PR 171 passed all five native targets and merged as fb36befc. Main run
+34241754881 passes the offline crash, restart, intact content and exactly-once
+reconciliation assertions on Windows ARM, then fails teardown: the wrapper PID
+is absent to taskkill but the owned ChildProcess still has no observed exit
+after the existing 5 + 10 second deadlines. Playwright launches Electron through
+a Windows shell, so the wrapper identity alone cannot establish Electron exit.
+Retain the real Electron PID obtained at launch, fixed preload lifecycle stages,
+owned-process exit state and pipe flags on cleanup failure.
+Read-only OS liveness probes distinguish missing processes from permission or
+probe errors. Never print command lines, environment, paths, content or raw
+exceptions, synthesize process events, suppress failure or increase deadlines.
+This diagnostic addition is not a claimed repair. The Linux ARM failure in the
+same run was an upstream Electron download HTTP 500; a targeted infrastructure
+retry passed after the upstream URL recovered.
+
+The naturally subsequent backup PR run 34246091846 also reports a native
+evaluation channel closing on ARM and a tracing-stop failure on x64. Observe
+unexpected context closure before requested shutdown, await bounded diagnostic
+collection during fixture cleanup, and prevent a failed trace export from
+replacing the original test failure. Keep this observation passive; no launch,
+evaluation or test retries are added.

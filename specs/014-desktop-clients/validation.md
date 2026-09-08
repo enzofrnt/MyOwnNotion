@@ -620,3 +620,17 @@ readiness or relax any journey. A windowless real macOS Electron launch verifies
 preload, ready, normal quit and zero exit (`/tmp/mon-native-probe-smoke.log`).
 Complete gate/native Windows confirmation and the distinct startup diagnosis
 remain pending; this is not a claim that teardown fixes startup.
+# Main shutdown investigation — T102
+
+The merged desktop commit fb36befc passed every native target in PR 171. Main
+run 34241754881 subsequently passed all offline recovery assertions on Windows
+ARM but failed process cleanup after the wrapper PID disappeared. This remains
+unresolved; it is not a demonstrated loss of offline content. The Linux ARM
+download HTTP 500 cleared on a targeted infrastructure retry.
+
+Bounded shutdown diagnostics now distinguish wrapper/Electron OS liveness,
+unavailable probes, runtime exit state, pipe state and allowlisted native
+lifecycle stages. Sixteen focused cleanup/evidence tests pass, including a real
+owned Bun process, absence versus permission refusal, bounded records and
+redaction. Strict workspace types pass. Complete local, native PR and renewed
+main checks remain pending; this change is diagnostic, not a claimed repair.
