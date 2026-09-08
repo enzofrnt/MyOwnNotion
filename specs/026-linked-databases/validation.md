@@ -39,3 +39,25 @@ Les commits 026 et 027 ont ensuite été repris sur `1104822c` dans une nouvelle
 branche isolée. Les vérifications communes, la préservation des corrections
 de l'audit et les étapes encore attendues sont consignées dans
 [integration-validation.md](integration-validation.md).
+
+
+## T015 — External command validation (2026-09-08, focused evidence)
+
+The integrated run on e8d40c1f passes all 430 suites / 4 085 tests, but fails
+the unchanged uncovered-branch budget at 2 559 / 2 465
+(`/tmp/mon-pre-v1-coverage-history-integrated.log`). This is not a passing gate.
+
+Review reproduced three unsupported types accepted through the public mutation
+parser: source property, source view and embedded view. The new regression suite
+initially reports 3 failures / 70 passes (`/tmp/mon-db-boundaries-red.log`). The
+shared definition validator now checks the existing canonical type vocabularies
+for properties and all views. Unknown types are refused rather than persisted.
+
+Public command tests also exercise required identities, explicit placements,
+malformed typed values and relation sets, invalid page documents, conflict
+parents and destructive-change confirmations. Definition tests cover invalid
+labels, IDs, option metadata, widths, task roles and embeddings. Positive cases
+prove normalization, stable identities, deterministic replay and unchanged input.
+All nine database domain suites pass (187 tests), with domain types and Biome
+passing (`/tmp/mon-db-definition-boundaries.log`). Full integrated coverage and
+delivery remain required; neither thresholds nor exclusions were changed.

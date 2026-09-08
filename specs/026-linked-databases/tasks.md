@@ -30,3 +30,5 @@
 ## Phase 5: Convergence
 
 - [x] T014 Aligner le contrat OpenAPI 009 de création d'entrée avec FR-012 et corriger les attentes de migrations révélées par la couverture intégrée : conserver la mise à niveau format-v2 jusqu'à 0017, borner le contrat historique de fichiers à 0015, puis vérifier contrats, types et Biome (partial).
+
+- [ ] T015 Renforcer les garanties FR-008 au point d'entrée partagé dans `packages/domain/src/databases/schema.ts` et les tests de commandes : refuser les types inconnus de propriétés/vues (y compris intégrées), conserver placements explicites et identités, tester valeurs/relations/documents/confirmations malformés via `parseMutationCommand`, et vérifier les commandes valides sans mutation de leur entrée. Reporter les régressions reproduites et la couverture intégrée sans modifier ses seuils.

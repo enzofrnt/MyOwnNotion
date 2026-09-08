@@ -62,3 +62,15 @@ Les affichages conservent leur projection locale lorsqu'une entrée est ouverte.
 ## Clarification des placements d'entrée
 
 `database.entry.create` accepte un `placement` optionnel ; tous les autres contrats de création gardent leurs exigences. Le flux UI omet ce champ et l'API/outbox locale créent une page canonique et son appartenance sans placement hiérarchique. Le contrat explicite ancien continue de fonctionner. Aucune colonne ni migration supplémentaire n'est nécessaire : 0016 autorise déjà les pages sans placement, et son détachement historique conserve les identifiants de placements existants. Le corpus UI de 1 001 entrées reproduit ce nouveau défaut et vérifie que la navigation ne comporte pas 1 001 racines. Les permissions MCP par branche restent fondées sur la hiérarchie ; un affichage n'accorde aucun droit implicite sur les entrées.
+
+## T015 — Validation des commandes externes
+
+La couverture intégrée passe 4 085 tests mais dépasse le budget de branches
+non couvertes (2 559 / 2 465). L'audit des frontières partagées reproduit une
+acceptation de `unsupported-view` par `parseMutationCommand` lors d'un remplacement
+de définition. Le schéma doit vérifier les vocabulaires de types déjà canoniques
+pour les propriétés et vues, y compris les vues d'emplacement. Les tests passent
+par le parseur public, avec commandes JSON malformées et preuves positives de
+normalisation/rejeu ; aucune méthode privée ni exclusion de couverture. Les
+valeurs inconnues sont refusées, pas converties silencieusement. FR-008 et les
+limites existantes de la 009 restent inchangés.

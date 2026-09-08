@@ -15,6 +15,7 @@ import type {
   TaskSemanticProjection,
   TaskStatusValue,
 } from "./types.ts";
+import { DATABASE_PROPERTY_TYPES, DATABASE_VIEW_TYPES } from "./types.ts";
 
 function invalidDefinition(fields: readonly string[]): DomainResult<DatabaseDefinition> {
   return err("validation.invalid-payload", "Database definition is invalid", {
@@ -47,6 +48,7 @@ function normalizeOption(option: PropertyOption): PropertyOption | null {
 function normalizeProperty(property: DatabaseProperty): DatabaseProperty | null {
   const name = normalizeDisplayName(property.name);
   if (
+    !DATABASE_PROPERTY_TYPES.includes(property.type) ||
     !isUuid(property.id) ||
     !name.ok ||
     !validPositionKey(property.positionKey) ||
@@ -85,6 +87,7 @@ function normalizeProperty(property: DatabaseProperty): DatabaseProperty | null 
 function normalizeView(view: DatabaseView): DatabaseView | null {
   const name = normalizeDisplayName(view.name);
   if (
+    !DATABASE_VIEW_TYPES.includes(view.type) ||
     !isUuid(view.id) ||
     !name.ok ||
     !validPositionKey(view.positionKey) ||
