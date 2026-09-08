@@ -157,7 +157,7 @@ describe("the aggregate", () => {
 describe("safe reusable work", () => {
   it("uses the exact Bun release and a clean frozen install", () => {
     expect(ci).toContain("uses: ./.github/actions/setup-bun");
-    expect(setupBun).toContain("bun-version: 1.4.0");
+    expect(setupBun).toContain("bun-version: 1.4.2");
     expect(setupBun).not.toContain("actions/cache@");
     expect(setupBun).not.toContain("~/.bun/install/cache");
     expect(setupBun).not.toContain("node_modules");

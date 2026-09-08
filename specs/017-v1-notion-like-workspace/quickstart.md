@@ -1,7 +1,7 @@
 # Quickstart: Implémenter et vérifier la feature 017
 
 
-> **Chaîne actuelle (feature 019, livrée)** : Bun 1.4.0 exclusivement. Installer
+> **Chaîne actuelle (feature 019, livrée)** : Bun 1.4.2 exclusivement. Installer
 > avec `bun ci` et orchestrer avec `bun run`. Les mentions de pnpm ou Node.js
 > plus bas décrivent l'époque de construction de cette feature ; elles ne sont
 > plus la procédure à exécuter. Guide vivant :
@@ -12,7 +12,7 @@ l'inventaire des gates dans `docs/development.md`.
 
 ## 1. Préparer l'environnement
 
-Depuis la racine du dépôt, utiliser Bun 1.4.0, verrouillé par le dépôt :
+Depuis la racine du dépôt, utiliser Bun 1.4.2, verrouillé par le dépôt :
 
 ~~~bash
 bun install --frozen-lockfile

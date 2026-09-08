@@ -32,17 +32,17 @@ install_unzip() {
 
 install_bun() {
     curl --fail --silent --show-error --location https://bun.sh/install |
-        bash -s "bun-v1.4.0" >/dev/null
+        bash -s "bun-v1.4.2" >/dev/null
 }
 
 export PATH="${HOME}/.bun/bin:${PATH}"
-if ! command -v bun >/dev/null || [[ "$(bun --version)" != "1.4.0" ]]; then
+if ! command -v bun >/dev/null || [[ "$(bun --version)" != "1.4.2" ]]; then
     if ! command -v unzip >/dev/null; then
         retry_bootstrap "installing unzip" install_unzip || return 1
         rm -rf /var/lib/apt/lists/*
     fi
-    retry_bootstrap "installing Bun 1.4.0" install_bun || return 1
+    retry_bootstrap "installing Bun 1.4.2" install_bun || return 1
 fi
 
-test "$(bun --version)" = "1.4.0" || return 1
+test "$(bun --version)" = "1.4.2" || return 1
 retry_bootstrap "installing locked dependencies" bun ci || return 1

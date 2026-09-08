@@ -389,3 +389,13 @@ qu'aucune procédure active ne dépend du système retiré.
 - Toute migration de base de données ou de contenu utilisateur.
 - L'ajout des clients Electron, d'un nouveau service ou d'un conteneur externe.
 - Le maintien d'un mode de secours pnpm/Node.js après fusion.
+
+## Maintenance du runtime — 2026-09-08
+
+Le défaut Windows de propriété des ressources de sous-processus est reproduit
+avec le runtime initial : une opération de nettoyage peut fermer une ressource
+sans rapport avec le sous-processus. La version maintenue doit corriger ce défaut
+sans supprimer les parcours natifs, leurs assertions, leurs délais ou les garanties
+de données. La mise à jour conserve une version patch exacte commune au dépôt,
+à la CI et aux images, et ne demande aucune conversion de données. Les critères
+US1/US2, SC-001–SC-010 et le canevas 28.4/28.5 restent applicables.

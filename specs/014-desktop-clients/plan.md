@@ -474,3 +474,136 @@ Do not claim teardown fixes that startup failure or relax native flaky gates.
 
 Sources: pinned Playwright coreBundle.js Electron waitForLine/close implementation;
 [Bun 1.4.0 recursive rm](https://github.com/oven-sh/bun/blob/bun-v1.4.0/src/runtime/node/node_fs.rs).
+
+### T102: retain native shutdown evidence
+
+Desktop PR 171 passed all five native targets and merged as fb36befc. Main run
+34241754881 passes the offline crash, restart, intact content and exactly-once
+reconciliation assertions on Windows ARM, then fails teardown: the wrapper PID
+is absent to taskkill but the owned ChildProcess still has no observed exit
+after the existing 5 + 10 second deadlines. Playwright launches Electron through
+a Windows shell, so the wrapper identity alone cannot establish Electron exit.
+Retain the real Electron PID obtained at launch, fixed preload lifecycle stages,
+owned-process exit state and pipe flags on cleanup failure.
+Read-only OS liveness probes distinguish missing processes from permission or
+probe errors. Never print command lines, environment, paths, content or raw
+exceptions, synthesize process events, suppress failure or increase deadlines.
+This diagnostic addition is not a claimed repair. The Linux ARM failure in the
+same run was an upstream Electron download HTTP 500; a targeted infrastructure
+retry passed after the upstream URL recovered.
+
+The naturally subsequent backup PR run 34246091846 also reports a native
+evaluation channel closing on ARM and a tracing-stop failure on x64. Observe
+unexpected context closure before requested shutdown, await bounded diagnostic
+collection during fixture cleanup, and prevent a failed trace export from
+replacing the original test failure. Keep this observation passive; no launch,
+evaluation or test retries are added.
+
+### T103: bound authentication fixture setup
+
+The renewed local Firefox gate on 0a43f6c1 timed out in authentication's
+beforeEach before any browser action. No PostgreSQL error was recorded in the
+corresponding interval; the trace does not identify the individual setup
+operation, so the precise stalled operation remains unconfirmed. Inspection
+finds that password seeding alone still uses an unbounded disposable client,
+including its final socket close. Move it to the existing bounded fixture
+boundary, retaining the actual stored scrypt format. Generate one credential
+identity and hash per fixture invocation, outside retried work, and make its
+insertion idempotent so a lost commit reply cannot create duplicate credentials.
+Add explicit setup steps to preserve the failing operation in future traces.
+Inject a committed insert with a lost reply and a stalled final close in focused
+regressions; retain real authentication journeys and unchanged test deadlines.
+This hardens a demonstrated missing bound, not a proven diagnosis of the earlier
+Firefox timeout. Full delivery checks must run again on the resulting commit.
+### Native channel evidence from UI PR 172
+
+Run 34252039882 on documentation-only 2362b444 reproduces native failures on
+both Windows architectures; the other native targets and all remaining required
+jobs pass. It is not a reason to rerun for luck or accept flaky native journeys.
+
+On x64 the offline journey confirms the recovered text, then the native main
+inspector rejects `setDesktopOffline(false)` (test trace call 181). The subsequent
+native inspector probe also fails (182), but renderer `page.evaluate` still
+succeeds (184) and its native browser trace can be exported. The process log
+records `Debugger ending`. This distinguishes an inspector transport loss from
+an established application exit. The failing evaluation's effect is not known.
+
+A separate x64 onboarding attempt reaches preload, ready and window-created.
+Both inspector and browser CDP sockets connect, then browser CDP disconnects
+with code 1006 before Electron initialization completes. Only afterwards does
+Playwright forcibly kill the still present Electron process tree. No preload
+quit or uncaught-exception event is recorded. Thus this case is also not proven
+to be an application-requested shutdown.
+
+On ARM the original browser locator channel closes; the existing trace-export
+error masks it. The pending T102 change preserves the original exception and
+adds bounded lifecycle/owned-process evidence, but has not yet run remotely.
+
+Upstream historical Bun issues 27977 and 9911 describe different extra-pipe
+connection and HTTP-upgrade failures fixed before the pinned 1.4.0 release.
+Neither establishes the cause of these post-connect losses. No runtime switch,
+WebSocket patch, retries, timeout extension or weakened native assertions is
+justified by those reports alone.
+
+Extend T102 to report a rejected native command before requested cleanup even
+when the browser context stays open. Keep reporting independent of another
+inspector evaluation: use the captured owned identities, allowlisted preload
+stages and cached window-close state. Bound diagnostic waiting to one second,
+preserve the original thrown value if reporting fails or hangs, and never retry
+the command. Cover success, refusal, diagnostic failure and timeout explicitly.
+
+### T104: package with the pinned Bun toolchain alone
+
+The isolated Windows checkout on ccb450d5 passes all nine native journeys and
+five additional offline-restart/onboarding pairs, but `bun run package` fails
+immediately with `spawn npm ENOENT`. This machine has Bun 1.4.0 and no Node/npm.
+Forge 7.11.2's CLI always resolves npm/yarn/pnpm for its startup version check;
+existing developer machines and CI images masked that undeclared requirement.
+
+Call the same pinned Forge core API from a Bun entry point for package, make and
+publish. Keep the existing Forge config, signing hooks, pruning, makers and
+release matrix. Declare core directly and retire the unused CLI dependency.
+Forward the maintained release platform/architecture arguments, support Bun's
+separator, reject unsupported targets/options before invoking the API, and do
+not introduce a home-directory skip marker or install a second package manager.
+Prove real packaging and installed smoke on Windows without Node/npm, test
+argument forwarding/failures, and renew local/PR/main delivery gates and Trivy
+because the dependency lock changes. This is separate from T102's unresolved
+intermittent inspector loss; no causal claim links them.
+
+### T105: confirm the owned native processes have actually exited
+
+The two-core Windows fixture reproduces T102 locally: after successful revocation
+assertions and requested normal shutdown, both captured wrapper and Electron PIDs
+are absent, stdout/stderr have ended, the window is closed and the preload records
+before-quit/will-quit/process-exit/quit, while Bun still exposes null exit/signal
+codes. The old helper waits its deadlines and fails `taskkill` against an already
+absent wrapper. This is confirmed process-exit notification loss, not a surviving
+application or a reason to repeat a product operation.
+
+On Windows, pass a read-only exit confirmation bound to both captured process
+identities into native fixture cleanup. Require ESRCH for each valid PID; an
+alive process, missing identity, permission error or unavailable probe is not
+success. Observe confirmation within the existing graceful/forced deadlines and
+remove temporary listeners/timers on every path. Never synthesize a ChildProcess
+exit event/status or kill unrelated processes. Other platforms keep their existing
+notification path. Cover missing notification, wrapper-only exit, unavailable
+probe and permanent survival, then replay native Windows with the same two-core
+constraint. Retain separate inspector-loss and packaged-startup uncertainties;
+renew full local, PR and main gates before delivery.
+
+T105 investigation update: the confirmation-only experiment passes its 24 focused
+cases but is not a sufficient runtime repair (Playwright also owns pending child
+exit listeners). The next constrained run fails a distinct launch with null exit
+and signal state. Do not ship the polling experiment. Bun's upstream fix #39966
+identifies double-closing extra Windows stdio handles, potentially closing other
+process, pipe, thread or socket handles after reuse. Its isolated child-process
+regression reproduces four unrelated handle closures on the pinned 1.4.0 and
+passes on official 1.4.2 with identical input. Update the maintained exact Bun
+runtime and image/types pins after validating constrained native journeys without
+the experimental cleanup changes. Keep the diagnostic improvements and existing
+assertions/deadlines; renew all local, image, PR and main gates.
+
+Sources: https://github.com/oven-sh/bun/pull/39966 and
+https://bun.sh/blog/bun-v1.4.1 (Windows corrections); 1.4.2 includes subsequent
+regression corrections documented at https://bun.sh/blog/bun-v1.4.2.

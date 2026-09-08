@@ -614,3 +614,83 @@ readiness or relax any journey. A windowless real macOS Electron launch verifies
 preload, ready, normal quit and zero exit (`/tmp/mon-native-probe-smoke.log`).
 Complete gate/native Windows confirmation and the distinct startup diagnosis
 remain pending; this is not a claim that teardown fixes startup.
+# Main shutdown investigation — T102
+
+The merged desktop commit fb36befc passed every native target in PR 171. Main
+run 34241754881 subsequently passed all offline recovery assertions on Windows
+ARM but failed process cleanup after the wrapper PID disappeared. This remains
+unresolved; it is not a demonstrated loss of offline content. The Linux ARM
+download HTTP 500 cleared on a targeted infrastructure retry.
+
+Bounded shutdown diagnostics now distinguish wrapper/Electron OS liveness,
+unavailable probes, runtime exit state, pipe state and allowlisted native
+lifecycle stages. Sixteen focused cleanup/evidence tests pass, including a real
+owned Bun process, absence versus permission refusal, bounded records and
+redaction. Strict workspace types pass. Complete local, native PR and renewed
+main checks remain pending; this change is diagnostic, not a claimed repair.
+
+### T103 authentication fixture follow-up
+
+The 0a43f6c1 complete local run failed the strict Firefox gate: one beforeEach
+exceeded 60 seconds before any browser action. Its trace does not identify which
+setup operation waited, and PostgreSQL logged no corresponding error. The run
+was interrupted after recording that failure; it is not pre-push evidence.
+
+Password setup still had an unbounded connection/query/final close. Its extracted
+fixture now uses the existing bounded client and preserves a single credential
+ID/hash across idempotent insert retries. Two fault-injection regressions first
+failed against the old helper, then passed: a permanently pending socket close,
+and a committed insert followed by a lost reply. Strict workspace types and
+changed-file formatting/lint pass. Named setup steps will retain the precise
+operation if another stall occurs. These focused checks establish the new
+bounds; they do not prove the original stall's precise cause. Real browser and
+complete delivery evidence remain pending on this revision.
+
+### T102 additional native-channel observation
+
+UI PR run 34252039882 reproduces Windows failures on unchanged desktop code.
+Its x64 offline trace loses only the main inspector while renderer evaluation
+and browser trace export still succeed; its onboarding trace loses browser CDP
+before initialization, while the process tree is still present. These details
+are recorded in the plan. Extend the diagnostic boundary to rejected offline
+commands before cleanup: report captured process identities and cached window
+state without querying the broken inspector. The command is never retried.
+Four focused tests pass for success, original-error preservation, unavailable
+reporting and a one-second reporting deadline. Strict workspace types and
+changed-file format/lint pass. No application behavior or deadline is relaxed.
+
+The preceding 1036fadc full local run passed 3,651 coverage tests, performance,
+database/migration and 1,313 contract tests. It was held before its browser stage
+and then deliberately stopped to include the additional diagnostic; it is not
+a completed pre-push gate. A fresh complete run is required on this commit.
+
+### T104 Bun-only packaging
+
+A fresh Windows x64 fixture with no Node/npm reproduces the original package
+failure: Forge CLI exits at `npm --version` with `spawn npm ENOENT`. Replacing
+that CLI entry with the pinned Forge core API produces the actual Windows app
+and passes installed smoke (`platform=win32`, `architecture=x64`, `packaged=true`)
+on the same machine, without installing npm or creating a Forge skip marker.
+Twelve command tests pass, including the maintained release argument forms,
+unsupported-target refusal, nested publication options and error propagation.
+Strict workspace types, formatting/lint and the desktop policy check pass.
+Installer creation and renewed complete/PR/main gates remain pending; this fix
+is separate from the unresolved intermittent Windows inspector failures.
+
+### T105 demonstrated Windows runtime ownership defect
+
+A two-core Windows reproduction of the original cleanup records both owned
+processes absent, ended pipes, a closed window and normal quit stages while Bun
+still exposes no exit notification. A polling-only experiment passes its unit
+cases but does not address Playwright's own process observers and is not retained.
+The next constrained run also loses a native launch. The maintained regression
+then reproduces Bun 1.4.0 invalidating four unrelated descriptors after extra-pipe
+cleanup and passes on 1.4.2. All nine native journeys pass on 1.4.2 under the same
+CPU constraint without the polling experiment. See feature 019's maintenance
+plan and validation for the exact pin change and upstream ownership fix.
+
+The 55d74ada full local gate passed 3,667 coverage tests, eight performance groups,
+341 database cases, 12 migration cases, 1,313 contracts and Chromium desktop.
+It was deliberately stopped during the browser matrix to incorporate the proven
+runtime repair, so it is not pre-push success. Full local and remote gates remain
+required on the updated candidate.

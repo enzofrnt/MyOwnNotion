@@ -4,7 +4,7 @@
 > describes retained portable exports. See [complete recovery](../../docs/deployment/backups.md).
 
 
-> **Chaîne actuelle (feature 019, livrée)** : Bun 1.4.0 exclusivement. Installer
+> **Chaîne actuelle (feature 019, livrée)** : Bun 1.4.2 exclusivement. Installer
 > avec `bun ci` et orchestrer avec `bun run`. Les anciens exemples pnpm ou Node.js
 > ne sont plus la procédure à exécuter. Guide vivant :
 > [`docs/development.md`](../../docs/development.md).
