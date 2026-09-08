@@ -198,3 +198,25 @@ Coverage convergence checks the same 11 functional requirements, 4 success
 criteria, 11 acceptance scenarios, 11 plan decisions and 8 constitution
 principles. No new functional finding was identified after T017–T019; the
 remaining instrumented coverage paths above stay visible to integration.
+
+
+## T020 — Native CSV source membership (2026-09-08)
+
+A synthetic preview bound a CSV row to an unrelated root note with the same
+title, leaving its actual exported subpage outside the database and reporting
+no blocking issue (`/tmp/mon-notion-csv-scope-repro.log`). Regression tests also
+showed that a globally unique note concealed ambiguous local subpages; two
+negative tests failed before correction (`/tmp/mon-notion-csv-scope-red.log`).
+
+The planner now prefers the CSV's own same-title subpages, blocks multiple local
+matches and only falls back globally when there are no local matches. Explicit
+row paths remain supported. The native fixture covers two separate databases
+with same-title entries and an unrelated root note. Canonical SQL/API readback
+proves two correct memberships and three distinct bodies; replay changes no
+membership. No personal data was applied.
+
+Source and protected integration suites pass 40 tests
+(`/tmp/mon-notion-csv-scope-final.log`), API types and focused Biome pass. The
+first integration assertion used the wrong fixture field `entryId`; correcting
+it to the actual `entryItemId` preserved the intended membership assertion.
+Full integrated coverage and delivery gates remain required.

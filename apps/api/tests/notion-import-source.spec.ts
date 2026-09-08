@@ -515,3 +515,54 @@ plain code
     }
   });
 });
+
+it("binds native CSV rows to their own exported subpages before unrelated same-title notes", async () => {
+  const root = await fixture({
+    "Tasks.csv": "Name,Status\nTask,Done\n",
+    "Task.md": "# Task\nUnrelated root note\n",
+    "Tasks/Task abcdef0123456789abcdef0123456789.md": "# Task\nReal entry\n",
+    "Other.csv": "Name,Status\nTask,Todo\n",
+    "Other/Task fedcba9876543210fedcba9876543210.md": "# Task\nOther entry\n",
+  });
+  const plan = planNotionImport(await readImportSource(root));
+  expect(plan.report.issues.filter((issue) => issue.blocking)).toEqual([]);
+  const page = (path: string) => plan.pages.find((page) => page.path === path);
+  const task = page("Tasks/Task abcdef0123456789abcdef0123456789.md");
+  const other = page("Other/Task fedcba9876543210fedcba9876543210.md");
+  expect(plan.databases.find((database) => database.path === "Tasks.csv")?.memberIds).toEqual([
+    task?.id,
+  ]);
+  expect(plan.databases.find((database) => database.path === "Other.csv")?.memberIds).toEqual([
+    other?.id,
+  ]);
+  expect(task?.properties["Status"]).toBe("Done");
+  expect(other?.properties["Status"]).toBe("Todo");
+  expect(page("Task.md")?.databaseId).toBeUndefined();
+  expect(page("Task.md")?.properties).toEqual({});
+});
+
+it("blocks ambiguous subpages even when a unique unrelated root title would resolve", async () => {
+  const root = await fixture({
+    "Tasks.csv": "Name,Status\nTask,Done\n",
+    "Task.md": "# Task\nUnrelated\n",
+    "Tasks/One.md": "# Task\nFirst\n",
+    "Tasks/Two.md": "# Task\nSecond\n",
+  });
+  const plan = planNotionImport(await readImportSource(root));
+  expect(plan.report.issues).toContainEqual(
+    expect.objectContaining({ code: "import.csv-row-ambiguous", blocking: true }),
+  );
+  expect(plan.pages.find((page) => page.path === "Task.md")?.databaseId).toBeUndefined();
+});
+
+it("retains explicit native row paths when no local title matches", async () => {
+  const root = await fixture({
+    "Tasks.csv": "Name,Status\nElsewhere/Actual.md,Done\n",
+    "Elsewhere/Actual.md": "# Actual\nExplicitly referenced entry\n",
+  });
+  const plan = planNotionImport(await readImportSource(root));
+  expect(plan.report.issues.filter((issue) => issue.blocking)).toEqual([]);
+  expect(plan.databases[0]?.memberIds).toEqual([
+    plan.pages.find((page) => page.path === "Elsewhere/Actual.md")?.id,
+  ]);
+});

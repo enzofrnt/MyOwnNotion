@@ -39,3 +39,7 @@
 - [x] T017 Exercise uncovered source/Markdown/CSV/archive integrity and filesystem race boundaries with synthetic input per FR-002/003/009.
 - [x] T018 Exercise canonical refusal, interrupted file replay, checkpoint integrity, target readiness and CLI error boundaries per FR-006/007/008.
 - [x] T019 Record exact scoped uncovered counts and meaningful remaining limitations after coverage; keep all global thresholds and exclusions unchanged per Constitution VII.
+
+## Phase 8: CSV membership scope
+
+- [x] T020 Correct native CSV row matching in `apps/api/src/imports/notion/plan.ts`: prefer the matching subpage inside that CSV's exported folder before global title/link fallback, refuse ambiguous local matches, and preserve explicit path support. Prove same-title unrelated pages and independent databases retain their own page identities/content/properties using synthetic preview and canonical import tests (FR-004/FR-007; confirmed wrong membership).

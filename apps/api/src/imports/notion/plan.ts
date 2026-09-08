@@ -343,22 +343,28 @@ export function planNotionImport(
         throw new NotionImportError("import.invalid-csv");
       for (const [index, row] of rows.slice(1).entries()) {
         const title = row[0] ?? "Sans titre";
-        const resolved = resolveLink(source.path, title);
-        let page = resolved.id
-          ? pages.find((candidate) => candidate.id === resolved.id)
-          : undefined;
-        if (!page) {
-          const matched = pages.filter(
-            (candidate) =>
-              posix.dirname(candidate.path) === stem(source.path) && candidate.title === title,
-          );
-          if (matched.length > 1 || resolved.status === "ambiguous")
+        const matched = pages.filter(
+          (candidate) =>
+            posix.dirname(candidate.path) === stem(source.path) && candidate.title === title,
+        );
+        // A native CSV's own exported subpages establish membership. Global
+        // title lookup can otherwise steal an unrelated note with the same name.
+        let page = matched.length === 1 ? matched[0] : undefined;
+        if (matched.length > 1) {
+          issues.push({
+            code: "import.csv-row-ambiguous",
+            sourcePath: source.path,
+            blocking: true,
+          });
+        } else if (!page) {
+          const resolved = resolveLink(source.path, title);
+          if (resolved.status === "ambiguous")
             issues.push({
               code: "import.csv-row-ambiguous",
               sourcePath: source.path,
               blocking: true,
             });
-          page = matched.length === 1 ? matched[0] : undefined;
+          page = resolved.id ? pages.find((candidate) => candidate.id === resolved.id) : undefined;
         }
         if (!page) {
           page = addPage(`${stem(source.path)}/row-${index + 1}.import.md`, title, "", {});

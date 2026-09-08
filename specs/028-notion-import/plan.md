@@ -116,3 +116,15 @@ A real Bun child writer and an already-open API SSE connection demonstrate the
 process boundary. Reconnection announces the canonical position; the client's
 existing online handler performs its ordinary workspace synchronization. An
 idle stream emits keep-alives without redundant advanced events.
+
+## T020 — Native CSV membership scope
+
+A synthetic export containing `Tasks.csv`, `Task.md` and
+`Tasks/Task <notion-id>.md` reproduces a wrong membership without any blocking
+notice: global title resolution chooses the unrelated root note. Native CSV
+matching must first inspect same-title pages in the CSV's corresponding export
+folder. One match wins; several matches are ambiguous and block apply even if
+a globally unique note exists. Only absence of local matches permits the
+existing explicit-link/global fallback. Preserve originals, deterministic page
+IDs and properties; never coalesce entries from different database folders by
+title. No source writes or personal apply are needed to prove this correction.

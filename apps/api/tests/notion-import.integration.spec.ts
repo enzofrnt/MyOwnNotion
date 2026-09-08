@@ -743,3 +743,41 @@ describe("protected canonical Notion apply", () => {
     }
   }, 180_000);
 });
+
+it("imports same-title native entries into their own sources and leaves an unrelated note independent", async () => {
+  const imported = await plan({
+    "Task.md": "# Task\nIndependent note body\n",
+    "Tasks.csv": "Name,Status\nTask,Done\n",
+    "Tasks/Task abcdef0123456789abcdef0123456789.md": "# Task\nFirst source body\n",
+    "Other.csv": "Name,Status\nTask,Todo\n",
+    "Other/Task fedcba9876543210fedcba9876543210.md": "# Task\nSecond source body\n",
+  });
+  expect(imported.value.report.issues.filter((issue) => issue.blocking)).toEqual([]);
+  await applyNotionImport(imported.value, target);
+  const independent = required(imported.value.pages.find((page) => page.path === "Task.md"));
+  const rows = await target.context.db.select().from(schema.databaseEntries);
+  expect(rows).toHaveLength(2);
+  expect(rows.some((row) => row.entryItemId === independent.id)).toBe(false);
+  expect(JSON.stringify((await item(independent.id)).pageDocument)).toContain(
+    "Independent note body",
+  );
+  for (const [path, body] of [
+    ["Tasks.csv", "First source body"],
+    ["Other.csv", "Second source body"],
+  ]) {
+    const source = required(imported.value.databases.find((source) => source.path === path));
+    const entryId = required(source.memberIds[0]);
+    expect(rows).toContainEqual(
+      expect.objectContaining({ databaseId: source.id, entryItemId: entryId }),
+    );
+    expect(JSON.stringify((await item(entryId)).pageDocument)).toContain(body);
+    const response = await harness.api.built.app.inject({
+      method: "GET",
+      url: `/v1/databases/${source.id}/entries/${entryId}`,
+      headers,
+    });
+    expect(response.statusCode, response.body).toBe(200);
+  }
+  expect((await applyNotionImport(imported.value, target)).alreadyComplete).toBe(true);
+  expect(await target.context.db.select().from(schema.databaseEntries)).toEqual(rows);
+}, 180_000);
