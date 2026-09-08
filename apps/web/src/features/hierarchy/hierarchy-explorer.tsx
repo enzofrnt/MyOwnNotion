@@ -598,7 +598,6 @@ export function HierarchyExplorer({
 
   useEffect(() => {
     let cancelled = false;
-    setLoadState("loading");
     void (async () => {
       setLoadPhase("initializing");
       await service.initialize();

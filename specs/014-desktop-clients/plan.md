@@ -342,6 +342,11 @@ until initialization succeeds, preserve IndexedDB and native envelopes, and
 verify a temporary storage refusal followed by recovery of the same page.
 This does not fix or disguise the underlying Windows decryption failure.
 
+Retain an already-ready shell when the route callback changes. Resetting it to
+loading on every effect invocation briefly removes focused tree rows during
+navigation and breaks ArrowDown/ArrowUp. Initial state already supplies the
+first-boot skeleton; error retry reloads the application without deleting data.
+
 The suspected delayed preferences commit remains a hypothesis until this native
 evidence confirms it. Do not add a pre-crash sleep or flush to the test.
 

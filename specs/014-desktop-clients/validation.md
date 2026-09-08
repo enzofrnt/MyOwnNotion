@@ -430,3 +430,19 @@ obligatoires ; T096 n'est pas déclaré terminé.
 Les 26 tests combinés de préparation Windows, coffre, migration et cycle de
 fenêtre passent ; le build desktop passe également. Logs :
 `/tmp/mon-windows-key-prime-focused.log`, `/tmp/mon-windows-key-prime-build.log`.
+
+Le gate sur b5a9b60d passe 382 suites / 3 618 tests de couverture, les huit
+benchmarks, 333 tests de base, douze scénarios de migration et 1 312 contrats.
+Chromium révèle ensuite une régression T097 : remettre l'état à loading lors
+d'un changement du callback de navigation retire momentanément la ligne
+focalisée. Le test de clavier échoue dix fois sur dix. Le gate est arrêté
+en échec, sans push (`/tmp/mon-desktop-windows-key-prime-full-gate.log`).
+
+L'état initial fournit déjà le squelette et Réessayer recharge l'application.
+Retirer cette remise à loading conserve donc la reprise après refus réel sans
+recréer l'arbre pendant la navigation. Les vingt répétitions Chromium
+(clavier et refus/récupération) passent, puis les huit cas des quatre autres
+profils passent. Logs : `/tmp/mon-keyboard-b5a-repeat.log`,
+`/tmp/mon-keyboard-recovery-corrected-repeat.log`,
+`/tmp/mon-keyboard-recovery-four-profiles.log`. Le nouveau commit doit repasser
+le gate complet avant push.
