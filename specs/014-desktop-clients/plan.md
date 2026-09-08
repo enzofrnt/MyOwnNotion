@@ -546,3 +546,22 @@ inspector evaluation: use the captured owned identities, allowlisted preload
 stages and cached window-close state. Bound diagnostic waiting to one second,
 preserve the original thrown value if reporting fails or hangs, and never retry
 the command. Cover success, refusal, diagnostic failure and timeout explicitly.
+
+### T104: package with the pinned Bun toolchain alone
+
+The isolated Windows checkout on ccb450d5 passes all nine native journeys and
+five additional offline-restart/onboarding pairs, but `bun run package` fails
+immediately with `spawn npm ENOENT`. This machine has Bun 1.4.0 and no Node/npm.
+Forge 7.11.2's CLI always resolves npm/yarn/pnpm for its startup version check;
+existing developer machines and CI images masked that undeclared requirement.
+
+Call the same pinned Forge core API from a Bun entry point for package, make and
+publish. Keep the existing Forge config, signing hooks, pruning, makers and
+release matrix. Declare core directly and retire the unused CLI dependency.
+Forward the maintained release platform/architecture arguments, support Bun's
+separator, reject unsupported targets/options before invoking the API, and do
+not introduce a home-directory skip marker or install a second package manager.
+Prove real packaging and installed smoke on Windows without Node/npm, test
+argument forwarding/failures, and renew local/PR/main delivery gates and Trivy
+because the dependency lock changes. This is separate from T102's unresolved
+intermittent inspector loss; no causal claim links them.

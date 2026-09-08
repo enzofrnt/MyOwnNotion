@@ -663,3 +663,16 @@ The preceding 1036fadc full local run passed 3,651 coverage tests, performance,
 database/migration and 1,313 contract tests. It was held before its browser stage
 and then deliberately stopped to include the additional diagnostic; it is not
 a completed pre-push gate. A fresh complete run is required on this commit.
+
+### T104 Bun-only packaging
+
+A fresh Windows x64 fixture with no Node/npm reproduces the original package
+failure: Forge CLI exits at `npm --version` with `spawn npm ENOENT`. Replacing
+that CLI entry with the pinned Forge core API produces the actual Windows app
+and passes installed smoke (`platform=win32`, `architecture=x64`, `packaged=true`)
+on the same machine, without installing npm or creating a Forge skip marker.
+Twelve command tests pass, including the maintained release argument forms,
+unsupported-target refusal, nested publication options and error propagation.
+Strict workspace types, formatting/lint and the desktop policy check pass.
+Installer creation and renewed complete/PR/main gates remain pending; this fix
+is separate from the unresolved intermittent Windows inspector failures.

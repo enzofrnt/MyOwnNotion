@@ -295,3 +295,5 @@ T102 follow-up evidence: UI run 34252039882 also loses only the main inspector
 while its renderer still answers. Capture command failure before cleanup through
 the same bounded evidence boundary; verify diagnostic failure cannot mask or
 retry the original command. Remote validation and root-cause repair remain open.
+
+- [ ] T104 Remove Forge CLI's demonstrated undeclared npm requirement through a pinned Forge core API entry point under Bun. Preserve the five release targets, argument forwarding, makers/signing/pruning and error propagation; verify package and installed smoke on the Windows fixture without Node/npm, focused command tests, renewed complete gates and dependency-image scan.

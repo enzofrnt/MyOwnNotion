@@ -19,7 +19,7 @@ const REQUIRED_SPEC_FILES = [
 
 const PINNED_PACKAGES = [
   "electron",
-  "@electron-forge/cli",
+  "@electron-forge/core",
   "@electron-forge/maker-squirrel",
   "@electron-forge/maker-base",
   "@electron-forge/maker-deb",
