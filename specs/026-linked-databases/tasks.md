@@ -32,3 +32,9 @@
 - [x] T014 Aligner le contrat OpenAPI 009 de création d'entrée avec FR-012 et corriger les attentes de migrations révélées par la couverture intégrée : conserver la mise à niveau format-v2 jusqu'à 0017, borner le contrat historique de fichiers à 0015, puis vérifier contrats, types et Biome (partial).
 
 - [x] T015 Renforcer les garanties FR-008 au point d'entrée partagé dans `packages/domain/src/databases/schema.ts` et les tests de commandes : refuser les types inconnus de propriétés/vues (y compris intégrées), conserver placements explicites et identités, tester valeurs/relations/documents/confirmations malformés via `parseMutationCommand`, et vérifier les commandes valides sans mutation de leur entrée. Reporter les régressions reproduites et la couverture intégrée sans modifier ses seuils.
+
+## Phase 6: Convergence
+
+- [ ] T016 Inclure les créations de base et d'entrée dans la barrière du journal de page avant activation éditoriale dans `apps/web/src/services/local-content.ts` ; couvrir création retardée, hors ligne et conflit conservé, puis ouverture et édition réelles de la page hôte (FR-002/FR-004/FR-008, partial, HIGH).
+- [ ] T017 Conserver immédiatement le choix de visibilité d'une colonne pendant sa sauvegarde, bloquer les doubles gestes et restaurer l'état confirmé en cas d'échec ; vérifier la réponse retardée et la persistance sur deux navigateurs dans `database-toolbar.tsx` et ses tests (FR-003/FR-010, partial, MEDIUM).
+- [ ] T018 Aligner les parcours historiques de couverture locale et de corbeille sur les entrées sans placement et la conservation des sources ; vérifier la nouvelle référence visuelle sans erreur après T016, puis relancer le gate complet (FR-005/FR-010/FR-011/FR-012, partial, MEDIUM).

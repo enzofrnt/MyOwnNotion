@@ -60,6 +60,7 @@ export const DATABASE_COPY = {
       `Données locales partielles : ${available} sur ${expected}`,
   },
   toolbar: {
+    saveFailed: "La vue n'a pas pu être enregistrée. Réessayez.",
     viewName: "Nom de la vue",
     renaming: "Renommage…",
     rename: "Renommer la vue",

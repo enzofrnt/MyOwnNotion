@@ -470,20 +470,18 @@ test.describe("structured offline convergence (US5)", () => {
       await second.page.reload();
       await openDatabaseAfterReload(second.page, databaseName);
 
-      // Membership and identity remain visible, but values and completeness do
-      // not pretend to be available while the server cannot fill the gap.
+      // Membership survives without inventing a sidebar placement. Values and
+      // completeness remain explicitly partial while the server cannot fill the gap.
       await ensureNavigationVisible(second.page);
-      const expandDatabase = second.page.getByRole("button", {
-        name: `Déplier ${databaseName}`,
-        exact: true,
-      });
-      if (await expandDatabase.isVisible()) await expandDatabase.click();
-      await expect(second.page.getByTestId(`tree-item-${entryName}`)).toBeVisible();
+      await expect(second.page.getByTestId(`tree-item-${entryName}`)).toHaveCount(0);
       await closeMobileNavigation(second.page);
       await expect(second.page.getByText("Données locales partielles : 0 sur 1")).toBeVisible();
       await expect(
         second.page.getByText("Aucune entrée dans les données disponibles sur cet appareil."),
       ).toBeVisible();
+      await second.page.goto(`/notes/${entryId}`);
+      await expect(second.page.locator(".entry-panel")).toBeVisible();
+      await expect(second.page.getByTestId("active-item-title")).toHaveValue(entryName);
     } finally {
       await second.context.close();
     }

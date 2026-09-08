@@ -830,7 +830,8 @@ export class LocalContentService {
       readonly commandType: string;
       readonly payload: Record<string, unknown>;
     }): boolean =>
-      (row.commandType === "item.create" && row.payload["id"] === pageId) ||
+      (["item.create", "database.create", "database.entry.create"].includes(row.commandType) &&
+        row.payload["id"] === pageId) ||
       (["page.document.replace", "document.resolve-conflict", "item.convert"].includes(
         row.commandType,
       ) &&

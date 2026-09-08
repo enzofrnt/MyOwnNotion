@@ -615,7 +615,7 @@ describe("operational page opening", () => {
     opened.close();
   });
 
-  it.each(["item.create", "item.convert"] as const)(
+  it.each(["item.create", "item.convert", "database.create", "database.entry.create"] as const)(
     "drains a pending %s before checking or activating its canonical server head",
     async (commandType) => {
       vi.stubGlobal("navigator", { onLine: true });
@@ -640,14 +640,18 @@ describe("operational page opening", () => {
           {
             commandType,
             payload:
-              commandType === "item.create"
-                ? { id: pageId }
-                : { itemId: pageId, targetKind: "page" },
+              commandType === "item.convert"
+                ? { itemId: pageId, targetKind: "page" }
+                : { id: pageId },
           } as never,
         ])
         .mockResolvedValue([]);
       vi.spyOn(service.outbox, "conflicts").mockResolvedValue([]);
-      const synchronize = vi.spyOn(service, "synchronize").mockResolvedValue("synced");
+      let acknowledge!: () => void;
+      const accepted = new Promise<"synced">((resolve) => {
+        acknowledge = () => resolve("synced");
+      });
+      const synchronize = vi.spyOn(service, "synchronize").mockReturnValue(accepted);
       const getItem = vi.spyOn(service.api, "getItem").mockResolvedValue({ ok: true, value: item });
       vi.spyOn(service.pageOperationsApi, "activate").mockImplementation(
         async (activatedPageId, request) => ({
@@ -667,7 +671,12 @@ describe("operational page opening", () => {
         fileRequirements: [],
       });
 
-      const opened = await service.openOperationalPage(pageId);
+      const opening = service.openOperationalPage(pageId);
+      await vi.waitFor(() => expect(synchronize).toHaveBeenCalledOnce());
+      expect(checkpoint).not.toHaveBeenCalled();
+      expect(getItem).not.toHaveBeenCalled();
+      acknowledge();
+      const opened = await opening;
 
       expect(opened.ok).toBe(true);
       if (!opened.ok) return;
@@ -682,4 +691,54 @@ describe("operational page opening", () => {
       opened.close();
     },
   );
+
+  it.each([
+    ["database.create", "offline"],
+    ["database.entry.create", "offline"],
+    ["database.create", "pending"],
+    ["database.entry.create", "pending"],
+    ["database.create", "conflict"],
+    ["database.entry.create", "conflict"],
+  ] as const)("keeps %s editable locally while its creation is %s", async (commandType, status) => {
+    vi.stubGlobal("navigator", { onLine: true });
+    const service = new LocalContentService(workspaceApi(), `creation-${generateUuidV7()}`);
+    services.push(service);
+    await service.initialize();
+    const pageId = generateUuidV7();
+    const document: BlockDocumentV3 = {
+      blocks: [{ type: "paragraph", id: generateUuidV7(), content: [{ text: "local content" }] }],
+    };
+    await service.repository.applyServerItems([pageItem(pageId, generateUuidV7(), document)]);
+    const row = { commandType, payload: { id: pageId } } as never;
+    vi.spyOn(service.outbox, "all").mockResolvedValue(status === "conflict" ? [] : [row]);
+    vi.spyOn(service.outbox, "activeConflicts").mockResolvedValue(
+      status === "conflict" ? [row] : [],
+    );
+    vi.spyOn(service, "synchronize").mockResolvedValue(
+      status === "offline" ? "offline" : "pending",
+    );
+    const checkpoint = vi.spyOn(service.pageOperationsApi, "checkpoint");
+    const getItem = vi.spyOn(service.api, "getItem");
+    const opened = await service.openOperationalPage(pageId);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    expect(opened.mode).toBe("legacy-branch");
+    expect(opened.session.read()).toEqual(document);
+    expect(checkpoint).not.toHaveBeenCalled();
+    expect(getItem).not.toHaveBeenCalled();
+    const block = document.blocks[0];
+    if (block === undefined) throw new Error("Missing local paragraph");
+    await opened.session.transact({
+      type: "replace-text",
+      blockId: block.id,
+      from: 0,
+      to: 0,
+      text: "retained ",
+    });
+    expect(opened.session.read().blocks[0]).toMatchObject({
+      content: [{ text: "retained local content" }],
+    });
+    expect(await service.pageOperationLog.getLegacyBranch(pageId)).not.toBeNull();
+    opened.close();
+  });
 });

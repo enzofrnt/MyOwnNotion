@@ -22,3 +22,14 @@ and impact tests verify existing recovery semantics; the bulk relationship
 fixture checks the performance path against individual scoped reads. All 15
 feature task IDs are unique. Aggregate coverage passes on d1f2911d, while final
 full local, PR and main delivery gates remain explicit outstanding work.
+
+## Integrated convergence reopened — 2026-09-08
+
+The complete Chromium run invalidates the earlier functional-convergence
+checkpoint: the new editable host/entry types bypassed the old page-creation
+journal predicate, and a pending checkbox write reverted its visible state.
+T016 and T017 address those runtime gaps under FR-002/003/004/008/010. T018
+corrects two obsolete host-ownership expectations and verifies the updated
+visual reference only after the host editor is actually ready. The specs keep
+their current product behavior; no cascade or implicit placement is reintroduced.
+Browser evidence and full delivery remain outstanding for these three tasks.

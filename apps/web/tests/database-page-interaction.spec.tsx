@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabasePage } from "../src/features/databases/database-page.tsx";
+import { DatabaseToolbar } from "../src/features/databases/database-toolbar.tsx";
 import type { DatabaseViewPage, DatabaseViewResult } from "../src/services/databases.ts";
 
 function input(input: HTMLInputElement, value: string): void {
@@ -70,6 +71,69 @@ describe("database page interaction durability", () => {
     container.remove();
     vi.restoreAllMocks();
   });
+
+  it.each(["accepted", "rejected"] as const)(
+    "keeps a column choice visible during a delayed write, then handles %s",
+    async (outcome) => {
+      const initial = database().definition as unknown as DatabaseDefinition;
+      const propertyId = generateUuidV7();
+      const current: DatabaseDefinition = {
+        ...initial,
+        properties: [
+          ...initial.properties,
+          {
+            id: propertyId,
+            type: "text",
+            name: "Details",
+            state: "active",
+            positionKey: "b",
+            config: {},
+          },
+        ],
+        views: initial.views.map((view) => ({
+          ...view,
+          properties: [...view.properties, { propertyId, visible: true, positionKey: "b" }],
+        })),
+      };
+      let settle!: () => void;
+      const saved = new Promise<void>((resolve, reject) => {
+        settle = () => (outcome === "accepted" ? resolve() : reject(new Error("write refused")));
+      });
+      const onChange = vi.fn<(_: DatabaseDefinition) => Promise<void>>().mockReturnValue(saved);
+      const viewId = current.views[0]?.id;
+      if (viewId === undefined) throw new Error("Missing initial view");
+      const render = (definition: DatabaseDefinition) =>
+        root.render(
+          <DatabaseToolbar
+            definition={definition}
+            activeViewId={viewId}
+            onSelectView={vi.fn()}
+            onChange={onChange}
+          />,
+        );
+      act(() => render(current));
+      const checkbox = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1];
+      if (checkbox === undefined) throw new Error("Missing column control");
+      act(() => checkbox.click());
+      expect(checkbox.checked).toBe(false);
+      expect(checkbox.disabled).toBe(true);
+      act(() => checkbox.click());
+      expect(onChange).toHaveBeenCalledOnce();
+      const proposed = onChange.mock.calls[0]?.[0];
+      if (proposed === undefined) throw new Error("Missing proposed definition");
+      expect(proposed.views[0]?.properties[1]?.visible).toBe(false);
+      if (outcome === "accepted") act(() => render(proposed));
+      await act(async () => {
+        settle();
+        await saved.catch(() => undefined);
+      });
+      expect(checkbox.checked).toBe(outcome === "rejected");
+      expect(checkbox.disabled).toBe(false);
+      if (outcome === "rejected") expect(container.textContent).toContain("Réessayez");
+      act(() => render(outcome === "accepted" ? current : proposed));
+      expect(checkbox.checked).toBe(outcome === "accepted");
+    },
+  );
 
   it("submits the latest option text even before React commits its next render", async () => {
     const onReplaceDefinition = vi.fn();

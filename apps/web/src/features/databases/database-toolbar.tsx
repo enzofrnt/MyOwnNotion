@@ -4,7 +4,7 @@ import {
   generateUuidV7,
   type Uuid,
 } from "@myownnotion/domain";
-import { type FormEvent, type KeyboardEvent, useLayoutEffect, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useLayoutEffect, useRef, useState } from "react";
 import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
 import { DATABASE_COPY } from "./database-copy.ts";
 
@@ -172,6 +172,42 @@ function RenameViewControl({
   );
 }
 
+function VisibilityControl({
+  name,
+  visible,
+  disabled,
+  onChange,
+}: {
+  readonly name: string;
+  readonly visible: boolean;
+  readonly disabled: boolean;
+  readonly onChange: (visible: boolean) => Promise<boolean>;
+}) {
+  const [checked, setChecked] = useState(visible);
+  const confirmed = useRef(visible);
+  useLayoutEffect(() => {
+    confirmed.current = visible;
+    setChecked(visible);
+  }, [visible]);
+  return (
+    <label>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => {
+          const next = event.target.checked;
+          setChecked(next);
+          void onChange(next).then((saved) => {
+            if (!saved) setChecked(confirmed.current);
+          });
+        }}
+      />
+      {name}
+    </label>
+  );
+}
+
 export function DatabaseToolbar({
   definition,
   activeViewId,
@@ -183,8 +219,8 @@ export function DatabaseToolbar({
   readonly onSelectView: (viewId: Uuid) => void;
   readonly onChange: (definition: DatabaseDefinition) => void | Promise<void>;
 }) {
-  const [savingVisibility, setSavingVisibility] = useState<ReadonlySet<Uuid>>(new Set());
   const [savingView, setSavingView] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const views = activeViews(definition);
   const active = views.find(({ id }) => id === activeViewId) ?? views[0];
   if (active === undefined) {
@@ -197,9 +233,18 @@ export function DatabaseToolbar({
     ({ state, type }) => state === "active" && type === "date",
   );
 
-  const persist = (next: DatabaseDefinition): Promise<void> => {
+  const persist = async (next: DatabaseDefinition): Promise<boolean> => {
     setSavingView(true);
-    return Promise.resolve(onChange(next)).finally(() => setSavingView(false));
+    setSaveError(false);
+    try {
+      await onChange(next);
+      return true;
+    } catch {
+      setSaveError(true);
+      return false;
+    } finally {
+      setSavingView(false);
+    }
   };
 
   const create = (type: DatabaseView["type"], name: string): void => {
@@ -269,6 +314,9 @@ export function DatabaseToolbar({
 
   return (
     <section className="database-toolbar" aria-label={DATABASE_COPY.toolbar.savedViews}>
+      {saveError ? (
+        <AsyncState compact kind="error" description={DATABASE_COPY.toolbar.saveFailed} />
+      ) : null}
       <div className="database-view-tabs" role="tablist" aria-label={DATABASE_COPY.toolbar.views}>
         {views.map((view, index) => (
           <Button
@@ -398,7 +446,9 @@ export function DatabaseToolbar({
       <RenameViewControl
         view={active}
         disabled={savingView}
-        onRename={(name) => persist(replaceSavedView(definition, { ...active, name }))}
+        onRename={async (name) => {
+          await persist(replaceSavedView(definition, { ...active, name }));
+        }}
       />
       <details className="database-columns">
         <summary>{DATABASE_COPY.toolbar.visibleProperties}</summary>
@@ -406,38 +456,24 @@ export function DatabaseToolbar({
           const property = definition.properties.find(({ id }) => id === presentation.propertyId);
           return property === undefined ? null : (
             <div key={presentation.propertyId} className="database-column-control">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={presentation.visible}
-                  disabled={
-                    savingView || property.type === "title" || savingVisibility.has(property.id)
-                  }
-                  onChange={(event) => {
-                    const checked = event.target.checked;
-                    setSavingVisibility((current) => new Set(current).add(property.id));
-                    void Promise.resolve(
-                      persist(
-                        replaceSavedView(definition, {
-                          ...active,
-                          properties: active.properties.map((candidate) =>
-                            candidate.propertyId === presentation.propertyId
-                              ? { ...candidate, visible: checked }
-                              : candidate,
-                          ),
-                        }),
+              <VisibilityControl
+                key={`${active.id}:${property.id}`}
+                name={property.name}
+                visible={presentation.visible}
+                disabled={savingView || property.type === "title"}
+                onChange={(visible) =>
+                  persist(
+                    replaceSavedView(definition, {
+                      ...active,
+                      properties: active.properties.map((candidate) =>
+                        candidate.propertyId === presentation.propertyId
+                          ? { ...candidate, visible }
+                          : candidate,
                       ),
-                    ).finally(() =>
-                      setSavingVisibility((current) => {
-                        const next = new Set(current);
-                        next.delete(property.id);
-                        return next;
-                      }),
-                    );
-                  }}
-                />
-                {property.name}
-              </label>
+                    }),
+                  )
+                }
+              />
               <Button
                 type="button"
                 size="square"

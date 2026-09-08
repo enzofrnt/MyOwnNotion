@@ -85,3 +85,30 @@ The bulk local relationship reader introduced for large sources must enforce
 the same database/property boundary as individual reads, deduplicate targets,
 and exclude unrequested pages. Extend the existing mixed-source fixture to
 compare bulk and individual results and cover empty batches.
+
+## T016–T018 — Integrated browser convergence
+
+The first complete integrated Chromium run passes 280 journeys and fails four.
+Two failures still require the old host-owned hierarchy semantics: a newly
+created entry appearing in the sidebar and host trash counting/cascading entries.
+Update those journeys to verify retained canonical membership/identity and
+source reuse instead. Do not recreate implicit placements to satisfy them.
+
+The empty database screenshot also exposes an actual early editor activation:
+`database.create` is absent from the existing workspace-page journal barrier,
+so checkpoint/item reads race its accepted creation and leave `Item does not
+exist` visible. Both `database.create` and `database.entry.create` create editable
+pages and must share the same accepted/pending/conflict barrier as `item.create`.
+Extend the existing real local-service tests rather than add a separate protocol.
+
+The controlled visibility checkbox resets to the previous persisted value while
+its async definition write runs. Retain the proposed boolean locally until the
+write settles, keep duplicate actions disabled, and revert to the last confirmed
+definition after rejection. Verify a delayed commit and failure in React tests,
+then the existing two-device browser journey. Keep view and source boundaries
+explicit when local pending state is used. Apply the UI-quality skill.
+
+The full attempt at `1c562317` passed types, formatting, 4,209 coverage tests,
+nine performance budgets, database/migration/contract tests; it failed Chromium
+and was interrupted before running all remaining browsers. It is not a passing
+delivery gate. Log: `/tmp/mon-pre-v1-full-gate-integrated.log`.

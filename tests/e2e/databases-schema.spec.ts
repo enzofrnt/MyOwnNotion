@@ -111,7 +111,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
   expect(Date.now() - startedAt).toBeLessThan(300_000);
 });
 
-test("announces the active entry count before trashing a database", async ({ page }) => {
+test("trashes only the host and reuses its source with the same entry pages", async ({ page }) => {
   await openWorkspace(page);
 
   const databaseName = uniqueName("Trash preview");
@@ -127,14 +127,31 @@ test("announces the active entry count before trashing a database", async ({ pag
   for (const entryName of entryNames) {
     await createDatabaseEntry(page, entryName);
   }
+  const entryIds = await page
+    .locator("[data-entry-trigger]")
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-entry-trigger")));
+  expect(entryIds).toHaveLength(2);
 
   await trashItem(page, databaseName, { confirm: false });
   const confirmation = page.getByTestId("trash-confirmation");
-  await expect(confirmation).toContainText(
-    `Placer « ${databaseName} » et 2 entrées actives de la base de données dans la corbeille ?`,
-  );
+  await expect(confirmation).toContainText(`« ${databaseName} » sera placé dans la corbeille`);
+  await expect(confirmation).not.toContainText("entrées actives");
   await confirmation.getByTestId("cancel-trash").click();
   await expect(confirmation).toBeHidden();
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible();
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await trashItem(page, databaseName);
+  await createRootItem(page, "page", uniqueName("Reused source"));
+  await page.getByRole("button", { name: "Ajouter une base", exact: true }).click();
+  await page.getByLabel("Base existante", { exact: true }).selectOption({ label: databaseName });
+  await page.getByRole("button", { name: "Insérer cette base", exact: true }).click();
+  await expect(page.locator("[data-entry-trigger]")).toHaveCount(2);
+  expect(
+    await page
+      .locator("[data-entry-trigger]")
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-entry-trigger"))),
+  ).toEqual(entryIds);
+  for (const entryName of entryNames) {
+    await expect(page.locator("[data-entry-trigger]").filter({ hasText: entryName })).toBeVisible();
+  }
 });

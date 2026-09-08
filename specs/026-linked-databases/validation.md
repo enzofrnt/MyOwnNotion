@@ -106,3 +106,26 @@ additional boundary verification.
 
 These focused integrated gates complement aggregate coverage; they do not
 replace the full exact-commit pre-push gate or PR/main verification.
+
+## Integrated browser corrections — 2026-09-08
+
+The full gate at `1c562317` passes coverage (432 suites, 4,209 tests), nine
+performance budgets, database, migrations and contracts. Chromium passes 280
+journeys and fails four. Remaining browser projects were interrupted through
+the maintained runner's graceful cleanup; the attempt is failed/incomplete,
+not delivery evidence (`/tmp/mon-pre-v1-full-gate-integrated.log`).
+
+The visual failure includes a real error from an early checkpoint/item read
+before `database.create` is accepted. The trace is preserved at
+`/tmp/mon-tail-database-visual-trace`. Both database creation journal tests fail
+before T016, then the expanded 20-case opening suite passes, including delayed
+acceptance and durable editing while creation remains offline/pending/conflicted.
+Logs: `/tmp/mon-linked-creation-barrier-red.log`,
+`/tmp/mon-linked-creation-barrier-final.log`.
+
+Both delayed visibility tests fail before T017 and pass afterward. The checkbox
+retains the proposed state, refuses a duplicate click, handles acceptance or
+refusal, and follows later confirmed props. The combined opening and database
+interaction/view suites pass 34 tests; web/root types and Biome pass. Logs:
+`/tmp/mon-column-pending-red.log`, `/tmp/mon-linked-ui-regressions-final.log`.
+The original browser journeys and reviewed screenshots are still pending.
