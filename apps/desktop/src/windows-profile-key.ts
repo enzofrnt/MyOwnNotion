@@ -6,6 +6,20 @@ export const WINDOWS_KEY_PRIME_SWITCH = "myownnotion-prime-windows-key";
 export const WINDOWS_SESSION_DATA_SWITCH = "myownnotion-key-session-data";
 const MAX_LOCAL_STATE_BYTES = 4 * 1024 * 1024;
 
+export function windowsProfileKeyEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const environment = { ...source };
+  for (const name of Object.keys(environment)) {
+    if (name.toUpperCase() === "ELECTRON_RUN_AS_NODE") delete environment[name];
+  }
+  return environment;
+}
+
+export class WindowsProfileKeyInitializationError extends Error {
+  constructor(readonly exitStatus: number | null) {
+    super("Windows protected storage initialization failed.");
+  }
+}
+
 type PrimeRunner = (
   executable: string,
   args: readonly string[],
@@ -35,7 +49,7 @@ export function commitWindowsProfileKey(options: {
         stdio: "ignore",
         windowsHide: true,
         timeout: 20_000,
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: "" },
+        env: windowsProfileKeyEnvironment(process.env),
       }));
   const result = run(options.executable, [
     ...(options.applicationPath === undefined ? [] : [options.applicationPath]),
@@ -44,7 +58,7 @@ export function commitWindowsProfileKey(options: {
     `--${WINDOWS_SESSION_DATA_SWITCH}=${options.sessionData}`,
   ]);
   if (result.error !== undefined || result.status !== 0) {
-    throw new Error("Windows protected storage initialization failed.");
+    throw new WindowsProfileKeyInitializationError(result.status);
   }
 
   // The child has exited and the parent owns the application lock. Chromium

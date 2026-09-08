@@ -446,3 +446,33 @@ profils passent. Logs : `/tmp/mon-keyboard-b5a-repeat.log`,
 `/tmp/mon-keyboard-recovery-corrected-repeat.log`,
 `/tmp/mon-keyboard-recovery-four-profiles.log`. Le nouveau commit doit repasser
 le gate complet avant push.
+
+## Préparation Windows — frontière de lancement
+
+Le gate local complet passe sur 9e9dcdc6 : 382 suites / 3 618 tests de couverture,
+huit benchmarks, 333 tests de base, douze migrations, 1 312 contrats, les cinq
+profils navigateur, neuf parcours macOS, le paquet installé, les deux
+architectures d'images et les contrôles de sécurité/Compose. Le commit est poussé
+après relecture de l'inventaire. Log :
+`/tmp/mon-desktop-key-prime-focus-final-gate.log`.
+
+La CI 34212459656 confirme macOS et Linux x64/ARM64, mais les deux Windows
+échouent désormais au lancement du paquet, avant les parcours de reprise.
+Les tests injectant le processus auxiliaire n'exerçaient pas son environnement.
+Le sélecteur ELECTRON_RUN_AS_NODE est maintenant retiré, toutes casses comprises,
+au lieu d'être fourni vide : l'entrée Windows épinglée vérifie sa présence.
+Le comportement macOS ne suffit pas à confirmer cette frontière Windows.
+
+Une inspection réelle du host local confirme aussi que getAppPath() est le
+dossier .vite/build lorsque bootstrap.js est lancé directement. Le lancement
+auxiliaire non empaqueté reçoit désormais le fichier bootstrap courant. Les
+erreurs de préparation ne publient qu'une catégorie fixe et un statut numérique.
+
+Les 73 tests desktop exécutables sur macOS et les types passent. Quatre nouveaux
+cas vérifient le retrait du sélecteur sans modifier l'environnement parent.
+Un nouveau cas réservé à Windows compile et lance le vrai bootstrap avec une
+continuation sans fenêtre, exige son démarrage puis relance le même profil en
+vérifiant la stabilité de la clé sans afficher ses octets. Il doit encore passer
+sur les deux runners natifs, puis les parcours d'arrêt brutal d'origine restent
+obligatoires. Logs : `/tmp/mon-windows-child-launch-focused.log`,
+`/tmp/mon-windows-child-launch-types.log`. T096 reste ouvert.
