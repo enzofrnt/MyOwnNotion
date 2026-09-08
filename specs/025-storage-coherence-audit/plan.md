@@ -317,3 +317,14 @@ toolbar margin stays 32 px. Share the toolbar row-height token with that margin
 and select the existing 44 px target for coarse pointers. Keep both activation
 and release-outside cancellation, followed by keyboard activation, in the native
 regression across all five profiles.
+
+### T057: observe the bounded multipart retry contract in the browser
+
+The integrated WebKit run on 210ea535 records an injected 409, a second real
+`file.concurrent-write` 409, then a successful 201, all with the same mutation
+identity. Its fixture incorrectly requires exactly two requests even though
+T055 permits up to three. Retain the strict three-attempt bound, verify every
+intermediate response has the explicit retryable code, require the final 201
+and identical nonempty mutation identities, and retain the unique hierarchy
+entry/no-attachment assertions. Do not change production retries or accept other
+failures. Replay the real browser journey before renewed complete delivery.

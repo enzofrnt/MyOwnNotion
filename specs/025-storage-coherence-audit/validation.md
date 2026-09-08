@@ -343,3 +343,14 @@ Final combined focused verification passes 61 tests across five title, file API,
 retry-client and table interaction suites. Strict workspace types and changed
 source Biome checks pass; Spec Kit prerequisites and unique task identifiers
 were checked for 025/026. Complete delivery checks remain open.
+
+## T057 — bounded multipart browser evidence
+
+The complete integration gate on 210ea535 failed an overly strict WebKit
+assertion after the injected 409, a genuine `file.concurrent-write` 409,
+and a successful 201 with the same mutation identity. Production remained
+within its three-attempt contract. The corrected fixture verifies every
+intermediate response, the final acceptance, stable identity and unique
+hierarchy entry. The focused native journey passes all five browser profiles
+with one worker (48 seconds). Production retry policy is unchanged.
+The previous complete gate failed; renewed complete delivery remains open.
