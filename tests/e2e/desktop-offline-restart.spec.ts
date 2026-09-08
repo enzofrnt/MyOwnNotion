@@ -18,7 +18,7 @@ applyDesktopJourneySkip();
 test("recovers a durable offline creation after process death and reconciles it once", async ({
   freshContent,
   baseURL,
-}) => {
+}, testInfo) => {
   if (baseURL === undefined) throw new Error("Missing isolated test server");
   const { session, page } = await openDesktopWorkspace(baseURL, freshContent.cookies);
   const userData = session.userData;
@@ -36,7 +36,13 @@ test("recovers a durable offline creation after process death and reconciles it 
     await session.crash();
     killed = true;
     const restarted = await launchDesktopElectron(userData);
+    const pageErrors: string[] = [];
+    restarted.window.on("pageerror", (error) => {
+      if (pageErrors.length < 20) pageErrors.push(error.name);
+    });
+    const tracing = restarted.app.context().tracing;
     try {
+      await tracing.start({ screenshots: true, snapshots: true, sources: true });
       await setDesktopOffline(restarted, true);
       await restarted.window.reload();
       await openWorkspace(restarted.window);
@@ -53,6 +59,29 @@ test("recovers a durable offline creation after process death and reconciles it 
       await expect(restarted.window.getByTestId("tree-item-Desktop offline creation")).toHaveCount(
         1,
       );
+      await tracing.stop();
+    } catch (error) {
+      const state = await restarted.window
+        .evaluate(async () => ({
+          online: navigator.onLine,
+          visibility: document.visibilityState,
+          loadingPhases: [...document.querySelectorAll("[data-load-phase]")].map((node) =>
+            node.getAttribute("data-load-phase"),
+          ),
+          locks: await navigator.locks.query(),
+        }))
+        .catch(() => ({ unavailable: true }));
+      await testInfo.attach("native-restart-state", {
+        body: JSON.stringify({ state, pageErrors }),
+        contentType: "application/json",
+      });
+      const tracePath = testInfo.outputPath("native-restart-trace.zip");
+      await tracing.stop({ path: tracePath });
+      await testInfo.attach("native-restart-trace", {
+        path: tracePath,
+        contentType: "application/zip",
+      });
+      throw error;
     } finally {
       await restarted.close();
     }

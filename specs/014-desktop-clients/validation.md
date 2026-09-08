@@ -344,3 +344,21 @@ synthetic test for an unreachable state. The real eight-entry/LRU regression and
 all 59 loader/permission cases still pass, along with API types and Biome.
 The full gate remains required on the resulting commit. Logs:
 `/tmp/mon-full-gate-desktop-acl-loader-errors.log`, `/tmp/mon-acl-final-focused.log`.
+
+
+### T096 — Cold restart diagnostics prepared (2026-09-08)
+
+CI 33993754133: all five browser profiles, API/contracts/migrations, unit coverage,
+performance, builds/security, native macOS and both Linux targets pass. Both
+Windows targets fail cold offline readiness (8/9 native journeys); GitGuardian
+still reports the separately identified false-positive incident. No merge or
+main verification is claimed.
+
+The unchanged macOS restart journey passes ten consecutive repetitions
+(`/tmp/mon-desktop-restart-repeat.log`). The explicit native-context tracing
+version also passes (`/tmp/mon-desktop-native-tracing.log`). A temporary local
+failure probe confirms the original exception remains visible and the separate
+Electron trace plus content-free state attachment are emitted; the probe was
+removed and is not part of the repository. Its trace is retained at
+`/tmp/mon-native-diagnostic-probe.zip`. This instrumentation localizes the next
+Windows result; it is not a claimed product fix. T096 remains open.

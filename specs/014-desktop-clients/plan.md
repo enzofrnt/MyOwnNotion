@@ -314,3 +314,17 @@ identity before and after inspection; invalidate on replacement, content or ACL
 change, missing/unavailable metadata and inspection failure. Never retain key
 bytes in this cache. Native tests must warm the cache, grant another SID access
 and require immediate refusal, then verify repair and file replacement.
+
+### Windows cold offline restart investigation (T096)
+
+CI 33993754133 passes all five browser profiles and native macOS/Linux targets,
+but both Windows targets stall at cold offline workspace readiness. The prior
+ACL latency fix is verified by native permission tests and ordinary request
+latency; it does not prove cold restart is repaired. Ten unchanged macOS restart
+repetitions pass. Capture the manually launched Electron context explicitly:
+the default Playwright fixture trace contains test actions but omits that native
+context's DOM/network details. Keep the trace only on failure in this generated
+fixture; attach loading phase, browser connectivity, Web Lock inventory and
+error class names without reading private application records or native keys.
+No readiness timeout or replay assertion may be weakened. The cause and renewed
+Windows result remain required before closing T096 or delivering desktop.
