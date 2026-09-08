@@ -27,3 +27,10 @@ typography, line height and long labels under FR-005. The skill-creator validato
 passes using its external PyYAML dependency through uv; feature prerequisites
 pass with SPECIFY_FEATURE_DIRECTORY, all 22 local Markdown links resolve and
 whitespace checks pass. No runtime suite was run for these prose additions.
+
+Desktop corrections through `a2f2eb9b` are integrated in `614e7c96` without
+changing the guidance scope: the difference from that desktop commit is still
+19 maintained Markdown files. Feature prerequisites, whitespace checks and the
+skill-creator validator pass. Local Markdown links in the skill and feature
+artifacts resolve. No application suite was run for this documentation update;
+PR/main delivery still follows the desktop merge.

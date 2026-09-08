@@ -277,3 +277,13 @@ FileHandle listener warning appears. Its browser matrix is deliberately
 interrupted at startup (exit 130) to integrate the reproduced native input fix
 014 T098. This remains an incomplete gate, not permission to push:
 `/tmp/mon-pre-v1-reader-resources-typed-full-gate.log`.
+
+### Backup delivery branch refresh (2026-09-08)
+
+The standalone 024 delivery branch now includes desktop corrections through
+`a2f2eb9b` and the T029 bounded-reader/type correction from the integrated audit.
+At `c31eabe0`, all 56 archive, PostgreSQL, consistency, complete restore and
+actual A→B wrapping-history cases pass (`/tmp/mon-024-reader-delivery-focus.log`).
+The full 024 local gate and PR/main checks remain required; these focused cases
+are not permission to push. Delivery order remains desktop, UI guidance,
+complete backups, then the integrated audit and remaining pre-V1 features.

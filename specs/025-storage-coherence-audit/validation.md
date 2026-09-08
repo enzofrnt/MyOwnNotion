@@ -273,3 +273,14 @@ types and focused Biome pass. Logs: `/tmp/mon-graph-selection-red.log`,
 `/tmp/mon-graph-selection-green.log`, `/tmp/mon-graph-selection-runtime.log`,
 `/tmp/mon-graph-selection-types.log`. This is focused correction evidence only;
 T038/T040/T041 remain the complete local/PR/main delivery gates.
+
+
+### A34 integration — structured review and history
+
+The 014 T100 correction is merged with 026 independent sources and the 025
+protected snapshot paths. All 60 selected cases pass (15 database, nine actual
+page-history and 36 impact-policy cases), with strict root types passing.
+Evidence: `/tmp/mon-resolution-integrated-history.log` and
+`/tmp/mon-resolution-integrated-types.log`. The unchanged native offline
+journey also passes twice across every browser profile on the desktop branch.
+No full integrated gate or delivery is inferred from these focused results.
