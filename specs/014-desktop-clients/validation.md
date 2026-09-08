@@ -362,3 +362,28 @@ Electron trace plus content-free state attachment are emitted; the probe was
 removed and is not part of the repository. Its trace is retained at
 `/tmp/mon-native-diagnostic-probe.zip`. This instrumentation localizes the next
 Windows result; it is not a claimed product fix. T096 remains open.
+
+The exact `bcd083f7` full local gate passes on 2026-09-08: all five browser
+profiles, all nine macOS native journeys, coverage, performance, database,
+migration, contract, image, security and Compose gates. Evidence:
+`/tmp/mon-full-gate-desktop-native-diagnostics-final.log`. It was pushed to PR 171
+only after that successful gate.
+
+CI 34197827585 passes native macOS and Linux but reproduces the Windows cold
+restart failure on both architectures. The new traces contain the same rejected
+native unwrap, `The wrapped key could not be opened.`, during local content
+initialization. No Web Lock is held or pending. Artifacts:
+`/tmp/mon-bcd-win-x64` and `/tmp/mon-bcd-win-arm`.
+
+Electron 44.1.1 stores Windows DPAPI key metadata in Chromium `Local State` and
+commits pending preferences at orderly shutdown; the preferences writer also
+uses a deferred write. The fixture terminates its first Windows x64 process
+about five seconds after launch. This supports investigating missing durable
+key metadata, but does not yet prove it. The next diagnostic compares only
+presence and equality around the same abrupt stop. No timing assertion,
+crash behavior, key format or application write path changes in this step.
+
+Source references:
+[pinned Electron preferences](https://github.com/electron/electron/blob/v44.1.1/shell/browser/browser_process_impl.cc),
+[pinned Chromium DPAPI provider](https://github.com/chromium/chromium/blob/152.0.7977.65/components/os_crypt/async/browser/dpapi_key_provider.cc),
+[preferences writer](https://github.com/chromium/chromium/blob/152.0.7977.65/base/files/important_file_writer.cc).

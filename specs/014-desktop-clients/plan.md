@@ -328,3 +328,12 @@ fixture; attach loading phase, browser connectivity, Web Lock inventory and
 error class names without reading private application records or native keys.
 No readiness timeout or replay assertion may be weakened. The cause and renewed
 Windows result remain required before closing T096 or delivering desktop.
+
+The first explicit trace localizes both Windows failures to native key unwrap,
+with no pending or held Web Locks. Before choosing a repair, capture whether the
+generated fixture's Chromium `Local State` contains its protected Windows key
+before process death and whether that same persisted key survives relaunch.
+Compare fingerprints only inside the test process; attach presence/equality
+booleans, never the protected key, fingerprint, path or application records.
+The suspected delayed preferences commit remains a hypothesis until this native
+evidence confirms it. Do not add a pre-crash sleep or flush to the test.

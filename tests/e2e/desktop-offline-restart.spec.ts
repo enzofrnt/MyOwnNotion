@@ -1,4 +1,7 @@
-import { launchDesktopElectron } from "./desktop-electron.ts";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { type DesktopElectronSession, launchDesktopElectron } from "./desktop-electron.ts";
 import { applyDesktopJourneySkip } from "./desktop-skip.ts";
 import { openDesktopWorkspace, setDesktopOffline } from "./desktop-workspace.ts";
 import { expect, test } from "./fixtures.ts";
@@ -14,6 +17,27 @@ import {
 } from "./helpers.ts";
 
 applyDesktopJourneySkip();
+
+/** Inspect only this generated fixture's encrypted native storage; never attach its bytes. */
+async function nativeKeyCommitState(session: DesktopElectronSession) {
+  try {
+    const sessionData = await session.app.evaluate(({ app }) => app.getPath("sessionData"));
+    const state: unknown = JSON.parse(
+      await readFile(path.join(sessionData, "Local State"), "utf8"),
+    );
+    const protectedKey = (state as { os_crypt?: { encrypted_key?: unknown } })?.os_crypt
+      ?.encrypted_key;
+    return {
+      filePresent: true,
+      keyFingerprint:
+        typeof protectedKey === "string" && protectedKey.length > 0
+          ? createHash("sha256").update(protectedKey).digest("hex")
+          : null,
+    };
+  } catch {
+    return { filePresent: false, keyFingerprint: null };
+  }
+}
 
 test("recovers a durable offline creation after process death and reconciles it once", async ({
   freshContent,
@@ -33,6 +57,7 @@ test("recovers a durable offline creation after process death and reconciles it 
     await openWorkspaceDiagnostics(page);
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
     await returnToWorkspace(page);
+    const beforeCrash = await nativeKeyCommitState(session);
     await session.crash();
     killed = true;
     const restarted = await launchDesktopElectron(userData);
@@ -61,6 +86,23 @@ test("recovers a durable offline creation after process death and reconciles it 
       );
       await tracing.stop();
     } catch (error) {
+      const afterRestart = await nativeKeyCommitState(restarted);
+      await testInfo.attach("native-key-commit-state", {
+        body: JSON.stringify({
+          beforeCrash: {
+            filePresent: beforeCrash.filePresent,
+            keyPresent: beforeCrash.keyFingerprint !== null,
+          },
+          afterRestart: {
+            filePresent: afterRestart.filePresent,
+            keyPresent: afterRestart.keyFingerprint !== null,
+          },
+          persistedKeyUnchanged:
+            beforeCrash.keyFingerprint !== null &&
+            beforeCrash.keyFingerprint === afterRestart.keyFingerprint,
+        }),
+        contentType: "application/json",
+      });
       const state = await restarted.window
         .evaluate(async () => ({
           online: navigator.onLine,
