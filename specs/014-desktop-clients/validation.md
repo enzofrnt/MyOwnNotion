@@ -586,3 +586,31 @@ Firefox/WebKit use the maintained Linux container. Evidence:
 compatible field convergence, explicit conflict review and two-parent lineage.
 The full gate on the preceding `5ecbfa2b` was deliberately interrupted once this
 new CI defect was reproduced; it is not successful pre-push evidence.
+
+### T101 — native fixture teardown and startup diagnosis (2026-09-08)
+
+Root a2f2eb9b CI 34229831747 passed all five native targets. The next run of
+the same executable tree, stacked documentation PR 172 / CI 34230311557,
+exposed x64 and ARM teardown defects after all offline recovery assertions
+had passed. x64 taskkill raced an already gone process; ARM removal returned
+EBUSY. A separate x64 onboarding launch failed 277 ms after the inspector
+connected, before browser DevTools output. Its cause is not yet established.
+
+The extracted teardown regression fails on the existing implementation
+(`/tmp/mon-native-cleanup-red.log`). The removal-policy regression also fails
+before correction (`/tmp/mon-native-profile-removal-red.log`); pinned Bun's
+native recursive rm parses but does not use maxRetries/retryDelay. The harness
+now observes owned process exit before issuing shutdown, awaits that evidence
+when taskkill races exit, and implements the same ten linear 100 ms retries for
+transient removal errors. A surviving process and a permanent lock still fail.
+Twelve teardown tests include a real Bun child and all bounded refusal paths;
+the desktop corpus passes 85 cases plus the one Windows-specific local skip
+(`/tmp/mon-native-teardown-desktop-unit.log`). Root TypeScript passes.
+
+A test-only native preload now records at most 32 content-free lifecycle events
+and numeric exit status, printed only on failed launch. It keeps the real app
+entry point and does not catch application exceptions, retry startup, delay
+readiness or relax any journey. A windowless real macOS Electron launch verifies
+preload, ready, normal quit and zero exit (`/tmp/mon-native-probe-smoke.log`).
+Complete gate/native Windows confirmation and the distinct startup diagnosis
+remain pending; this is not a claim that teardown fixes startup.
