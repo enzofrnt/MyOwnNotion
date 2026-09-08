@@ -1,5 +1,12 @@
 # Quickstart Validation: Canonical Content Foundations
 
+
+> **Chaîne actuelle (feature 019, livrée)** : Bun 1.4.0 exclusivement. Installer
+> avec `bun ci` et orchestrer avec `bun run`. Les mentions de pnpm ou Node.js
+> plus bas décrivent l'époque de construction de cette feature ; elles ne sont
+> plus la procédure à exécuter. Guide vivant :
+> [`docs/development.md`](../../docs/development.md).
+
 This guide describes the runnable validation flow expected after implementation. Commands are intentionally local and use disposable development data.
 
 ## Prerequisites

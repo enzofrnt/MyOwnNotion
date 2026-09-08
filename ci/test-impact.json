@@ -42,7 +42,9 @@
       "scripts/ci/check-toolchain.ts",
       "scripts/ci/license-policy.ts",
       "scripts/ci/scan-secrets.ts",
-      "scripts/ci/static-security.ts"
+      "scripts/ci/static-security.ts",
+      ".github/workflows/desktop-ci.yml",
+      ".github/workflows/desktop-release.yml"
     ],
     "prefixes": [".github/ISSUE_TEMPLATE/", ".github/PULL_REQUEST_TEMPLATE/", "tests/contract/"],
     "suffixes": []
@@ -92,7 +94,9 @@
       "tests/e2e/helpers.ts",
       "tests/e2e/projects.ts",
       "tests/e2e/reset-content.ts",
-      "tests/e2e/reset-installation.ts"
+      "tests/e2e/reset-installation.ts",
+      "tests/e2e/desktop-skip.ts",
+      "tests/e2e/desktop-electron.ts"
     ],
     "prefixes": ["apps/api/src/plugins/", "packages/database/migrations/", "tests/fixtures/"],
     "suffixes": ["/package.json"]
@@ -150,6 +154,28 @@
         "suffixes": []
       },
       "tests": ["tests/contract/security-artifacts.schema.spec.ts"],
+      "groups": ["contract"]
+    },
+    {
+      "paths": {
+        "exact": [
+          ".github/workflows/desktop-ci.yml",
+          ".github/workflows/desktop-release.yml",
+          "apps/desktop/forge.config.ts",
+          "apps/desktop/package.json",
+          "scripts/ci/check-desktop.ts",
+          "scripts/ci/check-desktop-artifacts.ts",
+          "scripts/ci/publish-desktop-release.ts",
+          "scripts/ci/stage-desktop-artifacts.ts",
+          "scripts/ci/stamp-desktop-version.ts"
+        ],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": [
+        "tests/contract/desktop-release-artifacts.spec.ts",
+        "tests/contract/desktop-release-secrets.spec.ts"
+      ],
       "groups": ["contract"]
     },
     {
@@ -1051,6 +1077,72 @@
         ],
         "suffixes": []
       }
+    },
+    {
+      "test": "tests/e2e/desktop-accessibility.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "prefixes": [
+          "apps/desktop/src/",
+          "apps/web/src/features/connection/",
+          "apps/web/src/features/update/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/desktop-connection-errors.spec.ts",
+      "owners": {
+        "exact": ["apps/desktop/src/server-profile-policy.ts"],
+        "prefixes": ["apps/desktop/src/", "apps/web/src/features/connection/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/desktop-device-revocation.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/services/desktop-key-storage.ts"],
+        "prefixes": ["apps/desktop/src/", "packages/client-core/src/security/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/desktop-native-journey.spec.ts",
+      "owners": {
+        "exact": ["apps/desktop/src/native-capabilities.ts", "apps/desktop/src/menu.ts"],
+        "prefixes": ["apps/desktop/src/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/desktop-offline-restart.spec.ts",
+      "owners": {
+        "exact": ["apps/desktop/src/native-key-storage.ts"],
+        "prefixes": ["apps/desktop/src/", "packages/client-core/src/security/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/desktop-onboarding.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/features/connection/desktop-connection-page.tsx",
+          "apps/web/src/runtime/client-runtime.ts"
+        ],
+        "prefixes": ["apps/desktop/src/", "apps/web/src/features/connection/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/desktop-update-journey.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/desktop/src/updates.ts",
+          "apps/web/src/features/update/desktop-update-panel.tsx"
+        ],
+        "prefixes": ["apps/desktop/src/"],
+        "suffixes": []
+      }
     }
   ],
   "e2eIgnored": [
@@ -1058,7 +1150,9 @@
     "tests/e2e/global-setup.ts",
     "tests/e2e/helpers.ts",
     "tests/e2e/reset-content.ts",
-    "tests/e2e/reset-installation.ts"
+    "tests/e2e/reset-installation.ts",
+    "tests/e2e/desktop-skip.ts",
+    "tests/e2e/desktop-electron.ts"
   ],
   "e2eProjects": [
     "chromium-desktop",

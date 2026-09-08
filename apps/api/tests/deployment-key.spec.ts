@@ -32,6 +32,7 @@ import {
   sessionCookieAttributes,
   trustedRealtimeOrigins,
 } from "../src/security/security-config.ts";
+import { webauthnExpectedOrigins } from "../src/security/webauthn-service.ts";
 
 let root: string;
 
@@ -368,6 +369,10 @@ describe("configuration validation", () => {
     });
     expect(config.loopbackHttpOrigin?.origin).toBe("http://localhost:8080");
     expect(trustedRealtimeOrigins(config).map((origin) => origin.origin)).toEqual([
+      "https://localhost:8443",
+      "http://localhost:8080",
+    ]);
+    expect(webauthnExpectedOrigins(config)).toEqual([
       "https://localhost:8443",
       "http://localhost:8080",
     ]);

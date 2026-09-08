@@ -32,6 +32,8 @@ import type {
   TrashImpactDto,
 } from "@myownnotion/contracts";
 import { PROTOCOL_VERSION, type Uuid } from "@myownnotion/domain";
+import type { ClientRuntimeProfile } from "../runtime/client-runtime.ts";
+import { sessionCsrf } from "./session-csrf.ts";
 
 export type ApiResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -47,10 +49,12 @@ const OFFLINE_PROBLEM: ProblemDto = {
 export class ContentApi {
   readonly #baseUrl: string;
 
-  constructor(baseUrl: string = import.meta.env["VITE_API_URL"] ?? "") {
+  constructor(baseUrl: string | ClientRuntimeProfile = import.meta.env["VITE_API_URL"] ?? "") {
     // Default: same-origin — the dev/preview server proxies /v1 and /health
-    // to the loopback API, so no CORS surface exists.
-    this.#baseUrl = baseUrl.replace(/\/$/, "");
+    // to the loopback API, so no CORS surface exists. Desktop passes a
+    // validated runtime profile when the window is not yet on that origin.
+    const resolved = typeof baseUrl === "string" ? baseUrl : baseUrl.apiBaseUrl;
+    this.#baseUrl = resolved.replace(/\/$/, "");
   }
 
   /**
@@ -70,6 +74,9 @@ export class ContentApi {
     init: RequestInit & { mutationId?: Uuid } = {},
   ): Promise<ApiResult<T>> {
     const headers = new Headers(init.headers);
+    const csrf = sessionCsrf(this.#baseUrl);
+    if (csrf !== null && !["GET", "HEAD", "OPTIONS"].includes(init.method ?? "GET"))
+      headers.set("x-csrf-token", csrf);
     // Required since protocol 2: a silent client is protocol 1 and therefore
     // read-only. Announce every request so writes cannot be mistaken for legacy
     // traffic after a server upgrade.

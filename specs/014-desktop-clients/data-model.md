@@ -1,4 +1,4 @@
-# Data Model: Applications Desktop Electron Windows et macOS
+# Data Model: Applications Desktop Electron Windows, macOS et Linux
 
 Les entités ci-dessous appartiennent au profil local de l’appareil et ne
 remplacent aucune identité canonique du serveur.
@@ -67,15 +67,34 @@ enough to authorize a native capability.
 ## UpdateState
 
 `idle → checking → available → deferred → downloading → downloaded →
-installing → restarted`.
+installing`. The current process can attest the verified installer handoff only;
+the next process reports its own installed version. It must not synthesize a
+`restarted` success while still running the previous binary.
 
 Failure states are `unavailable`, `invalid-manifest`, `incompatible`,
-`download-failed`, `install-failed`, and `rollback-required`. An update cannot
-enter `installing` while a local migration or unsafe outbox state is active
-without an explicit owner decision and a preserved recovery checkpoint.
+`download-failed` and `install-failed`. An update cannot enter `installing`
+while a local migration or unsafe/unknown outbox state is active. Download or
+launch failure leaves the running app and its data untouched; it does not
+pretend to roll back a binary that was never replaced.
 
 ## WindowState
 
 `bounds`, `isMaximized`, `lastRoute`, and `lastProfileId` are non-sensitive
 preferences. They are written atomically and validated against platform bounds;
 content, session cookies, keys and tokens do not belong here.
+
+## ReleaseArtefact
+
+| Field | Type | Rules |
+| --- | --- | --- |
+| `version` | semver | Matches the Git tag published by GitHub Actions |
+| `platform` | enum | `win32`, `darwin`, or `linux` — exactly one |
+| `architecture` | enum | `x64` or `arm64` according to the V1 matrix |
+| `installerKind` | enum | Windows installer, macOS DMG, or Linux `appimage` / `deb` / `rpm` — never a store package |
+| `digestSha512` | bytes | Required for every artefact |
+| `trustMaterial` | bytes/null | Authenticode or Apple notarization when the OS requires it to run the installer; Linux uses the published digest |
+| `githubReleaseAsset` | string | Attached to the GitHub Release; not an app-store listing |
+
+A release is incomplete unless these targets are present: `win32/x64`,
+`win32/arm64`, `darwin/arm64`, `linux/x64`, `linux/arm64`. Each Linux target
+MUST include AppImage, deb and rpm assets.

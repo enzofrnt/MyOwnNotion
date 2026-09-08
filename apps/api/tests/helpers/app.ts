@@ -97,12 +97,13 @@ export async function createItemViaApi(
     name: string;
     parentItemId?: Uuid | null;
     positionKey?: string;
+    headers?: Record<string, string>;
   },
 ): Promise<CreatedItem> {
   const response = await harness.built.app.inject({
     method: "POST",
     url: "/v1/items",
-    headers: idempotencyHeaders(),
+    headers: { ...idempotencyHeaders(), ...input.headers },
     payload: {
       id: generateUuidV7(),
       kind: input.kind,

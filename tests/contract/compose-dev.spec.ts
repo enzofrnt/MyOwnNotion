@@ -112,11 +112,12 @@ describe("local HTTPS development stack", () => {
     );
   });
 
-  it("bind-mounts source without overlaying host node_modules", () => {
-    expect(raw).toContain("./apps/api/src:/app/apps/api/src");
-    expect(raw).toContain("./apps/web/src:/app/apps/web/src");
-    expect(raw).toContain("./packages/database/migrations:/app/packages/database/migrations");
-    expect(raw).not.toMatch(/node_modules/);
+  it("bind-mounts workspace source trees without overlaying host node_modules", () => {
+    expect(raw).toContain("./apps:/app/apps");
+    expect(raw).toContain("./packages:/app/packages");
+    expect(raw).toContain("./scripts:/app/scripts");
+    expect(raw).not.toContain("./apps/api/src:/app/apps/api/src");
+    expect(raw).not.toMatch(/\.\/[^\n]*node_modules:/);
     expect(raw).toMatch(/deployment-key\}:\/run\/secrets\/deployment-key:ro/);
   });
 
@@ -138,8 +139,9 @@ describe("local HTTPS development stack", () => {
     const stack = read("scripts/dev/stack.ts");
     const pkg = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
     expect(pkg.scripts?.["dev:stack:logs"]).toBe("bun scripts/dev/stack.ts --logs");
+    expect(stack).toContain('["up", "-d", "--wait", "--remove-orphans"]');
     expect(stack).toContain('["up", "-d", "--build", "--wait", "--remove-orphans"]');
-    expect(stack).toContain("compose([...upArgs])");
+    expect(stack).toContain('args.includes("--build")');
     expect(stack).toContain('args.includes("--logs")');
     expect(stack).not.toMatch(/compose\(\[[^\]]*--watch/);
     expect(stack).not.toContain("compose watch");

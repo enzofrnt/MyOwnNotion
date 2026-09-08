@@ -635,6 +635,9 @@ jobs:
           path: license-policy.json
           if-no-files-found: error
 
+  desktop:
+    uses: ./.github/workflows/desktop-ci.yml
+
   quality-gate:
     name: quality-gate
     runs-on: ubuntu-latest
@@ -661,6 +664,7 @@ jobs:
       - static-security-analysis
       - container-vulnerability-scan
       - license-policy
+      - desktop
     if: always()
     steps:
       - name: Fail unless every required job succeeded

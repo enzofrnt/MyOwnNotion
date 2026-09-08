@@ -13,6 +13,8 @@
       "!**/dist",
       "!**/build",
       "!**/coverage",
+      "!**/out",
+      "!**/.vite",
       "!**/playwright-report",
       "!**/test-results",
       "!packages/database/migrations",

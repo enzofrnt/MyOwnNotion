@@ -1865,6 +1865,23 @@ textarea {
 
 /* Sign-in and security settings (T047). Single column by default so the flow
    works at a phone width without horizontal scrolling. */
+.desktop-connection-page {
+  display: grid;
+  gap: var(--ui-space-4);
+  max-width: 32rem;
+  margin: var(--ui-space-8) auto;
+}
+
+.desktop-connection-page h1 {
+  font-size: var(--ui-text-xl);
+  font-weight: 650;
+  line-height: var(--ui-leading-tight);
+}
+
+.desktop-connection-page > p {
+  color: var(--ui-color-text-muted);
+}
+
 .login-page,
 .security-settings {
   max-width: 42rem;

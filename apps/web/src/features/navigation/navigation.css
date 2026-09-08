@@ -48,8 +48,8 @@
 .workspace-sidebar-drawer {
   min-width: 0;
   height: 100%;
-  overflow: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .workspace-sidebar-panel__content:focus-visible {
@@ -171,8 +171,11 @@
   min-width: 0;
   min-height: 0;
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  flex-direction: column;
+}
+
+.workspace-navigation__body > .ui-overlay-scroll__viewport {
+  display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }

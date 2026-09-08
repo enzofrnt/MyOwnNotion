@@ -26,7 +26,7 @@ Introduire un routeur navigateur standard afin que l’installation, la connexio
 
 **Constraints**: Local-first, session hors ligne existante conservée, URL sans contenu privé ni titre, identités UUID stables, aucune migration de données, historique arrière/avant natif, `/__ui-lab` isolé, API et application sur la même origine
 
-**Scale/Scope**: 12 formes de destinations utilisateur, toutes les entrées de navigation du workspace, 6 sections de réglages, pages/dossiers/bases/entrées adressés à l’échelle V1 de 100 000 pages
+**Scale/Scope**: destinations utilisateur du contrat canonique (notes, graphe, réglages, setup, connexion), toutes les entrées de navigation du workspace, sections de réglages, pages/dossiers/bases/entrées adressés à l’échelle V1 de 100 000 pages
 
 ## Constitution Check
 
@@ -113,7 +113,7 @@ ci/test-impact.json
 
 `main.tsx` conserve le court-circuit exact de `/__ui-lab`. Le chemin normal charge `AppRouter`, qui installe `BrowserRouter` autour de `App`. `App` déclare les routes publiques et protégées avec `Routes`, `Route`, `Navigate`, des segments dynamiques et une mise en page protégée persistante.
 
-Le layout protégé monte une seule instance du workspace. Il la rend visible pour `/notes` et `/notes/:itemId`, la masque pour les réglages, puis rend la page de réglages par `Outlet`. Ce choix préserve les brouillons, connexions temps réel, ancrages, focus et files locales pendant une visite opérationnelle.
+Le layout protégé monte une seule instance du workspace. Il la rend visible pour `/notes`, `/notes/:itemId`, `/graph` et `/graph/:itemId`, la masque pour les réglages, puis rend la page de réglages. Ce choix préserve les brouillons, connexions temps réel, ancrages, focus et files locales pendant une visite opérationnelle.
 
 Les helpers purs de `paths.ts` sont l’unique endroit qui :
 

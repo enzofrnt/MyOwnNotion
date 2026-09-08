@@ -13,6 +13,7 @@
  * new journey cannot silently opt out of the reset.
  */
 import { test as base } from "@playwright/test";
+import { apiOrigin } from "./helpers.ts";
 import { BROWSER_PROJECTS } from "./projects.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import { seedCommittedOwner, seedSession } from "./reset-installation.ts";
@@ -124,6 +125,36 @@ export const test = base.extend<{ runnableHere: null; freshContent: FreshContent
   // guarantees freshContent has completed before browser.newContext().
   storageState: async ({ freshContent }, use) => {
     await use(freshContent);
+  },
+  // The standalone request fixture does not share the browser's cookie jar.
+  // Authenticate API setup writes exactly as the signed-in renderer does.
+  request: async ({ playwright, freshContent }, use) => {
+    const api = apiOrigin();
+    const storageState = {
+      ...freshContent,
+      cookies: freshContent.cookies.map((cookie) => ({
+        ...cookie,
+        domain: new URL(api).hostname,
+      })),
+    };
+    const session = await playwright.request.newContext({ storageState });
+    let csrfToken: string;
+    try {
+      const response = await session.get(`${api}/v1/auth/session`);
+      if (!response.ok()) throw new Error(`Fixture authentication failed: ${response.status()}`);
+      ({ csrfToken } = (await response.json()) as { csrfToken: string });
+    } finally {
+      await session.dispose();
+    }
+    const request = await playwright.request.newContext({
+      storageState,
+      extraHTTPHeaders: { "x-csrf-token": csrfToken },
+    });
+    try {
+      await use(request);
+    } finally {
+      await request.dispose();
+    }
   },
 });
 

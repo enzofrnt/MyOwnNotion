@@ -208,6 +208,9 @@ for (const script of requiredGateScripts) {
   }
 }
 
+const { collectDesktopFailures } = await import("./check-desktop.ts");
+failures.push(...collectDesktopFailures());
+
 // Policy 5: no first-party source file is silently ignored.
 //
 // A broad `.gitignore` glob can swallow a source file and its tests without

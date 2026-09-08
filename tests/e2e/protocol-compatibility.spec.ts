@@ -27,12 +27,14 @@ test.describe("an out-of-date client (FR-018 to FR-020)", () => {
     // A protocol-1 client can still read but cannot create content whose
     // structured state it does not understand.
     const refusal = await page.evaluate(async () => {
+      const { csrfToken } = await (await fetch("/v1/auth/session")).json();
       const response = await fetch("/v1/items", {
         method: "POST",
         headers: {
           "content-type": "application/json",
           "idempotency-key": crypto.randomUUID(),
           "x-myownnotion-client-protocol": "1",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           id: crypto.randomUUID(),

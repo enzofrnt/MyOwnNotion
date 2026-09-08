@@ -47,7 +47,7 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
 - Add tests for changed behavior and run the relevant checks before marking tasks complete.
 - Before every branch push, read the current gate inventory in
   `docs/development.md`. For code, dependency, migration, build, deployment,
-  configuration, executable-schema, or mixed changes, run `pnpm checks:local`
+  configuration, executable-schema, or mixed changes, run `bun run checks:local`
   successfully. A host-runtime incompatibility (such as Playwright Firefox on
   macOS) MUST use the documented equivalent container path; an unavailable
   required gate blocks the push rather than being silently skipped.
@@ -55,7 +55,7 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
   or container suites. It MUST be limited to maintained prose or Spec Kit
   artifacts with no executable consumer, and MUST pass the documentation-only
   checks listed in `docs/development.md`. If path ownership or runtime impact is
-  uncertain, treat the change as mixed and run `pnpm checks:local`.
+  uncertain, treat the change as mixed and run `bun run checks:local`.
 - Prefer small, reversible changes. Do not silently expand feature scope.
 - Do not hand-edit generated files under `.agents/skills/`, `.cursor/skills/`, or shared `.specify/` templates unless intentionally customizing Spec Kit. Refresh them with the Specify CLI instead.
 

@@ -119,7 +119,7 @@ export function authorizeRequest(
   }
 
   if (context.principal.kind !== "owner") {
-    return { allowed: false, code: "authentication_required" };
+    return { allowed: false, code: context.authenticationRefusal ?? "authentication_required" };
   }
 
   if (requirement.csrf === true) {

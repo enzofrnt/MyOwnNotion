@@ -190,9 +190,12 @@ describe("what gets published", () => {
 });
 
 describe("who may publish a release", () => {
-  it("grants package writes to exactly one job", () => {
+  it("permits only the reusable CI invocation and the gated publisher to request package writes", () => {
     const grants = [...release.matchAll(/^ +packages: write$/gm)];
-    expect(grants).toHaveLength(1);
+    expect(grants).toHaveLength(2);
+    expect(release).toMatch(
+      /quality-gate:[\s\S]*?uses: \.\/\.github\/workflows\/ci\.yml[\s\S]*?packages: write/,
+    );
   });
 
   it("keeps the workflow's own permissions read-only", () => {

@@ -12,6 +12,7 @@ image_key="$({
         bunfig.toml \
         package.json \
         apps/api/package.json \
+        apps/desktop/package.json \
         apps/web/package.json \
         packages/*/package.json \
         docker/e2e-browser.Dockerfile \

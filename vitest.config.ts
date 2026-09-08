@@ -74,6 +74,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: "desktop",
+          root: "apps/desktop",
+          environment: "node",
+          include: ["tests/**/*.spec.ts"],
+        },
+      },
+      {
+        test: {
           name: "database-integration",
           root: "packages/database",
           environment: "node",
@@ -126,6 +134,10 @@ export default defineConfig({
         // The web client is exercised by Playwright journeys; browser-only
         // rendering files are not meaningfully measurable under Istanbul/Bun.
         "apps/web/**",
+        // The desktop host is exercised by Vitest policy tests plus native
+        // Playwright/Electron journeys; Istanbul under Bun does not measure
+        // the packaged Electron main process meaningfully.
+        "apps/desktop/**",
         // Type-only contracts (no runtime statements): excluding these is not
         // an "executable code" exclusion under the constitution's coverage
         // policy, since there is nothing executable to measure.

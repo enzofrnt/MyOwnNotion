@@ -21,7 +21,14 @@ export type RealtimeAuthorizationDecision =
 /** Bun must accept a WebSocket upgrade before any asynchronous hook yields. */
 export function isWebSocketUpgradeRequest(request: FastifyRequest): boolean {
   const upgrade = request.headers.upgrade;
-  return typeof upgrade === "string" && upgrade.toLowerCase() === "websocket";
+  // Only this registered route authenticates after the native upgrade. A
+  // caller-controlled header on any other route must retain the HTTP guards.
+  return (
+    request.method === "GET" &&
+    request.routeOptions.url === "/v1/page-sync/socket" &&
+    typeof upgrade === "string" &&
+    upgrade.toLowerCase() === "websocket"
+  );
 }
 
 export function hasExactRealtimeOrigin(

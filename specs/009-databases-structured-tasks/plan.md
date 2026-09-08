@@ -328,3 +328,12 @@ gates constitutionnels restent PASS.
 | Projection structurée transitoire serveur et locale | Le chiffrement applicatif interdit d'indexer les valeurs privées en clair dans PostgreSQL, tandis que les vues doivent filtrer et trier 100 000 entrées | Déchiffrer tout à chaque requête dépasse la cible et créer un index persistant ajouterait une nouvelle surface sensible |
 | TanStack Table + Virtual | Une table éditable, contrôlée, accessible et volumineuse exige état de colonnes et réduction du DOM sans imposer de rendu propriétaire | Une table maison reconstruirait navigation et état ; une grille complète imposerait son modèle de données et son identité visuelle |
 | decimal.js-light | Les nombres doivent garder une forme et un ordre identiques sans perte binaire entre Node et navigateurs | `Number` perd des chiffres à partir de certaines saisies et rend la valeur canonique dépendante d'un aller-retour flottant |
+
+### Desktop convergence: consolidation-only entry heads (014 T100)
+
+A structured conflict review remains valid across automatic single-parent
+`page-operations.consolidated` revisions of the same entry. Execution may
+advance the reviewed parent through a bounded chain of those revisions while
+preserving the current page and the other reviewed ancestry. All other head
+changes retain stale-review refusal. This implements independent-field
+convergence; it does not permit replacing newly edited structured values.

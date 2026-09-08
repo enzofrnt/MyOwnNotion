@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.9
 #
 # Local hot-reload image for `compose.dev.yaml`. Not a published runtime image.
 # Dependencies install from bun.lock inside Linux so Darwin host `node_modules`

@@ -172,6 +172,46 @@ describe("application routing", () => {
     });
   }
 
+  it("authenticates only after the native server profile is resolved", async () => {
+    const api = securityApi();
+    let releaseProfile!: () => void;
+    const pendingProfile = new Promise<void>((resolve) => {
+      releaseProfile = resolve;
+    });
+    const profile = {
+      profileId: "native-profile",
+      serverUrl: window.location.origin,
+      protocolCompatibility: "compatible",
+    };
+    const previous = Object.getOwnPropertyDescriptor(window, "myownnotionDesktop");
+    Object.defineProperty(window, "myownnotionDesktop", {
+      configurable: true,
+      value: {
+        platform: "darwin",
+        appVersion: "0.0.0",
+        getActiveProfile: async () => {
+          await pendingProfile;
+          return profile;
+        },
+      },
+    });
+    try {
+      await renderAt("/notes", api);
+      expect(container.querySelector('[data-testid="app-checking"]')).not.toBeNull();
+      expect(api.status).not.toHaveBeenCalled();
+      expect(api.currentSession).not.toHaveBeenCalled();
+      await act(async () => {
+        releaseProfile();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(api.currentSession).toHaveBeenCalledTimes(1);
+      expect(container.querySelector('[data-testid="routed-hierarchy"]')).not.toBeNull();
+    } finally {
+      if (previous === undefined) Reflect.deleteProperty(window, "myownnotionDesktop");
+      else Object.defineProperty(window, "myownnotionDesktop", previous);
+    }
+  });
+
   it("canonicalizes the root and settings index with replacement navigation", async () => {
     await renderAt("/");
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe("/notes");
@@ -315,6 +355,36 @@ describe("application routing", () => {
         ?.getAttribute("data-selected-item"),
     ).toBe(itemId);
   });
+
+  it.each(["online-event", "server-recovery"])(
+    "revalidates a cold offline session before waking writes: %s",
+    async (trigger) => {
+      const api = securityApi("offline");
+      let authorized = false;
+      Object.defineProperty(api, "hasCsrfToken", { get: () => authorized });
+      const { localContent } = await import("../src/services/local-content.ts");
+      const service = localContent();
+      const wake = vi.spyOn(service.realtimePageSync, "wake").mockImplementation(() => {});
+      const workspaceSync = vi.spyOn(service, "synchronize").mockResolvedValue("idle");
+      const pageSync = vi.spyOn(service, "synchronizeOperationalPages").mockResolvedValue(true);
+      await renderAt("/notes", api);
+      expect(workspaceSync).not.toHaveBeenCalled();
+      vi.mocked(api.currentSession).mockImplementation(async () => {
+        authorized = true;
+        return { ok: true, value: { session: { sessionId: "resumed-session" } } } as Awaited<
+          ReturnType<SecurityApi["currentSession"]>
+        >;
+      });
+      await act(async () => {
+        if (trigger === "online-event") window.dispatchEvent(new Event("online"));
+        await vi.waitFor(() => expect(pageSync).toHaveBeenCalledTimes(1), { timeout: 6500 });
+      });
+      expect(wake).toHaveBeenCalledTimes(1);
+      expect(workspaceSync).toHaveBeenCalledTimes(1);
+      expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe("/notes");
+    },
+    10000,
+  );
 
   it("renders an explicit not-found destination instead of a previous note", async () => {
     await renderAt("/somewhere-else");

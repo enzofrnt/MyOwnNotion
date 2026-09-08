@@ -33,11 +33,9 @@ import { PageContentSkeleton } from "../workspace/page-content-skeleton.tsx";
 import type { CreateSubpage } from "./editor-menus/slash-menu.tsx";
 import { EditorSurface, type EditorSurfaceHandle } from "./editor-surface.tsx";
 import { type EditorDurableSession, EditorSyncStatus } from "./editor-sync-status.tsx";
-import {
-  captureScrollAnchor,
-  editorScrollContainer,
-  restoreScrollAnchor,
-} from "./editor-view-state.ts";
+import { captureScrollAnchor, editorScrollContainer } from "./editor-view-state.ts";
+
+import { usePageScrollRestoration } from "./use-page-scroll-restoration.ts";
 
 type LoadState =
   | { readonly kind: "loading" }
@@ -82,8 +80,8 @@ export function EditorView({
 }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [editorSettled, setEditorSettled] = useState(true);
-  const restorePending = useRef(initialScrollAnchor);
-  const wasDiscoverable = useRef(discoverable);
+  const editorRoot = useRef<HTMLElement | null>(null);
+  usePageScrollRestoration(state.kind === "ready", discoverable, initialScrollAnchor, editorRoot);
   const [ambiguities, setAmbiguities] = useState<readonly PageAmbiguityRecord[]>([]);
 
   const resolveAmbiguity = useCallback(
@@ -112,43 +110,6 @@ export function EditorView({
     [service, itemId, state, ambiguities],
   );
 
-  // Restored once the surface is ready, then retried briefly: early attempts
-  // can run against a shell BlockNote has not filled yet, and a document too
-  // short to hold the position clamps the scroll back to the top — the late
-  // jump FR-009 forbids. The anchor is consumed on the first attempt so a
-  // retry never fights the owner's own scrolling.
-  useEffect(() => {
-    if (state.kind !== "ready" || !discoverable) {
-      wasDiscoverable.current = discoverable;
-      return;
-    }
-    const becameActive = !wasDiscoverable.current;
-    wasDiscoverable.current = true;
-    const pending = restorePending.current;
-    if (pending !== null) restorePending.current = null;
-    const anchor = pending ?? (becameActive ? initialScrollAnchor : null);
-    if (anchor === null) return;
-    let attempts = 0;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const settled = (): boolean => {
-      const scroller = editorScrollContainer();
-      return scroller === null
-        ? window.scrollY > 0 || document.documentElement.scrollHeight <= window.innerHeight
-        : scroller.scrollTop > 0 || scroller.scrollHeight <= scroller.clientHeight;
-    };
-    const attempt = (): void => {
-      restoreScrollAnchor(anchor);
-      attempts += 1;
-      if (settled() || attempts >= 10) return;
-      timer = setTimeout(attempt, 120);
-    };
-    const frame = requestAnimationFrame(attempt);
-    return () => {
-      cancelAnimationFrame(frame);
-      if (timer !== undefined) clearTimeout(timer);
-    };
-  }, [state, discoverable, initialScrollAnchor]);
-
   // Leaving the page records where the viewport stopped. The anchor is kept
   // fresh on every scroll frame rather than queried at teardown: by the time
   // this surface unmounts, BlockNote has already removed its blocks from the
@@ -161,7 +122,9 @@ export function EditorView({
       if (raf !== 0) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        const anchor = captureScrollAnchor();
+        const root = editorRoot.current;
+        if (root === null) return;
+        const anchor = captureScrollAnchor(root);
         if (anchor === null) return;
         const previous = latestAnchorRef.current;
         const moved =
@@ -175,7 +138,8 @@ export function EditorView({
         if (moved) onCaptureScrollAnchor?.(itemId, anchor);
       });
     };
-    const scrollTarget: EventTarget = editorScrollContainer() ?? window;
+    const scrollTarget: EventTarget =
+      (editorRoot.current === null ? null : editorScrollContainer(editorRoot.current)) ?? window;
     scrollTarget.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       scrollTarget.removeEventListener("scroll", onScroll);
@@ -316,6 +280,7 @@ export function EditorView({
 
   return (
     <section
+      ref={editorRoot}
       className="workspace-page-editor"
       aria-label={FR_COPY.editor.surface.contentLabel}
       data-testid={discoverable ? "operational-editor" : undefined}

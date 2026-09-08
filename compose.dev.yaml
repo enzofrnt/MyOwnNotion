@@ -2,7 +2,8 @@
 #
 # Official production topology stays in compose.yaml (HTTP on loopback, TLS
 # terminated by the administrator's reverse proxy). This file is a developer
-# helper: PostgreSQL, a one-shot schema job, Bun/Vite with bind-mounted source,
+# helper: PostgreSQL, a one-shot schema job, Bun/Vite with bind-mounted `apps/`,
+# `packages/`, and `scripts/` (root `node_modules` stays from the Linux image),
 # and Caddy with an internal certificate so passkeys and `__Host-` cookies work
 # at https://localhost:8443. Plain HTTP is also served at http://localhost:8080
 # for embedded browsers that cannot trust Caddy's local CA.
@@ -59,21 +60,11 @@ x-dev-app: &dev-app
     - ${MYOWNNOTION_DEPLOYMENT_KEY_FILE:-./secrets/deployment-key}:/run/secrets/deployment-key:ro
     - file-store:/var/lib/myownnotion/blobs
     - backup-store:/var/lib/myownnotion/backups
-    - ./apps/api/src:/app/apps/api/src
-    - ./apps/web/src:/app/apps/web/src
-    - ./apps/web/index.html:/app/apps/web/index.html
-    - ./apps/web/vite.config.ts:/app/apps/web/vite.config.ts
-    - ./apps/web/manifest.webmanifest:/app/apps/web/manifest.webmanifest
-    - ./packages/blob-store/src:/app/packages/blob-store/src
-    - ./packages/client-core/src:/app/packages/client-core/src
-    - ./packages/contracts/src:/app/packages/contracts/src
-    - ./packages/database/src:/app/packages/database/src
-    - ./packages/database/migrations:/app/packages/database/migrations
-    - ./packages/domain/src:/app/packages/domain/src
-    - ./packages/graph/src:/app/packages/graph/src
-    - ./packages/page-state/src:/app/packages/page-state/src
-    - ./scripts/dev:/app/scripts/dev
-    - ./scripts/db:/app/scripts/db
+    # Whole source trees (fewer bind mounts → less Docker Desktop sync drift).
+    # Root /app/node_modules stays from the Linux image; never mount host node_modules.
+    - ./apps:/app/apps
+    - ./packages:/app/packages
+    - ./scripts:/app/scripts
 
 services:
   postgres:

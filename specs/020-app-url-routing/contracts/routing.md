@@ -8,6 +8,8 @@
 /login[?returnTo=<encoded protected path>]
 /notes
 /notes/:itemId
+/graph
+/graph/:itemId
 /settings
 /settings/security
 /settings/navigation
@@ -23,6 +25,7 @@
 
 ```ts
 notePath(itemId: Uuid): `/notes/${string}`
+graphPath(itemId?: Uuid | null): `/graph` | `/graph/${string}`
 settingsPath(section: SettingsRouteSection): string
 pageSettingsPath(itemId: Uuid): `/settings/page/${string}`
 loginPath(returnTo?: ProtectedDestination): string

@@ -1,3 +1,4 @@
+import { authenticatedContent } from "./helpers/content-owner.ts";
 /**
  * Rotation policy against real protected data (T075, US5, FR-025, FR-026, SC-009).
  *
@@ -27,6 +28,7 @@ import { loadSecurityConfig } from "../src/security/security-config.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
 
 let harness: ApiHarness;
+let injectAsOwner: Awaited<ReturnType<typeof authenticatedContent>>;
 let keyDirectory: string;
 
 const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
@@ -45,6 +47,7 @@ beforeAll(async () => {
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: keyFile,
     }),
   });
+  injectAsOwner = await authenticatedContent(harness);
 }, 180_000);
 
 afterAll(async () => {
@@ -96,7 +99,7 @@ function policies(): RotationPolicyService {
 
 /** Creates a page through the ordinary route, which seals its title. */
 async function createSealedPage(name: string): Promise<string> {
-  const response = await harness.built.app.inject({
+  const response = await injectAsOwner({
     method: "POST",
     url: "/v1/items",
     headers: { "idempotency-key": randomUUID() },
@@ -148,7 +151,7 @@ describe("a blocked installation is still readable", () => {
     const pageId = await createSealedPage(SECRET);
     await seedPolicy("wrapping-key", { dueInDays: -400, blockInDays: -1 });
 
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "GET",
       url: `/v1/items/${pageId}`,
     });
@@ -250,7 +253,7 @@ describe("the block reaches the write path, not only the status", () => {
     // the operator would believe the deadline had teeth.
     await seedPolicy("data-key", { dueInDays: -400, blockInDays: -1 });
 
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "POST",
       url: "/v1/items",
       headers: { "idempotency-key": randomUUID() },
@@ -271,7 +274,7 @@ describe("the block reaches the write path, not only the status", () => {
     await seedPolicy("data-key", { dueInDays: -400, blockInDays: -1 });
     const id = randomUUID();
 
-    await harness.built.app.inject({
+    await injectAsOwner({
       method: "POST",
       url: "/v1/items",
       headers: { "idempotency-key": randomUUID() },
@@ -294,7 +297,7 @@ describe("the block reaches the write path, not only the status", () => {
     // deadline wearing a different name.
     await seedPolicy("data-key", { dueInDays: -1, blockInDays: 6 });
 
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "POST",
       url: "/v1/items",
       headers: { "idempotency-key": randomUUID() },
@@ -310,7 +313,7 @@ describe("the block reaches the write path, not only the status", () => {
 
   it("writes normally when no policy is configured", async () => {
     // An installation that has not set up rotation must not be unusable.
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "POST",
       url: "/v1/items",
       headers: { "idempotency-key": randomUUID() },
@@ -398,7 +401,7 @@ describe("what the trail records about a rotation", () => {
     // Several refused writes in between change nothing: the count follows
     // evaluations, not requests.
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      await harness.built.app.inject({
+      await injectAsOwner({
         method: "POST",
         url: "/v1/items",
         headers: { "idempotency-key": randomUUID() },

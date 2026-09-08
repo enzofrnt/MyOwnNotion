@@ -16,6 +16,7 @@ WORKDIR /work
 # source is streamed into each disposable browser container afterwards.
 COPY bun.lock bunfig.toml package.json ./
 COPY apps/api/package.json apps/api/package.json
+COPY apps/desktop/package.json apps/desktop/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/blob-store/package.json packages/blob-store/package.json
 COPY packages/client-core/package.json packages/client-core/package.json

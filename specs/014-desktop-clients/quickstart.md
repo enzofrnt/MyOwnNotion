@@ -4,20 +4,25 @@
 
 - Bun `1.4.0` exactement ;
 - a running MyOwnNotion API/server from the preceding features;
-- a Windows runner for Windows packaging and a macOS runner for macOS signing;
-- test certificates/secrets supplied out-of-band for release validation only.
+- a Windows x64 runner, a Windows ARM64 runner, a macOS Apple Silicon runner,
+  and a Linux runner for each Linux architecture;
+- test certificates/secrets supplied out-of-band for Windows/macOS signing only.
 
 ## Local development
 
+Use the HTTPS development stack as the server (single origin, path-routed like
+production):
+
 ```bash
-bun ci
-bun run --filter @myownnotion/web build
-bun run --filter @myownnotion/desktop dev
+bun run dev:stack
+bun run desktop:dev
 ```
 
-Expected result: one local desktop window opens, loads the local shell, asks
-for a server profile when none exists, and reaches the existing bootstrap/login
-flow without loading server-provided code.
+In the desktop onboarding screen, connect to **https://localhost:8443** (default).
+Vite HMR in the stack hot-reloads `apps/web`; `desktop:dev` watch-rebuilds the
+Electron host (`apps/desktop/src`) and restarts the shell. Plain
+**http://localhost:8080** works for UI experiments in Cursor but not for passkeys
+or session cookies in Electron.
 
 ## Automated validation
 
@@ -41,7 +46,8 @@ The desktop suite must include:
 
 ## Installed smoke validation
 
-For each Windows x64, macOS x64 and macOS arm64 artifact:
+For Windows x64, Windows ARM64 and macOS ARM64, and for each Linux
+architecture after checking that AppImage, `.deb` and `.rpm` are all present:
 
 1. Verify the checksum and platform signature.
 2. Install on a clean runner and record app version/platform/architecture.

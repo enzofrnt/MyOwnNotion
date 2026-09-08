@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-30
 
-**Status**: Draft
+**Status**: Implemented and converged
 
 **Input**: User description: "Le front ne doit plus tout afficher sur `/`. Chaque page de l’application ainsi que chaque page ou dossier de notes doit posséder sa propre URL. La séparation entre pages et composants doit rester claire, et les tests/CI doivent être surveillés par des sous-agents économiques. Partir de `main`."
 
@@ -13,8 +13,8 @@
 Cette feature affine les sections 2.13, 6.1, 7, 10, 11, 12, 12.1, 18, 39, 42, 43.4, 43.6 et 47 du canevas produit `docs/product/product-canvas.md`.
 
 - **Direction produit** : l’espace principal reste réservé aux contenus de connaissance, tandis que les réglages et opérations vivent dans des destinations dédiées. Les pages, dossiers et entrées de base conservent leur identité stable après renommage, déplacement ou conversion.
-- **Dépendances** : modèle canonique et identifiants stables (001/004), sécurité mono-propriétaire (002), navigation et workspace V1 (017), stockage local et fonctionnement hors ligne (005/006/018), bases dont les entrées sont des pages (009).
-- **Périmètre** : adressage URL du setup, de la connexion, du workspace, des pages/dossiers/entrées de base, de chaque section de réglages et des états introuvables ; navigation directe, rechargement et historique du navigateur.
+- **Dépendances** : modèle canonique et identifiants stables (001/004), sécurité mono-propriétaire (002), navigation et workspace V1 (017), graphe (010), stockage local et fonctionnement hors ligne (005/006/018), bases dont les entrées sont des pages (009).
+- **Périmètre** : adressage URL du setup, de la connexion, du workspace, des pages/dossiers/entrées de base, du graphe (destinations 010), de chaque section de réglages et des états introuvables ; navigation directe, rechargement et historique du navigateur.
 - **Exclusions** : partage public, URLs fondées sur le titre, migration de données canonique, changement du modèle de permissions, transformation de la recherche modale en page, nouvelle surface autonome pour les fichiers et choix de bibliothèque de routage.
 
 ## Canonical Destination Contract
@@ -28,6 +28,8 @@ Les destinations utilisateur utilisent les formes suivantes. Les noms techniques
 | Connexion | `/login` |
 | Workspace sans sélection | `/notes` |
 | Page, dossier, base ou entrée de base | `/notes/:itemId` |
+| Graphe global | `/graph` |
+| Graphe local centré | `/graph/:itemId` |
 | Réglages par défaut | `/settings` redirige vers `/settings/security` |
 | Sécurité et appareils | `/settings/security` |
 | Présentation de la navigation | `/settings/navigation` |
@@ -165,6 +167,7 @@ Une adresse directe continue à représenter l’intention du propriétaire pend
 
 - L’identifiant canonique est préféré à un titre ou slug pour garantir la stabilité après renommage, déplacement et conversion.
 - Une entrée de base est une page et utilise donc la même famille de routes `/notes/:itemId`.
+- Les destinations `/graph` et `/graph/:itemId` appartiennent à la feature 010 ; cette feature les reconnaît dans la table de routes partagée pour le gate, l’historique et le hors-ligne.
 - La sélection d’un fichier autonome n’est pas transformée en nouvelle page dans cette feature ; une future surface de fichier pourra recevoir sa propre famille de routes.
 - La recherche reste un dialogue global et conserve l’URL de la destination sous-jacente.
 - Les détails de page utilisent l’identité explicite du chemin et ne dépendent pas d’une sélection conservée uniquement en mémoire.

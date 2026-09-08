@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-27
 
-**Status**: In implementation
+**Status**: Implemented and converged
 
 **Input**: User description: "Après avoir livré tous les retours d'interface
 dans une autre PR, migrer dans une PR dédiée tout le runtime, la compilation et
@@ -27,11 +27,18 @@ des applications Web et API, des packages partagés, de la suite de tests, des
 images Compose et des portes de livraison existantes, dont elle doit préserver
 le comportement et le niveau de contrôle.
 
-La constitution 3.0.0 rend Bun exclusif pour le runtime TypeScript/JavaScript,
+La constitution 3.1.0 rend Bun exclusif pour le runtime TypeScript/JavaScript,
 les espaces de travail, les scripts et la compilation de production. Cette
-feature réalise cette transition en une fois avant fusion : l'état
-intermédiaire peut servir sur la branche, mais `main` ne conserve ni double
-lockfile, ni double gestionnaire, ni second runtime applicatif.
+feature **est livrée et convergée** : `main` n'a ni double lockfile, ni double
+gestionnaire, ni second runtime applicatif. Les mentions de pnpm ou Node.js
+dans les `tasks.md` / `quickstart.md` des features 001–018 décrivent l'époque
+où elles ont été construites ; elles ne sont plus la procédure à suivre.
+La procédure vivante est [`docs/development.md`](../../docs/development.md)
+(`bun ci`, `bun run …`).
+
+Les clients Electron (014) ne font pas partie de cette feature. Ils sont le
+**prochain travail d'implémentation**, sur la même chaîne Bun, avant la clôture
+V1.
 
 La migration ne change ni le modèle de données, ni les API, ni le protocole de
 synchronisation, ni le chiffrement, ni l'interface. Les évolutions UI, la

@@ -1,3 +1,4 @@
+import { authenticatedContent } from "./helpers/content-owner.ts";
 /**
  * Sealing feature-001 payloads through the real routes (T057, feature 002).
  *
@@ -24,6 +25,7 @@ import { loadSecurityConfig } from "../src/security/security-config.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
 
 let harness: ApiHarness;
+let injectAsOwner: Awaited<ReturnType<typeof authenticatedContent>>;
 let keyDirectory: string;
 
 const SECRET_TITLE = "Codes for the safe";
@@ -50,6 +52,7 @@ beforeAll(async () => {
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: keyFile,
     }),
   });
+  injectAsOwner = await authenticatedContent(harness);
 }, 180_000);
 
 afterAll(async () => {
@@ -70,7 +73,7 @@ beforeEach(async () => {
 
 /** Creates a page through the ordinary route and returns its id. */
 async function createPage(name: string): Promise<string> {
-  const response = await harness.built.app.inject({
+  const response = await injectAsOwner({
     method: "POST",
     url: "/v1/items",
     headers: { "idempotency-key": randomUUID() },
@@ -86,9 +89,9 @@ async function createPage(name: string): Promise<string> {
 }
 
 async function replaceBody(pageId: string, body: unknown): Promise<void> {
-  const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${pageId}` });
+  const item = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
   const baseRevisionId = item.json().currentRevisionId as string;
-  const response = await harness.built.app.inject({
+  const response = await injectAsOwner({
     method: "PUT",
     url: `/v1/pages/${pageId}/document`,
     headers: { "idempotency-key": randomUUID() },
@@ -165,7 +168,7 @@ describe("writing content through the ordinary routes", () => {
     const source = await createPage("Source");
     const target = await createPage("Target");
     const relationshipId = generateUuidV7();
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "POST",
       url: "/v1/relationships",
       headers: { "idempotency-key": randomUUID() },
@@ -206,8 +209,8 @@ describe("writing content through the ordinary routes", () => {
 
   it("reseals on rename rather than leaving the old title", async () => {
     const pageId = await createPage(SECRET_TITLE);
-    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${pageId}` });
-    const response = await harness.built.app.inject({
+    const item = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const response = await injectAsOwner({
       method: "PATCH",
       url: `/v1/items/${pageId}`,
       headers: { "idempotency-key": randomUUID() },
@@ -224,7 +227,7 @@ describe("writing content through the ordinary routes", () => {
 
   it("seals the item emoji with its title and preserves explicit removal", async () => {
     const pageId = generateUuidV7();
-    const created = await harness.built.app.inject({
+    const created = await injectAsOwner({
       method: "POST",
       url: "/v1/items",
       headers: { "idempotency-key": randomUUID() },
@@ -244,7 +247,7 @@ describe("writing content through the ordinary routes", () => {
     });
     expect(await envelopeText()).not.toContain("🕵️");
 
-    const removed = await harness.built.app.inject({
+    const removed = await injectAsOwner({
       method: "PATCH",
       url: `/v1/items/${pageId}`,
       headers: { "idempotency-key": randomUUID() },
@@ -263,12 +266,12 @@ describe("writing content through the ordinary routes", () => {
 
   it("keeps the sealed title when an icon changes after plaintext cutover", async () => {
     const pageId = await createPage("Title kept only in its envelope");
-    const before = await harness.built.app.inject({ method: "GET", url: `/v1/items/${pageId}` });
+    const before = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
     await harness.built.database.db.execute(
       sql`UPDATE items SET name = ${SCRUBBED_PLACEHOLDER} WHERE id = ${pageId}::uuid`,
     );
 
-    const changed = await harness.built.app.inject({
+    const changed = await injectAsOwner({
       method: "PATCH",
       url: `/v1/items/${pageId}`,
       headers: { "idempotency-key": randomUUID() },
@@ -437,7 +440,7 @@ describe("structured database envelopes", () => {
     const textPropertyId = generateUuidV7();
     const relationPropertyId = generateUuidV7();
     const viewId = generateUuidV7();
-    const created = await harness.built.app.inject({
+    const created = await injectAsOwner({
       method: "POST",
       url: "/v1/databases",
       headers: { "idempotency-key": randomUUID() },
@@ -485,7 +488,7 @@ describe("structured database envelopes", () => {
         ],
       })),
     };
-    const replaced = await harness.built.app.inject({
+    const replaced = await injectAsOwner({
       method: "PUT",
       url: `/v1/databases/${databaseId}/definition`,
       headers: { "idempotency-key": randomUUID() },
@@ -496,7 +499,7 @@ describe("structured database envelopes", () => {
     const target = await createPage("Protected target");
     const entryId = generateUuidV7();
     const privateValue = "structured-secret-sentinel-736198";
-    const entry = await harness.built.app.inject({
+    const entry = await injectAsOwner({
       method: "POST",
       url: `/v1/databases/${databaseId}/entries`,
       headers: { "idempotency-key": randomUUID() },
@@ -522,7 +525,7 @@ describe("structured database envelopes", () => {
     const envelopes = await envelopeText();
     expect(envelopes).not.toContain(privateValue);
     expect(envelopes).not.toContain("Highly confidential property label");
-    const read = await harness.built.app.inject({
+    const read = await injectAsOwner({
       method: "GET",
       url: `/v1/databases/${databaseId}/entries/${entryId}`,
     });
@@ -534,7 +537,7 @@ describe("structured database envelopes", () => {
 
 describe("feature 001 is unchanged", () => {
   it("still returns the item it created", async () => {
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "POST",
       url: "/v1/items",
       headers: { "idempotency-key": randomUUID() },
@@ -555,7 +558,7 @@ describe("feature 001 is unchanged", () => {
     // — there is no separate read endpoint for it.
     const pageId = await createPage("Readable");
     await replaceBody(pageId, { text: "still here" });
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "GET",
       url: `/v1/items/${pageId}`,
     });
@@ -568,11 +571,11 @@ describe("feature 001 is unchanged", () => {
     // write: sealing happens after acceptance, so a rejected mutation seals
     // nothing and changes nothing.
     const pageId = await createPage("Conflict");
-    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${pageId}` });
+    const item = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
     const stale = item.json().currentRevisionId as string;
     await replaceBody(pageId, { text: "first" });
 
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "PUT",
       url: `/v1/pages/${pageId}/document`,
       headers: { "idempotency-key": randomUUID() },
@@ -592,7 +595,7 @@ describe("feature 001 is unchanged", () => {
 
   it("replays an idempotent retry without a second envelope", async () => {
     const pageId = await createPage("Idempotent");
-    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${pageId}` });
+    const item = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
     const key = randomUUID();
     const payload = {
       baseRevisionId: item.json().currentRevisionId,
@@ -603,7 +606,7 @@ describe("feature 001 is unchanged", () => {
       },
     };
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await harness.built.app.inject({
+      const response = await injectAsOwner({
         method: "PUT",
         url: `/v1/pages/${pageId}/document`,
         headers: { "idempotency-key": key },
@@ -630,7 +633,7 @@ describe("content and its envelope commit together", () => {
     await harness.built.database.db.execute(sql`UPDATE data_key_generations SET state = 'revoked'`);
     const id = generateUuidV7();
     const mutationId = randomUUID();
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "POST",
       url: "/v1/items",
       headers: { "idempotency-key": mutationId },

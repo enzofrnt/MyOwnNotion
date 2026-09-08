@@ -15,7 +15,12 @@
 import { useCallback, useId, useState } from "react";
 import type { SecurityApi } from "../../services/security-api.ts";
 import { AsyncState, Button, Field, FR_COPY } from "../../ui/index.ts";
-import { passkeysAvailable, requestOwnerPasskey } from "./passkey-client.ts";
+import { DesktopPasskeyGuidance, useDesktopPlatformPasskey } from "./desktop-passkey-guidance.tsx";
+import {
+  passkeysAvailable,
+  platformAuthenticatorAvailable,
+  requestOwnerPasskey,
+} from "./passkey-client.ts";
 
 export interface LoginPageProps {
   readonly api: SecurityApi;
@@ -39,6 +44,7 @@ export function LoginPage(props: LoginPageProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const passwordId = useId();
+  const desktopPlatformPasskey = useDesktopPlatformPasskey();
 
   const signInWithPassword = useCallback(
     async (event: React.FormEvent) => {
@@ -65,6 +71,14 @@ export function LoginPage(props: LoginPageProps) {
   const signInWithPasskey = useCallback(async () => {
     setBusy(true);
     setMessage(null);
+    if (window.myownnotionDesktop?.platform === "darwin") {
+      const platformReady = await platformAuthenticatorAvailable();
+      if (!platformReady) {
+        setMessage(FR_COPY.auth.passkey.desktopUnavailable);
+        setBusy(false);
+        return;
+      }
+    }
     const options = await props.api.passkeyLoginOptions();
     if (!options.ok) {
       setMessage(REFUSED);
@@ -105,32 +119,49 @@ export function LoginPage(props: LoginPageProps) {
       )}
 
       {mode === "passkey" ? (
-        <section className="ui-auth-card" aria-labelledby="passkey-heading">
-          <h2 id="passkey-heading">{FR_COPY.auth.login.passkeyTitle}</h2>
-          <p>{FR_COPY.auth.login.passkeyDescription}</p>
-          <Button
-            type="button"
-            variant="primary"
-            busy={busy}
-            onClick={() => {
-              void signInWithPasskey();
-            }}
-            data-testid="sign-in-passkey"
-          >
-            {FR_COPY.auth.login.passkeyAction}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setMode("password");
-              setMessage(null);
-            }}
-            data-testid="use-password-instead"
-          >
-            {FR_COPY.auth.login.usePassword}
-          </Button>
-        </section>
+        desktopPlatformPasskey === false ? (
+          <section>
+            <DesktopPasskeyGuidance testId="login-desktop-passkey-guidance" />
+            <Button
+              type="button"
+              variant="ghost"
+              data-testid="use-password-instead"
+              onClick={() => {
+                setMode("password");
+                setMessage(null);
+              }}
+            >
+              {FR_COPY.auth.login.usePassword}
+            </Button>
+          </section>
+        ) : (
+          <section className="ui-auth-card" aria-labelledby="passkey-heading">
+            <h2 id="passkey-heading">{FR_COPY.auth.login.passkeyTitle}</h2>
+            <p>{FR_COPY.auth.login.passkeyDescription}</p>
+            <Button
+              type="button"
+              variant="primary"
+              busy={busy || desktopPlatformPasskey === null}
+              onClick={() => {
+                void signInWithPasskey();
+              }}
+              data-testid="sign-in-passkey"
+            >
+              {FR_COPY.auth.login.passkeyAction}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setMode("password");
+                setMessage(null);
+              }}
+              data-testid="use-password-instead"
+            >
+              {FR_COPY.auth.login.usePassword}
+            </Button>
+          </section>
+        )
       ) : (
         <section className="ui-auth-card" aria-labelledby="password-heading">
           <h2 id="password-heading">{FR_COPY.auth.login.passwordTitle}</h2>
@@ -151,7 +182,7 @@ export function LoginPage(props: LoginPageProps) {
               {FR_COPY.auth.login.passwordAction}
             </Button>
           </form>
-          {passkeysAvailable() ? (
+          {passkeysAvailable() && desktopPlatformPasskey !== false ? (
             <Button
               type="button"
               variant="ghost"

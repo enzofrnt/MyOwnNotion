@@ -1,3 +1,4 @@
+import { authenticatedContent } from "./helpers/content-owner.ts";
 /**
  * What a corrupted envelope does to a request (T053, US4, FR-013, FR-014, FR-023).
  *
@@ -29,6 +30,7 @@ import { loadSecurityConfig } from "../src/security/security-config.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
 
 let harness: ApiHarness;
+let injectAsOwner: Awaited<ReturnType<typeof authenticatedContent>>;
 let keyDirectory: string;
 
 const SECRET = "the combination is 19-04-77";
@@ -45,6 +47,7 @@ beforeAll(async () => {
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: keyFile,
     }),
   });
+  injectAsOwner = await authenticatedContent(harness);
 }, 180_000);
 
 afterAll(async () => {
@@ -60,7 +63,7 @@ beforeEach(async () => {
 
 /** Creates a page through the ordinary route, which seals its title. */
 async function createPage(name: string): Promise<string> {
-  const response = await harness.built.app.inject({
+  const response = await injectAsOwner({
     method: "POST",
     url: "/v1/items",
     headers: { "idempotency-key": randomUUID() },
@@ -76,7 +79,7 @@ async function createPage(name: string): Promise<string> {
 }
 
 async function fetchItem(itemId: string) {
-  return await harness.built.app.inject({ method: "GET", url: `/v1/items/${itemId}` });
+  return await injectAsOwner({ method: "GET", url: `/v1/items/${itemId}` });
 }
 
 describe("the cutover itself", () => {

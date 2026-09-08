@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-31
 
-**Status**: Draft — ready for product review
+**Status**: Specified — queued after feature 014
 
 **Input**: User description: "Modifier les logs du serveur, aujourd'hui
 illisibles, expliquer leur état actuel et poser les bases d'une amélioration
@@ -28,10 +28,11 @@ une présentation humaine, une présentation machine et une politique de bruit
 communes à tous les processus serveur maintenus.
 
 La feature 008 conserve la responsabilité de la validation de release. La
-présente feature devient une condition de sortie de la V1 : la release ne peut
-pas être déclarée exploitable tant que la commande locale documentée affiche
-par défaut un flot illisible ou que les erreurs ne donnent pas une piste
-d'action sûre.
+présente feature reste une condition de sortie de la V1, mais **n'est pas le
+prochain travail** : l'implémentation des clients Electron (014) précède
+planification et code ici. La release ne peut pas être déclarée exploitable
+tant que la commande locale documentée affiche par défaut un flot illisible ou
+que les erreurs ne donnent pas une piste d'action sûre.
 
 ### Problème observé
 

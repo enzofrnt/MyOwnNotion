@@ -1,3 +1,4 @@
+import { requiresOwnerHttpAccess } from "./security/http-access.ts";
 /**
  * Fastify composition (T017).
  *
@@ -387,6 +388,12 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       request: FastifyRequest,
     ): Promise<Extract<RequestPrincipal, { kind: "owner" }> | null> => {
       const outcome = await resolvePrincipal(request, [ownerPrincipalResolver]);
+      if (
+        !outcome.authenticated &&
+        outcome.reason === "rejected" &&
+        outcome.code === "device_revoked"
+      )
+        updateRequestContext(request, { authenticationRefusal: "device_revoked" });
       if (!outcome.authenticated || outcome.principal.kind !== "owner") return null;
       updateRequestContext(request, { principal: outcome.principal });
       return outcome.principal;
@@ -474,6 +481,19 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       policy,
       now,
       challenges: new Map<string, WebAuthnChallenge>(),
+    });
+
+    // Route handlers receive resolved principals, but resolving a cookie alone
+    // is not authorization. Protect all private HTTP routes before handlers.
+    app.addHook("preHandler", (request, reply, done) => {
+      const route = request.routeOptions.url ?? "";
+      if (!isWebSocketUpgradeRequest(request) && requiresOwnerHttpAccess(route)) {
+        const owner = requireOwner(request, reply, {
+          csrf: !["GET", "HEAD", "OPTIONS"].includes(request.method),
+        });
+        if (owner === null) return;
+      }
+      done();
     });
 
     registerBackupRoutes(app, {

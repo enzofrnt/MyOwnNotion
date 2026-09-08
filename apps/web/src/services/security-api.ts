@@ -1,3 +1,4 @@
+import { setSessionCsrf } from "./session-csrf.ts";
 /**
  * Typed security API boundary (T033, feature 002).
  *
@@ -34,6 +35,7 @@ import {
   type SessionViewDto,
 } from "@myownnotion/contracts";
 import { browserDeviceIdentity } from "../features/auth/browser-device-identity.ts";
+import type { ClientRuntimeProfile } from "../runtime/client-runtime.ts";
 
 /**
  * A refusal the page can render.
@@ -142,10 +144,11 @@ export class SecurityApi {
   #capability: string | null = null;
 
   constructor(
-    baseUrl: string = import.meta.env["VITE_API_URL"] ?? "",
+    baseUrl: string | ClientRuntimeProfile = import.meta.env["VITE_API_URL"] ?? "",
     deviceIdentity: () => BrowserDeviceClaimDto = () => browserDeviceIdentity.getOrCreate(),
   ) {
-    this.#baseUrl = baseUrl.replace(/\/$/, "");
+    const resolved = typeof baseUrl === "string" ? baseUrl : baseUrl.apiBaseUrl;
+    this.#baseUrl = resolved.replace(/\/$/, "");
     this.#deviceIdentity = deviceIdentity;
   }
 
@@ -382,6 +385,7 @@ export class SecurityApi {
     );
     if (result.ok) {
       this.#csrfToken = result.value.csrfToken;
+      setSessionCsrf(this.#baseUrl, this.#csrfToken);
     }
     return result;
   }
@@ -403,6 +407,7 @@ export class SecurityApi {
     );
     if (result.ok) {
       this.#csrfToken = result.value.csrfToken;
+      setSessionCsrf(this.#baseUrl, this.#csrfToken);
     }
     return result;
   }
@@ -418,6 +423,7 @@ export class SecurityApi {
     const result = await this.#authenticatedJson<AuthenticatedSessionDto>("/v1/auth/session");
     if (result.ok) {
       this.#csrfToken = result.value.csrfToken;
+      setSessionCsrf(this.#baseUrl, this.#csrfToken);
     }
     return result;
   }
@@ -488,6 +494,7 @@ export class SecurityApi {
       csrf: true,
     });
     this.#csrfToken = null;
+    setSessionCsrf(this.#baseUrl, null);
     return result;
   }
 

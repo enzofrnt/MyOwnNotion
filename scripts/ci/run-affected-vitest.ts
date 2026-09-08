@@ -3,12 +3,13 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import { prepareDesktopTestElectron } from "../desktop/prepare-test-electron.ts";
 import type { ImpactPlan, VitestGroup } from "./test-impact.js";
 
 export type Command = readonly [command: string, arguments_: string[]];
 
 const PROJECTS: Record<VitestGroup, string[]> = {
-  unit: ["domain", "page-state", "contracts", "blob-store", "client-core", "web"],
+  unit: ["domain", "page-state", "contracts", "blob-store", "client-core", "web", "desktop"],
   integration: ["database-integration"],
   contract: ["api-contract", "workspace-contract"],
   performance: ["performance"],
@@ -102,6 +103,7 @@ export function main(argv = process.argv.slice(2)): void {
     console.info(`No ${group} tests are impacted; required job succeeds as an explicit no-op.`);
     return;
   }
+  if (group === "unit") prepareDesktopTestElectron();
   for (const [command, arguments_] of commands) {
     console.info(`Running affected ${group} command: ${command} ${arguments_.join(" ")}`);
     const result = spawnSync(command, arguments_, { stdio: "inherit", env: process.env });

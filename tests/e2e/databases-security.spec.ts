@@ -116,6 +116,7 @@ test("keeps structured content out of local storage, addresses and diagnostics",
   // private value remains only in the body, never in the address.
   const error = await page.evaluate(
     async ({ id, propertyId, sentinel }) => {
+      const { csrfToken } = await (await fetch("/v1/auth/session")).json();
       const response = await fetch(`/v1/databases/${id}/entries`, {
         method: "POST",
         credentials: "include",
@@ -123,6 +124,7 @@ test("keeps structured content out of local storage, addresses and diagnostics",
           "content-type": "application/json",
           "idempotency-key": crypto.randomUUID(),
           "x-myownnotion-client-protocol": "2",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           id: sentinel,

@@ -6,10 +6,9 @@
  * never honours the loopback cookie is enforced once rather than at each
  * route.
  *
- * The resolver never distinguishes *why* a session was refused. Unknown,
- * revoked, and expired are one outcome — `rejected` — because a caller who can
- * tell them apart learns whether a secret was ever valid, and when it stopped
- * being so.
+ * Unknown, revoked and expired sessions remain indistinguishable. A verified
+ * live session whose device was revoked receives a safe device refusal, never
+ * a principal, so the existing synchronization UI can explain the lost access.
  */
 
 import type { FastifyRequest } from "fastify";
@@ -30,6 +29,8 @@ export function createOwnerPrincipalResolver(deps: OwnerPrincipalResolverDeps): 
       const secret = readSessionSecret(request, deps.config);
       const resolution = await deps.sessions.resolve(secret);
       if (!resolution.resolved) {
+        if (resolution.reason === "device-revoked")
+          return { authenticated: false, reason: "rejected", code: "device_revoked" };
         return resolution.reason === "absent"
           ? { authenticated: false, reason: "absent" }
           : // A presented-but-invalid session must not fall through to the

@@ -15,6 +15,7 @@
 import { generateUuidV7 } from "@myownnotion/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createUpload, sendRemaining, type UploadHandle } from "../src/features/files/upload.ts";
+import { setSessionCsrf } from "../src/services/session-csrf.ts";
 
 const handle: UploadHandle = { uploadId: "u1", location: "/v1/uploads/u1" };
 
@@ -34,7 +35,47 @@ function response(init: {
 }
 
 afterEach(() => {
+  setSessionCsrf("", null);
   vi.unstubAllGlobals();
+});
+
+describe("authenticated file transfers", () => {
+  it("uses the current session token for creation and every resumed chunk", async () => {
+    const calls: RequestInit[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        calls.push(init);
+        if (init.method === "POST") return response({ status: 201, body: { id: "u1" } });
+        if (init.method === "HEAD") return response({ headers: { "upload-offset": "0" } });
+        return response({ status: 201, body: { itemId: "u1", verified: true } });
+      }),
+    );
+    setSessionCsrf("", "session-one");
+    await createUpload(fileOf(3));
+    setSessionCsrf("", "session-two");
+    await expect(sendRemaining(handle, fileOf(3), () => {})).resolves.toMatchObject({
+      kind: "synchronized",
+    });
+    expect(new Headers(calls[0]?.headers).get("x-csrf-token")).toBe("session-one");
+    expect(new Headers(calls[1]?.headers).has("x-csrf-token")).toBe(false);
+    expect(new Headers(calls[2]?.headers).get("x-csrf-token")).toBe("session-two");
+    expect(calls.every((call) => call.redirect === "error")).toBe(true);
+  });
+
+  it("refuses a foreign upload location before sending private bytes or authorization", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    setSessionCsrf("", "private-session-token");
+    await expect(
+      sendRemaining(
+        { ...handle, location: "https://foreign.example/v1/uploads/u1" },
+        fileOf(3),
+        () => {},
+      ),
+    ).rejects.toThrow("Untrusted upload location");
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });
 
 describe("starting a transfer", () => {

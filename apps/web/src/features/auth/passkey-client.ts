@@ -50,6 +50,30 @@ export function passkeysAvailable(): boolean {
   );
 }
 
+export function isDesktopHost(): boolean {
+  return typeof window !== "undefined" && window.myownnotionDesktop !== undefined;
+}
+
+/** Touch ID / platform passkeys need Electron host configuration on macOS desktop. */
+export async function platformAuthenticatorAvailable(): Promise<boolean> {
+  if (typeof window === "undefined" || typeof window.PublicKeyCredential !== "function") {
+    return false;
+  }
+  if (typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== "function") {
+    return true;
+  }
+  return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+}
+
+export async function openCurrentPageInSystemBrowser(): Promise<boolean> {
+  const desktop = window.myownnotionDesktop;
+  if (desktop === undefined) {
+    return false;
+  }
+  const result = await desktop.openExternal({ url: window.location.href });
+  return result.ok;
+}
+
 /**
  * Runs the registration ceremony for the first owner.
  *

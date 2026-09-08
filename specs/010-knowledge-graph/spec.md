@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-31
 
-**Status**: In revision after product review
+**Status**: Implemented and converged
 
 **Input**: User description: "Faire arriver le Knowledge graph avant la V1 et
 poser ses bases dans les specs avant la convergence finale du correctif en

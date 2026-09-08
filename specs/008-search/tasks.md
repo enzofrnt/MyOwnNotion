@@ -314,7 +314,7 @@ T057 performance de référence
 - [X] T079 Déclarer le benchmark search comme consommateur explicite des sources de recherche dans la sélection CI et verrouiller cette relation par contrat per T003 et T065 (partial)
 - [X] T080 Aligner les artefacts 008 sur la frontière de cycle de vie approuvée : recherche d'un tombstone purgé prouvée ici, orchestration de purge avec confirmation, références, synchronisation et sauvegardes réservée à une feature dédiée, per US4/AC3, FR-020 et product canvas §33 (contradicts)
 
-## Phase 9: Convergence de release V1 après les features 010 et 021
+## Phase 9: Convergence de release V1 après 014 puis 021
 
 - [ ] T081 Après livraison de `specs/010-knowledge-graph`, vérifier les parcours croisés recherche–relations–backlinks–graphe, l'identité unique des résultats et nœuds, le cycle de vie, l'offline et la reconstruction après restauration ; consigner la preuve dans `specs/008-search/validation.md` avant de valider formellement la release V1 per product canvas §6.1/§21/§22 et Definition of Done
 - [ ] T082 Après livraison de `specs/021-readable-server-logs`, exercer la vraie stack et les parcours recherche, temps réel et tâche de fond ; vérifier la vue humaine, la sortie machine, le filtrage, la corrélation et l'absence de requête, titre, extrait ou contenu privé, puis consigner la preuve dans `specs/008-search/validation.md` avant de valider formellement la release V1 per product canvas §35/§43 à §47 et Definition of Done

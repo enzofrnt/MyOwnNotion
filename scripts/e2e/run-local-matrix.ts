@@ -39,13 +39,14 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import pg from "pg";
 import { BROWSER_PROJECTS } from "../../tests/e2e/projects.ts";
+import { protectFixtureKey } from "./private-fixture-key.ts";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 
@@ -375,7 +376,7 @@ function prepareStack(stack: Stack): void {
       encoding: "utf8",
       mode: 0o600,
     });
-    chmodSync(stack.deploymentKeyFile, 0o600);
+    protectFixtureKey(stack.deploymentKeyFile);
   }
 }
 

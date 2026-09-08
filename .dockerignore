@@ -35,6 +35,9 @@ build/
 .turbo/
 .next/
 *.tsbuildinfo
+out/
+**/.vite/
+apps/desktop/.dev-host/
 .pnpm-store/
 
 # Test and coverage artifacts

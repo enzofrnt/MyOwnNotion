@@ -15,6 +15,7 @@ WORKDIR /app
 ENV CI=1
 
 COPY bun.lock bunfig.toml package.json ./
+COPY apps/desktop/package.json apps/desktop/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/blob-store/package.json packages/blob-store/
