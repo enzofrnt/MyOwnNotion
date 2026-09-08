@@ -43,14 +43,28 @@ it.runIf(process.platform === "win32")(
             maxBuffer: 64 * 1024,
           },
         );
-        const diagnostic = result.stderr.match(
+        const diagnostic = (result.stderr ?? "").match(
           /protected-storage:(child-exit:(?:-?\d+|unavailable)|metadata-unavailable)/u,
         )?.[1];
-        expect({ status: result.status, diagnostic: diagnostic ?? "not-emitted" }).toEqual({
+        const errorCode =
+          result.error !== undefined &&
+          "code" in result.error &&
+          typeof result.error.code === "string" &&
+          /^E[A-Z]+$/u.test(result.error.code)
+            ? result.error.code
+            : result.error === undefined
+              ? null
+              : "spawn-error";
+        expect({
+          status: result.status,
+          errorCode,
+          diagnostic: diagnostic ?? "not-emitted",
+        }).toEqual({
           status: 0,
+          errorCode: null,
           diagnostic: "not-emitted",
         });
-        expect(result.stdout.includes("windows-prime-parent-ready")).toBe(true);
+        expect((result.stdout ?? "").includes("windows-prime-parent-ready")).toBe(true);
         const state = JSON.parse(readFileSync(path.join(profile, "Local State"), "utf8")) as {
           os_crypt?: { encrypted_key?: unknown };
         };

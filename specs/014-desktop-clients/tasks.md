@@ -280,3 +280,5 @@ fichier concret.
 - [X] T097 Replace the endless workspace skeleton after local initialization refusal with a safe, actionable error and retry, retaining local records and withholding content while initialization is unavailable. Exercise a real temporary IndexedDB refusal, retry and intact page contents in the browser (US2 acceptance 3, FR-006/FR-015, SC-004).
 
 - [ ] T098 Preserve native property text through a same-entry projection before input-event delivery; scope controls to entry identity, verify hydration and no cross-entry draft carry, and replay the original WebKit mobile journey without retries or timeout changes before full delivery checks.
+
+- [ ] T099 Prepare the pinned Electron executable before parallel desktop test workers, handle absent native spawn output without masking its status, verify local desktop tests/types and rerun the complete gate plus both Windows native jobs before accepting T096.

@@ -419,3 +419,16 @@ preserve a native edit until its input event updates the existing draft refs.
 Scope entry field identity by entry/property so an unreported draft cannot leak
 into a different entry. Keep untouched hydration, latest-value save, date and
 number validation, keyboard/IME behavior and existing journey deadlines.
+
+## T099 — Prepare native test dependencies before parallel collection
+
+CI 34220219342 proves the real parent/child key test passes on Windows x64, but
+another suite fails Electron installation. ARM fails before reporting its
+spawn result because stderr is null. Both logs show concurrent first-use
+Electron downloads from separate test workers. Electron 44.1.1's installed
+`index.js` synchronously runs `install.js` on first require, without a process
+lock. Prepare and validate the pinned executable once in the desktop project's
+Vitest global setup, before worker collection. This also applies to local and
+coverage runs, without a separate CI-only installation path. Preserve parallel
+tests after preparation. Native spawn diagnostics must handle absent output
+and report only a bounded error code/status, never a path or native key data.
