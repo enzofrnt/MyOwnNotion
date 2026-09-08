@@ -269,3 +269,11 @@ listeners. API types and all nineteen archive tests pass; application code is
 unchanged. Failed gate: `/tmp/mon-pre-v1-reader-resources-full-gate.log`.
 Focused proof: `/tmp/mon-backup-reader-api-types.log` and
 `/tmp/mon-backup-reader-typed-final.log`.
+
+The corrected integrated gate at `8c547891` passes 4,248 coverage cases
+(433 suites, plus one platform-specific skipped suite), all nine performance
+budgets, 341 database cases, twelve migration cases and 1,666 contracts. No
+FileHandle listener warning appears. Its browser matrix is deliberately
+interrupted at startup (exit 130) to integrate the reproduced native input fix
+014 T098. This remains an incomplete gate, not permission to push:
+`/tmp/mon-pre-v1-reader-resources-typed-full-gate.log`.

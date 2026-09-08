@@ -228,6 +228,7 @@ export function EntryPanel({
                             : DATABASE_COPY.entry.taskPriority}
                       </p>
                       <ValueEditor
+                        key={`${entry.entryId}:${property.id}`}
                         property={property}
                         input={
                           drafts[property.id] ??
@@ -254,7 +255,7 @@ export function EntryPanel({
                 >
                   {ordinaryProperties.map((property) => (
                     <ValueEditor
-                      key={property.id}
+                      key={`${entry.entryId}:${property.id}`}
                       property={property}
                       input={
                         drafts[property.id] ??

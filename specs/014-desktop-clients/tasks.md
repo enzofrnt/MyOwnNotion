@@ -283,3 +283,5 @@ fichier concret.
 - [ ] T096 Localize the Windows-only cold offline workspace stall in `tests/e2e/desktop-offline-restart.spec.ts` using the native Electron context trace and content-free loading/lock/error diagnostics; retain the existing timeout and durable replay assertions, correct the demonstrated cause, and rerun all native targets (FR-005/FR-015, SC-003/SC-006).
 
 - [X] T097 Replace the endless workspace skeleton after local initialization refusal with a safe, actionable error and retry, retaining local records and withholding content while initialization is unavailable. Exercise a real temporary IndexedDB refusal, retry and intact page contents in the browser (US2 acceptance 3, FR-006/FR-015, SC-004).
+
+- [ ] T098 Preserve native property text through a same-entry projection before input-event delivery; scope controls to entry identity, verify hydration and no cross-entry draft carry, and replay the original WebKit mobile journey without retries or timeout changes before full delivery checks.
