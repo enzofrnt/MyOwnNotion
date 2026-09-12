@@ -6,6 +6,18 @@ import { FileStorageMigration } from "../src/security/file-storage-migration.ts"
 import { ProtectedRecordService } from "../src/security/protected-record-service.ts";
 import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 
+const v0SourceBackup = (backupId: string) => ({
+  backupId,
+  source: {
+    installationId: null,
+    applicationVersion: null,
+    commit: null,
+    image: null,
+    postgresVersion: 180004,
+    appliedMigrations: ["0001_initial"],
+  },
+});
+
 it.each([false, true])(
   "migrates retained historical file bytes with a live shared reference=%s and restores them through HTTP",
   async (shared) => {
@@ -152,7 +164,7 @@ it.each([false, true])(
         records,
         blobRoot: harness.blobRoot,
         // Actual verified archive refusal is exercised by guarded-migration tests.
-        verifySourceBackup: async () => undefined,
+        verifySourceBackup: async (backupId) => v0SourceBackup(backupId),
       });
       expect((await migration.run(generateUuidV7())).phase).toBe("complete");
       expect(await files.deps.blobs.get(raw.storageKey)).toBeNull();

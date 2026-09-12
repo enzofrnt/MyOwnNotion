@@ -125,8 +125,9 @@ export class FileStorageMigration {
   private checkedSourceBackup(
     backupId: string,
     verified: VerifiedStorageMigrationSourceBackup | undefined,
-  ): VerifiedStorageMigrationSourceBackup | null {
-    if (verified === undefined) return null;
+  ): VerifiedStorageMigrationSourceBackup {
+    if (verified === undefined)
+      throw new Error("An authenticated complete source backup is required.");
     if (verified.backupId !== backupId)
       throw new Error("The authenticated source backup identity does not match the transition.");
     return verified;
@@ -216,8 +217,8 @@ export class FileStorageMigration {
   private async readAndUpgradeInventory(
     tx: Transaction,
     transitionId: string,
-    verified: VerifiedStorageMigrationSourceBackup | null,
-    expected: Pick<StorageTransitionRecord, "sourceBackupId" | "installationId">,
+    verified: VerifiedStorageMigrationSourceBackup,
+    expected: Pick<StorageTransitionRecord, "sourceBackupId" | "installationId" | "phase">,
   ): Promise<StorageTransitionInventory> {
     const inventory = await this.read<
       StorageTransitionInventory | LegacyStorageTransitionInventory
@@ -230,21 +231,96 @@ export class FileStorageMigration {
     )
       throw new Error("The protected inventory identity does not match the storage transition.");
     if (inventory.formatVersion !== 1) return this.readInventory(tx, transitionId);
-    if (verified === null || !this.isFullBackupSource(verified.source))
-      throw new Error("An authenticated V0 source backup is required to upgrade the V1 inventory.");
+    if (!this.isFullBackupSource(verified.source))
+      throw new Error("The authenticated source backup provenance is invalid.");
     if (
       verified.source.installationId !== null &&
       verified.source.installationId !== this.deps.files.deps.installationId
     )
       throw new Error("The source archive belongs to another installation.");
-    if (!isV0FullBackupSource(verified.source))
-      throw new Error(
-        "The V1 inventory can only be resumed from a source predating migration 0006.",
+    const existingEntries = await tx
+      .select()
+      .from(schema.fileStorageTransitionEntries)
+      .where(eq(schema.fileStorageTransitionEntries.transitionId, transitionId));
+    if (existingEntries.length !== inventory.entries.length)
+      throw new Error("The V1 inventory does not match its transition entries.");
+    const byId = new Map(existingEntries.map((entry) => [entry.id, entry]));
+    const sources: (LegacyFileSource | CanonicalMetadataSource)[] = [];
+    for (const expectedEntry of inventory.entries) {
+      const entry = byId.get(expectedEntry.id);
+      if (
+        entry === undefined ||
+        entry.kind !== expectedEntry.kind ||
+        entry.objectId !== expectedEntry.objectId
+      )
+        throw new Error("The V1 inventory does not match its transition entries.");
+      const source = await this.read<LegacyFileSource | CanonicalMetadataSource>(
+        tx,
+        "file.transition-source",
+        entry.id,
       );
+      if (source.kind !== entry.kind || source.objectId !== entry.objectId)
+        throw new Error("The V1 source checkpoint identity does not match its entry.");
+      sources.push(source);
+    }
+    if (createHash("sha256").update(JSON.stringify(sources)).digest("hex") !== inventory.digest)
+      throw new Error("The V1 source inventory digest does not match.");
+    const hasMetadata = sources.some((source) => source.kind === "metadata");
+    const metadata = await inventoryCanonicalMetadata(
+      tx,
+      this.deps.files.deps.content,
+      this.deps.files.deps.workspaceId,
+      { allowLegacyReservedValues: isV0FullBackupSource(verified.source) },
+    );
+    const existingMetadata = new Set(
+      sources
+        .filter((source): source is CanonicalMetadataSource => source.kind === "metadata")
+        .map((source) => `${source.category}/${source.entityId}`),
+    );
+    const missingMetadata = metadata
+      .filter((source) => !existingMetadata.has(`${source.category}/${source.entityId}`))
+      .sort((left, right) => {
+        const leftKey = `${left.category}/${left.entityId}`;
+        const rightKey = `${right.category}/${right.entityId}`;
+        return leftKey.localeCompare(rightKey);
+      });
+    if (hasMetadata && missingMetadata.length > 0)
+      throw new Error("The V1 metadata inventory is incomplete.");
+    if (missingMetadata.length > 0 && !["inventoried", "backfilling"].includes(expected.phase))
+      throw new Error("The V1 metadata inventory cannot be extended in this phase.");
+    const additions = hasMetadata
+      ? []
+      : missingMetadata.map((source) => ({ id: generateUuidV7(), source }));
+    for (const addition of additions) {
+      const sourceEnvelopeId = await this.write(
+        tx,
+        "file.transition-source",
+        addition.id,
+        addition.source,
+      );
+      await insertStorageSource(tx, {
+        id: addition.id,
+        transitionId,
+        kind: addition.source.kind,
+        objectId: addition.source.objectId,
+        sourceEnvelopeId,
+        phase: "inventoried",
+      });
+      sources.push(addition.source);
+    }
     const upgraded: StorageTransitionInventory = {
       ...inventory,
       formatVersion: 2,
       sourceProvenance: verified.source,
+      digest: createHash("sha256").update(JSON.stringify(sources)).digest("hex"),
+      entries: [
+        ...inventory.entries,
+        ...additions.map((addition) => ({
+          id: addition.id,
+          kind: addition.source.kind,
+          objectId: addition.source.objectId,
+        })),
+      ],
     };
     await this.write(tx, "file.transition-inventory", transitionId, upgraded);
     return this.readInventory(tx, transitionId);
@@ -273,9 +349,17 @@ export class FileStorageMigration {
       authenticatedBackupId,
       await this.deps.verifySourceBackup(authenticatedBackupId),
     );
+    if (!this.isFullBackupSource(verified.source))
+      throw new Error("The authenticated source backup provenance is invalid.");
+    if (
+      verified.source.installationId !== null &&
+      verified.source.installationId !== this.deps.files.deps.installationId
+    )
+      throw new Error("The source archive belongs to another installation.");
     if (existing !== null) {
       await this.deps.db.transaction(async (tx) => {
         await enterStorageTransition(tx, existing.id);
+        await lockFullFileMaintenance(tx);
         const inventory = await this.readAndUpgradeInventory(tx, existing.id, verified, existing);
         this.assertInventoryProvenance(inventory, verified);
       });
@@ -283,7 +367,7 @@ export class FileStorageMigration {
     }
     return this.deps.db.transaction(async (tx) => {
       await lockFullFileMaintenance(tx);
-      const allowLegacyReservedValues = verified !== null && isV0FullBackupSource(verified.source);
+      const allowLegacyReservedValues = isV0FullBackupSource(verified.source);
       const sources = [
         ...(await inventoryLegacyFileSources(tx, this.deps.blobRoot)),
         ...(await inventoryCanonicalMetadata(

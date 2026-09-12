@@ -3,7 +3,7 @@ import { access, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promise
 import { join } from "node:path";
 import { createUpload, getUpload, schema } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { buildApp } from "../src/app.ts";
 import { clearWorkspaceForRestore } from "../src/backup/database-restore-target.ts";
@@ -27,6 +27,18 @@ import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 async function* source(bytes: Uint8Array) {
   yield bytes;
 }
+
+const v0SourceBackup = (backupId: string) => ({
+  backupId,
+  source: {
+    installationId: null,
+    applicationVersion: null,
+    commit: null,
+    image: null,
+    postgresVersion: 180004,
+    appliedMigrations: ["0001_initial"],
+  },
+});
 
 it("protects a historical content identity in place without merging references or retiring its source", async () => {
   const harness = await createProtectedFileHarness();
@@ -343,9 +355,9 @@ it("requires source backup evidence and resumes atomic publication without losin
     await writeFile(join(harness.blobRoot, "ab/.tmp-fedcba9876543210"), "");
     const backupId = generateUuidV7();
     const verify = vi
-      .fn<(id: string) => Promise<undefined>>()
+      .fn<(id: string) => Promise<ReturnType<typeof v0SourceBackup>>>()
       .mockRejectedValueOnce(new Error("missing verified archive"))
-      .mockResolvedValue(undefined);
+      .mockImplementation(async (id) => v0SourceBackup(id));
     const records = new ProtectedRecordService({
       db,
       keys: files.deps.keys,
@@ -379,6 +391,7 @@ it("requires source backup evidence and resumes atomic publication without losin
       ),
     ).toBe(true);
     vi.restoreAllMocks();
+    verify.mockImplementation(async (id) => v0SourceBackup(id));
     const resumed = await migration.prepare(generateUuidV7());
     expect(resumed.id).toBe(prepared.id);
     expect(verify).toHaveBeenLastCalledWith(backupId);
@@ -471,6 +484,32 @@ it("requires source backup evidence and resumes atomic publication without losin
     }
   } finally {
     vi.restoreAllMocks();
+    await harness.close();
+  }
+});
+
+it("refuses to start when source-backup authentication returns no evidence", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedFiles: files } = harness.built.context;
+    if (files === undefined) throw new Error("Missing protected runtime");
+    const records = new ProtectedRecordService({
+      db,
+      keys: files.deps.keys,
+      workspaceId: files.deps.workspaceId,
+      installationId: files.deps.installationId,
+      now: () => new Date(),
+    });
+    const migration = new FileStorageMigration({
+      db,
+      files,
+      records,
+      blobRoot: harness.blobRoot,
+      verifySourceBackup: async () => undefined,
+    });
+    await expect(migration.prepare(generateUuidV7())).rejects.toThrow(/authenticated.*backup/i);
+    expect(await db.select().from(schema.fileStorageTransitions)).toHaveLength(0);
+  } finally {
     await harness.close();
   }
 });
@@ -651,22 +690,7 @@ it.each([
   }
 });
 
-it.each([
-  [
-    "a modern source",
-    {
-      applicationVersion: "0.9.0",
-      appliedMigrations: ["0001_initial", "0006_installation_application_version"],
-    },
-  ],
-  [
-    "a source with an invalid migration inventory",
-    {
-      applicationVersion: null,
-      appliedMigrations: ["0001_initial", "0006_installation_application_version"],
-    },
-  ],
-] as const)("refuses V1 inventory provenance from %s", async (_label, sourcePatch) => {
+it("resumes a V1 inventory from an authenticated modern source", async () => {
   const harness = await createProtectedFileHarness();
   try {
     const { db, protectedFiles: files } = harness.built.context;
@@ -674,11 +698,11 @@ it.each([
     const backupId = generateUuidV7();
     const source = {
       installationId: files.deps.installationId,
-      applicationVersion: sourcePatch.applicationVersion,
+      applicationVersion: "0.9.0",
       commit: null,
       image: null,
       postgresVersion: 180004,
-      appliedMigrations: sourcePatch.appliedMigrations,
+      appliedMigrations: ["0001_initial", "0006_installation_application_version"],
     } as const;
     const verify = vi.fn().mockResolvedValue({ backupId, source });
     const records = new ProtectedRecordService({
@@ -715,15 +739,115 @@ it.each([
         payload: Buffer.from(JSON.stringify(legacy)),
       });
     });
-    await expect(migration.prepare(generateUuidV7())).rejects.toThrow(/V0|0006|provenance/i);
+    const resumed = await migration.prepare(generateUuidV7());
+    expect(resumed.id).toBe(prepared.id);
     const after = await records.read(db, {
       entityType: "file.transition-inventory",
       entityId: prepared.id,
       recordVersion: 1,
     });
     if (after === null) throw new Error("Missing inventory after refusal");
-    expect(JSON.parse(Buffer.from(after).toString("utf8")).formatVersion).toBe(1);
+    expect(JSON.parse(Buffer.from(after).toString("utf8"))).toMatchObject({
+      formatVersion: 2,
+      sourceProvenance: source,
+    });
     after.fill(0);
+  } finally {
+    await harness.close();
+  }
+});
+
+it("upgrades the original ce06 V1 inventory with missing metadata before resuming", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedFiles: files } = harness.built.context;
+    if (files === undefined) throw new Error("Missing protected runtime");
+    await createItemViaApi(harness, { kind: "page", name: "ce06 historical page" });
+    const original = Buffer.from("ce06 historical file");
+    const raw = await files.deps.blobs.put(original);
+    const contentId = generateUuidV7();
+    await db.insert(schema.fileContents).values({ id: contentId, ...raw, referenceCount: 1 });
+    const backupId = generateUuidV7();
+    const records = new ProtectedRecordService({
+      db,
+      keys: files.deps.keys,
+      workspaceId: files.deps.workspaceId,
+      installationId: files.deps.installationId,
+      now: () => new Date(),
+    });
+    const migration = new FileStorageMigration({
+      db,
+      files,
+      records,
+      blobRoot: harness.blobRoot,
+      verifySourceBackup: async (id) => v0SourceBackup(id),
+    });
+    const prepared = await migration.prepare(backupId);
+    const entries = await db
+      .select()
+      .from(schema.fileStorageTransitionEntries)
+      .where(eq(schema.fileStorageTransitionEntries.transitionId, prepared.id));
+    const legacySources: unknown[] = [];
+    const metadataEnvelopeIds: string[] = [];
+    const legacyEntries: { id: string; kind: string; objectId: string }[] = [];
+    for (const entry of entries) {
+      const payload = await records.read(db, {
+        entityType: "file.transition-source",
+        entityId: entry.id,
+        recordVersion: 1,
+      });
+      if (payload === null) throw new Error("Missing source checkpoint");
+      const source = JSON.parse(Buffer.from(payload).toString("utf8")) as {
+        kind: string;
+        objectId: string;
+      };
+      payload.fill(0);
+      if (entry.kind === "metadata") {
+        metadataEnvelopeIds.push(entry.sourceEnvelopeId);
+        continue;
+      }
+      if (entry.objectId === null) {
+        throw new Error("Missing legacy object identity");
+      }
+      legacyEntries.push({ id: entry.id, kind: entry.kind, objectId: entry.objectId });
+      legacySources.push(source);
+    }
+    await db.transaction(async (tx) => {
+      await enterStorageTransition(tx, prepared.id);
+      await tx.delete(schema.fileStorageTransitionEntries).where(
+        inArray(
+          schema.fileStorageTransitionEntries.id,
+          entries.filter((entry) => entry.kind === "metadata").map((entry) => entry.id),
+        ),
+      );
+      await tx
+        .delete(schema.protectedEnvelopes)
+        .where(inArray(schema.protectedEnvelopes.id, metadataEnvelopeIds));
+      await records.write(tx, {
+        entityType: "file.transition-inventory",
+        entityId: prepared.id,
+        recordVersion: 1,
+        payload: Buffer.from(
+          JSON.stringify({
+            formatVersion: 1,
+            sourceBackupId: backupId,
+            installationId: files.deps.installationId,
+            digest: createHash("sha256").update(JSON.stringify(legacySources)).digest("hex"),
+            entries: legacyEntries,
+          }),
+        ),
+      });
+    });
+    const resumed = await migration.prepare(generateUuidV7());
+    expect(resumed.id).toBe(prepared.id);
+    const completed = await migration.run(generateUuidV7());
+    expect(completed.phase).toBe("complete");
+    const finalEntries = await db
+      .select()
+      .from(schema.fileStorageTransitionEntries)
+      .where(eq(schema.fileStorageTransitionEntries.transitionId, prepared.id));
+    expect(finalEntries.filter((entry) => entry.kind === "metadata")).not.toHaveLength(0);
+    expect(finalEntries.every((entry) => entry.phase === "retired")).toBe(true);
   } finally {
     await harness.close();
   }
@@ -767,7 +891,9 @@ it.each<StorageMigrationBoundary>([
     await mkdir(join(harness.blobRoot, "ab"), { recursive: true });
     await writeFile(join(harness.blobRoot, "ab/.tmp-0123456789abcdef"), "");
     await createItemViaApi(harness, { kind: "page", name: "preserved page" });
-    const verify = vi.fn<(id: string) => Promise<undefined>>().mockResolvedValue(undefined);
+    const verify = vi
+      .fn<(id: string) => Promise<ReturnType<typeof v0SourceBackup>>>()
+      .mockImplementation(async (id) => v0SourceBackup(id));
     const records = new ProtectedRecordService({
       db,
       keys: files.deps.keys,
@@ -859,7 +985,7 @@ it.each(["ciphertext", "key", "retirement-io"] as const)(
         files,
         records,
         blobRoot: harness.blobRoot,
-        verifySourceBackup: async () => undefined,
+        verifySourceBackup: async (id: string) => v0SourceBackup(id),
       };
       const migration = new FileStorageMigration({
         ...deps,
@@ -937,7 +1063,7 @@ it("refuses final success if a retired checkpoint disappears, then resumes after
       files,
       records,
       blobRoot: harness.blobRoot,
-      verifySourceBackup: async () => undefined,
+      verifySourceBackup: async (id) => v0SourceBackup(id),
       onBoundary: async (boundary) => {
         if (boundary === "source-retired" && !stopped) {
           stopped = true;

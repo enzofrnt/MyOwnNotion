@@ -215,7 +215,7 @@ it("revalidates retired canonical metadata before completing the transition", as
       files,
       records,
       blobRoot: harness.blobRoot,
-      verifySourceBackup: async () => undefined,
+      verifySourceBackup: async (backupId) => v0SourceBackup(backupId),
     });
     const transition = await migration.prepare(generateUuidV7());
     while (await migration.publishMetadataNext(transition.id)) {
@@ -473,20 +473,17 @@ it.each(["missing", "modern"] as const)(
         files,
         records,
         blobRoot: harness.blobRoot,
-        verifySourceBackup:
-          provenance === "missing"
-            ? async () => undefined
-            : async (backupId) => ({
-                backupId,
-                source: {
-                  installationId: files.deps.installationId,
-                  applicationVersion: "0.1.0",
-                  commit: null,
-                  image: null,
-                  postgresVersion: 180004,
-                  appliedMigrations: ["0001_initial", "0006_installation_application_version"],
-                },
-              }),
+        verifySourceBackup: async (backupId) => ({
+          backupId,
+          source: {
+            installationId: files.deps.installationId,
+            applicationVersion: provenance === "missing" ? null : "0.1.0",
+            commit: null,
+            image: null,
+            postgresVersion: 180004,
+            appliedMigrations: ["0001_initial", "0006_installation_application_version"],
+          },
+        }),
       });
 
       await expect(migration.prepare(generateUuidV7())).rejects.toThrow(/unavailable|reserved/);
@@ -583,10 +580,7 @@ it("resumes private historical metadata backfill without replacing authoritative
       files,
       records,
       blobRoot: harness.blobRoot,
-      verifySourceBackup: async () => {
-        /* guard composition has separate real full-backup tests */
-        return undefined;
-      },
+      verifySourceBackup: async (backupId) => v0SourceBackup(backupId),
     });
     const transition = await migration.prepare(generateUuidV7());
     expect(await migration.publishNext(transition.id)).toBe(false);
@@ -763,7 +757,7 @@ it("protects historical database definitions, views and entry values while retai
       files,
       records,
       blobRoot: harness.blobRoot,
-      verifySourceBackup: async () => undefined,
+      verifySourceBackup: async (backupId) => v0SourceBackup(backupId),
     });
     const transition = await migration.prepare(generateUuidV7());
     while (await migration.publishMetadataNext(transition.id)) {
