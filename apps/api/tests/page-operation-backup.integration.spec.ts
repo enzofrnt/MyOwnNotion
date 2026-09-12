@@ -463,6 +463,26 @@ describe("operational backup and restore", () => {
     });
     expect(advanced.statusCode, advanced.body).toBe(200);
 
+    const causallyAhead = JSON.parse(decoded.operationalState) as {
+      pages: Array<{
+        updates: Array<{
+          resultFrontier: { versionVector: string; frontiers: string };
+        }>;
+      }>;
+    };
+    const archivedUpdate = causallyAhead.pages[0]?.updates[0];
+    if (archivedUpdate === undefined) throw new Error("the archived update is missing");
+    archivedUpdate.resultFrontier = {
+      versionVector: Buffer.from(later.resultVersionVector).toString("base64url"),
+      frontiers: Buffer.from(later.resultFrontiers).toString("base64url"),
+    };
+    await expect(
+      archiveService.verify(
+        readPageOperationArchive(causallyAhead),
+        JSON.parse(decoded.canonicalExport),
+      ),
+    ).rejects.toThrow("ahead of the archived document");
+
     await restoreBackup(compactedBackup.archive);
     const item = await harness.api.built.app.inject({
       method: "GET",
