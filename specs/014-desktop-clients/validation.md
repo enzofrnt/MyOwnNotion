@@ -715,3 +715,33 @@ application, BlockNote core and BlockNote React reaches the same real module
 for Tiptap core and ProseMirror model/state. Existing focused editor tests
 (116 cases across 16 files) and strict workspace types pass. Full local, image,
 PR and main checks must still pass on the committed candidate before delivery.
+
+### T107 packaged lifecycle coverage correction
+
+The source review distinguishes two older proofs: `desktop:smoke` launches
+the real package, while the nine native lifecycle journeys previously launched
+the pinned development Electron binary with the built bootstrap. They therefore
+did not establish packaged lifecycle behavior. The shared journey helper now
+requires the platform package by default, clears inherited checkout resource
+overrides, and checks `app.isPackaged`, executable identity, `app.asar` and
+the embedded web index. Missing packages fail instead of selecting development
+Electron. Explicit bootstrap fixtures remain available for that specific boundary.
+
+A disposable macOS launch with the existing `--require` probe succeeded as a
+packaged application but produced no probe trace. The helper reports this
+limitation explicitly and retains bounded Playwright/process failure evidence;
+it does not add a production instrumentation bypass. Fresh macOS package
+build and packaged startup/isolation pass. Local packaged lifecycle, full gates
+and the five native PR/main targets must pass before closing T107/T074. The
+previous Windows fixture host is unreachable, so no fresh local Windows proof
+is claimed. Signed installer N→N+1 acceptance remains a separate release proof.
+
+The revised macOS native matrix passes all nine scenarios in 27.3 seconds:
+eight launch the real package, including crash/offline recovery, revocation,
+reconnection, file selection, accessibility and refusal of unsigned updates.
+The signed-update scenario deliberately compiles its public-key fixture and
+uses the explicit bootstrap path; it remains a synthetic verified handoff,
+not a real installed upgrade. The desktop unit project passes 107 cases with
+two Windows-only cases skipped on macOS. Strict root types and Biome pass.
+Complete local and all native remote gates remain pending on the committed
+candidate.
