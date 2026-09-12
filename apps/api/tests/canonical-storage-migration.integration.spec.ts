@@ -12,7 +12,7 @@ import { ProtectedRecordService } from "../src/security/protected-record-service
 import { createItemViaApi } from "./helpers/app.ts";
 import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 
-it("migrates an authored legacy placeholder title and retained snapshot without confusing them with scrub state", async () => {
+it("migrates authored legacy placeholder names without confusing them with scrub state", async () => {
   const harness = await createProtectedFileHarness();
   try {
     const { db, protectedContent: content, protectedFiles: files } = harness.built.context;
@@ -26,19 +26,73 @@ it("migrates an authored legacy placeholder title and retained snapshot without 
       page.revisionId,
     );
     if (snapshot === null) throw new Error("Missing retained snapshot");
+    const fileId = generateUuidV7();
+    const boundary = `legacy-marker-${generateUuidV7()}`;
+    const imported = await harness.owner({
+      method: "POST",
+      url: "/v1/files",
+      headers: {
+        "idempotency-key": generateUuidV7(),
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: Buffer.from(
+        [
+          `--${boundary}\r\nContent-Disposition: form-data; name="itemId"\r\n\r\n${fileId}\r\n`,
+          `--${boundary}\r\nContent-Disposition: form-data; name="placement"\r\n\r\n${JSON.stringify({ kind: "hierarchy", parentItemId: null, positionKey: "V-file" })}\r\n`,
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="temporary.txt"\r\nContent-Type: text/plain\r\n\r\nlegacy bytes\r\n`,
+          `--${boundary}--\r\n`,
+        ].join(""),
+      ),
+    });
+    expect(imported.statusCode, imported.body).toBe(201);
+    const fileRevisionId = (imported.json() as { revisionIds: string[] }).revisionIds[0];
+    if (fileRevisionId === undefined) throw new Error("Missing file revision");
+    const fileSnapshot = await content.readRevisionSnapshot<Record<string, unknown>>(
+      db,
+      fileRevisionId,
+    );
+    const filePayload = fileSnapshot?.["file"];
+    if (fileSnapshot === null || typeof filePayload !== "object" || filePayload === null)
+      throw new Error("Missing retained file snapshot");
     await db.transaction(async (tx) => {
       await tx
         .update(schema.items)
         .set({ name: PROTECTED_CONTENT_PLACEHOLDER })
-        .where(eq(schema.items.id, page.itemId));
+        .where(inArray(schema.items.id, [page.itemId, fileId]));
+      await tx
+        .update(schema.logicalFiles)
+        .set({ originalName: PROTECTED_CONTENT_PLACEHOLDER })
+        .where(eq(schema.logicalFiles.itemId, fileId));
       await tx
         .update(schema.revisions)
         .set({ snapshot: { ...snapshot, name: PROTECTED_CONTENT_PLACEHOLDER } })
         .where(eq(schema.revisions.id, page.revisionId));
       await tx
+        .update(schema.revisions)
+        .set({
+          snapshot: {
+            ...fileSnapshot,
+            name: PROTECTED_CONTENT_PLACEHOLDER,
+            file: { ...filePayload, originalName: PROTECTED_CONTENT_PLACEHOLDER },
+          },
+        })
+        .where(eq(schema.revisions.id, fileRevisionId));
+      await tx
         .delete(schema.protectedEnvelopes)
         .where(
-          inArray(schema.protectedEnvelopes.entityType, ["item.name", "revision.snapshot"]),
+          and(
+            inArray(schema.protectedEnvelopes.entityId, [
+              page.itemId,
+              page.revisionId,
+              fileId,
+              fileRevisionId,
+            ]),
+            inArray(schema.protectedEnvelopes.entityType, [
+              "item.name",
+              "file.metadata",
+              "revision.snapshot",
+            ]),
+          ),
         );
     });
 
@@ -69,13 +123,29 @@ it("migrates an authored legacy placeholder title and retained snapshot without 
     const restored = await harness.owner({ method: "GET", url: `/v1/items/${page.itemId}` });
     expect(restored.statusCode, restored.body).toBe(200);
     expect(restored.json().name).toBe(PROTECTED_CONTENT_PLACEHOLDER);
-    expect(await content.readRevisionSnapshot<Record<string, unknown>>(db, page.revisionId)).toMatchObject(
-      { name: PROTECTED_CONTENT_PLACEHOLDER },
-    );
+    const restoredFile = await harness.owner({ method: "GET", url: `/v1/items/${fileId}` });
+    expect(restoredFile.statusCode, restoredFile.body).toBe(200);
+    expect(restoredFile.json()).toMatchObject({
+      name: PROTECTED_CONTENT_PLACEHOLDER,
+      file: { originalName: PROTECTED_CONTENT_PLACEHOLDER },
+    });
     expect(
-      (await db.select().from(schema.revisions).where(eq(schema.revisions.id, page.revisionId)))[0]
-        ?.snapshot,
-    ).toBeNull();
+      await content.readRevisionSnapshot<Record<string, unknown>>(db, page.revisionId),
+    ).toMatchObject({ name: PROTECTED_CONTENT_PLACEHOLDER });
+    expect(
+      await content.readRevisionSnapshot<Record<string, unknown>>(db, fileRevisionId),
+    ).toMatchObject({
+      name: PROTECTED_CONTENT_PLACEHOLDER,
+      file: { originalName: PROTECTED_CONTENT_PLACEHOLDER },
+    });
+    expect(
+      (
+        await db
+          .select({ snapshot: schema.revisions.snapshot })
+          .from(schema.revisions)
+          .where(inArray(schema.revisions.id, [page.revisionId, fileRevisionId]))
+      ).every((revision) => revision.snapshot === null),
+    ).toBe(true);
   } finally {
     await harness.close();
   }
