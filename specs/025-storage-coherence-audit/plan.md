@@ -372,3 +372,166 @@ intermediate response has the explicit retryable code, require the final 201
 and identical nonempty mutation identities, and retain the unique hierarchy
 entry/no-attachment assertions. Do not change production retries or accept other
 failures. Replay the real browser journey before renewed complete delivery.
+
+### T064 — reserved protected-content placeholder
+
+The canonical scrub uses one U+FFFD character in plaintext name columns after
+the real value is sealed. Export that marker from the domain and keep the
+database scrub constant as an alias, so validation and persistence cannot drift.
+`normalizeDisplayName` rejects only the marker's exact value after trimming;
+longer authored names containing the character remain valid.
+
+Ordinary item, database, file, offline and MCP mutations already converge on
+that domain boundary. Resumable uploads validate their filename before creating
+a transfer row. Retained revision restoration validates both the item name and
+file metadata before changing references or current rows. The Notion/Obsidian
+preview reports a blocking issue before apply. Internal scrub writes remain
+explicit trusted storage operations, and portable restoration continues to
+write authenticated envelopes before neutralizing restored rows.
+
+A pre-cutover V0 row can legitimately contain the same character because it
+predates the reservation. Initial inventory records that fact inside the sealed
+source checkpoint. Only that checkpoint may interpret the unsealed value as
+legacy content while publishing its envelope. Post-publication digest checks,
+global verification and source retirement require the envelope, so the legacy
+exception cannot conceal a missing protected record after cutover. Cover item
+titles, logical filenames and retained snapshots in one resumable transition.
+Delete one newly published name envelope before global verification and require
+the transition to stay in `metadata-protected` until the exact envelope returns.
+
+### T065 — reserved protected-content payload
+
+The structured scrub uses the exact one-key JSON object
+`{"$myownnotionProtected":1}`. Export its constant and exact matcher from the
+domain, then alias them in the API. The matcher requires one own key, so a user
+object that also contains authored fields remains ordinary content. Shared page
+document and relationship validation rejects only the exact object. Revision
+restore applies the page-document boundary before changing current state.
+
+A V0 page body, retained snapshot or non-database relationship can already equal
+the future marker. Inventory records a separate structured-payload provenance in
+the authenticated source checkpoint only when no envelope exists. That flag is
+accepted solely while reading the initial source for publication. A marker read
+from its authenticated envelope remains historical content; strict digest,
+global verification and retirement paths require the envelope and never consult
+the plaintext exception. Cover HTTP creation/replacement/restore, relationship
+writes, multi-key objects and complete page/revision/relationship transitions.
+
+### T066 — revalidate protected envelopes through migration completion
+
+Keep the authenticated source metadata check on every lifecycle transition, not
+only on individual publication. `finishVerification`, `cutover` and the final
+`retireNext` completion must reopen and validate every protected envelope and
+refuse advancement when a published envelope is missing, changed or no longer
+matches the captured digest. The focused migration evidence from
+`ded9429b` covers the strict helper and the destructive missing-envelope case;
+the complete local, PR and main gates remain T037/T038/T040/T041.
+
+### T067 — authenticate V0 provenance and resumable inventory
+
+Allow legacy marker exceptions only after the source full backup, receipt,
+manifest and installation identity have been authenticated together, with the
+source identified as V0 by its application-version evidence and the absence of
+migration `0006_installation_application_version`. Persist source backup ID,
+installation identity and provenance in the version-2 transition inventory so
+resume and re-inventory cannot silently reinterpret a modern or mismatched
+source. The focused evidence is the `983384ba` provenance guard and its resume
+coverage; final delivery gates remain open.
+
+### T068 — harden portable archive versions and streaming restoration
+
+Keep V1 archives legacy-compatible while V2 rejects the exact structured
+protected marker and exact trimmed U+FFFD names, yet accepts longer names,
+multi-key objects and other authored content. Validate the complete canonical
+graph, all versions and page-operation state before any archive byte is emitted
+or any restore-target mutation begins; verify the streaming producer, strict
+two-block TAR framing and a real V1 database restore. Canonical/TAR corrections
+are recorded by `bfd14c12`, `4315e7ef`, `6508c532`, `7b55a1fc`, `3cfef6fa`,
+`d7d20ddf` and `037570b`; operational archive corrections are recorded by
+`c8ce0df9`, `2e3c6f1d`, `1385efbc`, `33b7e1e9`, `7b1e1b4e`, `c12a13eb`,
+`10a8acf4`, `037570b` and `e003264`. Focused aggregate evidence is final at
+`e003264`; complete delivery remains T037/T038/T040/T041.
+
+### T069 — fail closed for protected history and legacy branches
+
+With protected history enabled, distinguish a missing envelope from an expired
+one: GET and restore return 500 for unavailable protected content and 410 only
+for an actually expired snapshot. Compaction and legacy-branch conversion must
+not use raw revision fallback. A legacy branch may use an explicit client base
+document, but its retained dependency must remain bounded by the documented
+expiration. The `1ac10b32`, `cce42dea`, `6fb9a8ac` and `38896281` corrections
+and focused refusals establish the boundary; delivery gates remain open.
+
+### T070 — exact own-key marker matching
+
+Use `Reflect.ownKeys` for the protected structured-marker matcher and require
+exactly one own string key with the expected value, so symbols and
+non-enumerable keys cannot change classification or bypass the reservation.
+Retain the multi-key authored-object regression and record the focused domain
+evidence with the archive/history hardening results.
+
+### T071 — resume authenticated historical V1 inventories
+
+Accept a version-1 transition inventory only after matching its source backup,
+receipt, installation, transition identity, exact entry set and digests. Its
+source application evidence can be modern or V0; only the existing marker
+exceptions require V0. Upgrade the accepted inventory atomically to version 2
+before continuation. The narrowly identified early file-only V1 shape may
+derive its missing metadata only in `inventoried` or `backfilling`; every later
+phase and every provenance mismatch fails closed. `f78b4594` and the focused
+migration matrix record the correction.
+
+### T072 — archive database representability
+
+Require structured definition/value versions to be positive, matching the SQL
+constraints. Traverse the complete canonical and page-operation JSON iteratively
+and reject U+0000 in string values or object keys, which PostgreSQL text/jsonb
+cannot represent. This includes the free operational `failureCode` and
+`logicalKey` fields. Apply the same validation to direct and streaming
+production, inspection and restore preflight before any archive byte is emitted
+or any restore-target mutation begins.
+
+### T073 — initialization state preservation
+
+Treat `initializing` as a valid empty lifecycle state even without a checkpoint.
+Require format v3, sequence zero and no operational frontier, digest, window,
+checkpoint, update, device receipt, ambiguity or conversion. Verify the
+canonical page and preserve this exact state across full archive restore.
+
+### T074 — retained update causality
+
+For every non-compacted update, validate the Loro blob against its declared
+base, reconstruct the author's result and merge it with the preceding accepted
+server frontier. Compare that cumulative result with the retained receipt even
+when the current checkpoint already covers the update. Compacted receipts keep
+their monotonic result frontiers and cannot retreat.
+
+### T075 — checkpoint head bounds
+
+Reject every checkpoint whose covered sequence exceeds the page's complete
+`lastUpdateSequence`, including non-current verified or retained checkpoints.
+Keep the existing contiguous `1..N` update-log requirement.
+
+### T076 — operational timestamp order
+
+Compare canonical UTC timestamps at archive preflight: verification follows
+checkpoint creation, compaction follows acceptance, ambiguity resolution follows
+opening, conversion follows creation, and page update follows bootstrap. Invalid
+historical rows fail before any archive byte is emitted or any restore-target
+mutation begins instead of entering a target database.
+
+### T077 — checkpoint sequence and frontier binding
+
+For the genesis checkpoint, require equality with update 1's base frontier when
+that update exists. For every later checkpoint N, require equality with update
+N's retained result frontier. Opening the protected checkpoint must reproduce
+that frontier and its canonical digest. Current page frontier remains allowed to
+advance beyond the checkpoint when later updates replay successfully.
+
+### T078 — legacy operational-state isolation
+
+A `legacy` state is a canonical-page marker before operational activation. It
+must carry no checkpoint, update, frontier, operational digest, revision window,
+device receipt, ambiguity or conversion. Enforce this invariant both on parsed
+archives and directly produced archive objects before any archive byte is
+emitted or any restore-target mutation begins.

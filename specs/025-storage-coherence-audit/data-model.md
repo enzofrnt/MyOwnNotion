@@ -124,6 +124,17 @@ definitions, values and metadata reside in authenticated protected envelopes.
 Neutral edits and snapshot generation resolve these envelopes first. Missing
 protected data behind a marker fails closed. Portable restoration applies the
 same boundary before committing; historical copies join the durable transition.
+The exact trimmed U+FFFD value is reserved at display-name input boundaries;
+names that merely contain that character remain authored content.
+An authenticated transition source may record that a V0 plaintext name already
+equaled the marker. This provenance authorizes only its first envelope
+publication; verification and retirement still require the protected copy.
+The exact one-key JSON object `{"$myownnotionProtected":1}` is likewise reserved
+for structured neutralization. Objects with additional own keys remain authored
+content. A distinct authenticated V0 provenance may authorize an unsealed page
+body, retained snapshot body or relationship metadata marker only for its first
+publication. Once published, every digest and lifecycle boundary resolves the
+protected envelope; the plaintext marker cannot satisfy verification.
 
 Quarantine keeps an explicit content UUID reference as well as current chunk
 locators. An empty orphan has one row with a null chunk locator; every nonempty
@@ -132,3 +143,36 @@ recoverable object, and rotation updates its locators atomically. Its manifest
 reference names the stable transition replacement envelope, which resolves the
 content's current authenticated manifest rather than pinning an obsolete version.
 Portable workspace replacement preserves these recovery objects/checkpoints.
+
+The resumable canonical transition inventory is version 2 and carries the
+authenticated source-backup ID, installation identity, source provenance,
+manifest digest and captured entries. A V0 provenance record is valid only when
+the full-backup receipt and manifest agree with the installation and the source
+has no migration `0006_installation_application_version`; this record survives
+resume and re-inventory. Every completion boundary reopens the captured
+protected envelopes, so a missing or changed envelope blocks verification,
+cutover and final retirement.
+
+A supported version-1 inventory resumes only after authenticating the same
+backup, installation, transition, exact entry set and digests, then persists a
+version-2 replacement atomically. Its source may be a modern installation or V0;
+V0 is required only for the reserved-marker provenance above. The early
+file-only V1 inventory may supplement missing metadata while the phase is still
+`inventoried` or `backfilling`; later phases and mismatched evidence never infer
+or replace historical provenance.
+
+Portable archives keep a legacy-compatible V1 interpretation while V2 reserves
+the exact protected markers and trimmed placeholder names. Canonical graph and
+page-operation content is validated before any archive byte is emitted or any
+restore-target mutation begins, and the stream uses strict TAR framing.
+Structured versions are positive and canonical/page-operation JSON contains no
+U+0000 string value or object key. Initializing and legacy operational states remain empty;
+active/blocked state carries a causally contiguous update log. Every retained
+blob agrees with its base and cumulative result, every checkpoint frontier
+agrees with its covered sequence, no checkpoint is ahead of the update head,
+and lifecycle timestamps preserve causal order. History reads and restores
+distinguish unavailable protected envelopes from expired snapshots; compaction
+and legacy branches do not fall back to raw payloads. The legacy branch requires
+an explicit client base document and a bounded retained dependency. The
+structured marker matcher examines all own keys, including symbols and
+non-enumerable properties.

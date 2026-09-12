@@ -175,7 +175,7 @@ bun run biome check apps/api/tests/protected-files.integration.spec.ts tests/e2e
 
 ## Complete coverage after allocation and joined privacy changes
 
-At code checkpoint `82df5084`, the complete coverage command passes **406 suites
+At historical code checkpoint `82df5084`, the complete coverage command passes **406 suites
 and 3,875 tests**, with no changed thresholds (2,452 uncovered branches, budget
 2,465). Log `/tmp/mon-audit-coverage-t045.log`, exit 0. This includes the production
 buffer changes, durable blob verification and T045's expanded protected portable
@@ -514,3 +514,199 @@ Logs are `integrated-orphan-journal-pool-{red,green}-20260912.log`,
 `integrated-journal-sidecar-protected-suites-20260912.log` and
 `integrated-journal-client-lifecycle-20260912.log`. Complete exact local, PR
 and main delivery remains T040/T041.
+
+## T064 — exact protected display-name placeholder
+
+At RED commits `96d48eea` and `77763fcd`, the exact U+FFFD storage placeholder
+was accepted through page, file, resumable-upload, MCP, retained-revision and
+Notion/Obsidian preview boundaries. Creation could fail as an internal error;
+rename and restoration could silently retain an earlier protected name. The
+shared domain reservation at `a5ffa05c` rejects only the exact trimmed value and
+keeps longer authored names containing that character. Six focused suites pass
+128/128, with workspace types and changed-source Biome checks green. Durable
+logs are `integrated-reserved-placeholder-{red,green}-20260912.log`,
+`integrated-reserved-placeholder-surfaces-red-20260912.log` and
+`integrated-reserved-placeholder-biome2-20260912.log`.
+
+The historical transition initially refused a legitimate V0 title or filename
+equal to that future marker. RED commits `74f11897` and `a8a2f8e3` cover a page,
+file and both retained snapshots. `aec033bd` records the legacy fact in the
+authenticated source checkpoint, publishes the envelope once, and requires the
+protected value for every post-write digest and source retirement. The complete
+canonical migration file records 10/10 focused cases; workspace types and Biome pass. Logs are
+`integrated-legacy-placeholder-migration-{red,green}-20260912.log`,
+`integrated-legacy-placeholder-migration-red2-20260912.log`,
+`integrated-legacy-placeholder-typecheck-20260912.log` and
+`integrated-legacy-placeholder-biome2-20260912.log`.
+
+An independent final review then deleted the newly published name envelope
+before global verification. At `e0e6a48`, `finishVerification` incorrectly
+advanced because fresh inventory reclassified the remaining marker as legacy.
+`92d3899` re-digests each authenticated source with protected content required;
+the transition remains in `metadata-protected` until the exact envelope is
+restored. The complete migration file records 10/10 focused cases. RED/GREEN logs are
+`integrated-finish-verification-placeholder-red-20260912.log` and
+`integrated-finish-verification-placeholder-green2-20260912.log`.
+
+These focused results do not replace the exact complete local, PR and main
+delivery checks owned by T040/T041.
+
+## T065 — exact protected structured-payload marker
+
+At `3bfa3c2`, the focused RED matrix records eight failures. The API matcher
+classified every object containing `$myownnotionProtected: 1` as storage state;
+the exact one-key object produced a 500 on page creation, silently retained the
+old body on replacement and history restoration, was accepted as relationship
+metadata, and blocked V0 page/revision/relationship migration. Domain validators
+also accepted the reserved value, while the matcher rejected legitimate
+multi-key authored objects.
+
+`559fea3` defines one exact domain marker and matcher, rejects it at shared page
+and relationship boundaries, and validates retained page documents before any
+restore mutation. Objects with additional own keys round-trip as authored
+content. A separate authenticated V0 provenance authorizes only initial
+publication of current page bodies, retained snapshots and ordinary relationship
+metadata. Values opened from their envelope remain historical content; strict
+post-publication digest, global verification and retirement never use the
+plaintext exception.
+
+Focused GREEN passes 114/114 across two domain and three API suites, including
+two complete V0 transitions through retirement. Full workspace TypeScript and
+changed-source Biome checks pass. Durable evidence:
+
+- `integrated-protected-payload-marker-red-20260912.log`
+- `integrated-protected-payload-entry-red2-20260912.log`
+- `integrated-protected-payload-marker-green1-20260912.log`
+- `integrated-protected-payload-typecheck1-20260912.log`
+- `integrated-protected-payload-biome2-20260912.log`
+
+Exact complete local, PR and main evidence remains governed by T040/T041.
+
+## T066 — strict envelope revalidation
+
+`ded9429b` moves the protected-metadata assertion to a shared completion helper
+and invokes it before `finishVerification`, `cutover` and final `retireNext`
+completion. The focused destructive regression removes a published envelope and
+keeps the transition before the next lifecycle phase until the exact envelope
+returns. This is targeted evidence; T037/T038/T040/T041 remain open.
+
+## T067 — authenticated V0 provenance and v2 inventory
+
+`983384ba` authenticates the full-backup receipt, manifest, installation
+identity and source application-version evidence, requiring the absence of
+`0006_installation_application_version` for the V0 exception. The version-2
+inventory persists source backup ID and provenance across resume and re-inventory
+and rejects a mismatched or modern source. Focused migration and guarded-backup
+checks are recorded; no final delivery gate is claimed.
+
+## T068 — portable archive V1/V2 and streaming validation
+
+### T068a — canonical content and TAR framing
+
+`bfd14c12`, `4315e7ef`, `6508c532`, `7b55a1fc`, `3cfef6fa`, `d7d20ddf` and
+`037570b` retain V1 compatibility while enforcing V2 markers, exact graph and
+file invariants, fatal UTF-8 decoding, raw-byte digests, portable USTAR framing,
+positive structured versions and PostgreSQL-representable JSON. Validation runs
+before any archive byte is emitted or any restore-target mutation begins. The
+real V1 database restore remains covered by the integration path.
+
+### T068b — page-operation archive
+
+`c8ce0df9`, `2e3c6f1d`, `1385efbc`, `33b7e1e9`, `7b1e1b4e`, `c12a13eb`,
+`10a8acf4`, `037570b` and `e003264` validate the complete operational inventory, protected
+references, digests, frontiers, compaction receipts and restore preflight. At
+`e003264`, the final combined command passes **7 files / 168 tests** and the
+focused PostgreSQL/API command passes **5 files / 41 tests**. The separate
+90-day, 10,000-change convergence case passes in 150.0 seconds. Full workspace
+types, changed-source Biome and `git diff --check` pass. Durable logs are
+`integrated-final-archive-focused-20260913.log`,
+`integrated-final-page-operations-focused-db-20260913.log` and
+`integrated-final-page-operations-db-20260913.log` under the delivery artifact
+directory. These focused results do not replace T037/T038/T040/T041.
+
+## T069 — protected history fail closed
+
+`1ac10b32` and `cce42dea` prove that GET and restore distinguish a missing
+protected envelope (500) from an expired snapshot (410). Compaction and restore
+refuse raw fallback, while `6fb9a8ac` and `38896281` remove raw fallback from
+legacy-branch conversion and require an explicit client base with bounded
+retention. Focused refusal suites pass; complete delivery remains open.
+
+## T070 — exact reflection matcher
+
+The domain matcher now uses `Reflect.ownKeys` and an exact one-own-string-key
+check. Symbol and non-enumerable properties cannot alter protected-marker
+classification, and multi-key authored objects remain accepted. The focused
+domain evidence is retained with T065; final local, PR and main gates remain
+T040/T041.
+
+## T071 — authenticated historical V1 inventory resume
+
+`f78b4594` accepts only a V1 inventory bound to the authenticated source backup,
+receipt, installation, transition, exact entry set and digests, then persists
+the V2 replacement before resuming. Both modern and V0 source evidence are
+supported; V0 remains mandatory only for marker exceptions. The historical
+file-only metadata supplement is restricted to `inventoried` or `backfilling`,
+and absent/mismatched provenance refuses continuation. The focused migration
+matrix passes **3 files / 41 tests**, with workspace types green. Durable output
+is `integrated-final-v1-inventory-migration-20260913.log` under the delivery
+artifact directory.
+
+## T072 — archive SQL representability
+
+At `037570b` and `e003264`, zero definition/value versions
+and nested U+0000 in canonical or page-operation string values/object keys fail
+preflight. This includes free operational failure codes and ambiguity keys.
+Direct and streaming producers refuse before any archive byte is emitted;
+inspection reports the invalid archive; `applyArchive` leaves `target.begin`
+untouched. The final
+T068 matrix records the aggregate counts after both corrections.
+
+## T073 — initializing operational state
+
+An empty format-v3 `initializing` state with sequence zero now passes export,
+inspection, verification and full restore. Checkpoints, updates, frontiers,
+digests, windows, device receipts, ambiguities or conversions on that state are
+rejected in shared preflight. Archive/restore contract and the PostgreSQL full
+round trip are included in the 168/41 final matrices above.
+
+## T074 — retained update causality
+
+Every retained update blob is checked against its declared Loro base. Its
+authored result is reconstructed and joined with the preceding server frontier,
+then compared with the retained cumulative receipt even when covered by the
+current checkpoint. Reproductions for a forged base and a covered forged result
+fail before any archive byte is emitted or any restore-target mutation begins;
+concurrent valid histories and compacted receipt-only updates pass.
+
+## T075 — checkpoint head bounds
+
+A non-current checkpoint beyond `lastUpdateSequence` previously passed archive
+inspection and restore. Shared preflight now rejects every checkpoint beyond the
+complete contiguous journal head; current, candidate and retained positive paths
+remain covered by page-operation archive and compaction suites.
+
+## T076 — operational timestamp order
+
+Focused negative cases cover checkpoint verification before creation, update
+compaction before acceptance, ambiguity resolution before opening, legacy
+conversion before creation and page update before bootstrap. Each is refused
+before any archive byte is emitted or any restore-target mutation begins; valid
+canonical millisecond UTC timestamps continue to round-trip.
+
+## T077 — checkpoint sequence/frontier binding
+
+A crafted checkpoint at sequence zero whose snapshot already contained update 1
+was accepted before `037570b`. Shared preflight now equates genesis with update
+1's base frontier and checkpoint N with update N's result frontier. Snapshot
+opening still verifies that frontier and canonical digest; current head may move
+beyond it only through successful replay. The compacted full-backup restore
+integration passes with the earlier expected refusal moved to preflight.
+
+## T078 — legacy operational-state isolation
+
+`legacy` now denotes an empty pre-activation operational state. A checkpoint,
+update, frontier, operational digest, revision window, device receipt, ambiguity
+or conversion makes the archive invalid before any archive byte is emitted or
+any restore-target mutation begins. The valid legacy canonical-page path remains
+covered by the archive contract suite.

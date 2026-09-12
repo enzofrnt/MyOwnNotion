@@ -14,6 +14,11 @@ unmapped task, unresolved placeholder or conflicting product boundary remains.
 Research clarified that administrative key import refuses occupied targets and
 that historical MVCC/WAL erasure is not promised by application-level migration.
 
+Current reconciliation extends that historical baseline to 14 functional
+requirements, seven success criteria, 78 ordered tasks and 63 audit findings.
+The focused implementation evidence is complete at `e003264`; local, PR and
+main delivery gates remain open.
+
 | Requirement | Tasks |
 | --- | --- |
 | FR-001 | T004, T006, T009–T012, T015–T016 |
@@ -29,6 +34,7 @@ that historical MVCC/WAL erasure is not promised by application-level migration.
 | FR-011 | T001–T002, T028, T036, T039 |
 | FR-012 | T030, T034–T035 |
 | FR-013 | T002, T020, T035, T037–T041 |
+| FR-014 | T042–T045, T064–T078 |
 
 SC-001/002 map to T010/T019/T027; SC-003 to T022/T027; SC-004 to T021/T049;
 SC-005 to T029/T031; SC-006 to T032/T038; SC-007 to T036/T039.
@@ -97,17 +103,18 @@ tests and ten journeys across all five profiles pass; relevant types pass.
 There is no new product requirement or production change. T045 is complete
 with evidence in validation; T038/T040/T041 retain final gate/delivery duties.
 
-## Final source consistency review at 82df5084
+## Final source consistency review at e003264
 
 Feature prerequisites pass. The final set contains 14 functional requirements,
-seven success criteria and 49 unique task IDs, with no unresolved clarification
-marker. T042–T049 refine already required privacy, query and performance behavior;
-they introduce no new product boundary. Their implementation and targeted proof
-are complete, including the full nine-suite performance command on 83726de3.
-Review of the recorded code boundaries and joined T045 proofs finds no further
-untracked implementation gap, so no new convergence phase is appended. The
-audit inventory closes T036. Native image compatibility, complete integrated
-local gates and PR/main delivery remain explicitly open in T037/T038/T040/T041.
+seven success criteria and 78 unique task IDs, with no unresolved clarification
+marker. T042–T078 refine already required privacy, migration, archive, history
+and performance behavior; they introduce no new product boundary. The final
+archive closure validates canonical representability, resumable V1 inventories,
+operational lifecycle states, causal receipts, checkpoint sequences and time
+order before any archive byte is emitted or any restore-target mutation begins.
+Focused implementation and independent review are complete at `e003264`.
+Native image compatibility, complete integrated local gates and PR/main delivery
+remain explicitly open in T037/T038/T040/T041.
 
 ## T051 — bounded synchronization convergence
 
@@ -198,3 +205,134 @@ the active canonical transaction, then routes the short journal transaction
 through a single reserved connection owned and closed by `DatabaseHandle`.
 The saturated operation completes, while journal ordering, FILE locks and the
 canonical commit boundary stay unchanged.
+
+## T064 — protected placeholder collision
+
+The final whole-code review found one P2 collision left by the canonical
+privacy cutover. `normalizeDisplayName` accepted the exact U+FFFD character that
+protected storage uses as its scrub marker. A new page or file with that name
+reached sealing without a prior envelope and failed as an internal error;
+renaming or restoring an existing item to it was accepted but resolved back to
+the prior title. Resumable uploads also accepted a transfer that could not be
+published, and import preview did not report the future refusal.
+
+T064 adds one shared domain marker and reserves only its exact trimmed value.
+The HTTP, file, MCP and import paths now converge on that rule; resumable upload
+and retained-revision boundaries validate before durable mutation. Internal
+scrub and portable restore operations remain explicit storage paths.
+
+Independent review then found that a V0 title or filename already equal to the
+marker could not enter the historical transition. T064 records the legacy fact
+inside the authenticated source checkpoint, permits it only before its first
+envelope publication, and requires protected content for post-write digest,
+global verification and retirement. The combined legacy page, file and retained
+snapshot transition fails before this correction and passes afterward without
+relaxing normal missing-envelope refusal.
+
+Independent review then removed the newly published `item.name` envelope before
+global verification. The former comparison re-inventoried the remaining marker
+as a legacy source and advanced the transition. The final verifier now opens and
+digests every captured metadata source with protected content required; the RED
+case advances no phase, and restoring the exact envelope permits completion.
+
+The entry-path GREEN set passes 128/128 and the full canonical migration file
+records 10/10 focused cases, with complete workspace types and changed-source
+formatting checks. Exact local, PR and main delivery evidence remains governed
+by T040/T041.
+
+## T065 — protected structured-payload collision
+
+The final marker review found that the API matcher treated any object containing
+`$myownnotionProtected: 1` as neutralized storage. The exact object could be
+authored as a page body or relationship metadata: creation returned an internal
+error, replacement and history restoration silently retained the prior body,
+and an old readable row could not enter the canonical migration. Multi-key user
+objects were also vulnerable to misclassification.
+
+T065 defines one domain-owned exact marker and requires exactly one own key.
+Page-document and relationship validation reject that object before mutation;
+revision restoration reuses the page-document boundary. Objects with additional
+fields remain accepted and round-trip through protected storage. A separate
+authenticated V0 provenance covers current page bodies, retained snapshots and
+ordinary relationship metadata only during their first envelope publication.
+All post-publication digests, global verification and retirement require the
+envelope, including when the historical authored value equals the marker.
+
+The RED matrix records eight boundary failures; the corrected focused set passes
+114/114 across domain and API contracts, including two complete V0 transitions.
+Workspace types and formatting checks pass. Exact complete local, PR and main
+delivery evidence remains governed by T040/T041.
+
+## T066 — strict envelope revalidation
+
+The migration lifecycle previously trusted the fact that each individual
+publication had succeeded. A later deletion or replacement could therefore be
+missed at verification, cutover or retirement. The completion boundaries now
+reopen every authenticated envelope and compare the captured metadata before
+advancing. `ded9429b` and its focused destructive regression establish the
+fail-closed behavior; final delivery gates remain open.
+
+## T067 — authenticated V0 provenance
+
+The legacy marker exception is safe only when the source is demonstrably V0.
+`983384ba` binds that decision to the full-backup receipt, manifest, installation
+identity and absence of migration 0006, then persists the source identity and
+provenance in the v2 inventory used by resume. This prevents a modern or
+mismatched backup from reusing the exception.
+
+## T068 — portable archive version and streaming boundaries
+
+Portable archives now retain a V1-compatible read path and apply the stricter V2
+marker/name rules. Canonical graph and page-operation validation runs before
+output begins; the streaming producer and exact TAR framing are covered, with a
+real V1 database restore retained as the compatibility proof. The second
+archive-hardening pass is still being validated, so this record makes no final
+aggregate claim.
+
+## T069 — protected history fail-closed behavior
+
+Protected history now distinguishes a missing envelope (500) from an expired
+snapshot (410) on reads and restores. Compaction and legacy-branch conversion do
+not recover raw snapshots; the supported legacy path uses an explicit client
+base and bounded retention. The focused corrections at `1ac10b32`, `cce42dea`,
+`6fb9a8ac` and `38896281` record the boundary.
+
+## T070 — exact own-key matching
+
+The structured marker matcher uses `Reflect.ownKeys` and an exact one-own-key
+check, including symbol and non-enumerable properties. Multi-key authored
+objects remain ordinary content, closing the remaining classification edge while
+leaving final delivery gates to T040/T041.
+
+## T071 — authenticated V1 inventory resume
+
+An authenticated version-1 transition inventory could not resume after the
+version-2 provenance format landed, including the early file-only inventory that
+predated metadata capture. T071 distinguishes source application provenance
+from marker eligibility: modern and V0 sources may resume, while only the V0
+marker exception requires V0 evidence. Backup, receipt, installation,
+transition, entry set and digest proofs must match before an atomic V2 upgrade;
+the early metadata supplement is allowed only in pre-verification phases.
+`f78b4594` and its focused migration matrix close A56.
+
+## T072–T078 — final archive and operation closure
+
+The final independent reviews found seven fail-closed gaps rather than new
+product scope: SQL-invalid zero structured versions and U+0000 canonical or
+operational JSON, a legitimate
+empty initialization state rejected by backup, incomplete Loro base/result
+verification, a retained checkpoint beyond the update head, reversed lifecycle
+timestamps, a checkpoint snapshot ahead of its declared sequence, and a legacy
+state carrying operational records.
+
+`037570b` and `e003264` close these boundaries in shared preflight. Canonical
+and page-operation JSON are scanned iteratively;
+operational blobs reconstruct their cumulative frontiers;
+checkpoints bind to their exact sequence; initializing and legacy states have
+explicit lifecycle shapes; and chronological invariants are checked before any
+archive byte is emitted or any restore-target mutation begins. The final focused
+proof passes 168 unit/property/contract
+tests, 41 PostgreSQL/API tests, the separate 10,000-change long-offline case,
+complete workspace type checking and changed-source formatting. Independent
+post-fix reviews found no remaining P0/P1/P2 in these boundaries. Complete local,
+PR and main delivery remains T037/T038/T040/T041.

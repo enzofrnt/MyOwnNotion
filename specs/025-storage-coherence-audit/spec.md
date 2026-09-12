@@ -264,6 +264,42 @@ existing constitution IV / feature 002 promise, not a new product feature.
   snapshots, structured definitions/values, revision restore and synchronization
   MUST resolve those protected values without overwriting them with placeholders.
   Historical readable copies MUST be included in the verified 025 transition.
+  Any exact display-name or structured value reserved to represent protected
+  storage MUST be rejected at user-authored write boundaries and MUST never be
+  confused with authored content during history restoration. Authenticated V0
+  sources that predate a reservation MUST remain migratable, while final
+  verification and source retirement MUST require their protected copy. The
+  transition MUST revalidate every authenticated protected envelope at each
+  finish-verification, cutover and final-retirement boundary before advancing.
+  A V0 source exception MUST be authenticated by the complete full-backup
+  identity, receipt, manifest and installation provenance, including evidence
+  that the source predates migration 0006, and a resumable inventory MUST keep
+  that provenance across restarts. Any supported earlier transition inventory
+  MUST authenticate its original backup, installation, transition, entries and
+  digests before resuming, then upgrade atomically to the current inventory
+  format. Its source MAY be modern or V0; V0 provenance MUST authorize only the
+  reserved-marker exceptions. Missing historical metadata MAY be supplemented
+  only for an identified early inventory shape before verification or cutover,
+  and any absent or mismatched proof MUST stop the transition without writes.
+
+  Portable archives MUST preserve legacy V1 readability while applying the
+  stricter V2 marker and filename rules. All canonical graph content and page
+  operations MUST be validated before any archive byte is emitted or any
+  restore-target mutation begins. Canonical structured versions MUST be
+  positive, and canonical or operational text/JSON that the database cannot
+  represent, including U+0000 in a nested string or object key, MUST be refused
+  at that boundary.
+  Every operational lifecycle state MUST be internally consistent; retained
+  update bytes, declared bases, cumulative results, checkpoint sequences,
+  checkpoint frontiers and causal timestamps MUST agree. The producer MUST
+  stream the complete operational state with strict TAR framing, and V1
+  database restoration MUST be exercised as a real restore path. The
+  protected-history API MUST fail closed when an envelope is missing (500) and
+  distinguish that state from an expired envelope (410). Compaction and legacy
+  branch conversion MUST not fall back to raw snapshots; a legacy branch may
+  proceed only with an explicit client base document and a bounded expiration.
+  Exact protected-marker matching MUST inspect all own keys, including symbol
+  and non-enumerable keys, and accept only the exact one-key marker.
 
 Extend SC-001 sentinel inspection to those canonical fields through real secured
 requests and a portable round trip. The logical-storage and historical WAL scope
