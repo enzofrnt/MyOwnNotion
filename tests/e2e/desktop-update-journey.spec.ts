@@ -12,7 +12,7 @@ import { openSettingsSection, waitForSynchronized } from "./helpers.ts";
 
 applyDesktopJourneySkip();
 
-test("an unsigned development build refuses update installation through the real bridge", async () => {
+test("an unsigned package refuses update installation through the real bridge", async () => {
   const session = await launchDesktopElectron();
   try {
     await expect(session.window.getByTestId("desktop-connection-page")).toBeVisible();

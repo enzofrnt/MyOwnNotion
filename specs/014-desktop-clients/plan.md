@@ -634,3 +634,24 @@ passed prebrowser checks, Chromium and Firefox; it is not delivery evidence.
 
 References: [advisory](https://github.com/advisories/GHSA-j95f-988m-3j2f),
 [upstream patch release](https://github.com/ueberdosis/tiptap/releases/tag/v3.30.5).
+
+## T107 — native journeys on the packaged executable (T074 convergence)
+
+The September 12 source review finds that the native journey helper launches
+the development Electron binary with the built bootstrap, although CI creates
+a real package first. The installed smoke proves packaged startup and isolation
+only. Reuse the existing connection, offline restart, revocation, accessibility
+and update-handoff journeys against the platform package executable instead.
+Assert `app.isPackaged` and packaged resource selection, retain disposable
+profiles and bounded diagnostics, and do not supply checkout web-resource
+overrides to the packaged process. Keep a deliberately replaced bootstrap only
+for tests that explicitly exercise that boundary; do not introduce a production
+test bypass. Verify actual local packaged journeys, then all five native CI
+targets and renewed complete local/image/PR/main gates.
+
+This closes the concrete automated package coverage gap in T074/FR-015. It
+does not prove a signed installer N→N+1 upgrade or the release installation
+success rate: those still require genuine release artifacts and credentials.
+Earlier T096/T100/T101/T102 historical failure paragraphs are superseded by
+the implemented consolidation ancestry fix and T105 runtime repair; they are
+not additional open implementation defects.
