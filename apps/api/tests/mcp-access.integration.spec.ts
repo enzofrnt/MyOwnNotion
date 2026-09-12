@@ -1029,6 +1029,31 @@ describe("scoped MCP through the real official HTTP client", () => {
     });
     expect(revokedBearerResponse.status).toBe(401);
 
+    const expiredConnection = await grant();
+    await harness.api.built.database.db
+      .update(schema.mcpConnections)
+      .set({ expiresAt: new Date(now.getTime() + 1) })
+      .where(eq(schema.mcpConnections.id, expiredConnection.connection.id));
+    now = new Date(now.getTime() + 2);
+    expect((await exchange(expiredConnection.exchangeCode)).statusCode).toBe(401);
+
+    const deviceRevokedExchange = await grant();
+    const [deviceConnection] = await harness.api.built.database.db
+      .select({ deviceId: schema.mcpConnections.authorizedByDeviceId })
+      .from(schema.mcpConnections)
+      .where(eq(schema.mcpConnections.id, deviceRevokedExchange.connection.id));
+    const deviceId = deviceConnection?.deviceId as string;
+    expect(deviceId).toBeTypeOf("string");
+    await harness.api.built.database.db
+      .update(schema.authorizedDevices)
+      .set({ state: "revoked", revokedAt: now })
+      .where(eq(schema.authorizedDevices.id, deviceId));
+    expect((await exchange(deviceRevokedExchange.exchangeCode)).statusCode).toBe(401);
+    await harness.api.built.database.db
+      .update(schema.authorizedDevices)
+      .set({ state: "active", revokedAt: null })
+      .where(eq(schema.authorizedDevices.id, deviceId));
+
     const audit = await harness.api.built.database.db
       .select()
       .from(schema.securityAuditEvents)
@@ -1046,6 +1071,20 @@ describe("scoped MCP through the real official HTTP client", () => {
         expect.objectContaining({ credentialKind: "bearer", reason: "invalid" }),
         expect.objectContaining({ credentialKind: "bearer", reason: "expired" }),
         expect.objectContaining({ credentialKind: "bearer", reason: "revoked" }),
+      ]),
+    );
+    expect(refused).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: "mcp.exchange-failed",
+          objectId: expiredConnection.connection.id,
+          metadata: expect.objectContaining({ reason: "expired" }),
+        }),
+        expect.objectContaining({
+          eventType: "mcp.exchange-failed",
+          objectId: deviceRevokedExchange.connection.id,
+          metadata: expect.objectContaining({ reason: "revoked" }),
+        }),
       ]),
     );
     expect(JSON.stringify(refused)).not.toContain(expiredExchange.exchangeCode);

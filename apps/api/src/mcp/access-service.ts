@@ -157,13 +157,11 @@ export class McpAccessService {
           throw new McpAccessError("mcp.invalid-exchange", 401, "revoked", connection.id);
         if (connection.expiresAt !== null && connection.expiresAt <= now)
           throw new McpAccessError("mcp.invalid-exchange", 401, "expired", connection.id);
-        try {
-          await this.assertDevice(tx, connection.authorizedByDeviceId);
-        } catch (error) {
-          if (error instanceof McpAccessError && error.status === 401)
-            throw new McpAccessError("mcp.invalid-exchange", 401, "revoked", connection.id);
-          throw error;
-        }
+        await this.assertDevice(
+          tx,
+          connection.authorizedByDeviceId,
+          new McpAccessError("mcp.invalid-exchange", 401, "revoked", connection.id),
+        );
         await tx
           .update(schema.mcpExchangeTokens)
           .set({ consumedAt: now })
@@ -200,7 +198,7 @@ export class McpAccessService {
     }
   }
 
-  async authenticate(secret: string, correlationId?: string): Promise<McpPrincipal> {
+  async authenticate(secret: string, correlationId: string): Promise<McpPrincipal> {
     await this.assertReady(this.deps.db);
     try {
       if (!/^mn_mcp_[A-Za-z0-9_-]{43}$/.test(secret))
@@ -208,21 +206,24 @@ export class McpAccessService {
       const [row] = await this.deps.db
         .select()
         .from(schema.mcpConnections)
-        .where(eq(schema.mcpConnections.accessHash, mcpSecretDigest(secret)));
+        .where(
+          and(
+            eq(schema.mcpConnections.accessHash, mcpSecretDigest(secret)),
+            eq(schema.mcpConnections.workspaceId, this.deps.workspaceId),
+          ),
+        );
       const now = this.deps.now();
-      if (row === undefined || row.workspaceId !== this.deps.workspaceId || row.accessHash === null)
+      if (row === undefined)
         throw new McpAccessError("mcp.authentication-required", 401, "invalid");
       if (row.revokedAt !== null)
         throw new McpAccessError("mcp.authentication-required", 401, "revoked", row.id);
       if (row.expiresAt !== null && row.expiresAt <= now)
         throw new McpAccessError("mcp.authentication-required", 401, "expired", row.id);
-      try {
-        await this.assertDevice(this.deps.db, row.authorizedByDeviceId);
-      } catch (error) {
-        if (error instanceof McpAccessError && error.status === 401)
-          throw new McpAccessError("mcp.authentication-required", 401, "revoked", row.id);
-        throw error;
-      }
+      await this.assertDevice(
+        this.deps.db,
+        row.authorizedByDeviceId,
+        new McpAccessError("mcp.authentication-required", 401, "revoked", row.id),
+      );
       return this.principal(row);
     } catch (error) {
       if (error instanceof McpAccessError && error.auditReason !== undefined)
@@ -239,10 +240,9 @@ export class McpAccessService {
   private async recordCredentialFailure(
     credentialKind: McpCredentialKind,
     reason: McpCredentialFailureReason,
-    correlationId: string | undefined,
+    correlationId: string,
     objectId?: string,
   ): Promise<void> {
-    if (correlationId === undefined) return;
     await this.deps.audit.record(this.auditContext("unknown", correlationId), {
       eventType:
         credentialKind === "exchange" ? "mcp.exchange-failed" : "mcp.authentication-failed",
@@ -252,13 +252,17 @@ export class McpAccessService {
       metadata: { credentialKind, reason },
     });
   }
-  private async assertDevice(executor: Executor, id: string | undefined): Promise<void> {
-    if (id === undefined) throw new McpAccessError("mcp.authentication-required", 401);
+  private async assertDevice(
+    executor: Executor,
+    id: string | undefined,
+    refusal = new McpAccessError("mcp.authentication-required", 401),
+  ): Promise<void> {
+    if (id === undefined) throw refusal;
     const [device] = await executor
       .select()
       .from(schema.authorizedDevices)
       .where(eq(schema.authorizedDevices.id, id));
-    if (device?.state !== "active") throw new McpAccessError("mcp.authentication-required", 401);
+    if (device?.state !== "active") throw refusal;
   }
   private principal(row: typeof schema.mcpConnections.$inferSelect | undefined): McpPrincipal {
     if (
