@@ -1,5 +1,5 @@
 import { buildItemSnapshot, schema } from "@myownnotion/database";
-import { generateUuidV7 } from "@myownnotion/domain";
+import { generateUuidV7, PROTECTED_CONTENT_PLACEHOLDER } from "@myownnotion/domain";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { PROTECTED_PAYLOAD } from "../src/security/canonical-payloads.ts";
@@ -11,6 +11,75 @@ import { FileStorageMigration } from "../src/security/file-storage-migration.ts"
 import { ProtectedRecordService } from "../src/security/protected-record-service.ts";
 import { createItemViaApi } from "./helpers/app.ts";
 import { createProtectedFileHarness } from "./helpers/protected-files.ts";
+
+it("migrates an authored legacy placeholder title and retained snapshot without confusing them with scrub state", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedContent: content, protectedFiles: files } = harness.built.context;
+    if (content === undefined || files === undefined) throw new Error("Missing protected runtime");
+    const page = await createItemViaApi(harness, {
+      kind: "page",
+      name: "temporary legacy title",
+    });
+    const snapshot = await content.readRevisionSnapshot<Record<string, unknown>>(
+      db,
+      page.revisionId,
+    );
+    if (snapshot === null) throw new Error("Missing retained snapshot");
+    await db.transaction(async (tx) => {
+      await tx
+        .update(schema.items)
+        .set({ name: PROTECTED_CONTENT_PLACEHOLDER })
+        .where(eq(schema.items.id, page.itemId));
+      await tx
+        .update(schema.revisions)
+        .set({ snapshot: { ...snapshot, name: PROTECTED_CONTENT_PLACEHOLDER } })
+        .where(eq(schema.revisions.id, page.revisionId));
+      await tx
+        .delete(schema.protectedEnvelopes)
+        .where(
+          inArray(schema.protectedEnvelopes.entityType, ["item.name", "revision.snapshot"]),
+        );
+    });
+
+    const records = new ProtectedRecordService({
+      db,
+      keys: files.deps.keys,
+      workspaceId: files.deps.workspaceId,
+      installationId: files.deps.installationId,
+      now: () => new Date(),
+    });
+    const migration = new FileStorageMigration({
+      db,
+      files,
+      records,
+      blobRoot: harness.blobRoot,
+      verifySourceBackup: async () => {},
+    });
+    const transition = await migration.prepare(generateUuidV7());
+    while (await migration.publishMetadataNext(transition.id)) {
+      /* durable metadata batches */
+    }
+    await migration.finishVerification(transition.id);
+    await migration.cutover(transition.id);
+    while (await migration.retireNext(transition.id)) {
+      /* authenticated source retirement */
+    }
+
+    const restored = await harness.owner({ method: "GET", url: `/v1/items/${page.itemId}` });
+    expect(restored.statusCode, restored.body).toBe(200);
+    expect(restored.json().name).toBe(PROTECTED_CONTENT_PLACEHOLDER);
+    expect(await content.readRevisionSnapshot<Record<string, unknown>>(db, page.revisionId)).toMatchObject(
+      { name: PROTECTED_CONTENT_PLACEHOLDER },
+    );
+    expect(
+      (await db.select().from(schema.revisions).where(eq(schema.revisions.id, page.revisionId)))[0]
+        ?.snapshot,
+    ).toBeNull();
+  } finally {
+    await harness.close();
+  }
+});
 
 it("resumes private historical metadata backfill without replacing authoritative envelopes with stale readable copies", async () => {
   const harness = await createProtectedFileHarness();
