@@ -36,6 +36,7 @@ import { isTransformableBlockType, type PageCommand } from "@myownnotion/page-st
 import { and, eq, isNotNull, lte, or } from "drizzle-orm";
 import type { SearchService } from "../search/search-service.ts";
 import { resolveSnapshotPayload } from "../security/canonical-payloads.ts";
+import { ProtectedContentUnavailableError } from "../security/content-resolution.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
@@ -602,6 +603,9 @@ export class PageHistoryService {
       const protectedSnapshot = await this.#deps.protectedContent.readRevisionSnapshot<
         Record<string, unknown>
       >(tx, input.revisionId);
+      if (protectedSnapshot === null) {
+        throw new ProtectedContentUnavailableError(input.revisionId);
+      }
       const target = pageDocumentFromSnapshot(protectedSnapshot);
       if (target === null) {
         throw new PageHistoryServiceError(
@@ -678,6 +682,6 @@ export class PageHistoryService {
       tx,
       checkpoint.revisionId,
     );
-    return snapshot !== null || revision.snapshot !== null;
+    return snapshot !== null;
   }
 }

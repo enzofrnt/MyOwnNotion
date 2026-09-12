@@ -35,7 +35,10 @@ import {
   protectCurrentItem,
   resolveSnapshotPayload,
 } from "../security/canonical-payloads.ts";
-import { resolveProtectedContent } from "../security/content-resolution.ts";
+import {
+  ProtectedContentUnavailableError,
+  resolveProtectedContent,
+} from "../security/content-resolution.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import { requestContext } from "../security/request-context.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
@@ -258,8 +261,14 @@ export function acceptedWriteGuards(
               throw new Error("Protected page body is unavailable.");
             return body ?? stored;
           },
-          resolveRevisionSnapshot: (tx: Transaction, revisionId: Uuid) =>
-            protectedContent.readRevisionSnapshot<Record<string, unknown>>(tx, revisionId),
+          resolveRevisionSnapshot: async (tx: Transaction, revisionId: Uuid) => {
+            const snapshot = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
+              tx,
+              revisionId,
+            );
+            if (snapshot === null) throw new ProtectedContentUnavailableError(revisionId);
+            return snapshot;
+          },
         }),
     onAccepted: async (
       tx: Transaction,

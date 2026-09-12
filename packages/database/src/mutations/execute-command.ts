@@ -563,30 +563,24 @@ async function executeRestoreRevision(
   command: Extract<MutationCommand, { type: "revision.restore" }>,
 ): Promise<DomainResult<CommandExecution>> {
   const raw = await getRevision(tx, command.revisionId);
-  const resolvedSnapshot =
-    raw === null ? null : await context.resolveRevisionSnapshot?.(tx, command.revisionId);
-  const source =
-    raw === null
-      ? null
-      : {
-          ...raw,
-          // A configured protected resolver is authoritative. Falling back to
-          // the legacy column after it returns null would resurrect a readable
-          // historical copy after its authenticated envelope was lost.
-          snapshot:
-            context.resolveRevisionSnapshot === undefined
-              ? raw.snapshot
-              : (resolvedSnapshot ?? null),
-        };
-  if (source === null) {
+  if (raw === null) {
     return err("revision.not-found", "Revision does not exist");
   }
   if (
-    source.snapshotExpiresAt !== null &&
-    Date.parse(source.snapshotExpiresAt) <= context.acceptedAt.getTime()
+    raw.snapshotExpiresAt !== null &&
+    Date.parse(raw.snapshotExpiresAt) <= context.acceptedAt.getTime()
   ) {
     return err("revision.snapshot-expired", "Revision content is no longer retained");
   }
+  const resolvedSnapshot = await context.resolveRevisionSnapshot?.(tx, command.revisionId);
+  const source = {
+    ...raw,
+    // A configured protected resolver is authoritative. Falling back to
+    // the legacy column after it returns null would resurrect a readable
+    // historical copy after its authenticated envelope was lost.
+    snapshot:
+      context.resolveRevisionSnapshot === undefined ? raw.snapshot : (resolvedSnapshot ?? null),
+  };
   const item = await getItem(tx, source.itemId);
   if (item === null) {
     return err("item.not-found", "Revised item does not exist");

@@ -27,6 +27,7 @@ import {
 import { sendProblem, sendSecurityProblem } from "../plugins/errors.ts";
 import { handleMutation, mutationIdFrom } from "../plugins/mutations.ts";
 import { requirePageOperationProtocol } from "../plugins/protocol.ts";
+import { ProtectedContentUnavailableError } from "../security/content-resolution.ts";
 import { requestContext } from "../security/request-context.ts";
 
 export function registerRevisionRoutes(
@@ -50,29 +51,36 @@ export function registerRevisionRoutes(
       const { revisionId } = request.params as { revisionId: string };
       const { revision, attribution } = await context.db.transaction(async (tx) => {
         const raw = await getRevision(tx, revisionId as Uuid);
+        if (raw === null) {
+          return {
+            revision: null,
+            attribution: await readRevisionAttribution(tx, revisionId as Uuid),
+          };
+        }
         const expired =
-          raw?.snapshotExpiresAt != null && Date.parse(raw.snapshotExpiresAt) <= now().getTime();
-        const sealed =
-          raw === null || expired
-            ? null
-            : await context.protectedContent?.readRevisionSnapshot<Record<string, unknown>>(
-                tx,
-                revisionId,
-              );
-        const snapshot =
-          context.protectedContent === undefined ? (sealed ?? raw?.snapshot ?? null) : sealed;
+          raw.snapshotExpiresAt != null && Date.parse(raw.snapshotExpiresAt) <= now().getTime();
+        if (expired) {
+          return {
+            revision: { ...raw, snapshot: null },
+            attribution: await readRevisionAttribution(tx, revisionId as Uuid),
+          };
+        }
+        let snapshot = raw.snapshot;
+        if (context.protectedContent !== undefined) {
+          snapshot = await context.protectedContent.readRevisionSnapshot<Record<string, unknown>>(
+            tx,
+            revisionId,
+          );
+          if (snapshot === null) throw new ProtectedContentUnavailableError(revisionId);
+        }
         return {
-          revision: raw === null ? null : { ...raw, snapshot },
+          revision: { ...raw, snapshot },
           attribution: await readRevisionAttribution(tx, revisionId as Uuid),
         };
       });
       if (revision === null) {
         return sendProblem(reply, { code: "revision.not-found", title: "Revision does not exist" });
       }
-      const expired =
-        revision.snapshot === null ||
-        (revision.snapshotExpiresAt !== null &&
-          Date.parse(revision.snapshotExpiresAt) <= now().getTime());
       if (revision.snapshot === null) {
         // Header exists but content is no longer retained.
         return sendProblem(reply, {
@@ -80,6 +88,9 @@ export function registerRevisionRoutes(
           title: "Revision content is no longer retained",
         });
       }
+      const expired =
+        revision.snapshotExpiresAt !== null &&
+        Date.parse(revision.snapshotExpiresAt) <= now().getTime();
       return {
         id: revision.id,
         itemId: revision.itemId,
