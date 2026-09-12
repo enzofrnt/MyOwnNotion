@@ -595,6 +595,16 @@ describe("validateCanonicalExport", () => {
     expect(validateCanonicalExport(consistentFixture())).toEqual([]);
   });
 
+  it("allows linked database sources and entries without navigation placements", () => {
+    const manifest = structuredFixture();
+    const unplaced = {
+      ...manifest,
+      items: manifest.items.map((entry) => ({ ...entry, placements: [] })),
+      counts: { ...manifest.counts, placements: 0 },
+    };
+    expect(validateCanonicalExport(unplaced)).toEqual([]);
+  });
+
   it("detects a mismatched item count", () => {
     const manifest = { ...consistentFixture() };
     const broken = { ...manifest, counts: { ...manifest.counts, items: 99 } };

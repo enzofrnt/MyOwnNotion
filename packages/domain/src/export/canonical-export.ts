@@ -661,6 +661,11 @@ export function validateCanonicalExport(
   const itemsById = new Map(manifest.items.map((item) => [item.id, item]));
   const revisionIds = new Set(manifest.revisions.map((revision) => revision.id));
   const revisionsById = new Map(manifest.revisions.map((revision) => [revision.id, revision]));
+  // A linked database source and its entries are canonical pages, but they do
+  // not belong to the navigation hierarchy by default (FR-012/026). Keep the
+  // ordinary page cardinality invariant for every other active page.
+  const databaseIds = new Set(databases.map((database) => database.databaseId));
+  const entryIds = new Set(databaseEntries.map((entry) => entry.entryId));
   const hierarchyParents = new Map(
     manifest.items.map((item) => [
       item.id,
@@ -798,7 +803,12 @@ export function validateCanonicalExport(
     }
     if (item.lifecycle === "active") {
       const valid =
-        item.kind === "file" ? item.placements.length > 0 : hierarchyPlacements.length === 1;
+        item.kind === "file"
+          ? item.placements.length > 0
+          : hierarchyPlacements.length === 1 ||
+            (item.kind === "page" &&
+              hierarchyPlacements.length === 0 &&
+              (databaseIds.has(item.id) || entryIds.has(item.id)));
       if (!valid) {
         issues.push({
           code: "placement.cardinality",
@@ -865,15 +875,15 @@ export function validateCanonicalExport(
     }
   }
 
-  const databaseIds = new Set<Uuid>();
+  const seenDatabaseIds = new Set<Uuid>();
   for (const database of databases) {
-    if (databaseIds.has(database.databaseId)) {
+    if (seenDatabaseIds.has(database.databaseId)) {
       issues.push({
         code: "database.duplicate",
         detail: `Database ${database.databaseId} is listed more than once`,
       });
     }
-    databaseIds.add(database.databaseId);
+    seenDatabaseIds.add(database.databaseId);
     if (!itemIds.has(database.databaseId)) {
       issues.push({
         code: "database.item-missing",
@@ -912,15 +922,15 @@ export function validateCanonicalExport(
   }
   const databasesById = new Map(databases.map((database) => [database.databaseId, database]));
 
-  const entryIds = new Set<Uuid>();
+  const seenEntryIds = new Set<Uuid>();
   for (const entry of databaseEntries) {
-    if (entryIds.has(entry.entryId)) {
+    if (seenEntryIds.has(entry.entryId)) {
       issues.push({
         code: "database-entry.duplicate",
         detail: `Database entry ${entry.entryId} is listed more than once`,
       });
     }
-    entryIds.add(entry.entryId);
+    seenEntryIds.add(entry.entryId);
     if (!itemIds.has(entry.entryId)) {
       issues.push({
         code: "database-entry.item-missing",
