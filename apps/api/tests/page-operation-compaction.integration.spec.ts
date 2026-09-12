@@ -318,6 +318,55 @@ describe("frontier-bounded compaction", () => {
     });
   });
 
+  it("does not release history retention from a raw revision snapshot", async () => {
+    const { page } = await createAcceptedUpdate();
+    const candidate = await checkpoints().createCandidate(page.itemId);
+    await checkpoints().verifyCandidate(page.itemId, candidate.id as Uuid);
+    await closeRevisionWindow(page.itemId);
+
+    const state = await harness.api.built.database.db.execute(sql`
+      SELECT last_revision_id
+        FROM page_operation_states
+       WHERE page_id = ${page.itemId}::uuid
+    `);
+    const revisionId = (
+      state as unknown as { rows: Array<{ last_revision_id: Uuid | null }> }
+    ).rows[0]?.last_revision_id;
+    if (revisionId === null || revisionId === undefined) {
+      throw new Error("the active page has no visible revision");
+    }
+    const protectedContent = harness.api.built.context.protectedContent;
+    if (protectedContent === undefined) throw new Error("protected content is unavailable");
+    const retained = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
+      harness.api.built.database.db,
+      revisionId,
+    );
+    if (retained === null) throw new Error("the visible revision has no protected snapshot");
+    await harness.api.built.database.db.execute(sql`
+      UPDATE revisions
+         SET snapshot = ${JSON.stringify(retained)}::jsonb
+       WHERE id = ${revisionId}::uuid
+    `);
+    await harness.api.built.database.db.execute(sql`
+      DELETE FROM protected_envelopes
+       WHERE entity_type = 'revision.snapshot' AND entity_id = ${revisionId}::uuid
+    `);
+
+    const history = harness.api.built.pageHistory;
+    if (history === undefined) throw new Error("page history service is unavailable");
+    const allowed = await harness.api.built.database.db.transaction((tx) =>
+      history.historyAllowsCompaction(tx, {
+        workspaceId: harness.api.built.context.workspaceId,
+        pageId: page.itemId,
+        checkpointId: candidate.id as Uuid,
+        throughPageSequence: candidate.throughPageSequence,
+        snapshotDigest: candidate.snapshotDigest,
+        canonicalDigest: candidate.canonicalDigest,
+      }),
+    );
+    expect(allowed).toBe(false);
+  });
+
   it("refuses to compact while a restoration is unfinished", async () => {
     const { page } = await createAcceptedUpdate();
     const candidate = await checkpoints().createCandidate(page.itemId);

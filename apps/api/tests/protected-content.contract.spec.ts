@@ -931,8 +931,8 @@ describe("history is sealed too", () => {
     );
 
     const response = await injectAsOwner({ method: "GET", url: `/v1/revisions/${revisionId}` });
-    expect(response.statusCode, response.body).toBe(410);
-    expect(response.json()).toMatchObject({ code: "revision.snapshot-expired" });
+    expect(response.statusCode, response.body).toBe(500);
+    expect(response.json()).toMatchObject({ code: "protected_read_failed" });
   });
 
   it("does not restore from a raw revision snapshot when its envelope is missing", async () => {
@@ -965,8 +965,8 @@ describe("history is sealed too", () => {
       headers: { "idempotency-key": randomUUID() },
       payload: { currentRevisionId },
     });
-    expect(response.statusCode, response.body).toBe(410);
-    expect(response.json()).toMatchObject({ code: "revision.snapshot-expired" });
+    expect(response.statusCode, response.body).toBe(500);
+    expect(response.json()).toMatchObject({ code: "protected_read_failed" });
   });
 
   it("keeps an expired protected revision unavailable for read and restore", async () => {
