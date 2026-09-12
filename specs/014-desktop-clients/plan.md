@@ -12,7 +12,7 @@ server deployment target or bypassing the guarded migration.
 
 ## Summary
 
-**Prochain travail d'implémentation**, avant la clôture V1. La chaîne Bun 1.4.0
+**Prochain travail d'implémentation**, avant la clôture V1. La chaîne Bun 1.4.2
 est déjà exclusive (feature 019) ; ce plan n'introduit ni pnpm ni Node.js
 first-party.
 
@@ -47,7 +47,7 @@ proxy métier ni un serveur local.
 
 ## Technical Context
 
-**Language/Version**: TypeScript strict; Bun `1.4.0` exactement pour les dépendances workspace, les scripts et l'outillage first-party. Electron (version épinglée) est le runtime hôte de l'application packagée, pas un second gestionnaire de paquets.
+**Language/Version**: TypeScript strict; Bun `1.4.2` exactement pour les dépendances workspace, les scripts et l'outillage first-party. Electron (version épinglée) est le runtime hôte de l'application packagée, pas un second gestionnaire de paquets.
 
 **Primary Dependencies**: Electron version épinglée; Electron Forge et makers
 Windows, macOS et Linux épinglés; Bun.build; React; `@myownnotion/client-core`, `contracts`,
@@ -602,3 +602,30 @@ assertions/deadlines; renew all local, image, PR and main gates.
 Sources: https://github.com/oven-sh/bun/pull/39966 and
 https://bun.sh/blog/bun-v1.4.1 (Windows corrections); 1.4.2 includes subsequent
 regression corrections documented at https://bun.sh/blog/bun-v1.4.2.
+
+
+## T106 — editor dependency security maintenance (2026-09-12)
+
+The production dependency gate now reports GHSA-j95f-988m-3j2f against
+Tiptap core 3.30.1. The advisory identifies quadratic parsing of crafted
+Markdown attributes and names 3.30.5 as the patched version. This is a release
+security maintenance requirement under constitution III/IV and the existing
+local/PR/main gate; no new product behavior is introduced. Direct application
+reachability of those optional Markdown helpers is not asserted.
+
+Upgrade the six direct Tiptap dependencies and their compatible transitive
+family to 3.30.5 using Bun, retaining one editor core/ProseMirror identity and
+BlockNote 0.54.0. The root manifest pins the 30 Tiptap family packages through
+Bun overrides: a direct update alone retains older BlockNote resolutions and
+selects newer optional menu peers, whose exact core requirements conflict.
+These overrides keep one compatible patch family; review them together at the
+next editor upgrade and remove them only when a frozen install resolves one
+compatible family without them. Avoid unrelated dependency upgrades. Verify that both ordinary
+and crafted complete block/inline tokenizer inputs finish correctly in a bounded
+subprocess, run existing editor compatibility checks and strict types, and then
+renew the complete exact-commit gate and image scans. Do not add an audit waiver
+or relax browser/performance assertions. The interrupted a037fb15 local gate
+passed prebrowser checks, Chromium and Firefox; it is not delivery evidence.
+
+References: [advisory](https://github.com/advisories/GHSA-j95f-988m-3j2f),
+[upstream patch release](https://github.com/ueberdosis/tiptap/releases/tag/v3.30.5).
