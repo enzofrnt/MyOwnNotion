@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FULL_BACKUP_FORMAT,
   type FullBackupManifest,
+  isV0FullBackupSource,
   readFullBackupManifest,
   sourceVersionLabel,
   UNKNOWN_SOURCE_VERSION,
@@ -28,6 +29,23 @@ function manifest(): FullBackupManifest {
   };
 }
 describe("complete-backup inventory", () => {
+  it("recognizes V0 only from the version and migration inventory together", () => {
+    const source = manifest().source;
+    expect(isV0FullBackupSource(source)).toBe(true);
+    expect(
+      isV0FullBackupSource({
+        ...source,
+        applicationVersion: "0.1.0",
+      }),
+    ).toBe(false);
+    expect(
+      isV0FullBackupSource({
+        ...source,
+        appliedMigrations: [...source.appliedMigrations, "0006_installation_application_version"],
+      }),
+    ).toBe(false);
+  });
+
   it("preserves unknown source provenance without inventing the target version", () => {
     const parsed = readFullBackupManifest(manifest());
     expect(parsed.source.applicationVersion).toBeNull();

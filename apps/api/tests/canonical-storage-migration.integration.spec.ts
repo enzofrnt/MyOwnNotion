@@ -12,6 +12,18 @@ import { ProtectedRecordService } from "../src/security/protected-record-service
 import { createItemViaApi } from "./helpers/app.ts";
 import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 
+const v0SourceBackup = (backupId: string) => ({
+  backupId,
+  source: {
+    installationId: null,
+    applicationVersion: null,
+    commit: null,
+    image: null,
+    postgresVersion: 180004,
+    appliedMigrations: ["0001_initial"],
+  },
+});
+
 it("migrates authored legacy placeholder names without confusing them with scrub state", async () => {
   const harness = await createProtectedFileHarness();
   try {
@@ -108,7 +120,7 @@ it("migrates authored legacy placeholder names without confusing them with scrub
       files,
       records,
       blobRoot: harness.blobRoot,
-      verifySourceBackup: async () => {},
+      verifySourceBackup: async (backupId) => v0SourceBackup(backupId),
     });
     const transition = await migration.prepare(generateUuidV7());
     while (await migration.publishMetadataNext(transition.id)) {
@@ -328,7 +340,7 @@ it("migrates an authored legacy protected payload in a page and retained snapsho
       files,
       records,
       blobRoot: harness.blobRoot,
-      verifySourceBackup: async () => {},
+      verifySourceBackup: async (backupId) => v0SourceBackup(backupId),
     });
     const transition = await migration.prepare(generateUuidV7());
     while (await migration.publishMetadataNext(transition.id)) {
@@ -400,7 +412,7 @@ it("migrates authored legacy protected relationship metadata", async () => {
       files,
       records,
       blobRoot: harness.blobRoot,
-      verifySourceBackup: async () => {},
+      verifySourceBackup: async (backupId) => v0SourceBackup(backupId),
     });
     const transition = await migration.prepare(generateUuidV7());
     while (await migration.publishMetadataNext(transition.id)) {
@@ -425,6 +437,68 @@ it("migrates authored legacy protected relationship metadata", async () => {
     await harness.close();
   }
 });
+
+it.each(["missing", "modern"] as const)(
+  "refuses a reserved plaintext payload before inventory when V0 provenance is %s",
+  async (provenance) => {
+    const harness = await createProtectedFileHarness();
+    try {
+      const { db, protectedContent: content, protectedFiles: files } = harness.built.context;
+      if (content === undefined || files === undefined) throw new Error("Missing protected runtime");
+      const page = await createItemViaApi(harness, { kind: "page", name: "Provenance guard" });
+      await db.transaction(async (tx) => {
+        await tx
+          .update(schema.pageDocuments)
+          .set({ body: PROTECTED_PAYLOAD })
+          .where(eq(schema.pageDocuments.pageId, page.itemId));
+        await tx
+          .delete(schema.protectedEnvelopes)
+          .where(
+            and(
+              eq(schema.protectedEnvelopes.entityId, page.itemId),
+              eq(schema.protectedEnvelopes.entityType, "page.body"),
+            ),
+          );
+      });
+      const records = new ProtectedRecordService({
+        db,
+        keys: files.deps.keys,
+        workspaceId: files.deps.workspaceId,
+        installationId: files.deps.installationId,
+        now: () => new Date(),
+      });
+      const migration = new FileStorageMigration({
+        db,
+        files,
+        records,
+        blobRoot: harness.blobRoot,
+        verifySourceBackup:
+          provenance === "missing"
+            ? async () => {}
+            : async (backupId) => ({
+                backupId,
+                source: {
+                  installationId: files.deps.installationId,
+                  applicationVersion: "0.1.0",
+                  commit: null,
+                  image: null,
+                  postgresVersion: 180004,
+                  appliedMigrations: [
+                    "0001_initial",
+                    "0006_installation_application_version",
+                  ],
+                },
+              }),
+      });
+
+      await expect(migration.prepare(generateUuidV7())).rejects.toThrow(/unavailable|reserved/);
+      expect(await db.select().from(schema.fileStorageTransitions)).toHaveLength(0);
+      expect(await db.select().from(schema.fileStorageTransitionEntries)).toHaveLength(0);
+    } finally {
+      await harness.close();
+    }
+  },
+);
 
 it("resumes private historical metadata backfill without replacing authoritative envelopes with stale readable copies", async () => {
   const harness = await createProtectedFileHarness();
