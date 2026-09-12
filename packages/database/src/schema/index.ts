@@ -317,6 +317,10 @@ export const protectedUploadCompletions = pgTable(
   ],
 );
 
+/**
+ * Bounded physical-GC ledger. Writers insert a key before publication and
+ * acknowledge it after canonical rows commit; retired rows use the same path.
+ */
 export const protectedFileGarbage = pgTable(
   "protected_file_garbage",
   {

@@ -79,6 +79,13 @@ describe("shared protected file runtime", () => {
     const committed = await database.db.transaction((tx) =>
       runtime.files.ingest(tx, source(Buffer.from("canonical bytes")), { maxBytes: 100 }),
     );
+    expect(
+      (
+        await database.db.execute(
+          sql`SELECT storage_key FROM protected_file_garbage WHERE workspace_id = ${workspaceId}`,
+        )
+      ).rows,
+    ).toEqual([]);
     const before = await listBlobFiles(root);
     const failedId = generateUuidV7();
 
@@ -94,8 +101,9 @@ describe("shared protected file runtime", () => {
 
     const afterRollback = await listBlobFiles(root);
     expect(afterRollback.length).toBeGreaterThan(before.length);
-    expect((await database.db.execute(sql`SELECT id FROM file_contents WHERE id = ${failedId}`)).rows)
-      .toEqual([]);
+    expect(
+      (await database.db.execute(sql`SELECT id FROM file_contents WHERE id = ${failedId}`)).rows,
+    ).toEqual([]);
 
     await expect(cleanupProtectedFiles(database.db, runtime.files, now())).resolves.toMatchObject({
       deleted: 1,
@@ -104,6 +112,62 @@ describe("shared protected file runtime", () => {
     expect(await collect(runtime.files.read(database.db, committed.contentId))).toEqual(
       Buffer.from("canonical bytes"),
     );
+  });
+
+  it("reclaims a key when physical publication fails after the blob is durable", async () => {
+    const before = await listBlobFiles(root);
+    const put = runtime.blobs.put.bind(runtime.blobs);
+    const failure = vi.spyOn(runtime.blobs, "put").mockImplementationOnce(async (...args) => {
+      await put(...args);
+      throw new Error("process failed after blob publication");
+    });
+    try {
+      await expect(
+        database.db.transaction((tx) =>
+          runtime.files.ingest(tx, source(Buffer.from("published then failed")), { maxBytes: 100 }),
+        ),
+      ).rejects.toThrow("process failed after blob publication");
+    } finally {
+      failure.mockRestore();
+    }
+
+    expect((await listBlobFiles(root)).length).toBeGreaterThan(before.length);
+    const pending = await database.db.execute(
+      sql`SELECT storage_key FROM protected_file_garbage WHERE workspace_id = ${workspaceId}`,
+    );
+    expect(pending.rows).toHaveLength(1);
+    await expect(cleanupProtectedFiles(database.db, runtime.files, now())).resolves.toMatchObject({
+      deleted: 1,
+    });
+    expect(await listBlobFiles(root)).toEqual(before);
+  });
+
+  it("reclaims chunks when protected manifest publication fails after ingest", async () => {
+    const before = await listBlobFiles(root);
+    const writeManifest = runtime.content.writeFileManifest.bind(runtime.content);
+    const failure = vi
+      .spyOn(runtime.content, "writeFileManifest")
+      .mockImplementationOnce(async (...args) => {
+        await writeManifest(...args);
+        throw new Error("protected publication failed");
+      });
+    try {
+      await expect(
+        database.db.transaction((tx) =>
+          runtime.files.ingest(tx, source(Buffer.from("manifest publication failed")), {
+            maxBytes: 100,
+          }),
+        ),
+      ).rejects.toThrow("protected publication failed");
+    } finally {
+      failure.mockRestore();
+    }
+
+    expect((await listBlobFiles(root)).length).toBeGreaterThan(before.length);
+    await expect(cleanupProtectedFiles(database.db, runtime.files, now())).resolves.toMatchObject({
+      deleted: 1,
+    });
+    expect(await listBlobFiles(root)).toEqual(before);
   });
 
   it("pins download bytes against maintenance and releases the lock on cancellation and failure", async () => {

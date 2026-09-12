@@ -10,7 +10,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
 import { type FileHandle, link, lstat, mkdir, open, rm } from "node:fs/promises";
 import path from "node:path";
-import type { BlobStore, StoredBlob } from "./blob-store.ts";
+import type { BlobPutOptions, BlobStore, StoredBlob } from "./blob-store.ts";
 
 function digestHex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
@@ -65,7 +65,7 @@ export class FilesystemBlobStore implements BlobStore {
     return path.join(this.#root, storageKey.slice(0, 2), storageKey);
   }
 
-  async put(bytes: Uint8Array): Promise<StoredBlob> {
+  async put(bytes: Uint8Array, options?: BlobPutOptions): Promise<StoredBlob> {
     const hex = digestHex(bytes);
     const finalPath = this.#pathFor(hex);
     await mkdir(this.#root, { recursive: true, mode: 0o700 });
@@ -80,6 +80,7 @@ export class FilesystemBlobStore implements BlobStore {
       path.dirname(finalPath),
       `.tmp-${randomBytes(8).toString("hex")}`,
     );
+    await options?.beforeWrite?.(hex);
     const handle = await open(temporaryPath, "wx+", 0o600);
     try {
       let offset = 0;

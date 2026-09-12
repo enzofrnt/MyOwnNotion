@@ -16,7 +16,7 @@ import {
   type ProtectedFileManifest,
   type Uuid,
 } from "@myownnotion/domain";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   lockFullFileMaintenance,
   shareFullBlobDeletion,
@@ -44,6 +44,7 @@ export class ProtectedFileUnavailableError extends Error {
 }
 
 export interface ProtectedFileServiceDeps {
+  readonly db: Database;
   readonly installationId: string;
   readonly workspaceId: string;
   readonly blobs: BlobStore;
@@ -59,9 +60,29 @@ export class ProtectedFileService {
   chunkStore(executor: Database | Transaction): EncryptedChunkStore {
     return new EncryptedChunkStore({
       blobs: this.deps.blobs,
+      beforeBlobWrite: (storageKey) => this.registerBlobWriteIntent(storageKey),
       dataKey: async (generation) =>
         (await this.deps.keys.dataKey(executor, { generation, writable: false })).material,
     });
+  }
+
+  private async registerBlobWriteIntent(storageKey: string): Promise<void> {
+    await this.deps.db
+      .insert(schema.protectedFileGarbage)
+      .values({ storageKey, workspaceId: this.deps.workspaceId, createdAt: this.deps.now() })
+      .onConflictDoNothing();
+  }
+
+  /** A canonical row in the surrounding transaction now owns this ciphertext. */
+  async acknowledgeBlobWrite(tx: Transaction, storageKey: string): Promise<void> {
+    await tx
+      .delete(schema.protectedFileGarbage)
+      .where(
+        and(
+          eq(schema.protectedFileGarbage.storageKey, storageKey),
+          eq(schema.protectedFileGarbage.workspaceId, this.deps.workspaceId),
+        ),
+      );
   }
 
   scope(kind: "content" | "upload", id: string) {
@@ -180,6 +201,7 @@ export class ProtectedFileService {
       if (!equal) continue;
       await shareFullBlobDeletion(tx);
       for (const chunk of chunks) await this.deps.blobs.delete(chunk.storageKey);
+      for (const chunk of chunks) await this.acknowledgeBlobWrite(tx, chunk.storageKey);
       return {
         contentId: candidate.contentId as Uuid,
         sha256,
@@ -229,7 +251,10 @@ export class ProtectedFileService {
         })
         .where(eq(schema.fileContents.id, contentId));
     }
-    for (const chunk of chunks) await putProtectedFileChunk(tx, scope, chunk, verifiedAt);
+    for (const chunk of chunks) {
+      await putProtectedFileChunk(tx, scope, chunk, verifiedAt);
+      await this.acknowledgeBlobWrite(tx, chunk.storageKey);
+    }
     await this.deps.content.writeFileManifest(tx, manifest);
     return {
       contentId,

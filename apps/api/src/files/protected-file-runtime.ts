@@ -12,6 +12,7 @@ export function createProtectedFileRuntime(
   const runtime = createProtectedContentRuntime(input);
   const blobs = new FilesystemBlobStore(input.blobRoot);
   const files = new ProtectedFileService({
+    db: input.db,
     installationId: input.installationId ?? INSTALLATION_ID,
     workspaceId: input.workspaceId,
     blobs,

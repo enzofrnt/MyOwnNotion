@@ -119,6 +119,8 @@ export function splitIntoChunks(
 
 export interface EncryptedChunkStoreDeps {
   readonly blobs: BlobStore;
+  /** Registers a key durably before its ciphertext is published. */
+  readonly beforeBlobWrite?: (storageKey: string) => Promise<void>;
   /** The data key for the generation in `binding`. Never stored here. */
   readonly dataKey: (generation: number) => Promise<Uint8Array>;
   /**
@@ -179,7 +181,12 @@ export class EncryptedChunkStore {
       const salt = randomSalt();
       recordKey = deriveRecordKey(key, salt, `${entityType(binding)}:${chunkIndex}`);
       const sealed = seal(recordKey, bytes, aadBytes(bound), randomNonce());
-      const stored = await this.#deps.blobs.put(sealed.ciphertext);
+      const stored = await this.#deps.blobs.put(
+        sealed.ciphertext,
+        this.#deps.beforeBlobWrite === undefined
+          ? undefined
+          : { beforeWrite: this.#deps.beforeBlobWrite },
+      );
       return {
         chunkIndex,
         storageKey: stored.storageKey,

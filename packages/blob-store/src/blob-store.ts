@@ -17,13 +17,21 @@ export interface StoredBlob {
   readonly verifiedAt: Date;
 }
 
+export interface BlobPutOptions {
+  /**
+   * Runs after the storage key is known and immediately before physical write.
+   * Implementations must await it before creating or modifying the blob.
+   */
+  readonly beforeWrite?: (storageKey: string) => Promise<void>;
+}
+
 export interface BlobStore {
   /**
    * Stores bytes immutably and returns the locator plus verified digest.
    * Implementations must verify what they wrote (digest of the persisted
    * bytes) before reporting success.
    */
-  put(bytes: Uint8Array): Promise<StoredBlob>;
+  put(bytes: Uint8Array, options?: BlobPutOptions): Promise<StoredBlob>;
 
   /** Reads the complete bytes for a locator; null when absent. */
   get(storageKey: string): Promise<Uint8Array | null>;

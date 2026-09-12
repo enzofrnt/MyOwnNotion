@@ -209,8 +209,10 @@ export class ProtectedUploadService {
     for await (const chunk of store.writeStream(combined, binding, startIndex))
       replacement.push(chunk);
     const chunks = [...existing.slice(0, startIndex), ...replacement];
-    for (const chunk of replacement)
+    for (const chunk of replacement) {
       await putProtectedFileChunk(tx, scope, chunk, this.files.deps.now());
+      await this.files.acknowledgeBlobWrite(tx, chunk.storageKey);
+    }
     if (oldTail !== undefined)
       await queueProtectedFileGarbage(tx, scope.workspaceId, [oldTail.storageKey]);
     await this.files.deps.content.writeFileManifest(tx, {
