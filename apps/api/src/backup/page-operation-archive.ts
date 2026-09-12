@@ -218,11 +218,11 @@ function requireDigest(value: unknown, path: string): asserts value is string {
 }
 
 function requireTimestamp(value: unknown, path: string): asserts value is string {
-  if (
-    typeof value !== "string" ||
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) ||
-    new Date(value).toISOString() !== value
-  ) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
+    throw new TypeError(`operational backup ${path} must be a timestamp`);
+  }
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
     throw new TypeError(`operational backup ${path} must be a timestamp`);
   }
 }
