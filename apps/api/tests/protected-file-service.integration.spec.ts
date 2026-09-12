@@ -178,18 +178,24 @@ describe("shared protected file runtime", () => {
         maxBytes: 100,
       }),
     );
+    let observing = true;
+    const primaryPoolWait = (async () => {
+      while (observing && database.pool.waitingCount === 0) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      return database.pool.waitingCount > 0 ? ("blocked" as const) : ("stopped" as const);
+    })();
     try {
       const outcome = await Promise.race([
         pending.then(() => "completed" as const),
-        new Promise<"blocked">((resolve) => {
-          const timer = setTimeout(() => resolve("blocked"), 1_000);
-          timer.unref();
-        }),
+        primaryPoolWait,
       ]);
       expect(outcome).toBe("completed");
     } finally {
+      observing = false;
       for (const client of held) client.release();
       await pending;
+      await primaryPoolWait;
     }
   });
 
