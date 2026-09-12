@@ -160,6 +160,57 @@ function validateProducedV2(manifest: BackupManifest, canonicalExport: string): 
   }
 }
 
+function validateOperationalState(
+  manifest: BackupManifest,
+  operationalState: string | null,
+): string | null {
+  if (manifest.operationalStateDigest === undefined) {
+    return operationalState === null
+      ? null
+      : "This archive contains operational page state that its manifest does not declare.";
+  }
+  if (operationalState === null) {
+    return "This archive is missing the operational page state declared by its manifest.";
+  }
+  const operationalBytes = Buffer.from(operationalState, "utf8");
+  if (sha256(operationalBytes) !== manifest.operationalStateDigest) {
+    return "The operational page state does not match the digest recorded in the manifest.";
+  }
+  let operational: PageOperationArchive;
+  try {
+    operational = readPageOperationArchive(JSON.parse(operationalState));
+  } catch {
+    return "The operational page state is not valid.";
+  }
+  if (
+    manifest.operationalFormatVersion !== PAGE_OPERATION_ARCHIVE_VERSION ||
+    operational.formatVersion !== manifest.operationalFormatVersion ||
+    operational.counts.pages !== manifest.operationalPageCount ||
+    operational.counts.checkpoints !== manifest.operationalCheckpointCount ||
+    operational.counts.updates !== manifest.operationalUpdateCount
+  ) {
+    return "The operational page state does not contain the version and counts its manifest records.";
+  }
+  return null;
+}
+
+function validateEncodedFiles(manifest: BackupManifest, files: ReadonlyMap<string, Buffer>): void {
+  const contents = compareArchiveContents(manifest, files.keys());
+  if (contents.missing.length > 0 || contents.unexpected.length > 0) {
+    throw new Error("The encoded archive files do not match its manifest inventory.");
+  }
+  for (const expected of manifest.files) {
+    const bytes = files.get(expected.digest);
+    if (
+      bytes === undefined ||
+      bytes.byteLength !== expected.byteLength ||
+      sha256(bytes) !== expected.digest
+    ) {
+      throw new Error("An encoded archive file does not match its authenticated inventory.");
+    }
+  }
+}
+
 function writeText(target: Buffer, offset: number, width: number, value: string): void {
   const encoded = Buffer.from(value, "utf8");
   if (encoded.byteLength > width) {
@@ -203,8 +254,11 @@ function encodeEntry(name: string, bytes: Buffer, modifiedAt: Date): Buffer[] {
   return [entryHeader(name, bytes.byteLength, modifiedAt), bytes, Buffer.alloc(padding)];
 }
 
-/** Builds the exact layout documented in contracts/backup-archive.md. */
-export function encodeBackupArchive(input: {
+/**
+ * Builds the exact layout for malformed archive fixtures and low-level parser tests.
+ * Runtime producers must use encodeBackupArchive or streamBackupArchive.
+ */
+export function encodeUncheckedBackupArchive(input: {
   readonly manifest: BackupManifest;
   readonly canonicalExport: string;
   readonly operationalState?: string | null;
@@ -239,6 +293,25 @@ export function encodeBackupArchive(input: {
   return Buffer.concat(parts);
 }
 
+/** Encodes a V2 archive only after the same preflight used by the stream. */
+export function encodeBackupArchive(input: {
+  readonly manifest: BackupManifest;
+  readonly canonicalExport: string;
+  readonly operationalState?: string | null;
+  readonly files: ReadonlyMap<string, Buffer>;
+}): Buffer {
+  if (input.manifest.formatVersion === BACKUP_FORMAT_VERSION) {
+    validateProducedV2(input.manifest, input.canonicalExport);
+    const operationalProblem = validateOperationalState(
+      input.manifest,
+      input.operationalState ?? null,
+    );
+    if (operationalProblem !== null) throw new Error(operationalProblem);
+    validateEncodedFiles(input.manifest, input.files);
+  }
+  return encodeUncheckedBackupArchive(input);
+}
+
 /** Same TAR layout, with attachment chunks flowing directly into the sealer. */
 export async function* streamBackupArchive(input: {
   readonly manifest: BackupManifest;
@@ -249,6 +322,11 @@ export async function* streamBackupArchive(input: {
   const modifiedAt = new Date(input.manifest.createdAt);
   if (Number.isNaN(modifiedAt.getTime())) throw new Error("The backup creation date is invalid.");
   validateProducedV2(input.manifest, input.canonicalExport);
+  const operationalProblem = validateOperationalState(
+    input.manifest,
+    input.operationalState ?? null,
+  );
+  if (operationalProblem !== null) throw new Error(operationalProblem);
   yield* encodeEntry(MANIFEST_PATH, Buffer.from(JSON.stringify(input.manifest)), modifiedAt);
   yield* encodeEntry(CANONICAL_EXPORT_PATH, Buffer.from(input.canonicalExport), modifiedAt);
   if (input.operationalState != null)
@@ -477,47 +555,8 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
       };
     }
   }
-  if (manifest.operationalStateDigest === undefined) {
-    if (body.operationalState !== null) {
-      return {
-        ok: false,
-        reason: "This archive contains operational page state that its manifest does not declare.",
-      };
-    }
-  } else {
-    if (body.operationalState === null) {
-      return {
-        ok: false,
-        reason: "This archive is missing the operational page state declared by its manifest.",
-      };
-    }
-    const operationalBytes = Buffer.from(body.operationalState, "utf8");
-    if (sha256(operationalBytes) !== manifest.operationalStateDigest) {
-      return {
-        ok: false,
-        reason: "The operational page state does not match the digest recorded in the manifest.",
-      };
-    }
-    let operational: PageOperationArchive;
-    try {
-      operational = readPageOperationArchive(JSON.parse(body.operationalState));
-    } catch {
-      return { ok: false, reason: "The operational page state is not valid." };
-    }
-    if (
-      manifest.operationalFormatVersion !== PAGE_OPERATION_ARCHIVE_VERSION ||
-      operational.formatVersion !== manifest.operationalFormatVersion ||
-      operational.counts.pages !== manifest.operationalPageCount ||
-      operational.counts.checkpoints !== manifest.operationalCheckpointCount ||
-      operational.counts.updates !== manifest.operationalUpdateCount
-    ) {
-      return {
-        ok: false,
-        reason:
-          "The operational page state does not contain the version and counts its manifest records.",
-      };
-    }
-  }
+  const operationalProblem = validateOperationalState(manifest, body.operationalState);
+  if (operationalProblem !== null) return { ok: false, reason: operationalProblem };
   for (const expected of manifest.files) {
     const bytes = body.files.get(expected.digest) ?? Buffer.alloc(0);
     if (bytes.byteLength !== expected.byteLength || sha256(bytes) !== expected.digest) {

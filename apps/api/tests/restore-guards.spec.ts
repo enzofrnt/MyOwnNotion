@@ -15,7 +15,7 @@
 import { createHash } from "node:crypto";
 import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, type BackupManifest } from "@myownnotion/domain";
 import { describe, expect, it, vi } from "vitest";
-import { encodeBackupArchive } from "../src/backup/archive-format.ts";
+import { encodeUncheckedBackupArchive } from "../src/backup/archive-format.ts";
 import {
   applyArchive,
   PREFLIGHT_ORDER,
@@ -24,6 +24,11 @@ import {
 } from "../src/backup/restore-service.ts";
 
 const DIGEST = `sha256:${createHash("sha256").update("abc").digest("hex")}`;
+const TEST_WORKSPACE = "00000000-0000-7000-8000-000000000001";
+const TEST_ITEM = "00000000-0000-7000-8000-000000000002";
+const TEST_REVISION = "00000000-0000-7000-8000-000000000003";
+const TEST_MUTATION = "00000000-0000-7000-8000-000000000004";
+const TEST_RELATIONSHIP = "00000000-0000-7000-8000-000000000005";
 
 /**
  * A well-formed archive, with the manifest merged rather than replaced.
@@ -43,21 +48,21 @@ function archive(
     JSON.stringify({
       format: "myownnotion.export+json",
       formatVersion: 2,
-      workspaceId: "workspace",
+      workspaceId: TEST_WORKSPACE,
       schemaVersion: 1,
       exportedAt: "2026-08-18T04:00:00.000Z",
       changeCursor: "42",
       items: [
         {
-          id: "one",
-          workspaceId: "workspace",
+          id: TEST_ITEM,
+          workspaceId: TEST_WORKSPACE,
           kind: "file",
           name: "one",
           icon: null,
           lifecycle: "active",
           trashedAt: null,
           purgeAfter: null,
-          currentRevisionId: "revision",
+          currentRevisionId: TEST_REVISION,
           favourite: false,
           offlineIntent: false,
           pageDocument: null,
@@ -75,9 +80,9 @@ function archive(
       relationships: [],
       revisions: [
         {
-          id: "revision",
-          itemId: "one",
-          mutationId: "mutation",
+          id: TEST_REVISION,
+          itemId: TEST_ITEM,
+          mutationId: TEST_MUTATION,
           parentRevisionIds: [],
           acceptedAt: "2026-08-18T04:00:00.000Z",
         },
@@ -107,7 +112,7 @@ function archive(
     fileCount: 1,
     ...manifestOverrides,
   };
-  return encodeBackupArchive({
+  return encodeUncheckedBackupArchive({
     manifest,
     canonicalExport,
     files: includeFile ? new Map([[DIGEST, Buffer.from("abc")]]) : new Map(),
@@ -273,21 +278,21 @@ describe("writing a checked archive", () => {
     const canonicalExport = JSON.stringify({
       format: "myownnotion.export+json",
       formatVersion: 2,
-      workspaceId: "workspace",
+      workspaceId: TEST_WORKSPACE,
       schemaVersion: 1,
       exportedAt: "2026-08-18T04:00:00.000Z",
       changeCursor: "42",
       items: [
         {
-          id: "one",
-          workspaceId: "workspace",
+          id: TEST_ITEM,
+          workspaceId: TEST_WORKSPACE,
           kind: "page",
           name: "one",
           icon: null,
           lifecycle: "active",
           trashedAt: null,
           purgeAfter: null,
-          currentRevisionId: "revision",
+          currentRevisionId: TEST_REVISION,
           favourite: false,
           offlineIntent: false,
           pageDocument: {
@@ -303,21 +308,21 @@ describe("writing a checked archive", () => {
       databaseEntries: [],
       relationships: [
         {
-          id: "relationship",
-          workspaceId: "workspace",
-          sourceItemId: "one",
-          targetItemId: "one",
+          id: TEST_RELATIONSHIP,
+          workspaceId: TEST_WORKSPACE,
+          sourceItemId: TEST_ITEM,
+          targetItemId: TEST_ITEM,
           relationType: "mention:reference",
           metadata: marker,
-          createdRevisionId: "revision",
+          createdRevisionId: TEST_REVISION,
           removedRevisionId: null,
         },
       ],
       revisions: [
         {
-          id: "revision",
-          itemId: "one",
-          mutationId: "mutation",
+          id: TEST_REVISION,
+          itemId: TEST_ITEM,
+          mutationId: TEST_MUTATION,
           parentRevisionIds: [],
           acceptedAt: "2026-08-18T04:00:00.000Z",
         },
@@ -333,7 +338,7 @@ describe("writing a checked archive", () => {
         databaseEntries: 0,
       },
     });
-    return encodeBackupArchive({
+    return encodeUncheckedBackupArchive({
       manifest: {
         format: BACKUP_FORMAT,
         formatVersion,

@@ -83,8 +83,11 @@ version 2 producer refuses it before sealing; longer authored names containing
 that character remain valid. The exact protected-content object marker is also
 reserved at the page-document and relationship-metadata boundaries. Version 2
 production validates the complete canonical export before the first archive
-byte is sealed, and the restore inspector repeats that validation before
-`target.begin` or any write.
+byte is sealed, including operational-state presence, JSON, digest, version and
+count claims. The restore inspector repeats that validation before `target.begin`
+or any write. The checked encoder and streaming producer share these checks;
+the unchecked encoder is test-only infrastructure for constructing corrupt
+archives that exercise the inspector.
 
 The TAR terminator is canonical: exactly two consecutive 512-byte zero blocks
 must end the archive, with no suffix bytes. A parser rejects one-block,

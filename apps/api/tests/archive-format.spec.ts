@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   decodeBackupArchive,
   encodeBackupArchive,
+  encodeUncheckedBackupArchive,
   inspectBackupArchive,
   streamBackupArchive,
 } from "../src/backup/archive-format.ts";
@@ -154,6 +155,38 @@ describe("streaming archive writing", () => {
     });
     await expect(stream.next()).rejects.toThrow(/creation date/);
   });
+
+  it("refuses undeclared operational state before emitting output", async () => {
+    const canonical = emptyCanonical();
+    const manifest = manifestFor(canonical, [], { formatVersion: 2 });
+    const stream = streamBackupArchive({
+      manifest,
+      canonicalExport: canonical,
+      operationalState: "{}",
+      readFile: async function* () {},
+    });
+    await expect(stream.next()).rejects.toThrow(/operational page state/i);
+  });
+
+  it("refuses malformed operational state before emitting output", async () => {
+    const canonical = emptyCanonical();
+    const operationalState = "not-json";
+    const manifest = manifestFor(canonical, [], {
+      formatVersion: 2,
+      operationalFormatVersion: 1,
+      operationalStateDigest: digest(Buffer.from(operationalState)),
+      operationalPageCount: 0,
+      operationalCheckpointCount: 0,
+      operationalUpdateCount: 0,
+    });
+    const stream = streamBackupArchive({
+      manifest,
+      canonicalExport: canonical,
+      operationalState,
+      readFile: async function* () {},
+    });
+    await expect(stream.next()).rejects.toThrow(/operational page state/i);
+  });
 });
 
 describe("portable TAR framing", () => {
@@ -243,6 +276,39 @@ describe("portable TAR framing", () => {
     invalidJson[firstEntryEnd(invalidJson) - BLOCK] = "!".charCodeAt(0);
     expect(() => decodeBackupArchive(invalidJson)).toThrow(/manifest is not valid JSON/);
   });
+
+  it("validates a V2 canonical export before encoding its first entry", () => {
+    const canonical = JSON.stringify({
+      format: "myownnotion.export+json",
+      formatVersion: 2,
+      workspaceId: "00000000-0000-7000-8000-000000000001",
+      schemaVersion: 1,
+      exportedAt: "2026-08-19T12:00:00.000Z",
+      changeCursor: "42",
+      items: [{ id: "item", name: "�", pageDocument: null, file: null, placements: [] }],
+      databases: [],
+      databaseEntries: [],
+      relationships: [],
+      revisions: [],
+      counts: {
+        items: 1,
+        activeItems: 1,
+        trashedItems: 0,
+        placements: 0,
+        relationships: 0,
+        revisions: 0,
+        databases: 0,
+        databaseEntries: 0,
+      },
+    });
+    expect(() =>
+      encodeBackupArchive({
+        manifest: manifestFor(canonical, [], { formatVersion: 2, itemCount: 1 }),
+        canonicalExport: canonical,
+        files: new Map(),
+      }),
+    ).toThrow(/reserved|replacement|canonical export/i);
+  });
 });
 
 describe("archive content inspection", () => {
@@ -253,7 +319,7 @@ describe("archive content inspection", () => {
   }) {
     const canonicalExport = input.canonical ?? JSON.stringify({ items: [] });
     return inspectBackupArchive(
-      encodeBackupArchive({
+      encodeUncheckedBackupArchive({
         manifest: input.manifest ?? manifestFor(canonicalExport),
         canonicalExport,
         files: input.files ?? new Map(),
@@ -322,12 +388,43 @@ describe("archive content inspection", () => {
       "00000000-0000-7000-8000-000000000014",
       "00000000-0000-7000-8000-000000000015",
     ];
+    const propertyId = "00000000-0000-7000-8000-000000000016";
+    const viewId = "00000000-0000-7000-8000-000000000017";
     const structured = {
       databases: [
         {
           databaseId,
           definitionVersion: 1,
-          definition: { databaseId },
+          definition: {
+            format: "myownnotion.database-definition+json",
+            formatVersion: 1,
+            databaseId,
+            properties: [
+              {
+                id: propertyId,
+                name: "Title",
+                type: "title",
+                positionKey: "a",
+                state: "active",
+                config: {},
+              },
+            ],
+            views: [
+              {
+                id: viewId,
+                name: "Table",
+                type: "table",
+                positionKey: "a",
+                state: "active",
+                properties: [{ propertyId, visible: true, positionKey: "a" }],
+                filter: { mode: "all", criteria: [] },
+                sorts: [],
+                group: null,
+                options: { density: "comfortable", freezeTitle: true },
+              },
+            ],
+            taskRoles: null,
+          },
         },
       ],
       databaseEntries: entryIds.map((entryId) => ({
@@ -335,7 +432,14 @@ describe("archive content inspection", () => {
         databaseId,
         valueVersion: 1,
         addedRevisionId: revisionIds[entryIds.indexOf(entryId) + 1],
-        values: { entryId, databaseId },
+        values: {
+          format: "myownnotion.database-entry-values+json",
+          formatVersion: 1,
+          entryId,
+          databaseId,
+          values: {},
+          preserved: [],
+        },
       })),
     };
     const canonical = JSON.stringify({
