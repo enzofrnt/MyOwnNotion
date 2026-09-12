@@ -171,6 +171,44 @@ describe("writing content through the ordinary routes", () => {
     });
   });
 
+  it("refuses restoring a retained title that collides with the storage placeholder", async () => {
+    const pageId = await createPage("Earlier title");
+    const earlier = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const earlierRevisionId = (earlier.json() as { currentRevisionId: string }).currentRevisionId;
+    const renamed = await injectAsOwner({
+      method: "PATCH",
+      url: `/v1/items/${pageId}`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { name: "Current title", baseRevisionId: earlierRevisionId },
+    });
+    expect(renamed.statusCode, renamed.body).toBe(200);
+    const currentRevisionId = (renamed.json() as { item: { currentRevisionId: string } }).item
+      .currentRevisionId;
+    const protectedContent = harness.built.context.protectedContent;
+    if (protectedContent === undefined) throw new Error("Protected content is unavailable");
+    const snapshot = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
+      harness.built.database.db,
+      earlierRevisionId,
+    );
+    if (snapshot === null) throw new Error("Retained snapshot is unavailable");
+    await protectedContent.writeRevisionSnapshot(harness.built.database.db, {
+      revisionId: earlierRevisionId,
+      snapshot: { ...snapshot, name: "\uFFFD" },
+    });
+
+    const response = await injectAsOwner({
+      method: "POST",
+      url: `/v1/revisions/${earlierRevisionId}/restore`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { currentRevisionId },
+    });
+
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json()).toMatchObject({ code: "validation.invalid-name" });
+    const after = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    expect(after.json()).toMatchObject({ name: "Current title", currentRevisionId });
+  });
+
   it("seals the title", async () => {
     await createPage(SECRET_TITLE);
     expect(await envelopeTypes()).toContain("item.name");

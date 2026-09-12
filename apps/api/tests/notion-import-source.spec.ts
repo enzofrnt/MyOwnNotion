@@ -94,6 +94,28 @@ it("bounds archive entry count even when entries are empty directories", async (
   });
 });
 describe("Notion source preview", () => {
+  it("blocks exact protected-storage placeholder names before apply", async () => {
+    const root = await fixture({
+      "Title.md": "# \uFFFD\n",
+      "\uFFFD": new Uint8Array([1, 2, 3]),
+    });
+    const plan = planNotionImport(await readImportSource(root));
+    expect(plan.report.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "import.invalid-name",
+          sourcePath: "Title.md",
+          blocking: true,
+        }),
+        expect.objectContaining({
+          code: "import.invalid-name",
+          sourcePath: "\uFFFD",
+          blocking: true,
+        }),
+      ]),
+    );
+  });
+
   it("preserves converted notes, attachments, properties, member identities and available tables", async () => {
     const root = await fixture({
       "Projects.md": "---\n---\n# Projects\n![[Projects.base]]\n",

@@ -248,6 +248,49 @@ describe("scoped MCP through the real official HTTP client", () => {
     );
     expect(auditResponse.body).not.toContain("MCP secret title");
   });
+  it("refuses the protected storage placeholder through MCP create and rename tools", async () => {
+    const { client } = await connect();
+    const rejectedId = generateUuidV7();
+    const created = await call(client, "create_item", {
+      mutationId: generateUuidV7(),
+      id: rejectedId,
+      kind: "page",
+      name: "\uFFFD",
+      parentId: branchId,
+      text: "Must never be accepted",
+    });
+    expect(created).toMatchObject({
+      isError: true,
+      value: { code: "validation.invalid-name" },
+    });
+    expect(
+      await harness.api.built.database.db
+        .select({ id: schema.items.id })
+        .from(schema.items)
+        .where(eq(schema.items.id, rejectedId)),
+    ).toEqual([]);
+
+    const itemId = generateUuidV7();
+    const accepted = await call(client, "create_item", {
+      mutationId: generateUuidV7(),
+      id: itemId,
+      kind: "page",
+      name: "Visible MCP title",
+      parentId: branchId,
+      text: "Retained body",
+    });
+    expect(accepted.isError).toBe(false);
+    const renamed = await call(client, "rename_item", {
+      mutationId: generateUuidV7(),
+      itemId,
+      name: "\uFFFD",
+    });
+    expect(renamed).toMatchObject({
+      isError: true,
+      value: { code: "validation.invalid-name" },
+    });
+    expect((await call(client, "read_item", { itemId })).value.name).toBe("Visible MCP title");
+  });
   it("isolates branches, independent actions and file access without private parent metadata", async () => {
     const page = await createItemViaApi(harness.api, {
       kind: "page",
