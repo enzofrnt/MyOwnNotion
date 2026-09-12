@@ -177,11 +177,28 @@ export class LegacyBranchService {
         409,
       );
     }
-    const retainedProtected = await this.#deps.protectedContent.readRevisionSnapshot<
-      Record<string, unknown>
-    >(tx, revision.id);
-    const retainedEnvelope = snapshotPageDocument(retainedProtected ?? revision.snapshot);
     const suppliedEnvelope = request.baseDocument;
+    const expired =
+      revision.snapshotExpiresAt !== null &&
+      Date.parse(revision.snapshotExpiresAt) <= this.#deps.now().getTime();
+    // A client-supplied base is self-contained and remains usable after the
+    // retention window. A server-retained base must pass both gates: its
+    // revision is still retained and its authenticated envelope is present.
+    const retainedProtected =
+      suppliedEnvelope === undefined || !expired
+        ? await this.#deps.protectedContent.readRevisionSnapshot<Record<string, unknown>>(
+            tx,
+            revision.id,
+          )
+        : null;
+    if (suppliedEnvelope === undefined && (expired || retainedProtected === null)) {
+      throw new PageOperationServiceError(
+        "page-operations.dependencies-missing",
+        "The legacy branch base snapshot is no longer retained and was not supplied.",
+        409,
+      );
+    }
+    const retainedEnvelope = snapshotPageDocument(retainedProtected);
     const baseEnvelope = suppliedEnvelope ?? retainedEnvelope;
     if (baseEnvelope === undefined) {
       throw new PageOperationServiceError(

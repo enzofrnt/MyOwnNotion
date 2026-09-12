@@ -301,9 +301,7 @@ describe("operational sync refusals", () => {
       },
     });
     expect(response.statusCode, response.body).toBe(409);
-    expect((response.json() as { code: string }).code).toBe(
-      "page-operations.dependencies-missing",
-    );
+    expect((response.json() as { code: string }).code).toBe("page-operations.dependencies-missing");
 
     const after = await harness.api.built.database.db.execute(sql`
       SELECT
@@ -367,9 +365,7 @@ describe("operational sync refusals", () => {
       payload: await createPayload(false),
     });
     expect(refused.statusCode, refused.body).toBe(409);
-    expect((refused.json() as { code: string }).code).toBe(
-      "page-operations.dependencies-missing",
-    );
+    expect((refused.json() as { code: string }).code).toBe("page-operations.dependencies-missing");
     const conversions = await harness.api.built.database.db.execute(sql`
       SELECT count(*)::int AS count
         FROM page_legacy_branch_conversions
