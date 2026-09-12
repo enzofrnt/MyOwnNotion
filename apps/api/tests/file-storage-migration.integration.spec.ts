@@ -549,10 +549,88 @@ it("upgrades an authenticated V1 inventory before resuming, without re-inventory
       sourceProvenance: source,
     });
     upgraded.fill(0);
+    expect((await db.select().from(schema.fileStorageTransitions))[0]?.phase).toBe("inventoried");
+    await migration.publishNext(prepared.id);
+    const afterAdvance = await records.read(db, {
+      entityType: "file.transition-inventory",
+      entityId: prepared.id,
+      recordVersion: 1,
+    });
+    if (afterAdvance === null) throw new Error("Missing inventory after resume");
+    expect(JSON.parse(Buffer.from(afterAdvance).toString("utf8")).formatVersion).toBe(2);
+    afterAdvance.fill(0);
   } finally {
     await harness.close();
   }
 });
+
+it.each(["backup mismatch", "corrupt inventory"] as const)(
+  "refuses a V1 transition on %s",
+  async (failure) => {
+    const harness = await createProtectedFileHarness();
+    try {
+      const { db, protectedFiles: files } = harness.built.context;
+      if (files === undefined) throw new Error("Missing protected runtime");
+      const backupId = generateUuidV7();
+      const source = {
+        installationId: files.deps.installationId,
+        applicationVersion: null,
+        commit: null,
+        image: null,
+        postgresVersion: 180004,
+        appliedMigrations: ["0001_initial", "0005_backups"],
+      } as const;
+      const verify = vi
+        .fn()
+        .mockResolvedValueOnce({ backupId, source })
+        .mockResolvedValue({
+          backupId: failure === "backup mismatch" ? generateUuidV7() : backupId,
+          source,
+        });
+      const records = new ProtectedRecordService({
+        db,
+        keys: files.deps.keys,
+        workspaceId: files.deps.workspaceId,
+        installationId: files.deps.installationId,
+        now: () => new Date(),
+      });
+      const migration = new FileStorageMigration({
+        db,
+        files,
+        records,
+        blobRoot: harness.blobRoot,
+        verifySourceBackup: verify,
+      });
+      const prepared = await migration.prepare(backupId);
+      if (failure === "backup mismatch") {
+        await expect(migration.prepare(generateUuidV7())).rejects.toThrow(/identity does not match/);
+      } else {
+        const payload = await records.read(db, {
+          entityType: "file.transition-inventory",
+          entityId: prepared.id,
+          recordVersion: 1,
+        });
+        if (payload === null) throw new Error("Missing inventory checkpoint");
+        const corrupt = JSON.parse(Buffer.from(payload).toString("utf8")) as Record<string, unknown>;
+        payload.fill(0);
+        corrupt.formatVersion = 1;
+        corrupt.entries = [{ id: "not-a-uuid", kind: "content", objectId: "not-a-uuid" }];
+        await db.transaction(async (tx) => {
+          await enterStorageTransition(tx, prepared.id);
+          await records.write(tx, {
+            entityType: "file.transition-inventory",
+            entityId: prepared.id,
+            recordVersion: 1,
+            payload: Buffer.from(JSON.stringify(corrupt)),
+          });
+        });
+        await expect(migration.prepare(generateUuidV7())).rejects.toThrow(/inventory is invalid/);
+      }
+    } finally {
+      await harness.close();
+    }
+  },
+);
 
 it.each([
   [
