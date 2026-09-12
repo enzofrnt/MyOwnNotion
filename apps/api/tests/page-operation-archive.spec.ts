@@ -334,6 +334,32 @@ describe("operational archive envelope", () => {
     );
   });
 
+  it("locks every archived device reference with a key-share lock", async () => {
+    const deviceId = generateUuidV7();
+    const query = {
+      from: vi.fn(),
+      where: vi.fn(),
+      for: vi.fn().mockResolvedValue([{ id: deviceId }]),
+    };
+    query.from.mockReturnValue(query);
+    query.where.mockReturnValue(query);
+    const tx = { select: vi.fn().mockReturnValue(query) } as unknown as Transaction;
+    const archive = {
+      ...EMPTY_ARCHIVE,
+      pages: [
+        {
+          ...minimalPage(),
+          updates: [{ authoredByDeviceId: deviceId }],
+        },
+      ],
+      counts: { ...EMPTY_COUNTS, pages: 1, updates: 1 },
+    } as unknown as PageOperationArchive;
+
+    await service().verifyDeviceReferences(tx, archive);
+
+    expect(query.for).toHaveBeenCalledWith("key share");
+  });
+
   it("rejects SQL state invariants before verification", async () => {
     const { archive } = await validArchive({ withUpdate: true });
     const page = archive.pages[0];

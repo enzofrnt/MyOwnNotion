@@ -1217,7 +1217,8 @@ export class PageOperationArchiveService {
       const devices = await tx
         .select({ id: schema.authorizedDevices.id })
         .from(schema.authorizedDevices)
-        .where(inArray(schema.authorizedDevices.id, deviceIds));
+        .where(inArray(schema.authorizedDevices.id, deviceIds))
+        .for("key share");
       if (devices.length !== deviceIds.length) {
         throw new TypeError("the restore target is missing an archived authorized device");
       }
