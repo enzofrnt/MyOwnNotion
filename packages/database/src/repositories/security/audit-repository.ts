@@ -38,6 +38,8 @@ export const SECURITY_EVENT_TYPES = [
   "mcp.exchanged",
   "mcp.revoked",
   "mcp.operation",
+  "mcp.exchange-failed",
+  "mcp.authentication-failed",
   // Installation lifecycle
   "installation.created",
   "installation.state-changed",

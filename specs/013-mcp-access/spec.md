@@ -7,7 +7,7 @@
 
 ## Product direction and clarification
 
-Canvas sections 6, 26, 28–30, 42, 47 and 49 govern this feature. The owner's
+Canvas sections 6, 26, 28–30, 35, 42, 47 and 49 govern this feature. The owner's
 2026-09-05 decision advances MCP into V1 without deferring settings or the
 authorization journey. Features 002, 006, 019, 024 and 025 supply authentication,
 canonical changes, the runtime, complete recovery and encrypted content.
@@ -60,7 +60,10 @@ and recover the server without restoring historical trust.
 
 **Acceptance Scenarios**:
 1. Sensitive successful operations and refused attempts have connection identity,
-   action, outcome and timestamp; no content or secret enters audit/logs.
+   action, outcome and timestamp. Invalid, consumed or expired exchange codes
+   and invalid, expired or revoked bearer credentials are classified through the
+   canonical security audit service; no content, code or secret enters
+   audit/logs.
 2. Full restore activation revokes both pending exchange codes and persistent
    connections, including restorations from an archive with previously live tokens.
 3. A new grant renews access; revoked credentials never become valid again.
@@ -90,7 +93,9 @@ response, expired access, invalid change identity and full restore of old schema
 - **FR-007**: Mutations MUST reuse canonical services and guards, preserve
   encryption, revisions and synchronization, and reject stale page edits.
 - **FR-008**: Audits MUST identify the dedicated connection and safe action,
-  without storing note text, file bytes, query text or credentials.
+  including refused exchange and bearer authentication attempts with a fixed
+  credential kind and refusal classification, without storing note text, file
+  bytes, query text, exchange codes or bearer credentials.
 - **FR-009**: Revocation and expiry MUST reject the next request; recovery
   activation MUST invalidate restored access and pending exchanges.
 - **FR-010**: Owner content remains usable offline. MCP requires the server and

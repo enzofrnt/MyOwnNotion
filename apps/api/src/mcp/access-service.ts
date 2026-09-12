@@ -9,10 +9,14 @@ export class McpAccessError extends Error {
   constructor(
     readonly code = "mcp.access-refused",
     readonly status = 403,
+    readonly auditReason?: McpCredentialFailureReason,
+    readonly auditObjectId?: string,
   ) {
     super("MCP access is unavailable or outside the authorized scope.");
   }
 }
+type McpCredentialKind = "exchange" | "bearer";
+type McpCredentialFailureReason = "invalid" | "consumed" | "expired" | "revoked";
 export function mcpSecretDigest(secret: string): string {
   return createHash("sha256").update("myownnotion.mcp.v1\0").update(secret).digest("hex");
 }
@@ -127,64 +131,126 @@ export class McpAccessService {
 
   async exchange(code: string, correlationId: string) {
     const token = `mn_mcp_${randomBytes(32).toString("base64url")}`;
-    return await runMutation(this.deps.db, async (tx) => {
-      await this.assertReady(tx);
-      const [exchange] = await tx
-        .select()
-        .from(schema.mcpExchangeTokens)
-        .where(eq(schema.mcpExchangeTokens.secretHash, mcpSecretDigest(code)))
-        .for("update");
-      const now = this.deps.now();
-      if (exchange === undefined || exchange.consumedAt !== null || exchange.expiresAt <= now)
-        throw new McpAccessError("mcp.invalid-exchange", 401);
-      const [connection] = await tx
-        .select()
-        .from(schema.mcpConnections)
-        .where(eq(schema.mcpConnections.id, exchange.connectionId))
-        .for("update");
-      if (
-        connection === undefined ||
-        connection.revokedAt !== null ||
-        (connection.expiresAt !== null && connection.expiresAt <= now)
-      )
-        throw new McpAccessError("mcp.invalid-exchange", 401);
-      await this.assertDevice(tx, connection.authorizedByDeviceId);
-      await tx
-        .update(schema.mcpExchangeTokens)
-        .set({ consumedAt: now })
-        .where(eq(schema.mcpExchangeTokens.id, exchange.id));
-      await tx
-        .update(schema.mcpConnections)
-        .set({ accessHash: mcpSecretDigest(token) })
-        .where(eq(schema.mcpConnections.id, connection.id));
-      await this.deps.audit.recordInTransaction(
-        tx,
-        this.auditContext(connection.id, correlationId),
-        {
-          eventType: "mcp.exchanged",
-          outcome: "success",
-          objectKind: "mcp-connection",
-          objectId: connection.id,
-        },
-      );
-      return {
-        accessToken: token,
-        tokenType: "Bearer",
-        expiresAt: connection.expiresAt?.toISOString() ?? null,
-      };
-    });
+    try {
+      return await runMutation(this.deps.db, async (tx) => {
+        await this.assertReady(tx);
+        const [exchange] = await tx
+          .select()
+          .from(schema.mcpExchangeTokens)
+          .where(eq(schema.mcpExchangeTokens.secretHash, mcpSecretDigest(code)))
+          .for("update");
+        const now = this.deps.now();
+        if (exchange === undefined)
+          throw new McpAccessError("mcp.invalid-exchange", 401, "invalid");
+        if (exchange.consumedAt !== null)
+          throw new McpAccessError("mcp.invalid-exchange", 401, "consumed", exchange.connectionId);
+        if (exchange.expiresAt <= now)
+          throw new McpAccessError("mcp.invalid-exchange", 401, "expired", exchange.connectionId);
+        const [connection] = await tx
+          .select()
+          .from(schema.mcpConnections)
+          .where(eq(schema.mcpConnections.id, exchange.connectionId))
+          .for("update");
+        if (connection === undefined)
+          throw new McpAccessError("mcp.invalid-exchange", 401, "invalid");
+        if (connection.revokedAt !== null)
+          throw new McpAccessError("mcp.invalid-exchange", 401, "revoked", connection.id);
+        if (connection.expiresAt !== null && connection.expiresAt <= now)
+          throw new McpAccessError("mcp.invalid-exchange", 401, "expired", connection.id);
+        try {
+          await this.assertDevice(tx, connection.authorizedByDeviceId);
+        } catch (error) {
+          if (error instanceof McpAccessError && error.status === 401)
+            throw new McpAccessError("mcp.invalid-exchange", 401, "revoked", connection.id);
+          throw error;
+        }
+        await tx
+          .update(schema.mcpExchangeTokens)
+          .set({ consumedAt: now })
+          .where(eq(schema.mcpExchangeTokens.id, exchange.id));
+        await tx
+          .update(schema.mcpConnections)
+          .set({ accessHash: mcpSecretDigest(token) })
+          .where(eq(schema.mcpConnections.id, connection.id));
+        await this.deps.audit.recordInTransaction(
+          tx,
+          this.auditContext(connection.id, correlationId),
+          {
+            eventType: "mcp.exchanged",
+            outcome: "success",
+            objectKind: "mcp-connection",
+            objectId: connection.id,
+          },
+        );
+        return {
+          accessToken: token,
+          tokenType: "Bearer",
+          expiresAt: connection.expiresAt?.toISOString() ?? null,
+        };
+      });
+    } catch (error) {
+      if (error instanceof McpAccessError && error.auditReason !== undefined)
+        await this.recordCredentialFailure(
+          "exchange",
+          error.auditReason,
+          correlationId,
+          error.auditObjectId,
+        );
+      throw error;
+    }
   }
 
-  async authenticate(secret: string): Promise<McpPrincipal> {
+  async authenticate(secret: string, correlationId?: string): Promise<McpPrincipal> {
     await this.assertReady(this.deps.db);
-    if (!/^mn_mcp_[A-Za-z0-9_-]{43}$/.test(secret))
-      throw new McpAccessError("mcp.authentication-required", 401);
-    const [row] = await this.deps.db
-      .select()
-      .from(schema.mcpConnections)
-      .where(eq(schema.mcpConnections.accessHash, mcpSecretDigest(secret)));
-    await this.assertDevice(this.deps.db, row?.authorizedByDeviceId);
-    return this.principal(row);
+    try {
+      if (!/^mn_mcp_[A-Za-z0-9_-]{43}$/.test(secret))
+        throw new McpAccessError("mcp.authentication-required", 401, "invalid");
+      const [row] = await this.deps.db
+        .select()
+        .from(schema.mcpConnections)
+        .where(eq(schema.mcpConnections.accessHash, mcpSecretDigest(secret)));
+      const now = this.deps.now();
+      if (row === undefined || row.workspaceId !== this.deps.workspaceId || row.accessHash === null)
+        throw new McpAccessError("mcp.authentication-required", 401, "invalid");
+      if (row.revokedAt !== null)
+        throw new McpAccessError("mcp.authentication-required", 401, "revoked", row.id);
+      if (row.expiresAt !== null && row.expiresAt <= now)
+        throw new McpAccessError("mcp.authentication-required", 401, "expired", row.id);
+      try {
+        await this.assertDevice(this.deps.db, row.authorizedByDeviceId);
+      } catch (error) {
+        if (error instanceof McpAccessError && error.status === 401)
+          throw new McpAccessError("mcp.authentication-required", 401, "revoked", row.id);
+        throw error;
+      }
+      return this.principal(row);
+    } catch (error) {
+      if (error instanceof McpAccessError && error.auditReason !== undefined)
+        await this.recordCredentialFailure(
+          "bearer",
+          error.auditReason,
+          correlationId,
+          error.auditObjectId,
+        );
+      throw error;
+    }
+  }
+
+  private async recordCredentialFailure(
+    credentialKind: McpCredentialKind,
+    reason: McpCredentialFailureReason,
+    correlationId: string | undefined,
+    objectId?: string,
+  ): Promise<void> {
+    if (correlationId === undefined) return;
+    await this.deps.audit.record(this.auditContext("unknown", correlationId), {
+      eventType:
+        credentialKind === "exchange" ? "mcp.exchange-failed" : "mcp.authentication-failed",
+      outcome: "refused",
+      safeCode: "authentication_failed",
+      ...(objectId === undefined ? {} : { objectKind: "mcp-connection", objectId }),
+      metadata: { credentialKind, reason },
+    });
   }
   private async assertDevice(executor: Executor, id: string | undefined): Promise<void> {
     if (id === undefined) throw new McpAccessError("mcp.authentication-required", 401);

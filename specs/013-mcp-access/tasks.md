@@ -45,3 +45,7 @@
 ## Phase 7: Convergence
 
 - [x] T021 Complete the app-routing security API fixture with the three MCP inventory methods mounted by the settings route; rerun the routing suite without an unhandled rejection and record the integrated gate finding per FR-001/FR-011 and T016 (partial test integration).
+
+## Phase 8: P1 audit convergence
+
+- [x] T022 Add RED/GREEN integration coverage for invalid, consumed, expired and revoked exchange credentials plus invalid, expired and revoked bearer credentials; persist fixed, redacted refusal classifications through the canonical `AuditService`, expose them in the owner MCP audit inventory, and record focused evidence (FR-008, canvas §35; full T016 gate remains pending).

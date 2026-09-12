@@ -982,6 +982,88 @@ describe("scoped MCP through the real official HTTP client", () => {
     ).toBe(401);
   });
 
+  it("audits refused exchange and bearer credentials without retaining them", async () => {
+    const expiredExchange = await grant();
+    now = new Date(now.getTime() + 600_000);
+    expect((await exchange(expiredExchange.exchangeCode)).statusCode).toBe(401);
+
+    const consumedExchange = await grant();
+    expect((await exchange(consumedExchange.exchangeCode)).statusCode).toBe(200);
+    expect((await exchange(consumedExchange.exchangeCode)).statusCode).toBe(401);
+
+    const revokedExchange = await grant();
+    const revoked = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/mcp/connections/${revokedExchange.connection.id}/revoke`,
+      headers,
+    });
+    expect(revoked.statusCode).toBe(204);
+    expect((await exchange(revokedExchange.exchangeCode)).statusCode).toBe(401);
+
+    const invalidExchange = await exchange(`mn_exchange_${"x".repeat(43)}`);
+    expect(invalidExchange.statusCode).toBe(401);
+
+    const active = await connect();
+    const invalidBearer = await fetch(`${origin}/mcp`, {
+      headers: { authorization: `Bearer mn_mcp_${"x".repeat(43)}` },
+    });
+    expect(invalidBearer.status).toBe(401);
+
+    await harness.api.built.database.db
+      .update(schema.mcpConnections)
+      .set({ expiresAt: new Date(now.getTime() + 1) })
+      .where(eq(schema.mcpConnections.id, active.granted.connection.id));
+    now = new Date(now.getTime() + 2);
+    const expiredBearer = await fetch(`${origin}/mcp`, {
+      headers: { authorization: `Bearer ${active.accessToken}` },
+    });
+    expect(expiredBearer.status).toBe(401);
+
+    const revokedBearer = await connect();
+    await harness.api.built.database.db
+      .update(schema.mcpConnections)
+      .set({ revokedAt: now })
+      .where(eq(schema.mcpConnections.id, revokedBearer.granted.connection.id));
+    const revokedBearerResponse = await fetch(`${origin}/mcp`, {
+      headers: { authorization: `Bearer ${revokedBearer.accessToken}` },
+    });
+    expect(revokedBearerResponse.status).toBe(401);
+
+    const audit = await harness.api.built.database.db
+      .select()
+      .from(schema.securityAuditEvents)
+      .where(eq(schema.securityAuditEvents.actorClass, "mcp"));
+    const refused = audit.filter((row) => row.outcome === "refused");
+    expect(refused.map((row) => row.eventType)).toEqual(
+      expect.arrayContaining(["mcp.exchange-failed", "mcp.authentication-failed"]),
+    );
+    expect(refused.map((row) => row.metadata)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ credentialKind: "exchange", reason: "expired" }),
+        expect.objectContaining({ credentialKind: "exchange", reason: "consumed" }),
+        expect.objectContaining({ credentialKind: "exchange", reason: "revoked" }),
+        expect.objectContaining({ credentialKind: "exchange", reason: "invalid" }),
+        expect.objectContaining({ credentialKind: "bearer", reason: "invalid" }),
+        expect.objectContaining({ credentialKind: "bearer", reason: "expired" }),
+        expect.objectContaining({ credentialKind: "bearer", reason: "revoked" }),
+      ]),
+    );
+    expect(JSON.stringify(refused)).not.toContain(expiredExchange.exchangeCode);
+    expect(JSON.stringify(refused)).not.toContain(active.accessToken);
+    const auditResponse = await harness.api.built.app.inject({
+      method: "GET",
+      url: "/v1/mcp/audit",
+      headers,
+    });
+    expect(auditResponse.statusCode).toBe(200);
+    expect(auditResponse.json().events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action: "mcp.exchange-failed", outcome: "refused" }),
+        expect.objectContaining({ action: "mcp.authentication-failed", outcome: "refused" }),
+      ]),
+    );
+  });
+
   it("enforces exchange and request budgets before consuming credentials and recovers after the window", async () => {
     const { accessToken } = await connect();
     const pending = await grant();

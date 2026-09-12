@@ -59,13 +59,21 @@ export function registerMcpManagementRoutes(
     if (deps.require(request, reply, {}) === null) return reply;
     const events = (
       await Promise.all(
-        (["mcp.granted", "mcp.exchanged", "mcp.revoked", "mcp.operation"] as const).map(
-          (eventType) =>
-            listAuditEvents(
-              access.deps.db,
-              { installationId: access.deps.installationId },
-              { eventType, limit: 100 },
-            ),
+        (
+          [
+            "mcp.granted",
+            "mcp.exchanged",
+            "mcp.revoked",
+            "mcp.operation",
+            "mcp.exchange-failed",
+            "mcp.authentication-failed",
+          ] as const
+        ).map((eventType) =>
+          listAuditEvents(
+            access.deps.db,
+            { installationId: access.deps.installationId },
+            { eventType, limit: 100 },
+          ),
         ),
       )
     ).flat();

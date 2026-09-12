@@ -34,6 +34,21 @@ before any push; this isolated implementation does not push or merge.
   Full `checks:local` remains the integration branch gate before publishing;
   no push here.
 
+### Refused credential audit regression — 2026-09-12
+
+The MCP boundary now records refused credentials through the canonical security
+audit service. The focused integration regression covers invalid, consumed,
+expired and revoked exchange codes plus invalid, expired and revoked bearer
+credentials. Events use fixed `mcp.exchange-failed` or
+`mcp.authentication-failed` types, safe `credentialKind`/`reason` metadata and
+an opaque connection identifier only when a connection is known. Responses and
+authentication decisions remain unchanged, and the regression asserts that
+codes and bearer values do not enter the audit rows or owner audit response.
+
+```sh
+PATH=/opt/homebrew/opt/libpq/bin:$PATH TEST_DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55433/myownnotion bun run --bun vitest run --project api-contract apps/api/tests/mcp-access.integration.spec.ts --maxWorkers=1 -t 'audits refused exchange and bearer credentials'
+```
+
 ## Owner UI evidence — 2026-09-05
 
 19 focused Web tests and 15 real browser journeys passed on the five browser

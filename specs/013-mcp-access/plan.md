@@ -16,7 +16,7 @@ second web server or runtime.
 Passed before implementation: one owner, separate spec, encrypted content and
 external keys, Bun only, repository services and canonical guards, explicit
 scope, recovery invalidation, automated API/protocol and Playwright journeys.
-Canvas sections 26 and 47 move this independent feature before V1. No exemption.
+Canvas sections 26, 35 and 47 move this independent feature before V1. No exemption.
 
 ## Design and project structure
 
@@ -50,6 +50,12 @@ URLs or logs, responses are no-store, Origins are validated, request bytes and
 file chunks are bounded, failures are generic. Each connection is revalidated per
 request and at mutation commit. Serialized transactions order revoke and writes.
 Assistant content is untrusted input; existing domain validation remains final.
+Refused exchange and bearer authentication attempts are recorded through the
+existing `AuditService` and repository allowlist after the authentication
+decision. They carry only fixed credential-kind/reason metadata and an opaque
+connection identifier when one is known; the public MCP response remains the
+same generic refusal. The audit write is best effort for these already-refused
+requests and does not create a parallel event-storage path.
 Audit uses fixed action names and opaque IDs, never tool arguments.
 
 The optional configuration-file exchange helper supports Linux and macOS,

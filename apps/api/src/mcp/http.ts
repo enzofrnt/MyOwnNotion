@@ -28,7 +28,7 @@ export function registerMcpHttp(
         if (!limit.allowed) return reply.status(429).send({ code: "mcp.rate-limited" });
         const bearer =
           /^Bearer ([A-Za-z0-9_-]+)$/.exec(request.headers.authorization ?? "")?.[1] ?? "";
-        const principal = await deps.access.authenticate(bearer);
+        const principal = await deps.access.authenticate(bearer, correlationId);
         const handler = createMcpHandler(
           () => createMcpTools({ ...deps, principal, correlationId }),
           {
