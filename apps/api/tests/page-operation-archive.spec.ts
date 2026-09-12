@@ -678,7 +678,8 @@ describe("operational archive verification", () => {
       page === undefined ||
       update === undefined ||
       checkpoint === undefined ||
-      page.currentFrontier === null
+      page.currentFrontier === null ||
+      update.baseFrontier === null
     ) {
       throw new Error("invalid update fixture");
     }
@@ -705,6 +706,21 @@ describe("operational archive verification", () => {
         }),
       ),
     ).rejects.toThrow("result frontier");
+    await expect(
+      service().verify(
+        withPage(archive, {
+          updates: [
+            {
+              ...update,
+              baseFrontier: {
+                ...update.baseFrontier,
+                frontiers: page.currentFrontier.frontiers,
+              },
+            },
+          ],
+        }),
+      ),
+    ).rejects.toThrow("base frontier");
   });
 
   it("rejects a revision-window or device frontier whose ids do not derive from its version", async () => {

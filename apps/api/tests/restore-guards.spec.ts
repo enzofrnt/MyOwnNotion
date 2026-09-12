@@ -21,7 +21,7 @@ import {
 } from "@myownnotion/domain";
 import { OPERATIONAL_FORMAT, OPERATIONAL_FORMAT_VERSION } from "@myownnotion/page-state";
 import { describe, expect, it, vi } from "vitest";
-import { encodeUncheckedBackupArchive } from "../src/backup/archive-format.ts";
+import { decodeBackupArchive, encodeUncheckedBackupArchive } from "../src/backup/archive-format.ts";
 import {
   PAGE_OPERATION_ARCHIVE_FORMAT,
   PAGE_OPERATION_ARCHIVE_VERSION,
@@ -90,7 +90,18 @@ function archive(
             byteLength: 3,
             sha256: DIGEST.slice("sha256:".length),
           },
-          placements: [],
+          placements: [
+            {
+              id: TEST_FIRST_PLACEMENT,
+              workspaceId: TEST_WORKSPACE,
+              itemId: TEST_ITEM,
+              itemIsFile: true,
+              kind: "hierarchy",
+              parentItemId: null,
+              positionKey: "V",
+              removedAt: null,
+            },
+          ],
         },
       ],
       databases: [],
@@ -109,7 +120,7 @@ function archive(
         items: 1,
         activeItems: 1,
         trashedItems: 0,
-        placements: 0,
+        placements: 1,
         relationships: 0,
         revisions: 1,
         databases: 0,
@@ -397,6 +408,27 @@ describe("a rehearsal", () => {
 });
 
 describe("writing a checked archive", () => {
+  type MutableCanonical = {
+    readonly items: Array<Record<string, unknown>>;
+    readonly counts: Record<string, unknown>;
+  };
+
+  function firstCanonicalItem(canonical: MutableCanonical): Record<string, unknown> {
+    const item = canonical.items[0];
+    if (item === undefined) throw new Error("canonical fixture has no item");
+    return item;
+  }
+
+  function firstCanonicalPlacement(item: Record<string, unknown>): Record<string, unknown> {
+    const placements = item["placements"];
+    if (!Array.isArray(placements)) throw new Error("canonical fixture has no placements");
+    const placement = placements[0];
+    if (typeof placement !== "object" || placement === null || Array.isArray(placement)) {
+      throw new Error("canonical fixture has no placement object");
+    }
+    return placement as Record<string, unknown>;
+  }
+
   function markerArchive(formatVersion: 1 | 2, extra = false): Buffer {
     const marker = extra
       ? { $myownnotionProtected: 1, authored: true }
@@ -427,7 +459,18 @@ describe("writing a checked archive", () => {
             body: marker,
           },
           file: null,
-          placements: [],
+          placements: [
+            {
+              id: TEST_FIRST_PLACEMENT,
+              workspaceId: TEST_WORKSPACE,
+              itemId: TEST_ITEM,
+              itemIsFile: false,
+              kind: "hierarchy",
+              parentItemId: null,
+              positionKey: "V",
+              removedAt: null,
+            },
+          ],
         },
       ],
       databases: [],
@@ -457,7 +500,7 @@ describe("writing a checked archive", () => {
         items: 1,
         activeItems: 1,
         trashedItems: 0,
-        placements: 0,
+        placements: 1,
         relationships: 1,
         revisions: 1,
         databases: 0,
@@ -529,6 +572,79 @@ describe("writing a checked archive", () => {
         },
       }),
     ).rejects.toThrow(/canonical export/i);
+    expect(calls).toEqual([]);
+  });
+
+  it.each([
+    [
+      "removed placement",
+      (canonical: MutableCanonical) => {
+        firstCanonicalPlacement(firstCanonicalItem(canonical))["removedAt"] =
+          "2026-08-18T05:00:00.000Z";
+      },
+      {},
+    ],
+    [
+      "orphaned active file",
+      (canonical: MutableCanonical) => {
+        firstCanonicalItem(canonical)["placements"] = [];
+        canonical.counts["placements"] = 0;
+      },
+      {},
+    ],
+    [
+      "missing page document",
+      (canonical: MutableCanonical) => {
+        const item = firstCanonicalItem(canonical);
+        item["kind"] = "page";
+        item["file"] = null;
+        item["pageDocument"] = null;
+        firstCanonicalPlacement(item)["itemIsFile"] = false;
+      },
+      { files: [], fileCount: 0 },
+    ],
+    [
+      "non-file attachment",
+      (canonical: MutableCanonical) => {
+        const item = firstCanonicalItem(canonical);
+        item["kind"] = "folder";
+        item["file"] = null;
+        item["pageDocument"] = null;
+        const placement = firstCanonicalPlacement(item);
+        placement["itemIsFile"] = false;
+        placement["kind"] = "attachment";
+        placement["parentItemId"] = TEST_ITEM;
+      },
+      { files: [], fileCount: 0 },
+    ],
+  ] as const)("refuses %s before target.begin", async (_name, mutate, manifestOverrides) => {
+    const canonical = JSON.parse(
+      decodeBackupArchive(archive()).canonicalExport,
+    ) as MutableCanonical;
+    mutate(canonical);
+    const calls: string[] = [];
+    await expect(
+      applyArchive(
+        archive(manifestOverrides, !("files" in manifestOverrides), JSON.stringify(canonical)),
+        {
+          begin: async () => {
+            calls.push("begin");
+          },
+          writeFile: async () => {
+            calls.push("file");
+          },
+          writeRevision: async () => {
+            calls.push("revision");
+          },
+          writeItem: async () => {
+            calls.push("item");
+          },
+          writeRelationship: async () => {
+            calls.push("relationship");
+          },
+        },
+      ),
+    ).rejects.toThrow(/canonical export|placement|page document|attachment/i);
     expect(calls).toEqual([]);
   });
 

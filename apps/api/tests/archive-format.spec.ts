@@ -89,7 +89,18 @@ function canonicalWithFiles(files: ReadonlyArray<{ digest: string; byteLength: n
         byteLength: file.byteLength,
         sha256: file.digest,
       },
-      placements: [],
+      placements: [
+        {
+          id: `00000000-0000-7000-8000-${String(index + 300).padStart(12, "0")}`,
+          workspaceId,
+          itemId,
+          itemIsFile: true,
+          kind: "hierarchy",
+          parentItemId: null,
+          positionKey: `V${index}`,
+          removedAt: null,
+        },
+      ],
     };
   });
   canonical["revisions"] = files.map((_file, index) => {
@@ -107,7 +118,7 @@ function canonicalWithFiles(files: ReadonlyArray<{ digest: string; byteLength: n
     items: files.length,
     activeItems: files.length,
     trashedItems: 0,
-    placements: 0,
+    placements: files.length,
     relationships: 0,
     revisions: files.length,
     databases: 0,
@@ -352,10 +363,15 @@ describe("portable TAR framing", () => {
     ).toThrow(/sha256 digest/);
   });
 
-  it("rejects bad magic, checksum, entry type and numeric fields", () => {
+  it("rejects bad magic, USTAR version, checksum, entry type and numeric fields", () => {
     const badMagic = archive();
     badMagic.write("xxxxx", 257, "ascii");
     expect(() => decodeBackupArchive(badMagic)).toThrow(/portable tar/);
+
+    const badVersion = archive();
+    badVersion.write("99", 263, "ascii");
+    checksumHeader(badVersion);
+    expect(() => decodeBackupArchive(badVersion)).toThrow(/USTAR version/);
 
     const badChecksum = archive();
     badChecksum[0] = "x".charCodeAt(0);
@@ -370,6 +386,17 @@ describe("portable TAR framing", () => {
     badNumber.fill("x".charCodeAt(0), 124, 136);
     checksumHeader(badNumber);
     expect(() => decodeBackupArchive(badNumber)).toThrow(/invalid numeric/);
+  });
+
+  it("rejects invalid UTF-8 instead of normalizing before digest verification", () => {
+    const malformed = archive();
+    const canonicalHeader = firstEntryEnd(malformed);
+    const canonicalStart = canonicalHeader + BLOCK;
+    const marker = Buffer.from("myownnotion");
+    const markerOffset = malformed.indexOf(marker, canonicalStart);
+    expect(markerOffset).toBeGreaterThanOrEqual(canonicalStart);
+    malformed[markerOffset + 1] = 0xff;
+    expect(() => decodeBackupArchive(malformed)).toThrow(/UTF-8|encoded data/i);
   });
 
   it("rejects undocumented, duplicate, truncated and unterminated entries", () => {
@@ -591,7 +618,7 @@ describe("archive content inspection", () => {
       items: [databaseId, ...entryIds].map((id, index) => ({
         id,
         workspaceId: "00000000-0000-7000-8000-000000000009",
-        kind: index === 0 ? "folder" : "page",
+        kind: "page",
         name: id,
         icon: null,
         lifecycle: "active",
@@ -600,9 +627,24 @@ describe("archive content inspection", () => {
         currentRevisionId: revisionIds[index],
         favourite: false,
         offlineIntent: false,
-        pageDocument: null,
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 1,
+          body: {},
+        },
         file: null,
-        placements: [],
+        placements: [
+          {
+            id: `00000000-0000-7000-8000-${String(index + 200).padStart(12, "0")}`,
+            workspaceId: "00000000-0000-7000-8000-000000000009",
+            itemId: id,
+            itemIsFile: false,
+            kind: "hierarchy",
+            parentItemId: index === 0 ? null : databaseId,
+            positionKey: `V${index}`,
+            removedAt: null,
+          },
+        ],
       })),
       ...structured,
       relationships: [],
@@ -617,7 +659,7 @@ describe("archive content inspection", () => {
         items: 3,
         activeItems: 3,
         trashedItems: 0,
-        placements: 0,
+        placements: 3,
         relationships: 0,
         revisions: 3,
         databases: 1,
@@ -746,7 +788,18 @@ describe("archive content inspection", () => {
           offlineIntent: false,
           pageDocument: null,
           file: null,
-          placements: [],
+          placements: [
+            {
+              id: "00000000-0000-7000-8000-000000000004",
+              workspaceId,
+              itemId,
+              itemIsFile: false,
+              kind: "hierarchy",
+              parentItemId: null,
+              positionKey: "V",
+              removedAt: null,
+            },
+          ],
         },
       ],
       databases: [],
@@ -765,7 +818,7 @@ describe("archive content inspection", () => {
         items: 1,
         activeItems: 1,
         trashedItems: 0,
-        placements: 0,
+        placements: 1,
         relationships: 0,
         revisions: 1,
         databases: 0,

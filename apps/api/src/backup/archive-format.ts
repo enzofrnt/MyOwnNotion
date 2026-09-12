@@ -27,7 +27,9 @@ const FILE_PATH = /^files\/([0-9a-f]{64})$/;
 export interface DecodedBackupArchive {
   readonly manifest: unknown;
   readonly canonicalExport: string;
+  readonly canonicalExportBytes: Buffer;
   readonly operationalState: string | null;
+  readonly operationalStateBytes: Buffer | null;
   readonly files: ReadonlyMap<string, Buffer>;
 }
 
@@ -172,6 +174,7 @@ function validateProducedCanonical(manifest: BackupManifest, canonicalExport: st
 function validateOperationalState(
   manifest: BackupManifest,
   operationalState: string | null,
+  operationalStateBytes: Buffer | null,
 ): string | null {
   if (manifest.operationalStateDigest === undefined) {
     return operationalState === null
@@ -181,7 +184,10 @@ function validateOperationalState(
   if (operationalState === null) {
     return "This archive is missing the operational page state declared by its manifest.";
   }
-  const operationalBytes = Buffer.from(operationalState, "utf8");
+  if (operationalStateBytes === null) {
+    return "This archive is missing the operational page state bytes.";
+  }
+  const operationalBytes = operationalStateBytes;
   if (sha256(operationalBytes) !== manifest.operationalStateDigest) {
     return "The operational page state does not match the digest recorded in the manifest.";
   }
@@ -362,6 +368,9 @@ export function encodeBackupArchive(input: {
   const operationalProblem = validateOperationalState(
     input.manifest,
     input.operationalState ?? null,
+    input.operationalState === undefined || input.operationalState === null
+      ? null
+      : Buffer.from(input.operationalState, "utf8"),
   );
   if (operationalProblem !== null) throw new Error(operationalProblem);
   validateEncodedFiles(input.manifest, input.files);
@@ -381,6 +390,9 @@ export async function* streamBackupArchive(input: {
   const operationalProblem = validateOperationalState(
     input.manifest,
     input.operationalState ?? null,
+    input.operationalState === undefined || input.operationalState === null
+      ? null
+      : Buffer.from(input.operationalState, "utf8"),
   );
   if (operationalProblem !== null) throw new Error(operationalProblem);
   yield* encodeEntry(MANIFEST_PATH, Buffer.from(JSON.stringify(input.manifest)), modifiedAt);
@@ -408,7 +420,9 @@ export async function* streamBackupArchive(input: {
 function readText(source: Buffer, offset: number, width: number): string {
   const field = source.subarray(offset, offset + width);
   const end = field.indexOf(0);
-  return field.subarray(0, end === -1 ? field.length : end).toString("utf8");
+  return new TextDecoder("utf-8", { fatal: true }).decode(
+    field.subarray(0, end === -1 ? field.length : end),
+  );
 }
 
 function readOctal(source: Buffer, offset: number, width: number): number {
@@ -450,6 +464,9 @@ export function decodeBackupArchive(archive: Buffer): DecodedBackupArchive {
     }
     if (readText(header, 257, 6) !== "ustar") {
       throw new Error("the backup payload is not a portable tar archive");
+    }
+    if (readText(header, 263, 2) !== "00") {
+      throw new Error("the backup tar does not use the portable USTAR version");
     }
     const expectedChecksum = readOctal(header, 148, 8);
     const checked = Buffer.from(header);
@@ -493,10 +510,14 @@ export function decodeBackupArchive(archive: Buffer): DecodedBackupArchive {
   }
   let manifest: unknown;
   try {
-    manifest = JSON.parse(manifestBytes.toString("utf8"));
+    manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes));
   } catch {
-    throw new Error("the backup manifest is not valid JSON");
+    throw new Error("the backup manifest is not valid JSON or UTF-8");
   }
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const canonicalExport = decoder.decode(canonicalBytes);
+  const operationalBytes = entries.get(PAGE_OPERATIONS_PATH) ?? null;
+  const operationalState = operationalBytes === null ? null : decoder.decode(operationalBytes);
   const files = new Map<string, Buffer>();
   for (const [name, bytes] of entries) {
     const matched = FILE_PATH.exec(name);
@@ -506,8 +527,10 @@ export function decodeBackupArchive(archive: Buffer): DecodedBackupArchive {
   }
   return {
     manifest,
-    canonicalExport: canonicalBytes.toString("utf8"),
-    operationalState: entries.get(PAGE_OPERATIONS_PATH)?.toString("utf8") ?? null,
+    canonicalExport,
+    canonicalExportBytes: Buffer.from(canonicalBytes),
+    operationalState,
+    operationalStateBytes: operationalBytes === null ? null : Buffer.from(operationalBytes),
     files,
   };
 }
@@ -543,8 +566,7 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
           : `This archive contains ${contents.unexpected.length} file(s) its manifest does not list, so its contents cannot be trusted.`,
     };
   }
-  const canonicalBytes = Buffer.from(body.canonicalExport, "utf8");
-  if (sha256(canonicalBytes) !== manifest.canonicalExportDigest) {
+  if (sha256(body.canonicalExportBytes) !== manifest.canonicalExportDigest) {
     return {
       ok: false,
       reason: "The canonical export does not match the digest recorded in the manifest.",
@@ -617,7 +639,11 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
   }
   const fileProblem = validateCanonicalFileInventory(manifest, canonical);
   if (fileProblem !== null) return { ok: false, reason: fileProblem };
-  const operationalProblem = validateOperationalState(manifest, body.operationalState);
+  const operationalProblem = validateOperationalState(
+    manifest,
+    body.operationalState,
+    body.operationalStateBytes,
+  );
   if (operationalProblem !== null) return { ok: false, reason: operationalProblem };
   for (const expected of manifest.files) {
     const bytes = body.files.get(expected.digest) ?? Buffer.alloc(0);
