@@ -174,6 +174,148 @@ it("migrates authored legacy placeholder names without confusing them with scrub
   }
 });
 
+it("migrates an authored legacy protected payload in a page and retained snapshot", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedContent: content, protectedFiles: files } = harness.built.context;
+    if (content === undefined || files === undefined) throw new Error("Missing protected runtime");
+    const page = await createItemViaApi(harness, { kind: "page", name: "Legacy payload page" });
+    const snapshot = await content.readRevisionSnapshot<Record<string, unknown>>(
+      db,
+      page.revisionId,
+    );
+    const pageDocument = snapshot?.["pageDocument"];
+    if (snapshot === null || typeof pageDocument !== "object" || pageDocument === null)
+      throw new Error("Missing retained page snapshot");
+    await db.transaction(async (tx) => {
+      await tx
+        .update(schema.pageDocuments)
+        .set({ body: PROTECTED_PAYLOAD })
+        .where(eq(schema.pageDocuments.pageId, page.itemId));
+      await tx
+        .update(schema.revisions)
+        .set({ snapshot: { ...snapshot, pageDocument: { ...pageDocument, body: PROTECTED_PAYLOAD } } })
+        .where(eq(schema.revisions.id, page.revisionId));
+      await tx
+        .delete(schema.protectedEnvelopes)
+        .where(
+          and(
+            inArray(schema.protectedEnvelopes.entityId, [page.itemId, page.revisionId]),
+            inArray(schema.protectedEnvelopes.entityType, ["page.body", "revision.snapshot"]),
+          ),
+        );
+    });
+
+    const records = new ProtectedRecordService({
+      db,
+      keys: files.deps.keys,
+      workspaceId: files.deps.workspaceId,
+      installationId: files.deps.installationId,
+      now: () => new Date(),
+    });
+    const migration = new FileStorageMigration({
+      db,
+      files,
+      records,
+      blobRoot: harness.blobRoot,
+      verifySourceBackup: async () => {},
+    });
+    const transition = await migration.prepare(generateUuidV7());
+    while (await migration.publishMetadataNext(transition.id)) {
+      /* durable metadata batches */
+    }
+    await migration.finishVerification(transition.id);
+    await migration.cutover(transition.id);
+    while (await migration.retireNext(transition.id)) {
+      /* authenticated source retirement */
+    }
+
+    expect(await content.readPageBody(db, page.itemId)).toEqual(PROTECTED_PAYLOAD);
+    expect(
+      await content.readRevisionSnapshot<Record<string, unknown>>(db, page.revisionId),
+    ).toMatchObject({ pageDocument: { body: PROTECTED_PAYLOAD } });
+    const restored = await harness.owner({ method: "GET", url: `/v1/items/${page.itemId}` });
+    expect(restored.statusCode, restored.body).toBe(200);
+    expect(restored.json()).toMatchObject({ pageDocument: { body: PROTECTED_PAYLOAD } });
+  } finally {
+    await harness.close();
+  }
+});
+
+it("migrates authored legacy protected relationship metadata", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedContent: content, protectedFiles: files } = harness.built.context;
+    if (content === undefined || files === undefined) throw new Error("Missing protected runtime");
+    const source = await createItemViaApi(harness, { kind: "page", name: "Legacy source" });
+    const target = await createItemViaApi(harness, { kind: "page", name: "Legacy target" });
+    const relationshipId = generateUuidV7();
+    const created = await harness.owner({
+      method: "POST",
+      url: "/v1/relationships",
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: {
+        id: relationshipId,
+        sourceItemId: source.itemId,
+        targetItemId: target.itemId,
+        relationType: "link:references",
+        metadata: { note: "temporary metadata" },
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    await db.transaction(async (tx) => {
+      await tx
+        .update(schema.relationships)
+        .set({ metadata: PROTECTED_PAYLOAD })
+        .where(eq(schema.relationships.id, relationshipId));
+      await tx
+        .delete(schema.protectedEnvelopes)
+        .where(
+          and(
+            eq(schema.protectedEnvelopes.entityId, relationshipId),
+            eq(schema.protectedEnvelopes.entityType, "relationship.metadata"),
+          ),
+        );
+    });
+
+    const records = new ProtectedRecordService({
+      db,
+      keys: files.deps.keys,
+      workspaceId: files.deps.workspaceId,
+      installationId: files.deps.installationId,
+      now: () => new Date(),
+    });
+    const migration = new FileStorageMigration({
+      db,
+      files,
+      records,
+      blobRoot: harness.blobRoot,
+      verifySourceBackup: async () => {},
+    });
+    const transition = await migration.prepare(generateUuidV7());
+    while (await migration.publishMetadataNext(transition.id)) {
+      /* durable metadata batches */
+    }
+    await migration.finishVerification(transition.id);
+    await migration.cutover(transition.id);
+    while (await migration.retireNext(transition.id)) {
+      /* authenticated source retirement */
+    }
+
+    expect(await content.readRelationshipMetadata(db, relationshipId)).toEqual(PROTECTED_PAYLOAD);
+    const listing = await harness.owner({
+      method: "GET",
+      url: `/v1/relationships?itemId=${source.itemId}`,
+    });
+    expect(listing.statusCode, listing.body).toBe(200);
+    expect(listing.json()).toMatchObject({
+      relationships: [{ id: relationshipId, metadata: PROTECTED_PAYLOAD }],
+    });
+  } finally {
+    await harness.close();
+  }
+});
+
 it("resumes private historical metadata backfill without replacing authoritative envelopes with stale readable copies", async () => {
   const harness = await createProtectedFileHarness();
   try {

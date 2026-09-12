@@ -452,6 +452,27 @@ describe("validateCreateRelationship", () => {
     }
   });
 
+  it("reserves only the exact protected-storage metadata object", () => {
+    const reserved = validateCreateRelationship(getItem, {
+      id: generateUuidV7(),
+      sourceItemId: source,
+      targetItemId: target,
+      relationType: "link:references",
+      metadata: { $myownnotionProtected: 1 },
+    });
+    expect(reserved.ok).toBe(false);
+    if (!reserved.ok) expect(reserved.error.code).toBe("validation.invalid-payload");
+
+    const authored = validateCreateRelationship(getItem, {
+      id: generateUuidV7(),
+      sourceItemId: source,
+      targetItemId: target,
+      relationType: "link:references",
+      metadata: { $myownnotionProtected: 1, note: "authored metadata" },
+    });
+    expect(authored.ok).toBe(true);
+  });
+
   it("allows a relationship to a trashed target so the reference stays recoverable", () => {
     const trashed = graph.addItem("page", "Trashed", "trashed");
     const result = validateCreateRelationship(getItem, {

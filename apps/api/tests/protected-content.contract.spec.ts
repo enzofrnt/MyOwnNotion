@@ -20,6 +20,7 @@ import { SCRUBBED_PLACEHOLDER } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { PROTECTED_PAYLOAD } from "../src/security/canonical-payloads.ts";
 import { ProtectedContent } from "../src/security/protected-content.ts";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
@@ -209,6 +210,126 @@ describe("writing content through the ordinary routes", () => {
     expect(after.json()).toMatchObject({ name: "Current title", currentRevisionId });
   });
 
+  it("refuses the exact protected payload on page creation while preserving larger objects", async () => {
+    const reservedId = generateUuidV7();
+    const reserved = await injectAsOwner({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: reservedId,
+        kind: "page",
+        name: "Reserved body",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 1,
+          body: PROTECTED_PAYLOAD,
+        },
+      },
+    });
+    expect(reserved.statusCode, reserved.body).toBe(400);
+    expect(reserved.json()).toMatchObject({ code: "validation.invalid-payload" });
+    expect(
+      (await injectAsOwner({ method: "GET", url: `/v1/items/${reservedId}` })).statusCode,
+    ).toBe(404);
+
+    const authoredId = generateUuidV7();
+    const authoredBody = { ...PROTECTED_PAYLOAD, text: "authored content" };
+    const authored = await injectAsOwner({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: authoredId,
+        kind: "page",
+        name: "Authored body",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "W" },
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 1,
+          body: authoredBody,
+        },
+      },
+    });
+    expect(authored.statusCode, authored.body).toBe(201);
+    expect(
+      (await injectAsOwner({ method: "GET", url: `/v1/items/${authoredId}` })).json(),
+    ).toMatchObject({ pageDocument: { body: authoredBody } });
+  });
+
+  it("refuses replacing a page with the exact protected payload", async () => {
+    const pageId = await createPage("Stable page");
+    await replaceBody(pageId, { text: "stable body" });
+    const before = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const beforeItem = before.json() as {
+      currentRevisionId: string;
+      pageDocument: { body: Record<string, unknown> };
+    };
+
+    const replaced = await injectAsOwner({
+      method: "PUT",
+      url: `/v1/pages/${pageId}/document`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        baseRevisionId: beforeItem.currentRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 1,
+          body: PROTECTED_PAYLOAD,
+        },
+      },
+    });
+    expect(replaced.statusCode, replaced.body).toBe(400);
+    expect(replaced.json()).toMatchObject({ code: "validation.invalid-payload" });
+
+    const after = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    expect(after.json()).toMatchObject({
+      currentRevisionId: beforeItem.currentRevisionId,
+      pageDocument: { body: { text: "stable body" } },
+    });
+  });
+
+  it("refuses restoring a page with the exact protected payload", async () => {
+    const pageId = await createPage("Stable page");
+    const initial = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const retainedRevisionId = (initial.json() as { currentRevisionId: string }).currentRevisionId;
+    await replaceBody(pageId, { text: "stable body" });
+    const before = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const beforeItem = before.json() as { currentRevisionId: string };
+
+    const content = harness.built.context.protectedContent;
+    if (content === undefined) throw new Error("Protected content is unavailable");
+    const retained = await content.readRevisionSnapshot<Record<string, unknown>>(
+      harness.built.database.db,
+      retainedRevisionId,
+    );
+    const retainedDocument = retained?.["pageDocument"];
+    if (retained === null || typeof retainedDocument !== "object" || retainedDocument === null)
+      throw new Error("Retained page document is unavailable");
+    await content.writeRevisionSnapshot(harness.built.database.db, {
+      revisionId: retainedRevisionId,
+      snapshot: {
+        ...retained,
+        pageDocument: { ...retainedDocument, body: PROTECTED_PAYLOAD },
+      },
+    });
+    const restored = await injectAsOwner({
+      method: "POST",
+      url: `/v1/revisions/${retainedRevisionId}/restore`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { currentRevisionId: beforeItem.currentRevisionId },
+    });
+    expect(restored.statusCode, restored.body).toBe(400);
+    expect(restored.json()).toMatchObject({ code: "validation.invalid-payload" });
+
+    const after = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    expect(after.json()).toMatchObject({
+      currentRevisionId: beforeItem.currentRevisionId,
+      pageDocument: { body: { text: "stable body" } },
+    });
+  });
+
   it("seals the title", async () => {
     await createPage(SECRET_TITLE);
     expect(await envelopeTypes()).toContain("item.name");
@@ -278,6 +399,49 @@ describe("writing content through the ordinary routes", () => {
     expect(row?.source_item_id).toBe(source);
     expect(row?.target_item_id).toBe(target);
     expect(row?.relation_type).toBe("note:mentions");
+  });
+
+  it("refuses only the exact protected relationship metadata marker", async () => {
+    const source = await createPage("Reserved relationship source");
+    const target = await createPage("Reserved relationship target");
+    const reservedId = generateUuidV7();
+    const reserved = await injectAsOwner({
+      method: "POST",
+      url: "/v1/relationships",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: reservedId,
+        sourceItemId: source,
+        targetItemId: target,
+        relationType: "note:mentions",
+        metadata: PROTECTED_PAYLOAD,
+      },
+    });
+    expect(reserved.statusCode, reserved.body).toBe(400);
+    expect(reserved.json()).toMatchObject({ code: "validation.invalid-payload" });
+
+    const authoredId = generateUuidV7();
+    const authoredMetadata = { ...PROTECTED_PAYLOAD, note: "authored metadata" };
+    const authored = await injectAsOwner({
+      method: "POST",
+      url: "/v1/relationships",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: authoredId,
+        sourceItemId: source,
+        targetItemId: target,
+        relationType: "note:mentions",
+        metadata: authoredMetadata,
+      },
+    });
+    expect(authored.statusCode, authored.body).toBe(201);
+    const listed = await injectAsOwner({
+      method: "GET",
+      url: `/v1/relationships?itemId=${source}`,
+    });
+    expect(listed.json()).toMatchObject({
+      relationships: [{ id: authoredId, metadata: authoredMetadata }],
+    });
   });
 
   it("keeps the identifier readable", async () => {
