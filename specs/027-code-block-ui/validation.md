@@ -23,7 +23,9 @@ beforeinput handler with real transaction tests and mobile browser coverage.
   content security and existing rich blocks.
 - Web TypeScript and root E2E TypeScript checks.
 - Biome changed source format/lint/import checks and `git diff --check`.
-- E2E and ordinary production Web bundle builds using pinned Bun 1.4.0.
+- E2E and ordinary production Web bundle builds using Bun 1.4.0, the version
+  pinned when this isolated feature evidence was recorded. Integrated delivery
+  uses the repository's current pinned Bun 1.4.2 toolchain.
 - Production dependency audit: no high/critical findings; license policy:
   384 production packages, zero violations; static security: zero findings.
 

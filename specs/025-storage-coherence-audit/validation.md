@@ -426,10 +426,11 @@ bounded cleanup sees no candidate and reports `deleted: 0` (RED evidence from
 
 The corrected path inserts the opaque storage key into the existing bounded
 `protected_file_garbage` ledger through an independent short transaction before
-the filesystem publication. The surrounding SQL transaction removes that intent
-only after the chunk reference and authenticated manifest are persisted. A
-rollback, late publication/SQL error, or process crash therefore leaves a
-bounded candidate for the next cleanup run. Cleanup still holds the exclusive
+the filesystem publication. The surrounding SQL transaction removes that
+intent after staging the chunk reference; the removal commits only with the
+authenticated manifest and owning rows. A rollback, late publication/SQL
+error, or process crash therefore leaves a bounded candidate for the next
+cleanup run. Cleanup still holds the exclusive
 FILE maintenance lock and checks every current chunk/quarantine/legacy
 reference before deleting; a reused or canonical blob is preserved and its
 stale candidate is retired.
@@ -454,3 +455,60 @@ bun run biome check apps/api/src/files/protected-file-cleanup.ts apps/api/src/fi
 ```
 
 All focused commands exit 0 and `git diff --check` passes.
+
+## T062 — direct Buffer-backed reads under Bun 1.4.2
+
+The renewed exact `checks:local` run on
+`ef38a163c05fe5500528259516926e055cf559fd` stopped at the unchanged SC-004
+fixture: baseline RSS 89.2 MiB, peak RSS 358.1 MiB and **268.9 MiB additional
+RSS**, above the strict 256 MiB limit. The receipt is
+`integrated-release-final4-20260912-packaged.json`; its log records the exact
+commit, unchanged worktree and failing assertion.
+
+`af7899830d600eac7d9492462cd69a5fb06557cd` changes only the destination used
+by `FilesystemBlobStore.get`: Bun reads directly into exact-sized `Buffer`
+storage, the existing positional loop proves complete initialization, the
+tail/digest checks reject truncation, growth or corruption, and callers receive
+an exact `Uint8Array` view. Empty files and independently mutable return values
+retain their existing behavior. An independent source review found no P0–P3
+issue, and the 15 filesystem durability cases pass.
+
+At final integrated source commit
+`1083cdd9ced890637b5945c9b382a25caeb924d3`, including T063's reserved
+journal lane, three sequential maintained `--smol` runs pass at
+**198.9/172.0/190.2 MiB**, and three ordinary Bun 1.4.2 runs pass at
+**228.8/221.8/224.8 MiB** additional RSS. Each run uses the same
+2 GiB ingest/full-read/range fixture, 5 ms sampling and strict `< 256 MiB`
+assertion. No threshold, payload, sampling, concurrency or GC behavior changed.
+Durable logs are `integrated-sidecar-memory-{smol,standard}-{1,2,3}-20260912.log`.
+The combined blob-store suite passes 61/61; exact full delivery is still owned
+by T040/T041.
+
+## T063 — reserved write-ahead database lane
+
+The saturation regression at
+`97f0818bf4e23c659882c713e2b2f201bf4528f9` holds nine clients from the
+primary ten-connection pool, starts a protected ingest on the final slot, and
+requires the ciphertext intent to complete within one second. The first T061
+implementation requests that intent from the same pool: the test receives
+`blocked` and fails 1/15 while the other 14 service cases pass. Releasing the
+nine fixtures lets the pending operation finish cleanly, so the RED proof leaves
+no background transaction or blob.
+
+`1083cdd9ced890637b5945c9b382a25caeb924d3` adds one lazily used,
+single-connection journal pool to each `DatabaseHandle` and wires every server,
+CLI, migration, restore, import, test and performance runtime explicitly to it.
+The same saturated ingest now completes while all primary slots remain occupied.
+Closing the handle closes that lane together with the primary pool.
+`9045b1866c6d435ee8d18cb2876d6e73ad2ee166` replaces the RED proof's
+one-second observation with the pool's own waiting counter: the maintained
+regression now fails exactly when the journal asks the saturated primary pool
+for another slot, without imposing a machine-speed budget on healthy CI.
+
+Focused GREEN results: protected file service **15/15**, related protected
+file/upload/rotation/reference suites **25/25**, database client lifecycle
+**2/2**, strict workspace TypeScript and changed-source Biome all pass.
+Logs are `integrated-orphan-journal-pool-{red,green}-20260912.log`,
+`integrated-journal-sidecar-protected-suites-20260912.log` and
+`integrated-journal-client-lifecycle-20260912.log`. Complete exact local, PR
+and main delivery remains T040/T041.

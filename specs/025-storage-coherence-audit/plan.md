@@ -156,13 +156,22 @@ until physical cleanup; it is never advertised as accepted upload progress.
 Canonical logical-file/placement/revision publication remains transactional.
 The existing `protected_file_garbage` table also records each ciphertext key in
 a short independent transaction immediately before its physical publication.
-The canonical transaction removes that intent only after its chunk row and
-manifest are written. A rollback or process crash therefore leaves a bounded,
-durable cleanup candidate; cleanup holds the exclusive FILE maintenance lock,
+The canonical transaction removes that intent after staging its chunk row; the
+removal commits only when the chunk, manifest and owning rows all commit. A
+rollback or process crash therefore leaves a bounded, durable cleanup
+candidate; cleanup holds the exclusive FILE maintenance lock,
 checks every canonical reference (including references from another workspace),
 deletes only an unreferenced blob, and removes the candidate in the same SQL
 transaction. No filesystem scan is used, and a later canonical reuse can never
 be deleted merely because an older intent remains.
+
+The independent write-ahead transaction uses a single reserved PostgreSQL lane
+owned by the database handle. It never asks the primary ten-connection pool for
+an eleventh connection while a canonical transaction is already open. Concurrent
+file mutations serialize only their short journal inserts on that lane, then
+continue under their existing shared FILE locks. Closing the database handle
+waits for both the primary pool and the reserved lane, so server, CLI, migration,
+restore and import lifecycles cannot leak the extra socket.
 
 ## Complexity Tracking
 
@@ -247,6 +256,15 @@ without returning unauthenticated bytes. Preserve independent caller ownership
 and the existing digest, regular-file and symlink checks. Validate disk races
 and repeat the unchanged 2 GiB fixture in both runtime modes before renewing
 the full delivery gate. No threshold, sampling or test-only GC changes.
+
+T062: a later exact integrated gate on Bun 1.4.2 measured 268.9 MiB additional
+RSS even after the positional-read correction. Bun can still create transient
+conversion pressure when `FileHandle.read` receives a plain `Uint8Array`.
+Allocate the exact destination as a `Buffer`, fill it through the same bounded
+positional loop, verify length and digest, then return an exact `Uint8Array`
+view over that storage. `Buffer` remains an implementation detail; the public
+contract, caller ownership, corruption refusals, 256 MiB threshold, sampling
+and absence of forced GC remain unchanged.
 
 The maintained isolated 2 GiB fixture exceeded its unchanged 256 MiB additional
 RSS budget even under the performance runner's existing `--smol` flag. Profile

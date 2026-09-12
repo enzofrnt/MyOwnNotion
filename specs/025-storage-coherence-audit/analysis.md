@@ -167,3 +167,34 @@ checks that no page error occurred during the functional interaction, and then
 detaches its old-document listener before reload. The persisted-link assertions
 remain unchanged. Focused unit, type and formatting evidence is recorded in
 `validation.md`; renewed exact local, PR and main gates remain T040/T041.
+
+## T061–T063 — final storage convergence
+
+The final code audit found one additional P2 durability gap: encrypted chunks
+were physically published before their canonical transaction committed, but a
+rollback left no bounded cleanup candidate. T061 reuses the existing protected
+garbage ledger as a write-ahead intent, acknowledges it in the canonical
+transaction, and retains the exclusive maintenance lock plus global reference
+check before deletion. The RED rollback fixture reports no deletion on the old
+code; the corrected service, upload and rotation paths pass focused PostgreSQL
+and filesystem regressions.
+
+The renewed exact local gate then reproduced SC-004 at 268.9 MiB additional RSS.
+The allocation shape, rather than the fixture or threshold, remained the only
+unresolved variable: Bun 1.4.2 read a plain `Uint8Array` through transient
+conversion storage. T062 uses direct `Buffer` storage for the fully verified
+positional read and exposes only the existing `Uint8Array` contract. Three
+maintained and three ordinary Bun runs pass the unchanged 2 GiB fixture, and
+the blob-store ownership/corruption suite remains green. No further functional
+gap was found by the independent focused review; exact local, PR and main
+delivery evidence remains governed by T040/T041.
+
+That review also identified a P2 concurrency flaw in T061's first implementation:
+each canonical transaction retained one primary pool connection while its
+write-ahead callback requested a second connection from the same ten-slot pool.
+Ten simultaneous writes could therefore consume every slot and leave all ten
+waiting for an eleventh. T063 reproduces the stall with nine held clients plus
+the active canonical transaction, then routes the short journal transaction
+through a single reserved connection owned and closed by `DatabaseHandle`.
+The saturated operation completes, while journal ordering, FILE locks and the
+canonical commit boundary stay unchanged.
