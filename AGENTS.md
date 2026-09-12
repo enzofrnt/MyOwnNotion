@@ -19,7 +19,11 @@ Feature specifications refine the product canvas into testable behavior. They
 must not silently contradict it. When product direction changes, update the
 canvas and every directly affected active feature artifact in the same change.
 
-Never copy feature requirements into agent-specific files. `.agents/` and `.cursor/` contain only generated workflow skills or thin pointers to the shared artifacts.
+Never copy feature requirements into agent-specific files. `.agents/` and
+`.cursor/` contain generated workflow skills, explicitly maintained reusable
+workflow guidance, or thin pointers to the shared artifacts. The custom
+[UI quality skill](.agents/skills/ui-quality/SKILL.md) is maintained separately
+from generated `speckit-*` skills.
 
 ## Required workflow
 
@@ -38,6 +42,10 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
 ## Working conventions
 
 - Read the constitution and the active feature artifacts before editing code.
+- For UI planning, implementation and review, load the
+  [UI quality skill](.agents/skills/ui-quality/SKILL.md). Reference it in the
+  feature plan and UI tasks; keep specific states, acceptance criteria and
+  visual evidence in the feature artifacts.
 - Read `docs/product/product-canvas.md` before specifying or planning a feature,
   and record the relevant canvas sections in that feature's artifacts.
 - Keep product requirements technology-agnostic in `spec.md`; put technical choices in `plan.md`.

@@ -1638,6 +1638,11 @@ La documentation de démarrage doit partir d'une machine propre et décrire :
 
 ## 39. Processus obligatoire de développement
 
+Les phases de conception, réalisation et revue UI utilisent le
+[skill UI partagé](../../.agents/skills/ui-quality/SKILL.md), référencé dans le
+plan et les tâches de la feature. Les états à couvrir, les critères métier et
+les preuves visuelles restent dans ses artefacts canoniques.
+
 Toute modification fonctionnelle suit ce processus :
 
 1. partir d'un état à jour de la branche principale ;
