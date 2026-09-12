@@ -23,7 +23,13 @@ import {
   type Transaction,
   type UploadRecord,
 } from "@myownnotion/database";
-import { generateUuidV7, isUuid, type SafeError, type Uuid } from "@myownnotion/domain";
+import {
+  generateUuidV7,
+  isUuid,
+  normalizeDisplayName,
+  type SafeError,
+  type Uuid,
+} from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import { and, eq } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -259,6 +265,10 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
       const metadata = parseUploadMetadata(
         request.headers["upload-metadata"] as string | undefined,
       );
+      const originalName = normalizeDisplayName(metadata["filename"] ?? "untitled");
+      if (!originalName.ok) {
+        return sendProblem(reply, originalName.error);
+      }
       const requestedItemId = metadata["itemId"];
       if (requestedItemId !== undefined && !isUuid(requestedItemId)) {
         return sendProblem(reply, {
@@ -283,7 +293,7 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
           workspaceId: context.workspaceId,
           declaredLength: declared,
           mediaType: metadata["mediaType"] ?? "application/octet-stream",
-          originalName: metadata["filename"] ?? "untitled",
+          originalName: originalName.value,
         });
       });
       return reply

@@ -25,6 +25,9 @@ export const REVISION_SNAPSHOT_RETENTION_MS = 24 * 60 * 60 * 1000;
 /** Canonical page document format for this feature slice. */
 export const PAGE_DOCUMENT_FORMAT = "myownnotion.document+json";
 
+/** Exact plaintext marker reserved for content neutralized after it is sealed. */
+export const PROTECTED_CONTENT_PLACEHOLDER = "\uFFFD";
+
 export interface PageDocument {
   readonly format: typeof PAGE_DOCUMENT_FORMAT;
   readonly formatVersion: number;
@@ -175,6 +178,9 @@ export function normalizeDisplayName(raw: string): DomainResult<string> {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
     return err("validation.invalid-name", "Display name must not be empty");
+  }
+  if (trimmed === PROTECTED_CONTENT_PLACEHOLDER) {
+    return err("validation.invalid-name", "Display name is reserved");
   }
   if (trimmed.length > 512) {
     return err("validation.invalid-name", "Display name exceeds 512 characters");

@@ -10,6 +10,7 @@ import {
   listProtectedFileChunks,
   nextStorageSource,
   readStorageTransition,
+  SCRUBBED_PLACEHOLDER,
   type StorageTransitionEntry,
   type StorageTransitionRecord,
   schema,
@@ -460,11 +461,11 @@ export class FileStorageMigration {
     const result = await tx.execute<{ remaining: boolean }>(sql`SELECT
       EXISTS (SELECT 1 FROM file_contents WHERE storage_format <> 'encrypted-chunks-v1') OR
       EXISTS (SELECT 1 FROM uploads WHERE workspace_id = ${workspaceId} AND storage_format <> 'encrypted-chunks-v1') OR
-      EXISTS (SELECT 1 FROM items WHERE workspace_id = ${workspaceId} AND (name <> '�' OR icon IS NOT NULL)) OR
+      EXISTS (SELECT 1 FROM items WHERE workspace_id = ${workspaceId} AND (name <> ${SCRUBBED_PLACEHOLDER} OR icon IS NOT NULL)) OR
       EXISTS (SELECT 1 FROM page_documents p JOIN items i ON i.id = p.page_id
         WHERE i.workspace_id = ${workspaceId} AND p.body <> ${marker}::jsonb) OR
       EXISTS (SELECT 1 FROM logical_files f JOIN items i ON i.id = f.item_id
-        WHERE i.workspace_id = ${workspaceId} AND (f.original_name <> '�' OR f.media_type <> 'application/octet-stream')) OR
+        WHERE i.workspace_id = ${workspaceId} AND (f.original_name <> ${SCRUBBED_PLACEHOLDER} OR f.media_type <> 'application/octet-stream')) OR
       EXISTS (SELECT 1 FROM revisions r JOIN items i ON i.id = r.item_id
         WHERE i.workspace_id = ${workspaceId} AND r.snapshot IS NOT NULL) OR
       EXISTS (SELECT 1 FROM relationships WHERE workspace_id = ${workspaceId}

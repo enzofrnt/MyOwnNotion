@@ -5,6 +5,7 @@ import {
   type DatabaseProperty,
   type NonRelationPropertyValue,
   normalizeCivilDate,
+  normalizeDisplayName,
   readDocumentBody,
   type Uuid,
   validateDatabaseDefinition,
@@ -715,6 +716,15 @@ export function planNotionImport(
     if (parsed.kind !== "blocks" || !parsed.result.ok)
       issues.push({ code: "import.invalid-document", sourcePath: page.path, blocking: true });
   }
+  const invalidNamePaths = new Set<string>();
+  const reportInvalidName = (name: string, sourcePath: string) => {
+    if (normalizeDisplayName(name).ok || invalidNamePaths.has(sourcePath)) return;
+    invalidNamePaths.add(sourcePath);
+    issues.push({ code: "import.invalid-name", sourcePath, blocking: true });
+  };
+  for (const page of pages) reportInvalidName(page.title, page.path);
+  for (const file of files) reportInvalidName(file.name, file.path);
+  for (const folder of folders) reportInvalidName(folder.name, folder.name);
   for (const database of databases)
     if (!validateDatabaseDefinition(database.definition).ok)
       issues.push({ code: "import.invalid-definition", sourcePath: database.path, blocking: true });

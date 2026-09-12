@@ -14,6 +14,7 @@ import {
   generateUuidV7,
   isUuid,
   type MutationCommand,
+  normalizeDisplayName,
   ok,
   pageLinkTargets,
   planRestoreRevision,
@@ -588,6 +589,11 @@ async function executeRestoreRevision(
   // history): name and page document are restored; lifecycle and placements
   // are not touched by a content restore.
   const restored = plan.value.restoredSnapshot;
+  const restoredName = typeof restored["name"] === "string" ? restored["name"] : null;
+  const normalizedRestoredName = restoredName === null ? null : normalizeDisplayName(restoredName);
+  if (normalizedRestoredName !== null && !normalizedRestoredName.ok) {
+    return normalizedRestoredName as DomainResult<CommandExecution>;
+  }
   if (item.kind === "file") {
     const file = restored["file"];
     if (
@@ -604,6 +610,10 @@ async function executeRestoreRevision(
       typeof file.byteLength !== "number"
     ) {
       return err("revision.snapshot-expired", "Retained file content is unavailable");
+    }
+    const originalName = normalizeDisplayName(file.originalName);
+    if (!originalName.ok) {
+      return originalName as DomainResult<CommandExecution>;
     }
     const [content] = await tx
       .select()
@@ -624,18 +634,21 @@ async function executeRestoreRevision(
       .update(logicalFiles)
       .set({
         contentId: content.id,
-        originalName: file.originalName,
+        originalName: originalName.value,
         mediaType: file.mediaType,
         byteLength: content.byteLength,
       })
       .where(eq(logicalFiles.itemId, item.id));
   }
   const revisionId = generateUuidV7();
-  const restoredName = typeof restored["name"] === "string" ? (restored["name"] as string) : null;
-  if (restoredName !== null) {
+  if (normalizedRestoredName?.ok) {
     await tx
       .update(items)
-      .set({ name: restoredName, currentRevisionId: revisionId, updatedAt: context.acceptedAt })
+      .set({
+        name: normalizedRestoredName.value,
+        currentRevisionId: revisionId,
+        updatedAt: context.acceptedAt,
+      })
       .where(eq(items.id, item.id));
   } else {
     await tx

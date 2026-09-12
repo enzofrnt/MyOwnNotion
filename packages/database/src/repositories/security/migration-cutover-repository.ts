@@ -23,6 +23,7 @@
  * from which an operator cannot reason.
  */
 
+import { PROTECTED_CONTENT_PLACEHOLDER } from "@myownnotion/domain";
 import { and, eq, inArray, lte, ne, sql } from "drizzle-orm";
 import type { Transaction } from "../../client.ts";
 import { items, pageDocuments } from "../../schema/index.ts";
@@ -42,10 +43,11 @@ import { encryptionMigrations } from "../../schema/security/index.ts";
  *
  * It is not a word either — no "[encrypted]", no "(migrated)". A phrase would
  * leak into any tool reading the table directly and would read as content
- * someone wrote. U+FFFD is one character, is never typed by a person, and
- * already means precisely "the content is not representable here".
+ * someone wrote. U+FFFD is one character and already means precisely "the
+ * content is not representable here". The domain reserves its exact trimmed
+ * value so authored names can never be mistaken for this storage state.
  */
-export const SCRUBBED_PLACEHOLDER = "\uFFFD";
+export const SCRUBBED_PLACEHOLDER = PROTECTED_CONTENT_PLACEHOLDER;
 
 /**
  * Removes the plaintext titles of specific items.
