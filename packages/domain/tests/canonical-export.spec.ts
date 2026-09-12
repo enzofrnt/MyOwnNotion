@@ -52,7 +52,11 @@ function item(overrides: Partial<ExportedItem> = {}): ExportedItem {
     currentRevisionId: generateUuidV7(),
     favourite: false,
     offlineIntent: false,
-    pageDocument: null,
+    pageDocument: {
+      format: "myownnotion.document+json",
+      formatVersion: 1,
+      body: {},
+    },
     file: null,
     placements: [placement(id, null)],
     ...overrides,
@@ -364,6 +368,7 @@ describe("buildCanonicalExport", () => {
           ? {
               ...item,
               kind: "file",
+              pageDocument: null,
               file: {
                 mediaType: "text/plain",
                 originalName: "file.txt",
@@ -386,12 +391,140 @@ describe("buildCanonicalExport", () => {
               ],
             }
           : item.id === second.id
-            ? { ...item, kind: "folder" }
+            ? { ...item, kind: "folder", pageDocument: null }
             : item,
       ),
     };
     const codes = validateCanonicalExport(invalid as never).map((issue) => issue.code);
     expect(codes).toEqual(expect.arrayContaining(["placement.attachment-parent-kind"]));
+  });
+
+  it("rejects removed placements and invalid active placement cardinality", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    if (first === undefined) throw new Error("fixture missing");
+    const removed = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id
+          ? { ...entry, placements: [{ ...entry.placements[0], removedAt: EXPORTED_AT }] }
+          : entry,
+      ),
+    };
+    expect(validateCanonicalExport(removed as never).map((issue) => issue.code)).toContain(
+      "shape.item",
+    );
+
+    const orphaned = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id ? { ...entry, placements: [] } : entry,
+      ),
+    };
+    expect(validateCanonicalExport(orphaned as never).map((issue) => issue.code)).toContain(
+      "placement.cardinality",
+    );
+
+    const file = item({
+      kind: "file",
+      pageDocument: null,
+      file: {
+        mediaType: "text/plain",
+        originalName: "file.txt",
+        byteLength: 0,
+        sha256: "0".repeat(64),
+      },
+      placements: [],
+    });
+    const fileManifest = buildCanonicalExport({
+      workspaceId,
+      schemaVersion: 1,
+      exportedAt: EXPORTED_AT,
+      changeCursor: "",
+      items: [file],
+      relationships: [],
+      revisions: [revisionFor(file.id, file.currentRevisionId)],
+    });
+    expect(validateCanonicalExport(fileManifest).map((issue) => issue.code)).toContain(
+      "placement.cardinality",
+    );
+  });
+
+  it("keeps page documents limited to pages and preserves lifecycle nullability", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    if (first === undefined) throw new Error("fixture missing");
+    const missingPageDocument = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id ? { ...entry, pageDocument: null } : entry,
+      ),
+    };
+    expect(
+      validateCanonicalExport(missingPageDocument as never).map((issue) => issue.code),
+    ).toContain("shape.item");
+
+    const folderDocument = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id ? { ...entry, kind: "folder", pageDocument: null } : entry,
+      ),
+    };
+    expect(validateCanonicalExport(folderDocument as never)).toEqual([]);
+
+    const withFolderDocument = {
+      ...folderDocument,
+      items: folderDocument.items.map((entry) =>
+        entry.id === first.id ? { ...entry, pageDocument: first.pageDocument } : entry,
+      ),
+    };
+    expect(
+      validateCanonicalExport(withFolderDocument as never).map((issue) => issue.code),
+    ).toContain("shape.item");
+
+    const purged = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id
+          ? {
+              ...entry,
+              lifecycle: "purged",
+              pageDocument: null,
+              file: null,
+              placements: [],
+            }
+          : entry,
+      ),
+      counts: { ...manifest.counts, activeItems: 1, placements: 1 },
+    };
+    expect(validateCanonicalExport(purged as never)).toEqual([]);
+  });
+
+  it("rejects an attachment on a non-file item", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const second = manifest.items[1];
+    if (first === undefined || second === undefined) throw new Error("fixture missing");
+    const invalid = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id
+          ? {
+              ...entry,
+              placements: [
+                {
+                  ...entry.placements[0],
+                  kind: "attachment",
+                  parentItemId: second.id,
+                },
+              ],
+            }
+          : entry,
+      ),
+    };
+    expect(validateCanonicalExport(invalid as never).map((issue) => issue.code)).toContain(
+      "shape.item",
+    );
   });
 });
 
@@ -602,6 +735,47 @@ describe("validateCanonicalExport", () => {
         "database-entry.database-missing",
         "database-entry.values-identity",
       ]),
+    );
+  });
+
+  it("requires database hosts and entries to be pages and forbids self-entry", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+
+    const hostFolder = {
+      ...manifest,
+      items: manifest.items.map((item) =>
+        item.id === database.databaseId ? { ...item, kind: "folder", pageDocument: null } : item,
+      ),
+    };
+    expect(validateCanonicalExport(hostFolder as never).map((issue) => issue.code)).toContain(
+      "database.host-kind",
+    );
+
+    const entryFolder = {
+      ...manifest,
+      items: manifest.items.map((item) =>
+        item.id === entry.entryId ? { ...item, kind: "folder", pageDocument: null } : item,
+      ),
+    };
+    expect(validateCanonicalExport(entryFolder as never).map((issue) => issue.code)).toContain(
+      "database-entry.item-kind",
+    );
+
+    const selfEntry = {
+      ...manifest,
+      databaseEntries: [
+        {
+          ...entry,
+          entryId: database.databaseId,
+          values: { ...entry.values, entryId: database.databaseId },
+        },
+      ],
+    };
+    expect(validateCanonicalExport(selfEntry as never).map((issue) => issue.code)).toContain(
+      "database-entry.self",
     );
   });
 

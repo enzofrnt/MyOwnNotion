@@ -401,6 +401,13 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
         issues.push(shapeIssue("item", `items[${index}].pageDocument is not supported`));
       }
     }
+    if (
+      (item["kind"] !== "page" && pageDocument !== null) ||
+      (item["kind"] === "page" && item["lifecycle"] !== "purged" && pageDocument === null) ||
+      (item["kind"] === "page" && item["lifecycle"] === "purged" && pageDocument !== null)
+    ) {
+      issues.push(shapeIssue("item", `items[${index}].pageDocument does not match item kind`));
+    }
     const file = item["file"];
     if (
       file !== null &&
@@ -433,8 +440,9 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
         typeof placement["positionKey"] !== "string" ||
         !isValidPositionKey(placement["positionKey"]) ||
         placement["itemIsFile"] !== (item["kind"] === "file") ||
-        (placement["kind"] === "attachment" && placement["parentItemId"] === null) ||
-        !(placement["removedAt"] === null || isTimestamp(placement["removedAt"]))
+        (placement["kind"] === "attachment" &&
+          (placement["parentItemId"] === null || item["kind"] !== "file")) ||
+        placement["removedAt"] !== null
       ) {
         issues.push(shapeIssue("item", `items[${index}].placements[${placementIndex}] is invalid`));
       }
@@ -612,6 +620,7 @@ export function validateCanonicalExport(
   const itemIds = new Set(manifest.items.map((item) => item.id));
   const itemsById = new Map(manifest.items.map((item) => [item.id, item]));
   const revisionIds = new Set(manifest.revisions.map((revision) => revision.id));
+  const revisionsById = new Map(manifest.revisions.map((revision) => [revision.id, revision]));
   const hierarchyParents = new Map(
     manifest.items.map((item) => [
       item.id,
@@ -686,9 +695,7 @@ export function validateCanonicalExport(
         detail: `Item ${item.id} references missing revision ${item.currentRevisionId}`,
       });
     }
-    const currentRevision = manifest.revisions.find(
-      (revision) => revision.id === item.currentRevisionId,
-    );
+    const currentRevision = revisionsById.get(item.currentRevisionId);
     if (currentRevision !== undefined && currentRevision.itemId !== item.id) {
       issues.push({
         code: "item.revision-item-mismatch",
@@ -740,13 +747,31 @@ export function validateCanonicalExport(
         }
       }
     }
-    if (
-      item.kind !== "file" &&
-      item.placements.filter((placement) => placement.kind === "hierarchy").length > 1
-    ) {
+    const hierarchyPlacements = item.placements.filter(
+      (placement) => placement.kind === "hierarchy",
+    );
+    if (item.kind !== "file" && hierarchyPlacements.length > 1) {
       issues.push({
         code: "placement.hierarchy-duplicate",
         detail: `Item ${item.id} has more than one hierarchy placement`,
+      });
+    }
+    if (item.lifecycle === "active") {
+      const valid =
+        item.kind === "file" ? item.placements.length > 0 : hierarchyPlacements.length === 1;
+      if (!valid) {
+        issues.push({
+          code: "placement.cardinality",
+          detail:
+            item.kind === "file"
+              ? `Active file ${item.id} must have at least one placement`
+              : `Active ${item.kind} ${item.id} must have exactly one hierarchy placement`,
+        });
+      }
+    } else if (item.lifecycle === "trashed" && item.kind === "file" && item.placements.length > 0) {
+      issues.push({
+        code: "placement.trashed-file",
+        detail: `Trashed file ${item.id} must not have active placements`,
       });
     }
   }
@@ -772,9 +797,7 @@ export function validateCanonicalExport(
         detail: `Relationship ${relationship.id} references missing creation revision`,
       });
     }
-    const createdRevision = manifest.revisions.find(
-      (revision) => revision.id === relationship.createdRevisionId,
-    );
+    const createdRevision = revisionsById.get(relationship.createdRevisionId);
     if (createdRevision !== undefined && createdRevision.itemId !== relationship.sourceItemId) {
       issues.push({
         code: "relationship.revision-owner-mismatch",
@@ -790,9 +813,10 @@ export function validateCanonicalExport(
         detail: `Relationship ${relationship.id} references missing removal revision`,
       });
     }
-    const removedRevision = manifest.revisions.find(
-      (revision) => revision.id === relationship.removedRevisionId,
-    );
+    const removedRevision =
+      relationship.removedRevisionId === null
+        ? undefined
+        : revisionsById.get(relationship.removedRevisionId);
     if (removedRevision !== undefined && removedRevision.itemId !== relationship.sourceItemId) {
       issues.push({
         code: "relationship.revision-owner-mismatch",
@@ -815,6 +839,11 @@ export function validateCanonicalExport(
         code: "database.item-missing",
         detail: `Database ${database.databaseId} has no exported host page`,
       });
+    } else if (itemsById.get(database.databaseId)?.kind !== "page") {
+      issues.push({
+        code: "database.host-kind",
+        detail: `Database ${database.databaseId} must be hosted by a page`,
+      });
     }
     if (
       database.definitionRevisionId !== undefined &&
@@ -824,9 +853,10 @@ export function validateCanonicalExport(
         code: "database.revision-missing",
         detail: "Database source revision is missing",
       });
-    const definitionRevision = manifest.revisions.find(
-      (revision) => revision.id === database.definitionRevisionId,
-    );
+    const definitionRevision =
+      database.definitionRevisionId === undefined
+        ? undefined
+        : revisionsById.get(database.definitionRevisionId);
     if (definitionRevision !== undefined && definitionRevision.itemId !== database.databaseId) {
       issues.push({
         code: "database.revision-owner-mismatch",
@@ -856,6 +886,17 @@ export function validateCanonicalExport(
         code: "database-entry.item-missing",
         detail: `Database entry ${entry.entryId} has no exported page`,
       });
+    } else if (itemsById.get(entry.entryId)?.kind !== "page") {
+      issues.push({
+        code: "database-entry.item-kind",
+        detail: `Database entry ${entry.entryId} must reference a page`,
+      });
+    }
+    if (entry.entryId === entry.databaseId) {
+      issues.push({
+        code: "database-entry.self",
+        detail: `Database entry ${entry.entryId} cannot be its own database`,
+      });
     }
     if (!databaseIds.has(entry.databaseId)) {
       issues.push({
@@ -869,9 +910,7 @@ export function validateCanonicalExport(
         detail: `Database entry ${entry.entryId} references missing revision ${entry.addedRevisionId}`,
       });
     }
-    const addedRevision = manifest.revisions.find(
-      (revision) => revision.id === entry.addedRevisionId,
-    );
+    const addedRevision = revisionsById.get(entry.addedRevisionId);
     if (addedRevision !== undefined && addedRevision.itemId !== entry.entryId) {
       issues.push({
         code: "database-entry.revision-owner-mismatch",
@@ -886,10 +925,11 @@ export function validateCanonicalExport(
     }
     const database = databasesById.get(entry.databaseId);
     if (database !== undefined) {
+      const propertiesById = new Map(
+        database.definition.properties.map((property) => [property.id, property]),
+      );
       for (const [propertyId, value] of Object.entries(entry.values.values)) {
-        const property = database.definition.properties.find(
-          (candidate) => candidate.id === propertyId,
-        );
+        const property = propertiesById.get(propertyId as Uuid);
         if (
           property === undefined ||
           !normalizePropertyValue(property, value, { intent: "decode" }).ok
@@ -927,7 +967,7 @@ export function validateCanonicalExport(
           detail: `Revision ${revision.id} references missing parent ${parent}`,
         });
       }
-      const parentRevision = manifest.revisions.find((candidate) => candidate.id === parent);
+      const parentRevision = revisionsById.get(parent);
       if (parentRevision !== undefined && parentRevision.itemId !== revision.itemId) {
         issues.push({
           code: "revision.parent-owner-mismatch",
