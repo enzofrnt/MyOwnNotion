@@ -324,6 +324,9 @@ window, so no browser pass is claimed here. Web typechecking and formatting/lint
 checks are recorded with the implementation commit; the full delivery gates
 remain T023/T024.
 
+The renewed candidate and its delivery gates use repository-pinned Bun 1.4.2.
+References to Bun 1.4.0 elsewhere in this document describe historical checkpoints.
+
 ### Backup delivery branch refresh (2026-09-08)
 
 The standalone 024 delivery branch now includes desktop corrections through
