@@ -256,6 +256,16 @@ function legacyOperationalState(pageId = TEST_ITEM): string {
   });
 }
 
+function initializingOperationalState(pageId = TEST_ITEM): string {
+  const state = JSON.parse(legacyOperationalState(pageId)) as {
+    pages: Array<Record<string, unknown>>;
+  };
+  const page = state.pages[0];
+  if (page === undefined) throw new Error("the operational fixture has no page");
+  page["status"] = "initializing";
+  return JSON.stringify(state);
+}
+
 function input(overrides: Partial<PreflightInput> = {}): PreflightInput {
   return {
     openArchive: async () => archive(),
@@ -778,6 +788,71 @@ describe("writing a checked archive", () => {
       ),
     ).rejects.toThrow("missing archived device");
     expect(calls).toEqual(["devices"]);
+  });
+
+  it("restores an empty initializing operational state after target.begin", async () => {
+    const operationalState = initializingOperationalState();
+    const calls: string[] = [];
+    const service = new PageOperationArchiveService({
+      workspaceId: TEST_WORKSPACE as Uuid,
+      crypto: {} as never,
+    });
+    const result = await applyArchive(
+      archive(
+        {
+          operationalStateDigest: `sha256:${createHash("sha256").update(operationalState).digest("hex")}`,
+          operationalFormatVersion: 1,
+          operationalPageCount: 1,
+          operationalCheckpointCount: 0,
+          operationalUpdateCount: 0,
+        },
+        true,
+        undefined,
+        operationalState,
+      ),
+      {
+        begin: async () => {
+          calls.push("begin");
+        },
+        verifyPageOperations: async (state) => {
+          calls.push("verify");
+          await service.verify(readPageOperationArchive(state));
+        },
+        verifyPageOperationDevices: async () => {
+          calls.push("devices");
+        },
+        writePageOperations: async () => {
+          calls.push("operations");
+        },
+        writeFile: async () => {
+          calls.push("file");
+        },
+        writeRevision: async () => {
+          calls.push("revision");
+        },
+        writeItem: async () => {
+          calls.push("item");
+        },
+        writeRelationship: async () => {
+          calls.push("relationship");
+        },
+        finish: async () => {
+          calls.push("finish");
+        },
+      },
+    );
+
+    expect(result.restoredItemCount).toBe(1);
+    expect(calls).toEqual([
+      "devices",
+      "verify",
+      "begin",
+      "file",
+      "item",
+      "revision",
+      "finish",
+      "operations",
+    ]);
   });
 
   it("keeps exact markers restorable from a pre-reservation archive", async () => {

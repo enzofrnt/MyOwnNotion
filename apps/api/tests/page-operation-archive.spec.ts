@@ -376,6 +376,19 @@ describe("operational archive envelope", () => {
       ],
       [
         withPage(archive, {
+          status: "legacy",
+        }),
+        "legacy state contains operational records",
+      ],
+      [
+        withPage(archive, {
+          status: "legacy",
+          currentCheckpointId: null,
+        }),
+        "legacy state contains operational records",
+      ],
+      [
+        withPage(archive, {
           revisionWindowStartedAt: "2026-08-23T10:00:00.000Z",
         }),
         "revision window is incomplete",
@@ -568,6 +581,108 @@ describe("operational archive verification", () => {
     await expect(service().export(partialTx)).rejects.toThrow("partially installed");
   });
 
+  it("exports an empty initializing state without a checkpoint", async () => {
+    const workspaceId = generateUuidV7();
+    const pageId = generateUuidV7();
+    const query = {
+      from: vi.fn(),
+      where: vi.fn(),
+      orderBy: vi.fn(),
+    };
+    query.from.mockReturnValue(query);
+    query.where.mockReturnValue(query);
+    const rows: unknown[][] = [
+      [
+        {
+          pageId,
+          workspaceId,
+          status: "initializing",
+          operationalFormat: OPERATIONAL_FORMAT,
+          operationalVersion: OPERATIONAL_FORMAT_VERSION,
+          currentCheckpointId: null,
+          currentFrontierEnvelopeId: null,
+          operationalDigest: null,
+          canonicalDigest: "a".repeat(64),
+          canonicalFormatVersion: 3,
+          lastUpdateSequence: 0,
+          lastRevisionId: generateUuidV7(),
+          revisionWindowStartedAt: null,
+          revisionWindowLastUpdateAt: null,
+          revisionWindowFrontierEnvelopeId: null,
+          bootstrappedAt: null,
+          updatedAt: new Date("2026-08-23T10:00:00.000Z"),
+        },
+      ],
+      [],
+      [],
+      [],
+      [],
+      [],
+    ];
+    query.orderBy.mockImplementation(async () => rows.shift() ?? []);
+    const tx = {
+      execute: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            states: true,
+            updates: true,
+            checkpoints: true,
+            frontiers: true,
+            ambiguities: true,
+            conversions: true,
+          },
+        ],
+      }),
+      select: vi.fn().mockReturnValue(query),
+    } as unknown as Transaction;
+
+    const exported = await service(workspaceId).export(tx);
+    expect(exported.archive.pages).toHaveLength(1);
+    expect(exported.archive.pages[0]).toMatchObject({
+      pageId,
+      status: "initializing",
+      currentCheckpointId: null,
+      currentFrontier: null,
+      operationalDigest: null,
+      lastUpdateSequence: 0,
+      checkpoints: [],
+      updates: [],
+      deviceFrontiers: [],
+      ambiguities: [],
+      legacyBranchConversions: [],
+    });
+    await expect(service(workspaceId).verify(exported.archive)).resolves.toBeUndefined();
+  });
+
+  it("accepts an initializing state only when it is empty and unbootstrapped", async () => {
+    const { archive, canonicalExport } = await validArchive();
+    const initializing = withPage(archive, {
+      status: "initializing",
+      currentCheckpointId: null,
+      currentFrontier: null,
+      operationalDigest: null,
+      lastUpdateSequence: 0,
+      bootstrappedAt: null,
+      checkpoints: [],
+      updates: [],
+      deviceFrontiers: [],
+      ambiguities: [],
+      legacyBranchConversions: [],
+    });
+    await expect(service().verify(initializing, canonicalExport)).resolves.toBeUndefined();
+
+    for (const changes of [
+      { checkpoints: archive.pages[0]?.checkpoints ?? [] },
+      { lastUpdateSequence: 1 },
+      { operationalDigest: "a".repeat(64) },
+      { status: "blocked" as const },
+    ]) {
+      await expect(service().verify(withPage(initializing, changes))).rejects.toThrow(
+        /initializing state|non-legacy operational backup/iu,
+      );
+    }
+  });
+
   it("rejects broken checkpoint, frontier, ambiguity and sequence evidence", async () => {
     const { archive } = await validArchive();
     const verifier = service();
@@ -667,6 +782,229 @@ describe("operational archive verification", () => {
         }),
       ),
     ).rejects.toThrow("cannot be reconstructed");
+  });
+
+  it("cross-checks every retained update base against its Loro blob", async () => {
+    const { archive, head } = await validArchive({ withUpdate: true });
+    const page = archive.pages[0];
+    const update = page?.updates[0];
+    if (page === undefined || update === undefined || update.baseFrontier === null) {
+      throw new Error("invalid update fixture");
+    }
+    const currentCheckpoint = await head.checkpoint();
+    const projection = await head.project();
+    const currentCheckpointId = generateUuidV7();
+    const covered = withPage(archive, {
+      currentCheckpointId,
+      currentFrontier: {
+        versionVector: encoded(currentCheckpoint.versionVector),
+        frontiers: encoded(currentCheckpoint.frontiers),
+      },
+      operationalDigest: projection.operationalDigest,
+      canonicalDigest: projection.canonicalDigest,
+      checkpoints: [
+        ...page.checkpoints,
+        {
+          id: currentCheckpointId,
+          throughPageSequence: 1,
+          frontier: {
+            versionVector: encoded(currentCheckpoint.versionVector),
+            frontiers: encoded(currentCheckpoint.frontiers),
+          },
+          snapshotBytes: encoded(currentCheckpoint.bytes),
+          snapshotDigest: currentCheckpoint.digest,
+          canonicalDigest: projection.canonicalDigest,
+          revisionId: generateUuidV7(),
+          state: "verified",
+          createdAt: "2026-08-23T10:00:02.000Z",
+          verifiedAt: "2026-08-23T10:00:02.500Z",
+        },
+      ],
+    });
+
+    await expect(
+      service().verify(
+        withPage(covered, {
+          updates: [
+            {
+              ...update,
+              baseFrontier: covered.pages[0]?.currentFrontier ?? null,
+            },
+          ],
+        }),
+      ),
+    ).rejects.toThrow("does not match its declared causal base");
+    await expect(service().verify(covered)).resolves.toBeUndefined();
+  });
+
+  it("cross-checks result frontiers for updates covered by the current checkpoint", async () => {
+    const { archive, head } = await validArchive({ withUpdate: true });
+    const page = archive.pages[0];
+    const first = page?.updates[0];
+    const firstCheckpoint = page?.checkpoints[0];
+    if (page === undefined || first === undefined || firstCheckpoint === undefined) {
+      throw new Error("invalid update fixture");
+    }
+    const projectionBefore = await head.project();
+    const block = projectionBefore.document.blocks[0];
+    if (block === undefined) throw new Error("invalid block fixture");
+    const second = head.transact([
+      { type: "replace-text", blockId: block.id, from: 0, to: 0, text: "prefix " },
+    ]);
+    const currentCheckpoint = await head.checkpoint();
+    const projection = await head.project();
+    const currentCheckpointId = generateUuidV7();
+    const candidate = withPage(archive, {
+      currentCheckpointId,
+      currentFrontier: {
+        versionVector: encoded(currentCheckpoint.versionVector),
+        frontiers: encoded(currentCheckpoint.frontiers),
+      },
+      operationalDigest: projection.operationalDigest,
+      canonicalDigest: projection.canonicalDigest,
+      lastUpdateSequence: 2,
+      updatedAt: "2026-08-23T10:00:02.000Z",
+      checkpoints: [
+        firstCheckpoint,
+        {
+          id: currentCheckpointId,
+          throughPageSequence: 2,
+          frontier: {
+            versionVector: encoded(currentCheckpoint.versionVector),
+            frontiers: encoded(currentCheckpoint.frontiers),
+          },
+          snapshotBytes: encoded(currentCheckpoint.bytes),
+          snapshotDigest: currentCheckpoint.digest,
+          canonicalDigest: projection.canonicalDigest,
+          revisionId: generateUuidV7(),
+          state: "verified",
+          createdAt: "2026-08-23T10:00:02.000Z",
+          verifiedAt: "2026-08-23T10:00:02.500Z",
+        },
+      ],
+      updates: [
+        first,
+        {
+          id: generateUuidV7(),
+          pageSequence: 2,
+          authoredByDeviceId: generateUuidV7(),
+          baseFrontier: {
+            versionVector: encoded(second.baseVersionVector),
+            frontiers: first.resultFrontier.frontiers,
+          },
+          resultFrontier: {
+            versionVector: encoded(second.resultVersionVector),
+            frontiers: encoded(second.resultFrontiers),
+          },
+          updateBytes: encoded(second.updateBytes),
+          updateDigest: await sha256Hex(second.updateBytes),
+          status: "accepted",
+          failureCode: null,
+          acceptedAt: "2026-08-23T10:00:02.000Z",
+          compactedAt: null,
+        },
+      ],
+    });
+    const secondUpdate = candidate.pages[0]?.updates[1];
+    if (secondUpdate === undefined) throw new Error("invalid second update fixture");
+    const valid = withPage(candidate, {
+      updates: [
+        first,
+        {
+          ...secondUpdate,
+          baseFrontier: {
+            versionVector: encoded(second.baseVersionVector),
+            frontiers: first.resultFrontier.frontiers,
+          },
+        },
+      ],
+    });
+    await expect(service().verify(valid)).resolves.toBeUndefined();
+    await expect(
+      service().verify(
+        withPage(valid, {
+          updates: [
+            {
+              ...first,
+              resultFrontier: secondUpdate.resultFrontier,
+            },
+            secondUpdate,
+          ],
+        }),
+      ),
+    ).rejects.toThrow("result frontier cannot be reconstructed");
+  });
+
+  it("binds every checkpoint frontier to the sequence it declares", async () => {
+    const { archive, head } = await validArchive({ withUpdate: true });
+    const page = archive.pages[0];
+    const checkpoint = page?.checkpoints[0];
+    if (page === undefined || checkpoint === undefined) throw new Error("invalid fixture");
+
+    const headCheckpoint = await head.checkpoint();
+    const forged = withPage(archive, {
+      checkpoints: [
+        {
+          ...checkpoint,
+          frontier: {
+            versionVector: encoded(headCheckpoint.versionVector),
+            frontiers: encoded(headCheckpoint.frontiers),
+          },
+          snapshotBytes: encoded(headCheckpoint.bytes),
+          snapshotDigest: headCheckpoint.digest,
+          canonicalDigest: page.canonicalDigest,
+        },
+      ],
+    });
+
+    expect(() => readPageOperationArchive(forged)).toThrow(
+      "sequence-zero checkpoint does not match the initial frontier",
+    );
+  });
+
+  it("rejects checkpoints and lifecycle timestamps that run ahead or backward", async () => {
+    const { archive } = await validArchive({ withUpdate: true });
+    const page = archive.pages[0];
+    const checkpoint = page?.checkpoints[0];
+    const update = page?.updates[0];
+    if (page === undefined || checkpoint === undefined || update === undefined) {
+      throw new Error("invalid lifecycle fixture");
+    }
+    await expect(() =>
+      readPageOperationArchive(
+        withPage(archive, {
+          checkpoints: [{ ...checkpoint, throughPageSequence: page.lastUpdateSequence + 1 }],
+        }),
+      ),
+    ).toThrow("checkpoint is beyond the update log");
+    await expect(() =>
+      readPageOperationArchive(
+        withPage(archive, {
+          checkpoints: [{ ...checkpoint, verifiedAt: "2026-08-23T09:59:59.000Z" }],
+        }),
+      ),
+    ).toThrow("verification predates creation");
+    await expect(() =>
+      readPageOperationArchive(
+        withPage(archive, {
+          updates: [
+            {
+              ...update,
+              compactedAt: "2026-08-23T09:59:59.000Z",
+              baseFrontier: null,
+              updateBytes: null,
+            },
+          ],
+        }),
+      ),
+    ).toThrow("compaction predates acceptance");
+    await expect(() =>
+      readPageOperationArchive(
+        withPage(archive, {
+          updatedAt: "2026-08-23T09:59:59.000Z",
+        }),
+      ),
+    ).toThrow("update predates bootstrap");
   });
 
   it("rejects a frontier whose causal version is paired with different frontier ids", async () => {

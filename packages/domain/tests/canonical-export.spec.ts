@@ -189,6 +189,29 @@ describe("buildCanonicalExport", () => {
     expect(manifest.changeCursor).toBe("seq:2");
   });
 
+  it("rejects U+0000 in nested string values and object keys", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    if (first === undefined || first.pageDocument === null) throw new Error("fixture missing");
+    const invalid = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id
+          ? {
+              ...entry,
+              pageDocument: {
+                ...first.pageDocument,
+                body: { nested: { ["key\u0000"]: "value\u0000" } },
+              },
+            }
+          : entry,
+      ),
+    };
+    expect(validateCanonicalExport(invalid as never).map((issue) => issue.code)).toContain(
+      "shape.nul",
+    );
+  });
+
   it("sorts items, relationships, and revisions by identity for determinism", () => {
     const high = item({ id: "ffffffff-ffff-7fff-8fff-ffffffffffff" as Uuid });
     const low = item({ id: "00000000-0000-7000-8000-000000000000" as Uuid });
@@ -545,6 +568,29 @@ describe("canonicalExportString", () => {
 });
 
 describe("validateCanonicalExport", () => {
+  it("requires structured record versions to be at least one", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+
+    const invalidDatabase = {
+      ...manifest,
+      databases: [{ ...database, definitionVersion: 0 }],
+    };
+    expect(validateCanonicalExport(invalidDatabase as never).map((issue) => issue.code)).toContain(
+      "shape.database",
+    );
+
+    const invalidEntry = {
+      ...manifest,
+      databaseEntries: [{ ...entry, valueVersion: 0 }],
+    };
+    expect(validateCanonicalExport(invalidEntry as never).map((issue) => issue.code)).toContain(
+      "shape.database-entry",
+    );
+  });
+
   it("reports no issues for a complete manifest", () => {
     expect(validateCanonicalExport(consistentFixture())).toEqual([]);
   });

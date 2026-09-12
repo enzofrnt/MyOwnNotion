@@ -476,12 +476,9 @@ describe("operational backup and restore", () => {
       versionVector: Buffer.from(later.resultVersionVector).toString("base64url"),
       frontiers: Buffer.from(later.resultFrontiers).toString("base64url"),
     };
-    await expect(
-      archiveService.verify(
-        readPageOperationArchive(causallyAhead),
-        JSON.parse(decoded.canonicalExport),
-      ),
-    ).rejects.toThrow("ahead of the archived document");
+    expect(() => readPageOperationArchive(causallyAhead)).toThrow(
+      "checkpoint frontier does not match its covered sequence",
+    );
 
     await restoreBackup(compactedBackup.archive);
     const item = await harness.api.built.app.inject({
