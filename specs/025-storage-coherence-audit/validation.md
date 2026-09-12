@@ -393,3 +393,19 @@ The workflow contract suite passes **31/31 tests**, including assertions for
 both job declarations, exact commands and aggregate dependencies. This is
 focused CI topology evidence only; it does not claim `checks:local`, PR CI or
 main CI completion. Those delivery obligations remain T040/T041.
+
+## T060 — WebKit response lifecycle during reload
+
+Main run `34707930251` attempt 1 failed only the WebKit mobile lane because an
+HTTP 200 workspace change-feed response was canceled while its JSON body was
+being read during `page.reload()`. The same durable internal link was visible
+after reload and the Playwright retry passed; the maintained
+`--fail-on-flaky-tests` policy kept the job red and retained its trace.
+
+The focused `ContentApi` regression resolves a 2xx `Response`, rejects only its
+`json()` body read, expects the canonical offline result, and proves that exactly
+one network request occurred. The corrected browser journey waits for both the
+page save and workspace synchronization before navigation, verifies no page
+error during the operation, and retains its post-reload link assertion. Focused
+unit, web type and changed-file Biome checks pass at `981777ff`; the renewed
+exact local, PR and main evidence remains part of T040/T041.

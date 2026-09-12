@@ -149,3 +149,21 @@ FR-011/FR-013, not a new product requirement. T059 adds one observable job per
 entry point, requires both jobs from the aggregate, and adds a contract test for
 the declarations, exact commands and dependencies. The focused contract proof
 passes; complete local, PR and main gates remain T040/T041.
+
+## T060 — successful response body canceled during navigation
+
+Main run `34707930251` attempt 1 exposed a WebKit mobile page error while the
+durable internal-link journey reloaded the editor. The page link had already
+persisted and the retry passed, so `--fail-on-flaky-tests` correctly identified
+a response-lifecycle race rather than lost content. The old document's workspace
+change feed received HTTP 200, then navigation canceled `response.json()` while
+the body was being consumed. `ContentApi` caught transport rejection around
+`fetch()` but allowed this later rejection to escape.
+
+T060 converts a successful response whose body cannot be consumed into the
+existing bounded offline result and never replays the request. The browser
+journey now waits for the workspace synchronization barrier before navigation,
+checks that no page error occurred during the functional interaction, and then
+detaches its old-document listener before reload. The persisted-link assertions
+remain unchanged. Focused unit, type and formatting evidence is recorded in
+`validation.md`; renewed exact local, PR and main gates remain T040/T041.
