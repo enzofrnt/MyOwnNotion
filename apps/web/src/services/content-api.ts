@@ -107,7 +107,15 @@ export class ContentApi {
       }
       return { ok: false, problem, offline: false };
     }
-    return { ok: true, value: (await response.json()) as T };
+    try {
+      return { ok: true, value: (await response.json()) as T };
+    } catch {
+      // A navigation can cancel a successful response while its body is still
+      // being read (WebKit reports this as an access-control failure). Treat
+      // that as an offline read. Do not issue another request here: the caller
+      // owns any idempotent mutation retry decision.
+      return { ok: false, problem: OFFLINE_PROBLEM, offline: true };
+    }
   }
 
   async health(): Promise<ApiResult<{ status: "ready"; schemaVersion: number }>> {

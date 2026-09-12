@@ -253,7 +253,8 @@ test.describe("the contextual BlockNote controls", () => {
     page,
   }) => {
     const uncaughtErrors: string[] = [];
-    page.on("pageerror", (error) => uncaughtErrors.push(error.message));
+    const recordPageError = (error: Error) => uncaughtErrors.push(error.message);
+    page.on("pageerror", recordPageError);
     const targetName = uniqueName("LinkTarget");
     await openPage(page, targetName);
     const sourceName = uniqueName("FormattingPage");
@@ -299,13 +300,18 @@ test.describe("the contextual BlockNote controls", () => {
     // covered independently below; it must not dictate an editable alias for
     // a canonical page reference.
     await saveDocument(page, { until: "synced" });
+    // The editor's page channel can be synced while the workspace change feed
+    // is still catching up. Finish that global exchange before navigating so
+    // WebKit cannot report the old document's canceled fetch as a page error.
+    await waitForSynchronized(page);
+    expect(uncaughtErrors).toEqual([]);
+    page.off("pageerror", recordPageError);
     await page.reload();
     await openWorkspace(page);
     await selectItem(page, sourceName);
     await expect(surface(page).locator('a[href^="#page="] .page-link__label')).toHaveText(
       targetName,
     );
-    expect(uncaughtErrors).toEqual([]);
   });
 });
 
