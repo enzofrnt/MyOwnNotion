@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open, readdir, realpath } from "node:fs/promises";
-import { extname, join, relative, resolve, sep } from "node:path";
+import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { crc32 } from "node:zlib";
 import * as yauzl from "yauzl";
 
@@ -80,6 +80,37 @@ async function readRegular(path: string, limit: number): Promise<Uint8Array> {
     await file.close();
   }
 }
+type DirectoryIdentity = readonly [number, number, number];
+
+async function directoryIdentities(root: string, path: string): Promise<DirectoryIdentity[]> {
+  const parent = dirname(path);
+  const relativeParent = relative(root, parent);
+  if (relativeParent.startsWith(`..${sep}`) || relativeParent === "..")
+    throw new NotionImportError("import.unsafe-path");
+  const parts = relativeParent === "" ? [] : relativeParent.split(sep);
+  const identities: DirectoryIdentity[] = [];
+  const directories = [root];
+  for (const part of parts) directories.push(join(directories.at(-1) as string, part));
+  for (const directory of directories) {
+    const stat = await lstat(directory);
+    if (stat.isSymbolicLink()) throw new NotionImportError("import.symlink-refused");
+    if (!stat.isDirectory()) throw new NotionImportError("import.source-changed");
+    identities.push([stat.dev, stat.ino, stat.mode]);
+  }
+  return identities;
+}
+
+function sameDirectoryIdentities(
+  before: readonly DirectoryIdentity[],
+  after: readonly DirectoryIdentity[],
+): boolean {
+  return (
+    before.length === after.length &&
+    before.every((identity, index) =>
+      identity.every((part, offset) => part === after[index]?.[offset]),
+    )
+  );
+}
 export async function readImportSource(sourcePath: string): Promise<ImportSnapshot> {
   const source = resolve(sourcePath);
   const rootStat = await lstat(source);
@@ -106,6 +137,14 @@ export async function readImportSource(sourcePath: string): Promise<ImportSnapsh
   };
   if (rootStat.isDirectory()) {
     const root = await realpath(source);
+    const resolvedRootStat = await lstat(root);
+    if (
+      !resolvedRootStat.isDirectory() ||
+      resolvedRootStat.dev !== rootStat.dev ||
+      resolvedRootStat.ino !== rootStat.ino ||
+      resolvedRootStat.mode !== rootStat.mode
+    )
+      throw new NotionImportError("import.source-changed");
     const assertContained = async (path: string) => {
       const actual = await realpath(path);
       if (actual !== root && !actual.startsWith(`${root}${sep}`))
@@ -124,7 +163,11 @@ export async function readImportSource(sourcePath: string): Promise<ImportSnapsh
           await walk(path, depth + 1);
         } else if (info.isFile()) {
           const normalized = register(relative(root, path).split(sep).join("/"), info.size);
+          const beforeAncestors = await directoryIdentities(root, path);
           const bytes = await readRegular(path, Math.min(info.size, SOURCE_LIMITS.fileBytes));
+          const afterAncestors = await directoryIdentities(root, path);
+          if (!sameDirectoryIdentities(beforeAncestors, afterAncestors))
+            throw new NotionImportError("import.source-changed");
           await assertContained(path);
           if (bytes.length !== info.size) throw new NotionImportError("import.source-changed");
           accept(normalized, bytes);

@@ -7,10 +7,30 @@ import { parseDocument } from "yaml";
 import { type ImportIssue, type ImportLink, importId } from "./model.ts";
 import { NotionImportError } from "./source.ts";
 
+const MAX_FRONTMATTER_DEPTH = 64;
+const MAX_FRONTMATTER_NODES = 100_000;
+
+function validateYamlShape(document: { contents: unknown }): void {
+  let nodes = 0;
+  const visit = (value: unknown, depth: number): void => {
+    if (value === null || typeof value !== "object") return;
+    if (++nodes > MAX_FRONTMATTER_NODES || depth > MAX_FRONTMATTER_DEPTH)
+      throw new NotionImportError("import.invalid-yaml");
+    const node = value as Record<string, unknown>;
+    if ("contents" in node) visit(node["contents"], depth + 1);
+    if (Array.isArray(node["items"])) for (const item of node["items"]) visit(item, depth + 1);
+    if ("key" in node) visit(node["key"], depth + 1);
+    if (node["value"] !== null && typeof node["value"] === "object")
+      visit(node["value"], depth + 1);
+  };
+  visit(document.contents, 0);
+}
+
 export function safeYaml(text: string): unknown {
   try {
     const document = parseDocument(text, { uniqueKeys: true, strict: true, intAsBigInt: true });
     if (document.errors.length || document.warnings.length) throw new Error();
+    validateYamlShape(document);
     const normalize = (value: unknown): unknown => {
       if (typeof value === "bigint")
         return value <= BigInt(Number.MAX_SAFE_INTEGER) && value >= BigInt(Number.MIN_SAFE_INTEGER)

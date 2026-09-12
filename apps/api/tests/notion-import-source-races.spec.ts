@@ -2,13 +2,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const faults = vi.hoisted(() => ({ mode: "", file: "", closes: 0, containmentCalls: 0 }));
+const faults = vi.hoisted(() => ({
+  mode: "",
+  file: "",
+  root: "",
+  closes: 0,
+  containmentCalls: 0,
+  rootStats: 0,
+}));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs/promises")>();
   return {
     ...fs,
     lstat: async (path: string) => {
       const info = await fs.lstat(path);
+      if (path === faults.root && faults.mode === "ancestor-changed" && ++faults.rootStats === 3)
+        return Object.assign(info, { ino: info.ino + 1 });
       if (path !== faults.file) return info;
       if (faults.mode === "outer-size-changed") return Object.assign(info, { size: info.size + 1 });
       if (faults.mode === "special-file") return Object.assign(info, { isFile: () => false });
@@ -66,9 +75,11 @@ beforeEach(async () => {
   root = await fs.mkdtemp(join(tmpdir(), "notion-read-race-"));
   root = await fs.realpath(root);
   faults.file = join(root, "Page.md");
+  faults.root = root;
   faults.mode = "";
   faults.closes = 0;
   faults.containmentCalls = 0;
+  faults.rootStats = 0;
   await fs.writeFile(faults.file, "old");
 });
 afterEach(async () => {
@@ -83,6 +94,7 @@ describe("source filesystem races", () => {
     ["changed-mtime", "import.source-changed", 1],
     ["outer-size-changed", "import.source-changed", 1],
     ["containment-changed", "import.unsafe-path", 1],
+    ["ancestor-changed", "import.source-changed", 1],
     ["special-file", "import.unsafe-source", 0],
   ])("refuses %s while closing every opened handle", async (mode, code, closes) => {
     faults.mode = String(mode);

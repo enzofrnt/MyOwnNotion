@@ -24,6 +24,26 @@ export type DatabaseViewResult =
   | { readonly ok: true; readonly value: DatabaseViewPage }
   | { readonly ok: false; readonly problem: ProblemDto };
 
+/**
+ * Merge the server-selected page with optimistic local state without changing
+ * the server's membership, pagination boundary, or ordering. A partial local
+ * projection cannot establish where an absent local row belongs globally, so
+ * only rows already selected by the server may be overlaid.
+ */
+export function mergeDatabaseViewRows(
+  serverRows: readonly DatabaseQueryPageDto["rows"][number][],
+  localRows: readonly DatabaseQueryPageDto["rows"][number][],
+  states: ReadonlyMap<Uuid, DatabaseRowSyncState>,
+): DatabaseViewRow[] {
+  const localById = new Map(localRows.map((row) => [row.entryId as Uuid, row]));
+  return serverRows.map((row) => {
+    const entryId = row.entryId as Uuid;
+    const state = states.get(entryId) ?? "synced";
+    const local = localById.get(entryId);
+    return { ...(state === "synced" || local === undefined ? row : local), syncState: state };
+  });
+}
+
 function entryIdFromPayload(payload: Readonly<Record<string, unknown>>): Uuid | null {
   const value = payload["entryId"] ?? payload["id"];
   return typeof value === "string" ? (value as Uuid) : null;
@@ -270,19 +290,7 @@ export class DatabaseViewService {
       };
     }
 
-    const localRows = new Map(localPage.rows.map((row) => [row.entryId, row]));
-    const rows = server.value.rows.map((row) => {
-      const state = states.get(row.entryId as Uuid) ?? "synced";
-      return {
-        ...(state === "synced" ? row : (localRows.get(row.entryId) ?? row)),
-        syncState: state,
-      };
-    });
-    for (const row of localPage.rows) {
-      if (!rows.some(({ entryId }) => entryId === row.entryId) && states.has(row.entryId as Uuid)) {
-        rows.push({ ...row, syncState: states.get(row.entryId as Uuid) ?? "pending" });
-      }
-    }
+    const rows = mergeDatabaseViewRows(server.value.rows, localPage.rows, states);
     return {
       ok: true,
       value: {

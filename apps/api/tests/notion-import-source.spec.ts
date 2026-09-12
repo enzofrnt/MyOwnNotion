@@ -172,6 +172,14 @@ describe("Notion source preview", () => {
       expect(() => normalizeSourcePath(path)).toThrow();
     expect(() => safeYaml("a: &a [1]\nb: *a")).toThrow();
     expect(() => safeYaml("a: !execute echo")).toThrow();
+    expect(() => safeYaml(`nested: ${"[".repeat(65)}0${"]".repeat(65)}`)).toThrow(
+      "import.invalid-yaml",
+    );
+    expect(() =>
+      safeYaml(
+        `values:\n${Array.from({ length: 100_001 }, (_, index) => `  - ${index}`).join("\n")}`,
+      ),
+    ).toThrow("import.invalid-yaml");
     const duplicate = await fixture({
       "source.zip": zip([
         { name: "a.md", text: "A" },

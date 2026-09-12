@@ -1,7 +1,7 @@
 import type { LocalDatabaseRow } from "@myownnotion/client-core";
 import { type DatabaseDefinition, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { describe, expect, it, vi } from "vitest";
-import { DatabaseViewService } from "../src/services/databases.ts";
+import { DatabaseViewService, mergeDatabaseViewRows } from "../src/services/databases.ts";
 import type { LocalContentService } from "../src/services/local-content.ts";
 
 function fixture(partial = false, filtered = false) {
@@ -96,6 +96,56 @@ function fixture(partial = false, filtered = false) {
 }
 
 describe("saved database cursor pagination", () => {
+  it("overlays optimistic rows only when the server selected the same page", () => {
+    const first = generateUuidV7();
+    const second = generateUuidV7();
+    const pendingOutsidePage = generateUuidV7();
+    const serverRows = [
+      {
+        entryId: first,
+        revisionId: generateUuidV7(),
+        title: "Remote first",
+        values: {},
+        relationTargets: {},
+        groupId: null,
+      },
+      {
+        entryId: second,
+        revisionId: generateUuidV7(),
+        title: "Remote second",
+        values: {},
+        relationTargets: {},
+        groupId: null,
+      },
+    ];
+    const localRows = [
+      { ...serverRows[0], title: "Optimistic first" },
+      {
+        ...serverRows[1],
+        title: "Optimistic second",
+      },
+      {
+        ...serverRows[0],
+        entryId: pendingOutsidePage,
+        title: "Optimistic outside page",
+      },
+    ];
+
+    const merged = mergeDatabaseViewRows(
+      serverRows,
+      localRows,
+      new Map([
+        [first, "pending"],
+        [second, "conflict"],
+        [pendingOutsidePage, "pending"],
+      ]),
+    );
+
+    expect(merged.map((row) => row.entryId)).toEqual([first, second]);
+    expect(merged.map((row) => row.title)).toEqual(["Optimistic first", "Optimistic second"]);
+    expect(merged.map((row) => row.syncState)).toEqual(["pending", "conflict"]);
+  });
+
   it("filters the entire source before the first canonical page is selected", async () => {
     const context = fixture(false, true);
     try {
