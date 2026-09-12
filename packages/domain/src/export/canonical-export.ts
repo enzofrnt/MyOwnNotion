@@ -355,6 +355,14 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
       issues.push(shapeIssue("item", `items[${index}] must be an object`));
       continue;
     }
+    const icon = item["icon"];
+    const iconValid =
+      isLegacy
+        ? icon === undefined ||
+          icon === null ||
+          (typeof icon === "string" && icon.length >= 1 && icon.length <= 64)
+        : icon === null ||
+          (typeof icon === "string" && icon.length >= 1 && icon.length <= 64);
     if (
       !isIdentifier(item["id"]) ||
       !isIdentifier(item["workspaceId"]) ||
@@ -364,11 +372,8 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
         item["name"].length >= 1 &&
         item["name"].length <= 512
       ) ||
-      !(
-        item["icon"] === null ||
-        (typeof item["icon"] === "string" && item["icon"].length >= 1 && item["icon"].length <= 64)
-      ) ||
-      (item["kind"] === "file" && item["icon"] !== null) ||
+      !iconValid ||
+      (item["kind"] === "file" && icon !== null && icon !== undefined) ||
       !["active", "trashed", "purged"].includes(String(item["lifecycle"])) ||
       !(item["trashedAt"] === null || isTimestamp(item["trashedAt"])) ||
       !(item["purgeAfter"] === null || isTimestamp(item["purgeAfter"])) ||

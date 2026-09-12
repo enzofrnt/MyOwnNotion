@@ -286,6 +286,42 @@ describe("buildCanonicalExport", () => {
     expect(validateCanonicalExport(v1 as never)).toEqual([]);
   });
 
+  it("accepts a historical V1 item whose icon field was not exported", () => {
+    const current = consistentFixture();
+    const { databases: _databases, databaseEntries: _entries, counts, ...legacy } = current;
+    const v1 = {
+      ...legacy,
+      formatVersion: 1,
+      items: current.items.map((entry) => {
+        const withoutIcon = { ...entry } as Record<string, unknown>;
+        delete withoutIcon["icon"];
+        return withoutIcon;
+      }),
+      counts: {
+        items: counts.items,
+        activeItems: counts.activeItems,
+        trashedItems: counts.trashedItems,
+        placements: counts.placements,
+        relationships: counts.relationships,
+        revisions: counts.revisions,
+      },
+    };
+    expect(validateCanonicalExport(v1 as never)).toEqual([]);
+  });
+
+  it("keeps the icon field mandatory for V2 canonical exports", () => {
+    const current = consistentFixture();
+    const v2 = {
+      ...current,
+      items: current.items.map((entry) => {
+        const withoutIcon = { ...entry } as Record<string, unknown>;
+        delete withoutIcon["icon"];
+        return withoutIcon;
+      }),
+    };
+    expect(validateCanonicalExport(v2 as never).map((issue) => issue.code)).toContain("shape.item");
+  });
+
   it("rejects item, placement and relationship values that violate storage constraints", () => {
     const manifest = consistentFixture();
     const first = manifest.items[0];
