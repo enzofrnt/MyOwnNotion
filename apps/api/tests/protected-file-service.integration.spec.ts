@@ -64,7 +64,48 @@ async function collect(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
   return Buffer.concat(parts);
 }
 
+async function listBlobFiles(directory: string): Promise<string[]> {
+  const files: string[] = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const filename = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...(await listBlobFiles(filename)));
+    else if (entry.isFile()) files.push(filename);
+  }
+  return files.sort();
+}
+
 describe("shared protected file runtime", () => {
+  it("reclaims encrypted chunks left by a rolled-back ingest", async () => {
+    const committed = await database.db.transaction((tx) =>
+      runtime.files.ingest(tx, source(Buffer.from("canonical bytes")), { maxBytes: 100 }),
+    );
+    const before = await listBlobFiles(root);
+    const failedId = generateUuidV7();
+
+    await expect(
+      database.db.transaction(async (tx) => {
+        await runtime.files.ingest(tx, source(Buffer.from("rolled back bytes")), {
+          contentId: failedId,
+          maxBytes: 100,
+        });
+        throw new Error("placement rejected after ingest");
+      }),
+    ).rejects.toThrow("placement rejected after ingest");
+
+    const afterRollback = await listBlobFiles(root);
+    expect(afterRollback.length).toBeGreaterThan(before.length);
+    expect((await database.db.execute(sql`SELECT id FROM file_contents WHERE id = ${failedId}`)).rows)
+      .toEqual([]);
+
+    await expect(cleanupProtectedFiles(database.db, runtime.files, now())).resolves.toMatchObject({
+      deleted: 1,
+    });
+    expect(await listBlobFiles(root)).toEqual(before);
+    expect(await collect(runtime.files.read(database.db, committed.contentId))).toEqual(
+      Buffer.from("canonical bytes"),
+    );
+  });
+
   it("pins download bytes against maintenance and releases the lock on cancellation and failure", async () => {
     const bytes = randomBytes(PROTECTED_FILE_CHUNK_BYTES + 7);
     const stored = await database.db.transaction((tx) =>
