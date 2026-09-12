@@ -4,7 +4,7 @@
 
 ## Summary and technical context
 
-Bun 1.4, TypeScript, Fastify, PostgreSQL/Drizzle and official MCP TypeScript SDK
+Repository-pinned Bun 1.4.2, TypeScript, Fastify, PostgreSQL/Drizzle and official MCP TypeScript SDK
 2.0.0. The remote endpoint uses stateless Streamable HTTP with current protocol
 support and the SDK's supported legacy handshake compatibility. The SDK owns
 JSON-RPC validation and negotiation. Per-request handlers are closed after delivery;

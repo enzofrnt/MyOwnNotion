@@ -43,7 +43,7 @@ audit across the declared boundaries. Follow [research.md](research.md), the
 
 ## Technical Context
 
-**Language/Version**: TypeScript and exact repository-pinned Bun 1.4.0.
+**Language/Version**: TypeScript and exact repository-pinned Bun 1.4.2.
 
 **Primary Dependencies**: Existing Fastify, Drizzle/pg, React/BlockNote,
 AES-256-GCM/HKDF security primitives, Vitest and Playwright from bun.lock.

@@ -14,7 +14,7 @@ keyboard behavior with common Button/AppIcon controls and local copy feedback.
 
 ## Technical Context
 
-Bun 1.4.0; TypeScript; React 19; BlockNote 0.54; Shiki 4.4.3; existing operational
+Repository-pinned Bun 1.4.2; TypeScript; React 19; BlockNote 0.54; Shiki 4.4.3; existing operational
 page sessions, canonical domain code blocks and theme tokens. Browser tests use
 Playwright production preview; focused Vitest tests prove grammar and lossless
 metadata handling. No storage, API, permission, migration or deployment change.
