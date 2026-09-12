@@ -1,7 +1,7 @@
 /** Structural and semantic validation for portable operational backups (T147, US5). */
 
 import type { Transaction } from "@myownnotion/database";
-import { generateUuidV7 } from "@myownnotion/domain";
+import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import {
   OPERATIONAL_FORMAT,
   OPERATIONAL_FORMAT_VERSION,
@@ -206,7 +206,9 @@ async function validArchive(input: { readonly withUpdate?: boolean } = {}): Prom
       },
     },
     canonicalExport: {
-      items: [{ id: pageId, pageDocument: { formatVersion: 3, body: projection.document } }],
+      items: [
+        { id: pageId, kind: "page", pageDocument: { formatVersion: 3, body: projection.document } },
+      ],
     },
   };
 }
@@ -244,6 +246,23 @@ describe("operational archive envelope", () => {
         rawArchive([{ ...minimalPage(), updates: [{ id: updateId }, { id: updateId }] }]),
       ),
     ).toThrow("duplicate update");
+  });
+
+  it("rejects non-UUID page and record identities before verification", () => {
+    expect(() => readPageOperationArchive(rawArchive([minimalPage("page-1" as Uuid)]))).toThrow(
+      "pageId must be a UUID",
+    );
+    const page = minimalPage();
+    expect(() =>
+      readPageOperationArchive(
+        rawArchive([
+          {
+            ...page,
+            checkpoints: [{ id: "checkpoint-1" }],
+          },
+        ]),
+      ),
+    ).toThrow("checkpoint");
   });
 
   it("serializes deterministically and rejects non-JSON values", () => {
@@ -428,6 +447,7 @@ describe("operational archive verification", () => {
         items: [
           {
             id: page.pageId,
+            kind: "page",
             pageDocument: { formatVersion: 3, body: { blocks: [] } },
           },
         ],
@@ -441,6 +461,14 @@ describe("operational archive verification", () => {
       checkpoints: [],
     });
     await expect(verifier.verify(legacy)).resolves.toBeUndefined();
+    await expect(verifier.verify(legacy, { items: [] })).rejects.toThrow(
+      "missing from the canonical export",
+    );
+    await expect(
+      verifier.verify(legacy, {
+        items: [{ id: page.pageId, kind: "folder", pageDocument: canonicalExport }],
+      }),
+    ).rejects.toThrow("missing from the canonical export");
   });
 
   it("refuses retention evidence belonging to another workspace without querying", async () => {

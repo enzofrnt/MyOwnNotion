@@ -7,6 +7,7 @@ import {
 } from "@myownnotion/database";
 import {
   documentDigestV3,
+  isUuid,
   migrateStoredPageDocumentToV3,
   normaliseDocumentV3,
   type Uuid,
@@ -181,6 +182,208 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function requireUuid(value: unknown, path: string): asserts value is Uuid {
+  if (!isUuid(value)) throw new TypeError(`operational backup ${path} must be a UUID`);
+}
+
+function requireString(value: unknown, path: string): asserts value is string {
+  if (typeof value !== "string") throw new TypeError(`operational backup ${path} must be a string`);
+}
+
+function requireNullableUuid(value: unknown, path: string): void {
+  if (value !== null) requireUuid(value, path);
+}
+
+function requireNullableString(value: unknown, path: string): void {
+  if (value !== null) requireString(value, path);
+}
+
+function requireInteger(value: unknown, path: string, minimum = 0): void {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum) {
+    throw new TypeError(`operational backup ${path} must be an integer >= ${minimum}`);
+  }
+}
+
+function requireDigest(value: unknown, path: string): asserts value is string {
+  if (typeof value !== "string" || !/^[0-9a-f]{64}$/.test(value)) {
+    throw new TypeError(`operational backup ${path} must be a SHA-256 digest`);
+  }
+}
+
+function requireTimestamp(value: unknown, path: string): asserts value is string {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) {
+    throw new TypeError(`operational backup ${path} must be a timestamp`);
+  }
+}
+
+function requireFrontier(value: unknown, path: string): asserts value is ArchivedFrontier {
+  if (!isRecord(value)) throw new TypeError(`operational backup ${path} has an invalid shape`);
+  requireString(value["versionVector"], `${path}.versionVector`);
+  requireString(value["frontiers"], `${path}.frontiers`);
+}
+
+function validateCheckpoint(value: unknown, path: string): void {
+  if (!isRecord(value)) throw new TypeError(`operational backup ${path} has an invalid shape`);
+  const checkpoint = value as unknown as Partial<ArchivedPageOperationCheckpoint>;
+  requireUuid(checkpoint.id, `${path}.id`);
+  requireInteger(checkpoint.throughPageSequence, `${path}.throughPageSequence`);
+  requireFrontier(checkpoint.frontier, `${path}.frontier`);
+  requireString(checkpoint.snapshotBytes, `${path}.snapshotBytes`);
+  requireDigest(checkpoint.snapshotDigest, `${path}.snapshotDigest`);
+  requireDigest(checkpoint.canonicalDigest, `${path}.canonicalDigest`);
+  requireNullableUuid(checkpoint.revisionId, `${path}.revisionId`);
+  if (![`candidate`, `verified`, `superseded`, `retained`].includes(String(checkpoint.state))) {
+    throw new TypeError(`operational backup ${path}.state has an invalid value`);
+  }
+  requireTimestamp(checkpoint.createdAt, `${path}.createdAt`);
+  if (checkpoint.verifiedAt !== null) requireTimestamp(checkpoint.verifiedAt, `${path}.verifiedAt`);
+}
+
+function validateUpdate(value: unknown, path: string): void {
+  if (!isRecord(value)) throw new TypeError(`operational backup ${path} has an invalid shape`);
+  const update = value as unknown as Partial<ArchivedPageOperationUpdate>;
+  requireUuid(update.id, `${path}.id`);
+  requireInteger(update.pageSequence, `${path}.pageSequence`, 1);
+  requireUuid(update.authoredByDeviceId, `${path}.authoredByDeviceId`);
+  if (update.baseFrontier !== null) requireFrontier(update.baseFrontier, `${path}.baseFrontier`);
+  requireFrontier(update.resultFrontier, `${path}.resultFrontier`);
+  requireNullableString(update.updateBytes, `${path}.updateBytes`);
+  requireDigest(update.updateDigest, `${path}.updateDigest`);
+  if (update.status !== "accepted" && update.status !== "rejected") {
+    throw new TypeError(`operational backup ${path}.status has an invalid value`);
+  }
+  requireNullableString(update.failureCode, `${path}.failureCode`);
+  requireTimestamp(update.acceptedAt, `${path}.acceptedAt`);
+  if (update.compactedAt !== null) requireTimestamp(update.compactedAt, `${path}.compactedAt`);
+}
+
+function validateDeviceFrontier(value: unknown, path: string): void {
+  if (!isRecord(value)) throw new TypeError(`operational backup ${path} has an invalid shape`);
+  const frontier = value as unknown as Partial<ArchivedPageDeviceFrontier>;
+  requireUuid(frontier.deviceId, `${path}.deviceId`);
+  requireFrontier(frontier.frontier, `${path}.frontier`);
+  requireDigest(frontier.frontierDigest, `${path}.frontierDigest`);
+  requireInteger(frontier.confirmedPageSequence, `${path}.confirmedPageSequence`);
+  requireInteger(frontier.recordVersion, `${path}.recordVersion`, 1);
+  requireTimestamp(frontier.lastConfirmedAt, `${path}.lastConfirmedAt`);
+  if (frontier.deviceState !== "authorized" && frontier.deviceState !== "revoked") {
+    throw new TypeError(`operational backup ${path}.deviceState has an invalid value`);
+  }
+}
+
+function validateAmbiguity(value: unknown, path: string): void {
+  if (!isRecord(value)) throw new TypeError(`operational backup ${path} has an invalid shape`);
+  const ambiguity = value as unknown as Partial<ArchivedPageAmbiguity>;
+  requireUuid(ambiguity.id, `${path}.id`);
+  requireString(ambiguity.logicalKey, `${path}.logicalKey`);
+  if (
+    !["delete-edit", "delete-move", "type-transform", "property-transform", "schema"].includes(
+      String(ambiguity.kind),
+    )
+  ) {
+    throw new TypeError(`operational backup ${path}.kind has an invalid value`);
+  }
+  if (
+    !["open", "resolved-keep", "resolved-delete", "resolved-custom"].includes(
+      String(ambiguity.status),
+    )
+  ) {
+    throw new TypeError(`operational backup ${path}.status has an invalid value`);
+  }
+  requireString(ambiguity.detailsBytes, `${path}.detailsBytes`);
+  if (!Array.isArray(ambiguity.sourceUpdateIds)) {
+    throw new TypeError(`operational backup ${path}.sourceUpdateIds has an invalid shape`);
+  }
+  ambiguity.sourceUpdateIds.forEach((id, index) => {
+    requireUuid(id, `${path}.sourceUpdateIds[${index}]`);
+  });
+  requireTimestamp(ambiguity.openedAt, `${path}.openedAt`);
+  if (ambiguity.resolvedAt !== null) requireTimestamp(ambiguity.resolvedAt, `${path}.resolvedAt`);
+  requireNullableUuid(ambiguity.resolutionRevisionId, `${path}.resolutionRevisionId`);
+}
+
+function validateConversion(value: unknown, path: string): void {
+  if (!isRecord(value)) throw new TypeError(`operational backup ${path} has an invalid shape`);
+  const conversion = value as unknown as Partial<ArchivedLegacyBranchConversion>;
+  requireUuid(conversion.branchId, `${path}.branchId`);
+  requireDigest(conversion.requestDigest, `${path}.requestDigest`);
+  if (!["sending", "converted", "blocked"].includes(String(conversion.status))) {
+    throw new TypeError(`operational backup ${path}.status has an invalid value`);
+  }
+  requireNullableString(conversion.responseBytes, `${path}.responseBytes`);
+  requireNullableUuid(conversion.checkpointId, `${path}.checkpointId`);
+  if (!Array.isArray(conversion.conversionUpdateIds)) {
+    throw new TypeError(`operational backup ${path}.conversionUpdateIds has an invalid shape`);
+  }
+  conversion.conversionUpdateIds.forEach((id, index) => {
+    requireUuid(id, `${path}.conversionUpdateIds[${index}]`);
+  });
+  requireDigest(conversion.localDocumentDigest, `${path}.localDocumentDigest`);
+  requireTimestamp(conversion.createdAt, `${path}.createdAt`);
+  if (conversion.convertedAt !== null)
+    requireTimestamp(conversion.convertedAt, `${path}.convertedAt`);
+}
+
+function validatePage(value: unknown, index: number): asserts value is ArchivedPageOperationState {
+  const path = `page ${index}`;
+  if (!isRecord(value)) throw new TypeError(`operational backup ${path} has an invalid shape`);
+  const page = value as unknown as Partial<ArchivedPageOperationState>;
+  requireUuid(page.pageId, `${path}.pageId`);
+  if (!["legacy", "initializing", "active", "blocked"].includes(String(page.status))) {
+    throw new TypeError(`operational backup ${path}.status has an invalid value`);
+  }
+  if (
+    page.operationalFormat !== OPERATIONAL_FORMAT ||
+    page.operationalVersion !== OPERATIONAL_FORMAT_VERSION
+  ) {
+    throw new TypeError(`operational backup ${path} has an invalid operational format`);
+  }
+  requireNullableUuid(page.currentCheckpointId, `${path}.currentCheckpointId`);
+  if (page.currentFrontier !== null)
+    requireFrontier(page.currentFrontier, `${path}.currentFrontier`);
+  if (page.operationalDigest !== null)
+    requireDigest(page.operationalDigest, `${path}.operationalDigest`);
+  requireDigest(page.canonicalDigest, `${path}.canonicalDigest`);
+  if (page.canonicalFormatVersion !== 2 && page.canonicalFormatVersion !== 3) {
+    throw new TypeError(`operational backup ${path}.canonicalFormatVersion has an invalid value`);
+  }
+  requireInteger(page.lastUpdateSequence, `${path}.lastUpdateSequence`);
+  requireNullableUuid(page.lastRevisionId, `${path}.lastRevisionId`);
+  if (page.revisionWindowStartedAt !== null)
+    requireTimestamp(page.revisionWindowStartedAt, `${path}.revisionWindowStartedAt`);
+  if (page.revisionWindowLastUpdateAt !== null)
+    requireTimestamp(page.revisionWindowLastUpdateAt, `${path}.revisionWindowLastUpdateAt`);
+  if (page.revisionWindowFrontier !== null)
+    requireFrontier(page.revisionWindowFrontier, `${path}.revisionWindowFrontier`);
+  if (page.bootstrappedAt !== null) requireTimestamp(page.bootstrappedAt, `${path}.bootstrappedAt`);
+  requireTimestamp(page.updatedAt, `${path}.updatedAt`);
+  for (const [key, label] of [
+    ["checkpoints", "checkpoint"],
+    ["updates", "update"],
+    ["deviceFrontiers", "device frontier"],
+    ["ambiguities", "ambiguity"],
+    ["legacyBranchConversions", "legacy branch conversion"],
+  ] as const) {
+    if (!Array.isArray(page[key]))
+      throw new TypeError(`operational backup ${path} has invalid ${label}s`);
+  }
+  page.checkpoints?.forEach((item, itemIndex) => {
+    validateCheckpoint(item, `${path}.checkpoints[${itemIndex}]`);
+  });
+  page.updates?.forEach((item, itemIndex) => {
+    validateUpdate(item, `${path}.updates[${itemIndex}]`);
+  });
+  page.deviceFrontiers?.forEach((item, itemIndex) => {
+    validateDeviceFrontier(item, `${path}.deviceFrontiers[${itemIndex}]`);
+  });
+  page.ambiguities?.forEach((item, itemIndex) => {
+    validateAmbiguity(item, `${path}.ambiguities[${itemIndex}]`);
+  });
+  page.legacyBranchConversions?.forEach((item, itemIndex) => {
+    validateConversion(item, `${path}.legacyBranchConversions[${itemIndex}]`);
+  });
+}
+
 export function readPageOperationArchive(value: unknown): PageOperationArchive {
   if (!isRecord(value)) throw new TypeError("operational backup is not an object");
   if (
@@ -198,7 +401,6 @@ export function readPageOperationArchive(value: unknown): PageOperationArchive {
       typeof page["status"] !== "string" ||
       page["operationalFormat"] !== OPERATIONAL_FORMAT ||
       page["operationalVersion"] !== OPERATIONAL_FORMAT_VERSION ||
-      typeof page["lastUpdateSequence"] !== "number" ||
       !Array.isArray(page["checkpoints"]) ||
       !Array.isArray(page["updates"]) ||
       !Array.isArray(page["deviceFrontiers"]) ||
@@ -210,6 +412,16 @@ export function readPageOperationArchive(value: unknown): PageOperationArchive {
   }
   const archive = value as unknown as PageOperationArchive;
   const counts = archive.counts;
+  for (const key of [
+    "pages",
+    "checkpoints",
+    "updates",
+    "deviceFrontiers",
+    "ambiguities",
+    "legacyBranchConversions",
+  ] as const) {
+    requireInteger(counts[key], `counts.${key}`);
+  }
   const actual = {
     pages: archive.pages.length,
     checkpoints: archive.pages.reduce((sum, page) => sum + page.checkpoints.length, 0),
@@ -227,13 +439,16 @@ export function readPageOperationArchive(value: unknown): PageOperationArchive {
   const pageIds = new Set<Uuid>();
   const updateIds = new Set<Uuid>();
   const checkpointIds = new Set<Uuid>();
+  const ambiguityIds = new Set<Uuid>();
+  const conversionIds = new Set<Uuid>();
   for (const page of archive.pages) {
+    requireUuid(page.pageId, "page.pageId");
     if (pageIds.has(page.pageId)) {
       throw new TypeError("operational backup contains a duplicate page");
     }
     pageIds.add(page.pageId);
     for (const checkpoint of page.checkpoints) {
-      if (!isRecord(checkpoint) || typeof checkpoint.id !== "string") {
+      if (!isRecord(checkpoint) || !isUuid(checkpoint.id)) {
         throw new TypeError("operational backup contains an invalid checkpoint");
       }
       if (checkpointIds.has(checkpoint.id)) {
@@ -242,7 +457,7 @@ export function readPageOperationArchive(value: unknown): PageOperationArchive {
       checkpointIds.add(checkpoint.id);
     }
     for (const update of page.updates) {
-      if (!isRecord(update) || typeof update.id !== "string") {
+      if (!isRecord(update) || !isUuid(update.id)) {
         throw new TypeError("operational backup contains an invalid update");
       }
       if (updateIds.has(update.id)) {
@@ -250,7 +465,32 @@ export function readPageOperationArchive(value: unknown): PageOperationArchive {
       }
       updateIds.add(update.id);
     }
+    const deviceIds = new Set<Uuid>();
+    for (const frontier of page.deviceFrontiers) {
+      requireUuid(frontier.deviceId, "device frontier.deviceId");
+      if (deviceIds.has(frontier.deviceId)) {
+        throw new TypeError("operational backup contains a duplicate device frontier");
+      }
+      deviceIds.add(frontier.deviceId);
+    }
+    for (const ambiguity of page.ambiguities) {
+      requireUuid(ambiguity.id, "ambiguity.id");
+      if (ambiguityIds.has(ambiguity.id)) {
+        throw new TypeError("operational backup contains a duplicate ambiguity");
+      }
+      ambiguityIds.add(ambiguity.id);
+    }
+    for (const conversion of page.legacyBranchConversions) {
+      requireUuid(conversion.branchId, "legacy branch conversion.branchId");
+      if (conversionIds.has(conversion.branchId)) {
+        throw new TypeError("operational backup contains a duplicate legacy branch conversion");
+      }
+      conversionIds.add(conversion.branchId);
+    }
   }
+  archive.pages.forEach((page, index) => {
+    validatePage(page, index);
+  });
   return archive;
 }
 
@@ -624,18 +864,51 @@ export class PageOperationArchiveService {
   }
 
   async verify(archive: PageOperationArchive, canonicalExport?: unknown): Promise<void> {
-    const canonicalItems = new Map<string, unknown>();
-    if (isRecord(canonicalExport) && Array.isArray(canonicalExport["items"])) {
-      for (const item of canonicalExport["items"]) {
-        if (isRecord(item) && typeof item["id"] === "string") {
-          canonicalItems.set(item["id"], item["pageDocument"]);
+    const canonicalItems = new Map<Uuid, unknown>();
+    const canonicalIds = new Set<Uuid>();
+    if (canonicalExport !== undefined) {
+      if (!isRecord(canonicalExport) || !Array.isArray(canonicalExport["items"])) {
+        throw new TypeError("the canonical export has an invalid page inventory");
+      }
+      for (const [index, item] of canonicalExport["items"].entries()) {
+        if (!isRecord(item) || !isUuid(item["id"])) {
+          throw new TypeError(`the canonical export item ${index} has an invalid UUID`);
         }
+        if (canonicalIds.has(item["id"])) {
+          throw new TypeError("the canonical export contains a duplicate item identity");
+        }
+        canonicalIds.add(item["id"]);
+        if (item["kind"] === "page") canonicalItems.set(item["id"], item["pageDocument"]);
       }
     }
 
+    const verifyCanonicalPage = async (page: ArchivedPageOperationState): Promise<void> => {
+      if (canonicalExport === undefined) return;
+      const canonicalEnvelope = canonicalItems.get(page.pageId);
+      if (canonicalEnvelope === undefined) {
+        throw new TypeError("an operational page is missing from the canonical export");
+      }
+      if (!isRecord(canonicalEnvelope) || typeof canonicalEnvelope["formatVersion"] !== "number") {
+        throw new TypeError("an operational page has an invalid canonical document");
+      }
+      const migrated = migrateStoredPageDocumentToV3({
+        formatVersion: canonicalEnvelope["formatVersion"],
+        body: canonicalEnvelope["body"],
+      });
+      if (
+        !migrated.ok ||
+        (await documentDigestV3(normaliseDocumentV3(migrated.document))) !== page.canonicalDigest
+      ) {
+        throw new TypeError("the canonical export and operational backup disagree");
+      }
+    };
+
     for (const page of archive.pages) {
       if (page.currentCheckpointId === null) {
-        if (page.status === "legacy") continue;
+        if (page.status === "legacy") {
+          await verifyCanonicalPage(page);
+          continue;
+        }
         throw new TypeError("a non-legacy operational backup has no current checkpoint");
       }
       const current = page.checkpoints.find(({ id }) => id === page.currentCheckpointId);
@@ -659,6 +932,17 @@ export class PageOperationArchiveService {
         )
       ) {
         throw new TypeError("an operational ambiguity names an update absent from the backup");
+      }
+      for (const conversion of page.legacyBranchConversions) {
+        if (
+          (conversion.checkpointId !== null &&
+            !page.checkpoints.some(({ id }) => id === conversion.checkpointId)) ||
+          conversion.conversionUpdateIds.some((updateId) => !pageUpdateIds.has(updateId))
+        ) {
+          throw new TypeError(
+            "an operational legacy conversion names a record absent from the backup",
+          );
+        }
       }
       for (const checkpoint of page.checkpoints) {
         const opened = await this.#openCheckpoint(page, checkpoint);
@@ -708,26 +992,7 @@ export class PageOperationArchiveService {
       ) {
         throw new TypeError("an operational page does not reproduce its archived head");
       }
-      const canonicalEnvelope = canonicalItems.get(page.pageId);
-      if (
-        canonicalExport !== undefined &&
-        (!isRecord(canonicalEnvelope) || typeof canonicalEnvelope["formatVersion"] !== "number")
-      ) {
-        throw new TypeError("an operational page is missing from the canonical export");
-      }
-      if (!isRecord(canonicalEnvelope) || typeof canonicalEnvelope["formatVersion"] !== "number") {
-        continue;
-      }
-      const migrated = migrateStoredPageDocumentToV3({
-        formatVersion: canonicalEnvelope["formatVersion"],
-        body: canonicalEnvelope["body"],
-      });
-      if (
-        !migrated.ok ||
-        (await documentDigestV3(normaliseDocumentV3(migrated.document))) !== page.canonicalDigest
-      ) {
-        throw new TypeError("the canonical export and operational backup disagree");
-      }
+      await verifyCanonicalPage(page);
     }
   }
 

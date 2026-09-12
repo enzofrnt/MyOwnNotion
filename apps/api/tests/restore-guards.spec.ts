@@ -13,9 +13,21 @@
  */
 
 import { createHash } from "node:crypto";
-import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, type BackupManifest } from "@myownnotion/domain";
+import {
+  BACKUP_FORMAT,
+  BACKUP_FORMAT_VERSION,
+  type BackupManifest,
+  type Uuid,
+} from "@myownnotion/domain";
+import { OPERATIONAL_FORMAT, OPERATIONAL_FORMAT_VERSION } from "@myownnotion/page-state";
 import { describe, expect, it, vi } from "vitest";
 import { encodeUncheckedBackupArchive } from "../src/backup/archive-format.ts";
+import {
+  PAGE_OPERATION_ARCHIVE_FORMAT,
+  PAGE_OPERATION_ARCHIVE_VERSION,
+  PageOperationArchiveService,
+  readPageOperationArchive,
+} from "../src/backup/page-operation-archive.ts";
 import {
   applyArchive,
   PREFLIGHT_ORDER,
@@ -42,13 +54,14 @@ function archive(
   manifestOverrides: Record<string, unknown> = {},
   includeFile = true,
   canonicalOverride?: string,
+  operationalState?: string | null,
 ): Buffer {
   const canonicalExport =
     canonicalOverride ??
     JSON.stringify({
       format: "myownnotion.export+json",
       formatVersion: 2,
-      workspaceId: TEST_WORKSPACE,
+      workspaceId: TEST_WORKSPACE as Uuid,
       schemaVersion: 1,
       exportedAt: "2026-08-18T04:00:00.000Z",
       changeCursor: "42",
@@ -115,7 +128,48 @@ function archive(
   return encodeUncheckedBackupArchive({
     manifest,
     canonicalExport,
+    ...(operationalState === undefined ? {} : { operationalState }),
     files: includeFile ? new Map([[DIGEST, Buffer.from("abc")]]) : new Map(),
+  });
+}
+
+function legacyOperationalState(pageId = TEST_ITEM): string {
+  return JSON.stringify({
+    format: PAGE_OPERATION_ARCHIVE_FORMAT,
+    formatVersion: PAGE_OPERATION_ARCHIVE_VERSION,
+    pages: [
+      {
+        pageId,
+        status: "legacy",
+        operationalFormat: OPERATIONAL_FORMAT,
+        operationalVersion: OPERATIONAL_FORMAT_VERSION,
+        currentCheckpointId: null,
+        currentFrontier: null,
+        operationalDigest: null,
+        canonicalDigest: "0".repeat(64),
+        canonicalFormatVersion: 3,
+        lastUpdateSequence: 0,
+        lastRevisionId: null,
+        revisionWindowStartedAt: null,
+        revisionWindowLastUpdateAt: null,
+        revisionWindowFrontier: null,
+        bootstrappedAt: null,
+        updatedAt: "2026-08-23T10:00:00.000Z",
+        checkpoints: [],
+        updates: [],
+        deviceFrontiers: [],
+        ambiguities: [],
+        legacyBranchConversions: [],
+      },
+    ],
+    counts: {
+      pages: 1,
+      checkpoints: 0,
+      updates: 0,
+      deviceFrontiers: 0,
+      ambiguities: 0,
+      legacyBranchConversions: 0,
+    },
   });
 }
 
@@ -403,6 +457,55 @@ describe("writing a checked archive", () => {
         },
       }),
     ).rejects.toThrow(/canonical export/i);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a legacy page absent from the canonical page inventory before target.begin", async () => {
+    const operationalState = legacyOperationalState();
+    const service = new PageOperationArchiveService({
+      workspaceId: TEST_WORKSPACE as Uuid,
+      crypto: {} as never,
+    });
+    const calls: string[] = [];
+    await expect(
+      applyArchive(
+        archive(
+          {
+            operationalStateDigest: `sha256:${createHash("sha256").update(operationalState).digest("hex")}`,
+            operationalFormatVersion: 1,
+            operationalPageCount: 1,
+            operationalCheckpointCount: 0,
+            operationalUpdateCount: 0,
+          },
+          true,
+          undefined,
+          operationalState,
+        ),
+        {
+          begin: async () => {
+            calls.push("begin");
+          },
+          verifyPageOperations: async (state, canonical) => {
+            await service.verify(readPageOperationArchive(state), canonical);
+          },
+          writePageOperations: async () => {
+            calls.push("operations");
+          },
+          writeFile: async () => {
+            calls.push("file");
+          },
+          writeRevision: async () => {
+            calls.push("revision");
+          },
+          writeItem: async () => {
+            calls.push("item");
+          },
+          writeRelationship: async () => {
+            calls.push("relationship");
+          },
+        },
+      ),
+    ).rejects.toThrow(/canonical export|page/i);
     expect(calls).toEqual([]);
   });
 
