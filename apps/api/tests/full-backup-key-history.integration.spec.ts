@@ -272,10 +272,10 @@ it("keeps A recovery operational after real A→B wrapping rotation while writin
     }
 
     remoteAvailable = true;
-    expect((await serviceB.retryRemote())?.backupId).toBe(second.receipt.backupId);
-    expect(await readFile(second.path)).toEqual(originalSecondBytes);
-    expect(await readFile(join(directory, "remote", `${second.receipt.backupId}.monfull`))).toEqual(
-      originalSecondBytes,
+    expect((await serviceB.retryRemote())?.backupId).toBe(first.receipt.backupId);
+    expect(await readFile(first.path)).toEqual(originalBytes);
+    expect(await readFile(join(directory, "remote", `${first.receipt.backupId}.monfull`))).toEqual(
+      originalBytes,
     );
     // The retried receipt is newly written with B; the other receipt remains A.
     expect(
@@ -298,15 +298,15 @@ it("keeps A recovery operational after real A→B wrapping rotation while writin
       (await new FullBackupService({ ...options, key: () => keyB }).activities.read("backup"))
         ?.backupId,
     ).toBe(scheduled.backupId);
-    expect(await readFile(first.path)).toEqual(originalBytes);
-    expect(await serviceB.prune(90)).toBe(2);
+    expect(await serviceB.prune(90)).toBe(1);
     await expect(readFile(first.path)).rejects.toMatchObject({ code: "ENOENT" });
-    await expect(readFile(second.path)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(second.path)).resolves.toEqual(originalSecondBytes);
     await expect(
-      readFile(join(directory, "remote", `${second.receipt.backupId}.monfull`)),
+      readFile(join(directory, "remote", `${first.receipt.backupId}.monfull`)),
     ).rejects.toMatchObject({ code: "ENOENT" });
     expect((await serviceB.verifiedReceipts()).map((row) => row.backupId)).toEqual([
       scheduled.backupId,
+      second.receipt.backupId,
     ]);
     now = new Date("2027-05-01T04:00:00.000Z");
     expect(await serviceB.prune(90)).toBe(0);

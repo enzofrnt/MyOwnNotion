@@ -20,6 +20,10 @@ export interface FullBackupReceipt {
   readonly archiveSha256: string;
   readonly remote: "not-configured" | "pending" | "verified" | "failed";
   readonly remoteVerifiedAt: string | null;
+  /** Number of remote transfer attempts; absent on receipts written before fairness metadata. */
+  readonly remoteRetryCount?: number;
+  /** Last remote transfer attempt, without changing the creation/verification boundary. */
+  readonly remoteLastAttemptAt?: string | null;
 }
 
 export function fullArchiveName(backupId: string): string {
@@ -47,7 +51,16 @@ function receipt(value: unknown): FullBackupReceipt {
     !/^[0-9a-f]{64}$/.test(row["archiveSha256"]) ||
     !["not-configured", "pending", "verified", "failed"].includes(String(row["remote"])) ||
     !(row["remoteVerifiedAt"] === null || date(row["remoteVerifiedAt"])) ||
-    (row["remote"] === "verified") !== (row["remoteVerifiedAt"] !== null)
+    (row["remote"] === "verified") !== (row["remoteVerifiedAt"] !== null) ||
+    !(
+      row["remoteRetryCount"] === undefined ||
+      (Number.isSafeInteger(row["remoteRetryCount"]) && Number(row["remoteRetryCount"]) >= 0)
+    ) ||
+    !(
+      row["remoteLastAttemptAt"] === undefined ||
+      row["remoteLastAttemptAt"] === null ||
+      date(row["remoteLastAttemptAt"])
+    )
   ) {
     throw new Error("Invalid full-backup receipt.");
   }

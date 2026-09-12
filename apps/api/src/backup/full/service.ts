@@ -65,6 +65,21 @@ async function matchesRemote(stored: Readable, receipt: FullBackupReceipt): Prom
   }
 }
 
+function compareRemoteRetryPriority(left: FullBackupReceipt, right: FullBackupReceipt): number {
+  const countDifference = (left.remoteRetryCount ?? 0) - (right.remoteRetryCount ?? 0);
+  if (countDifference !== 0) return countDifference;
+
+  const lastAttempt = (value: FullBackupReceipt): number =>
+    value.remoteLastAttemptAt === undefined || value.remoteLastAttemptAt === null
+      ? Number.NEGATIVE_INFINITY
+      : Date.parse(value.remoteLastAttemptAt);
+  const attemptDifference = lastAttempt(left) - lastAttempt(right);
+  if (attemptDifference !== 0) return attemptDifference;
+
+  const createdDifference = left.createdAt.localeCompare(right.createdAt);
+  return createdDifference !== 0 ? createdDifference : left.backupId.localeCompare(right.backupId);
+}
+
 export class FullBackupService {
   readonly receipts: FullBackupReceipts;
   readonly activities: FullBackupActivities;
@@ -145,8 +160,15 @@ export class FullBackupService {
         if (receipt.backupId === latest?.backupId || Date.parse(receipt.createdAt) >= cutoff)
           continue;
         if (this.options.remote !== undefined) {
+          // A pending/failed receipt has no independently verified remote copy.
+          // In particular, a provider's idempotent delete must not turn a local
+          // recovery point into a false remote success.
+          if (receipt.remote !== "verified") continue;
           try {
-            await this.options.remote().delete(fullArchiveName(receipt.backupId));
+            const destination = this.options.remote();
+            const stored = await destination.read(fullArchiveName(receipt.backupId));
+            if (stored === null || !(await matchesRemote(stored, receipt))) continue;
+            await destination.delete(fullArchiveName(receipt.backupId));
           } catch {
             continue;
           }
@@ -395,6 +417,8 @@ export class FullBackupService {
         archiveSha256: digest.sha256,
         remote: this.options.remote === undefined ? "not-configured" : "pending",
         remoteVerifiedAt: null,
+        remoteRetryCount: 0,
+        remoteLastAttemptAt: null,
       };
       await this.receipts.put(receipt);
       const outcome = await this.copyRemote(receipt);
@@ -413,6 +437,12 @@ export class FullBackupService {
   /** A remote outage never removes or invalidates the locally verified artifact. */
   private async copyRemote(receipt: FullBackupReceipt): Promise<FullBackupReceipt> {
     if (this.options.remote === undefined || receipt.remote === "verified") return receipt;
+    const attemptedAt = this.now().toISOString();
+    const attempt: FullBackupReceipt = {
+      ...receipt,
+      remoteRetryCount: Math.min(Number.MAX_SAFE_INTEGER, (receipt.remoteRetryCount ?? 0) + 1),
+      remoteLastAttemptAt: attemptedAt,
+    };
     const name = fullArchiveName(receipt.backupId);
     let outcome: FullBackupReceipt;
     try {
@@ -436,9 +466,9 @@ export class FullBackupService {
           throw new Error("The remote recovery artifact did not verify.");
         }
       }
-      outcome = { ...receipt, remote: "verified", remoteVerifiedAt: this.now().toISOString() };
+      outcome = { ...attempt, remote: "verified", remoteVerifiedAt: this.now().toISOString() };
     } catch {
-      outcome = { ...receipt, remote: "failed", remoteVerifiedAt: null };
+      outcome = { ...attempt, remote: "failed", remoteVerifiedAt: null };
     }
     await this.receipts.put(outcome);
     return outcome;
@@ -455,9 +485,9 @@ export class FullBackupService {
     try {
       await client.connect();
       release = await acquireFullRunLock(client);
-      const pending = (await this.receipts.list()).find(
-        (receipt) => receipt.remote === "pending" || receipt.remote === "failed",
-      );
+      const pending = (await this.receipts.list())
+        .filter((receipt) => receipt.remote === "pending" || receipt.remote === "failed")
+        .sort(compareRemoteRetryPriority)[0];
       return pending === undefined ? null : await this.copyRemote(pending);
     } finally {
       try {
