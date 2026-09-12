@@ -440,3 +440,20 @@ pic de heap vivant ; les objets déjà libérables ne dépendent donc plus du mo
 choisi par JavaScriptCore pour lancer une collecte sur une machine plus grande.
 Le passage direct à `Bun.serve()` aurait remplacé le transport HTTP de Fastify
 et ses hooks ; il est volontairement écarté de cette migration ciblée.
+
+## Maintenance 2026-09-08 — Bun 1.4.2
+
+La version active remplace explicitement le pin initial 1.4.0 par 1.4.2, y compris
+les types, l'installation CI, les contrôles du runtime, les exemples exécutables
+et les images par digest. Les paragraphes précédents décrivent la migration
+initiale ; ses preuves historiques restent inchangées. Le quickstart décrit la
+version active. Aucun format persistant, schéma SQL ou protocole ne change.
+
+Le test isolé de https://github.com/oven-sh/bun/pull/39966 ferme quatre fichiers
+étrangers au sous-processus sous Windows 1.4.0 et passe avec 1.4.2. Le défaut
+concerne les pipes supplémentaires utilisés par les outils de navigateur et peut
+fermer des handles de processus ou sockets réattribués. Conserver une régression
+réelle sur Windows dans les tests desktop, exécutée sans Node/npm. Les parcours
+natifs contraints et toutes les gates restent requis ; ne pas livrer l'adaptateur
+expérimental de notification de fin de 014 T105. Le contrôle positif des fichiers
+ouverts et des données des pipes doit être réel, pas une comparaison de version.

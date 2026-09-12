@@ -2,7 +2,7 @@
 
 ## Prérequis
 
-- Bun 1.4.0 exactement.
+- Bun 1.4.2 exactement.
 - Dépendances installées avec `bun ci`.
 - PostgreSQL/Docker disponibles pour les journeys qui utilisent la stack réelle.
 

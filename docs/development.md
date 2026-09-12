@@ -7,7 +7,7 @@ commands you run locally, and what blocks a merge.
 
 | Concern | Tool | Where it is pinned |
 | --- | --- | --- |
-| Runtime, package manager and bundler | Bun 1.4.0 exactly | `packageManager` and `engines.bun` in `package.json` |
+| Runtime, package manager and bundler | Bun 1.4.2 exactly | `packageManager` and `engines.bun` in `package.json` |
 | Dependency lock | `bun.lock` | committed; installations use `bun ci` |
 | Format + lint (TS/TSX/JSON/CSS) | Biome | `biome.jsonc` |
 | Types | TypeScript strict | `tsconfig.base.json` |
@@ -52,13 +52,13 @@ protocol 3 through their capability-specific gate.
 
 ### Bun is the only JavaScript/TypeScript toolchain
 
-Use Bun 1.4.0 for dependency, workspace, script, runtime and production-build
+Use Bun 1.4.2 for dependency, workspace, script, runtime and production-build
 operations. Node.js, npm, pnpm and Yarn workflows or lockfiles must not be
 introduced — `bun run toolchain:check` fails on a different Bun patch, a
 foreign lockfile or an active command from the retired toolchain.
 
 ```bash
-bun --version            # must print exactly 1.4.0
+bun --version            # must print exactly 1.4.2
 bun ci
 bun run toolchain:check
 ```
@@ -80,7 +80,7 @@ The Windows, macOS and Linux host lives in `apps/desktop`. Install it with the
 same frozen Bun graph as the rest of the workspace:
 
 ```bash
-bun --version            # must print exactly 1.4.0
+bun --version            # must print exactly 1.4.2
 bun ci
 ```
 

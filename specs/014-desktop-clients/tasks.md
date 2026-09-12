@@ -286,3 +286,20 @@ fichier concret.
 - [ ] T100 Reproduce the WebKit mobile structured-resolution refusal when an automatic page-history consolidation advances the reviewed entry head; preserve the current page and both resolution ancestries across consolidation-only descendants, keep genuine structured edits stale, and verify targeted database/native journeys plus renewed delivery gates.
 
 - [ ] T101 Correct demonstrated Windows native fixture cleanup races: await owned process exit after graceful close or a racing taskkill result, apply the existing bounded directory cleanup retry policy under Bun, and retain failures for a surviving process/permanent lock. Diagnose the separate early inspector launch failure without retrying it away; require renewed native and complete delivery gates.
+
+- [ ] T102 Diagnose the main-CI Windows ARM shutdown after all offline recovery assertions pass: retain bounded native lifecycle stages, owned wrapper/Electron process status and pipe state on teardown failure, without secrets, content, arbitrary process termination or relaxed deadlines. Distinguish actual process survival from a missing runtime exit notification before choosing a repair; renewed local, native PR and main gates remain required.
+
+- [ ] T103 Bound the remaining authentication password fixture through the shared disposable-client boundary, preserve one credential across lost-reply retries, and identify each setup step in traces. Verify stalled close, committed retry, actual authentication and renewed complete gates without claiming the opaque Firefox timeout's exact cause is established.
+
+T102 follow-up evidence: UI run 34252039882 also loses only the main inspector
+while its renderer still answers. Capture command failure before cleanup through
+the same bounded evidence boundary; verify diagnostic failure cannot mask or
+retry the original command. Remote validation and root-cause repair remain open.
+
+- [ ] T104 Remove Forge CLI's demonstrated undeclared npm requirement through a pinned Forge core API entry point under Bun. Preserve the five release targets, argument forwarding, makers/signing/pruning and error propagation; verify package and installed smoke on the Windows fixture without Node/npm, focused command tests, renewed complete gates and dependency-image scan.
+
+- [ ] T105 Correct the reproduced Bun 1.4.0 Windows extra-stdio handle ownership defect through the maintained 1.4.2 runtime/image/types pins. Keep the existing cleanup and native assertions without the experimental polling adapter; prove the upstream handle regression, constrained native journeys, complete local/image checks and PR/main CI.
+
+- [ ] T106 Remove GHSA-j95f-988m-3j2f from the packaged editor by upgrading the compatible Tiptap family to 3.30.5; verify bounded block/inline Markdown parsing, retained editor identity, existing editing contracts and strict types, then renew every local/image/PR/main gate without an audit waiver.
+
+- [ ] T107 Close T074's packaged-host coverage gap: run the existing native lifecycle journeys against the actual platform package with an explicit packaged-resource assertion and disposable profiles, retain strict teardown/security/behavior checks, and validate the local executable plus all native PR/main targets. Keep real signed installer/update acceptance evidence separate.

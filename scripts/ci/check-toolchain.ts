@@ -25,7 +25,7 @@ import process from "node:process";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 
-const EXPECTED_BUN_VERSION = "1.4.0";
+const EXPECTED_BUN_VERSION = "1.4.2";
 const failures: string[] = [];
 
 if (Bun.version !== EXPECTED_BUN_VERSION) {

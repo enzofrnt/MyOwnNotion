@@ -81,7 +81,7 @@ describe("Bun production artifacts", () => {
     expect(container).toContain(`--volume "\${repo_root}/test-results:/work/test-results"`);
     expect(container).toContain(`--env MYOWNNOTION_E2E_WEB_OUTDIR="\${container_web_dist}"`);
     expect(container).toContain(`--env MYOWNNOTION_WEB_DIST_DIR="\${container_web_dist}"`);
-    expect(container).toContain('test "$(bun --version)" = "1.4.0"');
+    expect(container).toContain('test "$(bun --version)" = "1.4.2"');
     expect(container).toContain("test -d node_modules");
     expect(container).toContain("MYOWNNOTION_E2E_BUILD=1 bun run --filter @myownnotion/web build");
     expect(container).toContain('exec bash scripts/e2e/run-container-project.sh "$@"');
@@ -89,9 +89,9 @@ describe("Bun production artifacts", () => {
     const containerBootstrap = read("scripts/e2e/bootstrap-container.sh");
     expect(containerBootstrap).toContain("readonly max_attempts=4");
     expect(containerBootstrap).toContain('retry_bootstrap "installing unzip" install_unzip');
-    expect(containerBootstrap).toContain('retry_bootstrap "installing Bun 1.4.0" install_bun');
+    expect(containerBootstrap).toContain('retry_bootstrap "installing Bun 1.4.2" install_bun');
     expect(containerBootstrap).toContain('retry_bootstrap "installing locked dependencies" bun ci');
-    expect(containerBootstrap).toContain('test "$(bun --version)" = "1.4.0"');
+    expect(containerBootstrap).toContain('test "$(bun --version)" = "1.4.2"');
 
     const preparedImage = read("scripts/e2e/prepare-container-image.sh");
     expect(preparedImage).toContain("docker/e2e-browser.Dockerfile");
@@ -122,7 +122,7 @@ describe("Bun production artifacts", () => {
       bases: Record<string, { ref: string; digest: string }>;
     };
     expect(bases.platforms).toEqual(["linux/amd64", "linux/arm64"]);
-    expect(bases.bases["bun"]?.ref).toBe("oven/bun:1.4.0-debian");
+    expect(bases.bases["bun"]?.ref).toBe("oven/bun:1.4.2-debian");
     expect(bases.bases["bun"]?.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
 
     const api = read("docker/api.Dockerfile");
