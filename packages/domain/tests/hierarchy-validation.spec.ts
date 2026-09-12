@@ -85,9 +85,7 @@ describe("validatePageDocument", () => {
   });
 
   it("reserves only the exact protected-storage object", () => {
-    const reserved = validatePageDocument(
-      document({ body: { $myownnotionProtected: 1 } }),
-    );
+    const reserved = validatePageDocument(document({ body: { $myownnotionProtected: 1 } }));
     expect(reserved.ok).toBe(false);
     if (!reserved.ok) expect(reserved.error.code).toBe("validation.invalid-payload");
 

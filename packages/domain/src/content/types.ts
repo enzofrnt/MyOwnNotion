@@ -28,6 +28,23 @@ export const PAGE_DOCUMENT_FORMAT = "myownnotion.document+json";
 /** Exact plaintext marker reserved for content neutralized after it is sealed. */
 export const PROTECTED_CONTENT_PLACEHOLDER = "\uFFFD";
 
+/** Exact JSON marker reserved for structured content neutralized after it is sealed. */
+export const PROTECTED_CONTENT_PAYLOAD = Object.freeze({
+  $myownnotionProtected: 1,
+} as const);
+
+export function isProtectedContentPayload(
+  value: unknown,
+): value is typeof PROTECTED_CONTENT_PAYLOAD {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    Object.keys(record).length === 1 &&
+    Object.hasOwn(record, "$myownnotionProtected") &&
+    record["$myownnotionProtected"] === 1
+  );
+}
+
 export interface PageDocument {
   readonly format: typeof PAGE_DOCUMENT_FORMAT;
   readonly formatVersion: number;

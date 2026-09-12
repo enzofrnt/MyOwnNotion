@@ -6,20 +6,17 @@ import {
   schema,
   type Transaction,
 } from "@myownnotion/database";
-import type { Uuid } from "@myownnotion/domain";
+import {
+  isProtectedContentPayload,
+  PROTECTED_CONTENT_PAYLOAD,
+  type Uuid,
+} from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
 import type { ProtectedContent } from "./protected-content.ts";
 
 /** Reserved storage marker; never an authorized content projection. */
-export const PROTECTED_PAYLOAD = { $myownnotionProtected: 1 } as const;
-export function isProtectedPayload(value: unknown): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "$myownnotionProtected" in value &&
-    value.$myownnotionProtected === 1
-  );
-}
+export const PROTECTED_PAYLOAD = PROTECTED_CONTENT_PAYLOAD;
+export const isProtectedPayload = isProtectedContentPayload;
 function required<T>(value: T | null): T {
   if (value === null) throw new Error("Protected canonical content is unavailable.");
   return value;

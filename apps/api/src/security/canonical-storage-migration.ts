@@ -25,6 +25,8 @@ export interface CanonicalMetadataSource {
   readonly entityId: string;
   /** Captured before cutover when an exact marker was still authored plaintext. */
   readonly legacyPlaintextPlaceholder?: true;
+  /** Captured before cutover when the exact structured marker was authored plaintext. */
+  readonly legacyPlaintextPayload?: true;
   readonly digest: string;
 }
 
@@ -69,24 +71,71 @@ async function hasLegacyPlaintextPlaceholder(
   return false;
 }
 
+function snapshotHasPlaintextPayload(snapshot: Record<string, unknown> | null): boolean {
+  const page = snapshot?.["pageDocument"];
+  return (
+    typeof page === "object" && page !== null && "body" in page && isProtectedPayload(page.body)
+  );
+}
+
+async function hasLegacyPlaintextPayload(
+  tx: Transaction,
+  content: ProtectedContent,
+  category: CanonicalMetadataSource["category"],
+  id: string,
+): Promise<boolean> {
+  if (category === "item") {
+    const raw = await readItem(tx, id as Uuid);
+    if (raw === null) throw new Error("Historical canonical item is unavailable.");
+    return (
+      isProtectedPayload(raw.pageDocument?.body) && (await content.readPageBody(tx, id)) === null
+    );
+  }
+  if (category === "revision") {
+    if ((await content.readRevisionSnapshot(tx, id)) !== null) return false;
+    const [row] = await tx.select().from(schema.revisions).where(eq(schema.revisions.id, id));
+    if (row === undefined) throw new Error("Historical revision is unavailable.");
+    return (
+      row.snapshot !== null &&
+      typeof row.snapshot === "object" &&
+      !Array.isArray(row.snapshot) &&
+      snapshotHasPlaintextPayload(row.snapshot as Record<string, unknown>)
+    );
+  }
+  if (category === "relationship") {
+    if ((await content.readRelationshipMetadata(tx, id)) !== null) return false;
+    const [row] = await tx
+      .select()
+      .from(schema.relationships)
+      .where(eq(schema.relationships.id, id));
+    if (row === undefined) throw new Error("Historical relationship is unavailable.");
+    return row.relationType !== "database:property" && isProtectedPayload(row.metadata);
+  }
+  return false;
+}
+
 async function itemPayload(
   tx: Transaction,
   content: ProtectedContent,
   id: string,
   allowLegacyPlaintextPlaceholder = false,
+  allowLegacyPlaintextPayload = false,
 ) {
   const raw = await readItem(tx, id as Uuid);
   if (raw === null) throw new Error("Historical canonical item is unavailable.");
   const [item] = await resolveProtectedContent(tx, [raw], content, {
     allowLegacyPlaintextPlaceholder,
+    allowLegacyPlaintextPayload,
   });
   if (item === undefined) throw new Error("Historical canonical item could not be resolved.");
   const [page] = await tx
     .select()
     .from(schema.pageDocuments)
     .where(eq(schema.pageDocuments.pageId, id));
-  const body = (await content.readPageBody(tx, id)) ?? page?.body ?? null;
-  if (isProtectedPayload(body)) throw new Error("Historical page body is unavailable.");
+  const protectedBody = await content.readPageBody(tx, id);
+  const body = protectedBody ?? page?.body ?? null;
+  if (protectedBody === null && isProtectedPayload(body) && !allowLegacyPlaintextPayload)
+    throw new Error("Historical page body is unavailable.");
   const [file] = await tx
     .select()
     .from(schema.logicalFiles)
@@ -125,6 +174,7 @@ async function revisionPayload(
   content: ProtectedContent,
   id: string,
   allowLegacyPlaintextPlaceholder = false,
+  allowLegacyPlaintextPayload = false,
 ) {
   const [row] = await tx.select().from(schema.revisions).where(eq(schema.revisions.id, id));
   if (row === undefined) throw new Error("Historical revision is unavailable.");
@@ -135,20 +185,29 @@ async function revisionPayload(
   const snapshot = raw as Record<string, unknown> | null;
   const page = snapshot?.["pageDocument"];
   if (
-    (protectedSnapshot === null &&
-      snapshotHasPlaintextPlaceholder(snapshot) &&
-      !allowLegacyPlaintextPlaceholder) ||
-    (typeof page === "object" && page !== null && "body" in page && isProtectedPayload(page.body))
+    protectedSnapshot === null &&
+    ((snapshotHasPlaintextPlaceholder(snapshot) && !allowLegacyPlaintextPlaceholder) ||
+      (typeof page === "object" &&
+        page !== null &&
+        "body" in page &&
+        isProtectedPayload(page.body) &&
+        !allowLegacyPlaintextPayload))
   )
     throw new Error("A historical snapshot cannot be reconstructed from a marker.");
   return { itemId: row.itemId, snapshot };
 }
 
-async function relationshipPayload(tx: Transaction, content: ProtectedContent, id: string) {
+async function relationshipPayload(
+  tx: Transaction,
+  content: ProtectedContent,
+  id: string,
+  allowLegacyPlaintextPayload = false,
+) {
   const [row] = await tx.select().from(schema.relationships).where(eq(schema.relationships.id, id));
   if (row === undefined) throw new Error("Historical relationship is unavailable.");
-  const metadata = (await content.readRelationshipMetadata(tx, id)) ?? row.metadata;
-  if (isProtectedPayload(metadata))
+  const protectedMetadata = await content.readRelationshipMetadata(tx, id);
+  const metadata = protectedMetadata ?? row.metadata;
+  if (protectedMetadata === null && isProtectedPayload(metadata) && !allowLegacyPlaintextPayload)
     throw new Error("Historical relationship metadata is unavailable.");
   return { relationType: row.relationType, metadata };
 }
@@ -162,18 +221,35 @@ async function exportPayload(tx: Transaction, content: ProtectedContent, id: str
 export async function canonicalMetadataDigest(
   tx: Transaction,
   content: ProtectedContent,
-  source: Pick<CanonicalMetadataSource, "category" | "entityId" | "legacyPlaintextPlaceholder">,
+  source: Pick<
+    CanonicalMetadataSource,
+    "category" | "entityId" | "legacyPlaintextPlaceholder" | "legacyPlaintextPayload"
+  >,
   options: { readonly requireProtected?: boolean } = {},
 ): Promise<string> {
   const allowLegacyPlaintextPlaceholder =
     source.legacyPlaintextPlaceholder === true && options.requireProtected !== true;
+  const allowLegacyPlaintextPayload =
+    source.legacyPlaintextPayload === true && options.requireProtected !== true;
   const payload =
     source.category === "item"
-      ? await itemPayload(tx, content, source.entityId, allowLegacyPlaintextPlaceholder)
+      ? await itemPayload(
+          tx,
+          content,
+          source.entityId,
+          allowLegacyPlaintextPlaceholder,
+          allowLegacyPlaintextPayload,
+        )
       : source.category === "revision"
-        ? await revisionPayload(tx, content, source.entityId, allowLegacyPlaintextPlaceholder)
+        ? await revisionPayload(
+            tx,
+            content,
+            source.entityId,
+            allowLegacyPlaintextPlaceholder,
+            allowLegacyPlaintextPayload,
+          )
         : source.category === "relationship"
-          ? await relationshipPayload(tx, content, source.entityId)
+          ? await relationshipPayload(tx, content, source.entityId, allowLegacyPlaintextPayload)
           : source.category === "export"
             ? await exportPayload(tx, content, source.entityId)
             : undefined;
@@ -219,6 +295,9 @@ export async function inventoryCanonicalMetadata(
         ...((await hasLegacyPlaintextPlaceholder(tx, content, category, id))
           ? { legacyPlaintextPlaceholder: true as const }
           : {}),
+        ...((await hasLegacyPlaintextPayload(tx, content, category, id))
+          ? { legacyPlaintextPayload: true as const }
+          : {}),
       };
       result.push({ ...source, digest: await canonicalMetadataDigest(tx, content, source) });
     }
@@ -236,7 +315,13 @@ export async function protectCanonicalMetadata(
     throw new Error("Historical canonical metadata changed after inventory.");
   const id = source.entityId;
   if (source.category === "item") {
-    const value = await itemPayload(tx, content, id, source.legacyPlaintextPlaceholder === true);
+    const value = await itemPayload(
+      tx,
+      content,
+      id,
+      source.legacyPlaintextPlaceholder === true,
+      source.legacyPlaintextPayload === true,
+    );
     await content.writeItemPresentation(tx, {
       itemId: id,
       recordVersion: 1,
@@ -284,11 +369,17 @@ export async function protectCanonicalMetadata(
       content,
       id,
       source.legacyPlaintextPlaceholder === true,
+      source.legacyPlaintextPayload === true,
     );
     if (snapshot !== null) await content.writeRevisionSnapshot(tx, { revisionId: id, snapshot });
     await tx.update(schema.revisions).set({ snapshot: null }).where(eq(schema.revisions.id, id));
   } else if (source.category === "relationship") {
-    const value = await relationshipPayload(tx, content, id);
+    const value = await relationshipPayload(
+      tx,
+      content,
+      id,
+      source.legacyPlaintextPayload === true,
+    );
     if (value.relationType !== "database:property") {
       await content.writeRelationshipMetadata(tx, {
         relationshipId: id,

@@ -27,6 +27,7 @@ import {
   validateFavouriteItem,
   validateItemIcon,
   validateOfflineIntent,
+  validatePageDocument,
   validateRenameItem,
   validateReplacePageDocument,
   validateResolveConflict,
@@ -594,6 +595,14 @@ async function executeRestoreRevision(
   if (normalizedRestoredName !== null && !normalizedRestoredName.ok) {
     return normalizedRestoredName as DomainResult<CommandExecution>;
   }
+  const restoredDocument = restored["pageDocument"] as
+    | { format: "myownnotion.document+json"; formatVersion: number; body: Record<string, unknown> }
+    | null
+    | undefined;
+  if (item.kind === "page" && restoredDocument != null) {
+    const document = validatePageDocument(restoredDocument);
+    if (!document.ok) return document as DomainResult<CommandExecution>;
+  }
   if (item.kind === "file") {
     const file = restored["file"];
     if (
@@ -656,10 +665,6 @@ async function executeRestoreRevision(
       .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
       .where(eq(items.id, item.id));
   }
-  const restoredDocument = restored["pageDocument"] as
-    | { format: "myownnotion.document+json"; formatVersion: number; body: Record<string, unknown> }
-    | null
-    | undefined;
   if (item.kind === "page" && restoredDocument != null) {
     await tx
       .insert(pageDocuments)

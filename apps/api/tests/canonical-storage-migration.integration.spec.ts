@@ -194,7 +194,9 @@ it("migrates an authored legacy protected payload in a page and retained snapsho
         .where(eq(schema.pageDocuments.pageId, page.itemId));
       await tx
         .update(schema.revisions)
-        .set({ snapshot: { ...snapshot, pageDocument: { ...pageDocument, body: PROTECTED_PAYLOAD } } })
+        .set({
+          snapshot: { ...snapshot, pageDocument: { ...pageDocument, body: PROTECTED_PAYLOAD } },
+        })
         .where(eq(schema.revisions.id, page.revisionId));
       await tx
         .delete(schema.protectedEnvelopes)

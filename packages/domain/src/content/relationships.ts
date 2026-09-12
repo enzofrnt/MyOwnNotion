@@ -6,7 +6,13 @@
  * diagnosable instead of being silently redirected or erased.
  */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
-import { type CanonicalItem, type DomainResult, err, ok } from "./types.ts";
+import {
+  type CanonicalItem,
+  type DomainResult,
+  err,
+  isProtectedContentPayload,
+  ok,
+} from "./types.ts";
 
 /** Owned namespaced vocabulary, e.g. `link:references`, `embed:file`. */
 const RELATION_TYPE_PATTERN = /^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$/;
@@ -59,8 +65,11 @@ export function validateCreateRelationship(
     return err("relationship.endpoint-unavailable", "Target item is unavailable");
   }
   const metadata = command.metadata ?? {};
-  if (typeof metadata !== "object" || Array.isArray(metadata)) {
+  if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
     return err("validation.invalid-payload", "Relationship metadata must be an object");
+  }
+  if (isProtectedContentPayload(metadata)) {
+    return err("validation.invalid-payload", "Relationship metadata uses a reserved value");
   }
   return ok({
     id: command.id,

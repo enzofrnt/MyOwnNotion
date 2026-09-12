@@ -77,7 +77,10 @@ export async function resolveProtectedContent(
   executor: Database | Transaction,
   models: readonly ItemReadModel[],
   content: ProtectedContent | undefined,
-  options: { readonly allowLegacyPlaintextPlaceholder?: boolean } = {},
+  options: {
+    readonly allowLegacyPlaintextPlaceholder?: boolean;
+    readonly allowLegacyPlaintextPayload?: boolean;
+  } = {},
 ): Promise<ItemReadModel[]> {
   if (content === undefined) {
     // No key hierarchy configured. An installation in that state has no
@@ -124,7 +127,11 @@ export async function resolveProtectedContent(
       // case where refusing is the honest answer.
       throw new ProtectedContentUnavailableError(model.id);
     }
-    if (sealedBody === null && isProtectedPayload(model.pageDocument?.body)) {
+    if (
+      sealedBody === null &&
+      isProtectedPayload(model.pageDocument?.body) &&
+      options.allowLegacyPlaintextPayload !== true
+    ) {
       throw new ProtectedContentUnavailableError(model.id);
     }
     const fileMetadata =
