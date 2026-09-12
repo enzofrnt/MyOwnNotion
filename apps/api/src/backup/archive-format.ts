@@ -4,10 +4,12 @@ import { createHash } from "node:crypto";
 import {
   BACKUP_FORMAT_VERSION,
   type BackupManifest,
+  type CanonicalExportManifest,
   canonicalStructuredDataString,
   compareArchiveContents,
   isProtectedContentPayload,
   readBackupManifest,
+  validateCanonicalExport,
   validateRelationshipMetadata,
 } from "@myownnotion/domain";
 import {
@@ -63,7 +65,19 @@ function validateReservedContentBoundaries(
     if (typeof item !== "object" || item === null || Array.isArray(item)) {
       return "The canonical export contains an invalid item.";
     }
-    const pageDocument = (item as Record<string, unknown>)["pageDocument"];
+    const itemRecord = item as Record<string, unknown>;
+    for (const [field, value] of [
+      ["item.name", itemRecord["name"]],
+      [
+        "file.originalName",
+        (itemRecord["file"] as Record<string, unknown> | null)?.["originalName"],
+      ],
+    ] as const) {
+      if (typeof value === "string" && value.trim() === "\uFFFD") {
+        return `The backup contains a ${field} with a Unicode replacement character.`;
+      }
+    }
+    const pageDocument = itemRecord["pageDocument"];
     if (pageDocument !== null && pageDocument !== undefined) {
       const body =
         typeof pageDocument === "object" && pageDocument !== null
@@ -92,6 +106,58 @@ function validateReservedContentBoundaries(
     }
   }
   return null;
+}
+
+/**
+ * V2 is produced only after the canonical export has passed the same complete
+ * graph checks that restoration uses. The stream then authenticates every file
+ * while it is emitted, so a successful producer cannot create an archive that
+ * a later inspect/restore step will reject.
+ */
+function validateProducedV2(manifest: BackupManifest, canonicalExport: string): void {
+  if (manifest.formatVersion < BACKUP_FORMAT_VERSION) return;
+  const canonicalBytes = Buffer.from(canonicalExport, "utf8");
+  if (sha256(canonicalBytes) !== manifest.canonicalExportDigest) {
+    throw new Error("The canonical export does not match the manifest digest.");
+  }
+  let canonical: unknown;
+  try {
+    canonical = JSON.parse(canonicalExport);
+  } catch {
+    throw new Error("The canonical export is not valid JSON.");
+  }
+  const manifestRead = readBackupManifest(manifest);
+  if (!manifestRead.ok) {
+    throw new Error("The backup manifest is not valid.");
+  }
+  const reservedContentProblem = validateReservedContentBoundaries(manifest, canonical);
+  if (reservedContentProblem !== null) throw new Error(reservedContentProblem);
+  let exportIssues: ReturnType<typeof validateCanonicalExport> = [];
+  try {
+    exportIssues = validateCanonicalExport(canonical as unknown as CanonicalExportManifest);
+  } catch {
+    throw new Error("The canonical export is incomplete.");
+  }
+  if (exportIssues.length > 0) {
+    throw new Error(`The canonical export is incomplete: ${exportIssues[0]?.detail}`);
+  }
+  const record = canonical as {
+    readonly items?: unknown[];
+    readonly databases?: unknown[];
+    readonly databaseEntries?: unknown[];
+  };
+  if (!Array.isArray(record.items) || record.items.length !== manifest.itemCount) {
+    throw new Error("The canonical export item count does not match the manifest.");
+  }
+  if (
+    manifest.structuredDataDigest !== undefined &&
+    (!Array.isArray(record.databases) ||
+      !Array.isArray(record.databaseEntries) ||
+      record.databases.length !== manifest.databaseCount ||
+      record.databaseEntries.length !== manifest.databaseEntryCount)
+  ) {
+    throw new Error("The canonical export structured counts do not match the manifest.");
+  }
 }
 
 function writeText(target: Buffer, offset: number, width: number, value: string): void {
@@ -182,6 +248,7 @@ export async function* streamBackupArchive(input: {
 }): AsyncGenerator<Uint8Array> {
   const modifiedAt = new Date(input.manifest.createdAt);
   if (Number.isNaN(modifiedAt.getTime())) throw new Error("The backup creation date is invalid.");
+  validateProducedV2(input.manifest, input.canonicalExport);
   yield* encodeEntry(MANIFEST_PATH, Buffer.from(JSON.stringify(input.manifest)), modifiedAt);
   yield* encodeEntry(CANONICAL_EXPORT_PATH, Buffer.from(input.canonicalExport), modifiedAt);
   if (input.operationalState != null)
@@ -234,7 +301,17 @@ export function decodeBackupArchive(archive: Buffer): DecodedBackupArchive {
   while (offset + TAR_BLOCK_BYTES <= archive.byteLength) {
     const header = archive.subarray(offset, offset + TAR_BLOCK_BYTES);
     if (isZeroBlock(header)) {
+      if (offset + TAR_BLOCK_BYTES * 2 > archive.byteLength) {
+        throw new Error("the backup tar must end with two end blocks");
+      }
+      if (!isZeroBlock(archive.subarray(offset + TAR_BLOCK_BYTES, offset + TAR_BLOCK_BYTES * 2))) {
+        throw new Error("the backup tar must end with two end blocks");
+      }
+      if (offset + TAR_BLOCK_BYTES * 2 !== archive.byteLength) {
+        throw new Error("the backup tar contains trailing bytes after its end blocks");
+      }
       terminated = true;
+      offset += TAR_BLOCK_BYTES * 2;
       break;
     }
     if (readText(header, 257, 6) !== "ustar") {
@@ -352,6 +429,18 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
   const reservedContentProblem = validateReservedContentBoundaries(manifest, canonical);
   if (reservedContentProblem !== null) {
     return { ok: false, reason: reservedContentProblem };
+  }
+  let exportIssues: ReturnType<typeof validateCanonicalExport> = [];
+  try {
+    exportIssues = validateCanonicalExport(canonical as unknown as CanonicalExportManifest);
+  } catch {
+    return { ok: false, reason: "The canonical export is incomplete." };
+  }
+  if (exportIssues.length > 0) {
+    return {
+      ok: false,
+      reason: `The canonical export is incomplete: ${exportIssues[0]?.detail}`,
+    };
   }
   if (!Array.isArray(canonical.items) || canonical.items.length !== manifest.itemCount) {
     return {

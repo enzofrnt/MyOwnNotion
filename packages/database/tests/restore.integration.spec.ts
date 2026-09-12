@@ -23,7 +23,6 @@ import {
 } from "@myownnotion/database";
 import {
   BACKUP_FORMAT,
-  BACKUP_FORMAT_VERSION,
   buildCanonicalExport,
   canonicalExportString,
   canonicalStructuredDataString,
@@ -180,7 +179,7 @@ describe("rehearsing a restoration", () => {
     }
   });
 
-  it("writes every item, file, relationship and revision named by the archive", async () => {
+  it("restores a V1 archive with definitions, entries, relations and snapshots", async () => {
     const rehearsal = await createDisposableWorkspace(context.postgres.connectionString);
     try {
       const targetWorkspace = await getOrCreateWorkspace(rehearsal.handle.db);
@@ -460,7 +459,7 @@ describe("rehearsing a restoration", () => {
       const archive = encodeBackupArchive({
         manifest: {
           format: BACKUP_FORMAT,
-          formatVersion: BACKUP_FORMAT_VERSION,
+          formatVersion: 1,
           createdAt: acceptedAt,
           cursor: canonical.changeCursor,
           applicationVersion: "0.1.0-test",

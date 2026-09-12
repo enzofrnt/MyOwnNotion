@@ -33,12 +33,66 @@ const DIGEST = `sha256:${createHash("sha256").update("abc").digest("hex")}`;
  * other one — and three tests then asserted against an archive that was broken
  * for a reason they were not testing.
  */
-function archive(manifestOverrides: Record<string, unknown> = {}, includeFile = true): Buffer {
-  const canonicalExport = JSON.stringify({
-    items: [{ id: "one" }],
-    relationships: [],
-    revisions: [],
-  });
+function archive(
+  manifestOverrides: Record<string, unknown> = {},
+  includeFile = true,
+  canonicalOverride?: string,
+): Buffer {
+  const canonicalExport =
+    canonicalOverride ??
+    JSON.stringify({
+      format: "myownnotion.export+json",
+      formatVersion: 2,
+      workspaceId: "workspace",
+      schemaVersion: 1,
+      exportedAt: "2026-08-18T04:00:00.000Z",
+      changeCursor: "42",
+      items: [
+        {
+          id: "one",
+          workspaceId: "workspace",
+          kind: "file",
+          name: "one",
+          icon: null,
+          lifecycle: "active",
+          trashedAt: null,
+          purgeAfter: null,
+          currentRevisionId: "revision",
+          favourite: false,
+          offlineIntent: false,
+          pageDocument: null,
+          file: {
+            mediaType: "text/plain",
+            originalName: "one.txt",
+            byteLength: 3,
+            sha256: DIGEST.slice("sha256:".length),
+          },
+          placements: [],
+        },
+      ],
+      databases: [],
+      databaseEntries: [],
+      relationships: [],
+      revisions: [
+        {
+          id: "revision",
+          itemId: "one",
+          mutationId: "mutation",
+          parentRevisionIds: [],
+          acceptedAt: "2026-08-18T04:00:00.000Z",
+        },
+      ],
+      counts: {
+        items: 1,
+        activeItems: 1,
+        trashedItems: 0,
+        placements: 0,
+        relationships: 0,
+        revisions: 1,
+        databases: 0,
+        databaseEntries: 0,
+      },
+    });
   const manifest: BackupManifest = {
     format: BACKUP_FORMAT,
     formatVersion: BACKUP_FORMAT_VERSION,
@@ -217,18 +271,67 @@ describe("writing a checked archive", () => {
       ? { $myownnotionProtected: 1, authored: true }
       : { $myownnotionProtected: 1 };
     const canonicalExport = JSON.stringify({
+      format: "myownnotion.export+json",
+      formatVersion: 2,
+      workspaceId: "workspace",
+      schemaVersion: 1,
+      exportedAt: "2026-08-18T04:00:00.000Z",
+      changeCursor: "42",
       items: [
         {
           id: "one",
+          workspaceId: "workspace",
+          kind: "page",
+          name: "one",
+          icon: null,
+          lifecycle: "active",
+          trashedAt: null,
+          purgeAfter: null,
+          currentRevisionId: "revision",
+          favourite: false,
+          offlineIntent: false,
           pageDocument: {
             format: "myownnotion.document+json",
             formatVersion: 1,
             body: marker,
           },
+          file: null,
+          placements: [],
         },
       ],
-      relationships: [{ metadata: marker }],
-      revisions: [],
+      databases: [],
+      databaseEntries: [],
+      relationships: [
+        {
+          id: "relationship",
+          workspaceId: "workspace",
+          sourceItemId: "one",
+          targetItemId: "one",
+          relationType: "mention:reference",
+          metadata: marker,
+          createdRevisionId: "revision",
+          removedRevisionId: null,
+        },
+      ],
+      revisions: [
+        {
+          id: "revision",
+          itemId: "one",
+          mutationId: "mutation",
+          parentRevisionIds: [],
+          acceptedAt: "2026-08-18T04:00:00.000Z",
+        },
+      ],
+      counts: {
+        items: 1,
+        activeItems: 1,
+        trashedItems: 0,
+        placements: 0,
+        relationships: 1,
+        revisions: 1,
+        databases: 0,
+        databaseEntries: 0,
+      },
     });
     return encodeBackupArchive({
       manifest: {
@@ -273,6 +376,31 @@ describe("writing a checked archive", () => {
     expect(calls).toEqual([]);
   });
 
+  it("refuses a malformed V1 canonical export before target mutation starts", async () => {
+    const malformed = JSON.stringify({ items: [{}], relationships: [], revisions: [] });
+    const calls: string[] = [];
+    await expect(
+      applyArchive(archive({ formatVersion: 1, itemCount: 1 }, true, malformed), {
+        begin: async () => {
+          calls.push("begin");
+        },
+        writeFile: async () => {
+          calls.push("file");
+        },
+        writeRevision: async () => {
+          calls.push("revision");
+        },
+        writeItem: async () => {
+          calls.push("item");
+        },
+        writeRelationship: async () => {
+          calls.push("relationship");
+        },
+      }),
+    ).rejects.toThrow(/canonical export/i);
+    expect(calls).toEqual([]);
+  });
+
   it("keeps exact markers restorable from a pre-reservation archive", async () => {
     const written: unknown[] = [];
     await applyArchive(markerArchive(1), {
@@ -312,7 +440,7 @@ describe("writing a checked archive", () => {
         calls.push("relationship");
       },
     });
-    expect(calls).toEqual(["begin", "item", "relationship"]);
+    expect(calls).toEqual(["begin", "item", "revision", "relationship"]);
   });
 
   it("writes files before the items that name them", async () => {
