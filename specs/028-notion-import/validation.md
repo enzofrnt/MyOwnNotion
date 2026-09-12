@@ -143,6 +143,17 @@ Notion settings.
 
 ## Delivery boundary
 
+## T022 — source ancestors and frontmatter bounds
+
+Directory import snapshots now record `lstat` identities for the root and all
+ancestors before and after each file read. A synthetic replacement of the root
+identity is refused with `import.source-changed`; existing symlink, containment,
+size, mtime and handle-closure cases remain green. Frontmatter conversion now
+rejects more than 64 semantic nesting levels or 100,000 YAML AST nodes before
+`toJS`, while ordinary fixtures and large-integer/nonfinite conversions remain
+green. Focused source, race, type and formatting checks pass. This is a
+portable replacement-detection boundary, not an OS-level filesystem lock.
+
 No0018 migration was needed. Feature026 source/embedding foundation is a
 dependency; feature013's backend is the branch base. The root integration task
 owns complete `checks:local`, independent review and publication. No push,

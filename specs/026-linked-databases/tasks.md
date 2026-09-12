@@ -42,3 +42,7 @@
 - [ ] T018 Aligner les parcours historiques de couverture locale et de corbeille sur les entrées sans placement et la conservation des sources ; vérifier la nouvelle référence visuelle sans erreur après T016, puis relancer le gate complet (FR-005/FR-010/FR-011/FR-012, partial, MEDIUM).
 - [ ] T020 Préserver l'identité des boutons d'entrée pendant les mises à jour de colonnes et de projection ; reproduire le clic perdu sur Firefox, vérifier le relâchement et l'annulation du pointeur, puis repasser les profils navigateur et le gate intégré (FR-005/FR-011, UI-quality).
 - [x] T021 Preserve the focused entry row when a virtualized table finishes restoring an entry beyond the first page. Reproduce descendant-button focus followed by clearing the temporary return target, retain that row as the active grid row, and verify keyboard navigation plus the actual 1,001-entry WebKit journey without weakening focus assertions.
+
+## Phase 7: Convergence — partial server projection merge
+
+- [x] T022 [US3] Preserve only optimistic local rows whose identifiers are selected by the server page when merging partial coverage; retain their pending/conflict payload and state without changing server pagination, filtering, limit or ordering. Add a direct regression test and record focused web type/Biome evidence (FR-011, SC-005).

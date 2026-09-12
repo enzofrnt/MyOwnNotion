@@ -29,6 +29,15 @@ Le profil CPU effectué sur l'ancien corpus de 1 001 racines a identifié 12,8 s
 
 ## Limites et gate de livraison
 
+## T022 — partial server projection merge
+
+The partial-coverage merge now overlays a local `pending` or `conflict` row
+only when the server selected the same entry ID. Local rows absent from the
+server page are omitted because a partial projection cannot establish their
+global filter/order/page position. The direct regression in
+`apps/web/tests/database-pagination.spec.ts` passes, and the web typecheck and
+focused Biome checks pass. Complete delivery remains owned by the parent gate.
+
 La purge planifiée complète reste hors 026 : les tests appliquent l'état canonique purgé et retirent les enveloppes éditoriales de l'ancien hôte pour vérifier l'indépendance réelle. La reprise hors ligne testée garde disponible le shell statique ; elle n'atteste pas un premier démarrage sans réseau avec service worker non préparé.
 
 Le parent doit intégrer les corrections 025 postérieures à `e38ccd3b`, conserver sa normalisation d'index dans `indexedCriterion`, puis exécuter `bun run checks:local` et la matrice documentée avant push. Les checks ciblés de cette branche ne sont pas présentés comme un gate complet.

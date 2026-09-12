@@ -55,6 +55,13 @@ Les emplacements parcourent les curseurs canoniques avec une commande explicite 
 
 Le chargement SQL de la projection ne doit pas relire et déchiffrer chaque page éditoriale à chaque ajout. Une lecture groupée porte uniquement noms, versions exactes des valeurs et relations ; la couche de protection partagée conserve l'authentification et refuse l'absence d'une enveloppe nécessaire. La projection réutilise les entrées inchangées si la définition reste identique, avec reconstruction complète sur changement de définition ou invalidation.
 
+Lorsqu'une projection locale partielle est fusionnée avec une page de requête
+serveur, le serveur reste l'autorité de l'appartenance, de la limite et de
+l'ordre de cette page. Une mutation optimiste locale peut remplacer la ligne
+serveur du même identifiant et conserver son état `pending` ou `conflict` ; une
+ligne locale absente de la page serveur n'est jamais ajoutée, car sa position
+globale ne peut pas être déduite d'une couverture partielle.
+
 Le scénario réel a également révélé deux coûts de rattrapage : résolution API séquentielle des noms/corps et transactions IndexedDB par entrée affichée. Les lectures de contenu partagées sont groupées par type d'enveloppe ; la résolution locale récupère items/placements/relations par lots et ouvre les enveloppes avec une concurrence bornée à 64, sans persister de copie en clair. Les délais de préparation API et de disponibilité de l'UI sont mesurés séparément.
 
 

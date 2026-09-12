@@ -47,3 +47,7 @@
 ## Phase 9: Integrated delivery
 
 - [ ] T021 Run the required complete local gate on the integration commit, verify every PR check, merge after green checks and verify all main CI; record commit-addressable evidence in `specs/028-notion-import/validation.md`. T014's focused handoff does not complete delivery. Personal source application remains separate from implementation and validation.
+
+## Phase 10: Convergence — source race and YAML bounds
+
+- [x] T022 [US1] Recheck directory and ancestor identities around every source-file read, refusing symlinked or replaced ancestors while preserving portable read-only behavior; add a synthetic ancestor replacement regression. Bound frontmatter YAML to 64 semantic levels and 100,000 AST nodes before conversion, with normal export fixtures retained (FR-009, SC-001/SC-003).

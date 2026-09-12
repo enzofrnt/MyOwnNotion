@@ -70,10 +70,20 @@ branch retains the full local delivery gates. No exception is requested.
   implicit title-based merge. Compile as `dist/imports/notion/cli.js` and expose
   root `import:notion` command.
 
+La lecture d'un répertoire prend une identité `lstat` de la racine et de
+chaque ancêtre avant puis après l'ouverture de chaque fichier. Toute variation,
+ancêtre devenu lien symbolique ou perte de frontière refuse le snapshot. Cette
+barrière portable détecte les remplacements de répertoires pendant la lecture ;
+elle ne prétend pas fournir un verrouillage du système de fichiers contre un
+attaquant capable de restaurer exactement la même identité entre deux contrôles.
+
 ## Bounds and recovery
 
 Initial documented limits:10,000 source entries,32 path levels,8 MiB per text
 file,64 MiB per file/archive,256 MiB expanded total and100:1 compression ratio.
+Frontmatter YAML is additionally limited to 64 semantic nesting levels and
+100,000 AST nodes before conversion, with the same fixed `import.invalid-yaml`
+refusal as other unsafe YAML.
 No network fetching; unsupported nested archives stay opaque attachments.
 Snapshot bytes are immutable for the run; resume refuses changed fingerprints.
 New imported content is grouped under one root. Committed progress is durable;
