@@ -1060,6 +1060,16 @@ describe("scoped MCP through the real official HTTP client", () => {
       expect.arrayContaining([
         expect.objectContaining({ action: "mcp.exchange-failed", outcome: "refused" }),
         expect.objectContaining({ action: "mcp.authentication-failed", outcome: "refused" }),
+        expect.objectContaining({
+          action: "mcp.exchange-failed",
+          connectionId: "unknown",
+          outcome: "refused",
+        }),
+        expect.objectContaining({
+          action: "mcp.authentication-failed",
+          connectionId: "unknown",
+          outcome: "refused",
+        }),
       ]),
     );
   });

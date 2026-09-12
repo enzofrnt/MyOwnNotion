@@ -87,8 +87,11 @@ export function registerMcpManagementRoutes(
         .slice(0, 100)
         .map((event) => ({
           id: event.id,
-          action: event.objectKind === "mcp-connection" ? event.eventType : event.objectKind,
-          connectionId: event.objectId,
+          action:
+            event.eventType === "mcp.operation"
+              ? (event.objectKind ?? "mcp.operation")
+              : event.eventType,
+          connectionId: event.objectId ?? "unknown",
           outcome: event.outcome,
           occurredAt: event.occurredAt.toISOString(),
         })),

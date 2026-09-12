@@ -309,12 +309,28 @@ it("refresh clears consumed codes and labels safe audit outcomes without renderi
           outcome: "refused",
           occurredAt: "2026-09-05T12:00:00Z",
         },
+        {
+          id: "event3",
+          connectionId: "missing",
+          action: "mcp.exchange-failed",
+          outcome: "refused",
+          occurredAt: "2026-09-05T12:00:00Z",
+        },
+        {
+          id: "event4",
+          connectionId: "missing",
+          action: "mcp.authentication-failed",
+          outcome: "refused",
+          occurredAt: "2026-09-05T12:00:00Z",
+        },
       ],
     }),
   );
   await click(button("Actualiser les accès"));
   expect(container.querySelector('[data-testid="mcp-code"]')).toBeNull();
   expect(container.textContent).toContain("Code échangé · Autorisé");
+  expect(container.textContent).toContain("Code refusé · Refusé");
+  expect(container.textContent).toContain("Authentification refusée · Refusé");
   expect(container.textContent).toContain("Connexion retirée · Opération MCP · Refusé");
   expect(container.textContent).not.toContain("private-one-use-code");
 });

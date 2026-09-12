@@ -23,6 +23,8 @@ const AUDIT_ACTIONS: Record<string, string> = {
   "mcp.granted": "Accès autorisé",
   "mcp.exchanged": "Code échangé",
   "mcp.revoked": "Accès révoqué",
+  "mcp.exchange-failed": "Code refusé",
+  "mcp.authentication-failed": "Authentification refusée",
   list_items: "Liste du contenu",
   search: "Recherche",
   search_items: "Recherche",
