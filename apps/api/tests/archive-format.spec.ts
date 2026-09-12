@@ -111,8 +111,10 @@ describe("streaming archive writing", () => {
 
   it("refuses missing, shortened, extended or substituted streams before a complete archive", async () => {
     const bytes = Buffer.from("expected");
-    const canonical = JSON.stringify({ items: [], relationships: [], revisions: [] });
-    const manifest = manifestFor(canonical, [{ digest: digest(bytes), byteLength: bytes.length }]);
+    const canonical = emptyCanonical();
+    const manifest = manifestFor(canonical, [{ digest: digest(bytes), byteLength: bytes.length }], {
+      formatVersion: 2,
+    });
     for (const bad of [
       Buffer.alloc(0),
       bytes.subarray(1),
@@ -187,13 +189,23 @@ describe("streaming archive writing", () => {
     });
     await expect(stream.next()).rejects.toThrow(/operational page state/i);
   });
+
+  it("refuses a malformed V1 canonical export before emitting output", async () => {
+    const canonical = JSON.stringify({ items: [], relationships: [], revisions: [] });
+    const stream = streamBackupArchive({
+      manifest: manifestFor(canonical),
+      canonicalExport: canonical,
+      readFile: async function* () {},
+    });
+    await expect(stream.next()).rejects.toThrow(/canonical export/i);
+  });
 });
 
 describe("portable TAR framing", () => {
-  const canonical = JSON.stringify({ items: [], relationships: [], revisions: [] });
+  const canonical = emptyCanonical();
   const archive = () =>
     encodeBackupArchive({
-      manifest: manifestFor(canonical),
+      manifest: manifestFor(canonical, [], { formatVersion: 2 }),
       canonicalExport: canonical,
       files: new Map(),
     });

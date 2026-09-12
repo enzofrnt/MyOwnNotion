@@ -18,6 +18,12 @@ import {
 } from "../content/types.ts";
 import { validateDatabaseDefinition } from "../databases/schema.ts";
 import type { DatabaseDefinition, EntryValues } from "../databases/types.ts";
+import {
+  normalizeCivilDate,
+  normalizeDecimal,
+  normalizeInstant,
+  normalizePropertyValue,
+} from "../databases/values.ts";
 import { validatePageDocumentEnvelopeV3 } from "../document/validate.ts";
 import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type { RevisionHeader } from "../revisions/types.ts";
@@ -202,6 +208,80 @@ function isTimestamp(value: unknown): value is string {
   }
 }
 
+const DATABASE_PROPERTY_TYPES_SET = new Set([
+  "title",
+  "text",
+  "number",
+  "date",
+  "status",
+  "select",
+  "multi-select",
+  "checkbox",
+  "relation",
+]);
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const expected = new Set(keys);
+  return (
+    Object.keys(value).every((key) => expected.has(key)) &&
+    keys.every((key) => Object.hasOwn(value, key))
+  );
+}
+
+function validEntryPropertyValue(value: unknown): boolean {
+  if (!isRecord(value) || typeof value["kind"] !== "string") return false;
+  switch (value["kind"]) {
+    case "text":
+      return hasExactKeys(value, ["kind", "value"]) && typeof value["value"] === "string";
+    case "number":
+      return (
+        hasExactKeys(value, ["kind", "decimal"]) &&
+        typeof value["decimal"] === "string" &&
+        normalizeDecimal(value["decimal"]).ok
+      );
+    case "date":
+      return (
+        hasExactKeys(value, ["kind", "date"]) &&
+        typeof value["date"] === "string" &&
+        normalizeCivilDate(value["date"]).ok
+      );
+    case "instant":
+      return (
+        hasExactKeys(value, ["kind", "instant"]) &&
+        typeof value["instant"] === "string" &&
+        normalizeInstant(value["instant"]).ok
+      );
+    case "status":
+    case "select":
+      return hasExactKeys(value, ["kind", "optionId"]) && isIdentifier(value["optionId"]);
+    case "multi-select":
+      return (
+        hasExactKeys(value, ["kind", "optionIds"]) &&
+        Array.isArray(value["optionIds"]) &&
+        value["optionIds"].every(isIdentifier) &&
+        new Set(value["optionIds"]).size === value["optionIds"].length
+      );
+    case "checkbox":
+      return hasExactKeys(value, ["kind", "checked"]) && typeof value["checked"] === "boolean";
+    default:
+      return false;
+  }
+}
+
+function validPreservedValue(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, ["propertyId", "sourceType", "value", "preservedAtRevisionId", "reason"]) &&
+    isIdentifier(value["propertyId"]) &&
+    typeof value["sourceType"] === "string" &&
+    DATABASE_PROPERTY_TYPES_SET.has(value["sourceType"]) &&
+    isIdentifier(value["preservedAtRevisionId"]) &&
+    ["incompatible-conversion", "retired-property", "retired-option"].includes(
+      String(value["reason"]),
+    )
+  );
+}
+
 function shapeIssue(code: string, detail: string): ExportValidationIssue {
   return { code: `shape.${code}`, detail };
 }
@@ -217,6 +297,8 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
     if (!isNonEmptyString(value[field]))
       issues.push(shapeIssue("manifest", `${field} is required`));
   }
+  if (!isTimestamp(value["exportedAt"]))
+    issues.push(shapeIssue("manifest", "exportedAt must be an RFC3339 timestamp"));
   if (typeof value["changeCursor"] !== "string")
     issues.push(shapeIssue("manifest", "changeCursor is required"));
   if (!isIdentifier(value["workspaceId"]))
@@ -337,7 +419,9 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
         revision["authoredByDeviceId"] === undefined ||
         revision["authoredByDeviceId"] === null ||
         isIdentifier(revision["authoredByDeviceId"])
-      )
+      ) ||
+      new Set(revision["parentRevisionIds"] as unknown[]).size !==
+        (revision["parentRevisionIds"] as unknown[]).length
     ) {
       issues.push(shapeIssue("revision", `revisions[${index}] is incomplete`));
     }
@@ -370,6 +454,10 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
       !isRecord(database) ||
       !isIdentifier(database["databaseId"]) ||
       !isNonNegativeInteger(database["definitionVersion"]) ||
+      !(
+        database["definitionRevisionId"] === undefined ||
+        isIdentifier(database["definitionRevisionId"])
+      ) ||
       !isRecord(definition) ||
       !isNonEmptyString(definition["format"]) ||
       !isNonNegativeInteger(definition["formatVersion"]) ||
@@ -400,33 +488,20 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
       !isNonNegativeInteger(entry["valueVersion"]) ||
       !isIdentifier(entry["addedRevisionId"]) ||
       !isRecord(values) ||
-      !isNonEmptyString(values["format"]) ||
-      !isNonNegativeInteger(values["formatVersion"]) ||
+      values["format"] !== "myownnotion.database-entry-values+json" ||
+      values["formatVersion"] !== 1 ||
       !isIdentifier(values["databaseId"]) ||
       !isIdentifier(values["entryId"]) ||
       !isRecord(values["values"]) ||
-      !Array.isArray(values["preserved"])
+      !Array.isArray(values["preserved"]) ||
+      !(values["preserved"] as unknown[]).every(validPreservedValue)
     ) {
       issues.push(shapeIssue("database-entry", `databaseEntries[${index}] is incomplete`));
     } else {
       for (const [propertyId, propertyValue] of Object.entries(
         values["values"] as Record<string, unknown>,
       )) {
-        if (
-          !isIdentifier(propertyId) ||
-          !isRecord(propertyValue) ||
-          !isNonEmptyString(propertyValue["kind"]) ||
-          (propertyValue["kind"] === "text" && typeof propertyValue["value"] !== "string") ||
-          (propertyValue["kind"] === "number" && typeof propertyValue["decimal"] !== "string") ||
-          (propertyValue["kind"] === "date" && typeof propertyValue["date"] !== "string") ||
-          (propertyValue["kind"] === "instant" && typeof propertyValue["instant"] !== "string") ||
-          ((propertyValue["kind"] === "status" || propertyValue["kind"] === "select") &&
-            !isIdentifier(propertyValue["optionId"])) ||
-          (propertyValue["kind"] === "multi-select" &&
-            (!Array.isArray(propertyValue["optionIds"]) ||
-              !(propertyValue["optionIds"] as unknown[]).every(isIdentifier))) ||
-          (propertyValue["kind"] === "checkbox" && typeof propertyValue["checked"] !== "boolean")
-        ) {
+        if (!isIdentifier(propertyId) || !validEntryPropertyValue(propertyValue)) {
           issues.push(shapeIssue("database-entry", `databaseEntries[${index}].values is invalid`));
           break;
         }
@@ -503,6 +578,12 @@ export function validateCanonicalExport(
   }
 
   for (const item of manifest.items) {
+    if (item.workspaceId !== manifest.workspaceId) {
+      issues.push({
+        code: "item.workspace-mismatch",
+        detail: `Item ${item.id} belongs to another workspace`,
+      });
+    }
     if (!revisionIds.has(item.currentRevisionId)) {
       issues.push({
         code: "item.revision-missing",
@@ -519,6 +600,12 @@ export function validateCanonicalExport(
       });
     }
     for (const placement of item.placements) {
+      if (placement.workspaceId !== manifest.workspaceId) {
+        issues.push({
+          code: "placement.workspace-mismatch",
+          detail: `Placement ${placement.id} belongs to another workspace`,
+        });
+      }
       if (placement.itemId !== item.id) {
         issues.push({
           code: "placement.item-mismatch",
@@ -543,6 +630,12 @@ export function validateCanonicalExport(
   }
 
   for (const relationship of manifest.relationships) {
+    if (relationship.workspaceId !== manifest.workspaceId) {
+      issues.push({
+        code: "relationship.workspace-mismatch",
+        detail: `Relationship ${relationship.id} belongs to another workspace`,
+      });
+    }
     for (const endpoint of [relationship.sourceItemId, relationship.targetItemId]) {
       if (!itemIds.has(endpoint)) {
         issues.push({
@@ -557,6 +650,15 @@ export function validateCanonicalExport(
         detail: `Relationship ${relationship.id} references missing creation revision`,
       });
     }
+    const createdRevision = manifest.revisions.find(
+      (revision) => revision.id === relationship.createdRevisionId,
+    );
+    if (createdRevision !== undefined && createdRevision.itemId !== relationship.sourceItemId) {
+      issues.push({
+        code: "relationship.revision-owner-mismatch",
+        detail: `Relationship ${relationship.id} creation revision belongs to another item`,
+      });
+    }
     if (
       relationship.removedRevisionId !== null &&
       !revisionIds.has(relationship.removedRevisionId)
@@ -564,6 +666,15 @@ export function validateCanonicalExport(
       issues.push({
         code: "relationship.revision-missing",
         detail: `Relationship ${relationship.id} references missing removal revision`,
+      });
+    }
+    const removedRevision = manifest.revisions.find(
+      (revision) => revision.id === relationship.removedRevisionId,
+    );
+    if (removedRevision !== undefined && removedRevision.itemId !== relationship.sourceItemId) {
+      issues.push({
+        code: "relationship.revision-owner-mismatch",
+        detail: `Relationship ${relationship.id} removal revision belongs to another item`,
       });
     }
   }
@@ -591,6 +702,15 @@ export function validateCanonicalExport(
         code: "database.revision-missing",
         detail: "Database source revision is missing",
       });
+    const definitionRevision = manifest.revisions.find(
+      (revision) => revision.id === database.definitionRevisionId,
+    );
+    if (definitionRevision !== undefined && definitionRevision.itemId !== database.databaseId) {
+      issues.push({
+        code: "database.revision-owner-mismatch",
+        detail: `Database ${database.databaseId} source revision belongs to another item`,
+      });
+    }
     if (database.definition.databaseId !== database.databaseId) {
       issues.push({
         code: "database.definition-identity",
@@ -598,6 +718,9 @@ export function validateCanonicalExport(
       });
     }
   }
+  const databasesById = new Map(
+    manifest.databases.map((database) => [database.databaseId, database]),
+  );
 
   const entryIds = new Set<Uuid>();
   for (const entry of manifest.databaseEntries) {
@@ -626,11 +749,47 @@ export function validateCanonicalExport(
         detail: `Database entry ${entry.entryId} references missing revision ${entry.addedRevisionId}`,
       });
     }
+    const addedRevision = manifest.revisions.find(
+      (revision) => revision.id === entry.addedRevisionId,
+    );
+    if (addedRevision !== undefined && addedRevision.itemId !== entry.entryId) {
+      issues.push({
+        code: "database-entry.revision-owner-mismatch",
+        detail: `Database entry ${entry.entryId} added revision belongs to another item`,
+      });
+    }
     if (entry.values.entryId !== entry.entryId || entry.values.databaseId !== entry.databaseId) {
       issues.push({
         code: "database-entry.values-identity",
         detail: `Database entry ${entry.entryId} carries mismatched values`,
       });
+    }
+    const database = databasesById.get(entry.databaseId);
+    if (database !== undefined) {
+      for (const [propertyId, value] of Object.entries(entry.values.values)) {
+        const property = database.definition.properties.find(
+          (candidate) => candidate.id === propertyId,
+        );
+        if (
+          property === undefined ||
+          !normalizePropertyValue(property, value, { intent: "decode" }).ok
+        ) {
+          issues.push({
+            code: "database-entry.value-invalid",
+            detail: `Database entry ${entry.entryId} contains a value incompatible with its definition`,
+          });
+        }
+      }
+      for (const preserved of entry.values.preserved) {
+        if (
+          !database.definition.properties.some((property) => property.id === preserved.propertyId)
+        ) {
+          issues.push({
+            code: "database-entry.preserved-property-missing",
+            detail: `Database entry ${entry.entryId} preserves an unknown property`,
+          });
+        }
+      }
     }
   }
 
@@ -646,6 +805,13 @@ export function validateCanonicalExport(
         issues.push({
           code: "revision.parent-missing",
           detail: `Revision ${revision.id} references missing parent ${parent}`,
+        });
+      }
+      const parentRevision = manifest.revisions.find((candidate) => candidate.id === parent);
+      if (parentRevision !== undefined && parentRevision.itemId !== revision.itemId) {
+        issues.push({
+          code: "revision.parent-owner-mismatch",
+          detail: `Revision ${revision.id} has a parent owned by another item`,
         });
       }
     }

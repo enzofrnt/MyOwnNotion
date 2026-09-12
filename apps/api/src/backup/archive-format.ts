@@ -114,8 +114,7 @@ function validateReservedContentBoundaries(
  * while it is emitted, so a successful producer cannot create an archive that
  * a later inspect/restore step will reject.
  */
-function validateProducedV2(manifest: BackupManifest, canonicalExport: string): void {
-  if (manifest.formatVersion < BACKUP_FORMAT_VERSION) return;
+function validateProducedCanonical(manifest: BackupManifest, canonicalExport: string): void {
   const canonicalBytes = Buffer.from(canonicalExport, "utf8");
   if (sha256(canonicalBytes) !== manifest.canonicalExportDigest) {
     throw new Error("The canonical export does not match the manifest digest.");
@@ -130,8 +129,10 @@ function validateProducedV2(manifest: BackupManifest, canonicalExport: string): 
   if (!manifestRead.ok) {
     throw new Error("The backup manifest is not valid.");
   }
-  const reservedContentProblem = validateReservedContentBoundaries(manifest, canonical);
-  if (reservedContentProblem !== null) throw new Error(reservedContentProblem);
+  if (manifest.formatVersion >= BACKUP_FORMAT_VERSION) {
+    const reservedContentProblem = validateReservedContentBoundaries(manifest, canonical);
+    if (reservedContentProblem !== null) throw new Error(reservedContentProblem);
+  }
   let exportIssues: ReturnType<typeof validateCanonicalExport> = [];
   try {
     exportIssues = validateCanonicalExport(canonical as unknown as CanonicalExportManifest);
@@ -195,6 +196,11 @@ function validateOperationalState(
 }
 
 function validateEncodedFiles(manifest: BackupManifest, files: ReadonlyMap<string, Buffer>): void {
+  for (const digest of files.keys()) {
+    if (!/^sha256:[0-9a-f]{64}$/.test(digest)) {
+      throw new Error("a backup file is not addressed by a sha256 digest");
+    }
+  }
   const contents = compareArchiveContents(manifest, files.keys());
   if (contents.missing.length > 0 || contents.unexpected.length > 0) {
     throw new Error("The encoded archive files do not match its manifest inventory.");
@@ -300,15 +306,13 @@ export function encodeBackupArchive(input: {
   readonly operationalState?: string | null;
   readonly files: ReadonlyMap<string, Buffer>;
 }): Buffer {
-  if (input.manifest.formatVersion === BACKUP_FORMAT_VERSION) {
-    validateProducedV2(input.manifest, input.canonicalExport);
-    const operationalProblem = validateOperationalState(
-      input.manifest,
-      input.operationalState ?? null,
-    );
-    if (operationalProblem !== null) throw new Error(operationalProblem);
-    validateEncodedFiles(input.manifest, input.files);
-  }
+  validateProducedCanonical(input.manifest, input.canonicalExport);
+  const operationalProblem = validateOperationalState(
+    input.manifest,
+    input.operationalState ?? null,
+  );
+  if (operationalProblem !== null) throw new Error(operationalProblem);
+  validateEncodedFiles(input.manifest, input.files);
   return encodeUncheckedBackupArchive(input);
 }
 
@@ -321,7 +325,7 @@ export async function* streamBackupArchive(input: {
 }): AsyncGenerator<Uint8Array> {
   const modifiedAt = new Date(input.manifest.createdAt);
   if (Number.isNaN(modifiedAt.getTime())) throw new Error("The backup creation date is invalid.");
-  validateProducedV2(input.manifest, input.canonicalExport);
+  validateProducedCanonical(input.manifest, input.canonicalExport);
   const operationalProblem = validateOperationalState(
     input.manifest,
     input.operationalState ?? null,
