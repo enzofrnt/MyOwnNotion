@@ -114,6 +114,24 @@ it("migrates authored legacy placeholder names without confusing them with scrub
     while (await migration.publishMetadataNext(transition.id)) {
       /* durable metadata batches */
     }
+    await db
+      .delete(schema.protectedEnvelopes)
+      .where(
+        and(
+          eq(schema.protectedEnvelopes.entityId, page.itemId),
+          eq(schema.protectedEnvelopes.entityType, "item.name"),
+        ),
+      );
+    await expect(migration.finishVerification(transition.id)).rejects.toThrow(/unavailable/);
+    expect((await db.select().from(schema.fileStorageTransitions))[0]?.phase).toBe(
+      "metadata-protected",
+    );
+    await content.writeItemPresentation(db, {
+      itemId: page.itemId,
+      recordVersion: 1,
+      name: PROTECTED_CONTENT_PLACEHOLDER,
+      icon: null,
+    });
     await migration.finishVerification(transition.id);
     await migration.cutover(transition.id);
     while (await migration.retireNext(transition.id)) {
