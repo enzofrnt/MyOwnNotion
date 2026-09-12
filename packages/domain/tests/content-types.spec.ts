@@ -1,7 +1,9 @@
 import {
   generateUuidV7,
+  isProtectedContentPayload,
   normalizeDisplayName,
   normalizeItemIcon,
+  PROTECTED_CONTENT_PAYLOAD,
   parseMutationCommand,
   validateItemIcon,
 } from "@myownnotion/domain";
@@ -31,6 +33,27 @@ describe("canonical display name", () => {
       ok: true,
       value: "Draft \uFFFD note",
     });
+  });
+});
+
+describe("protected content payload marker", () => {
+  it("accepts only the exact marker object", () => {
+    expect(isProtectedContentPayload(PROTECTED_CONTENT_PAYLOAD)).toBe(true);
+    expect(isProtectedContentPayload({ ...PROTECTED_CONTENT_PAYLOAD, extra: true })).toBe(false);
+  });
+
+  it("rejects symbol and non-enumerable keys hidden from Object.keys", () => {
+    const symbolKey = Symbol("extra");
+    const withSymbol = { ...PROTECTED_CONTENT_PAYLOAD, [symbolKey]: true };
+    const withNonEnumerable = { ...PROTECTED_CONTENT_PAYLOAD };
+    Object.defineProperty(withNonEnumerable, "extra", {
+      configurable: true,
+      enumerable: false,
+      value: true,
+    });
+
+    expect(isProtectedContentPayload(withSymbol)).toBe(false);
+    expect(isProtectedContentPayload(withNonEnumerable)).toBe(false);
   });
 });
 

@@ -59,8 +59,10 @@ export function registerRevisionRoutes(
                 tx,
                 revisionId,
               );
+        const snapshot =
+          context.protectedContent === undefined ? (sealed ?? raw?.snapshot ?? null) : sealed;
         return {
-          revision: raw === null ? null : { ...raw, snapshot: sealed ?? raw.snapshot },
+          revision: raw === null ? null : { ...raw, snapshot },
           attribution: await readRevisionAttribution(tx, revisionId as Uuid),
         };
       });

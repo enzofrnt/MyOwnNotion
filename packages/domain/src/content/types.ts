@@ -38,8 +38,10 @@ export function isProtectedContentPayload(
 ): value is typeof PROTECTED_CONTENT_PAYLOAD {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
+  const ownKeys = Reflect.ownKeys(record);
   return (
-    Object.keys(record).length === 1 &&
+    ownKeys.length === 1 &&
+    ownKeys[0] === "$myownnotionProtected" &&
     Object.hasOwn(record, "$myownnotionProtected") &&
     record["$myownnotionProtected"] === 1
   );

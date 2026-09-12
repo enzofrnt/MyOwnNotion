@@ -574,6 +574,16 @@ export class PageHistoryService {
           [itemRevisionHead],
         );
       }
+      if (
+        source.snapshotExpiresAt !== null &&
+        Date.parse(source.snapshotExpiresAt) <= this.#deps.now().getTime()
+      ) {
+        throw new PageHistoryServiceError(
+          "revision.snapshot-expired",
+          "Revision content is no longer retained",
+          410,
+        );
+      }
       const operationalBoundary = state.lastRevisionId as Uuid;
       if (!(await revisionDescendsFrom(tx, itemRevisionHead, operationalBoundary))) {
         throw new PageHistoryServiceError(
@@ -592,7 +602,7 @@ export class PageHistoryService {
       const protectedSnapshot = await this.#deps.protectedContent.readRevisionSnapshot<
         Record<string, unknown>
       >(tx, input.revisionId);
-      const target = pageDocumentFromSnapshot(protectedSnapshot ?? source.snapshot);
+      const target = pageDocumentFromSnapshot(protectedSnapshot);
       if (target === null) {
         throw new PageHistoryServiceError(
           "revision.snapshot-expired",

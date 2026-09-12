@@ -909,6 +909,96 @@ describe("content and its envelope commit together", () => {
 });
 
 describe("history is sealed too", () => {
+  it("does not expose a raw revision snapshot when its envelope is missing", async () => {
+    const pageId = await createPage("Missing history envelope");
+    const item = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const revisionId = item.json().currentRevisionId as string;
+    const content = harness.built.context.protectedContent;
+    if (content === undefined) throw new Error("Protected content is unavailable");
+    const retained = await content.readRevisionSnapshot<Record<string, unknown>>(
+      harness.built.database.db,
+      revisionId,
+    );
+    if (retained === null) throw new Error("Retained snapshot is unavailable");
+
+    await harness.built.database.db.execute(
+      sql`DELETE FROM protected_envelopes
+          WHERE entity_type = 'revision.snapshot' AND entity_id = ${revisionId}::uuid`,
+    );
+    await harness.built.database.db.execute(
+      sql`UPDATE revisions SET snapshot = ${JSON.stringify(retained)}::jsonb
+          WHERE id = ${revisionId}::uuid`,
+    );
+
+    const response = await injectAsOwner({ method: "GET", url: `/v1/revisions/${revisionId}` });
+    expect(response.statusCode, response.body).toBe(410);
+    expect(response.json()).toMatchObject({ code: "revision.snapshot-expired" });
+  });
+
+  it("does not restore from a raw revision snapshot when its envelope is missing", async () => {
+    const pageId = await createPage("Missing restore envelope");
+    const initial = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const retainedRevisionId = initial.json().currentRevisionId as string;
+    await replaceBody(pageId, { text: "current body" });
+    const current = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const currentRevisionId = current.json().currentRevisionId as string;
+    const content = harness.built.context.protectedContent;
+    if (content === undefined) throw new Error("Protected content is unavailable");
+    const retained = await content.readRevisionSnapshot<Record<string, unknown>>(
+      harness.built.database.db,
+      retainedRevisionId,
+    );
+    if (retained === null) throw new Error("Retained snapshot is unavailable");
+
+    await harness.built.database.db.execute(
+      sql`DELETE FROM protected_envelopes
+          WHERE entity_type = 'revision.snapshot' AND entity_id = ${retainedRevisionId}::uuid`,
+    );
+    await harness.built.database.db.execute(
+      sql`UPDATE revisions SET snapshot = ${JSON.stringify(retained)}::jsonb
+          WHERE id = ${retainedRevisionId}::uuid`,
+    );
+
+    const response = await injectAsOwner({
+      method: "POST",
+      url: `/v1/revisions/${retainedRevisionId}/restore`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { currentRevisionId },
+    });
+    expect(response.statusCode, response.body).toBe(410);
+    expect(response.json()).toMatchObject({ code: "revision.snapshot-expired" });
+  });
+
+  it("keeps an expired protected revision unavailable for read and restore", async () => {
+    const pageId = await createPage("Expired protected history");
+    const initial = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const retainedRevisionId = initial.json().currentRevisionId as string;
+    await replaceBody(pageId, { text: "current body" });
+    const current = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const currentRevisionId = current.json().currentRevisionId as string;
+
+    await harness.built.database.db.execute(
+      sql`UPDATE revisions SET snapshot_expires_at = now() - interval '1 second'
+          WHERE id = ${retainedRevisionId}::uuid`,
+    );
+
+    const read = await injectAsOwner({
+      method: "GET",
+      url: `/v1/revisions/${retainedRevisionId}`,
+    });
+    expect(read.statusCode, read.body).toBe(410);
+    expect(read.json()).toMatchObject({ code: "revision.snapshot-expired" });
+
+    const restored = await injectAsOwner({
+      method: "POST",
+      url: `/v1/revisions/${retainedRevisionId}/restore`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { currentRevisionId },
+    });
+    expect(restored.statusCode, restored.body).toBe(410);
+    expect(restored.json()).toMatchObject({ code: "revision.snapshot-expired" });
+  });
+
   it("seals the snapshot of every revision a mutation produces", async () => {
     // A snapshot is the whole record as it stood. Sealing only the current
     // title and body would leave every previous state of every page readable
