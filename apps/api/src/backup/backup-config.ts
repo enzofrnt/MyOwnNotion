@@ -1,13 +1,16 @@
 /** Environment-backed backup configuration shared by the API and host CLI. */
 
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { BackupDestination } from "./destinations/destination.ts";
 import { FilesystemDestination } from "./destinations/filesystem.ts";
 import { GoogleDriveDestination } from "./destinations/google-drive.ts";
+import { historicalBackupKeyFiles, loadHistoricalBackupKeys } from "./full/read-keys.ts";
 
 export type BackupDestinationName = "filesystem" | "google-drive";
 
 export interface BackupConfig {
+  readonly historicalKeyFiles: readonly string[];
   readonly destination: BackupDestinationName;
   readonly root: string;
   readonly hour: number;
@@ -46,7 +49,14 @@ export function loadBackupConfig(
       "MYOWNNOTION_BACKUP_DESTINATION must be filesystem or google-drive",
     );
   }
-  return {
+  const timeZone = env["MYOWNNOTION_BACKUP_TIME_ZONE"]?.trim() || env["TZ"]?.trim() || "UTC";
+  try {
+    new Intl.DateTimeFormat("en", { timeZone }).format(new Date());
+  } catch {
+    throw new BackupConfigError("MYOWNNOTION_BACKUP_TIME_ZONE must be a valid IANA time zone");
+  }
+  const config: BackupConfig = {
+    historicalKeyFiles: historicalBackupKeyFiles(env["MYOWNNOTION_BACKUP_HISTORICAL_KEY_FILES"]),
     destination: requested,
     root: env["MYOWNNOTION_BACKUP_ROOT"]?.trim() || "./.dev-backups",
     hour: integer(env["MYOWNNOTION_BACKUP_HOUR"], 4, "MYOWNNOTION_BACKUP_HOUR", {
@@ -59,10 +69,16 @@ export function loadBackupConfig(
       "MYOWNNOTION_BACKUP_RETENTION_DAYS",
       { min: 1, max: 36_500 },
     ),
-    timeZone: env["TZ"]?.trim() || "UTC",
+    timeZone,
     googleDriveTokenFile: env["MYOWNNOTION_BACKUP_GOOGLE_DRIVE_TOKEN_FILE"]?.trim() || undefined,
     googleDriveFolderId: env["MYOWNNOTION_BACKUP_GOOGLE_DRIVE_FOLDER_ID"]?.trim() || undefined,
   };
+  const keys = loadHistoricalBackupKeys(config.historicalKeyFiles, [
+    config.root,
+    env["MYOWNNOTION_BLOB_ROOT"]?.trim() || "./.dev-blobs",
+  ]);
+  for (const key of keys) key.fill(0);
+  return config;
 }
 
 /** Constructs only the configured provider; credentials remain mounted files. */
@@ -89,4 +105,9 @@ export function createBackupDestination(
     // restart and the credential is never retained in application state.
     accessToken: async () => await readFile(tokenFile, "utf8"),
   });
+}
+
+/** Complete archives are separate from the portable export destination. */
+export function fullBackupRoot(config: Pick<BackupConfig, "root">): string {
+  return join(config.root, "full");
 }

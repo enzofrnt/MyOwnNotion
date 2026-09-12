@@ -280,41 +280,43 @@ Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 
 ### Backup and recovery commands
 
-Administrative recovery runs locally, with the same mounted deployment key as
-the API. It is not exposed as a destructive HTTP endpoint.
+Complete nightly and pre-migration backups use PostgreSQL 18 `pg_dump` and
+`pg_restore`. Both must be on PATH when running locally. On macOS with Homebrew
+libpq, use `export PATH="/opt/homebrew/opt/libpq/bin:$PATH"` (adjust for an Intel
+Homebrew prefix). Linux CI and the shipped images install the reviewed PG18
+client packages through `scripts/ci/install-postgres-client.sh`; the browser
+container includes the same tools. Missing tools fail required backup gates.
 
 ```bash
-bun run admin -- backup run --json
-bun run admin -- backup verify --latest --json
-bun run admin -- restore test --latest --json
-bun run admin -- restore apply --id <backup-id> --dry-run
+bun run admin -- backup full run --json
+bun run admin -- backup full list --json
+bun run admin -- backup full inspect --file /path/to/archive.monfull --json
+bun run admin -- backup full verify --file /path/to/archive.monfull --json
+bun run admin -- restore full test --file /path/to/archive.monfull --json
 bun run admin -- version inspect --json
 ```
 
-`restore test` creates and migrates a disposable PostgreSQL database, writes the
-whole archive into it, then drops it. It never opens the live database as a
-restore target. `restore apply` first checks the key, archive integrity,
-compatibility and scope, takes a safety backup, and finally requires either the
-interactive `RESTORE` confirmation or `--yes`. Without a terminal it refuses to
-assume consent. Use `--dry-run` to perform the checks without writing or taking
-the safety backup.
+Archives live in `MYOWNNOTION_BACKUP_ROOT/full/`, outside the blob root. The
+separately mounted deployment key is required. Nightly defaults are 04:00 UTC,
+90 days and a five-minute failed-run/remote retry; configure the named zone with
+`MYOWNNOTION_BACKUP_TIME_ZONE`. Startup catches up missed runs. Verified local
+recovery survives a failed remote transfer. The newest verified local copy is
+kept regardless of age.
 
-The filesystem destination defaults to `.dev-backups/` locally. In Compose it
-uses the durable `backup-store` volume, separate from the original blob volume.
-To use Google Drive, set `MYOWNNOTION_BACKUP_DESTINATION=google-drive`, mount an
-access-token file, and set both Drive variables documented in `.env.example`.
+Full restore applies only to an explicit empty database and a separate empty file
+directory; it blocks startup until explicit security activation. See the
+[complete recovery procedure](deployment/backups.md) for target selection and
+activation. It must never point at the live database or a child of its blob root.
+The image smoke now exercises a real full archive/rehearsal/restore, not only
+entrypoint loading.
 
-If `/health` reports `restoration-incomplete`, do not treat the installation as
-ready. Re-run the same `restore apply --id …` command after fixing the cause, or
-deploy the safety backup recorded immediately before the attempt.
+Legacy `backup run`, `backup verify`, `restore test` and `restore apply` operate on
+portable exports. They keep their own catalogue and in-place restore procedure,
+and do not satisfy complete-backup protection. An unfinished portable restore
+still reports `restoration-incomplete`; resolve it using its original backup or
+its pre-restore safety export. Both migration entrypoints now require a complete
+local backup before changing a nonempty source, including schemas predating 0006.
 
-Both `bun run db:migrate` and the Compose migration job run the update guard. On a
-version change, it produces and re-reads a `pre-update` backup before any pending
-migration. A failed verification stops the process with the previous schema
-untouched. `bun run admin -- version inspect` shows the running and recorded versions,
-pending migrations, and whether a verified backup exists for the version being
-left. After an update it also names the exact previous `sha-…` image tag, the
-matching backup, and the previous schema and encrypted-record format versions.
 
 ### Server logging
 

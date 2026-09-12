@@ -67,10 +67,11 @@ describe("what the owner reads", () => {
   const render = (current: BackupStatus): string =>
     renderToStaticMarkup(createElement(BackupStatusSummary, { status: current }));
 
-  it("states plainly when the remote copy is stale", () => {
+  it("reports stale portable exports without overriding complete server protection", () => {
     const html = render(status({ stale: true }));
-    expect(html).toContain("Aucune sauvegarde vérifiée depuis plus d’une journée");
-    expect(html).toContain("n’est actuellement pas protégé contre la perte de cette machine");
+    expect(html).toContain("Aucun export portable vérifié depuis plus d’une journée");
+    expect(html).toContain("protection complète du serveur est indiquée séparément");
+    expect(html).not.toContain("n’est actuellement pas protégé contre la perte de cette machine");
     expect(html).toContain('role="alert"');
   });
 

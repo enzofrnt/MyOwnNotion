@@ -9,4 +9,5 @@
 
 export * from "./archive-manifest.ts";
 export * from "./compatibility.ts";
+export * from "./full-manifest.ts";
 export * from "./retention.ts";

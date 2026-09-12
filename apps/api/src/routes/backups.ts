@@ -7,6 +7,7 @@
  * on the protected local CLI.
  */
 
+import { FullBackupRehearsalSchema, FullBackupStatusSchema } from "@myownnotion/contracts";
 import {
   type Database,
   lastTestRestoration,
@@ -17,6 +18,8 @@ import { backupIsStale, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { CommandResult } from "../admin/command-output.ts";
+import type { FullBackupService } from "../backup/full/service.ts";
+import { fullBackupStatus } from "../backup/full/status.ts";
 import { sendSecurityProblem } from "../plugins/errors.ts";
 import type { RequestPrincipal } from "../security/request-context.ts";
 import { requestContext } from "../security/request-context.ts";
@@ -27,6 +30,7 @@ export interface BackupRouteDeps {
   readonly db: Database;
   readonly workspaceId: Uuid;
   readonly now?: () => Date;
+  readonly fullBackupService?: FullBackupService;
   /** Executes the same isolated restore as the local `restore test` command. */
   readonly runRehearsal?: (() => Promise<CommandResult>) | undefined;
   readonly require: (
@@ -76,6 +80,48 @@ const RehearsalResultSchema = Type.Object(
 const REHEARSAL_AFTER_DAYS = 31;
 
 export function registerBackupRoutes(app: FastifyInstance, deps: BackupRouteDeps): void {
+  app.get(
+    "/v1/backups/full/status",
+    { schema: { response: { 200: FullBackupStatusSchema } } },
+    async (request, reply) => {
+      if (deps.require(request, reply, {}) === null) return reply;
+      if (deps.fullBackupService === undefined)
+        return sendSecurityProblem(reply, {
+          code: "internal_error",
+          correlationId: requestContext(request).correlationId,
+        });
+      try {
+        return reply.send(
+          await fullBackupStatus(deps.fullBackupService, (deps.now ?? (() => new Date()))()),
+        );
+      } catch {
+        return sendSecurityProblem(reply, {
+          code: "internal_error",
+          correlationId: requestContext(request).correlationId,
+        });
+      }
+    },
+  );
+  app.post(
+    "/v1/backups/full/rehearsals",
+    { schema: { response: { 200: FullBackupRehearsalSchema } } },
+    async (request, reply) => {
+      if (deps.require(request, reply, { csrf: true }) === null) return reply;
+      if (deps.fullBackupService === undefined)
+        return sendSecurityProblem(reply, {
+          code: "internal_error",
+          correlationId: requestContext(request).correlationId,
+        });
+      try {
+        return reply.send(await deps.fullBackupService.rehearseLatest());
+      } catch {
+        return sendSecurityProblem(reply, {
+          code: "conflict",
+          correlationId: requestContext(request).correlationId,
+        });
+      }
+    },
+  );
   app.get(
     "/v1/backups/status",
     { schema: { response: { 200: BackupStatusSchema } } },

@@ -301,6 +301,13 @@ test.describe("backup and recovery at 320 pixels", () => {
     await page.setViewportSize(NARROW);
     await openWorkspace(page);
     await openSettingsSection(page, "backups");
+    await expect(page.getByTestId("full-backup-panel")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("run-full-rehearsal")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page
+      .locator("summary")
+      .filter({ hasText: /^Exports portables$/u })
+      .click();
     await expect(page.getByTestId("backup-panel")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("restore-rehearsal")).toBeVisible();
     await expect(page.getByTestId("run-rehearsal")).toBeVisible();

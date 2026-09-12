@@ -1,5 +1,10 @@
 # Validation: Backup, Recovery and Updates
 
+> Historical feature-007 evidence below describes portable exports. Feature 024
+> supersedes nightly scheduling, the 26-hour protection indicator and the
+> pre-migration guard with complete database/file archives. Its current evidence
+> is recorded in [024 validation](../024-full-server-backups/validation.md).
+
 **Date**: 2026-08-19
 **Branch**: `feat/007-backup-recovery-updates`
 

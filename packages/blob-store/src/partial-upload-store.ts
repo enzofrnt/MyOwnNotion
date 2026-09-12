@@ -51,7 +51,8 @@ export class PartialUploadStore {
   async size(uploadId: string): Promise<number> {
     try {
       return (await stat(this.#pathFor(uploadId))).size;
-    } catch {
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       return 0;
     }
   }
@@ -65,7 +66,8 @@ export class PartialUploadStore {
         chunks.push(chunk as Buffer);
       }
       return new Uint8Array(Buffer.concat(chunks));
-    } catch {
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       return null;
     }
   }

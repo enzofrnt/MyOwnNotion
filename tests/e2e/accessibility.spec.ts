@@ -234,16 +234,26 @@ test.describe("automated accessibility audit", () => {
   }) => {
     await openWorkspace(page);
     await openSettingsSection(page, "backups");
-    await expect(page.getByTestId("backup-panel")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("restore-rehearsal")).toBeVisible();
+    await expect(page.getByTestId("full-backup-panel")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("run-full-rehearsal")).toBeVisible();
 
-    const found = await violations(page);
-    expect(
-      found.map(
-        (violation: { id: string; help: string; impact?: string | null | undefined }) =>
-          `${violation.id}: ${violation.help}`,
-      ),
-    ).toEqual([]);
+    for (const expanded of [false, true]) {
+      if (expanded) {
+        await page
+          .locator("summary")
+          .filter({ hasText: /^Exports portables$/u })
+          .click();
+        await expect(page.getByTestId("backup-panel")).toBeVisible();
+        await expect(page.getByTestId("restore-rehearsal")).toBeVisible();
+      }
+      const found = await violations(page);
+      expect(
+        found.map(
+          (violation: { id: string; help: string; impact?: string | null | undefined }) =>
+            `${violation.id}: ${violation.help}`,
+        ),
+      ).toEqual([]);
+    }
   });
 });
 

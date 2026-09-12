@@ -5,6 +5,7 @@ import {
   createInstallation,
   recordApplicationUpdate,
   recordBackup,
+  recordFullApplicationUpdate,
   recordInitialApplicationVersion,
   recordVerification,
   schema,
@@ -12,6 +13,7 @@ import {
 import { generateUuidV7 } from "@myownnotion/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { versionInspectCommand } from "../src/admin/commands/version-inspect.ts";
+import type { FullBackupReceipt } from "../src/backup/full/receipts.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
 
 let harness: ApiHarness;
@@ -101,7 +103,7 @@ describe("version inspect", () => {
     });
     expect(rollback.data).toMatchObject({
       previousApplicationVersion: "0.1.0",
-      previousImageTag: "0.1.0",
+      previousImageTag: null,
       previousBackupId: backupId,
       previousSchemaVersion: 1,
       previousRecordFormatVersion: 1,
@@ -119,6 +121,53 @@ describe("version inspect", () => {
     expect(result.data).toMatchObject({
       migrationPending: false,
       pendingMigrations: [],
+    });
+  });
+
+  it("distinguishes verified full recovery from portable exports and never invents image provenance", async () => {
+    const backupId = generateUuidV7();
+    const commit = "a".repeat(40);
+    await recordFullApplicationUpdate(harness.built.context.db, {
+      installationId: INSTALLATION_ID,
+      from: null,
+      to: `sha-${commit}`,
+      fullBackupId: backupId,
+      commit,
+      image: `ghcr.io/enzofrnt/myownnotion-api:sha-${commit}`,
+      schemaVersion: 14,
+    });
+    const receipt: FullBackupReceipt = {
+      formatVersion: 1,
+      backupId,
+      createdAt: new Date().toISOString(),
+      verifiedAt: new Date().toISOString(),
+      sourceVersion: null,
+      reason: "pre-update",
+      archiveBytes: 1024,
+      archiveSha256: "b".repeat(64),
+      remote: "failed",
+      remoteVerifiedAt: null,
+    };
+    const input = {
+      db: harness.built.context.db,
+      workspaceId: harness.built.context.workspaceId,
+      runningVersion: `sha-${commit}`,
+      pendingMigrations: [],
+    };
+    expect((await versionInspectCommand({ ...input, fullBackups: [receipt] })).data).toMatchObject({
+      recordedApplicationCommit: commit,
+      recordedApplicationImage: `ghcr.io/enzofrnt/myownnotion-api:sha-${commit}`,
+      previousFullBackupId: backupId,
+      previousFullBackupLocallyVerified: true,
+      previousBackupId: null,
+      previousApplicationVersion: null,
+      previousImageTag: null,
+      verifiedFullBackupForRecordedVersion: false,
+      verifiedPortableExportForRecordedVersion: false,
+    });
+    expect((await versionInspectCommand(input)).data).toMatchObject({
+      previousFullBackupId: backupId,
+      previousFullBackupLocallyVerified: false,
     });
   });
 });

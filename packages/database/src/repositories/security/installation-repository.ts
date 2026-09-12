@@ -45,6 +45,9 @@ export interface InstallationRecord {
   readonly applicationVersion: string | null;
   readonly previousApplicationVersion: string | null;
   readonly previousBackupId: string | null;
+  readonly previousFullBackupId: string | null;
+  readonly applicationCommit: string | null;
+  readonly applicationImage: string | null;
 }
 
 export interface InstallationStatus extends InstallationRecord {
@@ -64,7 +67,42 @@ function toRecord(row: typeof installations.$inferSelect): InstallationRecord {
     applicationVersion: row.applicationVersion,
     previousApplicationVersion: row.previousApplicationVersion,
     previousBackupId: row.previousBackupId,
+    previousFullBackupId: row.previousFullBackupId,
+    applicationCommit: row.applicationCommit,
+    applicationImage: row.applicationImage,
   };
+}
+
+/** Full recovery provenance never depends on a portable backup record. */
+export async function recordFullApplicationUpdate(
+  executor: Executor,
+  input: {
+    readonly installationId: string;
+    readonly from: string | null;
+    readonly to: string;
+    readonly fullBackupId: string | null;
+    readonly commit: string | null;
+    readonly image: string | null;
+    readonly schemaVersion: number;
+  },
+): Promise<void> {
+  await executor
+    .update(installations)
+    .set({
+      applicationVersion: input.to,
+      applicationCommit: input.commit,
+      applicationImage: input.image,
+      ...(input.fullBackupId === null
+        ? {}
+        : {
+            previousApplicationVersion: input.from,
+            previousBackupId: null,
+            previousFullBackupId: input.fullBackupId,
+          }),
+      schemaVersion: input.schemaVersion,
+      updatedAt: new Date(),
+    })
+    .where(eq(installations.id, input.installationId));
 }
 
 /** Records the first build observed after the version columns were introduced. */

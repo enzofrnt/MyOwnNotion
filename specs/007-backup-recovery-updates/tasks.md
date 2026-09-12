@@ -1,5 +1,10 @@
 # Tasks: Backup, Recovery and Updates
 
+**Active refinement (2026-09-05)**: [Feature 024](../024-full-server-backups/tasks.md)
+owns complete server backups, protection before any schema bootstrap, source
+version provenance and retries based on verified success. Completed portable
+archive tasks below do not attest to those stronger recovery guarantees.
+
 **Feature**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
 
 Organised by user story so each phase is a complete, independently testable

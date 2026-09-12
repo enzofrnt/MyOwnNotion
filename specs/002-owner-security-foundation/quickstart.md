@@ -213,7 +213,12 @@ Use a controlled clock and separate operation IDs.
 
 - Wrapping-key operation: due at 365 days, warning through 7 calendar days,
   write-block at due plus 7 days, emergency at zero grace. Verify only root-key
-  wrapping changes and record ciphertext does not.
+  wrapping changes and record ciphertext does not. Retain historical deployment
+  keys in private external custody for 024 archives and the root-key envelopes
+  in their SQL dumps; rotation does not revoke access to copied snapshots.
+  Follow [historical backup key custody](../../docs/deployment/backups.md) and
+  prove an A archive plus its protected restored state opens with retained A
+  after live rotation to B. Never infer that live rotation permits destroying A.
 - Data-key operation: use its configured due/write-block policy. Verify new
   writes use the permitted generation and existing records/chunks progressively
   re-encrypt with resumable cursors.

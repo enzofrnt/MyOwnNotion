@@ -1,0 +1,31 @@
+.full-backup-panel p,
+.full-backup-panel h2,
+.full-backup-panel h3 {
+  margin: 0;
+}
+
+.full-backup-panel > section {
+  display: grid;
+  justify-items: start;
+  gap: var(--ui-space-3);
+  padding-top: var(--ui-space-4);
+  border-top: 1px solid var(--ui-color-border);
+  min-width: 0;
+}
+
+.full-backup-panel .ui-button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.portable-backup-details > summary {
+  min-height: var(--ui-target);
+  padding: var(--ui-space-3) var(--ui-space-2);
+  cursor: pointer;
+  border-radius: var(--ui-radius-sm);
+}
+
+.portable-backup-details > summary:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 2px;
+}

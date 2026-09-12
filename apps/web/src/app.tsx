@@ -27,6 +27,7 @@ import { type NavigateOptions, useLocation, useNavigate } from "react-router-dom
 import { BootstrapPage, type BootstrapPageProps } from "./features/auth/bootstrap-page.tsx";
 import { LoginPage } from "./features/auth/login-page.tsx";
 import { BackupPanel } from "./features/backup/backup-panel.tsx";
+import { FullBackupPanel } from "./features/backup/full-backup-panel.tsx";
 import {
   ConnectionStatus,
   type DesktopConnectionKind,
@@ -210,6 +211,17 @@ export function App(props: AppProps = {}) {
   );
 
   const loadBackupStatus = useCallback(async () => {
+    const result = await securityApi.fullBackupStatus();
+    if (!result.ok) throw new Error(result.problem.code);
+    return result.value;
+  }, [securityApi]);
+
+  const runFullBackupRehearsal = useCallback(async () => {
+    const result = await securityApi.runFullBackupRehearsal();
+    if (!result.ok) throw new Error(result.problem.code);
+  }, [securityApi]);
+
+  const loadPortableBackupStatus = useCallback(async () => {
     const result = await securityApi.backupStatus();
     if (!result.ok) {
       throw new Error(result.problem.code);
@@ -594,7 +606,17 @@ export function App(props: AppProps = {}) {
               />
             </>
           ) : settingsSection === "backups" ? (
-            <BackupPanel load={loadBackupStatus} runRehearsal={runBackupRehearsal} />
+            <>
+              <FullBackupPanel load={loadBackupStatus} runRehearsal={runFullBackupRehearsal} />
+              <details className="portable-backup-details">
+                <summary>Exports portables</summary>
+                <p className="muted">
+                  Ces exports de contenu restent disponibles pour les transferts et les anciennes
+                  restaurations. Ils ne remplacent pas la sauvegarde complète du serveur.
+                </p>
+                <BackupPanel load={loadPortableBackupStatus} runRehearsal={runBackupRehearsal} />
+              </details>
+            </>
           ) : settingsSection === "navigation" ? (
             <WorkspaceNavigationSettings db={contentService.db} />
           ) : (

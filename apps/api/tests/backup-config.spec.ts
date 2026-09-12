@@ -15,6 +15,7 @@ afterEach(() => {
 describe("backup configuration", () => {
   it("uses conservative local defaults", () => {
     expect(loadBackupConfig({})).toEqual({
+      historicalKeyFiles: [],
       destination: "filesystem",
       root: "./.dev-backups",
       hour: 4,
@@ -37,6 +38,7 @@ describe("backup configuration", () => {
         TZ: " Europe/Paris ",
       }),
     ).toEqual({
+      historicalKeyFiles: [],
       destination: "google-drive",
       root: "/backups",
       hour: 23,
@@ -49,6 +51,7 @@ describe("backup configuration", () => {
 
   it.each([
     [{ MYOWNNOTION_BACKUP_DESTINATION: "s3" }, /filesystem or google-drive/],
+    [{ TZ: "Invalid/Timezone" }, /time zone/i],
     [{ MYOWNNOTION_BACKUP_HOUR: "24" }, /BACKUP_HOUR/],
     [{ MYOWNNOTION_BACKUP_HOUR: "1.5" }, /BACKUP_HOUR/],
     [{ MYOWNNOTION_BACKUP_RETENTION_DAYS: "0" }, /RETENTION_DAYS/],

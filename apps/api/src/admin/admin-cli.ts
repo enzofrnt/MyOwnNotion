@@ -6,8 +6,13 @@ import { ContentStore, FilesystemBlobStore, PartialUploadStore } from "@myownnot
 import { createDatabase, getOrCreateWorkspace, migrationInventory } from "@myownnotion/database";
 import { APPLICATION_VERSION } from "../application-version.ts";
 import { openBackupArchive, sealBackupArchiveFile } from "../backup/archive-crypto.ts";
-import { createBackupDestination, loadBackupConfig } from "../backup/backup-config.ts";
+import {
+  createBackupDestination,
+  fullBackupRoot,
+  loadBackupConfig,
+} from "../backup/backup-config.ts";
 import { BACKUP_RECORD_FORMAT_VERSION, BackupService } from "../backup/backup-service.ts";
+import { FullBackupService } from "../backup/full/service.ts";
 import { PageOperationArchiveService } from "../backup/page-operation-archive.ts";
 import { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import { loadDeploymentKey } from "../security/deployment-key.ts";
@@ -15,10 +20,16 @@ import { createProtectedContentRuntime } from "../security/protected-content-run
 import { runBackupAdminCommand } from "./backup-admin-commands.ts";
 import { type CommandResult, EXIT_CODES, exitCodeFor, renderResult } from "./command-output.ts";
 import { parseCommand, wantsJson } from "./command-parser.ts";
+import { isFullBackupCommand, runFullBackupCommand } from "./full-backup-commands.ts";
 import { runCli as runSecurityCli } from "./security-cli.ts";
 
 export const ADMIN_HELP = `myownnotion — local administration
 
+  backup full run|list [--json]
+  backup full inspect|verify --file PATH [--json]
+  restore full test --file PATH [--json]
+  restore full apply --file PATH --target-directory PATH [--dry-run | --yes] [--json]
+  restore full activate --target-directory PATH --yes [--json]
   backup run [--destination filesystem|google-drive] [--json]
   backup verify (--id ID | --latest) [--json]
   restore test (--id ID | --latest) [--json]
@@ -63,6 +74,11 @@ export async function runAdminCli(
   try {
     const command = parseCommand(argv);
     json = wantsJson(command);
+    if (isFullBackupCommand(command)) {
+      const result = await runFullBackupCommand(command);
+      print(renderResult(result, { json }));
+      return result.code;
+    }
     const databaseUrl =
       process.env["DATABASE_URL"] ??
       "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion";
@@ -132,6 +148,17 @@ export async function runAdminCli(
       recordFormatVersion: BACKUP_RECORD_FORMAT_VERSION,
       runningVersion: APPLICATION_VERSION,
       pendingMigrations: inventory.pending,
+      ...(command.path.join(" ") === "version inspect"
+        ? {
+            fullBackups: await new FullBackupService({
+              connectionString: databaseUrl,
+              blobRoot,
+              backupRoot: fullBackupRoot(config),
+              historicalKeyFiles: config.historicalKeyFiles,
+              key,
+            }).verifiedReceipts(),
+          }
+        : {}),
       terminalAvailable: process.stdin.isTTY === true && process.stdout.isTTY === true,
       confirmRestore: askForRestore,
     });

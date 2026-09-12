@@ -1,6 +1,12 @@
 name: Set up the pinned Bun toolchain
 description: Install Bun 1.4.2 and materialize bun.lock exactly.
 
+inputs:
+  postgres-client:
+    description: Install pinned PostgreSQL 18 dump and restore tools on Linux.
+    required: false
+    default: "false"
+
 runs:
   using: composite
   steps:
@@ -14,3 +20,9 @@ runs:
     - name: Verify the active runtime
       shell: bash
       run: test "$(bun --version)" = "1.4.2"
+    - name: Install PostgreSQL 18 client tools
+      if: inputs.postgres-client == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo bash scripts/ci/install-postgres-client.sh
+        echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"

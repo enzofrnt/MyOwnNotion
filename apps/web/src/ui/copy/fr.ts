@@ -357,7 +357,7 @@ export const FR_COPY = {
     },
   },
   backup: {
-    title: "Sauvegardes",
+    title: "Exports portables",
     never: "jamais",
     loading: "Vérification de la dernière sauvegarde de l’espace de travail…",
     loadFailed:
@@ -368,8 +368,8 @@ export const FR_COPY = {
     transferFailedTitle: "La dernière sauvegarde n’a pas été vérifiée après son transfert.",
     transferFailed:
       "La copie locale est valide, mais aucune copie vérifiée n’a été confirmée à destination.",
-    staleTitle: "Aucune sauvegarde vérifiée depuis plus d’une journée.",
-    stale: "Cet espace de travail n’est actuellement pas protégé contre la perte de cette machine.",
+    staleTitle: "Aucun export portable vérifié depuis plus d’une journée.",
+    stale: "La protection complète du serveur est indiquée séparément ci-dessus.",
     lastVerified: "Dernière sauvegarde vérifiée",
     rehearsalTitle: "Test de restauration",
     lastRehearsal: "Dernier test de restauration",

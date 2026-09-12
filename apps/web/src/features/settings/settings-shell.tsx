@@ -33,7 +33,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   {
     id: "backups",
     label: "Sauvegardes",
-    description: "Protection distante et essais de restauration",
+    description: "Copies complètes, protection distante et essais de restauration",
     icon: "archive",
   },
   {

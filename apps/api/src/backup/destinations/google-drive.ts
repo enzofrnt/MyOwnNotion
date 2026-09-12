@@ -19,6 +19,7 @@
  */
 
 import { Readable, Transform } from "node:stream";
+import { finished } from "node:stream/promises";
 import type { BackupDestination, StoredBackup } from "./destination.ts";
 import { DestinationUnavailableError } from "./destination.ts";
 
@@ -63,7 +64,10 @@ export class GoogleDriveDestination implements BackupDestination {
 
   async #request(url: string, init?: RequestInit): Promise<Response> {
     try {
-      return await this.#fetch()(url, init);
+      return await this.#fetch()(url, {
+        ...init,
+        signal: init?.signal ?? AbortSignal.timeout(120_000),
+      });
     } catch {
       // Provider and network exceptions carry URLs and proxy details. Collapse
       // them at the boundary before they can reach a verification row or CLI.
@@ -84,65 +88,87 @@ export class GoogleDriveDestination implements BackupDestination {
   }
 
   async put(name: string, contents: Readable, byteLength: number): Promise<void> {
-    // The session is a Drive detail kept on this side of the boundary. The
-    // generic caller still gives us one stream, while Drive gets an upload that
-    // does not hold a multi-gigabyte archive in process memory.
-    const session = await this.#request(
-      `${this.config.uploadUrl ?? "https://www.googleapis.com/upload/drive/v3/files"}?uploadType=resumable`,
-      {
-        method: "POST",
+    let counted: Transform | undefined;
+    let sourceFailed = false;
+    const onSourceError = (error: Error): void => {
+      sourceFailed = true;
+      counted?.destroy(error);
+    };
+    contents.on("error", onSourceError);
+    try {
+      // The session is a Drive detail kept on this side of the boundary. The
+      // generic caller still gives us one stream, while Drive gets an upload that
+      // does not hold a multi-gigabyte archive in process memory.
+      const session = await this.#request(
+        `${this.config.uploadUrl ?? "https://www.googleapis.com/upload/drive/v3/files"}?uploadType=resumable`,
+        {
+          method: "POST",
+          headers: {
+            ...(await this.#headers()),
+            "content-type": "application/json; charset=UTF-8",
+            "x-upload-content-length": String(byteLength),
+            "x-upload-content-type": "application/octet-stream",
+          },
+          body: JSON.stringify({ name, parents: [this.config.folderId] }),
+        },
+      );
+      if (!session.ok) {
+        this.#unavailable("starting an upload", session.status);
+      }
+      const location = session.headers.get("location");
+      if (location === null) {
+        throw new DestinationUnavailableError(
+          this.name,
+          "Drive did not return a resumable upload location",
+        );
+      }
+
+      if (sourceFailed)
+        throw new DestinationUnavailableError(this.name, "the backup source could not be read");
+      let sent = 0;
+      counted = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
+          sent += chunk.byteLength;
+          callback(null, chunk);
+        },
+      });
+      // A rejected request may stop consuming before the source reports an error.
+      counted.on("error", () => undefined);
+      contents.pipe(counted);
+      const uploaded = await this.#request(location, {
+        method: "PUT",
         headers: {
           ...(await this.#headers()),
-          "content-type": "application/json; charset=UTF-8",
-          "x-upload-content-length": String(byteLength),
-          "x-upload-content-type": "application/octet-stream",
+          "content-length": String(byteLength),
+          "content-type": "application/octet-stream",
         },
-        body: JSON.stringify({ name, parents: [this.config.folderId] }),
-      },
-    );
-    if (!session.ok) {
-      this.#unavailable("starting an upload", session.status);
-    }
-    const location = session.headers.get("location");
-    if (location === null) {
-      throw new DestinationUnavailableError(
-        this.name,
-        "Drive did not return a resumable upload location",
-      );
-    }
-
-    let sent = 0;
-    const counted = new Transform({
-      transform(chunk: Buffer, _encoding, callback) {
-        sent += chunk.byteLength;
-        callback(null, chunk);
-      },
-    });
-    contents.pipe(counted);
-    const uploaded = await this.#request(location, {
-      method: "PUT",
-      headers: {
-        ...(await this.#headers()),
-        "content-length": String(byteLength),
-        "content-type": "application/octet-stream",
-      },
-      // Node's fetch accepts a Readable when `duplex` is half. The DOM-shaped
-      // RequestInit type does not expose that Node option, hence this narrow
-      // cast at the provider boundary.
-      body: counted as never,
-      duplex: "half",
-    } as RequestInit & { duplex: "half" });
-    if (!uploaded.ok) {
-      this.#unavailable("upload", uploaded.status);
-    }
-    if (sent !== byteLength) {
-      // The caller told us how large the archive is; a mismatch means the stream
-      // and the record disagree, and recording a size we did not send would make
-      // the after-transfer check compare against a fiction.
-      throw new DestinationUnavailableError(
-        this.name,
-        "the archive read from disk was not the size it was declared as",
-      );
+        // Bun fetch accepts a Readable when `duplex` is half. The DOM-shaped
+        // RequestInit type does not expose that option, hence this narrow
+        // cast at the provider boundary.
+        body: counted as never,
+        duplex: "half",
+      } as RequestInit & { duplex: "half" });
+      if (!uploaded.ok) {
+        this.#unavailable("upload", uploaded.status);
+      }
+      if (sent !== byteLength) {
+        // The caller told us how large the archive is; a mismatch means the stream
+        // and the record disagree, and recording a size we did not send would make
+        // the after-transfer check compare against a fiction.
+        throw new DestinationUnavailableError(
+          this.name,
+          "the archive read from disk was not the size it was declared as",
+        );
+      }
+    } finally {
+      if (counted !== undefined) contents.unpipe(counted);
+      // Opening a file can fail after destroy() has been requested. Keep the
+      // error handler until stream completion so that late I/O cannot escape.
+      const sourceClosed = finished(contents, { cleanup: true }).catch(() => undefined);
+      contents.destroy();
+      counted?.destroy();
+      await sourceClosed;
+      contents.off("error", onSourceError);
     }
   }
 

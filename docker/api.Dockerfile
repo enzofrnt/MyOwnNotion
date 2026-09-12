@@ -60,6 +60,12 @@ RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
+# PostgreSQL 18 custom dumps/restores are part of the shipped recovery path.
+COPY docker/postgresql-pgdg.asc /tmp/pg-client/docker/postgresql-pgdg.asc
+COPY scripts/ci/install-postgres-client.sh /tmp/pg-client/scripts/ci/install-postgres-client.sh
+RUN bash /tmp/pg-client/scripts/ci/install-postgres-client.sh && rm -rf /tmp/pg-client
+ENV PATH="/usr/lib/postgresql/18/bin:${PATH}"
+
 # Durable blob volume and mounted-secret directory are provided by Compose.
 RUN mkdir -p /var/lib/myownnotion/blobs /var/lib/myownnotion/backups \
  && chown -R bun:bun /var/lib/myownnotion

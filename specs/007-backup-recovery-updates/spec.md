@@ -10,6 +10,15 @@
 
 ## Product Direction, Dependencies, and Scope
 
+The owner's 2026-09-05 clarification is refined by
+[feature 024](../024-full-server-backups/spec.md): complete application-database
+and file backups become the daily and pre-migration protection boundary. The
+portable canonical archive specified here remains a distinct export/recovery
+format. Its success alone does not prove complete-server protection. Full
+backups include historical security records inside authenticated ciphertext;
+usable external recovery keys remain separate. Restore security reactivation
+must not silently reinstate historical device/session authority.
+
 This feature realises sections 27 and 30 to 34 of
 [`docs/product/product-canvas.md`](../../docs/product/product-canvas.md), and
 feature 007 of the roadmap.
@@ -264,8 +273,10 @@ and confirm no migration ran.
   data is written.
 - **SC-007**: The owner is warned within one hour of crossing 26 hours without a
   verified backup.
-- **SC-008**: No backup, manifest, log or stored result contains a secret, a key,
-  or a session identifier.
+- **SC-008**: No plaintext backup metadata, log or stored result exposes a
+  secret, key or session identifier. A complete backup may retain historical
+  security records and wrapped keys inside authenticated ciphertext, with the
+  usable external recovery material excluded from the archive.
 - **SC-009**: Restoring a reference backup succeeds in continuous integration for
   every supported migration path.
 

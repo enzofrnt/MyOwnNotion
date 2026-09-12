@@ -12,8 +12,9 @@
  * manifest describes somebody's workspace.
  */
 
+import { randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, readdir, rm, stat } from "node:fs/promises";
+import { link, mkdir, open, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -43,17 +44,33 @@ export class FilesystemDestination implements BackupDestination {
     return path.join(this.root, name);
   }
 
-  async put(name: string, contents: Readable, _byteLength: number): Promise<void> {
+  async put(name: string, contents: Readable, byteLength: number): Promise<void> {
     await mkdir(this.root, { recursive: true });
     const target = this.#resolve(name);
-    // Written beside its final name and moved into place would be better still;
-    // a partial file here is removed instead, because a half-written archive
-    // that keeps its name looks like a smaller backup rather than a broken one.
+    const temporary = path.join(this.root, `.backup-${randomUUID()}`);
     try {
-      await pipeline(contents, createWriteStream(target));
-    } catch (error) {
-      await rm(target, { force: true });
-      throw error;
+      const handle = await open(temporary, "wx", 0o600);
+      try {
+        await pipeline(contents, createWriteStream(temporary, { fd: handle.fd, autoClose: false }));
+        if ((await handle.stat()).size !== byteLength) {
+          throw new DestinationUnavailableError(
+            this.name,
+            "the backup length differs from its declared size",
+          );
+        }
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      await link(temporary, target);
+      const directory = await open(this.root, "r");
+      try {
+        await directory.sync();
+      } finally {
+        await directory.close();
+      }
+    } finally {
+      await rm(temporary, { force: true });
     }
   }
 
@@ -70,7 +87,7 @@ export class FilesystemDestination implements BackupDestination {
       throw new DestinationUnavailableError(this.name, (error as Error).message);
     }
     const stored: StoredBackup[] = [];
-    for (const name of names) {
+    for (const name of names.filter((candidate) => !candidate.startsWith(".backup-"))) {
       const info = await stat(path.join(this.root, name));
       if (info.isFile()) {
         stored.push({ name, byteLength: info.size, storedAt: info.mtime });
@@ -83,7 +100,8 @@ export class FilesystemDestination implements BackupDestination {
     const target = this.#resolve(name);
     try {
       await stat(target);
-    } catch {
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       return null;
     }
     return createReadStream(target);

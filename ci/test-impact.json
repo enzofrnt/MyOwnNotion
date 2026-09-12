@@ -78,6 +78,7 @@
       "bun.lock",
       "bunfig.toml",
       "ci/test-impact.json",
+      "compose.backup-key-history.yaml",
       "compose.override.yaml",
       "compose.yaml",
       "package.json",
@@ -206,6 +207,7 @@
         "exact": [
           ".env.example",
           "apps/web/vite.config.ts",
+          "compose.backup-key-history.yaml",
           "compose.dev.yaml",
           "compose.override.yaml",
           "compose.yaml",
@@ -300,7 +302,23 @@
           "apps/web/src/services/security-api.ts",
           "packages/database/src/repositories/backup-repository.ts"
         ],
-        "prefixes": ["apps/web/src/features/backup/", "packages/domain/src/backup/"],
+        "prefixes": [
+          "apps/web/src/features/backup/",
+          "packages/domain/src/backup/",
+          "apps/api/src/backup/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/full-backup-ui.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/backups.ts",
+          "apps/web/src/services/security-api.ts",
+          "packages/contracts/src/full-backups.ts"
+        ],
+        "prefixes": ["apps/web/src/features/backup/", "apps/api/src/backup/full/"],
         "suffixes": []
       }
     },
