@@ -475,6 +475,160 @@ it("requires source backup evidence and resumes atomic publication without losin
   }
 });
 
+it("upgrades an authenticated V1 inventory before resuming, without re-inventorying its sources", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedFiles: files } = harness.built.context;
+    if (files === undefined) throw new Error("Missing protected runtime");
+    const contentId = generateUuidV7();
+    const original = Buffer.from("V1 checkpoint source");
+    const raw = await files.deps.blobs.put(original);
+    await db.insert(schema.fileContents).values({ id: contentId, ...raw, referenceCount: 1 });
+    const source = {
+      installationId: files.deps.installationId,
+      applicationVersion: null,
+      commit: null,
+      image: null,
+      postgresVersion: 180004,
+      appliedMigrations: ["0001_initial", "0005_backups"],
+    } as const;
+    const backupId = generateUuidV7();
+    const verify = vi.fn().mockResolvedValue({ backupId, source });
+    const records = new ProtectedRecordService({
+      db,
+      keys: files.deps.keys,
+      workspaceId: files.deps.workspaceId,
+      installationId: files.deps.installationId,
+      now: () => new Date(),
+    });
+    const migration = new FileStorageMigration({
+      db,
+      files,
+      records,
+      blobRoot: harness.blobRoot,
+      verifySourceBackup: verify,
+    });
+
+    const prepared = await migration.prepare(backupId);
+    const before = await records.read(db, {
+      entityType: "file.transition-inventory",
+      entityId: prepared.id,
+      recordVersion: 1,
+    });
+    if (before === null) throw new Error("Missing inventory checkpoint");
+    const legacy = JSON.parse(Buffer.from(before).toString("utf8")) as Record<string, unknown>;
+    before.fill(0);
+    expect(legacy.formatVersion).toBe(2);
+    delete legacy.sourceProvenance;
+    legacy.formatVersion = 1;
+    await db.transaction(async (tx) => {
+      await enterStorageTransition(tx, prepared.id);
+      await records.write(tx, {
+        entityType: "file.transition-inventory",
+        entityId: prepared.id,
+        recordVersion: 1,
+        payload: Buffer.from(JSON.stringify(legacy)),
+      });
+    });
+
+    const entriesBefore = await db.select().from(schema.fileStorageTransitionEntries);
+    const resumed = await migration.prepare(generateUuidV7());
+    expect(resumed.id).toBe(prepared.id);
+    expect(await db.select().from(schema.fileStorageTransitionEntries)).toEqual(entriesBefore);
+    expect(verify).toHaveBeenLastCalledWith(backupId);
+    const upgraded = await records.read(db, {
+      entityType: "file.transition-inventory",
+      entityId: prepared.id,
+      recordVersion: 1,
+    });
+    if (upgraded === null) throw new Error("Missing upgraded inventory checkpoint");
+    expect(JSON.parse(Buffer.from(upgraded).toString("utf8"))).toMatchObject({
+      formatVersion: 2,
+      sourceBackupId: backupId,
+      installationId: files.deps.installationId,
+      sourceProvenance: source,
+    });
+    upgraded.fill(0);
+  } finally {
+    await harness.close();
+  }
+});
+
+it.each([
+  [
+    "a modern source",
+    {
+      applicationVersion: "0.9.0",
+      appliedMigrations: ["0001_initial", "0006_installation_application_version"],
+    },
+  ],
+  [
+    "a source with an invalid migration inventory",
+    { applicationVersion: null, appliedMigrations: ["0001_initial", "0006_installation_application_version"] },
+  ],
+] as const)("refuses V1 inventory provenance from %s", async (_label, sourcePatch) => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedFiles: files } = harness.built.context;
+    if (files === undefined) throw new Error("Missing protected runtime");
+    const backupId = generateUuidV7();
+    const source = {
+      installationId: files.deps.installationId,
+      applicationVersion: sourcePatch.applicationVersion,
+      commit: null,
+      image: null,
+      postgresVersion: 180004,
+      appliedMigrations: sourcePatch.appliedMigrations,
+    } as const;
+    const verify = vi.fn().mockResolvedValue({ backupId, source });
+    const records = new ProtectedRecordService({
+      db,
+      keys: files.deps.keys,
+      workspaceId: files.deps.workspaceId,
+      installationId: files.deps.installationId,
+      now: () => new Date(),
+    });
+    const migration = new FileStorageMigration({
+      db,
+      files,
+      records,
+      blobRoot: harness.blobRoot,
+      verifySourceBackup: verify,
+    });
+    const prepared = await migration.prepare(backupId);
+    const payload = await records.read(db, {
+      entityType: "file.transition-inventory",
+      entityId: prepared.id,
+      recordVersion: 1,
+    });
+    if (payload === null) throw new Error("Missing inventory checkpoint");
+    const legacy = JSON.parse(Buffer.from(payload).toString("utf8")) as Record<string, unknown>;
+    payload.fill(0);
+    delete legacy.sourceProvenance;
+    legacy.formatVersion = 1;
+    await db.transaction(async (tx) => {
+      await enterStorageTransition(tx, prepared.id);
+      await records.write(tx, {
+        entityType: "file.transition-inventory",
+        entityId: prepared.id,
+        recordVersion: 1,
+        payload: Buffer.from(JSON.stringify(legacy)),
+      });
+    });
+    await expect(migration.prepare(generateUuidV7())).rejects.toThrow(/V0|0006|provenance/i);
+    const after = await records.read(db, {
+      entityType: "file.transition-inventory",
+      entityId: prepared.id,
+      recordVersion: 1,
+    });
+    if (after === null) throw new Error("Missing inventory after refusal");
+    expect(JSON.parse(Buffer.from(after).toString("utf8")).formatVersion).toBe(1);
+    after.fill(0);
+  } finally {
+    await harness.close();
+  }
+});
+
 it.each<StorageMigrationBoundary>([
   "inventory",
   "source-published",
