@@ -288,6 +288,15 @@ describe("operational archive envelope", () => {
     ).toThrow("checkpoint");
   });
 
+  it("rejects timestamps that Date.parse normalizes instead of emitting canonically", async () => {
+    const { archive } = await validArchive();
+    expect(() =>
+      readPageOperationArchive(
+        withPage(archive, { updatedAt: "2026-02-30T10:00:00.000Z" }),
+      ),
+    ).toThrow("timestamp");
+  });
+
   it("serializes deterministically and rejects non-JSON values", () => {
     expect(pageOperationArchiveString(EMPTY_ARCHIVE)).toBe(
       '{"counts":{"ambiguities":0,"checkpoints":0,"deviceFrontiers":0,"legacyBranchConversions":0,"pages":0,"updates":0},"format":"myownnotion.page-operations-backup","formatVersion":1,"pages":[]}',
