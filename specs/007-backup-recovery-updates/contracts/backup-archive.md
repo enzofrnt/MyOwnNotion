@@ -67,6 +67,29 @@ workspace's history.
 The manifest carries digests, never content. A manifest that quoted a page title
 would leak content into the one part of the archive a reader inspects first.
 
+## Format versions and canonical validation
+
+Format version 1 is the legacy portable representation. It remains readable for
+recovery, including authored values that happen to equal the historical
+protected-content marker. A version 1 archive is still required to contain a
+complete canonical export: item, revision, placement, relationship, database
+definition and database-entry references must resolve before a restore target is
+started.
+
+Format version 2 is the current production representation. It keeps the same
+layout and adds the protected-content provenance boundary. An exact trimmed
+U+FFFD value is reserved for scrubbed item names and file original names, so a
+version 2 producer refuses it before sealing; longer authored names containing
+that character remain valid. The exact protected-content object marker is also
+reserved at the page-document and relationship-metadata boundaries. Version 2
+production validates the complete canonical export before the first archive
+byte is sealed, and the restore inspector repeats that validation before
+`target.begin` or any write.
+
+The TAR terminator is canonical: exactly two consecutive 512-byte zero blocks
+must end the archive, with no suffix bytes. A parser rejects one-block,
+unterminated and suffixed payloads before manifest or content inspection.
+
 ## Encryption
 
 The tar is encrypted **before** it leaves the machine (FR-007), with the
