@@ -301,3 +301,5 @@ retry the original command. Remote validation and root-cause repair remain open.
 - [ ] T105 Correct the reproduced Bun 1.4.0 Windows extra-stdio handle ownership defect through the maintained 1.4.2 runtime/image/types pins. Keep the existing cleanup and native assertions without the experimental polling adapter; prove the upstream handle regression, constrained native journeys, complete local/image checks and PR/main CI.
 
 - [ ] T106 Remove GHSA-j95f-988m-3j2f from the packaged editor by upgrading the compatible Tiptap family to 3.30.5; verify bounded block/inline Markdown parsing, retained editor identity, existing editing contracts and strict types, then renew every local/image/PR/main gate without an audit waiver.
+
+- [ ] T107 Close T074's packaged-host coverage gap: run the existing native lifecycle journeys against the actual platform package with an explicit packaged-resource assertion and disposable profiles, retain strict teardown/security/behavior checks, and validate the local executable plus all native PR/main targets. Keep real signed installer/update acceptance evidence separate.
