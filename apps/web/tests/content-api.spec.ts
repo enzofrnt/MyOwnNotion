@@ -26,4 +26,34 @@ describe("ContentApi response lifecycle", () => {
     });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
+
+  it("treats an AbortError during body consumption as an offline result", async () => {
+    const response = new Response(JSON.stringify({ nextCursor: "79", changes: [] }), {
+      status: 200,
+    });
+    vi.spyOn(response, "json").mockRejectedValueOnce(
+      new DOMException("document unloaded", "AbortError"),
+    );
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(new ContentApi("https://workspace.test").listChanges("78")).resolves.toMatchObject(
+      {
+        ok: false,
+        offline: true,
+      },
+    );
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not disguise malformed successful JSON as an offline response", async () => {
+    const response = new Response("not-json", { status: 200 });
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(new ContentApi("https://workspace.test").listChanges("78")).rejects.toThrow(
+      SyntaxError,
+    );
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
 });

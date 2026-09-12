@@ -46,6 +46,15 @@ const OFFLINE_PROBLEM: ProblemDto = {
   code: "network.unreachable",
 };
 
+function isCanceledBodyRead(error: unknown): boolean {
+  if (error instanceof TypeError) return true;
+  return (
+    typeof DOMException !== "undefined" &&
+    error instanceof DOMException &&
+    error.name === "AbortError"
+  );
+}
+
 export class ContentApi {
   readonly #baseUrl: string;
 
@@ -109,11 +118,12 @@ export class ContentApi {
     }
     try {
       return { ok: true, value: (await response.json()) as T };
-    } catch {
+    } catch (error) {
       // A navigation can cancel a successful response while its body is still
       // being read (WebKit reports this as an access-control failure). Treat
       // that as an offline read. Do not issue another request here: the caller
       // owns any idempotent mutation retry decision.
+      if (!isCanceledBodyRead(error)) throw error;
       return { ok: false, problem: OFFLINE_PROBLEM, offline: true };
     }
   }

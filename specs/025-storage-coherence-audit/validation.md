@@ -402,10 +402,16 @@ being read during `page.reload()`. The same durable internal link was visible
 after reload and the Playwright retry passed; the maintained
 `--fail-on-flaky-tests` policy kept the job red and retained its trace.
 
-The focused `ContentApi` regression resolves a 2xx `Response`, rejects only its
-`json()` body read, expects the canonical offline result, and proves that exactly
-one network request occurred. The corrected browser journey waits for both the
-page save and workspace synchronization before navigation, verifies no page
-error during the operation, and retains its post-reload link assertion. Focused
-unit, web type and changed-file Biome checks pass at `981777ff`; the renewed
-exact local, PR and main evidence remains part of T040/T041.
+The focused `ContentApi` regressions resolve a 2xx `Response`, reject only its
+`json()` body read with the observed `TypeError` or an `AbortError`, expect the
+canonical offline result, and prove that exactly one network request occurred.
+A malformed 2xx JSON body retains its `SyntaxError` instead of being mislabeled
+as offline. The corrected browser journey waits for both the page save and
+workspace synchronization before navigation, verifies no page error during the
+operation, and retains its post-reload link assertion.
+
+The exact failing WebKit mobile scenario passes **20/20** repetitions with one
+worker and fail-on-flaky enabled. The complete block-editor file then passes
+**11/11 tests on each of the five browser profiles**. Focused unit, web type and
+changed-file Biome checks pass; the renewed exact local, PR and main evidence
+remains part of T040/T041.
