@@ -18,6 +18,7 @@ import {
 } from "../content/types.ts";
 import { validateDatabaseDefinition } from "../databases/schema.ts";
 import type { DatabaseDefinition, EntryValues } from "../databases/types.ts";
+import { validatePageDocumentEnvelopeV3 } from "../document/validate.ts";
 import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type { RevisionHeader } from "../revisions/types.ts";
 
@@ -284,12 +285,14 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
         !isRecord(pageDocument["body"]))
     ) {
       issues.push(shapeIssue("item", `items[${index}].pageDocument is invalid`));
-    } else if (
-      pageDocument !== null &&
-      !validatePageDocument(pageDocument as unknown as PageDocument).ok &&
-      !isProtectedContentPayload(pageDocument["body"])
-    ) {
-      issues.push(shapeIssue("item", `items[${index}].pageDocument is not supported`));
+    } else if (pageDocument !== null && !isProtectedContentPayload(pageDocument["body"])) {
+      const pageDocumentValid =
+        pageDocument["formatVersion"] === 3
+          ? validatePageDocumentEnvelopeV3(pageDocument).ok
+          : validatePageDocument(pageDocument as unknown as PageDocument).ok;
+      if (!pageDocumentValid) {
+        issues.push(shapeIssue("item", `items[${index}].pageDocument is not supported`));
+      }
     }
     const file = item["file"];
     if (
