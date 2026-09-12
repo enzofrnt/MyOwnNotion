@@ -1,7 +1,7 @@
 # Feature Specification: Bases réutilisables intégrées aux pages
 
-**Feature Branch**: `codex/026-linked-databases`  
-**Created**: 2026-09-05  
+**Feature Branch**: `codex/026-linked-databases`
+**Created**: 2026-09-05
 **Status**: Implémentée et vérifiée localement ; gate de livraison après intégration
 
 **Input**: Une base indépendante peut être affichée dans plusieurs pages normales, avec des vues configurables table, Kanban et calendrier. Les entrées restent des pages canoniques.
