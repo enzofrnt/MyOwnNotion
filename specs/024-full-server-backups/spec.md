@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/024-full-server-backups`
 **Created**: 2026-09-05
-**Status**: Specified
+**Status**: Implemented; delivery validation in progress
 **Input**: The owner needs a complete database backup, beyond in-app exports,
 in a directory before version migrations and every night, with the original
 app version recorded and all data recoverable after an update or accidental damage.

@@ -12,7 +12,7 @@ Canvas traceability: sections 4, 28 and 30–34; feature 007 retains the portabl
 
 ## Technical Context
 
-**Language/Version**: TypeScript strict; Bun 1.4.0; PostgreSQL 18 tools.
+**Language/Version**: TypeScript strict; repository-pinned Bun 1.4.2; PostgreSQL 18 tools.
 **Primary Dependencies**: Existing `node:crypto`, streams, filesystem, child_process,
 database connection and backup destination interfaces; no new service.
 **Storage**: PostgreSQL application database, configured blob root and backup root;
