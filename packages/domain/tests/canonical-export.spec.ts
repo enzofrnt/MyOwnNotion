@@ -428,4 +428,104 @@ describe("validateCanonicalExport", () => {
       ]),
     );
   });
+
+  it.each([
+    [
+      "item",
+      (manifest: ReturnType<typeof consistentFixture>) => ({
+        ...manifest,
+        items: [
+          {
+            id: manifest.items[0]?.id,
+            currentRevisionId: manifest.items[0]?.currentRevisionId,
+            placements: [],
+          },
+        ],
+      }),
+    ],
+    [
+      "revision",
+      (manifest: ReturnType<typeof consistentFixture>) => ({
+        ...manifest,
+        revisions: [{ ...manifest.revisions[0], parentRevisionIds: undefined }],
+      }),
+    ],
+    [
+      "relationship",
+      (manifest: ReturnType<typeof consistentFixture>) => ({
+        ...manifest,
+        relationships: [{ ...manifest.relationships[0], metadata: undefined }],
+      }),
+    ],
+  ] as const)("rejects an under-specified %s before graph checks", (_kind, buildBroken) => {
+    const broken = buildBroken(consistentFixture());
+    expect(validateCanonicalExport(broken as never).map((issue) => issue.code)).toContain(
+      `shape.${_kind}`,
+    );
+  });
+
+  it("rejects under-specified database definitions and entries", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+    const broken = {
+      ...manifest,
+      databases: [{ ...database, definition: undefined }],
+      databaseEntries: [{ ...entry, values: undefined }],
+    };
+    const codes = validateCanonicalExport(broken as never).map((issue) => issue.code);
+    expect(codes).toEqual(expect.arrayContaining(["shape.database", "shape.database-entry"]));
+  });
+
+  it("rejects malformed nested database properties, views and values", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+    const broken = {
+      ...manifest,
+      databases: [
+        {
+          ...database,
+          definition: {
+            ...database.definition,
+            properties: [{ ...database.definition.properties[0], name: "" }],
+            views: [{ ...database.definition.views[0], name: "" }],
+          },
+        },
+      ],
+      databaseEntries: [
+        {
+          ...entry,
+          values: { ...entry.values, values: { [generateUuidV7()]: { kind: "text" } } },
+        },
+      ],
+    };
+    const codes = validateCanonicalExport(broken as never).map((issue) => issue.code);
+    expect(codes).toEqual(expect.arrayContaining(["shape.database", "shape.database-entry"]));
+  });
+
+  it("rejects duplicate identities and invalid timestamps", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const revision = manifest.revisions[0];
+    if (first === undefined || revision === undefined) throw new Error("fixture missing");
+    const duplicate = {
+      ...manifest,
+      items: [{ ...first, currentRevisionId: revision.id }, { ...first }],
+      revisions: [revision, ...manifest.revisions],
+    };
+    const duplicateCodes = validateCanonicalExport(duplicate as never).map((issue) => issue.code);
+    expect(duplicateCodes).toEqual(
+      expect.arrayContaining(["item.duplicate", "revision.duplicate"]),
+    );
+    const invalidTimestamp = {
+      ...manifest,
+      revisions: [{ ...revision, acceptedAt: "not-a-timestamp" }, ...manifest.revisions.slice(1)],
+    };
+    expect(validateCanonicalExport(invalidTimestamp as never).map((issue) => issue.code)).toContain(
+      "shape.revision",
+    );
+  });
 });

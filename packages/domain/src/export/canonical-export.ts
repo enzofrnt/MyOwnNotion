@@ -8,9 +8,17 @@
  * canonical string, so adapters can digest and independently validate it.
  */
 
-import type { CanonicalItem, PageDocument, Placement, Relationship } from "../content/types.ts";
+import { validatePageDocument } from "../content/hierarchy.ts";
+import {
+  type CanonicalItem,
+  isProtectedContentPayload,
+  type PageDocument,
+  type Placement,
+  type Relationship,
+} from "../content/types.ts";
+import { validateDatabaseDefinition } from "../databases/schema.ts";
 import type { DatabaseDefinition, EntryValues } from "../databases/types.ts";
-import type { Uuid } from "../ids/uuid.ts";
+import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type { RevisionHeader } from "../revisions/types.ts";
 
 export const CANONICAL_EXPORT_FORMAT = "myownnotion.export+json";
@@ -168,6 +176,263 @@ export interface ExportValidationIssue {
   readonly detail: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function isIdentifier(value: unknown): value is string {
+  return isUuid(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isTimestamp(value: unknown): value is string {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return false;
+  try {
+    return new Date(value).toISOString() === value;
+  } catch {
+    return false;
+  }
+}
+
+function shapeIssue(code: string, detail: string): ExportValidationIssue {
+  return { code: `shape.${code}`, detail };
+}
+
+function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
+  if (!isRecord(value)) return [shapeIssue("manifest", "Canonical export must be an object")];
+  const issues: ExportValidationIssue[] = [];
+  if (value["format"] !== CANONICAL_EXPORT_FORMAT)
+    issues.push(shapeIssue("manifest", "Canonical export has an unsupported format"));
+  if (value["formatVersion"] !== CANONICAL_EXPORT_VERSION)
+    issues.push(shapeIssue("manifest", "Canonical export has an unsupported version"));
+  for (const field of ["workspaceId", "exportedAt"] as const) {
+    if (!isNonEmptyString(value[field]))
+      issues.push(shapeIssue("manifest", `${field} is required`));
+  }
+  if (typeof value["changeCursor"] !== "string")
+    issues.push(shapeIssue("manifest", "changeCursor is required"));
+  if (!isIdentifier(value["workspaceId"]))
+    issues.push(shapeIssue("manifest", "workspaceId must be a UUID"));
+  if (!isNonNegativeInteger(value["schemaVersion"]))
+    issues.push(shapeIssue("manifest", "schemaVersion must be a non-negative integer"));
+  for (const field of [
+    "items",
+    "databases",
+    "databaseEntries",
+    "relationships",
+    "revisions",
+  ] as const) {
+    if (!Array.isArray(value[field]))
+      issues.push(shapeIssue("manifest", `${field} must be an array`));
+  }
+  const counts = value["counts"];
+  if (!isRecord(counts)) {
+    issues.push(shapeIssue("counts", "counts must be an object"));
+  } else {
+    for (const field of [
+      "items",
+      "activeItems",
+      "trashedItems",
+      "placements",
+      "relationships",
+      "revisions",
+      "databases",
+      "databaseEntries",
+    ] as const) {
+      if (!isNonNegativeInteger(counts[field]))
+        issues.push(shapeIssue("counts", `${field} must be a non-negative integer`));
+    }
+  }
+  if (issues.length > 0) return issues;
+
+  const items = value["items"] as unknown[];
+  for (const [index, item] of items.entries()) {
+    if (!isRecord(item)) {
+      issues.push(shapeIssue("item", `items[${index}] must be an object`));
+      continue;
+    }
+    if (
+      !isIdentifier(item["id"]) ||
+      !isIdentifier(item["workspaceId"]) ||
+      !["page", "folder", "file"].includes(String(item["kind"])) ||
+      !isNonEmptyString(item["name"]) ||
+      !(item["icon"] === null || typeof item["icon"] === "string") ||
+      !["active", "trashed", "purged"].includes(String(item["lifecycle"])) ||
+      !(item["trashedAt"] === null || isTimestamp(item["trashedAt"])) ||
+      !(item["purgeAfter"] === null || isTimestamp(item["purgeAfter"])) ||
+      !isIdentifier(item["currentRevisionId"]) ||
+      typeof item["favourite"] !== "boolean" ||
+      typeof item["offlineIntent"] !== "boolean" ||
+      !Array.isArray(item["placements"])
+    ) {
+      issues.push(shapeIssue("item", `items[${index}] is incomplete`));
+      continue;
+    }
+    const pageDocument = item["pageDocument"];
+    if (
+      pageDocument !== null &&
+      (!isRecord(pageDocument) ||
+        !isNonEmptyString(pageDocument["format"]) ||
+        !isNonNegativeInteger(pageDocument["formatVersion"]) ||
+        !isRecord(pageDocument["body"]))
+    ) {
+      issues.push(shapeIssue("item", `items[${index}].pageDocument is invalid`));
+    } else if (
+      pageDocument !== null &&
+      !validatePageDocument(pageDocument as unknown as PageDocument).ok &&
+      !isProtectedContentPayload(pageDocument["body"])
+    ) {
+      issues.push(shapeIssue("item", `items[${index}].pageDocument is not supported`));
+    }
+    const file = item["file"];
+    if (
+      file !== null &&
+      (!isRecord(file) ||
+        !isNonEmptyString(file["mediaType"]) ||
+        !isNonEmptyString(file["originalName"]) ||
+        !isNonNegativeInteger(file["byteLength"]) ||
+        typeof file["sha256"] !== "string" ||
+        !/^[0-9a-f]{64}$/.test(file["sha256"]))
+    ) {
+      issues.push(shapeIssue("item", `items[${index}].file is invalid`));
+    }
+    for (const [placementIndex, placement] of (item["placements"] as unknown[]).entries()) {
+      if (
+        !isRecord(placement) ||
+        !isIdentifier(placement["id"]) ||
+        !isIdentifier(placement["workspaceId"]) ||
+        !isIdentifier(placement["itemId"]) ||
+        typeof placement["itemIsFile"] !== "boolean" ||
+        !["hierarchy", "attachment"].includes(String(placement["kind"])) ||
+        !(placement["parentItemId"] === null || isIdentifier(placement["parentItemId"])) ||
+        !isNonEmptyString(placement["positionKey"]) ||
+        !(placement["removedAt"] === null || isTimestamp(placement["removedAt"]))
+      ) {
+        issues.push(shapeIssue("item", `items[${index}].placements[${placementIndex}] is invalid`));
+      }
+    }
+  }
+
+  const revisions = value["revisions"] as unknown[];
+  for (const [index, revision] of revisions.entries()) {
+    if (
+      !isRecord(revision) ||
+      !isIdentifier(revision["id"]) ||
+      !isIdentifier(revision["itemId"]) ||
+      !isIdentifier(revision["mutationId"]) ||
+      !Array.isArray(revision["parentRevisionIds"]) ||
+      !(revision["parentRevisionIds"] as unknown[]).every(isIdentifier) ||
+      !isTimestamp(revision["acceptedAt"]) ||
+      !(
+        revision["authoredByDeviceId"] === undefined ||
+        revision["authoredByDeviceId"] === null ||
+        isIdentifier(revision["authoredByDeviceId"])
+      )
+    ) {
+      issues.push(shapeIssue("revision", `revisions[${index}] is incomplete`));
+    }
+  }
+
+  const relationships = value["relationships"] as unknown[];
+  for (const [index, relationship] of relationships.entries()) {
+    if (
+      !isRecord(relationship) ||
+      !isIdentifier(relationship["id"]) ||
+      !isIdentifier(relationship["workspaceId"]) ||
+      !isIdentifier(relationship["sourceItemId"]) ||
+      !isIdentifier(relationship["targetItemId"]) ||
+      !isNonEmptyString(relationship["relationType"]) ||
+      !isRecord(relationship["metadata"]) ||
+      !isIdentifier(relationship["createdRevisionId"]) ||
+      !(
+        relationship["removedRevisionId"] === null ||
+        isIdentifier(relationship["removedRevisionId"])
+      )
+    ) {
+      issues.push(shapeIssue("relationship", `relationships[${index}] is incomplete`));
+    }
+  }
+
+  const databases = value["databases"] as unknown[];
+  for (const [index, database] of databases.entries()) {
+    const definition = isRecord(database) ? database["definition"] : undefined;
+    if (
+      !isRecord(database) ||
+      !isIdentifier(database["databaseId"]) ||
+      !isNonNegativeInteger(database["definitionVersion"]) ||
+      !isRecord(definition) ||
+      !isNonEmptyString(definition["format"]) ||
+      !isNonNegativeInteger(definition["formatVersion"]) ||
+      !isIdentifier(definition["databaseId"]) ||
+      !Array.isArray(definition["properties"]) ||
+      !Array.isArray(definition["views"]) ||
+      !(definition["taskRoles"] === null || isRecord(definition["taskRoles"]))
+    ) {
+      issues.push(shapeIssue("database", `databases[${index}] is incomplete`));
+    } else {
+      try {
+        if (!validateDatabaseDefinition(definition as unknown as DatabaseDefinition).ok) {
+          issues.push(shapeIssue("database", `databases[${index}].definition is invalid`));
+        }
+      } catch {
+        issues.push(shapeIssue("database", `databases[${index}].definition is invalid`));
+      }
+    }
+  }
+
+  const entries = value["databaseEntries"] as unknown[];
+  for (const [index, entry] of entries.entries()) {
+    const values = isRecord(entry) ? entry["values"] : undefined;
+    if (
+      !isRecord(entry) ||
+      !isIdentifier(entry["entryId"]) ||
+      !isIdentifier(entry["databaseId"]) ||
+      !isNonNegativeInteger(entry["valueVersion"]) ||
+      !isIdentifier(entry["addedRevisionId"]) ||
+      !isRecord(values) ||
+      !isNonEmptyString(values["format"]) ||
+      !isNonNegativeInteger(values["formatVersion"]) ||
+      !isIdentifier(values["databaseId"]) ||
+      !isIdentifier(values["entryId"]) ||
+      !isRecord(values["values"]) ||
+      !Array.isArray(values["preserved"])
+    ) {
+      issues.push(shapeIssue("database-entry", `databaseEntries[${index}] is incomplete`));
+    } else {
+      for (const [propertyId, propertyValue] of Object.entries(
+        values["values"] as Record<string, unknown>,
+      )) {
+        if (
+          !isIdentifier(propertyId) ||
+          !isRecord(propertyValue) ||
+          !isNonEmptyString(propertyValue["kind"]) ||
+          (propertyValue["kind"] === "text" && typeof propertyValue["value"] !== "string") ||
+          (propertyValue["kind"] === "number" && typeof propertyValue["decimal"] !== "string") ||
+          (propertyValue["kind"] === "date" && typeof propertyValue["date"] !== "string") ||
+          (propertyValue["kind"] === "instant" && typeof propertyValue["instant"] !== "string") ||
+          ((propertyValue["kind"] === "status" || propertyValue["kind"] === "select") &&
+            !isIdentifier(propertyValue["optionId"])) ||
+          (propertyValue["kind"] === "multi-select" &&
+            (!Array.isArray(propertyValue["optionIds"]) ||
+              !(propertyValue["optionIds"] as unknown[]).every(isIdentifier))) ||
+          (propertyValue["kind"] === "checkbox" && typeof propertyValue["checked"] !== "boolean")
+        ) {
+          issues.push(shapeIssue("database-entry", `databaseEntries[${index}].values is invalid`));
+          break;
+        }
+      }
+    }
+  }
+  return issues;
+}
+
 /**
  * Independent completeness validation (SC-005): every placement parent and
  * relationship endpoint must resolve to an exported item or be explicitly
@@ -176,7 +441,24 @@ export interface ExportValidationIssue {
 export function validateCanonicalExport(
   manifest: CanonicalExportManifest,
 ): ExportValidationIssue[] {
-  const issues: ExportValidationIssue[] = [];
+  const issues: ExportValidationIssue[] = validateCanonicalShape(manifest);
+  if (issues.length > 0) return issues;
+  const duplicateCodes: ReadonlyArray<readonly [string, readonly string[]]> = [
+    ["item.duplicate", manifest.items.map((item) => item.id)],
+    ["revision.duplicate", manifest.revisions.map((revision) => revision.id)],
+    ["relationship.duplicate", manifest.relationships.map((relationship) => relationship.id)],
+    [
+      "placement.duplicate",
+      manifest.items.flatMap((item) => item.placements.map((placement) => placement.id)),
+    ],
+  ];
+  for (const [code, ids] of duplicateCodes) {
+    if (new Set(ids).size !== ids.length)
+      issues.push({
+        code,
+        detail: `Canonical export contains duplicate ${code.split(".")[0]} IDs`,
+      });
+  }
   const itemIds = new Set(manifest.items.map((item) => item.id));
   const revisionIds = new Set(manifest.revisions.map((revision) => revision.id));
 
@@ -192,6 +474,21 @@ export function validateCanonicalExport(
   if (manifest.counts.revisions !== manifest.revisions.length) {
     issues.push({ code: "counts.revisions", detail: "Revision count does not match array" });
   }
+  const expectedActiveItems = manifest.items.filter((item) => item.lifecycle === "active").length;
+  const expectedTrashedItems = manifest.items.filter((item) => item.lifecycle === "trashed").length;
+  const expectedPlacements = manifest.items.reduce(
+    (total, item) => total + item.placements.length,
+    0,
+  );
+  if (manifest.counts.activeItems !== expectedActiveItems)
+    issues.push({ code: "counts.active-items", detail: "Active item count does not match items" });
+  if (manifest.counts.trashedItems !== expectedTrashedItems)
+    issues.push({
+      code: "counts.trashed-items",
+      detail: "Trashed item count does not match items",
+    });
+  if (manifest.counts.placements !== expectedPlacements)
+    issues.push({ code: "counts.placements", detail: "Placement count does not match items" });
   if (manifest.counts.databases !== manifest.databases.length) {
     issues.push({ code: "counts.databases", detail: "Database count does not match array" });
   }
@@ -208,6 +505,23 @@ export function validateCanonicalExport(
         code: "item.revision-missing",
         detail: `Item ${item.id} references missing revision ${item.currentRevisionId}`,
       });
+    }
+    const currentRevision = manifest.revisions.find(
+      (revision) => revision.id === item.currentRevisionId,
+    );
+    if (currentRevision !== undefined && currentRevision.itemId !== item.id) {
+      issues.push({
+        code: "item.revision-item-mismatch",
+        detail: `Item ${item.id} names a revision owned by ${currentRevision.itemId}`,
+      });
+    }
+    for (const placement of item.placements) {
+      if (placement.itemId !== item.id) {
+        issues.push({
+          code: "placement.item-mismatch",
+          detail: `Placement ${placement.id} names item ${placement.itemId} instead of ${item.id}`,
+        });
+      }
     }
     if (item.lifecycle === "trashed" && (item.trashedAt === null || item.purgeAfter === null)) {
       issues.push({
@@ -233,6 +547,21 @@ export function validateCanonicalExport(
           detail: `Relationship ${relationship.id} references missing item ${endpoint}`,
         });
       }
+    }
+    if (!revisionIds.has(relationship.createdRevisionId)) {
+      issues.push({
+        code: "relationship.revision-missing",
+        detail: `Relationship ${relationship.id} references missing creation revision`,
+      });
+    }
+    if (
+      relationship.removedRevisionId !== null &&
+      !revisionIds.has(relationship.removedRevisionId)
+    ) {
+      issues.push({
+        code: "relationship.revision-missing",
+        detail: `Relationship ${relationship.id} references missing removal revision`,
+      });
     }
   }
 
@@ -303,6 +632,12 @@ export function validateCanonicalExport(
   }
 
   for (const revision of manifest.revisions) {
+    if (!itemIds.has(revision.itemId)) {
+      issues.push({
+        code: "revision.item-missing",
+        detail: `Revision ${revision.id} references missing item ${revision.itemId}`,
+      });
+    }
     for (const parent of revision.parentRevisionIds) {
       if (!revisionIds.has(parent)) {
         issues.push({
