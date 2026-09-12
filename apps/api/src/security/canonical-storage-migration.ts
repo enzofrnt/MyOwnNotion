@@ -23,13 +23,63 @@ export interface CanonicalMetadataSource {
   readonly objectId: string;
   readonly category: "item" | "revision" | "relationship" | "export";
   readonly entityId: string;
+  /** Captured before cutover when an exact marker was still authored plaintext. */
+  readonly legacyPlaintextPlaceholder?: true;
   readonly digest: string;
 }
 
-async function itemPayload(tx: Transaction, content: ProtectedContent, id: string) {
+function snapshotHasPlaintextPlaceholder(snapshot: Record<string, unknown> | null): boolean {
+  const file = snapshot?.["file"];
+  return (
+    snapshot?.["name"] === SCRUBBED_PLACEHOLDER ||
+    (typeof file === "object" &&
+      file !== null &&
+      "originalName" in file &&
+      file.originalName === SCRUBBED_PLACEHOLDER)
+  );
+}
+
+async function hasLegacyPlaintextPlaceholder(
+  tx: Transaction,
+  content: ProtectedContent,
+  category: CanonicalMetadataSource["category"],
+  id: string,
+): Promise<boolean> {
+  if (category === "item") {
+    const raw = await readItem(tx, id as Uuid);
+    if (raw === null) throw new Error("Historical canonical item is unavailable.");
+    if (raw.name === SCRUBBED_PLACEHOLDER && (await content.readItemPresentation(tx, id)) === null)
+      return true;
+    return (
+      raw.file?.originalName === SCRUBBED_PLACEHOLDER &&
+      (await content.readFileMetadata(tx, { kind: "file", id })) === null
+    );
+  }
+  if (category === "revision") {
+    if ((await content.readRevisionSnapshot(tx, id)) !== null) return false;
+    const [row] = await tx.select().from(schema.revisions).where(eq(schema.revisions.id, id));
+    if (row === undefined) throw new Error("Historical revision is unavailable.");
+    return (
+      row.snapshot !== null &&
+      typeof row.snapshot === "object" &&
+      !Array.isArray(row.snapshot) &&
+      snapshotHasPlaintextPlaceholder(row.snapshot as Record<string, unknown>)
+    );
+  }
+  return false;
+}
+
+async function itemPayload(
+  tx: Transaction,
+  content: ProtectedContent,
+  id: string,
+  allowLegacyPlaintextPlaceholder = false,
+) {
   const raw = await readItem(tx, id as Uuid);
   if (raw === null) throw new Error("Historical canonical item is unavailable.");
-  const [item] = await resolveProtectedContent(tx, [raw], content);
+  const [item] = await resolveProtectedContent(tx, [raw], content, {
+    allowLegacyPlaintextPlaceholder,
+  });
   if (item === undefined) throw new Error("Historical canonical item could not be resolved.");
   const [page] = await tx
     .select()
@@ -41,10 +91,15 @@ async function itemPayload(tx: Transaction, content: ProtectedContent, id: strin
     .select()
     .from(schema.logicalFiles)
     .where(eq(schema.logicalFiles.itemId, id));
+  const protectedFileMetadata = await content.readFileMetadata(tx, { kind: "file", id });
   const fileMetadata =
-    (await content.readFileMetadata(tx, { kind: "file", id })) ??
+    protectedFileMetadata ??
     (file === undefined ? null : { originalName: file.originalName, mediaType: file.mediaType });
-  if (fileMetadata?.originalName === SCRUBBED_PLACEHOLDER)
+  if (
+    protectedFileMetadata === null &&
+    fileMetadata?.originalName === SCRUBBED_PLACEHOLDER &&
+    !allowLegacyPlaintextPlaceholder
+  )
     throw new Error("Historical file metadata is unavailable.");
   const database = await readDatabaseRecord(tx, id as Uuid);
   const entry = await readDatabaseEntryRecord(tx, id as Uuid);
@@ -65,25 +120,25 @@ async function itemPayload(tx: Transaction, content: ProtectedContent, id: strin
   };
 }
 
-async function revisionPayload(tx: Transaction, content: ProtectedContent, id: string) {
+async function revisionPayload(
+  tx: Transaction,
+  content: ProtectedContent,
+  id: string,
+  allowLegacyPlaintextPlaceholder = false,
+) {
   const [row] = await tx.select().from(schema.revisions).where(eq(schema.revisions.id, id));
   if (row === undefined) throw new Error("Historical revision is unavailable.");
-  const raw = (await content.readRevisionSnapshot<Record<string, unknown>>(tx, id)) ?? row.snapshot;
+  const protectedSnapshot = await content.readRevisionSnapshot<Record<string, unknown>>(tx, id);
+  const raw = protectedSnapshot ?? row.snapshot;
   if (raw !== null && (typeof raw !== "object" || Array.isArray(raw)))
     throw new Error("Historical revision payload is invalid.");
   const snapshot = raw as Record<string, unknown> | null;
   const page = snapshot?.["pageDocument"];
-  const file = snapshot?.["file"];
   if (
-    snapshot?.["name"] === SCRUBBED_PLACEHOLDER ||
-    (typeof page === "object" &&
-      page !== null &&
-      "body" in page &&
-      isProtectedPayload(page.body)) ||
-    (typeof file === "object" &&
-      file !== null &&
-      "originalName" in file &&
-      file.originalName === SCRUBBED_PLACEHOLDER)
+    (protectedSnapshot === null &&
+      snapshotHasPlaintextPlaceholder(snapshot) &&
+      !allowLegacyPlaintextPlaceholder) ||
+    (typeof page === "object" && page !== null && "body" in page && isProtectedPayload(page.body))
   )
     throw new Error("A historical snapshot cannot be reconstructed from a marker.");
   return { itemId: row.itemId, snapshot };
@@ -107,13 +162,16 @@ async function exportPayload(tx: Transaction, content: ProtectedContent, id: str
 export async function canonicalMetadataDigest(
   tx: Transaction,
   content: ProtectedContent,
-  source: Pick<CanonicalMetadataSource, "category" | "entityId">,
+  source: Pick<CanonicalMetadataSource, "category" | "entityId" | "legacyPlaintextPlaceholder">,
+  options: { readonly requireProtected?: boolean } = {},
 ): Promise<string> {
+  const allowLegacyPlaintextPlaceholder =
+    source.legacyPlaintextPlaceholder === true && options.requireProtected !== true;
   const payload =
     source.category === "item"
-      ? await itemPayload(tx, content, source.entityId)
+      ? await itemPayload(tx, content, source.entityId, allowLegacyPlaintextPlaceholder)
       : source.category === "revision"
-        ? await revisionPayload(tx, content, source.entityId)
+        ? await revisionPayload(tx, content, source.entityId, allowLegacyPlaintextPlaceholder)
         : source.category === "relationship"
           ? await relationshipPayload(tx, content, source.entityId)
           : source.category === "export"
@@ -158,6 +216,9 @@ export async function inventoryCanonicalMetadata(
         objectId: generateUuidV7(),
         category,
         entityId: id,
+        ...((await hasLegacyPlaintextPlaceholder(tx, content, category, id))
+          ? { legacyPlaintextPlaceholder: true as const }
+          : {}),
       };
       result.push({ ...source, digest: await canonicalMetadataDigest(tx, content, source) });
     }
@@ -175,7 +236,7 @@ export async function protectCanonicalMetadata(
     throw new Error("Historical canonical metadata changed after inventory.");
   const id = source.entityId;
   if (source.category === "item") {
-    const value = await itemPayload(tx, content, id);
+    const value = await itemPayload(tx, content, id, source.legacyPlaintextPlaceholder === true);
     await content.writeItemPresentation(tx, {
       itemId: id,
       recordVersion: 1,
@@ -218,7 +279,12 @@ export async function protectCanonicalMetadata(
       .set({ name: SCRUBBED_PLACEHOLDER, icon: null })
       .where(eq(schema.items.id, id));
   } else if (source.category === "revision") {
-    const { snapshot } = await revisionPayload(tx, content, id);
+    const { snapshot } = await revisionPayload(
+      tx,
+      content,
+      id,
+      source.legacyPlaintextPlaceholder === true,
+    );
     if (snapshot !== null) await content.writeRevisionSnapshot(tx, { revisionId: id, snapshot });
     await tx.update(schema.revisions).set({ snapshot: null }).where(eq(schema.revisions.id, id));
   } else if (source.category === "relationship") {
@@ -239,6 +305,9 @@ export async function protectCanonicalMetadata(
     if (manifest !== null) await content.writeExportManifest(tx, { exportId: id, manifest });
     await tx.update(schema.exports).set({ manifest: null }).where(eq(schema.exports.id, id));
   }
-  if ((await canonicalMetadataDigest(tx, content, source)) !== source.digest)
+  if (
+    (await canonicalMetadataDigest(tx, content, source, { requireProtected: true })) !==
+    source.digest
+  )
     throw new Error("Protected canonical metadata does not match its source.");
 }

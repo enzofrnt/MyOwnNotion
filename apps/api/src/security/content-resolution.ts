@@ -77,6 +77,7 @@ export async function resolveProtectedContent(
   executor: Database | Transaction,
   models: readonly ItemReadModel[],
   content: ProtectedContent | undefined,
+  options: { readonly allowLegacyPlaintextPlaceholder?: boolean } = {},
 ): Promise<ItemReadModel[]> {
   if (content === undefined) {
     // No key hierarchy configured. An installation in that state has no
@@ -113,7 +114,11 @@ export async function resolveProtectedContent(
     // require the field.
     const sealedBody = model.pageDocument === null ? null : (bodies.get(model.id) ?? null);
 
-    if (sealedPresentation === null && model.name === SCRUBBED_PLACEHOLDER) {
+    if (
+      sealedPresentation === null &&
+      model.name === SCRUBBED_PLACEHOLDER &&
+      options.allowLegacyPlaintextPlaceholder !== true
+    ) {
       // The plaintext was scrubbed and the envelope is gone. Serving the
       // placeholder would present an empty title as content; this is the one
       // case where refusing is the honest answer.
@@ -126,7 +131,11 @@ export async function resolveProtectedContent(
       model.file === null
         ? null
         : await content.readFileMetadata(executor, { kind: "file", id: model.id });
-    if (model.file?.originalName === SCRUBBED_PLACEHOLDER && fileMetadata === null)
+    if (
+      model.file?.originalName === SCRUBBED_PLACEHOLDER &&
+      fileMetadata === null &&
+      options.allowLegacyPlaintextPlaceholder !== true
+    )
       throw new ProtectedContentUnavailableError(model.id);
 
     resolved.push({

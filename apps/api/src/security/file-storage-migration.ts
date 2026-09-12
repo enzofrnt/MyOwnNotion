@@ -547,8 +547,9 @@ export class FileStorageMigration {
         if (
           source.kind !== "metadata" ||
           source.objectId !== entry.objectId ||
-          (await canonicalMetadataDigest(tx, this.deps.files.deps.content, source)) !==
-            source.digest
+          (await canonicalMetadataDigest(tx, this.deps.files.deps.content, source, {
+            requireProtected: true,
+          })) !== source.digest
         )
           throw new Error("Canonical metadata changed before source retirement.");
       } else {
