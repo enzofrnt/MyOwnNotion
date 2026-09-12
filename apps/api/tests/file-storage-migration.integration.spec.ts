@@ -518,9 +518,9 @@ it("upgrades an authenticated V1 inventory before resuming, without re-inventory
     if (before === null) throw new Error("Missing inventory checkpoint");
     const legacy = JSON.parse(Buffer.from(before).toString("utf8")) as Record<string, unknown>;
     before.fill(0);
-    expect(legacy.formatVersion).toBe(2);
-    delete legacy.sourceProvenance;
-    legacy.formatVersion = 1;
+    expect(legacy["formatVersion"]).toBe(2);
+    delete legacy["sourceProvenance"];
+    legacy["formatVersion"] = 1;
     await db.transaction(async (tx) => {
       await enterStorageTransition(tx, prepared.id);
       await records.write(tx, {
@@ -603,7 +603,9 @@ it.each(["backup mismatch", "corrupt inventory"] as const)(
       });
       const prepared = await migration.prepare(backupId);
       if (failure === "backup mismatch") {
-        await expect(migration.prepare(generateUuidV7())).rejects.toThrow(/identity does not match/);
+        await expect(migration.prepare(generateUuidV7())).rejects.toThrow(
+          /identity does not match/,
+        );
       } else {
         const payload = await records.read(db, {
           entityType: "file.transition-inventory",
@@ -611,10 +613,13 @@ it.each(["backup mismatch", "corrupt inventory"] as const)(
           recordVersion: 1,
         });
         if (payload === null) throw new Error("Missing inventory checkpoint");
-        const corrupt = JSON.parse(Buffer.from(payload).toString("utf8")) as Record<string, unknown>;
+        const corrupt = JSON.parse(Buffer.from(payload).toString("utf8")) as Record<
+          string,
+          unknown
+        >;
         payload.fill(0);
-        corrupt.formatVersion = 1;
-        corrupt.entries = [{ id: "not-a-uuid", kind: "content", objectId: "not-a-uuid" }];
+        corrupt["formatVersion"] = 1;
+        corrupt["entries"] = [{ id: "not-a-uuid", kind: "content", objectId: "not-a-uuid" }];
         await db.transaction(async (tx) => {
           await enterStorageTransition(tx, prepared.id);
           await records.write(tx, {
@@ -642,7 +647,10 @@ it.each([
   ],
   [
     "a source with an invalid migration inventory",
-    { applicationVersion: null, appliedMigrations: ["0001_initial", "0006_installation_application_version"] },
+    {
+      applicationVersion: null,
+      appliedMigrations: ["0001_initial", "0006_installation_application_version"],
+    },
   ],
 ] as const)("refuses V1 inventory provenance from %s", async (_label, sourcePatch) => {
   const harness = await createProtectedFileHarness();
@@ -682,8 +690,8 @@ it.each([
     if (payload === null) throw new Error("Missing inventory checkpoint");
     const legacy = JSON.parse(Buffer.from(payload).toString("utf8")) as Record<string, unknown>;
     payload.fill(0);
-    delete legacy.sourceProvenance;
-    legacy.formatVersion = 1;
+    delete legacy["sourceProvenance"];
+    legacy["formatVersion"] = 1;
     await db.transaction(async (tx) => {
       await enterStorageTransition(tx, prepared.id);
       await records.write(tx, {

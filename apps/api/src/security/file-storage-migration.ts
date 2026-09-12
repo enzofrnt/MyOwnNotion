@@ -67,6 +67,14 @@ interface StorageTransitionInventory {
   readonly entries: { readonly id: string; readonly kind: string; readonly objectId: string }[];
 }
 
+interface LegacyStorageTransitionInventory {
+  readonly formatVersion: 1;
+  readonly sourceBackupId: string;
+  readonly installationId: string;
+  readonly digest: string;
+  readonly entries: { readonly id: string; readonly kind: string; readonly objectId: string }[];
+}
+
 export interface StorageMigrationDeps {
   readonly db: Database;
   readonly blobRoot: string;
@@ -124,6 +132,55 @@ export class FileStorageMigration {
     return verified;
   }
 
+  private isFullBackupSource(value: unknown): value is FullBackupSource {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+    const source = value as Record<string, unknown>;
+    return (
+      (source["installationId"] === null || isUuid(source["installationId"])) &&
+      (source["applicationVersion"] === null || typeof source["applicationVersion"] === "string") &&
+      (source["commit"] === null || typeof source["commit"] === "string") &&
+      (source["image"] === null || typeof source["image"] === "string") &&
+      Number.isSafeInteger(source["postgresVersion"]) &&
+      Number(source["postgresVersion"]) >= 180000 &&
+      Number(source["postgresVersion"]) < 190000 &&
+      Array.isArray(source["appliedMigrations"]) &&
+      source["appliedMigrations"].every((migration) => typeof migration === "string")
+    );
+  }
+
+  private isInventoryEntries(
+    value: unknown,
+  ): value is { id: string; kind: string; objectId: string }[] {
+    return (
+      Array.isArray(value) &&
+      value.every(
+        (entry) =>
+          entry !== null &&
+          typeof entry === "object" &&
+          isUuid((entry as { id?: unknown }).id) &&
+          ["content", "upload", "orphan", "metadata"].includes(
+            String((entry as { kind?: unknown }).kind),
+          ) &&
+          isUuid((entry as { objectId?: unknown }).objectId),
+      )
+    );
+  }
+
+  private validateInventoryFields(inventory: {
+    readonly sourceBackupId: string;
+    readonly installationId: string;
+    readonly digest: string;
+    readonly entries: unknown;
+  }): void {
+    if (
+      !isUuid(inventory.sourceBackupId) ||
+      !isUuid(inventory.installationId) ||
+      !/^[0-9a-f]{64}$/.test(inventory.digest) ||
+      !this.isInventoryEntries(inventory.entries)
+    )
+      throw new Error("The protected transition inventory is invalid.");
+  }
+
   private async readInventory(tx: Transaction, transitionId: string) {
     const inventory = await this.read<StorageTransitionInventory>(
       tx,
@@ -132,12 +189,41 @@ export class FileStorageMigration {
     );
     if (
       inventory.formatVersion !== 2 ||
-      !isUuid(inventory.sourceBackupId) ||
-      !isUuid(inventory.installationId) ||
-      !Array.isArray(inventory.entries)
+      (!this.isFullBackupSource(inventory.sourceProvenance) && inventory.sourceProvenance !== null)
     )
       throw new Error("The protected transition inventory is invalid.");
+    this.validateInventoryFields(inventory);
     return inventory;
+  }
+
+  private async readAndUpgradeInventory(
+    tx: Transaction,
+    transitionId: string,
+    verified: VerifiedStorageMigrationSourceBackup | null,
+  ): Promise<StorageTransitionInventory> {
+    const inventory = await this.read<
+      StorageTransitionInventory | LegacyStorageTransitionInventory
+    >(tx, "file.transition-inventory", transitionId);
+    if (inventory.formatVersion !== 1) return this.readInventory(tx, transitionId);
+    this.validateInventoryFields(inventory);
+    if (verified === null || !this.isFullBackupSource(verified.source))
+      throw new Error("An authenticated V0 source backup is required to upgrade the V1 inventory.");
+    if (
+      verified.source.installationId !== null &&
+      verified.source.installationId !== this.deps.files.deps.installationId
+    )
+      throw new Error("The source archive belongs to another installation.");
+    if (!isV0FullBackupSource(verified.source))
+      throw new Error(
+        "The V1 inventory can only be resumed from a source predating migration 0006.",
+      );
+    const upgraded: StorageTransitionInventory = {
+      ...inventory,
+      formatVersion: 2,
+      sourceProvenance: verified.source,
+    };
+    await this.write(tx, "file.transition-inventory", transitionId, upgraded);
+    return this.readInventory(tx, transitionId);
   }
 
   private assertInventoryProvenance(
@@ -165,7 +251,8 @@ export class FileStorageMigration {
     );
     if (existing !== null) {
       await this.deps.db.transaction(async (tx) => {
-        const inventory = await this.readInventory(tx, existing.id);
+        await enterStorageTransition(tx, existing.id);
+        const inventory = await this.readAndUpgradeInventory(tx, existing.id, verified);
         this.assertInventoryProvenance(inventory, verified);
       });
       return existing;
