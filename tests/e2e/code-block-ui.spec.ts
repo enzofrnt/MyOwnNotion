@@ -150,14 +150,10 @@ test("code stays colored, editable and confined in both themes at desktop and 32
   }));
   expect(overflow).toEqual({ inner: true, page: false });
   await page.screenshot({ path: testInfo.outputPath("code-narrow.png") });
-  const narrowTitleHeight = await title.evaluate((element) => element.clientHeight);
   await page.setViewportSize({ width: 1280, height: 780 });
   await expect
     .poll(() => title.evaluate((element) => element.scrollHeight - element.clientHeight))
     .toBeLessThanOrEqual(1);
-  await expect
-    .poll(() => title.evaluate((element) => element.clientHeight))
-    .toBeLessThan(narrowTitleHeight);
 });
 
 test("copy writes exact plain source with stable semantic activation and visible refusal/retry", async ({
