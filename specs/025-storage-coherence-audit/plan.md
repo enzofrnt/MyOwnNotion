@@ -130,6 +130,14 @@ boundaries rather than introduce an independent storage or authorization service
 6. Complete bounded-memory, corruption, recovery, offline/browser/native proofs,
    run Spec Kit analysis/convergence and all local/PR/main delivery gates.
 
+The delivery inventory is executable at every required stage: PR and `main` CI
+must expose dedicated blocking jobs for `test:security` and `compose:check`,
+and `quality-gate` must require both jobs. Contract tests assert the job names,
+commands and aggregate dependencies so a future workflow edit cannot silently
+drop either responsibility. This keeps the explicit CI evidence aligned with
+the local gate and `docs/development.md` without changing the test selection
+policy for the existing affected suites.
+
 Native image restoration executes the packaged API/migration/admin entrypoints,
 PostgreSQL 18 client and full historical SQL/files restore in both Linux
 architectures. A separate blocking CI matrix uses native AMD64 and ARM64 hosts;

@@ -376,3 +376,20 @@ All 61 blob-store tests pass, including real file modification, truncation and
 growth after stat, short reads, empty files, immutable publication and output
 independence. Strict workspace types and changed-source Biome checks pass.
 Complete integration and PR/main delivery remain open under T040/T041.
+
+## T059 — explicit security and Compose CI responsibilities
+
+The delivery inventory in `docs/development.md` listed `test:security` and
+`compose:check` as blocking PR/main responsibilities, but the workflow had no
+explicit jobs for either command. The correction adds independently observable
+`security-tests` and `compose-check` jobs to `.github/workflows/ci.yml`, and
+adds both to `quality-gate.needs`. The security job uses the repository's
+standard Bun/PostgreSQL setup and runs the complete `bun run test:security`
+entry point; the Compose job uses the standard Bun setup and runs the complete
+`bun run compose:check` entry point. No existing affected test or security job
+was removed or weakened.
+
+The workflow contract suite passes **31/31 tests**, including assertions for
+both job declarations, exact commands and aggregate dependencies. This is
+focused CI topology evidence only; it does not claim `checks:local`, PR CI or
+main CI completion. Those delivery obligations remain T040/T041.

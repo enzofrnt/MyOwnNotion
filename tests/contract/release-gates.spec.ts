@@ -119,6 +119,20 @@ describe("the five security jobs", () => {
 });
 
 describe("the aggregate", () => {
+  it("requires the complete security and Compose entry points", () => {
+    const needs = qualityGateNeeds();
+    for (const job of ["security-tests", "compose-check"]) {
+      expect(ci, `${job} is not an observable CI job`).toMatch(new RegExp(`^ {2}${job}:$`, "m"));
+      expect(needs, `${job} does not block the gate`).toContain(job);
+    }
+
+    const securityBlock =
+      /\n {2}security-tests:\n([\s\S]*?)\n {2}compose-check:\n/.exec(ci)?.[1] ?? "";
+    const composeBlock = /\n {2}compose-check:\n([\s\S]*?)\n {2}e2e:\n/.exec(ci)?.[1] ?? "";
+    expect(securityBlock).toContain("run: bun run test:security");
+    expect(composeBlock).toContain("run: bun run compose:check");
+  });
+
   it("requires every build and test job as well", () => {
     const needs = qualityGateNeeds();
     for (const job of [

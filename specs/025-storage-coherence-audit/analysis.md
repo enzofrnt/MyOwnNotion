@@ -138,3 +138,14 @@ existing pre-SQL verification order and explicit external secret configuration.
 The real rotation/transition fixture determines reachability before claiming
 a recoverable path. T050 and T051 remain implemented; no threshold or exclusion
 change is authorized. The updated task set contains 52 unique IDs.
+
+## T059 — explicit CI gate topology
+
+The final audit cross-check found that `docs/development.md` names
+`test:security` and `compose:check` as blocking PR/main responsibilities, while
+the reusable CI workflow only ran their neighboring checks and did not expose
+either command to `quality-gate`. This is a delivery-evidence gap under
+FR-011/FR-013, not a new product requirement. T059 adds one observable job per
+entry point, requires both jobs from the aggregate, and adds a contract test for
+the declarations, exact commands and dependencies. The focused contract proof
+passes; complete local, PR and main gates remain T040/T041.
