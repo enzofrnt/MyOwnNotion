@@ -710,3 +710,22 @@ update, frontier, operational digest, revision window, device receipt, ambiguity
 or conversion makes the archive invalid before any archive byte is emitted or
 any restore-target mutation begins. The valid legacy canonical-page path remains
 covered by the archive contract suite.
+
+## T079 — placementless reusable database export
+
+The first exact complete local gate at `b0245c6` stopped during coverage in
+`apps/api/tests/linked-databases.contract.spec.ts`: canonical export required
+exactly one hierarchy placement for every active non-file item. A reusable
+database source item and a database-entry item are intentionally independent
+canonical records, so after every display host is purged both may have zero
+hierarchy placements. The validator therefore rejected a valid source/entry
+export and the complete gate correctly failed.
+
+`38eb48e` scopes that cardinality rule to ordinary active non-file items while
+retaining the dedicated database source, entry, membership and view
+relationship invariants. The focused purge/restore regression passes in
+**2 files / 45 tests**. Durable output is
+`integrated-linked-db-canonical-fix-20260913.log`; the failed complete-gate
+output remains `integrated-release-final-b0245c6-20260913.log` under the delivery
+artifact directory. This correction does not close T037/T038/T040/T041; the
+exact complete gate and PR/main delivery must be rerun on the corrected commit.

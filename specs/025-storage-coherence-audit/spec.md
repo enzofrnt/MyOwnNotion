@@ -300,6 +300,11 @@ existing constitution IV / feature 002 promise, not a new product feature.
   proceed only with an explicit client base document and a bounded expiration.
   Exact protected-marker matching MUST inspect all own keys, including symbol
   and non-enumerable keys, and accept only the exact one-key marker.
+  Canonical export MUST preserve reusable database source and entry items when
+  they have no hierarchy placement after every display host is purged. The
+  exactly-one hierarchy-placement rule remains mandatory for ordinary active
+  non-file items, while database source/entry identity, kind, membership and
+  view relationships remain validated.
 
 Extend SC-001 sentinel inspection to those canonical fields through real secured
 requests and a portable round trip. The logical-storage and historical WAL scope

@@ -450,7 +450,8 @@ are recorded by `bfd14c12`, `4315e7ef`, `6508c532`, `7b55a1fc`, `3cfef6fa`,
 `d7d20ddf` and `037570b`; operational archive corrections are recorded by
 `c8ce0df9`, `2e3c6f1d`, `1385efbc`, `33b7e1e9`, `7b1e1b4e`, `c12a13eb`,
 `10a8acf4`, `037570b` and `e003264`. Focused aggregate evidence is final at
-`e003264`; complete delivery remains T037/T038/T040/T041.
+`e003264`; complete delivery remains T037/T038/T040/T041. The later focused
+canonical-export correction is recorded under T079 at `38eb48e`.
 
 ### T069 — fail closed for protected history and legacy branches
 
@@ -535,3 +536,14 @@ must carry no checkpoint, update, frontier, operational digest, revision window,
 device receipt, ambiguity or conversion. Enforce this invariant both on parsed
 archives and directly produced archive objects before any archive byte is
 emitted or any restore-target mutation begins.
+
+### T079 — placementless reusable database export
+
+Canonical export must distinguish ordinary active page placement from the
+independent canonical records used by reusable databases. A source database
+item and its entry page items may have zero hierarchy placements after all
+display hosts are purged, while their identity, item kind, membership and view
+relationships remain mandatory. Preserve the ordinary exactly-one placement
+rule for active non-file items and verify the purge/restore path before archive
+bytes are emitted. The focused correction is recorded at `38eb48e`; complete
+delivery remains T037/T038/T040/T041.

@@ -161,6 +161,15 @@ file-only V1 inventory may supplement missing metadata while the phase is still
 `inventoried` or `backfilling`; later phases and mismatched evidence never infer
 or replace historical provenance.
 
+## Reusable database placement invariant
+
+An independent reusable database source item and its database-entry page items
+are canonical records even when no display host currently embeds them. Their
+absence of a hierarchy placement is therefore valid after every display host is
+purged. Canonical export keeps the exactly-one hierarchy-placement rule for
+ordinary active non-file items, while validating source/entry identity, kind,
+database membership and view relationships through their dedicated invariants.
+
 Portable archives keep a legacy-compatible V1 interpretation while V2 reserves
 the exact protected markers and trimmed placeholder names. Canonical graph and
 page-operation content is validated before any archive byte is emitted or any
