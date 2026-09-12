@@ -114,6 +114,16 @@ it("migrates authored legacy placeholder names without confusing them with scrub
     while (await migration.publishMetadataNext(transition.id)) {
       /* durable metadata batches */
     }
+    const [presentationEnvelope] = await db
+      .select()
+      .from(schema.protectedEnvelopes)
+      .where(
+        and(
+          eq(schema.protectedEnvelopes.entityId, page.itemId),
+          eq(schema.protectedEnvelopes.entityType, "item.name"),
+        ),
+      );
+    if (presentationEnvelope === undefined) throw new Error("Missing protected presentation");
     await db
       .delete(schema.protectedEnvelopes)
       .where(
@@ -126,12 +136,7 @@ it("migrates authored legacy placeholder names without confusing them with scrub
     expect((await db.select().from(schema.fileStorageTransitions))[0]?.phase).toBe(
       "metadata-protected",
     );
-    await content.writeItemPresentation(db, {
-      itemId: page.itemId,
-      recordVersion: 1,
-      name: PROTECTED_CONTENT_PLACEHOLDER,
-      icon: null,
-    });
+    await db.insert(schema.protectedEnvelopes).values(presentationEnvelope);
     await migration.finishVerification(transition.id);
     await migration.cutover(transition.id);
     while (await migration.retireNext(transition.id)) {

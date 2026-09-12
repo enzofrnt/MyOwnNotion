@@ -445,6 +445,15 @@ export class FileStorageMigration {
         )
       )
         throw new Error("Canonical metadata identities or values changed during migration.");
+      for (const source of sources) {
+        if (
+          source.kind === "metadata" &&
+          (await canonicalMetadataDigest(tx, this.deps.files.deps.content, source, {
+            requireProtected: true,
+          })) !== source.digest
+        )
+          throw new Error("Protected canonical metadata changed before final verification.");
+      }
       await this.assertNoReadableSources(tx);
       await advanceStorageTransition(tx, {
         id: transitionId,
