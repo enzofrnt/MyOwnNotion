@@ -154,6 +154,15 @@ an already consumed stream inside `runMutation` would silently lose bytes.
 Durable ciphertext from a rolled-back attempt remains unreferenced and encrypted
 until physical cleanup; it is never advertised as accepted upload progress.
 Canonical logical-file/placement/revision publication remains transactional.
+The existing `protected_file_garbage` table also records each ciphertext key in
+a short independent transaction immediately before its physical publication.
+The canonical transaction removes that intent only after its chunk row and
+manifest are written. A rollback or process crash therefore leaves a bounded,
+durable cleanup candidate; cleanup holds the exclusive FILE maintenance lock,
+checks every canonical reference (including references from another workspace),
+deletes only an unreferenced blob, and removes the candidate in the same SQL
+transaction. No filesystem scan is used, and a later canonical reuse can never
+be deleted merely because an older intent remains.
 
 ## Complexity Tracking
 

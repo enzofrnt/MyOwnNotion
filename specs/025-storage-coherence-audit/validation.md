@@ -415,3 +415,42 @@ worker and fail-on-flaky enabled. The complete block-editor file then passes
 **11/11 tests on each of the five browser profiles**. Focused unit, web type and
 changed-file Biome checks pass; the renewed exact local, PR and main evidence
 remains part of T040/T041.
+
+## T061 — rollback-safe protected ciphertext cleanup
+
+The protected ingest path previously published an encrypted chunk before its
+canonical SQL rows. A real transaction that ingests bytes and then rejects the
+placement leaves one extra ciphertext file after rollback, while the existing
+bounded cleanup sees no candidate and reports `deleted: 0` (RED evidence from
+`af13f4acd682162ef649c58f8835ad5aa97796a7`).
+
+The corrected path inserts the opaque storage key into the existing bounded
+`protected_file_garbage` ledger through an independent short transaction before
+the filesystem publication. The surrounding SQL transaction removes that intent
+only after the chunk reference and authenticated manifest are persisted. A
+rollback, late publication/SQL error, or process crash therefore leaves a
+bounded candidate for the next cleanup run. Cleanup still holds the exclusive
+FILE maintenance lock and checks every current chunk/quarantine/legacy
+reference before deleting; a reused or canonical blob is preserved and its
+stale candidate is retired.
+
+The focused real PostgreSQL/filesystem regression passes GREEN: the failed
+ingest produces one extra encrypted file, cleanup removes exactly that file,
+and the committed content remains byte-identical. The complete API file suite,
+strict API types and changed-source Biome checks are recorded with the final
+commit; complete delivery remains T040/T041.
+
+Focused commands and results:
+
+```sh
+bun run --bun vitest run --project api-contract apps/api/tests/protected-file-service.integration.spec.ts --maxWorkers=1
+# 14 tests PASS
+bun run --bun vitest run --project api-contract apps/api/tests/protected-files.integration.spec.ts apps/api/tests/protected-file-rotation.integration.spec.ts apps/api/tests/protected-file-references.integration.spec.ts --maxWorkers=2
+# 25 tests PASS
+bun run --filter @myownnotion/api typecheck
+bun run --filter @myownnotion/database typecheck
+bun run --filter @myownnotion/blob-store typecheck
+bun run biome check apps/api/src/files/protected-file-cleanup.ts apps/api/src/files/protected-file-rotation.ts apps/api/src/files/protected-file-runtime.ts apps/api/src/files/protected-file-service.ts apps/api/src/files/protected-upload-service.ts apps/api/tests/protected-file-service.integration.spec.ts packages/blob-store/src/blob-store.ts packages/blob-store/src/encryption/encrypted-chunk-store.ts packages/blob-store/src/filesystem-blob-store.ts packages/database/src/schema/index.ts
+```
+
+All focused commands exit 0 and `git diff --check` passes.
