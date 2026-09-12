@@ -52,10 +52,12 @@ transfer fresh storage directly; protected content equality compares typed
 arrays without two further chunk copies. Formats and chunk/consumer ownership
 are unchanged. No secret or file bytes are logged.
 
-Pinned Bun 1.4.0 on the current macOS host, separate processes, disposable
-PostgreSQL on 55433. Baselines ran while root coverage was finishing; all six
-corrected runs were sequential after that independent gate had stopped, with
-no concurrent root performance or other subagent corpus. The fixture still
+These historical focused measurements used Bun 1.4.0, the version pinned when
+they were recorded on the macOS host, with separate processes and disposable
+PostgreSQL on 55433. The current integrated runtime is pinned to Bun 1.4.2.
+Baselines ran while root coverage was finishing; all six corrected runs were
+sequential after that independent gate had stopped, with no concurrent root
+performance or other subagent corpus. The fixture still
 ingests and authenticates 2 GiB, compares full length/hash and all three ranges,
 and samples every fragment plus a 5 ms timer. Phase diagnostics add one sample
 after ingestion. No forced GC or threshold/sampling reduction was introduced.

@@ -47,3 +47,20 @@ ship coloring/editing correctness first, copy feedback second, complete gates.
 ## Phase 7: Convergence
 
 - [x] T014 Register tests/e2e/code-block-ui.spec.ts and its editor owners in ci/test-impact.json, run tests/contract/test-impact.spec.ts, and record integrated 026/027 validation per plan: Validation and delivery and Constitution III/VII (resolved; focused contract passes; final delivery gate remains).
+
+## Requirement traceability
+
+| Requirement | Tasks |
+| --- | --- |
+| FR-001 | T005–T007, T010 |
+| FR-002 | T003–T007, T010 |
+| FR-003 | T003, T004, T006, T007 |
+| FR-004 | T004, T005, T007, T013 |
+| FR-005 | T004, T006, T007, T013 |
+| FR-006 | T008, T009 |
+| FR-007 | T003–T005, T007, T010 |
+| FR-008 | T005, T008, T009 |
+| SC-001 | T004–T007 |
+| SC-002 | T004, T005, T007, T013 |
+| SC-003 | T008, T009 |
+| SC-004 | T003, T004, T007, T010 |

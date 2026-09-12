@@ -51,3 +51,23 @@
 ## Phase 10: Convergence — source race and YAML bounds
 
 - [x] T022 [US1] Recheck directory and ancestor identities around every source-file read, refusing symlinked or replaced ancestors while preserving portable read-only behavior; add a synthetic ancestor replacement regression. Bound frontmatter YAML to 64 semantic levels and 100,000 AST nodes before conversion, with normal export fixtures retained (FR-009, SC-001/SC-003).
+
+## Requirement traceability
+
+| Requirement | Tasks |
+| --- | --- |
+| FR-001 | T001, T003, T012–T014 |
+| FR-002 | T002, T004, T005, T007, T017, T022 |
+| FR-003 | T001, T005, T007, T013, T014, T017 |
+| FR-004 | T005–T007, T009, T011, T020 |
+| FR-005 | T006, T009, T011, T020 |
+| FR-006 | T008, T011, T015, T018 |
+| FR-007 | T009–T011, T018, T020 |
+| FR-008 | T004, T008, T009, T011, T013, T018 |
+| FR-009 | T004, T007, T013, T017, T022 |
+| FR-010 | T009, T011, T016 |
+| FR-011 | T012–T014 |
+| SC-001 | T007, T011, T017, T020, T022 |
+| SC-002 | T010, T011, T018, T020 |
+| SC-003 | T007, T008, T011, T015, T017, T018, T022 |
+| SC-004 | T013, T014, T020 |

@@ -10,7 +10,7 @@ Séparer la révision de définition de la révision courante de l'ancienne page
 
 ## Technical Context
 
-Bun/TypeScript, PostgreSQL/Drizzle, React, Dexie et services de protection actuels. Aucune dépendance ajoutée. Migration réservée `0016_linked_databases`. La création depuis une page peut créer une source avec une ancre sans emplacement de hiérarchie. Les anciennes bases gardent leur affichage par défaut sur leur page actuelle. Les entrées sont conservées hors de la branche de hiérarchie des hôtes afin que la suppression d'un hôte ne cascade pas sur leur appartenance.
+Bun 1.4.2/TypeScript, PostgreSQL/Drizzle, React, Dexie et services de protection actuels. Aucune dépendance ajoutée. Migration réservée `0016_linked_databases`. La création depuis une page peut créer une source avec une ancre sans emplacement de hiérarchie. Les anciennes bases gardent leur affichage par défaut sur leur page actuelle. Les entrées sont conservées hors de la branche de hiérarchie des hôtes afin que la suppression d'un hôte ne cascade pas sur leur appartenance.
 
 ## Constitution Check
 

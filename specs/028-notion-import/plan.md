@@ -4,7 +4,7 @@
 
 ## Summary and technical context
 
-Bun1.4/TypeScript, existing Fastify-independent canonical mutation services,
+Bun 1.4.2/TypeScript, existing Fastify-independent canonical mutation services,
 PostgreSQL/Drizzle and protected record/file services. A standalone local CLI
 entrypoint is preview-only by default and opens no target connection until
 explicit apply. No new HTTP/UI surface. Native Markdown/CSV and converted

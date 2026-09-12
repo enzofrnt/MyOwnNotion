@@ -46,3 +46,25 @@
 ## Phase 7: Convergence — partial server projection merge
 
 - [x] T022 [US3] Preserve only optimistic local rows whose identifiers are selected by the server page when merging partial coverage; retain their pending/conflict payload and state without changing server pagination, filtering, limit or ordering. Add a direct regression test and record focused web type/Biome evidence (FR-011, SC-005).
+
+## Traçabilité des exigences
+
+| Exigence | Tâches |
+| --- | --- |
+| FR-001 | T002–T005, T008, T009 |
+| FR-002 | T004–T007, T016 |
+| FR-003 | T002, T004–T007, T017 |
+| FR-004 | T002–T009, T011, T012, T016 |
+| FR-005 | T003, T006, T008, T018, T020 |
+| FR-006 | T003, T006, T008, T013, T018 |
+| FR-007 | T003, T008, T009, T014 |
+| FR-008 | T002–T005, T008, T009, T012, T015, T016, T019 |
+| FR-009 | T002, T003, T008–T010 |
+| FR-010 | T006, T007, T009, T017, T018, T020, T021 |
+| FR-011 | T011, T012, T018, T020–T022 |
+| FR-012 | T013, T014, T018 |
+| SC-001 | T007, T009, T011, T013 |
+| SC-002 | T007, T009, T017 |
+| SC-003 | T008, T009, T018 |
+| SC-004 | T008, T009 |
+| SC-005 | T011, T012, T021, T022 |

@@ -49,3 +49,22 @@
 ## Phase 8: P1 audit convergence
 
 - [x] T022 Add RED/GREEN integration coverage for invalid, consumed, expired and revoked exchange credentials plus invalid, expired and revoked bearer credentials; persist fixed, redacted refusal classifications through the canonical `AuditService`, expose them in the owner MCP audit inventory, and record focused evidence (FR-008, canvas §35; full T016 gate remains pending).
+
+## Requirement traceability
+
+| Requirement | Tasks |
+| --- | --- |
+| FR-001 | T005, T011, T014, T021 |
+| FR-002 | T004–T006, T010, T018, T022 |
+| FR-003 | T005, T006, T014, T018 |
+| FR-004 | T005, T007–T010, T018, T020 |
+| FR-005 | T009, T010, T012, T017, T018 |
+| FR-006 | T006–T010, T018, T020 |
+| FR-007 | T008, T010, T018 |
+| FR-008 | T005, T006, T008, T010, T014, T017, T018, T022 |
+| FR-009 | T005, T006, T010, T014, T018, T022 |
+| FR-010 | T010, T012, T020 |
+| FR-011 | T011, T012, T014, T015, T021 |
+| SC-001 | T009, T010, T012, T018 |
+| SC-002 | T006, T010, T018, T020, T022 |
+| SC-003 | T011, T012, T014, T015, T021 |

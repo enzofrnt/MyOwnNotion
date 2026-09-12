@@ -36,8 +36,10 @@ before clearing envelopes. No production data-reset behavior changed.
 - All 15 browser journeys passed across Chromium/Firefox/WebKit desktop and
   Chromium/WebKit mobile, with two projects at most and retries disabled
   (50 seconds). Log: `/private/tmp/mon-mcp-ui-final.log`.
-- Production and E2E Web builds passed with the pinned Bun 1.4.0 runtime.
-  The ordinary build emitted 25 outputs and precached 17 assets.
+- Production and E2E Web builds passed with Bun 1.4.0, the version pinned when
+  this isolated UI evidence was recorded. Integrated delivery uses the
+  repository's current pinned Bun 1.4.2 runtime. The ordinary build emitted
+  25 outputs and precached 17 assets.
 - Static security analysis and secret scanning passed with zero findings.
 - Final visual inspection covers light desktop, dark 320 px, and the code
   instructions (the temporary secret is masked in the saved capture). The UI
