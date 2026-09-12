@@ -127,7 +127,9 @@ export class FilesystemBlobStore implements BlobStore {
       try {
         const status = await handle.stat();
         if (!status.isFile()) throw new Error("Blob is not a regular file.");
-        const bytes = new Uint8Array(status.size);
+        // Bun's positional fs read uses Buffer storage directly; a plain
+        // Uint8Array adds transient conversion pressure across large streams.
+        const bytes = Buffer.allocUnsafe(status.size);
         let offset = 0;
         while (offset < bytes.byteLength) {
           const { bytesRead } = await handle.read(bytes, offset, bytes.byteLength - offset, offset);
@@ -138,7 +140,7 @@ export class FilesystemBlobStore implements BlobStore {
         if ((await handle.read(tail, 0, 1, offset)).bytesRead !== 0)
           throw new Error("Stored blob length mismatch.");
         if (digestHex(bytes) !== storageKey) throw new Error("Stored blob digest mismatch.");
-        return bytes;
+        return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
       } finally {
         await handle.close();
       }
