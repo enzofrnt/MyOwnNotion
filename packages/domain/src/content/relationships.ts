@@ -40,6 +40,25 @@ export interface CreateRelationshipPlan {
   readonly metadata: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Validates relationship metadata at every ingestion boundary.
+ *
+ * The protected-storage marker is a storage representation, so accepting it
+ * as authored metadata would make a later restore indistinguishable from a
+ * value that still needs to be resolved from its envelope.
+ */
+export function validateRelationshipMetadata(
+  metadata: unknown,
+): DomainResult<Readonly<Record<string, unknown>>> {
+  if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
+    return err("validation.invalid-payload", "Relationship metadata must be an object");
+  }
+  if (isProtectedContentPayload(metadata)) {
+    return err("validation.invalid-payload", "Relationship metadata uses a reserved value");
+  }
+  return ok(metadata as Readonly<Record<string, unknown>>);
+}
+
 export function validateCreateRelationship(
   getItem: (id: Uuid) => CanonicalItem | null,
   command: CreateRelationshipCommand,
@@ -64,19 +83,16 @@ export function validateCreateRelationship(
   if (target === null || target.lifecycle === "purged") {
     return err("relationship.endpoint-unavailable", "Target item is unavailable");
   }
-  const metadata = command.metadata === undefined ? {} : command.metadata;
-  if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
-    return err("validation.invalid-payload", "Relationship metadata must be an object");
-  }
-  if (isProtectedContentPayload(metadata)) {
-    return err("validation.invalid-payload", "Relationship metadata uses a reserved value");
-  }
+  const metadataResult = validateRelationshipMetadata(
+    command.metadata === undefined ? {} : command.metadata,
+  );
+  if (!metadataResult.ok) return metadataResult;
   return ok({
     id: command.id,
     sourceItemId: command.sourceItemId,
     targetItemId: command.targetItemId,
     relationType: command.relationType,
-    metadata,
+    metadata: metadataResult.value,
   });
 }
 

@@ -212,6 +212,109 @@ describe("a rehearsal", () => {
 });
 
 describe("writing a checked archive", () => {
+  function markerArchive(formatVersion: 1 | 2, extra = false): Buffer {
+    const marker = extra
+      ? { $myownnotionProtected: 1, authored: true }
+      : { $myownnotionProtected: 1 };
+    const canonicalExport = JSON.stringify({
+      items: [
+        {
+          id: "one",
+          pageDocument: {
+            format: "myownnotion.document+json",
+            formatVersion: 1,
+            body: marker,
+          },
+        },
+      ],
+      relationships: [{ metadata: marker }],
+      revisions: [],
+    });
+    return encodeBackupArchive({
+      manifest: {
+        format: BACKUP_FORMAT,
+        formatVersion,
+        createdAt: "2026-08-18T04:00:00.000Z",
+        cursor: "42",
+        applicationVersion: "0.1.0",
+        schemaVersion: 1,
+        recordFormatVersion: 1,
+        canonicalExportDigest: `sha256:${createHash("sha256").update(canonicalExport).digest("hex")}`,
+        files: [],
+        itemCount: 1,
+        fileCount: 0,
+      },
+      canonicalExport,
+      files: new Map(),
+    });
+  }
+
+  it("refuses a reserved marker in a new archive before target mutation starts", async () => {
+    const calls: string[] = [];
+    await expect(
+      applyArchive(markerArchive(BACKUP_FORMAT_VERSION), {
+        begin: async () => {
+          calls.push("begin");
+        },
+        writeFile: async () => {
+          calls.push("file");
+        },
+        writeRevision: async () => {
+          calls.push("revision");
+        },
+        writeItem: async () => {
+          calls.push("item");
+        },
+        writeRelationship: async () => {
+          calls.push("relationship");
+        },
+      }),
+    ).rejects.toThrow(/reserved protected-content/i);
+    expect(calls).toEqual([]);
+  });
+
+  it("keeps exact markers restorable from a pre-reservation archive", async () => {
+    const written: unknown[] = [];
+    await applyArchive(markerArchive(1), {
+      begin: async () => {},
+      writeFile: async () => {},
+      writeRevision: async () => {},
+      writeItem: async (item) => {
+        written.push(item);
+      },
+      writeRelationship: async (relationship) => {
+        written.push(relationship);
+      },
+    });
+    expect(written).toHaveLength(2);
+    expect(written[0]).toMatchObject({
+      pageDocument: { body: { $myownnotionProtected: 1 } },
+    });
+    expect(written[1]).toMatchObject({ metadata: { $myownnotionProtected: 1 } });
+  });
+
+  it("accepts authored multi-key objects that contain the marker-shaped key", async () => {
+    const calls: string[] = [];
+    await applyArchive(markerArchive(BACKUP_FORMAT_VERSION, true), {
+      begin: async () => {
+        calls.push("begin");
+      },
+      writeFile: async () => {
+        calls.push("file");
+      },
+      writeRevision: async () => {
+        calls.push("revision");
+      },
+      writeItem: async () => {
+        calls.push("item");
+      },
+      writeRelationship: async () => {
+        calls.push("relationship");
+      },
+    });
+    expect(calls).toEqual(["begin", "item", "relationship"]);
+  });
+
   it("writes files before the items that name them", async () => {
     const order: string[] = [];
     await applyArchive(archive(), {

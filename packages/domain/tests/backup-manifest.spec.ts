@@ -43,6 +43,16 @@ describe("reading a manifest", () => {
     expect(read.ok).toBe(true);
   });
 
+  it.each([1, BACKUP_FORMAT_VERSION])("accepts supported archive format %s", (formatVersion) => {
+    expect(readBackupManifest(manifest({ formatVersion })).ok).toBe(true);
+  });
+
+  it("refuses an archive format without a defined provenance boundary", () => {
+    const read = readBackupManifest(manifest({ formatVersion: 3 }));
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(read.problems.map((problem) => problem.field)).toContain("formatVersion");
+  });
+
   it("accepts structured counts and digest together while keeping pre-009 manifests readable", () => {
     expect(readBackupManifest(manifest()).ok).toBe(true);
     expect(

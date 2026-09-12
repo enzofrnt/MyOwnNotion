@@ -15,7 +15,15 @@
  */
 
 export const BACKUP_FORMAT = "myownnotion.backup";
-export const BACKUP_FORMAT_VERSION = 1;
+/** Archives written before protected-content reservation remain readable. */
+export const LEGACY_BACKUP_FORMAT_VERSION = 1 as const;
+/** New archives carry a provenance boundary for reserved storage markers. */
+export const BACKUP_FORMAT_VERSION = 2 as const;
+export const SUPPORTED_BACKUP_FORMAT_VERSIONS = [
+  LEGACY_BACKUP_FORMAT_VERSION,
+  BACKUP_FORMAT_VERSION,
+] as const;
+export type BackupFormatVersion = (typeof SUPPORTED_BACKUP_FORMAT_VERSIONS)[number];
 
 export interface BackupFileEntry {
   /** `sha256:<hex>`, which is also the file's name inside the archive. */
@@ -25,7 +33,7 @@ export interface BackupFileEntry {
 
 export interface BackupManifest {
   readonly format: typeof BACKUP_FORMAT;
-  readonly formatVersion: number;
+  readonly formatVersion: BackupFormatVersion;
   readonly createdAt: string;
   /** The change-feed position this archive represents. */
   readonly cursor: string;
@@ -86,8 +94,14 @@ export function readBackupManifest(
     problems.push({ field: "format", message: `must be ${BACKUP_FORMAT}` });
   }
   const formatVersion = value["formatVersion"];
-  if (typeof formatVersion !== "number" || !Number.isSafeInteger(formatVersion)) {
-    problems.push({ field: "formatVersion", message: "must be an integer" });
+  if (
+    typeof formatVersion !== "number" ||
+    !SUPPORTED_BACKUP_FORMAT_VERSIONS.includes(formatVersion as BackupFormatVersion)
+  ) {
+    problems.push({
+      field: "formatVersion",
+      message: `must be one of ${SUPPORTED_BACKUP_FORMAT_VERSIONS.join(", ")}`,
+    });
   }
 
   for (const field of ["createdAt", "cursor", "applicationVersion"] as const) {

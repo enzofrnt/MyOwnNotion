@@ -2,10 +2,13 @@
 
 import { createHash } from "node:crypto";
 import {
+  BACKUP_FORMAT_VERSION,
   type BackupManifest,
   canonicalStructuredDataString,
   compareArchiveContents,
+  isProtectedContentPayload,
   readBackupManifest,
+  validateRelationshipMetadata,
 } from "@myownnotion/domain";
 import {
   PAGE_OPERATION_ARCHIVE_VERSION,
@@ -36,6 +39,59 @@ export type InspectedBackupArchive =
 
 function sha256(bytes: Uint8Array): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+/**
+ * Format v1 predates the protected-content marker reservation. It is therefore
+ * allowed to contain the exact marker as authored data. Format v2 is the
+ * provenance boundary for newly produced archives: a marker at a canonical
+ * content boundary is storage state, never user data, and must be rejected
+ * before a restore target can begin.
+ */
+function validateReservedContentBoundaries(
+  manifest: BackupManifest,
+  canonical: unknown,
+): string | null {
+  if (manifest.formatVersion < BACKUP_FORMAT_VERSION) return null;
+  if (typeof canonical !== "object" || canonical === null || Array.isArray(canonical)) {
+    return "The canonical export is not an object.";
+  }
+  const record = canonical as Record<string, unknown>;
+  const items = record["items"];
+  if (!Array.isArray(items)) return "The canonical export does not contain items.";
+  for (const item of items) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      return "The canonical export contains an invalid item.";
+    }
+    const pageDocument = (item as Record<string, unknown>)["pageDocument"];
+    if (pageDocument !== null && pageDocument !== undefined) {
+      const body =
+        typeof pageDocument === "object" && pageDocument !== null
+          ? (pageDocument as Record<string, unknown>)["body"]
+          : undefined;
+      if (isProtectedContentPayload(body)) {
+        return "The backup contains a page document with a reserved protected-content value.";
+      }
+    }
+  }
+  const relationships = record["relationships"];
+  if (!Array.isArray(relationships)) return "The canonical export does not contain relationships.";
+  for (const relationship of relationships) {
+    if (typeof relationship !== "object" || relationship === null || Array.isArray(relationship)) {
+      return "The canonical export contains an invalid relationship.";
+    }
+    const metadata = (relationship as Record<string, unknown>)["metadata"];
+    const metadataResult = validateRelationshipMetadata(metadata);
+    if (!metadataResult.ok) {
+      return "The backup contains relationship metadata with a reserved protected-content value.";
+    }
+    // Keep the exact marker check close to the boundary as a defense against a
+    // future metadata validator accidentally widening its authored vocabulary.
+    if (isProtectedContentPayload(metadata)) {
+      return "The backup contains relationship metadata with a reserved protected-content value.";
+    }
+  }
+  return null;
 }
 
 function writeText(target: Buffer, offset: number, width: number, value: string): void {
@@ -292,6 +348,10 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
     canonical = JSON.parse(body.canonicalExport) as { readonly items?: unknown[] };
   } catch {
     return { ok: false, reason: "The canonical export is not valid JSON." };
+  }
+  const reservedContentProblem = validateReservedContentBoundaries(manifest, canonical);
+  if (reservedContentProblem !== null) {
+    return { ok: false, reason: reservedContentProblem };
   }
   if (!Array.isArray(canonical.items) || canonical.items.length !== manifest.itemCount) {
     return {
