@@ -170,6 +170,28 @@ describe("shared protected file runtime", () => {
     expect(await listBlobFiles(root)).toEqual(before);
   });
 
+  it("journals a protected blob while every primary pool slot is occupied", async () => {
+    const held = await Promise.all(Array.from({ length: 9 }, () => database.pool.connect()));
+    const pending = database.db.transaction((tx) =>
+      runtime.files.ingest(tx, source(Buffer.from("reserved journal connection")), {
+        maxBytes: 100,
+      }),
+    );
+    try {
+      const outcome = await Promise.race([
+        pending.then(() => "completed" as const),
+        new Promise<"blocked">((resolve) => {
+          const timer = setTimeout(() => resolve("blocked"), 1_000);
+          timer.unref();
+        }),
+      ]);
+      expect(outcome).toBe("completed");
+    } finally {
+      for (const client of held) client.release();
+      await pending;
+    }
+  });
+
   it("pins download bytes against maintenance and releases the lock on cancellation and failure", async () => {
     const bytes = randomBytes(PROTECTED_FILE_CHUNK_BYTES + 7);
     const stored = await database.db.transaction((tx) =>
