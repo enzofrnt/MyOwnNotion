@@ -40,7 +40,10 @@ focused Biome checks pass. Complete delivery remains owned by the parent gate.
 
 La purge planifiée complète reste hors 026 : les tests appliquent l'état canonique purgé et retirent les enveloppes éditoriales de l'ancien hôte pour vérifier l'indépendance réelle. La reprise hors ligne testée garde disponible le shell statique ; elle n'atteste pas un premier démarrage sans réseau avec service worker non préparé.
 
-Le parent doit intégrer les corrections 025 postérieures à `e38ccd3b`, conserver sa normalisation d'index dans `indexedCriterion`, puis exécuter `bun run checks:local` et la matrice documentée avant push. Les checks ciblés de cette branche ne sont pas présentés comme un gate complet.
+Les corrections 025 T050/T052 sont présentes dans l'intégration courante. Les
+preuves ciblées de cette branche ne valent toujours pas le gate complet : il
+reste à exécuter `bun run checks:local`, la matrice documentée, la PR et la CI
+main sur le commit final.
 
 ## Intégration sur l'audit courant
 

@@ -181,12 +181,10 @@ restent identifiées comme telles.
 
 ### Reste à intégrer avant livraison
 
-T050 est désormais intégré et validé. Le parent attend encore le correctif
-sauvegarde/rotation A→B qui conserve les clés historiques externes nécessaires
-aux archives, reçus, retries et rétentions. Cette étape n'édite pas ces services.
-Après ce correctif, les gates complets sur le commit final, puis les revues et
-la livraison restent nécessaires : 013 T016 et 027 T012 demeurent ouverts.
-Aucun push ou succès de gate final n'est revendiqué.
+T050 et le correctif 024 de clés historiques sont désormais intégrés et
+disposent de preuves ciblées. Il reste à relancer les gates complets sur le
+commit final, puis à obtenir les validations PR et main. Aucun succès de gate
+final n'est encore revendiqué.
 
 ## Troisième étape : corrections révélées par la couverture globale
 

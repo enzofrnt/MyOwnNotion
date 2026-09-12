@@ -25,7 +25,7 @@
 
 - [x] T012 Réduire les lectures SQL répétées du chargement de projection (partial, HIGH, FR-004/FR-008) : lire noms/valeurs/relations par lots avec versions authentifiées, actualiser uniquement les entrées touchées quand le schéma reste identique, et mesurer une base PostgreSQL chiffrée réelle au lieu du seul benchmark en mémoire.
 
-- [x] T013 Aligner le défaut de création d'entrée sur le modèle produit (missing, HIGH, FR-012) : placement optionnel uniquement pour `database.entry.create`, UI sans placement implicite, maintien des placements explicites/existants ; preuves API/local/offline/export/recherche et corpus 1 001 sans encombrement de la racine. Le profil navigateur a distingué 12,8 s dans la résolution de rôle Playwright globale du déchiffrement local de 15 ms ; borner le locator au panneau.
+- [x] T013 Aligner le défaut de création d'entrée sur le modèle produit (résolu par les preuves ciblées ; gate de livraison final restant, FR-012) : placement optionnel uniquement pour `database.entry.create`, UI sans placement implicite, maintien des placements explicites/existants ; preuves API/local/offline/export/recherche et corpus 1 001 sans encombrement de la racine. Le profil navigateur a distingué 12,8 s dans la résolution de rôle Playwright globale du déchiffrement local de 15 ms ; borner le locator au panneau.
 
 ## Phase 5: Convergence
 

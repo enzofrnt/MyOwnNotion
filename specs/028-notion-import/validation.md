@@ -154,10 +154,10 @@ rejects more than 64 semantic nesting levels or 100,000 YAML AST nodes before
 green. Focused source, race, type and formatting checks pass. This is a
 portable replacement-detection boundary, not an OS-level filesystem lock.
 
-No0018 migration was needed. Feature026 source/embedding foundation is a
-dependency; feature013's backend is the branch base. The root integration task
-owns complete `checks:local`, independent review and publication. No push,
-pull request, merge or personal-stack operation was performed for028.
+No 0018 migration was needed. Feature 026 is a dependency and feature 013 is
+the branch base. At this historical checkpoint, no push, pull request or merge
+had been performed for the source feature branch; the current integration is
+recorded below. No personal APPLY was performed.
 
 ## Final convergence
 

@@ -9,7 +9,13 @@ Clarification de convergence avant T013 : le défaut de placement racine contred
 
 ## Convergence finale
 
-FR-001–012 et SC-001–005 sont couverts : T002–005 pour identité/registre/protection/synchronisation ; T006–009 pour sources réutilisées et conservation ; T011 pour curseurs, couverture locale et retour ; T012 pour lectures protégées groupées/versionnées ; T013 pour pages d'entrée sans placement implicite. Les 13 tâches sont réalisées. La comparaison finale du code et des artifacts n'a trouvé aucun travail fonctionnel restant dans 026 ; aucune nouvelle tâche n'est ajoutée artificiellement. Les limites de purge planifiée et de démarrage hors réseau non préparé sont explicites dans [validation.md](validation.md). La livraison reste conditionnée au gate global du parent après intégration des corrections 025.
+FR-001–012 et SC-001–005 disposent de preuves ciblées couvrant les tâches
+d'implémentation et de convergence jusqu'à T017, T019, T021 et T022. T018 et
+T020 restent ouverts pour la reprise des parcours historiques, la stabilité des
+boutons d'entrée et le gate intégré exact. Aucune nouvelle exigence produit
+n'est ajoutée ; la livraison reste conditionnée aux gates locaux, PR et main de
+l'intégration finale. Les limites de purge planifiée et de démarrage hors réseau
+non préparé sont explicites dans [validation.md](validation.md).
 
 
 ## T015 post-implementation consistency review
@@ -19,22 +25,19 @@ adds no property or view kind. The same validator handles legacy source views
 and embedded views. Public command refusal tests protect explicit placements,
 identities, typed values, conflict parents and impact confirmation. Task mapping
 and impact tests verify existing recovery semantics; the bulk relationship
-fixture checks the performance path against individual scoped reads. All 15
-feature task IDs are unique. Aggregate coverage passes on d1f2911d, while final
-full local, PR and main delivery gates remain explicit outstanding work.
+fixture checks the performance path against individual scoped reads. All 22
+feature task IDs are unique. Aggregate focused coverage passes on d1f2911d,
+while T018/T020 and the final full local, PR and main delivery gates remain
+outstanding.
 
 ## Integrated convergence reopened — 2026-09-08
 
 The complete Chromium run invalidates the earlier functional-convergence
 checkpoint: the new editable host/entry types bypassed the old page-creation
 journal predicate, and a pending checkbox write reverted its visible state.
-T016 and T017 address those runtime gaps under FR-002/003/004/008/010. T018
-corrects two obsolete host-ownership expectations and verifies the updated
-visual reference only after the host editor is actually ready. The specs keep
-their current product behavior; no cascade or implicit placement is reintroduced.
-Browser evidence now confirms T016/T017 on all five profiles. The reviewed
-macOS/Linux references show the expected ordinary editable host with its shared
-source. T019 separately fixes the released-property form exposed by the direct
-offline entry journey: local availability is presentation state, not a new wire
-field or a change to source ownership. T018 retains the complete local gate and
-PR/main verification as outstanding delivery work.
+T016 and T017 address those runtime gaps under FR-002/003/004/008/010. The
+convergence fixes address the reproduced host-creation, delayed-column and
+released-property defects. Focused browser evidence covers T016, T017 and T019;
+T018 and T020 remain open until the exact integrated gate and the required
+PR/main verification pass. The specs keep their current product behavior; no
+cascade or implicit placement is reintroduced.
