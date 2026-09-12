@@ -91,3 +91,7 @@ does not mark that follow-up implemented or delivered.
 - [ ] T029 Bound per-component archive-reader resources in `apps/api/src/backup/full/crypto.ts`: reproduce retained FileHandle close listeners across completed/cancelled reads, use bounded positional I/O without weakening authentication or truncation checks, verify archive and real recovery suites plus the existing performance budget, and record integration evidence (FR-007/FR-015/FR-016, audit A31).
 
 - [ ] T030 Run full-image recovery verification without a host Bun installation: parse the backup receipt with the tested image's pinned runtime, reproduce the CI host boundary locally with Bun absent from PATH, and retain full real restore, activation and provenance assertions plus renewed delivery gates.
+
+## Phase 10: Convergence
+
+- [x] T031 Harden remote retention and retry fairness in `apps/api/src/backup/full/service.ts` and `receipts.ts`: require a receipt marked `verified` plus an exact remote read-back before deleting an expired local artifact, preserve local copies for pending/failed remote protection when provider deletion is idempotent or unavailable, and persist bounded retry metadata so one durable failure cannot starve other receipts across restarts; accept legacy receipts with absent metadata and cover RED/GREEN regressions in `apps/api/tests/full-backup-service.integration.spec.ts` and metadata validation per FR-013/FR-014, SC-006 (partial).

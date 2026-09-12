@@ -107,6 +107,30 @@ it("keeps valid receipts while reporting corrupt, renamed and symlinked catalogu
   ).rejects.toThrow();
 });
 
+it("keeps legacy receipts readable while authenticating retry fairness metadata", async () => {
+  const store = new FullBackupReceipts(root, () => key);
+  await store.put(receipt);
+  expect(await store.list()).toEqual([receipt]);
+
+  const retried: FullBackupReceipt = {
+    ...receipt,
+    remote: "failed",
+    remoteRetryCount: 2,
+    remoteLastAttemptAt: now,
+  };
+  await store.put(retried);
+  expect(await store.list()).toEqual([retried]);
+
+  for (const invalid of [
+    { ...retried, remoteRetryCount: -1 },
+    { ...retried, remoteRetryCount: 1.5 },
+    { ...retried, remoteLastAttemptAt: "not-a-date" },
+  ]) {
+    await encrypted(join(root, `${id}.receipt`), invalid, "myownnotion.full-backup.receipt.v1");
+    expect(await store.scan()).toEqual({ receipts: [], invalidCount: 1 });
+  }
+});
+
 it.each([
   null,
   { ...receipt, formatVersion: 2 },

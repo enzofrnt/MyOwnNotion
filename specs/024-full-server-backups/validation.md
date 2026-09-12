@@ -278,6 +278,28 @@ interrupted at startup (exit 130) to integrate the reproduced native input fix
 014 T098. This remains an incomplete gate, not permission to push:
 `/tmp/mon-pre-v1-reader-resources-typed-full-gate.log`.
 
+### Remote retention and retry fairness convergence — 2026-09-12
+
+The RED regression reproduced two safety gaps in `FullBackupService`: retention
+could remove a local artifact when a configured provider returned success for an
+idempotent delete of an absent remote object, and `retryRemote()` repeatedly
+selected the newest failed receipt, starving older failures. The GREEN correction
+requires a `verified` receipt plus an exact remote read-back before remote/local
+deletion, and records optional authenticated `remoteRetryCount` and
+`remoteLastAttemptAt` fields. Receipts written before these fields remain valid;
+missing values default to zero/null during retry ordering. One retry remains the
+per-tick bound, and the persisted ordering survives a new service instance
+without changing `createdAt` or local `verifiedAt`.
+
+The focused integration file `apps/api/tests/full-backup-service.integration.spec.ts`
+passes **2/2 tests** (including the pre-existing upload/remote scenario). The new
+scenario first fails against the previous selector, then passes after correction:
+three durable remote failures are retried oldest-first across a service restart;
+failed receipts keep their local files when the remote has no object and delete
+is idempotent; a later exact remote verification permits pruning only the verified
+old copy. This is focused evidence only; full local, image, PR and main delivery
+gates remain T023/T024.
+
 ### Backup delivery branch refresh (2026-09-08)
 
 The standalone 024 delivery branch now includes desktop corrections through

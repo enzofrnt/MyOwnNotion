@@ -101,8 +101,21 @@ validated IANA zone. Last verified full backup, not attempt start or portable
 export, satisfies it. Retry a failed run on the five-minute tick; catch up at boot.
 Use interprocess locking and durable outcomes to avoid duplicate concurrent runs.
 Keep local success on remote failure, retry remote protection and preserve the
-latest verified artifact through retention. Expose full/local/remote/portable
-states separately; 26-hour stale protection is based on complete backups.
+latest verified artifact through retention. A configured remote must be proven
+to contain the receipt's exact bytes before an old local artifact is removed;
+remote deletion is attempted only after that read-back, and a `pending` or
+`failed` receipt is retained locally even when the provider treats deletion of a
+missing object as success. Expose full/local/remote/portable states separately;
+26-hour stale protection is based on complete backups.
+
+Remote retries remain bounded to one artifact per scheduler tick. Receipts may
+carry optional authenticated `remoteRetryCount` and `remoteLastAttemptAt`
+metadata. Missing fields in older receipts mean zero attempts and no previous
+attempt, so they remain readable without migration. Selection orders the least
+attempted artifact first, then the oldest attempt and creation boundary; each
+attempt updates only this retry metadata and never rewrites `createdAt`,
+`verifiedAt` or remote verification provenance. Persisting that metadata in the
+receipt keeps the rotation fair after a process restart without exposing secrets.
 
 ## UI and validation
 
