@@ -445,15 +445,7 @@ export class FileStorageMigration {
         )
       )
         throw new Error("Canonical metadata identities or values changed during migration.");
-      for (const source of sources) {
-        if (
-          source.kind === "metadata" &&
-          (await canonicalMetadataDigest(tx, this.deps.files.deps.content, source, {
-            requireProtected: true,
-          })) !== source.digest
-        )
-          throw new Error("Protected canonical metadata changed before final verification.");
-      }
+      await this.assertProtectedCanonicalMetadata(tx, transitionId);
       await this.assertNoReadableSources(tx);
       await advanceStorageTransition(tx, {
         id: transitionId,
@@ -462,6 +454,36 @@ export class FileStorageMigration {
         now: this.now(),
       });
     });
+  }
+
+  private async assertProtectedCanonicalMetadata(
+    tx: Transaction,
+    transitionId: string,
+  ): Promise<void> {
+    const entries = await tx
+      .select()
+      .from(schema.fileStorageTransitionEntries)
+      .where(
+        and(
+          eq(schema.fileStorageTransitionEntries.transitionId, transitionId),
+          eq(schema.fileStorageTransitionEntries.kind, "metadata"),
+        ),
+      );
+    for (const entry of entries) {
+      const source = await this.read<CanonicalMetadataSource>(
+        tx,
+        "file.transition-source",
+        entry.id,
+      );
+      if (
+        source.kind !== "metadata" ||
+        source.objectId !== entry.objectId ||
+        (await canonicalMetadataDigest(tx, this.deps.files.deps.content, source, {
+          requireProtected: true,
+        })) !== source.digest
+      )
+        throw new Error("Protected canonical metadata changed during the transition.");
+    }
   }
 
   private async assertNoReadableSources(tx: Transaction): Promise<void> {
@@ -489,6 +511,7 @@ export class FileStorageMigration {
     await this.deps.db.transaction(async (tx) => {
       await enterStorageTransition(tx, transitionId);
       await lockFullFileMaintenance(tx);
+      await this.assertProtectedCanonicalMetadata(tx, transitionId);
       await this.assertNoReadableSources(tx);
       await advanceStorageTransition(tx, {
         id: transitionId,
@@ -538,6 +561,7 @@ export class FileStorageMigration {
           )
         )
           throw new Error("The completed storage transition lost a retired checkpoint.");
+        await this.assertProtectedCanonicalMetadata(tx, transitionId);
         await this.assertNoReadableSources(tx);
         await advanceStorageTransition(tx, {
           id: transitionId,
