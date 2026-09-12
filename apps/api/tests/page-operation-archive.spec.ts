@@ -307,6 +307,35 @@ describe("operational archive envelope", () => {
     ).toThrow("not serializable");
   });
 
+  it("rejects NUL characters before serializing or reading free operational text", () => {
+    const page = minimalPage();
+    const invalidAmbiguity = {
+      ...EMPTY_ARCHIVE,
+      pages: [
+        {
+          ...page,
+          ambiguities: [{ logicalKey: `bad${String.fromCharCode(0)}key` }],
+        },
+      ],
+      counts: { ...EMPTY_COUNTS, pages: 1, ambiguities: 1 },
+    } as unknown as PageOperationArchive;
+    expect(() => pageOperationArchiveString(invalidAmbiguity)).toThrow(/U\+0000/);
+    expect(() => readPageOperationArchive(invalidAmbiguity)).toThrow(/U\+0000/);
+
+    const invalidUpdate = {
+      ...EMPTY_ARCHIVE,
+      pages: [
+        {
+          ...page,
+          updates: [{ failureCode: `bad${String.fromCharCode(0)}code` }],
+        },
+      ],
+      counts: { ...EMPTY_COUNTS, pages: 1, updates: 1 },
+    } as unknown as PageOperationArchive;
+    expect(() => pageOperationArchiveString(invalidUpdate)).toThrow(/U\+0000/);
+    expect(() => readPageOperationArchive(invalidUpdate)).toThrow(/U\+0000/);
+  });
+
   it("deduplicates device references and lets an explicit revoked frontier win", () => {
     const activeId = generateUuidV7();
     const revokedId = generateUuidV7();

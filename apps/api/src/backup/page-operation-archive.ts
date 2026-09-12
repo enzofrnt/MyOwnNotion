@@ -169,6 +169,40 @@ function openArchivedFrontier(frontier: ArchivedFrontier): ProtectedOperationalF
   return { versionVector: decoded(frontier.versionVector), frontiers: decoded(frontier.frontiers) };
 }
 
+function findNulPath(value: unknown): string | null {
+  const pending: Array<{ readonly value: unknown; readonly path: string }> = [{ value, path: "$" }];
+  const visited = new WeakSet<object>();
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined) continue;
+    if (typeof current.value === "string") {
+      if (current.value.includes("\u0000")) return current.path;
+      continue;
+    }
+    if (typeof current.value !== "object" || current.value === null) continue;
+    if (visited.has(current.value)) continue;
+    visited.add(current.value);
+    if (Array.isArray(current.value)) {
+      for (let index = current.value.length - 1; index >= 0; index -= 1) {
+        pending.push({ value: current.value[index], path: `${current.path}[${index}]` });
+      }
+      continue;
+    }
+    const entries = Object.entries(current.value);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const [key, child] = entries[index] as [string, unknown];
+      if (key.includes("\u0000")) return `${current.path}.<object-key-with-U+0000>`;
+      pending.push({ value: child, path: `${current.path}.${key}` });
+    }
+  }
+  return null;
+}
+
+function rejectNul(value: unknown): void {
+  const path = findNulPath(value);
+  if (path !== null) throw new TypeError(`operational backup contains U+0000 at ${path}`);
+}
+
 function mergeVersionVectorBytes(left: Uint8Array, right: Uint8Array): Uint8Array {
   const merged = new Map(VersionVector.decode(left).toJSON());
   for (const [peer, counter] of VersionVector.decode(right).toJSON()) {
@@ -193,6 +227,7 @@ function canonicalJson(value: unknown): string {
 }
 
 export function pageOperationArchiveString(archive: PageOperationArchive): string {
+  rejectNul(archive);
   return canonicalJson(archive);
 }
 
@@ -660,6 +695,7 @@ function validateCrossInvariants(archive: PageOperationArchive): void {
 }
 
 export function readPageOperationArchive(value: unknown): PageOperationArchive {
+  rejectNul(value);
   if (!isRecord(value)) throw new TypeError("operational backup is not an object");
   if (
     value["format"] !== PAGE_OPERATION_ARCHIVE_FORMAT ||

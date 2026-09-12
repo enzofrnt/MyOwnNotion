@@ -360,6 +360,60 @@ describe("streaming archive writing", () => {
     ).toMatchObject({ ok: false, reason: expect.stringMatching(/operational page state/i) });
   });
 
+  it("rejects U+0000 in operational text before production, inspection or target.begin", async () => {
+    const canonical = emptyCanonical();
+    const operationalObject = JSON.parse(emptyInitializingOperationalState()) as {
+      pages: Array<Record<string, unknown>>;
+      counts: Record<string, number>;
+    };
+    const page = operationalObject.pages[0];
+    if (page === undefined) throw new Error("the operational fixture has no page");
+    page["ambiguities"] = [{ logicalKey: `bad${String.fromCharCode(0)}key` }];
+    operationalObject.counts["ambiguities"] = 1;
+    const operationalState = JSON.stringify(operationalObject);
+    const manifest = manifestFor(canonical, [], {
+      formatVersion: 2,
+      operationalFormatVersion: 1,
+      operationalStateDigest: digest(Buffer.from(operationalState)),
+      operationalPageCount: 1,
+      operationalCheckpointCount: 0,
+      operationalUpdateCount: 0,
+    });
+
+    const stream = streamBackupArchive({
+      manifest,
+      canonicalExport: canonical,
+      operationalState,
+      readFile: async function* () {},
+    });
+    await expect(stream.next()).rejects.toThrow(/operational page state/i);
+
+    const archive = encodeUncheckedBackupArchive({
+      manifest,
+      canonicalExport: canonical,
+      operationalState,
+      files: new Map(),
+    });
+    expect(inspectBackupArchive(archive)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/operational page state/i),
+    });
+
+    let began = false;
+    await expect(
+      applyArchive(archive, {
+        begin: async () => {
+          began = true;
+        },
+        writeFile: async () => {},
+        writeItem: async () => {},
+        writeRevision: async () => {},
+        writeRelationship: async () => {},
+      }),
+    ).rejects.toThrow(/operational page state/i);
+    expect(began).toBe(false);
+  });
+
   it("refuses a malformed V1 canonical export before emitting output", async () => {
     const canonical = JSON.stringify({ items: [], relationships: [], revisions: [] });
     const stream = streamBackupArchive({
