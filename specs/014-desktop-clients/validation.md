@@ -694,3 +694,18 @@ The 55d74ada full local gate passed 3,667 coverage tests, eight performance grou
 It was deliberately stopped during the browser matrix to incorporate the proven
 runtime repair, so it is not pre-push success. Full local and remote gates remain
 required on the updated candidate.
+
+### T106 Markdown tokenizer dependency patch
+
+The September 12 production audit reports high-severity
+GHSA-j95f-988m-3j2f in Tiptap core 3.30.1. The isolated public-tokenizer
+regression reproduces a blocked child process on crafted attributes and
+terminates it at the hard deadline. Tiptap 3.30.5 removes the advisory from
+`security:audit`; the audit reports no high/critical findings. Application
+reachability of the optional Markdown helpers is not claimed.
+
+A frozen Bun install succeeds without peer warnings. Resolution from the web
+application, BlockNote core and BlockNote React reaches the same real module
+for Tiptap core and ProseMirror model/state. Existing focused editor tests
+(116 cases across 16 files) and strict workspace types pass. Full local, image,
+PR and main checks must still pass on the committed candidate before delivery.
