@@ -452,6 +452,20 @@ describe("validateCreateRelationship", () => {
     }
   });
 
+  it("rejects null metadata", () => {
+    const result = validateCreateRelationship(getItem, {
+      id: generateUuidV7(),
+      sourceItemId: source,
+      targetItemId: target,
+      relationType: "link:references",
+      metadata: null as unknown as Readonly<Record<string, unknown>>,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("validation.invalid-payload");
+    }
+  });
+
   it("reserves only the exact protected-storage metadata object", () => {
     const reserved = validateCreateRelationship(getItem, {
       id: generateUuidV7(),

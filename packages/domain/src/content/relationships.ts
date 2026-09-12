@@ -64,7 +64,7 @@ export function validateCreateRelationship(
   if (target === null || target.lifecycle === "purged") {
     return err("relationship.endpoint-unavailable", "Target item is unavailable");
   }
-  const metadata = command.metadata ?? {};
+  const metadata = command.metadata === undefined ? {} : command.metadata;
   if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
     return err("validation.invalid-payload", "Relationship metadata must be an object");
   }
