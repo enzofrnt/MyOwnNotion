@@ -22,8 +22,10 @@ import {
   OPERATIONAL_FORMAT_VERSION,
   type OperationalPageCheckpoint,
   OperationalPageDocument,
+  operationalFrontiersEqual,
   sha256Hex,
   versionVectorBytesEqual,
+  versionVectorDominates,
 } from "@myownnotion/page-state";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { PageCheckpointRetentionContext } from "../page-state/checkpoint-service.ts";
@@ -1077,6 +1079,26 @@ export class PageOperationArchiveService {
       }
     };
 
+    const verifyFrontierAgainstDocument = (
+      document: OperationalPageDocument,
+      frontier: ArchivedFrontier,
+      path: string,
+    ): void => {
+      const versionVector = decoded(frontier.versionVector);
+      if (!versionVectorDominates(document.versionVectorBytes(), versionVector)) {
+        throw new TypeError(`an operational ${path} is ahead of the archived document`);
+      }
+      let derived: Uint8Array;
+      try {
+        derived = document.frontiersForVersionVector(versionVector);
+      } catch {
+        throw new TypeError(`an operational ${path} cannot be derived from its version vector`);
+      }
+      if (!operationalFrontiersEqual(derived, decoded(frontier.frontiers))) {
+        throw new TypeError(`an operational ${path} does not match its version vector`);
+      }
+    };
+
     const verifyCanonicalPage = async (page: ArchivedPageOperationState): Promise<void> => {
       if (canonicalExport === undefined) return;
       const canonicalEnvelope = canonicalItems.get(page.pageId);
@@ -1150,6 +1172,7 @@ export class PageOperationArchiveService {
         }
       }
       const document = await this.#openCheckpoint(page, current);
+      verifyFrontierAgainstDocument(document, current.frontier, "checkpoint frontier");
       const ordered = [...page.updates].sort(
         (left, right) => left.pageSequence - right.pageSequence,
       );
@@ -1160,6 +1183,13 @@ export class PageOperationArchiveService {
         throw new TypeError("an operational backup has a non-contiguous update log");
       }
       for (const update of ordered) {
+        const coveredByCurrentCheckpoint = update.pageSequence <= current.throughPageSequence;
+        if (coveredByCurrentCheckpoint) {
+          verifyFrontierAgainstDocument(document, update.resultFrontier, "update result frontier");
+        }
+        if (update.baseFrontier !== null) {
+          verifyFrontierAgainstDocument(document, update.baseFrontier, "update base frontier");
+        }
         if (update.updateBytes === null) {
           if (update.pageSequence > current.throughPageSequence) {
             throw new TypeError("an update after the current checkpoint has no bytes");
@@ -1170,7 +1200,7 @@ export class PageOperationArchiveService {
         if ((await sha256Hex(bytes)) !== update.updateDigest) {
           throw new TypeError("an operational update does not match its digest");
         }
-        if (update.pageSequence <= current.throughPageSequence) continue;
+        if (coveredByCurrentCheckpoint) continue;
         const imported = document.importUpdate(bytes);
         if (
           imported.pending ||
@@ -1181,8 +1211,20 @@ export class PageOperationArchiveService {
         ) {
           throw new TypeError("an operational update cannot be reconstructed from the backup");
         }
+        verifyFrontierAgainstDocument(document, update.resultFrontier, "update result frontier");
       }
       const projection = await document.project();
+      verifyFrontierAgainstDocument(document, page.currentFrontier, "current frontier");
+      if (page.revisionWindowFrontier !== null) {
+        verifyFrontierAgainstDocument(
+          document,
+          page.revisionWindowFrontier,
+          "revision-window frontier",
+        );
+      }
+      for (const frontier of page.deviceFrontiers) {
+        verifyFrontierAgainstDocument(document, frontier.frontier, "device frontier");
+      }
       if (
         projection.canonicalDigest !== page.canonicalDigest ||
         projection.operationalDigest !== page.operationalDigest ||

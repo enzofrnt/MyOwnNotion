@@ -291,9 +291,7 @@ describe("operational archive envelope", () => {
   it("rejects timestamps that Date.parse normalizes instead of emitting canonically", async () => {
     const { archive } = await validArchive();
     expect(() =>
-      readPageOperationArchive(
-        withPage(archive, { updatedAt: "2026-02-30T10:00:00.000Z" }),
-      ),
+      readPageOperationArchive(withPage(archive, { updatedAt: "2026-02-30T10:00:00.000Z" })),
     ).toThrow("timestamp");
   });
 
@@ -669,6 +667,76 @@ describe("operational archive verification", () => {
         }),
       ),
     ).rejects.toThrow("cannot be reconstructed");
+  });
+
+  it("rejects a frontier whose causal version is paired with different frontier ids", async () => {
+    const { archive } = await validArchive({ withUpdate: true });
+    const page = archive.pages[0];
+    const update = page?.updates[0];
+    const checkpoint = page?.checkpoints[0];
+    if (
+      page === undefined ||
+      update === undefined ||
+      checkpoint === undefined ||
+      page.currentFrontier === null
+    ) {
+      throw new Error("invalid update fixture");
+    }
+
+    await expect(
+      service().verify(
+        withPage(archive, {
+          currentFrontier: { ...page.currentFrontier, frontiers: checkpoint.frontier.frontiers },
+        }),
+      ),
+    ).rejects.toThrow("current frontier");
+    await expect(
+      service().verify(
+        withPage(archive, {
+          updates: [
+            {
+              ...update,
+              resultFrontier: {
+                ...update.resultFrontier,
+                frontiers: checkpoint.frontier.frontiers,
+              },
+            },
+          ],
+        }),
+      ),
+    ).rejects.toThrow("result frontier");
+  });
+
+  it("rejects a revision-window or device frontier whose ids do not derive from its version", async () => {
+    const { archive } = await validArchive({ withUpdate: true });
+    const page = archive.pages[0];
+    const checkpoint = page?.checkpoints[0];
+    if (page === undefined || checkpoint === undefined || page.currentFrontier === null) {
+      throw new Error("invalid fixture");
+    }
+    const deviceId = generateUuidV7();
+    const changed = withPage(archive, {
+      revisionWindowStartedAt: "2026-08-23T10:00:00.000Z",
+      revisionWindowLastUpdateAt: "2026-08-23T10:00:01.000Z",
+      revisionWindowFrontier: {
+        ...page.currentFrontier,
+        frontiers: checkpoint.frontier.frontiers,
+      },
+      deviceFrontiers: [
+        {
+          deviceId,
+          frontier: { ...page.currentFrontier, frontiers: checkpoint.frontier.frontiers },
+          frontierDigest: await sha256Hex(
+            Buffer.from(page.currentFrontier.versionVector, "base64url"),
+          ),
+          confirmedPageSequence: 0,
+          recordVersion: 1,
+          lastConfirmedAt: "2026-08-23T10:00:01.000Z",
+          deviceState: "authorized" as const,
+        },
+      ],
+    });
+    await expect(service().verify(changed)).rejects.toThrow(/frontier/iu);
   });
 
   it("checks retained update digests even when the current checkpoint includes them", async () => {
