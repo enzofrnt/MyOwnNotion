@@ -138,6 +138,17 @@ it("migrates authored legacy placeholder names without confusing them with scrub
     );
     await db.insert(schema.protectedEnvelopes).values(presentationEnvelope);
     await migration.finishVerification(transition.id);
+    await db
+      .delete(schema.protectedEnvelopes)
+      .where(
+        and(
+          eq(schema.protectedEnvelopes.entityId, page.itemId),
+          eq(schema.protectedEnvelopes.entityType, "item.name"),
+        ),
+      );
+    await expect(migration.cutover(transition.id)).rejects.toThrow(/unavailable/);
+    expect((await db.select().from(schema.fileStorageTransitions))[0]?.phase).toBe("verified");
+    await db.insert(schema.protectedEnvelopes).values(presentationEnvelope);
     await migration.cutover(transition.id);
     while (await migration.retireNext(transition.id)) {
       /* authenticated source retirement */
@@ -169,6 +180,103 @@ it("migrates authored legacy placeholder names without confusing them with scrub
           .where(inArray(schema.revisions.id, [page.revisionId, fileRevisionId]))
       ).every((revision) => revision.snapshot === null),
     ).toBe(true);
+  } finally {
+    await harness.close();
+  }
+});
+
+it("revalidates retired canonical metadata before completing the transition", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedFiles: files } = harness.built.context;
+    if (files === undefined) throw new Error("Missing protected runtime");
+    const page = await createItemViaApi(harness, { kind: "page", name: "Completion guard" });
+    const records = new ProtectedRecordService({
+      db,
+      keys: files.deps.keys,
+      workspaceId: files.deps.workspaceId,
+      installationId: files.deps.installationId,
+      now: () => new Date(),
+    });
+    const migration = new FileStorageMigration({
+      db,
+      files,
+      records,
+      blobRoot: harness.blobRoot,
+      verifySourceBackup: async () => {},
+    });
+    const transition = await migration.prepare(generateUuidV7());
+    while (await migration.publishMetadataNext(transition.id)) {
+      /* durable metadata batches */
+    }
+    await migration.finishVerification(transition.id);
+    await migration.cutover(transition.id);
+
+    const entries = await db
+      .select()
+      .from(schema.fileStorageTransitionEntries)
+      .where(eq(schema.fileStorageTransitionEntries.transitionId, transition.id));
+    let itemEntryId: string | null = null;
+    for (const entry of entries) {
+      if (entry.kind !== "metadata") continue;
+      const payload = await records.read(db, {
+        entityType: "file.transition-source",
+        entityId: entry.id,
+        recordVersion: 1,
+      });
+      if (payload === null) throw new Error("Missing transition source");
+      try {
+        const source = JSON.parse(new TextDecoder().decode(payload)) as {
+          category?: string;
+          entityId?: string;
+        };
+        if (source.category === "item" && source.entityId === page.itemId) itemEntryId = entry.id;
+      } finally {
+        payload.fill(0);
+      }
+    }
+    if (itemEntryId === null) throw new Error("Missing item transition checkpoint");
+    while (
+      (
+        await db
+          .select({ phase: schema.fileStorageTransitionEntries.phase })
+          .from(schema.fileStorageTransitionEntries)
+          .where(eq(schema.fileStorageTransitionEntries.id, itemEntryId))
+      )[0]?.phase !== "retired"
+    ) {
+      expect(await migration.retireNext(transition.id)).toBe(true);
+    }
+
+    const [presentationEnvelope] = await db
+      .select()
+      .from(schema.protectedEnvelopes)
+      .where(
+        and(
+          eq(schema.protectedEnvelopes.entityId, page.itemId),
+          eq(schema.protectedEnvelopes.entityType, "item.name"),
+        ),
+      );
+    if (presentationEnvelope === undefined) throw new Error("Missing protected presentation");
+    await db
+      .delete(schema.protectedEnvelopes)
+      .where(eq(schema.protectedEnvelopes.id, presentationEnvelope.id));
+    while (
+      (
+        await db
+          .select({ phase: schema.fileStorageTransitionEntries.phase })
+          .from(schema.fileStorageTransitionEntries)
+          .where(eq(schema.fileStorageTransitionEntries.transitionId, transition.id))
+      ).some((entry) => entry.phase === "verified")
+    ) {
+      expect(await migration.retireNext(transition.id)).toBe(true);
+    }
+    await expect(migration.retireNext(transition.id)).rejects.toThrow(/unavailable/);
+    expect((await db.select().from(schema.fileStorageTransitions))[0]?.phase).toBe(
+      "retiring-sources",
+    );
+    await db.insert(schema.protectedEnvelopes).values(presentationEnvelope);
+    expect(await migration.retireNext(transition.id)).toBe(false);
+    expect((await db.select().from(schema.fileStorageTransitions))[0]?.phase).toBe("complete");
   } finally {
     await harness.close();
   }
