@@ -313,6 +313,25 @@ API suite passes **25/25 tests**; API typechecking, Biome checks and diff checks
 also pass. The full `checks:local` gate must be rerun on the resulting commit;
 T023/T024 remain open until that evidence exists.
 
+### T032 — Monthly full-restore rehearsal invitation — 2026-09-12
+
+The RED Playwright assertions in `tests/e2e/full-backup-ui.spec.ts` require a
+visible `full-backup-rehearsal-due` state for both an overdue verified backup and
+an installation with no verified backup. They also retain the existing keyboard
+journey: the `run-full-rehearsal` button is focused, survives a failed rehearsal,
+and remains focused for the retry and refreshed status. The GREEN implementation
+uses the shared `AsyncState` primitive in the complete-backup panel; the button
+stays in its existing DOM position so its focus and click target do not move when
+the due state or run state changes. The absent-backup copy explains the disabled
+precondition instead of suggesting a runnable rehearsal. The behavior traces to
+canvas sections 30 (complete protection) and 31 (at least monthly test restore).
+
+Focused E2E execution was attempted on this macOS checkout but the configured
+API web server did not become healthy within Playwright's 120-second startup
+window, so no browser pass is claimed here. Web typechecking and formatting/lint
+checks are recorded with the implementation commit; the full delivery gates
+remain T023/T024.
+
 ### Backup delivery branch refresh (2026-09-08)
 
 The standalone 024 delivery branch now includes desktop corrections through

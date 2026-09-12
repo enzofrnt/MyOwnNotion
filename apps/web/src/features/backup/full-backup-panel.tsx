@@ -132,6 +132,18 @@ export function FullBackupPanel({
               Un essai restaure la base et les fichiers dans un espace temporaire isolé. Vos données
               en cours restent en place.
             </p>
+            {status.rehearsalDue ? (
+              <AsyncState
+                kind="pending"
+                title="Un test de restauration mensuel est à prévoir."
+                description={
+                  status.lastVerifiedBackupId === null
+                    ? "Une sauvegarde complète vérifiée sera nécessaire pour lancer ce test."
+                    : "Le dernier test remonte à plus d’un mois. Le bouton reste disponible pour le relancer."
+                }
+                testId="full-backup-rehearsal-due"
+              />
+            ) : null}
             <p>
               Dernier essai : {moment(status.lastRehearsalAt)}
               {status.lastRehearsalOutcome === null

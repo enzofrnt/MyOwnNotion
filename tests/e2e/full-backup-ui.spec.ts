@@ -63,6 +63,9 @@ for (const theme of ["dark", "light"] as const) {
     await expect(panel.getByTestId("full-backup-remote-pending")).toContainText(
       "copie complète locale est conservée",
     );
+    await expect(panel.getByTestId("full-backup-rehearsal-due")).toContainText(
+      "test de restauration mensuel",
+    );
     const run = panel.getByRole("button", { name: "Tester la restauration complète" });
     await run.focus();
     await page.keyboard.press("Enter");
@@ -116,6 +119,9 @@ test("an absent complete backup stays explicit even with portable exports, and c
   await expect(panel.getByTestId("full-backup-local-status")).toContainText("26 dernières heures");
   await expect(panel.getByTestId("full-backup-attempt")).toContainText(
     "n’a pas enregistré de résultat",
+  );
+  await expect(panel.getByTestId("full-backup-rehearsal-due")).toContainText(
+    "test de restauration mensuel",
   );
   await expect(panel.getByTestId("run-full-rehearsal")).toBeDisabled();
 });
