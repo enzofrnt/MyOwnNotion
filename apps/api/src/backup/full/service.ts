@@ -73,8 +73,9 @@ function compareRemoteRetryPriority(left: FullBackupReceipt, right: FullBackupRe
     value.remoteLastAttemptAt === undefined || value.remoteLastAttemptAt === null
       ? Number.NEGATIVE_INFINITY
       : Date.parse(value.remoteLastAttemptAt);
-  const attemptDifference = lastAttempt(left) - lastAttempt(right);
-  if (attemptDifference !== 0) return attemptDifference;
+  const leftAttempt = lastAttempt(left);
+  const rightAttempt = lastAttempt(right);
+  if (leftAttempt !== rightAttempt) return leftAttempt - rightAttempt;
 
   const createdDifference = left.createdAt.localeCompare(right.createdAt);
   return createdDifference !== 0 ? createdDifference : left.backupId.localeCompare(right.backupId);

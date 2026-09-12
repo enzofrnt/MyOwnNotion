@@ -292,6 +292,19 @@ is idempotent; a later exact remote verification permits pruning only the verifi
 old copy. This is focused evidence only; full local, image, PR and main delivery
 gates remain T023/T024.
 
+### Coverage budget follow-up — 2026-09-12
+
+The packaged local gate at commit `a29fa06e` reached all tests and failed only
+the global branch budget, with 2,473 uncovered branches against the 2,465 limit.
+The focused regressions now also cover equal-age legacy receipts whose retry
+timestamps are absent, including deterministic backup-identity ordering, and the
+publication-size guard that refuses to write a receipt after an archive changes.
+The legacy comparator correction treats two absent timestamps as equal instead of
+propagating `NaN`, so the identity tie-breaker is reachable and fair. The targeted
+API suite passes **25/25 tests**; API typechecking, Biome checks and diff checks
+also pass. The full `checks:local` gate must be rerun on the resulting commit;
+T023/T024 remain open until that evidence exists.
+
 ### Backup delivery branch refresh (2026-09-08)
 
 The standalone 024 delivery branch now includes desktop corrections through
