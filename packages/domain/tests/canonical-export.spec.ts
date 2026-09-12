@@ -511,7 +511,7 @@ describe("validateCanonicalExport", () => {
             : entry,
       ),
     };
-    expect(validateCanonicalExport(cyclic).map((issue) => issue.code)).toContain(
+    expect(validateCanonicalExport(cyclic as never).map((issue) => issue.code)).toContain(
       "placement.hierarchy-cycle",
     );
   });
@@ -546,6 +546,30 @@ describe("validateCanonicalExport", () => {
     expect(validateCanonicalExport(manifest).map((issue) => issue.code)).toContain(
       "revision.parent-missing",
     );
+  });
+
+  it("rejects cycles in revision lineage", () => {
+    const manifest = consistentFixture();
+    const firstRevision = manifest.revisions[0];
+    if (firstRevision === undefined) throw new Error("fixture missing revision");
+    const secondRevisionId = generateUuidV7();
+    const cyclic = {
+      ...manifest,
+      revisions: [
+        ...manifest.revisions.map((revision) =>
+          revision.id === firstRevision.id
+            ? { ...revision, parentRevisionIds: [secondRevisionId] }
+            : revision,
+        ),
+        {
+          ...firstRevision,
+          id: secondRevisionId,
+          parentRevisionIds: [firstRevision.id],
+        },
+      ],
+      counts: { ...manifest.counts, revisions: manifest.counts.revisions + 1 },
+    };
+    expect(validateCanonicalExport(cyclic).map((issue) => issue.code)).toContain("revision.cycle");
   });
 
   it("detects structured count and identity mismatches", () => {

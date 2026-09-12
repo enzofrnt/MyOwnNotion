@@ -356,13 +356,11 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
       continue;
     }
     const icon = item["icon"];
-    const iconValid =
-      isLegacy
-        ? icon === undefined ||
-          icon === null ||
-          (typeof icon === "string" && icon.length >= 1 && icon.length <= 64)
-        : icon === null ||
-          (typeof icon === "string" && icon.length >= 1 && icon.length <= 64);
+    const iconValid = isLegacy
+      ? icon === undefined ||
+        icon === null ||
+        (typeof icon === "string" && icon.length >= 1 && icon.length <= 64)
+      : icon === null || (typeof icon === "string" && icon.length >= 1 && icon.length <= 64);
     if (
       !isIdentifier(item["id"]) ||
       !isIdentifier(item["workspaceId"]) ||
@@ -626,6 +624,15 @@ export function validateCanonicalExport(
     issues.push({
       code: "placement.hierarchy-cycle",
       detail: "Canonical export contains a cycle in item hierarchy placements",
+    });
+  }
+  const revisionParents = new Map(
+    manifest.revisions.map((revision) => [revision.id, revision.parentRevisionIds]),
+  );
+  if (hasDirectedCycle(revisionIds, revisionParents)) {
+    issues.push({
+      code: "revision.cycle",
+      detail: "Canonical export contains a cycle in revision lineage",
     });
   }
 

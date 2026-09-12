@@ -41,6 +41,11 @@ const TEST_ITEM = "00000000-0000-7000-8000-000000000002";
 const TEST_REVISION = "00000000-0000-7000-8000-000000000003";
 const TEST_MUTATION = "00000000-0000-7000-8000-000000000004";
 const TEST_RELATIONSHIP = "00000000-0000-7000-8000-000000000005";
+const TEST_SECOND_ITEM = "00000000-0000-7000-8000-000000000006";
+const TEST_SECOND_REVISION = "00000000-0000-7000-8000-000000000007";
+const TEST_SECOND_MUTATION = "00000000-0000-7000-8000-000000000008";
+const TEST_FIRST_PLACEMENT = "00000000-0000-7000-8000-000000000009";
+const TEST_SECOND_PLACEMENT = "00000000-0000-7000-8000-000000000010";
 
 /**
  * A well-formed archive, with the manifest merged rather than replaced.
@@ -130,6 +135,73 @@ function archive(
     canonicalExport,
     ...(operationalState === undefined ? {} : { operationalState }),
     files: includeFile ? new Map([[DIGEST, Buffer.from("abc")]]) : new Map(),
+  });
+}
+
+function cyclicCanonical(kind: "hierarchy" | "revision"): string {
+  const hierarchy = kind === "hierarchy";
+  const itemIds = hierarchy ? [TEST_ITEM, TEST_SECOND_ITEM] : [TEST_ITEM];
+  const revisionIds = hierarchy
+    ? [TEST_REVISION, TEST_SECOND_REVISION]
+    : [TEST_REVISION, TEST_SECOND_REVISION];
+  const items = itemIds.map((id, index) => ({
+    id,
+    workspaceId: TEST_WORKSPACE,
+    kind: "folder",
+    name: `item-${index}`,
+    icon: null,
+    lifecycle: "active",
+    trashedAt: null,
+    purgeAfter: null,
+    currentRevisionId: revisionIds[index],
+    favourite: false,
+    offlineIntent: false,
+    pageDocument: null,
+    file: null,
+    placements: hierarchy
+      ? [
+          {
+            id: index === 0 ? TEST_FIRST_PLACEMENT : TEST_SECOND_PLACEMENT,
+            workspaceId: TEST_WORKSPACE,
+            itemId: id,
+            itemIsFile: false,
+            kind: "hierarchy",
+            parentItemId: index === 0 ? TEST_SECOND_ITEM : TEST_ITEM,
+            positionKey: "V",
+            removedAt: null,
+          },
+        ]
+      : [],
+  }));
+  const revisions = revisionIds.map((id, index) => ({
+    id,
+    itemId: hierarchy ? itemIds[index] : TEST_ITEM,
+    mutationId: index === 0 ? TEST_MUTATION : TEST_SECOND_MUTATION,
+    parentRevisionIds: hierarchy ? [] : index === 0 ? [TEST_SECOND_REVISION] : [TEST_REVISION],
+    acceptedAt: "2026-08-18T04:00:00.000Z",
+  }));
+  return JSON.stringify({
+    format: "myownnotion.export+json",
+    formatVersion: 2,
+    workspaceId: TEST_WORKSPACE,
+    schemaVersion: 1,
+    exportedAt: "2026-08-18T04:00:00.000Z",
+    changeCursor: "42",
+    items,
+    databases: [],
+    databaseEntries: [],
+    relationships: [],
+    revisions,
+    counts: {
+      items: items.length,
+      activeItems: items.length,
+      trashedItems: 0,
+      placements: hierarchy ? 2 : 0,
+      relationships: 0,
+      revisions: revisions.length,
+      databases: 0,
+      databaseEntries: 0,
+    },
   });
 }
 
@@ -459,6 +531,41 @@ describe("writing a checked archive", () => {
     ).rejects.toThrow(/canonical export/i);
     expect(calls).toEqual([]);
   });
+
+  it.each(["hierarchy", "revision"] as const)(
+    "refuses a %s cycle before target.begin",
+    async (kind) => {
+      const canonical = cyclicCanonical(kind);
+      const calls: string[] = [];
+      await expect(
+        applyArchive(
+          archive(
+            { files: [], itemCount: kind === "hierarchy" ? 2 : 1, fileCount: 0 },
+            false,
+            canonical,
+          ),
+          {
+            begin: async () => {
+              calls.push("begin");
+            },
+            writeFile: async () => {
+              calls.push("file");
+            },
+            writeRevision: async () => {
+              calls.push("revision");
+            },
+            writeItem: async () => {
+              calls.push("item");
+            },
+            writeRelationship: async () => {
+              calls.push("relationship");
+            },
+          },
+        ),
+      ).rejects.toThrow(/canonical export|cycle/i);
+      expect(calls).toEqual([]);
+    },
+  );
 
   it("refuses a legacy page absent from the canonical page inventory before target.begin", async () => {
     const operationalState = legacyOperationalState();
