@@ -67,6 +67,12 @@ async function createUploadWithIdentity(
 }
 
 describe("creating an upload", () => {
+  it("refuses the protected-content placeholder before accepting a resumable transfer", async () => {
+    const response = await createUploadOf(4, "\uFFFD");
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json()).toMatchObject({ code: "validation.invalid-name" });
+  });
+
   it("answers with a location and a zero offset", async () => {
     const response = await createUploadOf(120);
     expect(response.statusCode).toBe(201);

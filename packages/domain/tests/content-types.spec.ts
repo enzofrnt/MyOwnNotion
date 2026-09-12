@@ -8,7 +8,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { MemoryGraph } from "./helpers/memory-view.ts";
 
-describe("canonical item icon", () => {
+describe("canonical display name", () => {
   it("keeps the existing display-name upper bound explicit", () => {
     expect(normalizeDisplayName("x".repeat(513))).toMatchObject({
       ok: false,
@@ -16,6 +16,25 @@ describe("canonical item icon", () => {
     });
   });
 
+  it.each(["\uFFFD", "  \uFFFD  "])(
+    "reserves the exact protected-content placeholder: %j",
+    (input) => {
+      expect(normalizeDisplayName(input)).toMatchObject({
+        ok: false,
+        error: { code: "validation.invalid-name" },
+      });
+    },
+  );
+
+  it("allows the replacement character inside a longer authored name", () => {
+    expect(normalizeDisplayName("Draft \uFFFD note")).toEqual({
+      ok: true,
+      value: "Draft \uFFFD note",
+    });
+  });
+});
+
+describe("canonical item icon", () => {
   it.each([
     ["🗂️", "🗂️"],
     ["  🧑🏽‍💻  ", "🧑🏽‍💻"],

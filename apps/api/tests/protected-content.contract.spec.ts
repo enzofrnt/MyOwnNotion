@@ -130,6 +130,47 @@ async function envelopeTypes(): Promise<string[]> {
 }
 
 describe("writing content through the ordinary routes", () => {
+  it("refuses the protected-content placeholder as a new title", async () => {
+    const pageId = generateUuidV7();
+    const response = await injectAsOwner({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: pageId,
+        kind: "page",
+        name: "\uFFFD",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+    });
+
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json()).toMatchObject({ code: "validation.invalid-name" });
+    const absent = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    expect(absent.statusCode).toBe(404);
+    expect(await envelopeTypes()).toEqual([]);
+  });
+
+  it("refuses renaming a protected item to the storage placeholder", async () => {
+    const pageId = await createPage("Visible title");
+    const before = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const beforeItem = before.json() as { currentRevisionId: string; name: string };
+    const response = await injectAsOwner({
+      method: "PATCH",
+      url: `/v1/items/${pageId}`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { name: "\uFFFD", baseRevisionId: beforeItem.currentRevisionId },
+    });
+
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json()).toMatchObject({ code: "validation.invalid-name" });
+    const after = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    expect(after.json()).toMatchObject({
+      name: "Visible title",
+      currentRevisionId: beforeItem.currentRevisionId,
+    });
+  });
+
   it("seals the title", async () => {
     await createPage(SECRET_TITLE);
     expect(await envelopeTypes()).toContain("item.name");

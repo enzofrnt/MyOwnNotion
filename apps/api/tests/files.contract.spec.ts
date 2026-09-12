@@ -44,7 +44,13 @@ async function importFile(
   name: string,
   content: string,
   placement: { kind: string; parentItemId: string | null; positionKey: string },
-): Promise<{ itemId: Uuid; revisionId: Uuid; placementId: Uuid; status: number }> {
+): Promise<{
+  itemId: Uuid;
+  revisionId: Uuid;
+  placementId: Uuid;
+  status: number;
+  problemCode?: string;
+}> {
   const { payload, headers } = multipartBody(
     { placement: JSON.stringify(placement) },
     { name, type: "text/plain", content },
@@ -56,6 +62,7 @@ async function importFile(
     payload,
   });
   const body = response.json() as {
+    code?: string;
     revisionIds?: string[];
     item?: { id: string; placements: Array<{ id: string }> };
   };
@@ -64,10 +71,29 @@ async function importFile(
     itemId: (body.item?.id ?? "") as Uuid,
     revisionId: (body.revisionIds?.[0] ?? "") as Uuid,
     placementId: (body.item?.placements[0]?.id ?? "") as Uuid,
+    ...(body.code === undefined ? {} : { problemCode: body.code }),
   };
 }
 
 describe("file import (T059)", () => {
+  it("refuses the protected-content placeholder as an imported filename", async () => {
+    const before = await harness.built.database.db.execute(
+      sql`SELECT count(*)::int AS count FROM items`,
+    );
+    const result = await importFile("\uFFFD", "must not be published", {
+      kind: "hierarchy",
+      parentItemId: null,
+      positionKey: "reserved-name",
+    });
+    const after = await harness.built.database.db.execute(
+      sql`SELECT count(*)::int AS count FROM items`,
+    );
+
+    expect(result.status).toBe(400);
+    expect(result.problemCode).toBe("validation.invalid-name");
+    expect(after.rows).toEqual(before.rows);
+  });
+
   it.each([
     ["import", "40001"],
     ["import", "40P01"],
