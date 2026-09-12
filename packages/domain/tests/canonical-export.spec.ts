@@ -490,6 +490,32 @@ describe("validateCanonicalExport", () => {
     );
   });
 
+  it("rejects cycles in the item hierarchy", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const second = manifest.items[1];
+    if (first === undefined || second === undefined) throw new Error("fixture missing");
+    const cyclic = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id
+          ? {
+              ...entry,
+              placements: [{ ...entry.placements[0], parentItemId: second.id }],
+            }
+          : entry.id === second.id
+            ? {
+                ...entry,
+                placements: [{ ...entry.placements[0], parentItemId: first.id }],
+              }
+            : entry,
+      ),
+    };
+    expect(validateCanonicalExport(cyclic).map((issue) => issue.code)).toContain(
+      "placement.hierarchy-cycle",
+    );
+  });
+
   it("detects a relationship endpoint that was not exported", () => {
     const source = item();
     const manifest = buildCanonicalExport({

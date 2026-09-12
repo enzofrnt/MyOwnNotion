@@ -552,6 +552,37 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
   return issues;
 }
 
+function hasDirectedCycle(
+  nodes: Iterable<string>,
+  edges: ReadonlyMap<string, readonly string[]>,
+): boolean {
+  const state = new Map<string, "visiting" | "visited">();
+  for (const start of nodes) {
+    if (state.has(start)) continue;
+    state.set(start, "visiting");
+    const stack: Array<{ id: string; next: number }> = [{ id: start, next: 0 }];
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1];
+      if (frame === undefined) break;
+      const neighbors = edges.get(frame.id) ?? [];
+      if (frame.next >= neighbors.length) {
+        state.set(frame.id, "visited");
+        stack.pop();
+        continue;
+      }
+      const neighbor = neighbors[frame.next];
+      frame.next += 1;
+      if (neighbor === undefined) continue;
+      const neighborState = state.get(neighbor);
+      if (neighborState === "visiting") return true;
+      if (neighborState === "visited") continue;
+      state.set(neighbor, "visiting");
+      stack.push({ id: neighbor, next: 0 });
+    }
+  }
+  return false;
+}
+
 /**
  * Independent completeness validation (SC-005): every placement parent and
  * relationship endpoint must resolve to an exported item or be explicitly
@@ -583,6 +614,20 @@ export function validateCanonicalExport(
   const itemIds = new Set(manifest.items.map((item) => item.id));
   const itemsById = new Map(manifest.items.map((item) => [item.id, item]));
   const revisionIds = new Set(manifest.revisions.map((revision) => revision.id));
+  const hierarchyParents = new Map(
+    manifest.items.map((item) => [
+      item.id,
+      item.placements
+        .filter((placement) => placement.kind === "hierarchy" && placement.parentItemId !== null)
+        .map((placement) => placement.parentItemId as string),
+    ]),
+  );
+  if (hasDirectedCycle(itemIds, hierarchyParents)) {
+    issues.push({
+      code: "placement.hierarchy-cycle",
+      detail: "Canonical export contains a cycle in item hierarchy placements",
+    });
+  }
 
   if (manifest.counts.items !== manifest.items.length) {
     issues.push({ code: "counts.items", detail: "Item count does not match items array" });
