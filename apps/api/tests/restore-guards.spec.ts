@@ -595,6 +595,7 @@ describe("writing a checked archive", () => {
           verifyPageOperations: async (state, canonical) => {
             await service.verify(readPageOperationArchive(state), canonical);
           },
+          verifyPageOperationDevices: async () => {},
           writePageOperations: async () => {
             calls.push("operations");
           },
@@ -614,6 +615,53 @@ describe("writing a checked archive", () => {
       ),
     ).rejects.toThrow(/canonical export|page/i);
     expect(calls).toEqual([]);
+  });
+
+  it("runs device reference checks before target.begin", async () => {
+    const operationalState = legacyOperationalState();
+    const calls: string[] = [];
+    await expect(
+      applyArchive(
+        archive(
+          {
+            operationalStateDigest: `sha256:${createHash("sha256").update(operationalState).digest("hex")}`,
+            operationalFormatVersion: 1,
+            operationalPageCount: 1,
+            operationalCheckpointCount: 0,
+            operationalUpdateCount: 0,
+          },
+          true,
+          undefined,
+          operationalState,
+        ),
+        {
+          begin: async () => {
+            calls.push("begin");
+          },
+          verifyPageOperations: async () => {},
+          verifyPageOperationDevices: async () => {
+            calls.push("devices");
+            throw new Error("missing archived device");
+          },
+          writePageOperations: async () => {
+            calls.push("operations");
+          },
+          writeFile: async () => {
+            calls.push("file");
+          },
+          writeRevision: async () => {
+            calls.push("revision");
+          },
+          writeItem: async () => {
+            calls.push("item");
+          },
+          writeRelationship: async () => {
+            calls.push("relationship");
+          },
+        },
+      ),
+    ).rejects.toThrow("missing archived device");
+    expect(calls).toEqual(["devices"]);
   });
 
   it("keeps exact markers restorable from a pre-reservation archive", async () => {

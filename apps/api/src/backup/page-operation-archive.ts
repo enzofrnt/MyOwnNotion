@@ -1,6 +1,11 @@
 /** Portable, verified operational page state carried inside a sealed backup. */
 
 import {
+  MAX_PAGE_CHECKPOINT_BYTES,
+  MAX_PAGE_UPDATE_BATCH_BYTES,
+  MAX_PAGE_VERSION_VECTOR_BYTES,
+} from "@myownnotion/contracts";
+import {
   pageOperationCheckpointHasVerifiedBackup,
   schema,
   type Transaction,
@@ -211,15 +216,43 @@ function requireDigest(value: unknown, path: string): asserts value is string {
 }
 
 function requireTimestamp(value: unknown, path: string): asserts value is string {
-  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) ||
+    !Number.isFinite(Date.parse(value))
+  ) {
     throw new TypeError(`operational backup ${path} must be a timestamp`);
+  }
+}
+
+function requireEncodedBytes(
+  value: unknown,
+  path: string,
+  maximumBytes: number,
+  minimumCharacters = 0,
+): void {
+  requireString(value, path);
+  if (
+    !/^[A-Za-z0-9_-]*$/.test(value) ||
+    value.length < minimumCharacters ||
+    value.length > Math.ceil((maximumBytes * 4) / 3)
+  ) {
+    throw new TypeError(`operational backup ${path} must be canonical base64url`);
+  }
+  const bytes = Buffer.from(value, "base64url");
+  if (bytes.toString("base64url") !== value || bytes.byteLength > maximumBytes) {
+    throw new TypeError(`operational backup ${path} must be canonical base64url`);
   }
 }
 
 function requireFrontier(value: unknown, path: string): asserts value is ArchivedFrontier {
   if (!isRecord(value)) throw new TypeError(`operational backup ${path} has an invalid shape`);
-  requireString(value["versionVector"], `${path}.versionVector`);
-  requireString(value["frontiers"], `${path}.frontiers`);
+  requireEncodedBytes(
+    value["versionVector"],
+    `${path}.versionVector`,
+    MAX_PAGE_VERSION_VECTOR_BYTES,
+  );
+  requireEncodedBytes(value["frontiers"], `${path}.frontiers`, MAX_PAGE_CHECKPOINT_BYTES);
 }
 
 function validateCheckpoint(value: unknown, path: string): void {
@@ -228,7 +261,7 @@ function validateCheckpoint(value: unknown, path: string): void {
   requireUuid(checkpoint.id, `${path}.id`);
   requireInteger(checkpoint.throughPageSequence, `${path}.throughPageSequence`);
   requireFrontier(checkpoint.frontier, `${path}.frontier`);
-  requireString(checkpoint.snapshotBytes, `${path}.snapshotBytes`);
+  requireEncodedBytes(checkpoint.snapshotBytes, `${path}.snapshotBytes`, MAX_PAGE_CHECKPOINT_BYTES);
   requireDigest(checkpoint.snapshotDigest, `${path}.snapshotDigest`);
   requireDigest(checkpoint.canonicalDigest, `${path}.canonicalDigest`);
   requireNullableUuid(checkpoint.revisionId, `${path}.revisionId`);
@@ -247,7 +280,9 @@ function validateUpdate(value: unknown, path: string): void {
   requireUuid(update.authoredByDeviceId, `${path}.authoredByDeviceId`);
   if (update.baseFrontier !== null) requireFrontier(update.baseFrontier, `${path}.baseFrontier`);
   requireFrontier(update.resultFrontier, `${path}.resultFrontier`);
-  requireNullableString(update.updateBytes, `${path}.updateBytes`);
+  if (update.updateBytes !== null) {
+    requireEncodedBytes(update.updateBytes, `${path}.updateBytes`, MAX_PAGE_UPDATE_BATCH_BYTES, 2);
+  }
   requireDigest(update.updateDigest, `${path}.updateDigest`);
   if (update.status !== "accepted" && update.status !== "rejected") {
     throw new TypeError(`operational backup ${path}.status has an invalid value`);
@@ -290,7 +325,7 @@ function validateAmbiguity(value: unknown, path: string): void {
   ) {
     throw new TypeError(`operational backup ${path}.status has an invalid value`);
   }
-  requireString(ambiguity.detailsBytes, `${path}.detailsBytes`);
+  requireEncodedBytes(ambiguity.detailsBytes, `${path}.detailsBytes`, MAX_PAGE_CHECKPOINT_BYTES);
   if (!Array.isArray(ambiguity.sourceUpdateIds)) {
     throw new TypeError(`operational backup ${path}.sourceUpdateIds has an invalid shape`);
   }
@@ -310,7 +345,13 @@ function validateConversion(value: unknown, path: string): void {
   if (!["sending", "converted", "blocked"].includes(String(conversion.status))) {
     throw new TypeError(`operational backup ${path}.status has an invalid value`);
   }
-  requireNullableString(conversion.responseBytes, `${path}.responseBytes`);
+  if (conversion.responseBytes !== null) {
+    requireEncodedBytes(
+      conversion.responseBytes,
+      `${path}.responseBytes`,
+      MAX_PAGE_CHECKPOINT_BYTES,
+    );
+  }
   requireNullableUuid(conversion.checkpointId, `${path}.checkpointId`);
   if (!Array.isArray(conversion.conversionUpdateIds)) {
     throw new TypeError(`operational backup ${path}.conversionUpdateIds has an invalid shape`);
@@ -382,6 +423,111 @@ function validatePage(value: unknown, index: number): asserts value is ArchivedP
   page.legacyBranchConversions?.forEach((item, itemIndex) => {
     validateConversion(item, `${path}.legacyBranchConversions[${itemIndex}]`);
   });
+}
+
+function validateCrossInvariants(archive: PageOperationArchive): void {
+  for (const page of archive.pages) {
+    if (
+      page.status === "active" &&
+      (page.canonicalFormatVersion !== 3 ||
+        page.currentCheckpointId === null ||
+        page.currentFrontier === null ||
+        page.operationalDigest === null ||
+        page.bootstrappedAt === null)
+    ) {
+      throw new TypeError("operational backup active state is incomplete");
+    }
+
+    const revisionWindow = [
+      page.revisionWindowStartedAt,
+      page.revisionWindowLastUpdateAt,
+      page.revisionWindowFrontier,
+    ];
+    const revisionWindowEmpty = revisionWindow.every((value) => value === null);
+    const revisionWindowComplete = revisionWindow.every((value) => value !== null);
+    if (!revisionWindowEmpty && !revisionWindowComplete) {
+      throw new TypeError("operational backup revision window is incomplete");
+    }
+    if (
+      page.revisionWindowStartedAt !== null &&
+      page.revisionWindowLastUpdateAt !== null &&
+      Date.parse(page.revisionWindowLastUpdateAt) < Date.parse(page.revisionWindowStartedAt)
+    ) {
+      throw new TypeError("operational backup revision window is reversed");
+    }
+
+    const checkpointSequences = new Set<number>();
+    for (const checkpoint of page.checkpoints) {
+      if (checkpointSequences.has(checkpoint.throughPageSequence)) {
+        throw new TypeError("operational backup contains duplicate checkpoint sequence");
+      }
+      checkpointSequences.add(checkpoint.throughPageSequence);
+      const candidate = checkpoint.state === "candidate";
+      if (candidate !== (checkpoint.verifiedAt === null)) {
+        throw new TypeError("operational backup checkpoint verification state is inconsistent");
+      }
+    }
+    const updateSequences = new Set<number>();
+    for (const update of page.updates) {
+      if (updateSequences.has(update.pageSequence)) {
+        throw new TypeError("operational backup contains duplicate update sequence");
+      }
+      updateSequences.add(update.pageSequence);
+    }
+    if (page.currentCheckpointId !== null) {
+      const current = page.checkpoints.find(({ id }) => id === page.currentCheckpointId);
+      if (current === undefined) {
+        throw new TypeError("operational backup current checkpoint is absent");
+      }
+      if (current.state !== "verified" && current.state !== "retained") {
+        throw new TypeError("operational backup current checkpoint is not verified");
+      }
+      if (current.throughPageSequence > page.lastUpdateSequence) {
+        throw new TypeError("operational backup current checkpoint is beyond the update log");
+      }
+    }
+
+    for (const update of page.updates) {
+      if ((update.status === "accepted") !== (update.failureCode === null)) {
+        throw new TypeError("operational backup update status and failure are inconsistent");
+      }
+      const compacted = update.compactedAt !== null;
+      if (
+        (compacted &&
+          (update.status !== "accepted" ||
+            update.baseFrontier !== null ||
+            update.updateBytes !== null)) ||
+        (!compacted && (update.baseFrontier === null || update.updateBytes === null))
+      ) {
+        throw new TypeError("operational backup update compaction state is inconsistent");
+      }
+    }
+
+    const ambiguityKeys = new Set<string>();
+    for (const ambiguity of page.ambiguities) {
+      if (ambiguityKeys.has(ambiguity.logicalKey)) {
+        throw new TypeError("operational backup contains duplicate ambiguity logical key");
+      }
+      ambiguityKeys.add(ambiguity.logicalKey);
+      if (ambiguity.sourceUpdateIds.length === 0) {
+        throw new TypeError("operational backup ambiguity has no source updates");
+      }
+      const open = ambiguity.status === "open";
+      if (open !== (ambiguity.resolvedAt === null && ambiguity.resolutionRevisionId === null)) {
+        throw new TypeError("operational backup ambiguity resolution is inconsistent");
+      }
+    }
+    for (const conversion of page.legacyBranchConversions) {
+      if (
+        conversion.status === "converted" &&
+        (conversion.responseBytes === null ||
+          conversion.checkpointId === null ||
+          conversion.convertedAt === null)
+      ) {
+        throw new TypeError("operational backup conversion result is incomplete");
+      }
+    }
+  }
 }
 
 export function readPageOperationArchive(value: unknown): PageOperationArchive {
@@ -491,6 +637,7 @@ export function readPageOperationArchive(value: unknown): PageOperationArchive {
   archive.pages.forEach((page, index) => {
     validatePage(page, index);
   });
+  validateCrossInvariants(archive);
   return archive;
 }
 
@@ -866,6 +1013,7 @@ export class PageOperationArchiveService {
   async verify(archive: PageOperationArchive, canonicalExport?: unknown): Promise<void> {
     const canonicalItems = new Map<Uuid, unknown>();
     const canonicalIds = new Set<Uuid>();
+    const canonicalRevisionOwners = new Map<Uuid, Uuid>();
     if (canonicalExport !== undefined) {
       if (!isRecord(canonicalExport) || !Array.isArray(canonicalExport["items"])) {
         throw new TypeError("the canonical export has an invalid page inventory");
@@ -880,7 +1028,54 @@ export class PageOperationArchiveService {
         canonicalIds.add(item["id"]);
         if (item["kind"] === "page") canonicalItems.set(item["id"], item["pageDocument"]);
       }
+      const revisions = Array.isArray(canonicalExport["revisions"])
+        ? canonicalExport["revisions"]
+        : [];
+      for (const [index, revision] of revisions.entries()) {
+        if (
+          !isRecord(revision) ||
+          !isUuid(revision["id"]) ||
+          !isUuid(revision["itemId"]) ||
+          canonicalRevisionOwners.has(revision["id"])
+        ) {
+          throw new TypeError(`the canonical export revision ${index} has an invalid identity`);
+        }
+        canonicalRevisionOwners.set(revision["id"], revision["itemId"]);
+      }
     }
+
+    const verifyRevisionReference = (
+      page: ArchivedPageOperationState,
+      revisionId: Uuid | null,
+      path: string,
+    ): void => {
+      if (canonicalExport === undefined || revisionId === null) return;
+      if (canonicalRevisionOwners.get(revisionId) !== page.pageId) {
+        throw new TypeError(`operational backup ${path} references a revision outside its page`);
+      }
+    };
+
+    const verifyPageLocalReferences = (page: ArchivedPageOperationState): void => {
+      const updateIds = new Set(page.updates.map(({ id }) => id));
+      if (
+        page.ambiguities.some(({ sourceUpdateIds }) =>
+          sourceUpdateIds.some((updateId) => !updateIds.has(updateId)),
+        )
+      ) {
+        throw new TypeError("an operational ambiguity names an update absent from the backup");
+      }
+      for (const conversion of page.legacyBranchConversions) {
+        if (
+          (conversion.checkpointId !== null &&
+            !page.checkpoints.some(({ id }) => id === conversion.checkpointId)) ||
+          conversion.conversionUpdateIds.some((updateId) => !updateIds.has(updateId))
+        ) {
+          throw new TypeError(
+            "an operational legacy conversion names a record absent from the backup",
+          );
+        }
+      }
+    };
 
     const verifyCanonicalPage = async (page: ArchivedPageOperationState): Promise<void> => {
       if (canonicalExport === undefined) return;
@@ -904,16 +1099,18 @@ export class PageOperationArchiveService {
     };
 
     for (const page of archive.pages) {
-      if (page.currentCheckpointId === null) {
-        if (page.status === "legacy") {
-          await verifyCanonicalPage(page);
-          continue;
+      for (const checkpoint of page.checkpoints) {
+        if ((await sha256Hex(decoded(checkpoint.snapshotBytes))) !== checkpoint.snapshotDigest) {
+          throw new TypeError("an operational checkpoint does not match its snapshot digest");
         }
-        throw new TypeError("a non-legacy operational backup has no current checkpoint");
       }
-      const current = page.checkpoints.find(({ id }) => id === page.currentCheckpointId);
-      if (current === undefined || page.currentFrontier === null) {
-        throw new TypeError("an active operational backup has no current checkpoint");
+      for (const update of page.updates) {
+        if (
+          update.updateBytes !== null &&
+          (await sha256Hex(decoded(update.updateBytes))) !== update.updateDigest
+        ) {
+          throw new TypeError("an operational update does not match its digest");
+        }
       }
       for (const frontier of page.deviceFrontiers) {
         if (
@@ -925,25 +1122,26 @@ export class PageOperationArchiveService {
           );
         }
       }
-      const pageUpdateIds = new Set(page.updates.map(({ id }) => id));
-      if (
-        page.ambiguities.some(({ sourceUpdateIds }) =>
-          sourceUpdateIds.some((updateId) => !pageUpdateIds.has(updateId)),
-        )
-      ) {
-        throw new TypeError("an operational ambiguity names an update absent from the backup");
-      }
-      for (const conversion of page.legacyBranchConversions) {
-        if (
-          (conversion.checkpointId !== null &&
-            !page.checkpoints.some(({ id }) => id === conversion.checkpointId)) ||
-          conversion.conversionUpdateIds.some((updateId) => !pageUpdateIds.has(updateId))
-        ) {
-          throw new TypeError(
-            "an operational legacy conversion names a record absent from the backup",
-          );
+      if (page.currentCheckpointId === null) {
+        if (page.status === "legacy") {
+          await verifyCanonicalPage(page);
+          verifyPageLocalReferences(page);
+          verifyRevisionReference(page, page.lastRevisionId, "lastRevisionId");
+          for (const checkpoint of page.checkpoints) {
+            verifyRevisionReference(page, checkpoint.revisionId, "checkpoint.revisionId");
+          }
+          for (const ambiguity of page.ambiguities) {
+            verifyRevisionReference(page, ambiguity.resolutionRevisionId, "resolutionRevisionId");
+          }
+          continue;
         }
+        throw new TypeError("a non-legacy operational backup has no current checkpoint");
       }
+      const current = page.checkpoints.find(({ id }) => id === page.currentCheckpointId);
+      if (current === undefined || page.currentFrontier === null) {
+        throw new TypeError("an active operational backup has no current checkpoint");
+      }
+      verifyPageLocalReferences(page);
       for (const checkpoint of page.checkpoints) {
         const opened = await this.#openCheckpoint(page, checkpoint);
         const projection = await opened.project();
@@ -962,14 +1160,17 @@ export class PageOperationArchiveService {
         throw new TypeError("an operational backup has a non-contiguous update log");
       }
       for (const update of ordered) {
-        if (update.pageSequence <= current.throughPageSequence) continue;
         if (update.updateBytes === null) {
-          throw new TypeError("an update after the current checkpoint has no bytes");
+          if (update.pageSequence > current.throughPageSequence) {
+            throw new TypeError("an update after the current checkpoint has no bytes");
+          }
+          continue;
         }
         const bytes = decoded(update.updateBytes);
         if ((await sha256Hex(bytes)) !== update.updateDigest) {
           throw new TypeError("an operational update does not match its digest");
         }
+        if (update.pageSequence <= current.throughPageSequence) continue;
         const imported = document.importUpdate(bytes);
         if (
           imported.pending ||
@@ -993,12 +1194,17 @@ export class PageOperationArchiveService {
         throw new TypeError("an operational page does not reproduce its archived head");
       }
       await verifyCanonicalPage(page);
+      verifyRevisionReference(page, page.lastRevisionId, "lastRevisionId");
+      for (const checkpoint of page.checkpoints) {
+        verifyRevisionReference(page, checkpoint.revisionId, "checkpoint.revisionId");
+      }
+      for (const ambiguity of page.ambiguities) {
+        verifyRevisionReference(page, ambiguity.resolutionRevisionId, "resolutionRevisionId");
+      }
     }
   }
 
-  async restore(tx: Transaction, rawArchive: unknown): Promise<void> {
-    const archive = readPageOperationArchive(rawArchive);
-    await this.verify(archive);
+  async verifyDeviceReferences(tx: Transaction, archive: PageOperationArchive): Promise<void> {
     const deviceIds = [
       ...new Set(
         archive.pages.flatMap((page) => [
@@ -1016,6 +1222,12 @@ export class PageOperationArchiveService {
         throw new TypeError("the restore target is missing an archived authorized device");
       }
     }
+  }
+
+  async restore(tx: Transaction, rawArchive: unknown): Promise<void> {
+    const archive = readPageOperationArchive(rawArchive);
+    await this.verify(archive);
+    await this.verifyDeviceReferences(tx, archive);
 
     for (const page of archive.pages) {
       const currentFrontierEnvelopeId =

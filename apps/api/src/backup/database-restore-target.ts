@@ -152,6 +152,12 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       }
       await pageOperationArchive.verify(readPageOperationArchive(raw), canonicalExport);
     },
+    verifyPageOperationDevices: async (raw) => {
+      if (pageOperationArchive === null) {
+        throw new Error("the restore target cannot verify operational page state");
+      }
+      await pageOperationArchive.verifyDeviceReferences(options.tx, readPageOperationArchive(raw));
+    },
 
     writePageOperations: async (raw) => {
       if (pageOperationArchive === null) {
