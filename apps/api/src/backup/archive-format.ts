@@ -159,6 +159,14 @@ function validateProducedCanonical(manifest: BackupManifest, canonicalExport: st
   ) {
     throw new Error("The canonical export structured counts do not match the manifest.");
   }
+  if (
+    manifest.formatVersion === BACKUP_FORMAT_VERSION &&
+    (canonical as Record<string, unknown>)["formatVersion"] !== 2
+  ) {
+    throw new Error("A V2 backup manifest requires a V2 canonical export.");
+  }
+  const fileProblem = validateCanonicalFileInventory(manifest, canonical);
+  if (fileProblem !== null) throw new Error(fileProblem);
 }
 
 function validateOperationalState(
@@ -215,6 +223,50 @@ function validateEncodedFiles(manifest: BackupManifest, files: ReadonlyMap<strin
       throw new Error("An encoded archive file does not match its authenticated inventory.");
     }
   }
+}
+
+function validateCanonicalFileInventory(
+  manifest: BackupManifest,
+  canonical: unknown,
+): string | null {
+  if (typeof canonical !== "object" || canonical === null || Array.isArray(canonical)) {
+    return "The canonical export is not an object.";
+  }
+  const items = (canonical as Record<string, unknown>)["items"];
+  if (!Array.isArray(items)) return "The canonical export does not contain items.";
+  const referenced = new Map<string, number>();
+  for (const item of items) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      return "The canonical export contains an invalid item.";
+    }
+    const file = (item as Record<string, unknown>)["file"];
+    if (file === null) continue;
+    if (typeof file !== "object" || file === null || Array.isArray(file)) {
+      return "The canonical export contains an invalid file reference.";
+    }
+    const fileRecord = file as Record<string, unknown>;
+    if (typeof fileRecord["sha256"] !== "string" || typeof fileRecord["byteLength"] !== "number") {
+      return "The canonical export contains an invalid file reference.";
+    }
+    const digest = `sha256:${fileRecord["sha256"]}`;
+    const previousLength = referenced.get(digest);
+    if (previousLength !== undefined && previousLength !== fileRecord["byteLength"]) {
+      return "The canonical export references one file digest with conflicting sizes.";
+    }
+    referenced.set(digest, fileRecord["byteLength"]);
+  }
+  const expected = new Map(manifest.files.map((file) => [file.digest, file.byteLength]));
+  for (const [digest, byteLength] of referenced) {
+    if (expected.get(digest) !== byteLength) {
+      return "The canonical file reference does not match the backup manifest inventory.";
+    }
+  }
+  for (const digest of expected.keys()) {
+    if (!referenced.has(digest)) {
+      return "The backup manifest contains a file that the canonical export does not reference.";
+    }
+  }
+  return null;
 }
 
 function writeText(target: Buffer, offset: number, width: number, value: string): void {
@@ -499,6 +551,7 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
     };
   }
   let canonical: {
+    readonly formatVersion?: unknown;
     readonly items?: unknown[];
     readonly databases?: unknown[];
     readonly databaseEntries?: unknown[];
@@ -559,6 +612,11 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
       };
     }
   }
+  if (manifest.formatVersion === BACKUP_FORMAT_VERSION && canonical["formatVersion"] !== 2) {
+    return { ok: false, reason: "A V2 backup manifest requires a V2 canonical export." };
+  }
+  const fileProblem = validateCanonicalFileInventory(manifest, canonical);
+  if (fileProblem !== null) return { ok: false, reason: fileProblem };
   const operationalProblem = validateOperationalState(manifest, body.operationalState);
   if (operationalProblem !== null) return { ok: false, reason: operationalProblem };
   for (const expected of manifest.files) {

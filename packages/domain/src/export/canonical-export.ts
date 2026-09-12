@@ -9,6 +9,8 @@
  */
 
 import { validatePageDocument } from "../content/hierarchy.ts";
+import { isValidPositionKey } from "../content/position-key.ts";
+import { isValidRelationType } from "../content/relationships.ts";
 import {
   type CanonicalItem,
   isProtectedContentPayload,
@@ -88,6 +90,16 @@ export interface CanonicalExportManifest {
     readonly databaseEntries: number;
   };
 }
+
+export type LegacyCanonicalExportManifest = Omit<
+  CanonicalExportManifest,
+  "formatVersion" | "databases" | "databaseEntries" | "counts"
+> & {
+  readonly formatVersion: 1;
+  readonly counts: Omit<CanonicalExportManifest["counts"], "databases" | "databaseEntries">;
+};
+
+export type AnyCanonicalExportManifest = CanonicalExportManifest | LegacyCanonicalExportManifest;
 
 export interface BuildExportInput {
   readonly workspaceId: Uuid;
@@ -291,7 +303,9 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
   const issues: ExportValidationIssue[] = [];
   if (value["format"] !== CANONICAL_EXPORT_FORMAT)
     issues.push(shapeIssue("manifest", "Canonical export has an unsupported format"));
-  if (value["formatVersion"] !== CANONICAL_EXPORT_VERSION)
+  const isLegacy = value["formatVersion"] === 1;
+  const isCurrent = value["formatVersion"] === CANONICAL_EXPORT_VERSION;
+  if (!isLegacy && !isCurrent)
     issues.push(shapeIssue("manifest", "Canonical export has an unsupported version"));
   for (const field of ["workspaceId", "exportedAt"] as const) {
     if (!isNonEmptyString(value[field]))
@@ -305,13 +319,10 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
     issues.push(shapeIssue("manifest", "workspaceId must be a UUID"));
   if (!isNonNegativeInteger(value["schemaVersion"]))
     issues.push(shapeIssue("manifest", "schemaVersion must be a non-negative integer"));
-  for (const field of [
-    "items",
-    "databases",
-    "databaseEntries",
-    "relationships",
-    "revisions",
-  ] as const) {
+  const requiredArrays = isCurrent
+    ? ["items", "databases", "databaseEntries", "relationships", "revisions"]
+    : ["items", "relationships", "revisions"];
+  for (const field of requiredArrays) {
     if (!Array.isArray(value[field]))
       issues.push(shapeIssue("manifest", `${field} must be an array`));
   }
@@ -319,16 +330,19 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
   if (!isRecord(counts)) {
     issues.push(shapeIssue("counts", "counts must be an object"));
   } else {
-    for (const field of [
-      "items",
-      "activeItems",
-      "trashedItems",
-      "placements",
-      "relationships",
-      "revisions",
-      "databases",
-      "databaseEntries",
-    ] as const) {
+    const requiredCounts = isCurrent
+      ? [
+          "items",
+          "activeItems",
+          "trashedItems",
+          "placements",
+          "relationships",
+          "revisions",
+          "databases",
+          "databaseEntries",
+        ]
+      : ["items", "activeItems", "trashedItems", "placements", "relationships", "revisions"];
+    for (const field of requiredCounts) {
       if (!isNonNegativeInteger(counts[field]))
         issues.push(shapeIssue("counts", `${field} must be a non-negative integer`));
     }
@@ -345,8 +359,16 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
       !isIdentifier(item["id"]) ||
       !isIdentifier(item["workspaceId"]) ||
       !["page", "folder", "file"].includes(String(item["kind"])) ||
-      !isNonEmptyString(item["name"]) ||
-      !(item["icon"] === null || typeof item["icon"] === "string") ||
+      !(
+        typeof item["name"] === "string" &&
+        item["name"].length >= 1 &&
+        item["name"].length <= 512
+      ) ||
+      !(
+        item["icon"] === null ||
+        (typeof item["icon"] === "string" && item["icon"].length >= 1 && item["icon"].length <= 64)
+      ) ||
+      (item["kind"] === "file" && item["icon"] !== null) ||
       !["active", "trashed", "purged"].includes(String(item["lifecycle"])) ||
       !(item["trashedAt"] === null || isTimestamp(item["trashedAt"])) ||
       !(item["purgeAfter"] === null || isTimestamp(item["purgeAfter"])) ||
@@ -388,6 +410,14 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
     ) {
       issues.push(shapeIssue("item", `items[${index}].file is invalid`));
     }
+    if (
+      (item["kind"] !== "file" && file !== null) ||
+      (item["kind"] === "file" && item["lifecycle"] !== "purged" && file === null) ||
+      (item["lifecycle"] === "purged" &&
+        (file !== null || pageDocument !== null || (item["placements"] as unknown[]).length > 0))
+    ) {
+      issues.push(shapeIssue("item", `items[${index}] has inconsistent file or tombstone state`));
+    }
     for (const [placementIndex, placement] of (item["placements"] as unknown[]).entries()) {
       if (
         !isRecord(placement) ||
@@ -397,7 +427,10 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
         typeof placement["itemIsFile"] !== "boolean" ||
         !["hierarchy", "attachment"].includes(String(placement["kind"])) ||
         !(placement["parentItemId"] === null || isIdentifier(placement["parentItemId"])) ||
-        !isNonEmptyString(placement["positionKey"]) ||
+        typeof placement["positionKey"] !== "string" ||
+        !isValidPositionKey(placement["positionKey"]) ||
+        placement["itemIsFile"] !== (item["kind"] === "file") ||
+        (placement["kind"] === "attachment" && placement["parentItemId"] === null) ||
         !(placement["removedAt"] === null || isTimestamp(placement["removedAt"]))
       ) {
         issues.push(shapeIssue("item", `items[${index}].placements[${placementIndex}] is invalid`));
@@ -435,7 +468,8 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
       !isIdentifier(relationship["workspaceId"]) ||
       !isIdentifier(relationship["sourceItemId"]) ||
       !isIdentifier(relationship["targetItemId"]) ||
-      !isNonEmptyString(relationship["relationType"]) ||
+      typeof relationship["relationType"] !== "string" ||
+      !isValidRelationType(relationship["relationType"]) ||
       !isRecord(relationship["metadata"]) ||
       !isIdentifier(relationship["createdRevisionId"]) ||
       !(
@@ -447,8 +481,8 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
     }
   }
 
-  const databases = value["databases"] as unknown[];
-  for (const [index, database] of databases.entries()) {
+  const databases = (Array.isArray(value["databases"]) ? value["databases"] : []) as unknown[];
+  for (const [index, database] of isCurrent ? databases.entries() : []) {
     const definition = isRecord(database) ? database["definition"] : undefined;
     if (
       !isRecord(database) ||
@@ -478,8 +512,10 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
     }
   }
 
-  const entries = value["databaseEntries"] as unknown[];
-  for (const [index, entry] of entries.entries()) {
+  const entries = (
+    Array.isArray(value["databaseEntries"]) ? value["databaseEntries"] : []
+  ) as unknown[];
+  for (const [index, entry] of isCurrent ? entries.entries() : []) {
     const values = isRecord(entry) ? entry["values"] : undefined;
     if (
       !isRecord(entry) ||
@@ -517,10 +553,12 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
  * diagnosable, and counts must match the actual arrays.
  */
 export function validateCanonicalExport(
-  manifest: CanonicalExportManifest,
+  manifest: AnyCanonicalExportManifest,
 ): ExportValidationIssue[] {
   const issues: ExportValidationIssue[] = validateCanonicalShape(manifest);
   if (issues.length > 0) return issues;
+  const databases = "databases" in manifest ? manifest.databases : [];
+  const databaseEntries = "databaseEntries" in manifest ? manifest.databaseEntries : [];
   const duplicateCodes: ReadonlyArray<readonly [string, readonly string[]]> = [
     ["item.duplicate", manifest.items.map((item) => item.id)],
     ["revision.duplicate", manifest.revisions.map((revision) => revision.id)],
@@ -538,6 +576,7 @@ export function validateCanonicalExport(
       });
   }
   const itemIds = new Set(manifest.items.map((item) => item.id));
+  const itemsById = new Map(manifest.items.map((item) => [item.id, item]));
   const revisionIds = new Set(manifest.revisions.map((revision) => revision.id));
 
   if (manifest.counts.items !== manifest.items.length) {
@@ -567,10 +606,10 @@ export function validateCanonicalExport(
     });
   if (manifest.counts.placements !== expectedPlacements)
     issues.push({ code: "counts.placements", detail: "Placement count does not match items" });
-  if (manifest.counts.databases !== manifest.databases.length) {
+  if ("databases" in manifest && manifest.counts.databases !== databases.length) {
     issues.push({ code: "counts.databases", detail: "Database count does not match array" });
   }
-  if (manifest.counts.databaseEntries !== manifest.databaseEntries.length) {
+  if ("databaseEntries" in manifest && manifest.counts.databaseEntries !== databaseEntries.length) {
     issues.push({
       code: "counts.database-entries",
       detail: "Database entry count does not match array",
@@ -626,6 +665,32 @@ export function validateCanonicalExport(
           detail: `Placement ${placement.id} references missing parent ${placement.parentItemId}`,
         });
       }
+      if (placement.parentItemId !== null) {
+        const parent = itemsById.get(placement.parentItemId);
+        if (parent !== undefined) {
+          if (placement.kind === "attachment" && parent.kind !== "page") {
+            issues.push({
+              code: "placement.attachment-parent-kind",
+              detail: `Attachment ${placement.id} must be owned by a page`,
+            });
+          }
+          if (placement.kind === "hierarchy" && parent.kind === "file") {
+            issues.push({
+              code: "placement.hierarchy-parent-kind",
+              detail: `Hierarchy placement ${placement.id} cannot be owned by a file`,
+            });
+          }
+        }
+      }
+    }
+    if (
+      item.kind !== "file" &&
+      item.placements.filter((placement) => placement.kind === "hierarchy").length > 1
+    ) {
+      issues.push({
+        code: "placement.hierarchy-duplicate",
+        detail: `Item ${item.id} has more than one hierarchy placement`,
+      });
     }
   }
 
@@ -680,7 +745,7 @@ export function validateCanonicalExport(
   }
 
   const databaseIds = new Set<Uuid>();
-  for (const database of manifest.databases) {
+  for (const database of databases) {
     if (databaseIds.has(database.databaseId)) {
       issues.push({
         code: "database.duplicate",
@@ -718,12 +783,10 @@ export function validateCanonicalExport(
       });
     }
   }
-  const databasesById = new Map(
-    manifest.databases.map((database) => [database.databaseId, database]),
-  );
+  const databasesById = new Map(databases.map((database) => [database.databaseId, database]));
 
   const entryIds = new Set<Uuid>();
-  for (const entry of manifest.databaseEntries) {
+  for (const entry of databaseEntries) {
     if (entryIds.has(entry.entryId)) {
       issues.push({
         code: "database-entry.duplicate",

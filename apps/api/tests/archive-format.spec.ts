@@ -60,6 +60,73 @@ function emptyCanonical(): string {
   });
 }
 
+function canonicalWithFile(fileDigest: string, byteLength: number): string {
+  return canonicalWithFiles([{ digest: fileDigest, byteLength }]);
+}
+
+function canonicalWithFiles(files: ReadonlyArray<{ digest: string; byteLength: number }>): string {
+  const canonical = JSON.parse(emptyCanonical()) as Record<string, unknown>;
+  const workspaceId = canonical["workspaceId"] as string;
+  canonical["items"] = files.map((file, index) => {
+    const itemId = `00000000-0000-7000-8000-${String(index + 2).padStart(12, "0")}`;
+    const revisionId = `00000000-0000-7000-8000-${String(index + 100).padStart(12, "0")}`;
+    return {
+      id: itemId,
+      workspaceId,
+      kind: "file",
+      name: `file-${index}.txt`,
+      icon: null,
+      lifecycle: "active",
+      trashedAt: null,
+      purgeAfter: null,
+      currentRevisionId: revisionId,
+      favourite: false,
+      offlineIntent: false,
+      pageDocument: null,
+      file: {
+        mediaType: "text/plain",
+        originalName: `file-${index}.txt`,
+        byteLength: file.byteLength,
+        sha256: file.digest,
+      },
+      placements: [],
+    };
+  });
+  canonical["revisions"] = files.map((_file, index) => {
+    const itemId = `00000000-0000-7000-8000-${String(index + 2).padStart(12, "0")}`;
+    const revisionId = `00000000-0000-7000-8000-${String(index + 100).padStart(12, "0")}`;
+    return {
+      id: revisionId,
+      itemId,
+      mutationId: `00000000-0000-7000-8000-${String(index + 200).padStart(12, "0")}`,
+      parentRevisionIds: [],
+      acceptedAt: "2026-08-19T12:00:00.000Z",
+    };
+  });
+  canonical["counts"] = {
+    items: files.length,
+    activeItems: files.length,
+    trashedItems: 0,
+    placements: 0,
+    relationships: 0,
+    revisions: files.length,
+    databases: 0,
+    databaseEntries: 0,
+  };
+  return JSON.stringify(canonical);
+}
+
+function legacyEmptyCanonical(): string {
+  const canonical = JSON.parse(emptyCanonical()) as Record<string, unknown>;
+  const counts = canonical["counts"] as Record<string, unknown>;
+  delete canonical["databases"];
+  delete canonical["databaseEntries"];
+  delete counts["databases"];
+  delete counts["databaseEntries"];
+  canonical["formatVersion"] = 1;
+  return JSON.stringify(canonical);
+}
+
 function checksumHeader(archive: Buffer, offset = 0): void {
   archive.fill(0x20, offset + 148, offset + 156);
   const sum = archive.subarray(offset, offset + BLOCK).reduce((total, byte) => total + byte, 0);
@@ -85,10 +152,16 @@ describe("streaming archive writing", () => {
       [digest(Buffer.alloc(512, 7)), Buffer.alloc(512, 7)],
       [digest(Buffer.alloc(0)), Buffer.alloc(0)],
     ]);
-    const canonical = emptyCanonical();
+    const canonical = canonicalWithFiles(
+      [...files].map(([fileDigest, bytes]) => ({
+        digest: fileDigest.slice("sha256:".length),
+        byteLength: bytes.length,
+      })),
+    );
     const manifest = manifestFor(
       canonical,
       [...files].map(([digest, bytes]) => ({ digest, byteLength: bytes.length })),
+      { itemCount: files.size },
     );
     const reads: string[] = [];
     const streamed = await collect(
@@ -111,9 +184,10 @@ describe("streaming archive writing", () => {
 
   it("refuses missing, shortened, extended or substituted streams before a complete archive", async () => {
     const bytes = Buffer.from("expected");
-    const canonical = emptyCanonical();
+    const canonical = canonicalWithFile(digest(bytes).slice("sha256:".length), bytes.length);
     const manifest = manifestFor(canonical, [{ digest: digest(bytes), byteLength: bytes.length }], {
       formatVersion: 2,
+      itemCount: 1,
     });
     for (const bad of [
       Buffer.alloc(0),
@@ -199,6 +273,57 @@ describe("streaming archive writing", () => {
     });
     await expect(stream.next()).rejects.toThrow(/canonical export/i);
   });
+
+  it("round-trips the historical V1 canonical shape in a V1 archive", async () => {
+    const canonical = legacyEmptyCanonical();
+    const manifest = manifestFor(canonical);
+    const archive = await collect(
+      streamBackupArchive({
+        manifest,
+        canonicalExport: canonical,
+        readFile: async function* () {},
+      }),
+    );
+    expect(inspectBackupArchive(archive)).toMatchObject({ ok: true });
+  });
+
+  it("does not allow a V1 canonical export in a V2 archive", async () => {
+    const canonical = legacyEmptyCanonical();
+    const stream = streamBackupArchive({
+      manifest: manifestFor(canonical, [], { formatVersion: 2 }),
+      canonicalExport: canonical,
+      readFile: async function* () {},
+    });
+    await expect(stream.next()).rejects.toThrow(/V2.*canonical/i);
+  });
+
+  it("refuses a canonical file inventory mismatch before emitting output", async () => {
+    const bytes = Buffer.from("file payload");
+    const canonical = canonicalWithFile(digest(bytes).slice("sha256:".length), bytes.length);
+    const stream = streamBackupArchive({
+      manifest: manifestFor(canonical, [], { formatVersion: 2, itemCount: 1 }),
+      canonicalExport: canonical,
+      readFile: async function* () {
+        yield bytes;
+      },
+    });
+    await expect(stream.next()).rejects.toThrow(/file.*inventory|canonical.*file|manifest.*file/i);
+  });
+
+  it("refuses an unreferenced manifest file before emitting output", async () => {
+    const bytes = Buffer.from("orphan file");
+    const canonical = emptyCanonical();
+    const stream = streamBackupArchive({
+      manifest: manifestFor(canonical, [{ digest: digest(bytes), byteLength: bytes.length }], {
+        formatVersion: 2,
+      }),
+      canonicalExport: canonical,
+      readFile: async function* () {
+        yield bytes;
+      },
+    });
+    await expect(stream.next()).rejects.toThrow(/file.*inventory|canonical.*file|manifest.*file/i);
+  });
 });
 
 describe("portable TAR framing", () => {
@@ -217,7 +342,7 @@ describe("portable TAR framing", () => {
         canonicalExport: canonical,
         files: new Map(),
       }),
-    ).toThrow(/valid creation date/);
+    ).toThrow(/manifest is not valid|valid creation date/);
     expect(() =>
       encodeBackupArchive({
         manifest: manifestFor(canonical),
@@ -355,9 +480,11 @@ describe("archive content inspection", () => {
     expect(
       inspect({
         canonical,
-        manifest: manifestFor(canonical, [
-          { digest: expectedDigest, byteLength: expected.byteLength },
-        ]),
+        manifest: manifestFor(
+          canonical,
+          [{ digest: expectedDigest, byteLength: expected.byteLength }],
+          { itemCount: 1 },
+        ),
       }),
     ).toMatchObject({ ok: false, reason: expect.stringMatching(/missing 1 file/i) });
     expect(inspect({ files: new Map([[expectedDigest, expected]]) })).toMatchObject({
@@ -527,13 +654,18 @@ describe("archive content inspection", () => {
   it("checks every file against its recorded size and digest", () => {
     const expected = Buffer.from("expected");
     const expectedDigest = digest(expected);
-    const canonical = emptyCanonical();
+    const canonical = canonicalWithFile(
+      expectedDigest.slice("sha256:".length),
+      expected.byteLength,
+    );
     expect(
       inspect({
         canonical,
-        manifest: manifestFor(canonical, [
-          { digest: expectedDigest, byteLength: expected.byteLength },
-        ]),
+        manifest: manifestFor(
+          canonical,
+          [{ digest: expectedDigest, byteLength: expected.byteLength }],
+          { itemCount: 1 },
+        ),
         files: new Map([[expectedDigest, Buffer.from("modified")]]),
       }),
     ).toMatchObject({ ok: false, reason: expect.stringMatching(/does not match/i) });
@@ -547,6 +679,20 @@ describe("archive content inspection", () => {
         manifest: manifestFor(canonical, [], { formatVersion: 2, itemCount: 1 }),
       }),
     ).toMatchObject({ ok: false, reason: expect.stringMatching(/canonical export/i) });
+  });
+
+  it("rejects a canonical file inventory mismatch during inspection", () => {
+    const bytes = Buffer.from("file payload");
+    const canonical = canonicalWithFile(digest(bytes).slice("sha256:".length), bytes.length);
+    expect(
+      inspect({
+        canonical,
+        manifest: manifestFor(canonical, [], { formatVersion: 2, itemCount: 1 }),
+      }),
+    ).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/file.*inventory|canonical.*file|manifest.*file/i),
+    });
   });
 
   it("rejects replacement characters in V2 item and file names", () => {

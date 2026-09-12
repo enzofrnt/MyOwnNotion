@@ -70,6 +70,15 @@ export interface ManifestProblem {
 
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 
+function isCanonicalTimestamp(value: unknown): value is string {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return false;
+  try {
+    return new Date(value).toISOString() === value;
+  } catch {
+    return false;
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -108,6 +117,9 @@ export function readBackupManifest(
     if (typeof value[field] !== "string" || value[field] === "") {
       problems.push({ field, message: "must be a non-empty string" });
     }
+  }
+  if (!isCanonicalTimestamp(value["createdAt"])) {
+    problems.push({ field: "createdAt", message: "must be a canonical RFC3339 timestamp" });
   }
   for (const field of ["schemaVersion", "recordFormatVersion", "itemCount", "fileCount"] as const) {
     const candidate = value[field];

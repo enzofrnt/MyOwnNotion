@@ -267,6 +267,96 @@ describe("buildCanonicalExport", () => {
     expect(manifest.counts).toMatchObject({ databases: 1, databaseEntries: 1 });
     expect(validateCanonicalExport(manifest)).toEqual([]);
   });
+
+  it("accepts the historical V1 canonical shape without structured records", () => {
+    const current = structuredFixture();
+    const { databases: _databases, databaseEntries: _entries, counts, ...legacy } = current;
+    const v1 = {
+      ...legacy,
+      formatVersion: 1,
+      counts: {
+        items: counts.items,
+        activeItems: counts.activeItems,
+        trashedItems: counts.trashedItems,
+        placements: counts.placements,
+        relationships: counts.relationships,
+        revisions: counts.revisions,
+      },
+    };
+    expect(validateCanonicalExport(v1 as never)).toEqual([]);
+  });
+
+  it("rejects item, placement and relationship values that violate storage constraints", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const relationship = manifest.relationships[0];
+    if (first === undefined || relationship === undefined) throw new Error("fixture missing");
+    const invalidItem = {
+      ...manifest,
+      items: [
+        {
+          ...first,
+          kind: "page",
+          name: "x".repeat(513),
+          icon: "x".repeat(65),
+          placements: [{ ...first.placements[0], positionKey: "x".repeat(256) }],
+        },
+        ...manifest.items.slice(1),
+      ],
+    };
+    expect(validateCanonicalExport(invalidItem as never).map((issue) => issue.code)).toContain(
+      "shape.item",
+    );
+    const invalidRelationship = {
+      ...manifest,
+      relationships: [{ ...relationship, relationType: "invalid" }],
+    };
+    expect(
+      validateCanonicalExport(invalidRelationship as never).map((issue) => issue.code),
+    ).toContain("shape.relationship");
+  });
+
+  it("rejects an attachment owned by a non-page and duplicate hierarchy placement", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const second = manifest.items[1];
+    if (first === undefined || second === undefined) throw new Error("fixture missing");
+    const invalid = {
+      ...manifest,
+      items: manifest.items.map((item) =>
+        item.id === first.id
+          ? {
+              ...item,
+              kind: "file",
+              file: {
+                mediaType: "text/plain",
+                originalName: "file.txt",
+                byteLength: 0,
+                sha256: "0".repeat(64),
+              },
+              placements: [
+                {
+                  ...item.placements[0],
+                  kind: "attachment",
+                  itemIsFile: true,
+                  parentItemId: second.id,
+                },
+                {
+                  ...item.placements[0],
+                  id: generateUuidV7(),
+                  kind: "hierarchy",
+                  itemIsFile: true,
+                },
+              ],
+            }
+          : item.id === second.id
+            ? { ...item, kind: "folder" }
+            : item,
+      ),
+    };
+    const codes = validateCanonicalExport(invalid as never).map((issue) => issue.code);
+    expect(codes).toEqual(expect.arrayContaining(["placement.attachment-parent-kind"]));
+  });
 });
 
 describe("canonicalExportString", () => {

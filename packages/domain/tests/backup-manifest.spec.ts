@@ -43,6 +43,12 @@ describe("reading a manifest", () => {
     expect(read.ok).toBe(true);
   });
 
+  it("refuses a non-canonical creation timestamp", () => {
+    const read = readBackupManifest(manifest({ createdAt: "2026-08-18" }));
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(read.problems.map((problem) => problem.field)).toContain("createdAt");
+  });
+
   it.each([1, BACKUP_FORMAT_VERSION])("accepts supported archive format %s", (formatVersion) => {
     expect(readBackupManifest(manifest({ formatVersion })).ok).toBe(true);
   });
