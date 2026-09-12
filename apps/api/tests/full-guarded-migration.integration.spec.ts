@@ -276,6 +276,14 @@ it.each(["missing", "corrupted"] as const)(
         "BEGIN; CREATE TABLE resume_protection_probe (id integer PRIMARY KEY); INSERT INTO resume_protection_probe VALUES (1); INSERT INTO schema_migrations (version) VALUES ('9999_resume_protection_probe'); COMMIT;",
       );
       const beforeRefusal = await snapshot();
+      const sourceReceipt = (await receipts.list())[0];
+      if (sourceReceipt === undefined) throw new Error("Missing authenticated source receipt");
+      await receipts.put({ ...sourceReceipt, sourceVersion: "forged-source-version" });
+      await expect(runGuardedMigrations(input)).rejects.toThrow(
+        "source archive provenance does not match",
+      );
+      expect(await snapshot()).toEqual(beforeRefusal);
+      await receipts.put(sourceReceipt);
       if (archiveFailure === "missing") await rm(archivePath);
       else await writeFile(archivePath, Buffer.alloc(archiveBytes.length));
       await expect(runGuardedMigrations(input)).rejects.toThrow(

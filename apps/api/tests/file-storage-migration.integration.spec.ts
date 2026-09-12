@@ -343,7 +343,7 @@ it("requires source backup evidence and resumes atomic publication without losin
     await writeFile(join(harness.blobRoot, "ab/.tmp-fedcba9876543210"), "");
     const backupId = generateUuidV7();
     const verify = vi
-      .fn<(id: string) => Promise<void>>()
+      .fn<(id: string) => Promise<undefined>>()
       .mockRejectedValueOnce(new Error("missing verified archive"))
       .mockResolvedValue(undefined);
     const records = new ProtectedRecordService({
@@ -513,7 +513,7 @@ it.each<StorageMigrationBoundary>([
     await mkdir(join(harness.blobRoot, "ab"), { recursive: true });
     await writeFile(join(harness.blobRoot, "ab/.tmp-0123456789abcdef"), "");
     await createItemViaApi(harness, { kind: "page", name: "preserved page" });
-    const verify = vi.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined);
+    const verify = vi.fn<(id: string) => Promise<undefined>>().mockResolvedValue(undefined);
     const records = new ProtectedRecordService({
       db,
       keys: files.deps.keys,
@@ -605,7 +605,7 @@ it.each(["ciphertext", "key", "retirement-io"] as const)(
         files,
         records,
         blobRoot: harness.blobRoot,
-        verifySourceBackup: async () => {},
+        verifySourceBackup: async () => undefined,
       };
       const migration = new FileStorageMigration({
         ...deps,
@@ -683,7 +683,7 @@ it("refuses final success if a retired checkpoint disappears, then resumes after
       files,
       records,
       blobRoot: harness.blobRoot,
-      verifySourceBackup: async () => {},
+      verifySourceBackup: async () => undefined,
       onBoundary: async (boundary) => {
         if (boundary === "source-retired" && !stopped) {
           stopped = true;

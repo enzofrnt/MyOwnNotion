@@ -118,10 +118,18 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
         try {
           if (
             archive.manifest.backupId !== backupId ||
-            (archive.manifest.source.installationId !== null &&
-              archive.manifest.source.installationId !== installationId)
+            archive.manifest.reason !== "pre-update" ||
+            receipt.sourceVersion !== archive.manifest.source.applicationVersion
+          )
+            throw new UpdateRefusedError(
+              "The source archive provenance does not match its authenticated receipt.",
+            );
+          if (
+            archive.manifest.source.installationId !== null &&
+            archive.manifest.source.installationId !== installationId
           )
             throw new UpdateRefusedError("The source archive belongs to another installation.");
+          return { backupId, source: archive.manifest.source };
         } finally {
           await archive.close();
         }

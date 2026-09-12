@@ -50,6 +50,17 @@ export function sourceVersionLabel(source: FullBackupSource): string {
   return source.applicationVersion ?? UNKNOWN_SOURCE_VERSION;
 }
 
+/**
+ * V0 predates the installation-version column itself. A missing version alone
+ * is not proof: a later, damaged installation may also lack that value.
+ */
+export function isV0FullBackupSource(source: FullBackupSource): boolean {
+  return (
+    source.applicationVersion === null &&
+    !source.appliedMigrations.includes("0006_installation_application_version")
+  );
+}
+
 /** Only durable blob-store paths belong in this version of the archive. */
 export function validFullComponentPath(kind: FullBackupComponent["kind"], value: string): boolean {
   if (kind === "database") return value === "database.dump";

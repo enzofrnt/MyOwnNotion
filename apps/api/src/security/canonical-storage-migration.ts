@@ -261,6 +261,7 @@ export async function inventoryCanonicalMetadata(
   tx: Transaction,
   content: ProtectedContent,
   workspaceId: string,
+  options: { readonly allowLegacyReservedValues?: boolean } = {},
 ): Promise<CanonicalMetadataSource[]> {
   const items = await tx
     .select({ id: schema.items.id })
@@ -292,10 +293,12 @@ export async function inventoryCanonicalMetadata(
         objectId: generateUuidV7(),
         category,
         entityId: id,
-        ...((await hasLegacyPlaintextPlaceholder(tx, content, category, id))
+        ...(options.allowLegacyReservedValues === true &&
+        (await hasLegacyPlaintextPlaceholder(tx, content, category, id))
           ? { legacyPlaintextPlaceholder: true as const }
           : {}),
-        ...((await hasLegacyPlaintextPayload(tx, content, category, id))
+        ...(options.allowLegacyReservedValues === true &&
+        (await hasLegacyPlaintextPayload(tx, content, category, id))
           ? { legacyPlaintextPayload: true as const }
           : {}),
       };

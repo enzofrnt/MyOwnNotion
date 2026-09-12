@@ -152,7 +152,7 @@ it.each([false, true])(
         records,
         blobRoot: harness.blobRoot,
         // Actual verified archive refusal is exercised by guarded-migration tests.
-        verifySourceBackup: async () => {},
+        verifySourceBackup: async () => undefined,
       });
       expect((await migration.run(generateUuidV7())).phase).toBe("complete");
       expect(await files.deps.blobs.get(raw.storageKey)).toBeNull();

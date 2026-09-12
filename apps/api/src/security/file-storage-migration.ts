@@ -16,7 +16,13 @@ import {
   schema,
   type Transaction,
 } from "@myownnotion/database";
-import { generateUuidV7, isUuid, type Uuid } from "@myownnotion/domain";
+import {
+  type FullBackupSource,
+  generateUuidV7,
+  isUuid,
+  isV0FullBackupSource,
+  type Uuid,
+} from "@myownnotion/domain";
 import { and, eq, sql } from "drizzle-orm";
 import { lockFullFileMaintenance, shareFullBlobDeletion } from "../backup/full/locks.ts";
 import type { ProtectedFileService } from "../files/protected-file-service.ts";
@@ -47,13 +53,29 @@ export type StorageMigrationBoundary =
   | "source-retired"
   | "complete";
 
+export interface VerifiedStorageMigrationSourceBackup {
+  readonly backupId: string;
+  readonly source: FullBackupSource;
+}
+
+interface StorageTransitionInventory {
+  readonly formatVersion: 2;
+  readonly sourceBackupId: string;
+  readonly installationId: string;
+  readonly sourceProvenance: FullBackupSource | null;
+  readonly digest: string;
+  readonly entries: { readonly id: string; readonly kind: string; readonly objectId: string }[];
+}
+
 export interface StorageMigrationDeps {
   readonly db: Database;
   readonly blobRoot: string;
   readonly files: ProtectedFileService;
   readonly records: ProtectedRecordService;
   /** Must authenticate the 024 pre-update receipt and actual archive for this installation. */
-  readonly verifySourceBackup: (backupId: string) => Promise<void>;
+  readonly verifySourceBackup: (
+    backupId: string,
+  ) => Promise<VerifiedStorageMigrationSourceBackup | undefined>;
   readonly now?: () => Date;
   readonly onBoundary?: (boundary: StorageMigrationBoundary) => Promise<void>;
 }
@@ -92,29 +114,81 @@ export class FileStorageMigration {
     }
   }
 
+  private checkedSourceBackup(
+    backupId: string,
+    verified: VerifiedStorageMigrationSourceBackup | undefined,
+  ): VerifiedStorageMigrationSourceBackup | null {
+    if (verified === undefined) return null;
+    if (verified.backupId !== backupId)
+      throw new Error("The authenticated source backup identity does not match the transition.");
+    return verified;
+  }
+
+  private async readInventory(tx: Transaction, transitionId: string) {
+    const inventory = await this.read<StorageTransitionInventory>(
+      tx,
+      "file.transition-inventory",
+      transitionId,
+    );
+    if (
+      inventory.formatVersion !== 2 ||
+      !isUuid(inventory.sourceBackupId) ||
+      !isUuid(inventory.installationId) ||
+      !Array.isArray(inventory.entries)
+    )
+      throw new Error("The protected transition inventory is invalid.");
+    return inventory;
+  }
+
+  private assertInventoryProvenance(
+    inventory: StorageTransitionInventory,
+    verified: VerifiedStorageMigrationSourceBackup | null,
+  ): void {
+    const actual = verified?.source ?? null;
+    if (JSON.stringify(inventory.sourceProvenance) !== JSON.stringify(actual))
+      throw new Error("The authenticated source provenance changed after inventory.");
+  }
+
+  private sourceAllowsLegacyReservedValues(inventory: StorageTransitionInventory): boolean {
+    return inventory.sourceProvenance !== null && isV0FullBackupSource(inventory.sourceProvenance);
+  }
+
   /** Caller owns the full RUN lock. No source/schema writes precede verified backup evidence. */
   async prepare(sourceBackupId: string): Promise<StorageTransitionRecord> {
     if (!isUuid(sourceBackupId)) throw new Error("A verified complete source backup is required.");
     const existing = await readStorageTransition(this.deps.db, this.deps.files.deps.installationId);
     if (existing?.phase === "complete") return existing;
-    await this.deps.verifySourceBackup(existing?.sourceBackupId ?? sourceBackupId);
-    if (existing !== null) return existing;
+    const authenticatedBackupId = existing?.sourceBackupId ?? sourceBackupId;
+    const verified = this.checkedSourceBackup(
+      authenticatedBackupId,
+      await this.deps.verifySourceBackup(authenticatedBackupId),
+    );
+    if (existing !== null) {
+      await this.deps.db.transaction(async (tx) => {
+        const inventory = await this.readInventory(tx, existing.id);
+        this.assertInventoryProvenance(inventory, verified);
+      });
+      return existing;
+    }
     return this.deps.db.transaction(async (tx) => {
       await lockFullFileMaintenance(tx);
+      const allowLegacyReservedValues = verified !== null && isV0FullBackupSource(verified.source);
       const sources = [
         ...(await inventoryLegacyFileSources(tx, this.deps.blobRoot)),
         ...(await inventoryCanonicalMetadata(
           tx,
           this.deps.files.deps.content,
           this.deps.files.deps.workspaceId,
+          { allowLegacyReservedValues },
         )),
       ];
       const transitionId = generateUuidV7();
       const entries = sources.map((source) => ({ id: generateUuidV7(), source }));
       const inventoryId = await this.write(tx, "file.transition-inventory", transitionId, {
-        formatVersion: 1,
+        formatVersion: 2,
         sourceBackupId,
         installationId: this.deps.files.deps.installationId,
+        sourceProvenance: verified?.source ?? null,
         digest: createHash("sha256").update(JSON.stringify(sources)).digest("hex"),
         entries: entries.map((entry) => ({
           id: entry.id,
@@ -338,6 +412,11 @@ export class FileStorageMigration {
         !isUuid(source.entityId)
       )
         throw new Error("Historical metadata checkpoint identity does not match.");
+      if (source.legacyPlaintextPlaceholder === true || source.legacyPlaintextPayload === true) {
+        const inventory = await this.readInventory(tx, transitionId);
+        if (!this.sourceAllowsLegacyReservedValues(inventory))
+          throw new Error("Reserved legacy metadata has no authenticated V0 provenance.");
+      }
       await protectCanonicalMetadata(tx, this.deps.files.deps.content, source);
       const replacementEnvelopeId = await this.write(
         tx,
@@ -364,15 +443,8 @@ export class FileStorageMigration {
       const transition = await readStorageTransition(tx, this.deps.files.deps.installationId);
       if (transition?.id !== transitionId || transition.phase !== "metadata-protected")
         throw new Error("The storage transition cannot complete verification in this phase.");
-      const inventory = await this.read<{
-        formatVersion: number;
-        sourceBackupId: string;
-        installationId: string;
-        digest: string;
-        entries: { id: string; kind: string; objectId: string }[];
-      }>(tx, "file.transition-inventory", transitionId);
+      const inventory = await this.readInventory(tx, transitionId);
       if (
-        inventory.formatVersion !== 1 ||
         inventory.sourceBackupId !== transition.sourceBackupId ||
         inventory.installationId !== transition.installationId ||
         !Array.isArray(inventory.entries)
@@ -405,6 +477,12 @@ export class FileStorageMigration {
         );
         if (source.kind !== entry.kind || source.objectId !== entry.objectId)
           throw new Error("The protected source identity does not match its checkpoint.");
+        if (
+          source.kind === "metadata" &&
+          (source.legacyPlaintextPlaceholder === true || source.legacyPlaintextPayload === true) &&
+          !this.sourceAllowsLegacyReservedValues(inventory)
+        )
+          throw new Error("Reserved legacy metadata has no authenticated V0 provenance.");
         for (const [type, envelopeId] of [
           ["file.transition-source", entry.sourceEnvelopeId],
           ["file.transition-replacement", entry.replacementEnvelopeId],
