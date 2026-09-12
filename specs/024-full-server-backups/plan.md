@@ -124,6 +124,14 @@ settings changes. Cover empty, recent, stale, running, local-only, remote-failed
 corrupt and incomplete-rehearsal states, keyboard and narrow layout. Verification
 belongs in actual behavior/restore tests, not copied style assertions.
 
+The complete-backup panel renders a visible monthly-rehearsal invitation from
+`FullBackupStatus.rehearsalDue`, using the existing `AsyncState` and `Button`
+primitives. The rehearsal button remains in one stable DOM position across due,
+busy, failed, successful and refreshed states; an absent verified backup keeps the
+invitation explanatory and the action disabled. This implements canvas sections
+30–31 (complete protection and monthly restoration rehearsal) while retaining the
+portable panel as a separate surface, and is covered at 320 px and by keyboard.
+
 Implement US1's format and real restore first, US2 guard second, US3 scheduling
 third, then US4 inspection/settings. Follow the current full `checks:local` gate,
 container Trivy when runtime changes, every PR check and post-merge main CI.

@@ -115,6 +115,12 @@ compare the live server before and after and inspect the recorded rehearsal.
    record states actual restoration and integrity outcomes without secrets.
 3. **Given** an interrupted rehearsal, **when** status is read, **then** it
    reports incompletion and never a healthy restored installation.
+4. **Given** the last successful rehearsal is more than one month old or absent,
+   **when** the owner opens full-backup settings, **then** the complete-backup
+   panel visibly invites a monthly rehearsal and keeps its named action usable
+   with keyboard focus at narrow widths; when no verified backup exists, the
+   invitation explains why the action is disabled without implying that a
+   rehearsal can run.
 
 ### Edge Cases
 
@@ -168,7 +174,10 @@ compare the live server before and after and inspect the recorded rehearsal.
   reactivation; preserve device identities for newer offline work without
   silently restoring old session authority.
 - **FR-018**: Expose source version, dates, verification, transfer and rehearsal
-  outcomes in CLI and dedicated backup settings, without secrets or private content.
+  outcomes in CLI and dedicated backup settings, without secrets or private content;
+  when a rehearsal is due, the complete-backup panel visibly invites the owner to
+  perform it at least monthly and keeps the rehearsal action stable for keyboard
+  and narrow-layout use.
 - **FR-019**: Base the 26-hour stale warning on complete backup protection;
   portable export success must not masquerade as a complete backup.
 - **FR-020**: Support real isolated rehearsals and record their date/outcome,
