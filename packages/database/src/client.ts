@@ -14,6 +14,11 @@ export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export interface DatabaseHandle {
   readonly db: Database;
+  /**
+   * Single-connection lane for short write-ahead facts that must commit
+   * independently of a caller's canonical transaction.
+   */
+  readonly journalDb: Database;
   readonly pool: pg.Pool;
   close(): Promise<void>;
 }
@@ -61,13 +66,23 @@ export function createDatabase(connectionString: string): DatabaseHandle {
     // Fail fast in development rather than hanging on a missing database.
     connectionTimeoutMillis: 10_000,
   });
+  // Keep the write-ahead lane outside the primary pool. A transaction may
+  // already own the last primary connection when it has to journal a physical
+  // side effect; borrowing from that same pool would deadlock at saturation.
+  const journalPool = new pg.Pool({
+    connectionString,
+    max: 1,
+    connectionTimeoutMillis: 10_000,
+  });
   const db = drizzle(pool, { schema, casing: "snake_case" });
+  const journalDb = drizzle(journalPool, { schema, casing: "snake_case" });
   let closePromise: Promise<void> | undefined;
   return {
     db,
+    journalDb,
     pool,
     close: () => {
-      closePromise ??= closePool(pool);
+      closePromise ??= Promise.all([closePool(pool), closePool(journalPool)]).then(() => undefined);
       return closePromise;
     },
   };

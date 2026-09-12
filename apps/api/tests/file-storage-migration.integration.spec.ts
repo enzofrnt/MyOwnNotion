@@ -631,6 +631,7 @@ it.each(["ciphertext", "key", "retirement-io"] as const)(
       } else if (failure === "key") {
         const unavailable = createProtectedFileRuntime({
           db,
+          journalDb: harness.built.database.journalDb,
           blobRoot: harness.blobRoot,
           workspaceId: files.deps.workspaceId,
           installationId: files.deps.installationId,

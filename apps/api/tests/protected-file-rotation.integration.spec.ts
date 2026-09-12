@@ -45,6 +45,7 @@ it("resumes a failed file rotation, preserves completed and partial bytes and re
     });
     const runtime = createProtectedFileRuntime({
       db: handle.db,
+      journalDb: handle.journalDb,
       installationId,
       workspaceId,
       blobRoot: root,

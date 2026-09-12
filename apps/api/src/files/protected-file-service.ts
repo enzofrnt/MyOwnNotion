@@ -44,7 +44,8 @@ export class ProtectedFileUnavailableError extends Error {
 }
 
 export interface ProtectedFileServiceDeps {
-  readonly db: Database;
+  /** Reserved lane: journal publication intent without borrowing from the caller's pool. */
+  readonly writeIntentDb: Database;
   readonly installationId: string;
   readonly workspaceId: string;
   readonly blobs: BlobStore;
@@ -67,7 +68,7 @@ export class ProtectedFileService {
   }
 
   private async registerBlobWriteIntent(storageKey: string): Promise<void> {
-    await this.deps.db
+    await this.deps.writeIntentDb
       .insert(schema.protectedFileGarbage)
       .values({ storageKey, workspaceId: this.deps.workspaceId, createdAt: this.deps.now() })
       .onConflictDoNothing();

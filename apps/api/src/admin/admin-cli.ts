@@ -102,6 +102,7 @@ export async function runAdminCli(
     const protectedRuntime = createProtectedFileRuntime({
       blobRoot: blobRoot,
       db: database.db,
+      journalDb: database.journalDb,
       workspaceId: workspace.id,
       deploymentKey,
     });

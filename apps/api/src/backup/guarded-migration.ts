@@ -165,6 +165,7 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
       const protectedRuntime = createProtectedFileRuntime({
         blobRoot: input.blobRoot,
         db: database.db,
+        journalDb: database.journalDb,
         installationId,
         workspaceId: workspace.id,
         deploymentKey: () => Buffer.from(input.deploymentKey()),

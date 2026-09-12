@@ -39,6 +39,7 @@ export async function openNotionTarget(options: NotionTargetOptions) {
     const key = () => Buffer.from(loadDeploymentKey(options.keyFile).bytes);
     const runtime = createProtectedFileRuntime({
       db: database.db,
+      journalDb: database.journalDb,
       workspaceId: installation.workspaceId,
       installationId: installation.id,
       blobRoot: options.blobRoot,

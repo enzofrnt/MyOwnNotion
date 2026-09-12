@@ -52,6 +52,7 @@ async function withFixture(run: (fixture: Fixture) => Promise<void>) {
     });
     const runtime = createProtectedFileRuntime({
       db: handle.db,
+      journalDb: handle.journalDb,
       installationId,
       workspaceId,
       blobRoot: root,

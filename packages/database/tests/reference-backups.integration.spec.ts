@@ -131,6 +131,7 @@ describe.each(REFERENCE_BACKUPS)("reference backup $file", (reference) => {
       const deploymentKey = randomBytes(32);
       const runtime = createProtectedFileRuntime({
         db: restored.handle.db,
+        journalDb: restored.handle.journalDb,
         installationId,
         workspaceId: workspace.id,
         deploymentKey: () => deploymentKey,

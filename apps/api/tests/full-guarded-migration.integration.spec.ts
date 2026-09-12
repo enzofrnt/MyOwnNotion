@@ -401,6 +401,7 @@ it("resumes the original A archive with B after actual wrapping rotation during 
     expect(await readStorageTransition(db, installationId)).toEqual(transition);
     const runtimeB = createProtectedFileRuntime({
       db,
+      journalDb: harness.api.built.database.journalDb,
       workspaceId,
       installationId,
       blobRoot: input.blobRoot,
@@ -409,6 +410,7 @@ it("resumes the original A archive with B after actual wrapping rotation during 
     expect((await runtimeB.keys.dataKey(db, { writable: false })).material.byteLength).toBe(32);
     const freshA = createProtectedFileRuntime({
       db,
+      journalDb: harness.api.built.database.journalDb,
       workspaceId,
       installationId,
       blobRoot: input.blobRoot,

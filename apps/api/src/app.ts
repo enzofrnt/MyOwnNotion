@@ -382,6 +382,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     // comment there.
     const protectedRuntime = createProtectedFileRuntime({
       db: database.db,
+      journalDb: database.journalDb,
       installationId: INSTALLATION_ID,
       workspaceId: workspace.id,
       blobRoot: options.blobRoot,

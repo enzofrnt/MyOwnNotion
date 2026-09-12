@@ -23,6 +23,7 @@ it("streams and authenticates 2 GiB plus chunk-crossing ranges below 256 MiB add
     const key = randomBytes(32);
     const runtime = createProtectedFileRuntime({
       db: handle.db,
+      journalDb: handle.journalDb,
       workspaceId: workspace.id,
       blobRoot,
       deploymentKey: () => key,

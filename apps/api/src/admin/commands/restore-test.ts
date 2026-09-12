@@ -76,6 +76,7 @@ export async function restoreTestCommand(
         const protectedRuntime = createProtectedFileRuntime({
           blobRoot: rehearsal.blobRoot,
           db: rehearsal.handle.db,
+          journalDb: rehearsal.handle.journalDb,
           workspaceId: workspace.id,
           deploymentKey: () => rehearsalDeploymentKey,
         });

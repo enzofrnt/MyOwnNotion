@@ -1,5 +1,6 @@
 import { createDatabase } from "@myownnotion/database";
 import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 let postgres: DisposablePostgres;
@@ -28,5 +29,14 @@ describe("database client lifecycle", () => {
 
     expect(expectedRemovals).toBe(2);
     expect(observedRemovals).toBe(expectedRemovals);
+  });
+
+  it("closes the reserved write-ahead lane with the primary pool", async () => {
+    const handle = createDatabase(postgres.connectionString);
+    await expect(handle.journalDb.execute(sql`SELECT 1 AS ready`)).resolves.toBeDefined();
+
+    await handle.close();
+
+    await expect(handle.journalDb.execute(sql`SELECT 1 AS ready`)).rejects.toThrow();
   });
 });

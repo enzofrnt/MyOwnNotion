@@ -48,6 +48,7 @@ import { rotationWrappingKeyCommand } from "./commands/rotation-wrapping-key.ts"
 
 export interface CommandContext {
   readonly db: Database;
+  readonly journalDb: Database;
   readonly installationId: string;
   readonly deploymentKeyFile: string | undefined;
   readonly blobRoot?: string;
@@ -241,6 +242,7 @@ async function runDataKeyRotation(
   };
   const runtime = createProtectedFileRuntime({
     db: context.db,
+    journalDb: context.journalDb,
     installationId: context.installationId,
     workspaceId: installation.workspaceId,
     deploymentKey,

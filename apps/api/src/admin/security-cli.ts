@@ -90,6 +90,7 @@ export async function runCli(
     };
     const context: CommandContext = {
       db: database.db,
+      journalDb: database.journalDb,
       installationId: INSTALLATION_ID,
       deploymentKeyFile: config.deploymentKeyFile,
       blobRoot: process.env["MYOWNNOTION_BLOB_ROOT"]?.trim() || "./.dev-blobs",

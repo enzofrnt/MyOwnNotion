@@ -41,6 +41,7 @@ beforeAll(async () => {
   });
   runtime = createProtectedFileRuntime({
     db: database.db,
+    journalDb: database.journalDb,
     workspaceId,
     installationId,
     blobRoot: root,
@@ -348,6 +349,7 @@ describe("shared protected file runtime", () => {
     expect(after[1]?.storageKey).not.toBe(before[1]?.storageKey);
     const restarted = createProtectedFileRuntime({
       db: database.db,
+      journalDb: database.journalDb,
       workspaceId,
       installationId,
       blobRoot: root,
@@ -486,6 +488,7 @@ describe("shared protected file runtime", () => {
     }
     const restarted = createProtectedFileRuntime({
       db: database.db,
+      journalDb: database.journalDb,
       workspaceId,
       installationId,
       blobRoot: root,
@@ -543,6 +546,7 @@ describe("shared protected file runtime", () => {
   it("refuses missing deployment material before consuming input", async () => {
     const unavailable = createProtectedFileRuntime({
       db: database.db,
+      journalDb: database.journalDb,
       workspaceId,
       installationId,
       blobRoot: root,
