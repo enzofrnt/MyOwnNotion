@@ -250,8 +250,9 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
 
 - [x] T097 [US4] Keep the current settings destination visible when the retained
       hidden workspace asynchronously replaces a trashed active selection;
-      update only the destination used by Back, preserve settings state and
-      prove the late-projection path with a routing regression plus repeated
+      update only the note or graph destination used by Back, preserve settings
+      state, route the graph sentinel through its native callback and prove the
+      late-projection path with routing regressions plus repeated
       pinned-Linux WebKit coverage of the original trash/restore journey
       (FR-010–FR-013, SC-007, audit A89). Focused unit and five-repeat WebKit
       evidence pass; complete delivery remains T041.

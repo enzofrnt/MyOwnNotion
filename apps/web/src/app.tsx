@@ -463,6 +463,39 @@ export function App(props: AppProps = {}) {
     navigateSafely(remembered?.path ?? "/notes");
   }, [location.state, navigateSafely]);
 
+  const retainSettingsForWorkspaceReplacement = useCallback(
+    (target: string): boolean => {
+      const currentLocation = locationRef.current;
+      const currentDestination = recognizeDestination(currentLocation.pathname);
+      if (
+        currentDestination.kind !== "settings-root" &&
+        currentDestination.kind !== "settings" &&
+        currentDestination.kind !== "page-settings"
+      ) {
+        return false;
+      }
+
+      // The retained workspace can finish reconciling a trashed active tab
+      // after the owner has already opened Settings. Keep that operational
+      // destination in the foreground and replace only where Back returns;
+      // otherwise a late projection update can eject the owner to /notes.
+      const stateReturn = workspaceReturnDestinationFromState(currentLocation.state);
+      const retainedReturn = workspaceReturn.current;
+      const scrollY = retainedReturn?.scrollY ?? stateReturn?.scrollY ?? 0;
+      workspaceReturn.current = {
+        focus: retainedReturn?.focus ?? null,
+        path: target,
+        scrollY,
+      };
+      navigateSafely(`${currentLocation.pathname}${currentLocation.search}`, {
+        replace: true,
+        state: workspaceReturnState(target, scrollY),
+      });
+      return true;
+    },
+    [navigateSafely],
+  );
+
   const openItem = useCallback(
     (itemId: Uuid | null, options?: { readonly replace?: boolean }) => {
       const currentLocation = locationRef.current;
@@ -470,31 +503,7 @@ export function App(props: AppProps = {}) {
       if (itemId !== null && options?.replace === true) {
         target = contentReturnFromState(currentLocation.state, itemId) ?? target;
       }
-      const currentDestination = recognizeDestination(currentLocation.pathname);
-      if (
-        options?.replace === true &&
-        (currentDestination.kind === "settings-root" ||
-          currentDestination.kind === "settings" ||
-          currentDestination.kind === "page-settings")
-      ) {
-        // The retained workspace can finish reconciling a trashed active tab
-        // after the owner has already opened Settings. Keep that operational
-        // destination in the foreground and replace only where Back returns;
-        // otherwise a late projection update can eject the owner to /notes.
-        const stateReturn = workspaceReturnDestinationFromState(currentLocation.state);
-        const retainedReturn = workspaceReturn.current;
-        const scrollY = retainedReturn?.scrollY ?? stateReturn?.scrollY ?? 0;
-        workspaceReturn.current = {
-          focus: retainedReturn?.focus ?? null,
-          path: target,
-          scrollY,
-        };
-        navigateSafely(`${currentLocation.pathname}${currentLocation.search}`, {
-          replace: true,
-          state: workspaceReturnState(target, scrollY),
-        });
-        return;
-      }
+      if (options?.replace === true && retainSettingsForWorkspaceReplacement(target)) return;
       const currentPath = safeReturnDestination(
         `${currentLocation.pathname}${currentLocation.search}`,
       );
@@ -503,14 +512,19 @@ export function App(props: AppProps = {}) {
         ...(currentPath === null ? {} : { state: { contentReturn: currentPath } }),
       });
     },
-    [navigateSafely],
+    [navigateSafely, retainSettingsForWorkspaceReplacement],
   );
 
   const openGraph = useCallback(
-    (itemId: Uuid | null) => {
-      navigateSafely(graphPath(itemId));
+    (itemId: Uuid | null, options?: { readonly replace?: boolean }) => {
+      const target = graphPath(itemId);
+      if (options?.replace === true && retainSettingsForWorkspaceReplacement(target)) return;
+      navigateSafely(
+        target,
+        options?.replace === undefined ? undefined : { replace: options.replace },
+      );
     },
-    [navigateSafely],
+    [navigateSafely, retainSettingsForWorkspaceReplacement],
   );
 
   useLayoutEffect(() => {

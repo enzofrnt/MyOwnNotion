@@ -519,10 +519,11 @@ already been ejected from the operational screen.
 The routed application now recognizes replacement navigation emitted while a
 settings destination is current. It keeps that settings route in front and
 updates only its safe workspace return state, including the retained scroll and
-focus destination. The direct routing regression and five consecutive runs of
-the original trash/restore journey in the pinned Linux WebKit image pass without
-retry. This closes A89 implementation evidence; T041 retains the renewed exact
-local, PR and post-merge delivery obligation.
+focus destination. A surviving graph tab remains a native graph destination
+rather than being cast to an item identity. The direct routing regressions and
+five consecutive runs of the original trash/restore journey in the pinned Linux
+WebKit image pass without retry. This closes A89 implementation evidence; T041
+retains the renewed exact local, PR and post-merge delivery obligation.
 
 ## Integrated delivery closure — 2026-09-13
 

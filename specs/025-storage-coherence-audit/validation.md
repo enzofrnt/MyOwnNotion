@@ -985,18 +985,20 @@ was inspected immediately after the failure and established this order:
 
 The application now keeps settings foregrounded for replacement navigation from
 the retained workspace and replaces only the safe destination used by Back.
-The browser journey deliberately keeps the original immediate settings
-transition and asserts `/settings/trash` both before and after the delayed row
-appears.
+The graph sentinel remains in survivor order and uses native graph navigation
+instead of an item-ID cast. The browser journey deliberately keeps the original
+immediate settings transition, makes Graph the surviving neighbour and asserts
+`/settings/trash` both before and after the delayed row appears.
 
 Focused evidence on Bun 1.4.2:
 
-- routed application behavior: **16/16 tests**, including settings retention and
-  Back returning to `/notes`;
+- routed application behavior: **18/18 tests**, including direct settings
+  retention, replacement of a remembered note and Back returning to Graph;
 - focused Biome check for the application, routing test and WebKit journey:
   pass;
 - original trash/restore journey: **5/5** consecutive runs in the pinned Linux
-  WebKit image, one worker, without retry;
+  WebKit image, one worker, without retry; renewed graph-neighbour evidence is
+  rerun on the next exact candidate;
 - complete coverage on the exact candidate tree: **448 passed / 2 skipped test
   files**, **4,621 passed / 2 skipped tests**, with **91.41% statements / 85.72%
   branches / 94.42% functions / 92.55% lines**;

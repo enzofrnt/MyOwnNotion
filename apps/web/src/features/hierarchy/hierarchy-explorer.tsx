@@ -315,7 +315,7 @@ export interface HierarchyExplorerProps {
   /** Settings live outside the workspace, so the shortcut asks rather than routes. */
   readonly onOpenSettings: () => void;
   readonly onOpenItem: (itemId: Uuid | null, options?: { readonly replace?: boolean }) => void;
-  readonly onOpenGraph: (itemId: Uuid | null) => void;
+  readonly onOpenGraph: (itemId: Uuid | null, options?: { readonly replace?: boolean }) => void;
   readonly onProblemChange: (problem: SafeError | null) => void;
   readonly onTrashedItemsChange: (items: readonly ProjectedItem[]) => void;
 }
@@ -835,11 +835,18 @@ export function HierarchyExplorer({
     ) {
       // Neighbours are looked up among the tabs that survive, with the closing
       // tab kept in place so "next, else previous" is measured from it.
-      const survivors = openTabIds.filter((id) => openable.has(id) || id === selectedId);
-      selectItemById(neighbourTab(survivors, selectedId) as Uuid | null, { replace: true });
+      const survivors = openTabIds.filter(
+        (id) => isGraphTabId(id) || openable.has(id) || id === selectedId,
+      );
+      const neighbour = neighbourTab(survivors, selectedId);
+      if (neighbour !== null && isGraphTabId(neighbour)) {
+        onOpenGraph(lastGraphCenter.current, { replace: true });
+      } else {
+        selectItemById(neighbour as Uuid | null, { replace: true });
+      }
     }
     setOpenTabIds(pruned);
-  }, [items, loadState, openTabIds, selectedId, selectItemById, trashedItems]);
+  }, [items, loadState, onOpenGraph, openTabIds, selectedId, selectItemById, trashedItems]);
 
   const closeOpenTab = useCallback(
     (itemId: string) => {
