@@ -15,7 +15,7 @@ Research clarified that administrative key import refuses occupied targets and
 that historical MVCC/WAL erasure is not promised by application-level migration.
 
 Current reconciliation extends that historical baseline to 14 functional
-requirements, seven success criteria, 94 ordered tasks and 85 audit findings.
+requirements, seven success criteria, 95 ordered tasks and 87 audit findings.
 The final archive/code-audit corrections and complete coverage evidence are
 recorded at `ca2174cd83fa328f8df808d2ccce5a66061c8999`; the renewed browser and
 recovery lifecycle corrections are recorded at `333ea73`. At this historical
@@ -452,6 +452,34 @@ tab as a keyboard entry point, and closing the final tab focuses the workspace.
 Twenty-three component tests and all five browser
 projects pass on Bun 1.4.2. These tasks close A84–A85 implementation evidence;
 T041 retains the exact PR/main delivery obligation.
+
+## T095 — authenticated historical database publication
+
+The first complete gate on `34938b593c597821806c9ddef4341b68639eb035`
+exposed one safe but blocking consequence of T092: the V0 canonical migration
+used the ordinary protected resolver and could no longer inventory a database
+whose definition/value existed only in its authenticated legacy revision. The
+same state can occur on a modern installation upgrading from the schema before
+database envelopes. One of 4,619 coverage tests failed before any migration
+write survived.
+
+The migration now has a private, provenance-gated reader. It checks the
+envelope first, permits the legacy representation only for an authenticated
+pre-cutover source during inventory and first publication, and binds the
+accepted payload to the transition's captured digest. `requireProtected`
+verification, cutover,
+retirement, routes, search and projections retain the strict T092 behavior. The
+10-case canonical migration suite, 5-case protected projection suite and all 29
+resume/interruption cases pass, including a modern V1 inventory with database
+content, along with workspace types and Biome. T041 retains renewed exact-gate
+and PR/main delivery.
+
+The next clean candidate `644f602219182a30bed1deb56251c2b57d782972`
+passed all 4,617 executed tests but exceeded the unchanged branch budget by one.
+T095 now proves that enabling the authenticated migration fallback still uses
+existing protected definition and entry-value envelopes. This closes A87's
+missing precedence evidence without changing the migration boundary; T041 still
+owns the renewed exact gate and delivery.
 
 ## Integrated delivery closure — 2026-09-13
 

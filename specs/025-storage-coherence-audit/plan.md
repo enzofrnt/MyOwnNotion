@@ -475,7 +475,7 @@ evidence with the archive/history hardening results.
 
 Accept a version-1 transition inventory only after matching its source backup,
 receipt, installation, transition identity, exact entry set and digests. Its
-source application evidence can be modern or V0; only the existing marker
+source application evidence can be modern or V0; only explicit legacy marker
 exceptions require V0. Upgrade the accepted inventory atomically to version 2
 before continuation. The narrowly identified early file-only V1 shape may
 derive its missing metadata only in `inventoried` or `backfilling`; every later
@@ -601,3 +601,32 @@ request affinity with equivalent one-time and cleanup guarantees.
 
 Record focused tests and independent review at `333ea73`, then rerun the exact
 complete local gate and PR/main delivery duties in T037/T038/T040/T041.
+
+### T092 — protected structured reads fail closed
+
+Treat versioned `database.definition` and `database.entry-values` envelopes as
+authoritative whenever the protected runtime is configured. Database routes,
+projection loading and complete search must refuse a missing envelope without
+querying the readable revision representation. Keep the unprotected repository
+path available only to an installation with no protected runtime and to the
+explicit authenticated historical migration boundary described in T095.
+
+### T093–T094 — final workspace coherence
+
+Join local database-source identities to the accepted hierarchy projection so a
+source placed in a folder keeps its table identity, while its canonical item and
+link remain unchanged. Bound deep visual indentation on narrow touch layouts,
+retain a complete 44 px row menu and use one close helper for button, shortcut
+and middle-button tab closure. Focus must move to a surviving destination or the
+workspace when the strip empties. Component, impact-contract and five-browser
+journeys provide the acceptance evidence.
+
+### T095 — authenticated historical database publication
+
+Keep the strict T092 resolver unchanged for ordinary reads. Inside canonical
+storage migration, check the protected definition/value first and permit the
+legacy revision representation only during inventory and first publication of
+a source whose complete backup provenance is authenticated. Bind that temporary
+value to the captured metadata digest. Post-publication digest verification, cutover
+and retirement use only protected envelopes. Exercise route refusal before the
+migration and exact API readback afterward.

@@ -270,7 +270,10 @@ export class FileStorageMigration {
       tx,
       this.deps.files.deps.content,
       this.deps.files.deps.workspaceId,
-      { allowLegacyReservedValues: isV0FullBackupSource(verified.source) },
+      {
+        allowLegacyDatabasePayload: true,
+        allowLegacyReservedValues: isV0FullBackupSource(verified.source),
+      },
     );
     const existingMetadata = new Set(
       sources
@@ -335,7 +338,7 @@ export class FileStorageMigration {
       throw new Error("The authenticated source provenance changed after inventory.");
   }
 
-  private sourceAllowsLegacyReservedValues(inventory: StorageTransitionInventory): boolean {
+  private sourceAllowsLegacyV0Values(inventory: StorageTransitionInventory): boolean {
     return inventory.sourceProvenance !== null && isV0FullBackupSource(inventory.sourceProvenance);
   }
 
@@ -374,7 +377,10 @@ export class FileStorageMigration {
           tx,
           this.deps.files.deps.content,
           this.deps.files.deps.workspaceId,
-          { allowLegacyReservedValues },
+          {
+            allowLegacyDatabasePayload: true,
+            allowLegacyReservedValues,
+          },
         )),
       ];
       const transitionId = generateUuidV7();
@@ -607,12 +613,18 @@ export class FileStorageMigration {
         !isUuid(source.entityId)
       )
         throw new Error("Historical metadata checkpoint identity does not match.");
-      if (source.legacyPlaintextPlaceholder === true || source.legacyPlaintextPayload === true) {
-        const inventory = await this.readInventory(tx, transitionId);
-        if (!this.sourceAllowsLegacyReservedValues(inventory))
-          throw new Error("Reserved legacy metadata has no authenticated V0 provenance.");
+      const inventory = await this.readInventory(tx, transitionId);
+      const allowLegacyV0Values = this.sourceAllowsLegacyV0Values(inventory);
+      const allowLegacyDatabasePayload = inventory.sourceProvenance !== null;
+      if (
+        (source.legacyPlaintextPlaceholder === true || source.legacyPlaintextPayload === true) &&
+        !allowLegacyV0Values
+      ) {
+        throw new Error("Reserved legacy metadata has no authenticated V0 provenance.");
       }
-      await protectCanonicalMetadata(tx, this.deps.files.deps.content, source);
+      await protectCanonicalMetadata(tx, this.deps.files.deps.content, source, {
+        allowLegacyDatabasePayload,
+      });
       const replacementEnvelopeId = await this.write(
         tx,
         "file.transition-replacement",
@@ -675,7 +687,7 @@ export class FileStorageMigration {
         if (
           source.kind === "metadata" &&
           (source.legacyPlaintextPlaceholder === true || source.legacyPlaintextPayload === true) &&
-          !this.sourceAllowsLegacyReservedValues(inventory)
+          !this.sourceAllowsLegacyV0Values(inventory)
         )
           throw new Error("Reserved legacy metadata has no authenticated V0 provenance.");
         for (const [type, envelopeId] of [

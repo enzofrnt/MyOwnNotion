@@ -136,6 +136,13 @@ body, retained snapshot body or relationship metadata marker only for its first
 publication. Once published, every digest and lifecycle boundary resolves the
 protected envelope; the plaintext marker cannot satisfy verification.
 
+An authenticated pre-cutover source, whether modern or V0, may contain database
+definitions and entry values only in its canonical revision snapshots. During
+inventory and first publication, the migration checks an envelope first and may
+read that legacy representation only when the complete backup provenance and
+captured metadata digest agree. Normal protected readers and every later
+lifecycle boundary require the envelope.
+
 Quarantine keeps an explicit content UUID reference as well as current chunk
 locators. An empty orphan has one row with a null chunk locator; every nonempty
 chunk has a row. The FK prevents ordinary content cleanup from destroying the
@@ -156,7 +163,8 @@ cutover and final retirement.
 A supported version-1 inventory resumes only after authenticating the same
 backup, installation, transition, exact entry set and digests, then persists a
 version-2 replacement atomically. Its source may be a modern installation or V0;
-V0 is required only for the reserved-marker provenance above. The early
+V0 is required only for the reserved-marker provenance above. The digest-bound
+legacy database path applies to either authenticated source. The early
 file-only V1 inventory may supplement missing metadata while the phase is still
 `inventoried` or `backfilling`; later phases and mismatched evidence never infer
 or replace historical provenance.

@@ -120,6 +120,7 @@ async function itemPayload(
   id: string,
   allowLegacyPlaintextPlaceholder = false,
   allowLegacyPlaintextPayload = false,
+  allowLegacyDatabasePayload = false,
 ) {
   const raw = await readItem(tx, id as Uuid);
   if (raw === null) throw new Error("Historical canonical item is unavailable.");
@@ -161,12 +162,54 @@ async function itemPayload(
     database:
       database === null
         ? null
-        : { record: database, definition: await resolveDatabaseDefinition(tx, database, content) },
+        : {
+            record: database,
+            definition: await resolveHistoricalDatabaseDefinition(
+              tx,
+              database,
+              content,
+              allowLegacyDatabasePayload,
+            ),
+          },
     entry:
       entry === null
         ? null
-        : { record: entry, values: await resolveDatabaseEntryValues(tx, entry, content) },
+        : {
+            record: entry,
+            values: await resolveHistoricalDatabaseEntryValues(
+              tx,
+              entry,
+              content,
+              allowLegacyDatabasePayload,
+            ),
+          },
   };
+}
+
+async function resolveHistoricalDatabaseDefinition(
+  tx: Transaction,
+  record: NonNullable<Awaited<ReturnType<typeof readDatabaseRecord>>>,
+  content: ProtectedContent,
+  allowLegacyPlaintext: boolean,
+) {
+  if (!allowLegacyPlaintext) return resolveDatabaseDefinition(tx, record, content);
+  const sealed = await content.readDatabaseDefinition(
+    tx,
+    record.databaseId,
+    record.definitionVersion,
+  );
+  return resolveDatabaseDefinition(tx, record, sealed === null ? undefined : content);
+}
+
+async function resolveHistoricalDatabaseEntryValues(
+  tx: Transaction,
+  record: NonNullable<Awaited<ReturnType<typeof readDatabaseEntryRecord>>>,
+  content: ProtectedContent,
+  allowLegacyPlaintext: boolean,
+) {
+  if (!allowLegacyPlaintext) return resolveDatabaseEntryValues(tx, record, content);
+  const sealed = await content.readDatabaseEntryValues(tx, record.entryId, record.valueVersion);
+  return resolveDatabaseEntryValues(tx, record, sealed === null ? undefined : content);
 }
 
 async function revisionPayload(
@@ -225,12 +268,17 @@ export async function canonicalMetadataDigest(
     CanonicalMetadataSource,
     "category" | "entityId" | "legacyPlaintextPlaceholder" | "legacyPlaintextPayload"
   >,
-  options: { readonly requireProtected?: boolean } = {},
+  options: {
+    readonly allowLegacyDatabasePayload?: boolean;
+    readonly requireProtected?: boolean;
+  } = {},
 ): Promise<string> {
   const allowLegacyPlaintextPlaceholder =
     source.legacyPlaintextPlaceholder === true && options.requireProtected !== true;
   const allowLegacyPlaintextPayload =
     source.legacyPlaintextPayload === true && options.requireProtected !== true;
+  const allowLegacyDatabasePayload =
+    options.allowLegacyDatabasePayload === true && options.requireProtected !== true;
   const payload =
     source.category === "item"
       ? await itemPayload(
@@ -239,6 +287,7 @@ export async function canonicalMetadataDigest(
           source.entityId,
           allowLegacyPlaintextPlaceholder,
           allowLegacyPlaintextPayload,
+          allowLegacyDatabasePayload,
         )
       : source.category === "revision"
         ? await revisionPayload(
@@ -261,7 +310,10 @@ export async function inventoryCanonicalMetadata(
   tx: Transaction,
   content: ProtectedContent,
   workspaceId: string,
-  options: { readonly allowLegacyReservedValues?: boolean } = {},
+  options: {
+    readonly allowLegacyDatabasePayload?: boolean;
+    readonly allowLegacyReservedValues?: boolean;
+  } = {},
 ): Promise<CanonicalMetadataSource[]> {
   const items = await tx
     .select({ id: schema.items.id })
@@ -302,7 +354,12 @@ export async function inventoryCanonicalMetadata(
           ? { legacyPlaintextPayload: true as const }
           : {}),
       };
-      result.push({ ...source, digest: await canonicalMetadataDigest(tx, content, source) });
+      result.push({
+        ...source,
+        digest: await canonicalMetadataDigest(tx, content, source, {
+          allowLegacyDatabasePayload: options.allowLegacyDatabasePayload === true,
+        }),
+      });
     }
   }
   return result;
@@ -313,8 +370,13 @@ export async function protectCanonicalMetadata(
   tx: Transaction,
   content: ProtectedContent,
   source: CanonicalMetadataSource,
+  options: { readonly allowLegacyDatabasePayload?: boolean } = {},
 ): Promise<void> {
-  if ((await canonicalMetadataDigest(tx, content, source)) !== source.digest)
+  if (
+    (await canonicalMetadataDigest(tx, content, source, {
+      allowLegacyDatabasePayload: options.allowLegacyDatabasePayload === true,
+    })) !== source.digest
+  )
     throw new Error("Historical canonical metadata changed after inventory.");
   const id = source.entityId;
   if (source.category === "item") {
@@ -324,6 +386,7 @@ export async function protectCanonicalMetadata(
       id,
       source.legacyPlaintextPlaceholder === true,
       source.legacyPlaintextPayload === true,
+      options.allowLegacyDatabasePayload === true,
     );
     await content.writeItemPresentation(tx, {
       itemId: id,

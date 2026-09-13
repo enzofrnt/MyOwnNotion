@@ -695,6 +695,62 @@ it("resumes a V1 inventory from an authenticated modern source", async () => {
   try {
     const { db, protectedFiles: files } = harness.built.context;
     if (files === undefined) throw new Error("Missing protected runtime");
+    const databaseId = generateUuidV7();
+    const created = await harness.owner({
+      method: "POST",
+      url: "/v1/databases",
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: {
+        id: databaseId,
+        name: "modern V1 database",
+        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "V" },
+        titlePropertyId: generateUuidV7(),
+        initialViewId: generateUuidV7(),
+        initialViewName: "Modern view",
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const entryId = generateUuidV7();
+    const entry = await harness.owner({
+      method: "POST",
+      url: `/v1/databases/${databaseId}/entries`,
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: {
+        id: entryId,
+        title: "Modern V1 entry",
+        placement: { id: generateUuidV7(), parentItemId: databaseId, positionKey: "a" },
+        values: {},
+        relationTargets: {},
+      },
+    });
+    expect(entry.statusCode, entry.body).toBe(201);
+    const expectedDatabase = (
+      await harness.owner({ method: "GET", url: `/v1/databases/${databaseId}` })
+    ).json();
+    const expectedEntry = (
+      await harness.owner({ method: "GET", url: `/v1/databases/${databaseId}/entries/${entryId}` })
+    ).json();
+    await db.transaction(async (tx) => {
+      for (const revision of await tx.select().from(schema.revisions)) {
+        const snapshot = await files.deps.content.readRevisionSnapshot<Record<string, unknown>>(
+          tx,
+          revision.id,
+        );
+        await tx
+          .update(schema.revisions)
+          .set({ snapshot })
+          .where(eq(schema.revisions.id, revision.id));
+      }
+      await tx
+        .delete(schema.protectedEnvelopes)
+        .where(
+          inArray(schema.protectedEnvelopes.entityType, [
+            "revision.snapshot",
+            "database.definition",
+            "database.entry-values",
+          ]),
+        );
+    });
     const backupId = generateUuidV7();
     const source = {
       installationId: files.deps.installationId,
@@ -752,6 +808,23 @@ it("resumes a V1 inventory from an authenticated modern source", async () => {
       sourceProvenance: source,
     });
     after.fill(0);
+    while (await migration.publishMetadataNext(prepared.id)) {
+      /* durable metadata batches */
+    }
+    await migration.finishVerification(prepared.id);
+    await migration.cutover(prepared.id);
+    const restoredDatabase = await harness.owner({
+      method: "GET",
+      url: `/v1/databases/${databaseId}`,
+    });
+    const restoredEntry = await harness.owner({
+      method: "GET",
+      url: `/v1/databases/${databaseId}/entries/${entryId}`,
+    });
+    expect(restoredDatabase.statusCode, restoredDatabase.body).toBe(200);
+    expect(restoredEntry.statusCode, restoredEntry.body).toBe(200);
+    expect(restoredDatabase.json()).toEqual(expectedDatabase);
+    expect(restoredEntry.json()).toEqual(expectedEntry);
   } finally {
     await harness.close();
   }

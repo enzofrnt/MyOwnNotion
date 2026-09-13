@@ -278,7 +278,12 @@ existing constitution IV / feature 002 promise, not a new product feature.
   MUST authenticate its original backup, installation, transition, entries and
   digests before resuming, then upgrade atomically to the current inventory
   format. Its source MAY be modern or V0; V0 provenance MUST authorize only the
-  reserved-marker exceptions. Missing historical metadata MAY be supplemented
+  reserved-marker exceptions. Any authenticated pre-cutover source MAY expose
+  legacy database definitions or entry values whose protected envelopes are
+  absent, but only through digest-bound migration inventory and first
+  publication. Routes, search, projections and every post-publication
+  verification MUST remain fail-closed. Missing historical
+  metadata MAY be supplemented
   only for an identified early inventory shape before verification or cutover,
   and any absent or mismatched proof MUST stop the transition without writes.
 

@@ -10,14 +10,17 @@
  *
  * Three rules, and the order between them is the whole design.
  *
- * **The envelope wins when it exists.** Not "when the migration says it
- * should" — when it is there. A flag can be stale, half-applied, or restored
- * from a backup taken mid-migration; the row either has a sealed copy or it
- * does not.
+ * **The envelope is authoritative in a protected runtime.** Not "when the
+ * migration says it should" — as soon as the key hierarchy is configured,
+ * protected readers require the matching versioned envelope. A flag can be
+ * stale, half-applied, or restored from a backup taken mid-migration; normal
+ * reads still fail closed when that envelope is missing.
  *
- * **The plaintext column is a fallback, not an equal.** An installation that
- * has never been migrated still works, and reads its own columns. That is what
- * makes the migration safe to start: nothing breaks before it finishes.
+ * **Plaintext belongs only to an unprotected installation or an explicit
+ * authenticated migration path.** An installation with no protected runtime
+ * reads its own legacy columns. The migration service has a separate,
+ * digest-bound reader for moving those values into envelopes; routes, search
+ * and projections never opt into it.
  *
  * **A scrubbed column with no envelope is a refusal.** After the scrub the
  * column holds a placeholder, so falling back to it would serve U+FFFD as a

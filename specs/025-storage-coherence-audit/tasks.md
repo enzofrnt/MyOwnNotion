@@ -111,8 +111,8 @@ US2 fixture construction and operational documentation after the format is fixed
 US3 occupied-target tests while US4 browser reproduction runs. These are dependency
 opportunities, not a requirement to run extra agents or overlap heavy DB suites.
 
-All 94 task lines follow the checklist/ID/path format. Counts: setup 2,
-foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1, active page response convergence 1, historical source-key convergence 1, selective graph coverage 1, page title reflow 1, multipart conflict recovery 1, editor geometry 1, bounded multipart evidence 1, direct bounded reads 1, CI gate topology 1, response lifecycle 1, rollback-safe blob cleanup 1, direct Buffer storage 1, reserved journal lane 1, protected-placeholder reservation 1, protected-payload reservation 1, strict envelope revalidation 1, authenticated V0 provenance 1, versioned portable archive hardening 1, protected history retention 1, exact marker reflection 1, V1 inventory resume 1, canonical SQL representability 1, initialization archive state 1, causal update receipts 1, checkpoint head bounds 1, operational timestamp order 1, checkpoint sequence binding 1, legacy-state isolation 1, placementless reusable database export 1, final audit closure 9, final recovery/browser closure 3, protected database read closure 1, final workspace coherence closure 2. Each story's acceptance
+All 95 task lines follow the checklist/ID/path format. Counts: setup 2,
+foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1, active page response convergence 1, historical source-key convergence 1, selective graph coverage 1, page title reflow 1, multipart conflict recovery 1, editor geometry 1, bounded multipart evidence 1, direct bounded reads 1, CI gate topology 1, response lifecycle 1, rollback-safe blob cleanup 1, direct Buffer storage 1, reserved journal lane 1, protected-placeholder reservation 1, protected-payload reservation 1, strict envelope revalidation 1, authenticated V0 provenance 1, versioned portable archive hardening 1, protected history retention 1, exact marker reflection 1, V1 inventory resume 1, canonical SQL representability 1, initialization archive state 1, causal update receipts 1, checkpoint head bounds 1, operational timestamp order 1, checkpoint sequence binding 1, legacy-state isolation 1, placementless reusable database export 1, final audit closure 9, final recovery/browser closure 3, protected database read closure 1, final workspace coherence closure 2, authenticated historical database publication 1. Each story's acceptance
 criteria precede its implementation and its completion requires recorded proof.
 
 T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferred beyond this audit delivery.
@@ -166,7 +166,7 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
 
 ## Phase 16: Convergence — resumable migration and archive closure
 
-- [x] T071 [US2] Resume authenticated version-1 transition inventories from either a modern or V0 source, bind backup/install/transition/entry identity and digests before continuation, upgrade the inventory atomically to version 2, and supplement only the narrowly identified early file-only metadata gap while the transition is still inventoried or backfilling. Keep V0 provenance limited to marker exceptions and fail closed on every absent or mismatched proof (FR-007/FR-014, SC-003, audit A56).
+- [x] T071 [US2] Resume authenticated version-1 transition inventories from either a modern or V0 source, bind backup/install/transition/entry identity and digests before continuation, upgrade the inventory atomically to version 2, and supplement only the narrowly identified early file-only metadata gap while the transition is still inventoried or backfilling. Keep V0 provenance limited to explicit marker exceptions; T095's digest-bound database publication applies to every authenticated pre-cutover source. Fail closed on every absent or mismatched proof (FR-007/FR-014, SC-003, audit A56).
 - [x] T072 [US2] Reject canonical structured definition/value versions below one and U+0000 in every canonical or page-operation JSON string or object key before any archive byte is emitted or any restore-target mutation begins. Cover direct/streaming production, inspection and apply atomicity while keeping supported V1 archives readable (FR-007/FR-014, SC-002/SC-003, audit A57).
 - [x] T073 [US2] Preserve a legitimate empty `initializing` page-operation state through export, inspection and restore, while refusing checkpoints, updates, frontiers, digests, windows, ambiguities or conversions that contradict that lifecycle state (FR-007/FR-014, SC-003, audit A58).
 - [x] T074 [US2] Authenticate every retained page-operation blob against its declared base frontier and reconstruct its cumulative result frontier, including updates already covered by the current checkpoint and concurrent server history. Refuse causal retreat or an unreconstructable receipt before any archive byte is emitted or any restore-target mutation begins (FR-007/FR-014, SC-002/SC-003, audit A59).
@@ -218,3 +218,14 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
       unit, impact-contract and five-browser evidence (FR-010–FR-013,
       SC-006/SC-007, audit A85 and A81 follow-up). Complete delivery remains
       T041.
+
+## Phase 21: Authenticated historical database publication
+
+- [x] T095 [US2] Preserve strict protected database reads while allowing only
+      an authenticated canonical migration to inventory and first-publish a
+      missing definition/value envelope from its digest-bound revision source;
+      require protected envelopes for every later verification boundary and
+      cover route refusal plus complete transition readback in
+      `apps/api/tests/canonical-storage-migration.integration.spec.ts`
+      (FR-007/FR-014, SC-003/SC-007, audit A86). Focused migration/projection
+      tests, workspace types and Biome pass; complete delivery remains T041.
