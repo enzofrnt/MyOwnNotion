@@ -565,6 +565,24 @@ describe("database capability and entries (T019)", () => {
     expect(missingParentResult.result.status).toBe("rejected");
     expect(missingParentResult.result.problem?.code).toBe("containment.parent-not-found");
     expect(await readDatabaseRecord(context.handle.db, missingParent.id)).toBeNull();
+    expect(
+      await context.handle.db
+        .select()
+        .from(schema.items)
+        .where(eq(schema.items.id, missingParent.id)),
+    ).toHaveLength(0);
+    expect(
+      await context.handle.db
+        .select()
+        .from(schema.placements)
+        .where(eq(schema.placements.itemId, missingParent.id)),
+    ).toHaveLength(0);
+    expect(
+      await context.handle.db
+        .select()
+        .from(schema.revisions)
+        .where(eq(schema.revisions.itemId, missingParent.id)),
+    ).toHaveLength(0);
 
     const duplicate = databaseCreate();
     expect((await submit(duplicate)).result.status).toBe("accepted");
