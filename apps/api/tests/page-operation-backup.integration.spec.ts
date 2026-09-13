@@ -1,9 +1,12 @@
 /** Backup/restore of the causal page state with an absent replica (T126/T147, US5). */
 
 import { randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
 import { startDisposablePostgres } from "@myownnotion/test-utils";
@@ -129,7 +132,11 @@ function backupRuntime(destination: FilesystemDestination) {
     context: harness.api.built.context,
     destination,
     applicationVersion: "0.1.0-operation-test",
-    seal: async (plaintext, sealedPath) => await writeFile(sealedPath, plaintext),
+    seal: async (plaintext, sealedPath) =>
+      await pipeline(
+        Readable.from(plaintext, { objectMode: false }),
+        createWriteStream(sealedPath, { flags: "wx", mode: 0o600 }),
+      ),
   });
 }
 
