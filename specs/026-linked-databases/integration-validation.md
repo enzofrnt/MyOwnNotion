@@ -221,3 +221,29 @@ et `/tmp/mon-pre-v1-combination-biome.log`.
 Aucune couverture globale supplémentaire ni push depuis cette correction.
 Le parent relancera la couverture et les gates après l'intégration du correctif
 de clés historiques 024. Les budgets et exclusions n'ont pas été modifiés.
+
+## Latest audit candidate — `ca2174cd83fa328f8df808d2ccce5a66061c8999`
+
+The candidate adds focused cross-feature evidence after the earlier 026/027,
+MCP and import integration report:
+
+- 026's PostgreSQL database integration matrix at `ca2174cd` proves atomic
+  rejection of invalid hosts, containment parents, structured values and
+  relation targets. Follow-up `4da2c2f9` adds the complete direct row-absence
+  assertions for the missing-parent case; valid explicit, root-normalized and
+  unplaced entries remain supported.
+- 024's backup status and rehearsal HTTP/OpenAPI contracts now enumerate their
+  authenticated refusal variants and redact unexpected failures. The focused
+  backup contract suites are part of the same candidate.
+- The candidate also carries page-state edge/property coverage and canonical
+  export contract coverage used by the broader storage audit. These checks do
+  not add a code-block UI implementation proof for 027 or a Notion import
+  delivery proof for 028.
+
+The implementation commit supplies T023's initial matrix and completes T033.
+Follow-up commit `4da2c2f9aece80b109ec15551b78af1cae4b76eb`
+completes T023's direct rollback assertions for a missing containment parent;
+the two commits together close T023. Feature 027 T012 and feature 028
+T021 remain open until the complete local gate, every PR check, merge and main
+CI are verified on the final integration commit. No personal Notion source was
+applied.

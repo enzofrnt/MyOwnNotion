@@ -547,3 +547,30 @@ relationships remain mandatory. Preserve the ordinary exactly-one placement
 rule for active non-file items and verify the purge/restore path before archive
 bytes are emitted. The focused correction is recorded at `38eb48e`; complete
 delivery remains T037/T038/T040/T041.
+
+### T080–T088 — final independent audit closure
+
+Keep the final corrections inside the existing service, transaction and public
+contract boundaries. Table-column and legacy page operations validate before
+mutation. Recovery epoch allocation, one-time download expiry and confirmation
+share the installation lock order and transaction. Readiness dispatch matches
+both method and exact declared route. Rotation creation relies on the database
+uniqueness boundary, and security audit filtering occurs before its bounded
+limit. Authenticated security and export status responses use private
+`no-store` caching documented by OpenAPI.
+
+Canonical export uses the pinned `fast-json-stringify` serializer compiled from
+`CanonicalExportManifestSchema` as its projection before validation and digest.
+This preserves the deliberately open database definition/value maps while
+removing fields forbidden by closed objects. Ready publication conditionally
+transitions only a `pending` row; protected-manifest publication occurs in the
+same transaction and only for the worker that finalized it. Startup resumes
+pending rows, while a concurrent late failure cannot overwrite `ready`.
+
+Add the full-backup OpenAPI document and contract parity checks, then extend
+archive, database and page-state rejection tests around the actual atomic
+boundaries. Preserve the absolute coverage threshold and use the complete
+coverage command as the convergence proof for code commit
+`ca2174cd83fa328f8df808d2ccce5a66061c8999`. These tasks do not replace the
+remaining exact local, native architecture, PR or main gates in
+T037/T038/T040/T041.

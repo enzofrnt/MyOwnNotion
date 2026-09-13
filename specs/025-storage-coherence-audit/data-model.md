@@ -185,3 +185,19 @@ and legacy branches do not fall back to raw payloads. The legacy branch requires
 an explicit client base document and a bounded retained dependency. The
 structured marker matcher examines all own keys, including symbols and
 non-enumerable properties.
+
+## Canonical export publication invariant
+
+An export job begins as `pending` and reaches one terminal state, `ready` or
+`failed`. Restart recovery may rebuild a pending job, but publication changes a
+row only while it is still pending. The same transaction stores the verified
+digest and protected manifest; a competing worker that did not perform that
+state transition publishes nothing. A late failure likewise updates only a
+pending row and cannot replace ready evidence.
+
+The version-2 manifest is projected through its executable response schema
+before validation and hashing. Closed objects lose unknown members, while the
+database definition and entry-value maps remain deliberately open. The SHA-256
+digest therefore describes the exact logical manifest returned to the owner.
+Legacy, malformed or digest-divergent stored manifests are refused rather than
+adapted during download.

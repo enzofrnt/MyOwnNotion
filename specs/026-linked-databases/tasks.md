@@ -47,22 +47,34 @@
 
 - [x] T022 [US3] Preserve only optimistic local rows whose identifiers are selected by the server page when merging partial coverage; retain their pending/conflict payload and state without changing server pagination, filtering, limit or ordering. Add a direct regression test and record focused web type/Biome evidence (FR-011, SC-005).
 
+## Phase 8: Convergence — atomic host and placement validation
+
+- [x] T023 [US1/US3] Prove atomic validation of database hosts, containment
+  parents and optional entry placements before any database, item, placement
+  or revision row is written; preserve explicit placements, normalize the
+  source self-parent to the root and keep unplaced entries unplaced. The
+  integration matrix and PostgreSQL assertions are in
+  `packages/database/tests/database.integration.spec.ts`, delivered in
+  commits `ca2174cd83fa328f8df808d2ccce5a66061c8999` and
+  `4da2c2f9aece80b109ec15551b78af1cae4b76eb`. Historical UI/corbeille and
+  final browser-gate work remains in T018/T020.
+
 ## Traçabilité des exigences
 
 | Exigence | Tâches |
 | --- | --- |
 | FR-001 | T002–T005, T008, T009 |
-| FR-002 | T004–T007, T016 |
+| FR-002 | T004–T007, T016, T023 |
 | FR-003 | T002, T004–T007, T017 |
-| FR-004 | T002–T009, T011, T012, T016 |
+| FR-004 | T002–T009, T011, T012, T016, T023 |
 | FR-005 | T003, T006, T008, T018, T020 |
 | FR-006 | T003, T006, T008, T013, T018 |
 | FR-007 | T003, T008, T009, T014 |
-| FR-008 | T002–T005, T008, T009, T012, T015, T016, T019 |
+| FR-008 | T002–T005, T008, T009, T012, T015, T016, T019, T023 |
 | FR-009 | T002, T003, T008–T010 |
 | FR-010 | T006, T007, T009, T017, T018, T020, T021 |
 | FR-011 | T011, T012, T018, T020–T022 |
-| FR-012 | T013, T014, T018 |
+| FR-012 | T013, T014, T018, T023 |
 | SC-001 | T007, T009, T011, T013 |
 | SC-002 | T007, T009, T017 |
 | SC-003 | T008, T009, T018 |

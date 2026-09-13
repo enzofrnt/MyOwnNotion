@@ -891,3 +891,26 @@ dépôt, téléchargé hors de l'arbre et vérifié avec la somme SHA-256 publi�
 La version globale 3.13.1 de la machine n'a donc pas affaibli ni modifié la
 politique d'outillage. T114 reste ouvert jusqu'à la nouvelle CI verte, la
 fusion, le run de `main`, le redéploiement et la validation des états réels.
+
+## Atomicité page-state et replay legacy (T115)
+
+Le commit d'implémentation `ca2174cd83fa328f8df808d2ccce5a66061c8999` ajoute
+les preuves ciblées qui manquaient autour de la projection page-state et des
+branches historiques hors ligne. Les tests vérifient qu'une validation ou une
+écriture rejetée ne laisse pas de sous-arbre partiel, qu'un même identifiant
+d'opération peut être rejoué sans double application, que le replay legacy
+conserve sa causalité et son état récupérable, et que l'archivage d'une
+opération reste atomique avec les marqueurs de récupération.
+
+| Evidence | Result |
+| --- | --- |
+| `packages/client-core/tests/apply-to-projection.spec.ts` | pass; application atomique et rejeu idempotent de la projection |
+| `packages/page-state/tests/block-tree.edge-cases.spec.ts` | pass; arbres invalides et frontières de placement refusés sans état partiel |
+| `packages/page-state/tests/legacy-offline-branch.property.spec.ts` | pass; replay legacy causal, propriétés aléatoires et quarantaine récupérable |
+| `apps/api/tests/page-operation-archive.spec.ts` | pass; archive, restauration et marqueurs de récupération cohérents |
+| Candidate SHA | `ca2174cd83fa328f8df808d2ccce5a66061c8999` |
+
+T115 est fermé sur cette preuve d'implémentation. T114 reste volontairement
+ouvert : il exige encore la CI verte, la fusion, la vérification de `main`, le
+redéploiement des images immuables et la validation sur les données réelles
+du HAR fourni.

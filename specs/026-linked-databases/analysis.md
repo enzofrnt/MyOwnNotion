@@ -41,3 +41,15 @@ released-property defects. Focused browser evidence covers T016, T017 and T019;
 T018 and T020 remain open until the exact integrated gate and the required
 PR/main verification pass. The specs keep their current product behavior; no
 cascade or implicit placement is reintroduced.
+
+## T023 convergence result — 2026-09-13
+
+Commit `ca2174cd83fa328f8df808d2ccce5a66061c8999` adds the missing PostgreSQL
+integration matrix for host, parent and placement validation. Follow-up commit
+`4da2c2f9aece80b109ec15551b78af1cae4b76eb` adds the direct item, placement and
+revision absence assertions for a missing containment parent. Together they
+prove that invalid or unavailable hosts and parents are rejected without a
+partial database mutation, while explicit placements, source-root
+normalization and entries without placement remain valid. This closes the
+atomicity evidence task without closing the historical UI/corbeille or final
+browser-gate tasks T018/T020.

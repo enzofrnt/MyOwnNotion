@@ -15,9 +15,10 @@ Research clarified that administrative key import refuses occupied targets and
 that historical MVCC/WAL erasure is not promised by application-level migration.
 
 Current reconciliation extends that historical baseline to 14 functional
-requirements, seven success criteria, 79 ordered tasks and 64 audit findings.
-The focused implementation evidence is complete at `38eb48e`; local, PR and
-main delivery gates remain open.
+requirements, seven success criteria, 88 ordered tasks and 73 audit findings.
+The final code-audit corrections and complete coverage evidence are recorded at
+`ca2174cd83fa328f8df808d2ccce5a66061c8999`; exact complete local, PR and main
+delivery gates remain open.
 
 | Requirement | Tasks |
 | --- | --- |
@@ -25,19 +26,20 @@ main delivery gates remain open.
 | FR-002 | T007, T010, T013, T016, T024 |
 | FR-003 | T003, T005, T008, T014 |
 | FR-004 | T005, T011–T012, T014, T021, T049 |
-| FR-005 | T008, T011–T017, T037 |
+| FR-005 | T008, T011–T017, T037, T086 |
 | FR-006 | T003–T004, T007–T008, T017–T018, T037 |
-| FR-007 | T004, T022–T028 |
+| FR-007 | T004, T022–T028, T087–T088 |
 | FR-008 | T006, T009, T014, T018, T025–T026 |
-| FR-009 | T029–T031 |
+| FR-009 | T029–T031, T082, T085 |
 | FR-010 | T032–T033 |
-| FR-011 | T001–T002, T028, T036, T039, T079 |
-| FR-012 | T030, T034–T035 |
-| FR-013 | T002, T020, T035, T037–T041 |
-| FR-014 | T042–T045, T064–T079 |
+| FR-011 | T001–T002, T028, T036, T039, T079–T088 |
+| FR-012 | T030, T034–T035, T083 |
+| FR-013 | T002, T020, T035, T037–T041, T080, T082, T084–T085, T087 |
+| FR-014 | T042–T045, T064–T079, T081, T083, T086, T088 |
 
-SC-001/002 map to T010/T019/T027; SC-003 to T022/T027; SC-004 to T021/T049;
-SC-005 to T029/T031; SC-006 to T032/T038; SC-007 to T036/T039/T079.
+SC-001 maps to T010/T019/T027; SC-002 to T019; SC-003 to T022/T027; SC-004
+to T021/T049; SC-005 to T029/T031/T082/T085; SC-006 to T032/T038; SC-007
+to T036/T039/T079–T088.
 
 Proceed through speckit-implement in dependency order. This result says nothing
 about implementation correctness or completed delivery; those require the tests,
@@ -103,16 +105,17 @@ tests and ten journeys across all five profiles pass; relevant types pass.
 There is no new product requirement or production change. T045 is complete
 with evidence in validation; T038/T040/T041 retain final gate/delivery duties.
 
-## Final source consistency review at 38eb48e
+## Source consistency review at 38eb48e
 
-Feature prerequisites pass. The final set contains 14 functional requirements,
-seven success criteria and 79 unique task IDs, with no unresolved clarification
-marker. T042–T079 refine already required privacy, migration, archive, history
+At that checkpoint, feature prerequisites passed and the set contained 14
+functional requirements, seven success criteria and 79 unique task IDs, with no
+unresolved clarification marker. T042–T079 refine already required privacy, migration, archive, history
 and performance behavior; they introduce no new product boundary. The final
 archive closure validates canonical representability, resumable V1 inventories,
 operational lifecycle states, causal receipts, checkpoint sequences and time
 order before any archive byte is emitted or any restore-target mutation begins.
-Focused implementation and independent review are complete at `38eb48e`.
+Focused implementation and independent review for that checkpoint are complete
+at `38eb48e`.
 Native image compatibility, complete integrated local gates and PR/main delivery
 remain explicitly open in T037/T038/T040/T041.
 
@@ -130,6 +133,36 @@ tests**, with durable output in
 `integrated-linked-db-canonical-fix-20260913.log`. The failed complete gate is
 preserved in `integrated-release-final-b0245c6-20260913.log`; T037/T038/T040/T041
 remain open pending a renewed exact gate and delivery evidence.
+
+## T080–T088 — final independent audit closure
+
+The final candidate review found nine bounded implementation or proof gaps, all
+within existing FR-005/FR-007/FR-009/FR-011–FR-014 scope. They concern the
+coverage budget, table-column mutation atomicity, authenticated recovery-kit
+replacement, legacy replay, method-specific readiness, security route
+contracts/concurrency, canonical export, the full-backup HTTP contract and
+archive/database rejection proofs. No product boundary or release requirement
+was added.
+
+Commit `ca2174cd83fa328f8df808d2ccce5a66061c8999` closes the implementation for
+T080–T088, and `4da2c2f9aece80b109ec15551b78af1cae4b76eb` completes the direct
+missing-parent rollback proof. The exact V2
+export uses the same declared JSON serializer for digest and delivery, retaining
+open database definition/value maps while stripping closed-object extras. A
+conditional `pending` finalization prevents competing resume workers or a late
+failure from overwriting a completed artifact. Recovery epoch allocation,
+download expiry and promotion share the locked transaction boundary; readiness
+is exact by method/path; rotation and audit repository behavior now matches the
+public contract. The remaining changes add pre-mutation validation and direct
+atomicity/causality coverage.
+
+Focused review passes 188 contract/route tests plus the relevant web ceremony,
+and independent Luna review reports no remaining P0/P1/P2 in the reviewed
+boundaries. Complete coverage passes 448 files and 4,599 tests with two
+platform-specific Windows tests skipped on macOS and the absolute branch budget
+unchanged. This is implementation/convergence evidence. T037/T038/T040/T041
+still own native architecture parity, the exact complete local gate, PR CI,
+merge and post-merge main verification.
 
 ## T051 — bounded synchronization convergence
 

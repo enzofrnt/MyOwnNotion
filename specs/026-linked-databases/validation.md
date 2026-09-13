@@ -226,3 +226,23 @@ dernières lignes et le bouton de retour restent dans leurs surfaces. Une
 saturation des verrous PostgreSQL pendant un essai concurrent a été identifiée
 et les suites ont été séparées sur deux serveurs de test ; aucun seuil produit
 n'a été relâché. Le gate intégré et toutes les CI restent requis.
+
+## T023 — Atomic host/parent/placement validation — 2026-09-13
+
+The integrated implementation commit
+`ca2174cd83fa328f8df808d2ccce5a66061c8999` adds the PostgreSQL matrix in
+`packages/database/tests/database.integration.spec.ts`; follow-up proof commit
+`4da2c2f9aece80b109ec15551b78af1cae4b76eb` adds the complete missing-parent
+rollback assertions. The matrix exercises active,
+missing, folder and trashed hosts; missing containment parents; duplicate
+creation; entries without placement; explicit placement; source self-parent
+normalization; malformed structured values; unknown relations; and unavailable
+relation targets. Rejected cases are checked for the absence of their applicable
+database, item, placement, membership, relationship and revision rows, which
+proves the mutation boundary is atomic for this surface. The focused PostgreSQL
+file passes 18/18 tests after the follow-up assertion.
+
+This is focused integration evidence on the source/placement model. T018 and
+T020 remain open for historical UI/trash coverage, button identity and the
+complete integrated browser gate; the full local, PR and main gates are still
+required.

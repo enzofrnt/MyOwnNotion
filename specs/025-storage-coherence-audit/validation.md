@@ -729,3 +729,50 @@ relationship invariants. The focused purge/restore regression passes in
 output remains `integrated-release-final-b0245c6-20260913.log` under the delivery
 artifact directory. This correction does not close T037/T038/T040/T041; the
 exact complete gate and PR/main delivery must be rerun on the corrected commit.
+
+## T080–T088 — final audit correction matrix
+
+Exact implementation checkpoint:
+`ca2174cd83fa328f8df808d2ccce5a66061c8999`.
+
+The final review matrix exercises the production boundaries added or corrected
+by T080–T088:
+
+- **Export and recovery concurrency**: exact V2 serialization retains open
+  database definitions and values, strips closed-object extras, recomputes the
+  SHA-256 digest, refuses legacy/mismatched artifacts, resumes a persisted
+  `pending` job and permits only one concurrent worker to finalize it. Late
+  failure updates are restricted to `pending` and cannot replace `ready`.
+- **Recovery and security state**: replacement preparation/download/confirmation
+  is atomic under the installation lock, the expiry predicate participates in
+  the one-time mutation, readiness dispatch is exact by method/path, rotation
+  uniqueness and problem mapping are stable, audit scope/filtering precedes the
+  limit, and private status responses are `private, no-store` in runtime and
+  OpenAPI.
+- **Page and archive atomicity**: rejected table-column, host, parent, placement,
+  legacy replay and archive states preserve their prior canonical state. The
+  expanded generated/property matrices cover duplicate and partially applied
+  text operations as well as invalid operational metadata.
+- **Backup contract**: the authenticated status and rehearsal routes have one
+  checked OpenAPI document with exact success/problem shapes.
+
+Focused commands pass **51/51 API tests** across devices, rotation and export,
+**89/89 OpenAPI/security contract tests**, plus **11/11 web recovery-ceremony
+tests**. Recovery API behavior is also included in the complete coverage and in
+the independent review matrix. The final independent Luna rereview runs **108** primary and **80**
+complementary contract/route checks and reports no remaining P0/P1/P2 in these
+boundaries. The missing-parent rollback follow-up also passes the complete
+18/18-test database integration file at
+`4da2c2f9aece80b109ec15551b78af1cae4b76eb`. Workspace type checking, Biome
+CI, formatting and `git diff --check` pass.
+
+Complete coverage on the same code checkpoint passes **448 test files / 4,599
+tests**; two Windows-only native tests are skipped on macOS. Statement, branch,
+function and line coverage are respectively **91.37% / 85.69% / 94.38% /
+92.52%**, with the existing absolute uncovered-branch budget unchanged. Durable
+output is `integrated-coverage-final-concurrency-20260913.log` under
+`/Users/enzofournet/.codex/task-artifacts/myownnotion-delivery/logs/`.
+
+This closes implementation and focused convergence for T080–T088. It is not a
+substitute for the exact `checks:local`, native AMD64/ARM64, PR or post-merge
+main evidence; T037/T038/T040/T041 remain open.
