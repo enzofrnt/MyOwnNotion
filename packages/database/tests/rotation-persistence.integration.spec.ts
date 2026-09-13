@@ -29,6 +29,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   createSecurityIntegrationContext,
+  runConcurrently,
   type SecurityIntegrationContext,
 } from "./helpers/security-db.ts";
 
@@ -124,6 +125,45 @@ describe("only one rotation of a kind at a time", () => {
     await start("wrapping-key", policyId);
 
     await expect(start("wrapping-key", policyId)).rejects.toMatchObject({
+      code: "rotation_in_progress",
+    });
+  });
+
+  it("turns a concurrent active-index race into a typed conflict", async () => {
+    const policyId = await seedPolicy("wrapping-key");
+    const results = await runConcurrently(context.postgres.connectionString, [
+      (handle) =>
+        handle.db.transaction(async (tx) =>
+          startRotationOperation(tx, {
+            id: randomUUID(),
+            installationId: context.installation.installationId,
+            policyId,
+            kind: "wrapping-key",
+            mode: "scheduled",
+            fromVersionOrGeneration: 1,
+            toVersionOrGeneration: 2,
+            totalCount: 3,
+          }),
+        ),
+      (handle) =>
+        handle.db.transaction(async (tx) =>
+          startRotationOperation(tx, {
+            id: randomUUID(),
+            installationId: context.installation.installationId,
+            policyId,
+            kind: "wrapping-key",
+            mode: "scheduled",
+            fromVersionOrGeneration: 1,
+            toVersionOrGeneration: 2,
+            totalCount: 3,
+          }),
+        ),
+    ]);
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((result) => result.status === "rejected");
+    expect(rejected?.status).toBe("rejected");
+    expect(rejected && rejected.status === "rejected" ? rejected.reason : undefined).toMatchObject({
       code: "rotation_in_progress",
     });
   });

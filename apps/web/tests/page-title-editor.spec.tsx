@@ -25,6 +25,59 @@ describe("page title editor", () => {
     container.remove();
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("fits a changed column width without replacing the live title or selection", async () => {
+    let notify: ResizeObserverCallback | undefined;
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          notify = callback;
+        }
+        observe = vi.fn();
+        disconnect = disconnect;
+      },
+    );
+    const onCommit = vi.fn(async () => undefined);
+    await act(async () => {
+      root.render(
+        <PageTitleEditor title="A long title across several lines" onCommit={onCommit} />,
+      );
+    });
+    const title = container.querySelector("textarea");
+    if (title === null) throw new Error("title editor missing");
+    title.focus();
+    title.setSelectionRange(2, 8);
+    let measuredHeight = 120;
+    const measure = vi.fn(() => measuredHeight);
+    Object.defineProperty(title, "scrollHeight", { get: measure });
+    const resizeColumn = (width: number) => {
+      if (notify === undefined) throw new Error("column resize is not observed");
+      notify(
+        [{ target: title, contentRect: { width } } as ResizeObserverEntry],
+        {} as ResizeObserver,
+      );
+    };
+    act(() => resizeColumn(260));
+    expect(title.style.height).toBe("120px");
+    expect(document.activeElement).toBe(title);
+    expect([title.selectionStart, title.selectionEnd]).toEqual([2, 8]);
+    expect(title.value).toBe("A long title across several lines");
+    expect(onCommit).not.toHaveBeenCalled();
+
+    // Height notifications from autosizing must not cause another resize loop.
+    measure.mockClear();
+    act(() => resizeColumn(260));
+    expect(measure).not.toHaveBeenCalled();
+    measuredHeight = 40;
+    act(() => resizeColumn(730));
+    expect(title.style.height).toBe("40px");
+    expect(container.querySelector("textarea")).toBe(title);
+    act(() => root.render(null));
+    expect(disconnect).toHaveBeenCalledOnce();
   });
 
   it("is the first large editable line and commits an empty draft as Sans titre", async () => {

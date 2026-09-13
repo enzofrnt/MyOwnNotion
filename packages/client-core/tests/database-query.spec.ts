@@ -201,7 +201,7 @@ function projectedItem(
 }
 
 describe("purged structured projections (T102, FR-046)", () => {
-  it("keeps the tombstone identity but removes database definitions and member values", async () => {
+  it("keeps the host tombstone and independent source but removes values when the entry itself is purged", async () => {
     const { codec } = await createTestCodec();
     const db: LocalDatabase = openLocalDatabase(`database-purge-${generateUuidV7()}`);
     const repository = new LocalRepository(db, codec);
@@ -238,8 +238,7 @@ describe("purged structured projections (T102, FR-046)", () => {
       await repository.applyServerChange({
         cursor: "after-purge",
         items: [projectedItem(ids.database, "Unavailable database", "purged")],
-        // A stale or older server may still attach these projections. The
-        // canonical tombstone must win and prevent either payload returning.
+        // Source resources survive the old host tombstone.
         databases: [
           { itemId: ids.database, definitionVersion: 1, definition: definition() as never },
         ],
@@ -254,9 +253,14 @@ describe("purged structured projections (T102, FR-046)", () => {
       });
 
       expect((await repository.getItem(ids.database))?.lifecycle).toBe("purged");
-      expect(await databases.getDatabase(ids.database)).toBeNull();
+      expect(await databases.getDatabase(ids.database)).not.toBeNull();
+      expect(await databases.getEntry(ids.entryA)).not.toBeNull();
+      await repository.applyServerChange({
+        cursor: "entry-purge",
+        items: [projectedItem(ids.entryA, "Unavailable entry", "purged")],
+      });
       expect(await databases.getEntry(ids.entryA)).toBeNull();
-      expect(await repository.getLastChangeCursor()).toBe("after-purge");
+      expect(await repository.getLastChangeCursor()).toBe("entry-purge");
     } finally {
       await db.delete();
     }

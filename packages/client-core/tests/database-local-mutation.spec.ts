@@ -4,12 +4,18 @@ import {
   LocalDatabaseRepository,
   type LocalRecordCodec,
   LocalRepository,
+  Outbox,
   openLocalDatabase,
 } from "@myownnotion/client-core";
 import { type DatabaseDefinition, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { Dexie } from "dexie";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestCodec } from "./helpers/codec.ts";
+
+function required<T>(value: T | undefined | null): T {
+  if (value === undefined || value === null) throw new Error("Missing test fixture");
+  return value;
+}
 
 let db: LocalDatabase;
 let codec: LocalRecordCodec;
@@ -89,6 +95,129 @@ function expandedDefinition(
 }
 
 describe("atomic structured local mutation (T021)", () => {
+  it("persists an unplaced canonical entry and its replayable offline mutation across restart", async () => {
+    const source = createPayload();
+    expect((await apply("database.create", source)).ok).toBe(true);
+    const entryId = generateUuidV7();
+    const mutation = await apply("database.entry.create", {
+      databaseId: source.id,
+      id: entryId,
+      title: "Unplaced private entry",
+      values: {},
+      relationTargets: {},
+    });
+    expect(mutation.ok).toBe(true);
+    const original = required(await items.getItem(entryId));
+    expect(original.placements).toEqual([]);
+    const explicitId = generateUuidV7();
+    const placement = { id: generateUuidV7(), parentItemId: null, positionKey: "b" };
+    expect(
+      (
+        await apply("database.entry.create", {
+          databaseId: source.id,
+          id: explicitId,
+          title: "Explicit page",
+          placement,
+          values: {},
+          relationTargets: {},
+        })
+      ).ok,
+    ).toBe(true);
+    expect((await items.getItem(explicitId))?.placements[0]).toMatchObject(placement);
+    const databaseName = db.name;
+    db.close();
+    db = openLocalDatabase(databaseName);
+    items = new LocalRepository(db, codec);
+    databases = new LocalDatabaseRepository(db, codec);
+    expect(await items.getItem(entryId)).toEqual(original);
+    expect((await databases.getEntry(entryId))?.databaseId).toBe(source.id);
+    const queued = await new Outbox(db, codec).pending();
+    expect(queued).toHaveLength(3);
+    expect(queued.find((row) => row.payload["id"] === entryId)?.payload).not.toHaveProperty(
+      "placement",
+    );
+    expect(JSON.stringify(await db.items.get(entryId))).not.toContain("Unplaced private entry");
+  });
+
+  it("keeps encrypted sources after host tombstones and edits them offline without a visible anchor", async () => {
+    const payload = createPayload();
+    expect((await apply("database.create", payload)).ok).toBe(true);
+    const original = required(await databases.getDatabase(payload.id));
+    const entryId = generateUuidV7();
+    expect(
+      (
+        await apply("database.entry.create", {
+          databaseId: payload.id,
+          id: entryId,
+          title: "Shared offline entry",
+          placement: { id: generateUuidV7(), parentItemId: payload.id, positionKey: "b" },
+          values: {},
+          relationTargets: {},
+        })
+      ).ok,
+    ).toBe(true);
+    expect((await items.getItem(entryId))?.placements[0]?.parentItemId).toBeNull();
+    // An existing device can still hold the pre-0016 placement while offline.
+    const legacyPlacement = required(
+      (await db.placements.where("itemId").equals(entryId).toArray())[0],
+    );
+    await db.placements.update(legacyPlacement.id, {
+      parentItemId: payload.id,
+      parentKey: payload.id,
+    });
+    expect((await apply("item.trash", { itemId: payload.id })).ok).toBe(true);
+    const host = required(await items.getItem(payload.id));
+    await items.applyServerChange({
+      cursor: "purged-host",
+      items: [{ ...host, lifecycle: "purged", trashedAt: null, purgeAfter: null }] as never,
+    });
+    expect(await databases.getDatabase(payload.id)).toEqual(original);
+    expect((await items.getItem(entryId))?.lifecycle).toBe("active");
+    expect((await items.getItem(entryId))?.placements[0]?.parentItemId).toBeNull();
+    expect(await databases.getEntry(entryId)).not.toBeNull();
+    await db.items.delete(payload.id);
+    expect(
+      (
+        await apply("database.definition.replace", {
+          databaseId: payload.id,
+          baseRevisionId: original.definitionRevisionId,
+          definition: { ...original.definition, name: "Private renamed source", embeddings: [] },
+        })
+      ).ok,
+    ).toBe(true);
+    const databaseName = db.name;
+    db.close();
+    db = openLocalDatabase(databaseName);
+    databases = new LocalDatabaseRepository(db, codec);
+    const reopened = required(await databases.getDatabase(payload.id));
+    expect(reopened.definition.name).toBe("Private renamed source");
+    expect(reopened.definition.embeddings).toEqual([]);
+    expect((await databases.listDatabases()).map((row) => row.itemId)).toContain(payload.id);
+    expect(JSON.stringify(await db.databases.toArray())).not.toContain("Private renamed source");
+    expect(await db.outbox.count()).toBe(4);
+  });
+
+  it("maps a source head on acknowledgement before accepting a quick definition edit", async () => {
+    const payload = createPayload();
+    const created = await apply("database.create", payload);
+    if (!created.ok) throw new Error("Missing source");
+    const optimistic = required(await databases.getDatabase(payload.id));
+    const canonicalRevisionId = generateUuidV7();
+    await new Outbox(db, codec).acknowledge(created.value.mutationId, [canonicalRevisionId]);
+    expect((await databases.getDatabase(payload.id))?.definitionRevisionId).toBe(
+      canonicalRevisionId,
+    );
+    expect(
+      (
+        await apply("database.definition.replace", {
+          databaseId: payload.id,
+          baseRevisionId: optimistic.definitionRevisionId,
+          definition: { ...optimistic.definition, name: "Quick edit" },
+        })
+      ).ok,
+    ).toBe(true);
+  });
+
   it("creates a page, sealed database definition, revision and outbox atomically", async () => {
     const payload = createPayload();
     const result = await apply("database.create", payload);
@@ -250,7 +379,7 @@ describe("atomic structured local mutation (T021)", () => {
     });
   });
 
-  it("trashes moved active members atomically and restores only that mutation group", async () => {
+  it("trashes only the former display page and preserves independent entry lifecycle", async () => {
     const create = createPayload();
     expect((await apply("database.create", create)).ok).toBe(true);
     const entryIds = [generateUuidV7(), generateUuidV7()];
@@ -272,12 +401,12 @@ describe("atomic structured local mutation (T021)", () => {
     expect((await apply("item.trash", { itemId: independentlyTrashed })).ok).toBe(true);
 
     const trashed = await apply("item.trash", { itemId: create.id });
-    expect(trashed.ok && trashed.value.localRevisionIds).toHaveLength(2);
+    expect(trashed.ok && trashed.value.localRevisionIds).toHaveLength(1);
     expect((await items.getItem(create.id))?.lifecycle).toBe("trashed");
-    expect((await items.getItem(entryIds[0] as Uuid))?.lifecycle).toBe("trashed");
+    expect((await items.getItem(entryIds[0] as Uuid))?.lifecycle).toBe("active");
 
     const restored = await apply("item.restore", { itemId: create.id });
-    expect(restored.ok && restored.value.localRevisionIds).toHaveLength(2);
+    expect(restored.ok && restored.value.localRevisionIds).toHaveLength(1);
     expect((await items.getItem(create.id))?.lifecycle).toBe("active");
     expect((await items.getItem(entryIds[0] as Uuid))?.lifecycle).toBe("active");
     // The test clock returns the exact same instant for every action. Mutation
@@ -529,7 +658,7 @@ describe("structured host classification", () => {
     expect((await apply("database.create", payload)).ok).toBe(true);
     openDatabase.mockClear();
     openEntry.mockClear();
-    expect(await databases.classifyStructuredHost(payload.id)).toBe("database");
+    expect(await databases.classifyStructuredHost(payload.id)).toBe("page");
     expect(openDatabase).not.toHaveBeenCalled();
     expect(openEntry).not.toHaveBeenCalled();
 

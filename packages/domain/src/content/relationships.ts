@@ -6,7 +6,13 @@
  * diagnosable instead of being silently redirected or erased.
  */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
-import { type CanonicalItem, type DomainResult, err, ok } from "./types.ts";
+import {
+  type CanonicalItem,
+  type DomainResult,
+  err,
+  isProtectedContentPayload,
+  ok,
+} from "./types.ts";
 
 /** Owned namespaced vocabulary, e.g. `link:references`, `embed:file`. */
 const RELATION_TYPE_PATTERN = /^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$/;
@@ -34,6 +40,25 @@ export interface CreateRelationshipPlan {
   readonly metadata: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Validates relationship metadata at every ingestion boundary.
+ *
+ * The protected-storage marker is a storage representation, so accepting it
+ * as authored metadata would make a later restore indistinguishable from a
+ * value that still needs to be resolved from its envelope.
+ */
+export function validateRelationshipMetadata(
+  metadata: unknown,
+): DomainResult<Readonly<Record<string, unknown>>> {
+  if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
+    return err("validation.invalid-payload", "Relationship metadata must be an object");
+  }
+  if (isProtectedContentPayload(metadata)) {
+    return err("validation.invalid-payload", "Relationship metadata uses a reserved value");
+  }
+  return ok(metadata as Readonly<Record<string, unknown>>);
+}
+
 export function validateCreateRelationship(
   getItem: (id: Uuid) => CanonicalItem | null,
   command: CreateRelationshipCommand,
@@ -58,16 +83,16 @@ export function validateCreateRelationship(
   if (target === null || target.lifecycle === "purged") {
     return err("relationship.endpoint-unavailable", "Target item is unavailable");
   }
-  const metadata = command.metadata ?? {};
-  if (typeof metadata !== "object" || Array.isArray(metadata)) {
-    return err("validation.invalid-payload", "Relationship metadata must be an object");
-  }
+  const metadataResult = validateRelationshipMetadata(
+    command.metadata === undefined ? {} : command.metadata,
+  );
+  if (!metadataResult.ok) return metadataResult;
   return ok({
     id: command.id,
     sourceItemId: command.sourceItemId,
     targetItemId: command.targetItemId,
     relationType: command.relationType,
-    metadata,
+    metadata: metadataResult.value,
   });
 }
 

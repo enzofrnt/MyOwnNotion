@@ -22,6 +22,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { schema, type Transaction } from "@myownnotion/database";
 import {
   BACKUP_FORMAT,
   BACKUP_FORMAT_VERSION,
@@ -30,10 +31,12 @@ import {
   canonicalExportString,
   canonicalStructuredDataString,
 } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
 import type { AppContext } from "../context.ts";
 import { buildManifestInTransaction } from "../routes/export.ts";
-import { writeBackupArchiveFile } from "./archive-format.ts";
+import { streamBackupArchive } from "./archive-format.ts";
 import type { BackupDestination } from "./destinations/destination.ts";
+import { protectFullBlobReads, shareFullFileMutation } from "./full/locks.ts";
 import {
   PAGE_OPERATION_ARCHIVE_VERSION,
   type PageOperationBackupCoverage,
@@ -78,8 +81,8 @@ export interface BackupServiceOptions {
   readonly context: AppContext;
   readonly destination: BackupDestination;
   readonly applicationVersion: string;
-  /** Streams a staged plaintext archive into its sealed path. */
-  readonly seal: (plaintextPath: string, sealedPath: string) => Promise<void>;
+  /** Private archive bytes flow directly into authenticated encryption. */
+  readonly seal: (plaintext: AsyncIterable<Uint8Array>, sealedPath: string) => Promise<void>;
   readonly now?: () => Date;
 }
 
@@ -115,6 +118,7 @@ export class BackupService {
   async #build(
     backupId: string,
     createdAt: Date,
+    fileReader: Transaction,
   ): Promise<{
     stagedPath: string;
     manifest: BackupManifest;
@@ -125,11 +129,17 @@ export class BackupService {
     const snapshot = await this.options.context.db.transaction(
       async (tx) => {
         const exported = await buildManifestInTransaction(this.options.context, tx);
+        const pointers = await tx
+          .select({ itemId: schema.logicalFiles.itemId, contentId: schema.logicalFiles.contentId })
+          .from(schema.logicalFiles)
+          .innerJoin(schema.items, eq(schema.items.id, schema.logicalFiles.itemId))
+          .where(eq(schema.items.workspaceId, this.options.context.workspaceId));
+        const contentByItem = new Map(pointers.map((row) => [row.itemId, row.contentId]));
         const operational =
           this.options.context.pageOperationArchive === undefined
             ? null
             : await this.options.context.pageOperationArchive.export(tx);
-        return { exported, operational };
+        return { exported, operational, contentByItem };
       },
       { isolationLevel: "repeatable read", accessMode: "read only" },
     );
@@ -151,6 +161,7 @@ export class BackupService {
     // addressing the store already uses, so a file cannot be silently
     // substituted and two pages embedding one image cost one copy.
     const filesByDigest = new Map<string, BackupFileEntry>();
+    const contentByDigest = new Map<string, string>();
     for (const item of exported.items) {
       const file = item.file;
       if (file === null || file === undefined) {
@@ -162,6 +173,9 @@ export class BackupService {
         throw new Error(`content ${digest} is listed with two different lengths`);
       }
       filesByDigest.set(digest, { digest, byteLength: file.byteLength });
+      const contentId = snapshot.contentByItem.get(item.id);
+      if (contentId === undefined) throw new Error("An exported file has no content identity.");
+      contentByDigest.set(digest, contentId);
     }
     const files = [...filesByDigest.values()];
 
@@ -193,18 +207,29 @@ export class BackupService {
 
     const staging = path.join(os.tmpdir(), "myownnotion-backup");
     await mkdir(staging, { recursive: true });
-    const plaintextPath = path.join(staging, `${backupId}.tar`);
     const stagedPath = path.join(staging, `${backupId}.sealed`);
     try {
-      await writeBackupArchiveFile({
-        path: plaintextPath,
-        manifest,
-        canonicalExport: canonical,
-        operationalState,
-        readFile: async (digest) =>
-          await this.options.context.contentStore.read(digest.slice("sha256:".length)),
-      });
-      await this.options.seal(plaintextPath, stagedPath);
+      const context = this.options.context;
+      await this.options.seal(
+        streamBackupArchive({
+          manifest,
+          canonicalExport: canonical,
+          operationalState,
+          readFile: async function* (digest) {
+            const contentId = contentByDigest.get(digest);
+            if (context.protectedFiles !== undefined && contentId !== undefined) {
+              yield* context.protectedFiles.read(fileReader, contentId);
+              return;
+            }
+            if (context.protectedContent !== undefined)
+              throw new Error("Protected file reader is unavailable.");
+            const bytes = await context.contentStore.read(digest.slice("sha256:".length));
+            if (bytes === null) throw new Error("An exported file is unavailable.");
+            yield bytes;
+          },
+        }),
+        stagedPath,
+      );
       const stored = await stat(stagedPath);
       const digest = await this.#digestFile(stagedPath);
       return {
@@ -215,15 +240,10 @@ export class BackupService {
         operationalCoverage: snapshot.operational?.coverage ?? [],
       };
     } catch (error) {
-      // `run` cannot enter its `finally` until this method returns. Clean both
-      // stages here so a full disk never leaves a partial artefact that looks
-      // like an operator-created backup.
-      await Promise.all([rm(plaintextPath, { force: true }), rm(stagedPath, { force: true })]);
+      // The caller cannot clean a stage this method has not returned yet.
+      // A failed producer must remove its incomplete sealed artifact here.
+      await rm(stagedPath, { force: true });
       throw error;
-    } finally {
-      // Plaintext exists only while it is being sealed and never reaches a
-      // destination. The sealed stage remains for independent read-back.
-      await rm(plaintextPath, { force: true });
     }
   }
 
@@ -269,7 +289,13 @@ export class BackupService {
   async run(reason: BackupReason = "manual"): Promise<BackupOutcome> {
     const backupId = randomUUID();
     const createdAt = this.#now();
-    const built = await this.#build(backupId, createdAt);
+    const built = await this.options.context.db.transaction(async (tx) => {
+      // Preserve FILE -> BLOB ordering. Reads use this same connection so a
+      // queued maintenance writer cannot deadlock a second file-read connection.
+      await shareFullFileMutation(tx);
+      await protectFullBlobReads(tx);
+      return this.#build(backupId, createdAt, tx);
+    });
     const name = archiveName(createdAt, backupId);
 
     try {

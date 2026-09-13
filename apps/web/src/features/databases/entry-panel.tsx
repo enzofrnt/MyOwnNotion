@@ -49,6 +49,7 @@ function initialDraft(property: DatabaseProperty, entry: DatabaseEntryDto): Valu
 export function EntryPanel({
   entry,
   definition,
+  valuesAvailable = true,
   relationOptions = [],
   pageContent,
   initialDrafts,
@@ -58,6 +59,7 @@ export function EntryPanel({
 }: {
   readonly entry: DatabaseEntryDto;
   readonly definition: DatabaseDefinition;
+  readonly valuesAvailable?: boolean;
   readonly relationOptions?: readonly RelationOption[];
   readonly pageContent?: ReactNode;
   /** Edited fields retained while a transient projection remounts this form. */
@@ -152,7 +154,7 @@ export function EntryPanel({
   };
 
   const save = async (): Promise<void> => {
-    if (saveInFlight.current) return;
+    if (saveInFlight.current || !valuesAvailable) return;
     const nextValues: Record<string, NonRelationPropertyValue> = {};
     const nextRelations: Record<string, readonly Uuid[]> = {};
     const nextErrors: Record<string, string> = {};
@@ -202,26 +204,56 @@ export function EntryPanel({
         </button>
       </header>
 
-      <div className="entry-properties">
-        {editableProperties.length === 0 ? (
-          <AsyncState compact kind="empty" description={DATABASE_COPY.entry.noProperties} />
-        ) : (
-          <>
-            {taskProperties.length === 0 ? null : (
-              <section
-                className="entry-task-properties"
-                aria-label={DATABASE_COPY.entry.taskTracking}
-              >
-                <h3>{DATABASE_COPY.entry.taskTracking}</h3>
-                {taskProperties.map(({ role, property }) => (
-                  <div key={role} data-task-role={role} className="entry-task-property">
-                    <p className="muted">
-                      {role === "status"
-                        ? DATABASE_COPY.entry.taskStatus
-                        : role === "dueDate"
-                          ? DATABASE_COPY.entry.taskDueDate
-                          : DATABASE_COPY.entry.taskPriority}
-                    </p>
+      {!valuesAvailable ? (
+        <AsyncState compact kind="offline" description={DATABASE_COPY.entry.valuesUnavailable} />
+      ) : (
+        <div className="entry-properties">
+          {editableProperties.length === 0 ? (
+            <AsyncState compact kind="empty" description={DATABASE_COPY.entry.noProperties} />
+          ) : (
+            <>
+              {taskProperties.length === 0 ? null : (
+                <section
+                  className="entry-task-properties"
+                  aria-label={DATABASE_COPY.entry.taskTracking}
+                >
+                  <h3>{DATABASE_COPY.entry.taskTracking}</h3>
+                  {taskProperties.map(({ role, property }) => (
+                    <div key={role} data-task-role={role} className="entry-task-property">
+                      <p className="muted">
+                        {role === "status"
+                          ? DATABASE_COPY.entry.taskStatus
+                          : role === "dueDate"
+                            ? DATABASE_COPY.entry.taskDueDate
+                            : DATABASE_COPY.entry.taskPriority}
+                      </p>
+                      <ValueEditor
+                        key={`${entry.entryId}:${property.id}`}
+                        property={property}
+                        input={
+                          drafts[property.id] ??
+                          (property.type === "checkbox"
+                            ? false
+                            : property.type === "multi-select"
+                              ? []
+                              : "")
+                        }
+                        error={errors[property.id] ?? null}
+                        relationOptions={relationOptions.filter(
+                          (option) => option.id !== entry.entryId,
+                        )}
+                        onChange={(input) => updateDraft(property.id, input)}
+                      />
+                    </div>
+                  ))}
+                </section>
+              )}
+              {ordinaryProperties.length === 0 ? null : (
+                <section
+                  className="entry-ordinary-properties"
+                  aria-label={DATABASE_COPY.entry.otherProperties}
+                >
+                  {ordinaryProperties.map((property) => (
                     <ValueEditor
                       key={`${entry.entryId}:${property.id}`}
                       property={property}
@@ -239,48 +271,22 @@ export function EntryPanel({
                       )}
                       onChange={(input) => updateDraft(property.id, input)}
                     />
-                  </div>
-                ))}
-              </section>
-            )}
-            {ordinaryProperties.length === 0 ? null : (
-              <section
-                className="entry-ordinary-properties"
-                aria-label={DATABASE_COPY.entry.otherProperties}
-              >
-                {ordinaryProperties.map((property) => (
-                  <ValueEditor
-                    key={`${entry.entryId}:${property.id}`}
-                    property={property}
-                    input={
-                      drafts[property.id] ??
-                      (property.type === "checkbox"
-                        ? false
-                        : property.type === "multi-select"
-                          ? []
-                          : "")
-                    }
-                    error={errors[property.id] ?? null}
-                    relationOptions={relationOptions.filter(
-                      (option) => option.id !== entry.entryId,
-                    )}
-                    onChange={(input) => updateDraft(property.id, input)}
-                  />
-                ))}
-              </section>
-            )}
-          </>
-        )}
-        <StableActionButton type="button" onActivate={() => void save()} disabled={saving}>
-          {saving ? DATABASE_COPY.common.savingLocally : DATABASE_COPY.entry.save}
-        </StableActionButton>
-        {saveConfirmation === null ? null : (
-          <p role="status" data-testid="entry-properties-saved">
-            {saveConfirmation}
-          </p>
-        )}
-        {saveError !== null ? <p role="alert">{saveError}</p> : null}
-      </div>
+                  ))}
+                </section>
+              )}
+            </>
+          )}
+          <StableActionButton type="button" onActivate={() => void save()} disabled={saving}>
+            {saving ? DATABASE_COPY.common.savingLocally : DATABASE_COPY.entry.save}
+          </StableActionButton>
+          {saveConfirmation === null ? null : (
+            <p role="status" data-testid="entry-properties-saved">
+              {saveConfirmation}
+            </p>
+          )}
+          {saveError !== null ? <p role="alert">{saveError}</p> : null}
+        </div>
+      )}
 
       <section className="entry-document" aria-label={DATABASE_COPY.entry.pageContent}>
         <h3>{DATABASE_COPY.entry.pageContent}</h3>

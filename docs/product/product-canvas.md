@@ -192,7 +192,9 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - détection et résolution sûre des conflits ;
 - sauvegarde chiffrée, vérification et restauration ;
 - export complet et documenté ;
+- import Notion local avec aperçu, reprise et conservation des sources ;
 - mise à jour avec sauvegarde préalable et retour arrière ;
+- accès MCP avec autorisation depuis les réglages, périmètres et révocation ;
 - commandes administratives essentielles ;
 - observabilité locale et diagnostics expurgés ;
 - chaîne de développement, CI, images conteneurisées et publication GitHub.
@@ -207,7 +209,6 @@ Les capacités suivantes appartiennent à la cible complète, mais peuvent être
 - tâches structurées avancées ;
 - tableaux blancs ;
 - partage public et annotations publiques ;
-- serveur MCP ;
 - adaptation iOS avancée ou application iOS native.
 
 Les fondations de la V1 ne doivent pas rendre ces ajouts difficiles ou nécessiter une rupture du modèle de données canonique.
@@ -683,6 +684,19 @@ fermeture de la page ne doit pas être la stratégie principale de persistance.
 
 ## 14. Bases de données et tâches
 
+Une base est une ressource indépendante de ses pages d'affichage. La feature
+026 complète la 009 : une page ordinaire peut intégrer plusieurs bases et une
+même source peut apparaître dans plusieurs pages. Chaque emplacement conserve
+ses propres vues, filtres, tris et regroupements ; le schéma et les entrées
+restent communs. Retirer un emplacement, supprimer ou purger sa page conserve
+la source et ses entrées. Une source sans affichage reste sélectionnable.
+La migration conserve les identifiants, contenus, liens et historiques
+existants, avec sauvegarde complète préalable vérifiée. Sources et emplacements
+suivent les garanties de chiffrement, hors ligne, synchronisation,
+export et restauration des autres données canoniques.
+
+Une entrée créée depuis une vue est une page canonique sans placement hiérarchique automatique. Elle reste indexable, recherchable et ouvrable depuis chaque affichage de sa source ; la création de nombreuses entrées ne remplit pas la racine de navigation. Les placements explicitement fournis par le propriétaire, un client ou un import sont conservés, ainsi que les placements existants dont l'origine manuelle ne peut pas être distinguée sûrement. L'appartenance à une base ne confère aucun accès implicite aux pages qui l'affichent.
+
 Les bases de données suivent le modèle mental de Notion. Une entrée est une page possédant des propriétés, par exemple :
 
 - texte ;
@@ -1134,6 +1148,9 @@ Un mécanisme de limitation et de modération doit protéger les annotations con
 
 ## 26. Serveur MCP
 
+La feature 013 est obligatoire avant la V1, sur décision du propriétaire du
+5 septembre 2026 ; elle conserve le parcours de réglages et d’autorisation.
+
 Le serveur MCP est géré depuis les réglages.
 
 Le propriétaire génère un jeton temporaire. L'assistant ouvre une page d'autorisation et échange ce jeton contre un accès dédié.
@@ -1181,6 +1198,22 @@ La V1 doit au minimum pouvoir vérifier l'intégrité d'un export et documenter 
 Le format d'export V1 est une archive documentée contenant au minimum un manifeste JSON UTF-8 versionné, les objets canoniques en JSON, les fichiers dans une arborescence portable et une somme de contrôle pour chaque élément. Les noms originaux sont conservés dans le manifeste même lorsqu'ils doivent être normalisés sur le système de fichiers cible.
 
 L'export peut être chiffré à la demande. Si un export chiffré est produit, son mécanisme de récupération doit être documenté séparément des données.
+
+---
+
+### 27.1 Import Notion avant V1
+
+La V1 comprend un import local Notion en ligne de commande, spécifié séparément
+par028. Il accepte les exports Markdown/CSV natifs, leurs archives ZIP et un
+dossier local converti pour Obsidian. L'aperçu est le comportement par défaut ;
+il décrit exhaustivement contenus, hiérarchie, liens, fichiers, propriétés et
+membres des sources de données026. Les configurations absentes de l'export sont
+signalées, sans inventer les vues, aperçus ou automatismes d'origine.
+
+L'application explicite protège une cible déjà occupée par une sauvegarde
+complète024 préalable et conserve provenance et reprise chiffrées. Les sources
+restent intactes ; une reprise conserve les identités et les modifications
+ultérieures du propriétaire. Aucun import distant ou compte tiers n'est requis.
 
 ---
 
@@ -1238,6 +1271,21 @@ Le kit :
 - doit identifier la version du format et les installations auxquelles il s'applique.
 
 Le remplacement ou la rotation doit invalider les anciens moyens de récupération lorsque cela est annoncé, sans rendre les sauvegardes historiques irrécupérables. La stratégie d'enveloppement des anciennes clés doit donc être documentée et testée.
+
+Une préparation de remplacement qui n'a pas encore été téléchargée reste un
+artefact éphémère conservé uniquement dans la mémoire du processus API. Les
+opérations de statut et de téléchargement attendent la fin de toute préparation
+en cours et relisent l'état si une préparation commence pendant leur lecture.
+L'expiration, un remplacement ultérieur, la consommation, la fermeture du
+service et un redémarrage purgent cet artefact ; un redémarrage perd donc une
+préparation non réclamée de manière sûre et le propriétaire doit en préparer
+une nouvelle. Les buffers de clé racine, de clé de déploiement et de clé de
+wrapping dérivée sont effacés après usage ou en cas d'échec.
+
+Pour la V1 officielle, une installation ne doit exécuter qu'une instance API
+active. Aucun stockage éphémère partagé ni mécanisme d'affinité inter-processus
+n'est fourni aujourd'hui ; une installation multi-processus ne doit donc pas
+être utilisée pour cette fonction tant que cette propriété n'est pas garantie.
 
 La clé d'enveloppement doit être renouvelée au minimum une fois par an et immédiatement après toute suspicion de compromission. La rotation ne doit pas imposer le déchiffrement simultané de toutes les données si une stratégie progressive sûre est disponible.
 
@@ -2084,12 +2132,14 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 22. application Electron macOS connectée au serveur auto-hébergé ;
 23. application Electron Linux connectée au serveur auto-hébergé ;
 24. journaux serveur lisibles, actionnables et toujours collectables ;
-25. convergence V1 de l'espace de travail, de l'éditeur et des vues de
+25. accès MCP autorisé, limité et révocable ;
+26. import local Notion en CLI, avec aperçu, provenance et reprise ;
+27. convergence V1 de l'espace de travail, de l'éditeur et des vues de
     connaissance proches de Notion.
 
 Le prochain travail d'implémentation est la feature 014 (étapes 21 à 23).
 Les journaux (021) et la convergence finale 017 suivent. L'achèvement de cette
-phase, y compris les hôtes desktop, constitue la V1 fonctionnelle, sous réserve
+phase, y compris les hôtes desktop, MCP et l’import Notion, constitue la V1 fonctionnelle, sous réserve
 de satisfaire tous les critères de qualité et d'exploitation.
 
 ### Phase 4 — Fonctions avancées
@@ -2097,8 +2147,7 @@ de satisfaire tous les critères de qualité et d'exploitation.
 26. bases de données et tâches avancées ;
 27. tableaux blancs puis, si le besoin est confirmé, import ou édition de
     diagrammes par un moteur interne à MyOwnNotion ;
-28. partage public et annotations ;
-29. MCP.
+28. partage public et annotations.
 
 ### Phase 5 — Clients supplémentaires
 

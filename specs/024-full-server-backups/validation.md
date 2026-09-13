@@ -95,7 +95,7 @@ These are focused proofs, not a completed full workspace gate or delivery claim.
   found an overly broad PostgreSQL source-major acceptance in the manifest.
   T025 closes that gap: 19 manifest tests pass, including older/future majors,
   malformed provenance, impossible dates and invalid file metadata. Delivery
-  evidence in T023/T024 remains open.
+  evidence in T023/T024/T029/T030 remains open.
 - The current feature still requires a green full workspace gate, final image
   verification on the delivered source, PR CI and post-merge main CI. No push,
   merge, live-data restore or Notion import has been performed for feature 024.
@@ -270,6 +270,14 @@ unchanged. Failed gate: `/tmp/mon-pre-v1-reader-resources-full-gate.log`.
 Focused proof: `/tmp/mon-backup-reader-api-types.log` and
 `/tmp/mon-backup-reader-typed-final.log`.
 
+The corrected integrated gate at `8c547891` passes 4,248 coverage cases
+(433 suites, plus one platform-specific skipped suite), all nine performance
+budgets, 341 database cases, twelve migration cases and 1,666 contracts. No
+FileHandle listener warning appears. Its browser matrix is deliberately
+interrupted at startup (exit 130) to integrate the reproduced native input fix
+014 T098. This remains an incomplete gate, not permission to push:
+`/tmp/mon-pre-v1-reader-resources-typed-full-gate.log`.
+
 ### Remote retention and retry fairness convergence — 2026-09-12
 
 The RED regression reproduced two safety gaps in `FullBackupService`: retention
@@ -290,7 +298,7 @@ three durable remote failures are retried oldest-first across a service restart;
 failed receipts keep their local files when the remote has no object and delete
 is idempotent; a later exact remote verification permits pruning only the verified
 old copy. This is focused evidence only; full local, image, PR and main delivery
-gates remain T023/T024.
+gates remain T023/T024/T029/T030.
 
 ### Coverage budget follow-up — 2026-09-12
 
@@ -303,7 +311,7 @@ The legacy comparator correction treats two absent timestamps as equal instead o
 propagating `NaN`, so the identity tie-breaker is reachable and fair. The targeted
 API suite passes **25/25 tests**; API typechecking, Biome checks and diff checks
 also pass. The full `checks:local` gate must be rerun on the resulting commit;
-T023/T024 remain open until that evidence exists.
+T023/T024/T029/T030 remain open until that evidence exists.
 
 ### T032 — Monthly full-restore rehearsal invitation — 2026-09-12
 
@@ -346,3 +354,19 @@ committed upload prefix, rehearsal and activation against the retained ARM64
 full-backup fixture image. The renewed exact-commit complete local gate and
 remote image verification remain pending. No host runtime dependency or skipped
 recovery assertion was introduced.
+
+## T033 — Backup HTTP/OpenAPI contract convergence — 2026-09-13
+
+Commit `ca2174cd83fa328f8df808d2ccce5a66061c8999` aligns the complete and legacy
+backup route contracts with the authenticated security-problem envelope. The
+status and rehearsal endpoints now declare their success and refusal variants
+in `specs/024-full-server-backups/contracts/backup-api.openapi.yaml`, while
+unexpected repository, service and rehearsal failures are returned as safe
+correlation-bearing errors without private details. Focused route and contract
+coverage is present in `apps/api/tests/backup-routes.spec.ts` and
+`tests/contract/backup-api.spec.ts`.
+
+This proves the HTTP/OpenAPI boundary only. It does not claim production-image
+restore, bounded archive-reader resources, the host-without-Bun image boundary,
+the complete local gate, PR CI or main CI; T023, T024, T029 and T030 remain
+open.

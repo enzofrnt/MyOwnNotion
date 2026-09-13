@@ -15,7 +15,8 @@
 
 This change creates guidance only. It does not claim a new visual review of
 unchanged application screens. Runtime tests are not introduced for prose.
-PR/main delivery is pending desktop merge and is not marked complete.
+La livraison PR/main de cette mise à jour documentaire reste en attente du run
+d'intégration courant ; le merge desktop fournit sa base mais ne clôt pas T008.
 
 The guidance also records the semantic-action defect reproduced during audit
 025: act on button click after release, preserve pointer cancellation, and verify

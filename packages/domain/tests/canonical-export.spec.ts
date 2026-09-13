@@ -52,7 +52,11 @@ function item(overrides: Partial<ExportedItem> = {}): ExportedItem {
     currentRevisionId: generateUuidV7(),
     favourite: false,
     offlineIntent: false,
-    pageDocument: null,
+    pageDocument: {
+      format: "myownnotion.document+json",
+      formatVersion: 1,
+      body: {},
+    },
     file: null,
     placements: [placement(id, null)],
     ...overrides,
@@ -185,6 +189,29 @@ describe("buildCanonicalExport", () => {
     expect(manifest.changeCursor).toBe("seq:2");
   });
 
+  it("rejects U+0000 in nested string values and object keys", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    if (first === undefined || first.pageDocument === null) throw new Error("fixture missing");
+    const invalid = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id
+          ? {
+              ...entry,
+              pageDocument: {
+                ...first.pageDocument,
+                body: { nested: { ["key\u0000"]: "value\u0000" } },
+              },
+            }
+          : entry,
+      ),
+    };
+    expect(validateCanonicalExport(invalid as never).map((issue) => issue.code)).toContain(
+      "shape.nul",
+    );
+  });
+
   it("sorts items, relationships, and revisions by identity for determinism", () => {
     const high = item({ id: "ffffffff-ffff-7fff-8fff-ffffffffffff" as Uuid });
     const low = item({ id: "00000000-0000-7000-8000-000000000000" as Uuid });
@@ -267,6 +294,289 @@ describe("buildCanonicalExport", () => {
     expect(manifest.counts).toMatchObject({ databases: 1, databaseEntries: 1 });
     expect(validateCanonicalExport(manifest)).toEqual([]);
   });
+
+  it("accepts the historical V1 canonical shape without structured records", () => {
+    const current = structuredFixture();
+    const { databases: _databases, databaseEntries: _entries, counts, ...legacy } = current;
+    const v1 = {
+      ...legacy,
+      formatVersion: 1,
+      counts: {
+        items: counts.items,
+        activeItems: counts.activeItems,
+        trashedItems: counts.trashedItems,
+        placements: counts.placements,
+        relationships: counts.relationships,
+        revisions: counts.revisions,
+      },
+    };
+    expect(validateCanonicalExport(v1 as never)).toEqual([]);
+  });
+
+  it("accepts a historical V1 item whose icon field was not exported", () => {
+    const current = consistentFixture();
+    const { databases: _databases, databaseEntries: _entries, counts, ...legacy } = current;
+    const v1 = {
+      ...legacy,
+      formatVersion: 1,
+      items: current.items.map((entry) => {
+        const withoutIcon = { ...entry } as Record<string, unknown>;
+        delete withoutIcon["icon"];
+        return withoutIcon;
+      }),
+      counts: {
+        items: counts.items,
+        activeItems: counts.activeItems,
+        trashedItems: counts.trashedItems,
+        placements: counts.placements,
+        relationships: counts.relationships,
+        revisions: counts.revisions,
+      },
+    };
+    expect(validateCanonicalExport(v1 as never)).toEqual([]);
+  });
+
+  it("keeps the icon field mandatory for V2 canonical exports", () => {
+    const current = consistentFixture();
+    const v2 = {
+      ...current,
+      items: current.items.map((entry) => {
+        const withoutIcon = { ...entry } as Record<string, unknown>;
+        delete withoutIcon["icon"];
+        return withoutIcon;
+      }),
+    };
+    expect(validateCanonicalExport(v2 as never).map((issue) => issue.code)).toContain("shape.item");
+  });
+
+  it("accepts a zero schema version but requires positive page-document versions", () => {
+    const current = consistentFixture();
+    expect(validateCanonicalExport({ ...current, schemaVersion: 0 })).toEqual([]);
+    const first = current.items[0];
+    if (first === undefined || first.pageDocument === null) throw new Error("fixture missing");
+    const invalid = {
+      ...current,
+      items: current.items.map((entry) =>
+        entry.id === first.id
+          ? {
+              ...entry,
+              pageDocument: { ...first.pageDocument, formatVersion: 0 },
+            }
+          : entry,
+      ),
+    };
+    expect(validateCanonicalExport(invalid as never).map((issue) => issue.code)).toContain(
+      "shape.item",
+    );
+  });
+
+  it("rejects item, placement and relationship values that violate storage constraints", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const relationship = manifest.relationships[0];
+    if (first === undefined || relationship === undefined) throw new Error("fixture missing");
+    const invalidItem = {
+      ...manifest,
+      items: [
+        {
+          ...first,
+          kind: "page",
+          name: "x".repeat(513),
+          icon: "x".repeat(65),
+          placements: [{ ...first.placements[0], positionKey: "x".repeat(256) }],
+        },
+        ...manifest.items.slice(1),
+      ],
+    };
+    expect(validateCanonicalExport(invalidItem as never).map((issue) => issue.code)).toContain(
+      "shape.item",
+    );
+    const invalidRelationship = {
+      ...manifest,
+      relationships: [{ ...relationship, relationType: "invalid" }],
+    };
+    expect(
+      validateCanonicalExport(invalidRelationship as never).map((issue) => issue.code),
+    ).toContain("shape.relationship");
+    const overlongRelationship = {
+      ...manifest,
+      relationships: [{ ...relationship, relationType: `a:${"b".repeat(127)}` }],
+    };
+    expect(
+      validateCanonicalExport(overlongRelationship as never).map((issue) => issue.code),
+    ).toContain("shape.relationship");
+  });
+
+  it("rejects an attachment owned by a non-page and duplicate hierarchy placement", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const second = manifest.items[1];
+    if (first === undefined || second === undefined) throw new Error("fixture missing");
+    const invalid = {
+      ...manifest,
+      items: manifest.items.map((item) =>
+        item.id === first.id
+          ? {
+              ...item,
+              kind: "file",
+              pageDocument: null,
+              file: {
+                mediaType: "text/plain",
+                originalName: "file.txt",
+                byteLength: 0,
+                sha256: "0".repeat(64),
+              },
+              placements: [
+                {
+                  ...item.placements[0],
+                  kind: "attachment",
+                  itemIsFile: true,
+                  parentItemId: second.id,
+                },
+                {
+                  ...item.placements[0],
+                  id: generateUuidV7(),
+                  kind: "hierarchy",
+                  itemIsFile: true,
+                },
+              ],
+            }
+          : item.id === second.id
+            ? { ...item, kind: "folder", pageDocument: null }
+            : item,
+      ),
+    };
+    const codes = validateCanonicalExport(invalid as never).map((issue) => issue.code);
+    expect(codes).toEqual(expect.arrayContaining(["placement.attachment-parent-kind"]));
+  });
+
+  it("rejects removed placements and invalid active placement cardinality", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    if (first === undefined) throw new Error("fixture missing");
+    const removed = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id
+          ? { ...entry, placements: [{ ...entry.placements[0], removedAt: EXPORTED_AT }] }
+          : entry,
+      ),
+    };
+    expect(validateCanonicalExport(removed as never).map((issue) => issue.code)).toContain(
+      "shape.item",
+    );
+
+    const orphaned = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id ? { ...entry, placements: [] } : entry,
+      ),
+    };
+    expect(validateCanonicalExport(orphaned as never).map((issue) => issue.code)).toContain(
+      "placement.cardinality",
+    );
+
+    const file = item({
+      kind: "file",
+      pageDocument: null,
+      file: {
+        mediaType: "text/plain",
+        originalName: "file.txt",
+        byteLength: 0,
+        sha256: "0".repeat(64),
+      },
+      placements: [],
+    });
+    const fileManifest = buildCanonicalExport({
+      workspaceId,
+      schemaVersion: 1,
+      exportedAt: EXPORTED_AT,
+      changeCursor: "",
+      items: [file],
+      relationships: [],
+      revisions: [revisionFor(file.id, file.currentRevisionId)],
+    });
+    expect(validateCanonicalExport(fileManifest).map((issue) => issue.code)).toContain(
+      "placement.cardinality",
+    );
+  });
+
+  it("keeps page documents limited to pages and preserves lifecycle nullability", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    if (first === undefined) throw new Error("fixture missing");
+    const missingPageDocument = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id ? { ...entry, pageDocument: null } : entry,
+      ),
+    };
+    expect(
+      validateCanonicalExport(missingPageDocument as never).map((issue) => issue.code),
+    ).toContain("shape.item");
+
+    const folderDocument = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id ? { ...entry, kind: "folder", pageDocument: null } : entry,
+      ),
+    };
+    expect(validateCanonicalExport(folderDocument as never)).toEqual([]);
+
+    const withFolderDocument = {
+      ...folderDocument,
+      items: folderDocument.items.map((entry) =>
+        entry.id === first.id ? { ...entry, pageDocument: first.pageDocument } : entry,
+      ),
+    };
+    expect(
+      validateCanonicalExport(withFolderDocument as never).map((issue) => issue.code),
+    ).toContain("shape.item");
+
+    const purged = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id
+          ? {
+              ...entry,
+              lifecycle: "purged",
+              pageDocument: null,
+              file: null,
+              placements: [],
+            }
+          : entry,
+      ),
+      counts: { ...manifest.counts, activeItems: 1, placements: 1 },
+    };
+    expect(validateCanonicalExport(purged as never)).toEqual([]);
+  });
+
+  it("rejects an attachment on a non-file item", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const second = manifest.items[1];
+    if (first === undefined || second === undefined) throw new Error("fixture missing");
+    const invalid = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id
+          ? {
+              ...entry,
+              placements: [
+                {
+                  ...entry.placements[0],
+                  kind: "attachment",
+                  parentItemId: second.id,
+                },
+              ],
+            }
+          : entry,
+      ),
+    };
+    expect(validateCanonicalExport(invalid as never).map((issue) => issue.code)).toContain(
+      "shape.item",
+    );
+  });
 });
 
 describe("canonicalExportString", () => {
@@ -286,8 +596,41 @@ describe("canonicalExportString", () => {
 });
 
 describe("validateCanonicalExport", () => {
+  it("requires structured record versions to be at least one", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+
+    const invalidDatabase = {
+      ...manifest,
+      databases: [{ ...database, definitionVersion: 0 }],
+    };
+    expect(validateCanonicalExport(invalidDatabase as never).map((issue) => issue.code)).toContain(
+      "shape.database",
+    );
+
+    const invalidEntry = {
+      ...manifest,
+      databaseEntries: [{ ...entry, valueVersion: 0 }],
+    };
+    expect(validateCanonicalExport(invalidEntry as never).map((issue) => issue.code)).toContain(
+      "shape.database-entry",
+    );
+  });
+
   it("reports no issues for a complete manifest", () => {
     expect(validateCanonicalExport(consistentFixture())).toEqual([]);
+  });
+
+  it("allows linked database sources and entries without navigation placements", () => {
+    const manifest = structuredFixture();
+    const unplaced = {
+      ...manifest,
+      items: manifest.items.map((entry) => ({ ...entry, placements: [] })),
+      counts: { ...manifest.counts, placements: 0 },
+    };
+    expect(validateCanonicalExport(unplaced)).toEqual([]);
   });
 
   it("detects a mismatched item count", () => {
@@ -364,6 +707,32 @@ describe("validateCanonicalExport", () => {
     );
   });
 
+  it("rejects cycles in the item hierarchy", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const second = manifest.items[1];
+    if (first === undefined || second === undefined) throw new Error("fixture missing");
+    const cyclic = {
+      ...manifest,
+      items: manifest.items.map((entry) =>
+        entry.id === first.id
+          ? {
+              ...entry,
+              placements: [{ ...entry.placements[0], parentItemId: second.id }],
+            }
+          : entry.id === second.id
+            ? {
+                ...entry,
+                placements: [{ ...entry.placements[0], parentItemId: first.id }],
+              }
+            : entry,
+      ),
+    };
+    expect(validateCanonicalExport(cyclic as never).map((issue) => issue.code)).toContain(
+      "placement.hierarchy-cycle",
+    );
+  });
+
   it("detects a relationship endpoint that was not exported", () => {
     const source = item();
     const manifest = buildCanonicalExport({
@@ -394,6 +763,30 @@ describe("validateCanonicalExport", () => {
     expect(validateCanonicalExport(manifest).map((issue) => issue.code)).toContain(
       "revision.parent-missing",
     );
+  });
+
+  it("rejects cycles in revision lineage", () => {
+    const manifest = consistentFixture();
+    const firstRevision = manifest.revisions[0];
+    if (firstRevision === undefined) throw new Error("fixture missing revision");
+    const secondRevisionId = generateUuidV7();
+    const cyclic = {
+      ...manifest,
+      revisions: [
+        ...manifest.revisions.map((revision) =>
+          revision.id === firstRevision.id
+            ? { ...revision, parentRevisionIds: [secondRevisionId] }
+            : revision,
+        ),
+        {
+          ...firstRevision,
+          id: secondRevisionId,
+          parentRevisionIds: [firstRevision.id],
+        },
+      ],
+      counts: { ...manifest.counts, revisions: manifest.counts.revisions + 1 },
+    };
+    expect(validateCanonicalExport(cyclic).map((issue) => issue.code)).toContain("revision.cycle");
   });
 
   it("detects structured count and identity mismatches", () => {
@@ -427,5 +820,772 @@ describe("validateCanonicalExport", () => {
         "database-entry.values-identity",
       ]),
     );
+  });
+
+  it("requires database hosts and entries to be pages and forbids self-entry", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+
+    const hostFolder = {
+      ...manifest,
+      items: manifest.items.map((item) =>
+        item.id === database.databaseId ? { ...item, kind: "folder", pageDocument: null } : item,
+      ),
+    };
+    expect(validateCanonicalExport(hostFolder as never).map((issue) => issue.code)).toContain(
+      "database.host-kind",
+    );
+
+    const entryFolder = {
+      ...manifest,
+      items: manifest.items.map((item) =>
+        item.id === entry.entryId ? { ...item, kind: "folder", pageDocument: null } : item,
+      ),
+    };
+    expect(validateCanonicalExport(entryFolder as never).map((issue) => issue.code)).toContain(
+      "database-entry.item-kind",
+    );
+
+    const selfEntry = {
+      ...manifest,
+      databaseEntries: [
+        {
+          ...entry,
+          entryId: database.databaseId,
+          values: { ...entry.values, entryId: database.databaseId },
+        },
+      ],
+    };
+    expect(validateCanonicalExport(selfEntry as never).map((issue) => issue.code)).toContain(
+      "database-entry.self",
+    );
+  });
+
+  it.each([
+    [
+      "item",
+      (manifest: ReturnType<typeof consistentFixture>) => ({
+        ...manifest,
+        items: [
+          {
+            id: manifest.items[0]?.id,
+            currentRevisionId: manifest.items[0]?.currentRevisionId,
+            placements: [],
+          },
+        ],
+      }),
+    ],
+    [
+      "revision",
+      (manifest: ReturnType<typeof consistentFixture>) => ({
+        ...manifest,
+        revisions: [{ ...manifest.revisions[0], parentRevisionIds: undefined }],
+      }),
+    ],
+    [
+      "relationship",
+      (manifest: ReturnType<typeof consistentFixture>) => ({
+        ...manifest,
+        relationships: [{ ...manifest.relationships[0], metadata: undefined }],
+      }),
+    ],
+  ] as const)("rejects an under-specified %s before graph checks", (_kind, buildBroken) => {
+    const broken = buildBroken(consistentFixture());
+    expect(validateCanonicalExport(broken as never).map((issue) => issue.code)).toContain(
+      `shape.${_kind}`,
+    );
+  });
+
+  it("rejects under-specified database definitions and entries", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+    const broken = {
+      ...manifest,
+      databases: [{ ...database, definition: undefined }],
+      databaseEntries: [{ ...entry, values: undefined }],
+    };
+    const codes = validateCanonicalExport(broken as never).map((issue) => issue.code);
+    expect(codes).toEqual(expect.arrayContaining(["shape.database", "shape.database-entry"]));
+  });
+
+  it("rejects malformed nested database properties, views and values", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+    const broken = {
+      ...manifest,
+      databases: [
+        {
+          ...database,
+          definition: {
+            ...database.definition,
+            properties: [{ ...database.definition.properties[0], name: "" }],
+            views: [{ ...database.definition.views[0], name: "" }],
+          },
+        },
+      ],
+      databaseEntries: [
+        {
+          ...entry,
+          values: { ...entry.values, values: { [generateUuidV7()]: { kind: "text" } } },
+        },
+      ],
+    };
+    const codes = validateCanonicalExport(broken as never).map((issue) => issue.code);
+    expect(codes).toEqual(expect.arrayContaining(["shape.database", "shape.database-entry"]));
+  });
+
+  it("rejects duplicate identities and invalid timestamps", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const revision = manifest.revisions[0];
+    if (first === undefined || revision === undefined) throw new Error("fixture missing");
+    const duplicate = {
+      ...manifest,
+      items: [{ ...first, currentRevisionId: revision.id }, { ...first }],
+      revisions: [revision, ...manifest.revisions],
+    };
+    const duplicateCodes = validateCanonicalExport(duplicate as never).map((issue) => issue.code);
+    expect(duplicateCodes).toEqual(
+      expect.arrayContaining(["item.duplicate", "revision.duplicate"]),
+    );
+    const invalidTimestamp = {
+      ...manifest,
+      revisions: [{ ...revision, acceptedAt: "not-a-timestamp" }, ...manifest.revisions.slice(1)],
+    };
+    expect(validateCanonicalExport(invalidTimestamp as never).map((issue) => issue.code)).toContain(
+      "shape.revision",
+    );
+  });
+
+  it("rejects invalid export timestamps, workspaces, kinds and preserved values", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+    const broken = {
+      ...manifest,
+      exportedAt: "2026-08-09",
+      items: [{ ...manifest.items[0], workspaceId: generateUuidV7(), kind: "evil" }],
+      databases: [{ ...database, definitionRevisionId: "not-a-uuid" }],
+      databaseEntries: [
+        {
+          ...entry,
+          values: {
+            ...entry.values,
+            preserved: [
+              {
+                propertyId: generateUuidV7(),
+                sourceType: "evil",
+                value: null,
+                preservedAtRevisionId: "not-a-uuid",
+                reason: "unknown",
+              },
+            ],
+            values: {
+              [generateUuidV7()]: { kind: "evil", value: true },
+            },
+          },
+        },
+      ],
+    };
+    expect(validateCanonicalExport(broken as never).map((issue) => issue.code)).toContain(
+      "shape.manifest",
+    );
+    const nestedBroken = { ...broken, exportedAt: EXPORTED_AT };
+    const nestedCodes = validateCanonicalExport(nestedBroken as never).map((issue) => issue.code);
+    expect(nestedCodes).toEqual(
+      expect.arrayContaining(["shape.item", "shape.database", "shape.database-entry"]),
+    );
+  });
+
+  it("rejects lineage references owned by another item and duplicate parents", () => {
+    const manifest = consistentFixture();
+    const first = manifest.items[0];
+    const second = manifest.items[1];
+    const firstRevision = manifest.revisions.find((revision) => revision.itemId === first?.id);
+    const secondRevision = manifest.revisions.find((revision) => revision.itemId === second?.id);
+    if (
+      first === undefined ||
+      second === undefined ||
+      firstRevision === undefined ||
+      secondRevision === undefined
+    ) {
+      throw new Error("fixture missing");
+    }
+    const duplicateParents = {
+      ...manifest,
+      revisions: [
+        { ...firstRevision, parentRevisionIds: [secondRevision.id, secondRevision.id] },
+        ...manifest.revisions.filter((revision) => revision.id !== firstRevision.id),
+      ],
+    };
+    expect(validateCanonicalExport(duplicateParents as never).map((issue) => issue.code)).toContain(
+      "shape.revision",
+    );
+    const broken = {
+      ...manifest,
+      items: manifest.items.map((item) =>
+        item.id === first.id ? { ...item, workspaceId: generateUuidV7() } : item,
+      ),
+      relationships: [
+        {
+          ...manifest.relationships[0],
+          createdRevisionId: secondRevision.id,
+          removedRevisionId: secondRevision.id,
+        },
+      ],
+    };
+    const codes = validateCanonicalExport(broken as never).map((issue) => issue.code);
+    expect(codes).toEqual(
+      expect.arrayContaining(["item.workspace-mismatch", "relationship.revision-owner-mismatch"]),
+    );
+  });
+
+  it("rejects definition and entry revisions owned by another item", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+    const revisions = manifest.revisions;
+    const databaseRevision = revisions.find((revision) => revision.itemId === entry.entryId);
+    const entryRevision = revisions.find((revision) => revision.itemId === database.databaseId);
+    if (databaseRevision === undefined || entryRevision === undefined)
+      throw new Error("fixture missing revision");
+    const broken = {
+      ...manifest,
+      databases: [{ ...database, definitionRevisionId: databaseRevision.id }],
+      databaseEntries: [{ ...entry, addedRevisionId: entryRevision.id }],
+    };
+    const codes = validateCanonicalExport(broken as never).map((issue) => issue.code);
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        "database.revision-owner-mismatch",
+        "database-entry.revision-owner-mismatch",
+      ]),
+    );
+  });
+
+  it("rejects non-canonical entry envelopes and values outside their definition", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+    const textPropertyId = generateUuidV7();
+    const numberPropertyId = generateUuidV7();
+    const broken = {
+      ...manifest,
+      databases: [
+        {
+          ...database,
+          definition: {
+            ...database.definition,
+            properties: [
+              ...database.definition.properties,
+              {
+                id: textPropertyId,
+                name: "Text",
+                type: "text",
+                positionKey: "b",
+                state: "active",
+                config: {},
+              },
+              {
+                id: numberPropertyId,
+                name: "Number",
+                type: "number",
+                positionKey: "c",
+                state: "active",
+                config: {},
+              },
+            ],
+          },
+        },
+      ],
+      databaseEntries: [
+        {
+          ...entry,
+          values: {
+            ...entry.values,
+            format: "evil",
+            formatVersion: 2,
+            values: {
+              [numberPropertyId]: { kind: "number", decimal: "not-a-number" },
+            },
+            preserved: [{ propertyId: textPropertyId, reason: "retired-property" }],
+          },
+        },
+      ],
+    };
+    expect(validateCanonicalExport(broken as never).map((issue) => issue.code)).toContain(
+      "shape.database-entry",
+    );
+
+    const malformedValue = {
+      ...broken,
+      databaseEntries: [
+        {
+          ...entry,
+          values: {
+            ...entry.values,
+            values: {
+              [generateUuidV7()]: { kind: "text", value: "unknown property" },
+            },
+            preserved: [],
+          },
+        },
+      ],
+    };
+    expect(validateCanonicalExport(malformedValue as never).map((issue) => issue.code)).toContain(
+      "database-entry.value-invalid",
+    );
+  });
+
+  it("accepts every typed entry value and rejects malformed representations", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+
+    const textPropertyId = generateUuidV7();
+    const numberPropertyId = generateUuidV7();
+    const datePropertyId = generateUuidV7();
+    const instantPropertyId = generateUuidV7();
+    const statusPropertyId = generateUuidV7();
+    const selectPropertyId = generateUuidV7();
+    const multiSelectPropertyId = generateUuidV7();
+    const checkboxPropertyId = generateUuidV7();
+    const statusOptionId = generateUuidV7();
+    const selectOptionId = generateUuidV7();
+    const multiSelectOptionId = generateUuidV7();
+    const option = (id: Uuid, label: string) => ({
+      id,
+      label,
+      positionKey: "a",
+      tone: "default",
+      state: "active" as const,
+    });
+    const properties = [
+      {
+        id: textPropertyId,
+        name: "Text",
+        type: "text",
+        positionKey: "b",
+        state: "active",
+        config: {},
+      },
+      {
+        id: numberPropertyId,
+        name: "Number",
+        type: "number",
+        positionKey: "c",
+        state: "active",
+        config: {},
+      },
+      {
+        id: datePropertyId,
+        name: "Date",
+        type: "date",
+        positionKey: "d",
+        state: "active",
+        config: { mode: "date" },
+      },
+      {
+        id: instantPropertyId,
+        name: "Instant",
+        type: "date",
+        positionKey: "e",
+        state: "active",
+        config: { mode: "instant" },
+      },
+      {
+        id: statusPropertyId,
+        name: "Status",
+        type: "status",
+        positionKey: "f",
+        state: "active",
+        config: { options: [option(statusOptionId, "Open")] },
+      },
+      {
+        id: selectPropertyId,
+        name: "Select",
+        type: "select",
+        positionKey: "g",
+        state: "active",
+        config: { options: [option(selectOptionId, "One")] },
+      },
+      {
+        id: multiSelectPropertyId,
+        name: "Multi",
+        type: "multi-select",
+        positionKey: "h",
+        state: "active",
+        config: { options: [option(multiSelectOptionId, "One")] },
+      },
+      {
+        id: checkboxPropertyId,
+        name: "Checked",
+        type: "checkbox",
+        positionKey: "i",
+        state: "active",
+        config: {},
+      },
+    ] as const;
+    const typedDatabase = {
+      ...database,
+      definition: {
+        ...database.definition,
+        properties: [...database.definition.properties, ...properties],
+      },
+    };
+    const typedValues = {
+      ...entry.values,
+      values: {
+        [textPropertyId]: { kind: "text", value: "hello" },
+        [numberPropertyId]: { kind: "number", decimal: "12.50" },
+        [datePropertyId]: { kind: "date", date: "2026-09-05" },
+        [instantPropertyId]: { kind: "instant", instant: "2026-09-05T12:30:00Z" },
+        [statusPropertyId]: { kind: "status", optionId: statusOptionId },
+        [selectPropertyId]: { kind: "select", optionId: selectOptionId },
+        [multiSelectPropertyId]: { kind: "multi-select", optionIds: [multiSelectOptionId] },
+        [checkboxPropertyId]: { kind: "checkbox", checked: true },
+      },
+    };
+    const typed = {
+      ...manifest,
+      databases: [typedDatabase],
+      databaseEntries: [{ ...entry, values: typedValues }],
+    };
+    expect(validateCanonicalExport(typed as never)).toEqual([]);
+
+    const malformed = [
+      ["text shape", textPropertyId, { kind: "text" }, "shape.database-entry"],
+      [
+        "number syntax",
+        numberPropertyId,
+        { kind: "number", decimal: "NaN" },
+        "shape.database-entry",
+      ],
+      ["civil date", datePropertyId, { kind: "date", date: "2026-02-31" }, "shape.database-entry"],
+      [
+        "instant syntax",
+        instantPropertyId,
+        { kind: "instant", instant: "2026-09-05" },
+        "shape.database-entry",
+      ],
+      [
+        "status identifier",
+        statusPropertyId,
+        { kind: "status", optionId: "bad" },
+        "shape.database-entry",
+      ],
+      [
+        "multi-select duplicates",
+        multiSelectPropertyId,
+        { kind: "multi-select", optionIds: [multiSelectOptionId, multiSelectOptionId] },
+        "shape.database-entry",
+      ],
+      [
+        "checkbox shape",
+        checkboxPropertyId,
+        { kind: "checkbox", checked: "yes" },
+        "shape.database-entry",
+      ],
+      ["unknown kind", textPropertyId, { kind: "unknown", value: true }, "shape.database-entry"],
+      [
+        "unknown property",
+        generateUuidV7(),
+        { kind: "text", value: "unknown property" },
+        "database-entry.value-invalid",
+      ],
+    ] as const;
+    for (const [_name, propertyId, value, expected] of malformed) {
+      const candidate = {
+        ...typed,
+        databaseEntries: [
+          {
+            ...entry,
+            values: {
+              ...typedValues,
+              values: { ...typedValues.values, [propertyId]: value },
+            },
+          },
+        ],
+      };
+      expect(validateCanonicalExport(candidate as never).map((issue) => issue.code)).toContain(
+        expected,
+      );
+    }
+
+    const unknownPreservedProperty = {
+      ...typed,
+      databaseEntries: [
+        {
+          ...entry,
+          values: {
+            ...typedValues,
+            preserved: [
+              {
+                propertyId: generateUuidV7(),
+                sourceType: "text",
+                value: "legacy",
+                preservedAtRevisionId: entry.addedRevisionId,
+                reason: "retired-property",
+              },
+            ],
+          },
+        },
+      ],
+    };
+    expect(
+      validateCanonicalExport(unknownPreservedProperty as never).map((issue) => issue.code),
+    ).toContain("database-entry.preserved-property-missing");
+  });
+
+  it.each([
+    [
+      "active and placement counts",
+      () => {
+        const manifest = structuredFixture();
+        return {
+          ...manifest,
+          counts: { ...manifest.counts, activeItems: 0, trashedItems: 1, placements: 0 },
+        };
+      },
+      ["counts.active-items", "counts.trashed-items", "counts.placements"],
+    ],
+    [
+      "item workspace",
+      () => {
+        const manifest = consistentFixture();
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) =>
+            entry === manifest.items[0] ? { ...entry, workspaceId: generateUuidV7() } : entry,
+          ),
+        };
+      },
+      ["item.workspace-mismatch"],
+    ],
+    [
+      "item revision owner",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.items[0];
+        const second = manifest.items[1];
+        if (first === undefined || second === undefined) throw new Error("fixture missing");
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) =>
+            entry.id === first.id
+              ? { ...entry, currentRevisionId: second.currentRevisionId }
+              : entry,
+          ),
+        };
+      },
+      ["item.revision-item-mismatch"],
+    ],
+    [
+      "placement identity",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.items[0];
+        if (first === undefined) throw new Error("fixture missing");
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) =>
+            entry.id === first.id
+              ? {
+                  ...entry,
+                  placements: [
+                    {
+                      ...entry.placements[0],
+                      workspaceId: generateUuidV7(),
+                      itemId: generateUuidV7(),
+                    },
+                  ],
+                }
+              : entry,
+          ),
+        };
+      },
+      ["placement.workspace-mismatch", "placement.item-mismatch"],
+    ],
+    [
+      "duplicate hierarchy",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.items[0];
+        if (first === undefined || first.placements[0] === undefined)
+          throw new Error("fixture missing");
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) =>
+            entry.id === first.id
+              ? {
+                  ...entry,
+                  placements: [
+                    first.placements[0],
+                    { ...first.placements[0], id: generateUuidV7() },
+                  ],
+                }
+              : entry,
+          ),
+        };
+      },
+      ["placement.hierarchy-duplicate"],
+    ],
+    [
+      "hierarchy under file",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.items[0];
+        const second = manifest.items[1];
+        if (first === undefined || second === undefined || second.placements[0] === undefined)
+          throw new Error("fixture missing");
+        const file = {
+          ...second,
+          kind: "file" as const,
+          pageDocument: null,
+          file: {
+            mediaType: "text/plain",
+            originalName: "file.txt",
+            byteLength: 0,
+            sha256: "0".repeat(64),
+          },
+          placements: [{ ...second.placements[0], itemIsFile: true }],
+        };
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) =>
+            entry.id === first.id
+              ? {
+                  ...entry,
+                  placements: [{ ...entry.placements[0], parentItemId: second.id }],
+                }
+              : entry.id === second.id
+                ? file
+                : entry,
+          ),
+        };
+      },
+      ["placement.hierarchy-parent-kind"],
+    ],
+    [
+      "trashed file placement",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.items[0];
+        if (first === undefined || first.placements[0] === undefined)
+          throw new Error("fixture missing");
+        const file = {
+          ...first,
+          kind: "file" as const,
+          lifecycle: "trashed" as const,
+          trashedAt: EXPORTED_AT,
+          purgeAfter: "2026-09-08T12:00:00.000Z",
+          pageDocument: null,
+          file: {
+            mediaType: "text/plain",
+            originalName: "file.txt",
+            byteLength: 0,
+            sha256: "0".repeat(64),
+          },
+          placements: [{ ...first.placements[0], itemIsFile: true }],
+        };
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) => (entry.id === first.id ? file : entry)),
+        };
+      },
+      ["placement.trashed-file"],
+    ],
+    [
+      "relationship references",
+      () => {
+        const manifest = consistentFixture();
+        const relationship = manifest.relationships[0];
+        if (relationship === undefined) throw new Error("fixture missing");
+        return {
+          ...manifest,
+          relationships: [
+            {
+              ...relationship,
+              workspaceId: generateUuidV7(),
+              createdRevisionId: generateUuidV7(),
+              removedRevisionId: generateUuidV7(),
+            },
+          ],
+        };
+      },
+      ["relationship.workspace-mismatch", "relationship.revision-missing"],
+    ],
+    [
+      "revision parent owner",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.revisions[0];
+        const second = manifest.revisions[1];
+        if (first === undefined || second === undefined) throw new Error("fixture missing");
+        return {
+          ...manifest,
+          revisions: manifest.revisions.map((revision) =>
+            revision.id === first.id ? { ...revision, parentRevisionIds: [second.id] } : revision,
+          ),
+        };
+      },
+      ["revision.parent-owner-mismatch"],
+    ],
+    [
+      "database and entry references",
+      () => {
+        const manifest = structuredFixture();
+        const database = manifest.databases[0];
+        const entry = manifest.databaseEntries[0];
+        if (database === undefined || entry === undefined) throw new Error("fixture missing");
+        const missingDatabaseId = generateUuidV7();
+        const missingEntryId = generateUuidV7();
+        const missingEntryDatabaseId = generateUuidV7();
+        return {
+          ...manifest,
+          databases: [
+            {
+              ...database,
+              databaseId: missingDatabaseId,
+              definition: { ...database.definition, databaseId: missingDatabaseId },
+              definitionRevisionId: generateUuidV7(),
+            },
+          ],
+          databaseEntries: [
+            {
+              ...entry,
+              entryId: missingEntryId,
+              databaseId: missingEntryDatabaseId,
+              addedRevisionId: generateUuidV7(),
+              values: {
+                ...entry.values,
+                entryId: missingEntryId,
+                databaseId: missingEntryDatabaseId,
+              },
+            },
+          ],
+        };
+      },
+      [
+        "database.item-missing",
+        "database.revision-missing",
+        "database-entry.item-missing",
+        "database-entry.database-missing",
+        "database-entry.revision-missing",
+      ],
+    ],
+  ] as const)("reports useful cross-record incoherence: %s", (_name, build, expected) => {
+    const codes = validateCanonicalExport(build() as never).map((issue) => issue.code);
+    expect(codes).toEqual(expect.arrayContaining([...expected]));
   });
 });

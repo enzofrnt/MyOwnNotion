@@ -2,6 +2,7 @@
 import type { Transaction } from "@myownnotion/database";
 import { sql } from "drizzle-orm";
 import type pg from "pg";
+import { assertStorageTransitionReady } from "../../security/file-storage-transition-guard.ts";
 
 const NAMESPACE = 0x4d4f4e;
 const RUN = 2401;
@@ -18,11 +19,23 @@ export async function acquireFullRunLock(client: pg.Client): Promise<() => Promi
 /** Always before an upload row lock; released by the surrounding transaction. */
 export async function shareFullFileMutation(tx: Transaction): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock_shared(${NAMESPACE}, ${FILE_MUTATION})`);
+  await assertStorageTransitionReady(tx);
+}
+
+/** Short maintenance batches exclude file publication before examining references. */
+export async function lockFullFileMaintenance(tx: Transaction): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${NAMESPACE}, ${FILE_MUTATION})`);
+  await assertStorageTransitionReady(tx);
 }
 
 /** Physical GC must hold this through the actual delete, not only the DB update. */
 export async function shareFullBlobDeletion(tx: Transaction): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock_shared(${NAMESPACE}, ${BLOB_DELETION})`);
+}
+
+/** Portable archive reads pin physical bytes while their separate snapshot is consumed. */
+export async function protectFullBlobReads(tx: Transaction): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${NAMESPACE}, ${BLOB_DELETION})`);
 }
 
 /** Acquire before beginning the exported snapshot so waits cannot age the snapshot. */

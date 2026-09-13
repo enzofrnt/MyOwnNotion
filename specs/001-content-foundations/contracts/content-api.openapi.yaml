@@ -5,7 +5,8 @@ info:
   description: >-
     Development contract for canonical pages, folders, files, placements,
     relationships (including non-hierarchical internal page links), lifecycle, lineage, and export. This feature does not make
-    the API safe for public exposure; authentication is specified separately.
+    the API safe for public exposure; authentication for the other content routes is defined by feature 002. The export
+    operations repeat their owner-session and CSRF requirements here because they are durable security boundaries.
 servers:
   - url: http://127.0.0.1:3000
     description: Local development only
@@ -588,6 +589,11 @@ paths:
     post:
       tags: [Export]
       operationId: createCanonicalExport
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
       responses:
         '202':
           description: Durable export prepared for independent validation
@@ -599,10 +605,18 @@ paths:
                 properties:
                   exportId: { $ref: '#/components/schemas/Uuid' }
                   status: { const: pending }
+        '401': { $ref: '#/components/responses/SecurityProblem' }
+        '403': { $ref: '#/components/responses/SecurityProblem' }
+        '409': { $ref: '#/components/responses/SecurityProblem' }
+        '500': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/SecurityProblem' }
   /v1/export/{exportId}:
     get:
       tags: [Export]
       operationId: getCanonicalExport
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
       parameters:
         - in: path
           name: exportId
@@ -614,8 +628,56 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ExportStatus' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/SecurityProblem' }
         '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/SecurityProblem' }
+        '500': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/SecurityProblem' }
+  /v1/export/{exportId}/artifact:
+    get:
+      tags: [Export]
+      operationId: downloadCanonicalExportArtifact
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - in: path
+          name: exportId
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Verified canonical export manifest artifact
+          headers:
+            Cache-Control:
+              required: true
+              schema: { const: 'private, no-store' }
+            X-Export-Digest:
+              required: true
+              description: SHA-256 digest of the canonical JSON manifest
+              schema:
+                type: string
+                pattern: '^[a-f0-9]{64}$'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalExportManifest' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/SecurityProblem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/SecurityProblem' }
+        '500': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/SecurityProblem' }
 components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-mn_session
+    devSessionCookie:
+      type: apiKey
+      in: cookie
+      name: mn_dev_session
   parameters:
     ClientProtocol:
       in: header
@@ -658,6 +720,15 @@ components:
       required: true
       description: Client-generated UUIDv7 mutation identity
       schema: { $ref: '#/components/schemas/Uuid' }
+    CsrfToken:
+      in: header
+      name: X-CSRF-Token
+      required: true
+      description: Session-bound request token required for the export creation operation
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 43
   responses:
     PageOperationProblem:
       description: Stable convergent synchronization refusal
@@ -669,6 +740,11 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    SecurityProblem:
+      description: Redacted owner-access or protected-operation problem
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/SecurityProblem' }
   schemas:
     PageOperationDigest:
       type: string
@@ -951,7 +1027,7 @@ components:
       required: [format, formatVersion, body]
       properties:
         format: { const: myownnotion.document+json }
-        formatVersion: { type: integer, minimum: 1 }
+        formatVersion: { type: integer, minimum: 1, maximum: 9007199254740991 }
         body: { type: object }
       additionalProperties: false
     Placement:
@@ -1181,6 +1257,159 @@ components:
         digest: { type: string, pattern: '^[a-f0-9]{64}$' }
         downloadPath: { type: string, format: uri-reference }
         problem: { $ref: '#/components/schemas/Problem' }
+    CanonicalExportManifest:
+      type: object
+      required: [format, formatVersion, workspaceId, schemaVersion, exportedAt, changeCursor, items, databases, databaseEntries, relationships, revisions, counts]
+      properties:
+        format: { const: myownnotion.export+json }
+        formatVersion: { const: 2 }
+        workspaceId: { $ref: '#/components/schemas/Uuid' }
+        schemaVersion: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        exportedAt:
+          type: string
+          format: date-time
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$'
+        changeCursor: { type: string }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CanonicalExportItem' }
+        databases:
+          type: array
+          items: { $ref: '#/components/schemas/CanonicalExportDatabase' }
+        databaseEntries:
+          type: array
+          items: { $ref: '#/components/schemas/CanonicalExportDatabaseEntry' }
+        relationships:
+          type: array
+          items: { $ref: '#/components/schemas/CanonicalExportRelationship' }
+        revisions:
+          type: array
+          items: { $ref: '#/components/schemas/CanonicalExportRevision' }
+        counts:
+          type: object
+          required: [items, activeItems, trashedItems, placements, relationships, revisions, databases, databaseEntries]
+          properties:
+            items: { type: integer, minimum: 0, maximum: 9007199254740991 }
+            activeItems: { type: integer, minimum: 0, maximum: 9007199254740991 }
+            trashedItems: { type: integer, minimum: 0, maximum: 9007199254740991 }
+            placements: { type: integer, minimum: 0, maximum: 9007199254740991 }
+            relationships: { type: integer, minimum: 0, maximum: 9007199254740991 }
+            revisions: { type: integer, minimum: 0, maximum: 9007199254740991 }
+            databases: { type: integer, minimum: 0, maximum: 9007199254740991 }
+            databaseEntries: { type: integer, minimum: 0, maximum: 9007199254740991 }
+          additionalProperties: false
+      additionalProperties: false
+    CanonicalExportItem:
+      type: object
+      required: [id, workspaceId, kind, name, icon, lifecycle, trashedAt, purgeAfter, currentRevisionId, favourite, offlineIntent, pageDocument, file, placements]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        workspaceId: { $ref: '#/components/schemas/Uuid' }
+        kind: { $ref: '#/components/schemas/ItemKind' }
+        name: { $ref: '#/components/schemas/DisplayName' }
+        icon: { $ref: '#/components/schemas/ItemIcon' }
+        lifecycle: { $ref: '#/components/schemas/Lifecycle' }
+        trashedAt: { type: [string, 'null'], format: date-time, pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$' }
+        purgeAfter: { type: [string, 'null'], format: date-time, pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$' }
+        currentRevisionId: { $ref: '#/components/schemas/Uuid' }
+        favourite: { type: boolean }
+        offlineIntent: { type: boolean }
+        pageDocument:
+          oneOf:
+            - { $ref: '#/components/schemas/PageDocument' }
+            - { type: 'null' }
+        file:
+          oneOf:
+            - { $ref: '#/components/schemas/CanonicalExportFile' }
+            - { type: 'null' }
+        placements:
+          type: array
+          items: { $ref: '#/components/schemas/CanonicalExportPlacement' }
+      additionalProperties: false
+    CanonicalExportPlacement:
+      type: object
+      required: [id, workspaceId, itemId, itemIsFile, kind, parentItemId, positionKey, removedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        workspaceId: { $ref: '#/components/schemas/Uuid' }
+        itemId: { $ref: '#/components/schemas/Uuid' }
+        itemIsFile: { type: boolean }
+        kind: { $ref: '#/components/schemas/PlacementKind' }
+        parentItemId:
+          oneOf:
+            - { $ref: '#/components/schemas/Uuid' }
+            - { type: 'null' }
+        positionKey:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '^[0-9A-Za-z]+$'
+        removedAt: { type: 'null' }
+      additionalProperties: false
+    CanonicalExportFile:
+      type: object
+      required: [mediaType, originalName, byteLength, sha256]
+      properties:
+        mediaType: { type: string, minLength: 1 }
+        originalName: { type: string, minLength: 1 }
+        byteLength: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+      additionalProperties: false
+    CanonicalExportDatabase:
+      type: object
+      required: [databaseId, definitionVersion, definition]
+      properties:
+        databaseId: { $ref: '#/components/schemas/Uuid' }
+        definitionRevisionId: { $ref: '#/components/schemas/Uuid' }
+        definitionVersion: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        definition: { type: object }
+      additionalProperties: false
+    CanonicalExportDatabaseEntry:
+      type: object
+      required: [entryId, databaseId, valueVersion, addedRevisionId, values]
+      properties:
+        entryId: { $ref: '#/components/schemas/Uuid' }
+        databaseId: { $ref: '#/components/schemas/Uuid' }
+        valueVersion: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        addedRevisionId: { $ref: '#/components/schemas/Uuid' }
+        values: { type: object }
+      additionalProperties: false
+    CanonicalExportRevision:
+      type: object
+      required: [id, itemId, mutationId, parentRevisionIds, acceptedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        itemId: { $ref: '#/components/schemas/Uuid' }
+        mutationId: { $ref: '#/components/schemas/Uuid' }
+        parentRevisionIds:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Uuid' }
+        acceptedAt:
+          type: string
+          format: date-time
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$'
+        authoredByDeviceId:
+          oneOf:
+            - { $ref: '#/components/schemas/Uuid' }
+            - { type: 'null' }
+      additionalProperties: false
+    CanonicalExportRelationship:
+      type: object
+      required: [id, workspaceId, sourceItemId, targetItemId, relationType, metadata, createdRevisionId, removedRevisionId]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        workspaceId: { $ref: '#/components/schemas/Uuid' }
+        sourceItemId: { $ref: '#/components/schemas/Uuid' }
+        targetItemId: { $ref: '#/components/schemas/Uuid' }
+        relationType: { type: string, maxLength: 128, pattern: '^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$' }
+        metadata: { type: object }
+        createdRevisionId: { $ref: '#/components/schemas/Uuid' }
+        removedRevisionId:
+          oneOf:
+            - { $ref: '#/components/schemas/Uuid' }
+            - { type: 'null' }
+      additionalProperties: false
     Problem:
       type: object
       required: [type, title, status, code]
@@ -1198,3 +1427,14 @@ components:
             properties:
               field: { type: string }
               code: { type: string }
+    SecurityProblem:
+      type: object
+      required: [type, title, status, code, correlationId]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string, maxLength: 120 }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        code: { type: string, maxLength: 128 }
+        correlationId: { $ref: '#/components/schemas/Uuid' }
+        detail: { type: string, maxLength: 256 }
+      additionalProperties: false

@@ -1,7 +1,12 @@
 /** Refusal paths of the operational sync protocol (coverage for stable problems). */
 
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
-import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
+import { generateUuidV7, serialiseDocumentV3, type Uuid } from "@myownnotion/domain";
+import {
+  createLegacyOfflineBranch,
+  OperationalPageDocument,
+  sha256Hex,
+} from "@myownnotion/page-state";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   type AuthenticatedPageOperationHarness,
@@ -232,6 +237,151 @@ describe("operational sync refusals", () => {
       },
     });
     expect([409, 500]).toContain(response.statusCode);
+  });
+
+  it("refuses a legacy base whose protected envelope is missing without converting it", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage();
+    await activate(page, headers);
+    const protectedContent = harness.api.built.context.protectedContent;
+    if (protectedContent === undefined) throw new Error("Protected content is unavailable");
+    const retained = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
+      harness.api.built.database.db,
+      page.revisionId,
+    );
+    if (retained === null) throw new Error("Retained snapshot is unavailable");
+
+    // Simulate a partially lost protected history while leaving a plaintext
+    // copy behind. The branch must fail closed instead of using that copy.
+    await harness.api.built.database.db.execute(sql`
+      UPDATE revisions
+         SET snapshot = ${JSON.stringify(retained)}::jsonb
+       WHERE id = ${page.revisionId}::uuid
+    `);
+    await harness.api.built.database.db.execute(sql`
+      DELETE FROM protected_envelopes
+       WHERE entity_type = 'revision.snapshot'
+         AND entity_id = ${page.revisionId}::uuid
+    `);
+
+    const branch = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId: page.itemId,
+      baseRevisionId: page.revisionId,
+      baseDocument: { blocks: [] },
+      createdAt: "2026-08-22T10:00:00.000Z",
+    });
+    const before = await harness.api.built.database.db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM page_legacy_branch_conversions WHERE page_id = ${page.itemId}::uuid) AS conversions,
+        (SELECT count(*)::int FROM page_operation_updates WHERE page_id = ${page.itemId}::uuid) AS updates
+    `);
+    const beforeCounts = (
+      before as unknown as { rows: Array<{ conversions: number; updates: number }> }
+    ).rows[0];
+
+    const response = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: {
+        mode: "legacy-branch",
+        requestId: generateUuidV7(),
+        branchId: branch.branchId,
+        baseRevisionId: branch.baseRevisionId,
+        baseCanonicalDigest: branch.baseCanonicalDigest,
+        localDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: serialiseDocumentV3(branch.localDocument),
+        },
+        localDocumentDigest: branch.localDocumentDigest,
+        semanticTransactions: [],
+        createdAt: branch.createdAt,
+      },
+    });
+    expect(response.statusCode, response.body).toBe(409);
+    expect((response.json() as { code: string }).code).toBe("page-operations.dependencies-missing");
+
+    const after = await harness.api.built.database.db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM page_legacy_branch_conversions WHERE page_id = ${page.itemId}::uuid) AS conversions,
+        (SELECT count(*)::int FROM page_operation_updates WHERE page_id = ${page.itemId}::uuid) AS updates
+    `);
+    const afterCounts = (
+      after as unknown as { rows: Array<{ conversions: number; updates: number }> }
+    ).rows[0];
+    expect(afterCounts).toEqual(beforeCounts);
+  });
+
+  it("does not use an expired retained revision without an explicit base document", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage();
+    await activate(page, headers);
+    await harness.api.built.database.db.execute(sql`
+      UPDATE revisions
+         SET snapshot_expires_at = now() - interval '1 second'
+       WHERE id = ${page.revisionId}::uuid
+    `);
+
+    const createPayload = async (includeBaseDocument: boolean) => {
+      const branch = await createLegacyOfflineBranch({
+        branchId: generateUuidV7(),
+        pageId: page.itemId,
+        baseRevisionId: page.revisionId,
+        baseDocument: { blocks: [] },
+        createdAt: "2026-08-22T10:30:00.000Z",
+      });
+      return {
+        mode: "legacy-branch" as const,
+        requestId: generateUuidV7(),
+        branchId: branch.branchId,
+        baseRevisionId: branch.baseRevisionId,
+        baseCanonicalDigest: branch.baseCanonicalDigest,
+        ...(includeBaseDocument
+          ? {
+              baseDocument: {
+                format: "myownnotion.document+json" as const,
+                formatVersion: 2 as const,
+                body: branch.baseDocumentV2,
+              },
+            }
+          : {}),
+        localDocument: {
+          format: "myownnotion.document+json" as const,
+          formatVersion: 3 as const,
+          body: serialiseDocumentV3(branch.localDocument),
+        },
+        localDocumentDigest: branch.localDocumentDigest,
+        semanticTransactions: [],
+        createdAt: branch.createdAt,
+      };
+    };
+
+    const refused = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: await createPayload(false),
+    });
+    expect(refused.statusCode, refused.body).toBe(409);
+    expect((refused.json() as { code: string }).code).toBe("page-operations.dependencies-missing");
+    const conversions = await harness.api.built.database.db.execute(sql`
+      SELECT count(*)::int AS count
+        FROM page_legacy_branch_conversions
+       WHERE page_id = ${page.itemId}::uuid
+    `);
+    expect((conversions as unknown as { rows: Array<{ count: number }> }).rows[0]?.count).toBe(0);
+
+    // An offline client that carries its own base remains usable after the
+    // server-side retention window has elapsed.
+    const supplied = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: await createPayload(true),
+    });
+    expect(supplied.statusCode, supplied.body).toBe(200);
   });
 });
 

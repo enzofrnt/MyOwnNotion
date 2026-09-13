@@ -1,5 +1,7 @@
+// @vitest-environment jsdom
 import { asUuid, type DatabaseProperty, type DatabaseView } from "@myownnotion/domain";
-import { createElement } from "react";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { nextGridCell, TableView } from "../src/features/databases/table-view.tsx";
@@ -69,6 +71,152 @@ const page: DatabaseViewPage = {
 };
 
 describe("database table accessibility (T042)", () => {
+  it("keeps the returned entry button's cell active after clearing the temporary return target", () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const render = (returnFocusEntryId: typeof ids.entryB | null) =>
+      root.render(
+        <TableView
+          properties={properties}
+          view={view}
+          page={page}
+          returnFocusEntryId={returnFocusEntryId}
+          onOpenEntry={vi.fn()}
+          onResize={vi.fn()}
+        />,
+      );
+    try {
+      act(() => render(ids.entryB));
+      const button = container.querySelector<HTMLButtonElement>(
+        `[data-entry-trigger="${ids.entryB}"]`,
+      );
+      if (button === null) throw new Error("Missing returned entry");
+      act(() => button.focus());
+      act(() => render(null));
+      expect(document.activeElement).toBe(button);
+      expect(button.closest("[role=gridcell]")?.getAttribute("tabindex")).toBe("0");
+      expect(container.querySelectorAll('[role=gridcell][tabindex="0"]')).toHaveLength(1);
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
+  it.each(["column-width", "property-name", "row-values"] as const)(
+    "keeps the pressed entry button and current callback through %s updates",
+    (change) => {
+      (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+      const container = document.createElement("div");
+      document.body.append(container);
+      const root = createRoot(container);
+      const before = vi.fn();
+      const after = vi.fn();
+      try {
+        act(() =>
+          root.render(
+            <TableView
+              properties={properties}
+              view={view}
+              page={page}
+              onOpenEntry={before}
+              onResize={vi.fn()}
+            />,
+          ),
+        );
+        const button = container.querySelector<HTMLButtonElement>(
+          `[data-entry-trigger="${ids.entryA}"]`,
+        );
+        if (button === null) throw new Error("Missing entry button");
+        button.focus();
+        act(() => button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 })));
+        expect(before).not.toHaveBeenCalled();
+        act(() =>
+          root.render(
+            <TableView
+              properties={
+                change === "property-name"
+                  ? properties.map((property) =>
+                      property.id === ids.text ? { ...property, name: "Updated notes" } : property,
+                    )
+                  : properties
+              }
+              view={
+                change === "column-width"
+                  ? {
+                      ...view,
+                      properties: view.properties.map((property) => ({ ...property, width: 300 })),
+                    }
+                  : view
+              }
+              page={
+                change === "row-values"
+                  ? {
+                      ...page,
+                      rows: page.rows.map((row) => ({ ...row, title: `${row.title} updated` })),
+                    }
+                  : page
+              }
+              onOpenEntry={after}
+              onResize={vi.fn()}
+            />,
+          ),
+        );
+        expect(button.isConnected).toBe(true);
+        expect(document.activeElement).toBe(button);
+        expect(container.querySelector(`[data-entry-trigger="${ids.entryA}"]`)).toBe(button);
+        act(() => button.click());
+        expect(before).not.toHaveBeenCalled();
+        expect(after).toHaveBeenCalledExactlyOnceWith(ids.entryA, button);
+      } finally {
+        act(() => root.unmount());
+        container.remove();
+      }
+    },
+  );
+
+  it.each(["Enter", " "])("does not turn entry-button %s activation into cell editing", (key) => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      act(() =>
+        root.render(
+          <TableView
+            properties={properties}
+            view={view}
+            page={page}
+            onOpenEntry={vi.fn()}
+            onResize={vi.fn()}
+          />,
+        ),
+      );
+      const button = container.querySelector<HTMLButtonElement>("[data-entry-trigger]");
+      if (button === null) throw new Error("Missing entry button");
+      act(() => {
+        button.focus();
+        button.dispatchEvent(
+          new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+        );
+      });
+      expect(button.isConnected).toBe(true);
+      expect(container.querySelector('[data-grid-mode="editing"]')).toBeNull();
+      const cell = button.closest("td");
+      if (cell === null) throw new Error("Missing title cell");
+      act(() =>
+        cell.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+        ),
+      );
+      expect(container.querySelector('[data-grid-mode="editing"]')).not.toBeNull();
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
   it("moves within bounds and supports row/home/workspace extremes", () => {
     expect(nextGridCell({ row: 1, column: 1 }, "ArrowRight", 3, 3)).toEqual({ row: 1, column: 2 });
     expect(nextGridCell({ row: 2, column: 2 }, "ArrowDown", 3, 3)).toEqual({ row: 2, column: 2 });

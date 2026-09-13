@@ -1,14 +1,16 @@
 import {
   generateUuidV7,
+  isProtectedContentPayload,
   normalizeDisplayName,
   normalizeItemIcon,
+  PROTECTED_CONTENT_PAYLOAD,
   parseMutationCommand,
   validateItemIcon,
 } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 import { MemoryGraph } from "./helpers/memory-view.ts";
 
-describe("canonical item icon", () => {
+describe("canonical display name", () => {
   it("keeps the existing display-name upper bound explicit", () => {
     expect(normalizeDisplayName("x".repeat(513))).toMatchObject({
       ok: false,
@@ -16,6 +18,46 @@ describe("canonical item icon", () => {
     });
   });
 
+  it.each(["\uFFFD", "  \uFFFD  "])(
+    "reserves the exact protected-content placeholder: %j",
+    (input) => {
+      expect(normalizeDisplayName(input)).toMatchObject({
+        ok: false,
+        error: { code: "validation.invalid-name" },
+      });
+    },
+  );
+
+  it("allows the replacement character inside a longer authored name", () => {
+    expect(normalizeDisplayName("Draft \uFFFD note")).toEqual({
+      ok: true,
+      value: "Draft \uFFFD note",
+    });
+  });
+});
+
+describe("protected content payload marker", () => {
+  it("accepts only the exact marker object", () => {
+    expect(isProtectedContentPayload(PROTECTED_CONTENT_PAYLOAD)).toBe(true);
+    expect(isProtectedContentPayload({ ...PROTECTED_CONTENT_PAYLOAD, extra: true })).toBe(false);
+  });
+
+  it("rejects symbol and non-enumerable keys hidden from Object.keys", () => {
+    const symbolKey = Symbol("extra");
+    const withSymbol = { ...PROTECTED_CONTENT_PAYLOAD, [symbolKey]: true };
+    const withNonEnumerable = { ...PROTECTED_CONTENT_PAYLOAD };
+    Object.defineProperty(withNonEnumerable, "extra", {
+      configurable: true,
+      enumerable: false,
+      value: true,
+    });
+
+    expect(isProtectedContentPayload(withSymbol)).toBe(false);
+    expect(isProtectedContentPayload(withNonEnumerable)).toBe(false);
+  });
+});
+
+describe("canonical item icon", () => {
   it.each([
     ["🗂️", "🗂️"],
     ["  🧑🏽‍💻  ", "🧑🏽‍💻"],

@@ -39,7 +39,7 @@ export const DATABASE_COPY = {
     propertySaveFailed: "La propriété n'a pas pu être enregistrée. Le brouillon est conservé.",
     titleRequired: "Donnez un titre à la page.",
     entryCreateFailed: "L'entrée n'a pas pu être créée. Le titre saisi est conservé.",
-    eyebrow: "Base de données · page",
+    eyebrow: "Base de données partagée",
     contents: "Contenu de la base de données",
     addProperty: "Ajouter une propriété",
     properties: "Propriétés",
@@ -55,11 +55,12 @@ export const DATABASE_COPY = {
     impact: (valueCount: number, entryCount: number) =>
       `${valueCount} ${valueCount === 1 ? "valeur" : "valeurs"} dans ${entryCount} ${entryCount === 1 ? "entrée" : "entrées"}.`,
     completeResult: (count: number) =>
-      `Résultat complet · ${count} ${count === 1 ? "entrée" : "entrées"}`,
+      `Base disponible · ${count} ${count === 1 ? "entrée" : "entrées"}`,
     partialResult: (available: number, expected: number) =>
       `Données locales partielles : ${available} sur ${expected}`,
   },
   toolbar: {
+    saveFailed: "La vue n'a pas pu être enregistrée. Réessayez.",
     viewName: "Nom de la vue",
     renaming: "Renommage…",
     rename: "Renommer la vue",
@@ -261,6 +262,8 @@ export const DATABASE_COPY = {
     viewLabel: (name: string) => `Vue liste ${name}`,
   },
   entry: {
+    valuesUnavailable:
+      "Ces propriétés ne sont pas présentes sur cet appareil. Reconnectez-vous pour les retrouver ; leurs valeurs sont conservées sur le serveur.",
     saved: "Propriétés enregistrées localement.",
     saveFailed:
       "Les propriétés n'ont pas pu être enregistrées. Les valeurs saisies sont conservées.",

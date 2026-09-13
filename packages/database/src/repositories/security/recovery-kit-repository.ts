@@ -25,9 +25,9 @@
  * owner still holds — in the middle of an operation they might not finish.
  */
 
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, gt, ne } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
-import { recoveryEpochs, recoveryKits } from "../../schema/security/index.ts";
+import { installations, recoveryEpochs, recoveryKits } from "../../schema/security/index.ts";
 
 type Executor = Database | Transaction;
 
@@ -142,6 +142,44 @@ export interface PrepareReplacementInput {
 }
 
 /**
+ * Allocates the epoch for a replacement while holding the installation's
+ * recovery state lock.  Reading the active epoch before opening the
+ * transaction lets a confirmation commit between the read and the insert;
+ * the resulting kit can then be bound to an epoch that already exists and
+ * become impossible to confirm.
+ */
+export async function allocateNextRecoveryEpoch(
+  tx: Transaction,
+  installationId: string,
+): Promise<number> {
+  const installation = await tx
+    .select({ id: installations.id })
+    .from(installations)
+    .where(eq(installations.id, installationId))
+    .for("update")
+    .limit(1);
+  if (installation.length === 0) {
+    throw new RecoveryKitRepositoryError(
+      "not_found",
+      "the installation for the recovery replacement does not exist",
+    );
+  }
+
+  const rows = await tx
+    .select({ epoch: recoveryEpochs.epoch })
+    .from(recoveryEpochs)
+    .where(
+      and(eq(recoveryEpochs.installationId, installationId), eq(recoveryEpochs.state, "active")),
+    )
+    .for("update")
+    .limit(1);
+  // A live installation normally has an active epoch. Keeping the bootstrap
+  // default makes this helper safe for the narrow setup window where that row
+  // has not been created yet; the installation lock still serializes callers.
+  return (rows[0]?.epoch ?? 0) + 1;
+}
+
+/**
  * Prepares a replacement, rejecting any earlier unconfirmed attempt.
  *
  * The *active* kit is untouched: it stays the one an owner can recover with
@@ -201,7 +239,13 @@ export async function consumeKitDownload(
   const rows = await tx
     .update(recoveryKits)
     .set({ deliveryState: "download-consumed", downloadConsumedAt: input.now })
-    .where(and(eq(recoveryKits.id, input.kitId), eq(recoveryKits.deliveryState, "downloadable")))
+    .where(
+      and(
+        eq(recoveryKits.id, input.kitId),
+        eq(recoveryKits.deliveryState, "downloadable"),
+        gt(recoveryKits.downloadExpiresAt, input.now),
+      ),
+    )
     .returning({ id: recoveryKits.id });
   return rows.length > 0;
 }
@@ -225,9 +269,49 @@ export async function confirmReplacementKit(
     now: Date;
   },
 ): Promise<boolean> {
+  // Preparation and confirmation take the same installation lock before
+  // touching a pending kit or its epoch. This gives both operations one lock
+  // order and prevents a deadlock while also making epoch allocation atomic.
+  const installation = await tx
+    .select({ id: installations.id })
+    .from(installations)
+    .where(eq(installations.id, input.installationId))
+    .for("update")
+    .limit(1);
+  if (installation.length === 0) {
+    throw new RecoveryKitRepositoryError(
+      "not_found",
+      "the installation for the recovery replacement does not exist",
+    );
+  }
+
+  // Validate the pending replacement before touching the active kit. A
+  // rejected confirmation must leave the installation exactly as it was; in
+  // particular, retrying a confirmation after it already succeeded must not
+  // supersede the currently active kit a second time.
+  const pending = await tx
+    .select({ id: recoveryKits.id })
+    .from(recoveryKits)
+    .where(
+      and(
+        eq(recoveryKits.id, input.kitId),
+        eq(recoveryKits.installationId, input.installationId),
+        eq(recoveryKits.authorizationState, "provisional"),
+        eq(recoveryKits.deliveryState, "download-consumed"),
+        eq(recoveryKits.recoveryEpoch, input.newEpoch),
+      ),
+    )
+    .for("update")
+    .limit(1);
+  if (pending.length === 0) {
+    return false;
+  }
+
   // The old active kit first: the partial unique index permits exactly one
   // active kit, so promoting before retiring would be rejected by the
-  // database. That rejection is the index doing its job.
+  // database. That rejection is the index doing its job. The pending-row
+  // validation above ensures this ordering is reached only for a valid
+  // replacement.
   await tx
     .update(recoveryKits)
     .set({ authorizationState: "superseded", supersededAt: input.now })
@@ -245,6 +329,8 @@ export async function confirmReplacementKit(
     .where(
       and(
         eq(recoveryKits.id, input.kitId),
+        eq(recoveryKits.installationId, input.installationId),
+        eq(recoveryKits.authorizationState, "provisional"),
         // Only a kit that was actually downloaded may be confirmed. An owner
         // cannot have stored a file they never received, and this is the one
         // check standing between "I clicked the button" and a kit nobody has.
@@ -254,7 +340,13 @@ export async function confirmReplacementKit(
     .returning({ id: recoveryKits.id });
 
   if (promoted.length === 0) {
-    return false;
+    // The row lock makes this path unreachable for a concurrent confirmer. If
+    // a future change invalidates that assumption, abort the transaction so
+    // the active kit cannot be retired without its replacement.
+    throw new RecoveryKitRepositoryError(
+      "internal_error",
+      "the validated recovery replacement could not be promoted",
+    );
   }
 
   await tx

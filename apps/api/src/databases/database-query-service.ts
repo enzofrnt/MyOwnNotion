@@ -3,9 +3,10 @@ import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import type { DatabaseQueryDto, DatabaseQueryPageDto } from "@myownnotion/contracts";
 import {
   type Database,
-  listDatabaseEntryRecords,
+  databaseIdsForEntries,
+  listDatabaseProjectionEntries,
+  listDatabaseProjectionRelationships,
   listDatabaseRecords,
-  readDatabaseEntryRecord,
   readDatabaseRecord,
   readItem,
 } from "@myownnotion/database";
@@ -15,17 +16,17 @@ import {
   type DatabaseProperty,
   type DatabaseQueryEntry,
   type DatabaseView,
+  databaseQueryDefinition,
   evaluateDatabaseView,
   type FilterCriterion,
   type NonRelationPropertyValue,
+  prepareDatabaseFilterOperand,
   type SafeErrorCode,
   type Uuid,
 } from "@myownnotion/domain";
 import {
   resolveDatabaseDefinition,
-  resolveDatabaseEntryValues,
-  resolveDatabaseRelationTargets,
-  resolveProtectedContent,
+  resolveDatabaseProjectionEntries,
 } from "../security/content-resolution.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 
@@ -49,7 +50,10 @@ export interface StructuredProjectionChanges {
 
 export interface DatabaseQueryServiceDeps {
   readonly loadAll: () => Promise<readonly StructuredProjectionSource[]>;
-  readonly loadAffected: (changedItemIds: readonly Uuid[]) => Promise<StructuredProjectionChanges>;
+  readonly loadAffected: (
+    changedItemIds: readonly Uuid[],
+    sources: ReadonlyMap<Uuid, StructuredProjectionSource>,
+  ) => Promise<StructuredProjectionChanges>;
 }
 
 type ProjectionState = "cold" | "building" | "ready" | "degraded";
@@ -306,6 +310,7 @@ function complement(all: ReadonlySet<Uuid>, excluded: ReadonlySet<Uuid>): Set<Uu
 
 function indexedCriterion(
   criterion: FilterCriterion,
+  definition: DatabaseDefinition,
   indexes: PropertyIndexes,
   all: ReadonlySet<Uuid>,
 ): ReadonlySet<Uuid> | undefined {
@@ -313,9 +318,12 @@ function indexedCriterion(
   if (criterion.operator === "is-not-empty") return presence;
   if (criterion.operator === "is-empty") return complement(all, presence);
   if (criterion.operator === "equals" || criterion.operator === "not-equals") {
-    if (criterion.operand === undefined) return undefined;
+    const property = definition.properties.find(({ id }) => id === criterion.propertyId);
+    if (property === undefined) return undefined;
+    const operand = prepareDatabaseFilterOperand(property, criterion);
+    if (!operand.ok || operand.value === undefined) return undefined;
     const equal =
-      indexes.equality.get(criterion.propertyId)?.get(stableValueKey(criterion.operand)) ??
+      indexes.equality.get(criterion.propertyId)?.get(stableValueKey(operand.value)) ??
       new Set<Uuid>();
     return criterion.operator === "equals" ? equal : complement(all, equal);
   }
@@ -324,13 +332,14 @@ function indexedCriterion(
 
 function indexedCandidates(
   view: DatabaseView,
+  definition: DatabaseDefinition,
   indexes: PropertyIndexes,
   entries: readonly StructuredProjectionEntry[],
 ): ReadonlySet<Uuid> | undefined {
   if (view.filter.criteria.length === 0) return undefined;
   const all = new Set(entries.map(({ entryId }) => entryId));
   const candidates = view.filter.criteria.map((criterion) =>
-    indexedCriterion(criterion, indexes, all),
+    indexedCriterion(criterion, definition, indexes, all),
   );
   if (view.filter.mode === "any") {
     if (candidates.some((candidate) => candidate === undefined)) return undefined;
@@ -446,7 +455,7 @@ export class DatabaseQueryService {
       if (pending === null) throw new Error("Structured projection lost its commit buffer");
       let sourceCursor = this.#active?.sourceCursor ?? 0;
       for (const change of pending) {
-        const affected = await this.#deps.loadAffected(change.itemIds);
+        const affected = await this.#deps.loadAffected(change.itemIds, sources);
         for (const databaseId of affected.removedDatabaseIds) {
           sources.delete(databaseId);
           indexes.delete(databaseId);
@@ -508,7 +517,7 @@ export class DatabaseQueryService {
       const active = this.#active;
       if (active === null) return;
       try {
-        const affected = await this.#deps.loadAffected(uniqueItemIds);
+        const affected = await this.#deps.loadAffected(uniqueItemIds, active.sources);
         const sources = new Map(active.sources);
         const indexes = new Map(active.indexes);
         for (const databaseId of affected.removedDatabaseIds) {
@@ -641,7 +650,7 @@ export class DatabaseQueryService {
     if (view === undefined) throw new DatabaseQueryRequestError("database.invalid-view");
 
     const indexes = active.indexes.get(databaseId) ?? { presence: new Map(), equality: new Map() };
-    const candidateIds = indexedCandidates(view, indexes, source.entries);
+    const candidateIds = indexedCandidates(view, source.definition, indexes, source.entries);
     const entries =
       candidateIds === undefined
         ? source.entries
@@ -726,46 +735,45 @@ async function loadProjectionSource(input: {
   readonly db: Database;
   readonly databaseId: Uuid;
   readonly protectedContent?: ProtectedContent | undefined;
+  readonly previous?: StructuredProjectionSource | undefined;
+  readonly changedItemIds?: readonly Uuid[] | undefined;
 }): Promise<StructuredProjectionSource | null> {
-  const [record, storedItem] = await Promise.all([
-    readDatabaseRecord(input.db, input.databaseId),
-    readItem(input.db, input.databaseId),
+  const record = await readDatabaseRecord(input.db, input.databaseId);
+  if (record === null) return null;
+  const definitionRevisionId =
+    record.definitionRevisionId ?? (await readItem(input.db, input.databaseId))?.currentRevisionId;
+  if (definitionRevisionId === undefined) return null;
+  const incremental =
+    input.previous?.definitionRevisionId === definitionRevisionId &&
+    input.changedItemIds !== undefined &&
+    !input.changedItemIds.includes(input.databaseId);
+  const changed = incremental ? input.changedItemIds : undefined;
+  const [definition, entryRecords, relationships] = await Promise.all([
+    incremental
+      ? input.previous?.definition
+      : resolveDatabaseDefinition(input.db, record, input.protectedContent),
+    listDatabaseProjectionEntries(input.db, input.databaseId, changed),
+    listDatabaseProjectionRelationships(input.db, input.databaseId, changed),
   ]);
-  if (record === null || storedItem === null || storedItem.lifecycle !== "active") return null;
-  const [item] = await resolveProtectedContent(input.db, [storedItem], input.protectedContent);
-  if (item === undefined) return null;
-  const definition = await resolveDatabaseDefinition(input.db, record, input.protectedContent);
-  const entryRecords = await listDatabaseEntryRecords(input.db, input.databaseId);
-  const entries: StructuredProjectionEntry[] = [];
-  for (const entryRecord of entryRecords) {
-    const storedEntry = await readItem(input.db, entryRecord.entryId);
-    if (storedEntry === null || storedEntry.lifecycle !== "active") continue;
-    const [resolvedEntry] = await resolveProtectedContent(
-      input.db,
-      [storedEntry],
-      input.protectedContent,
-    );
-    if (resolvedEntry === undefined) continue;
-    const [values, relationTargets] = await Promise.all([
-      resolveDatabaseEntryValues(input.db, entryRecord, input.protectedContent),
-      resolveDatabaseRelationTargets(input.db, {
-        databaseId: input.databaseId,
-        entryId: entryRecord.entryId,
-        content: input.protectedContent,
-      }),
-    ]);
-    entries.push({
-      entryId: entryRecord.entryId,
-      revisionId: resolvedEntry.currentRevisionId,
-      title: resolvedEntry.name,
-      values: values.values,
-      relationTargets,
-    });
-  }
+  if (definition === undefined) return null;
+  const resolved = await resolveDatabaseProjectionEntries(
+    input.db,
+    input.databaseId,
+    entryRecords,
+    relationships,
+    input.protectedContent,
+  );
+  const changedIds = new Set(changed);
+  const entries = incremental
+    ? [
+        ...(input.previous?.entries.filter((entry) => !changedIds.has(entry.entryId)) ?? []),
+        ...resolved,
+      ]
+    : resolved;
   return {
     databaseId: input.databaseId,
-    definitionRevisionId: item.currentRevisionId,
-    definition,
+    definitionRevisionId,
+    definition: databaseQueryDefinition(definition),
     entries,
   };
 }
@@ -789,12 +797,20 @@ export function createDatabaseQueryService(input: {
       }
       return sources;
     },
-    loadAffected: async (changedItemIds) => {
-      const databaseIds = new Set<Uuid>(changedItemIds);
-      for (const itemId of changedItemIds) {
-        const entry = await readDatabaseEntryRecord(input.db, itemId);
-        if (entry !== null) databaseIds.add(entry.databaseId);
-      }
+    loadAffected: async (changedItemIds, previous) => {
+      const changed = new Set(changedItemIds);
+      const records = await listDatabaseRecords(input.db, input.workspaceId);
+      const databaseIds = new Set<Uuid>(await databaseIdsForEntries(input.db, changedItemIds));
+      for (const record of records)
+        if (changed.has(record.databaseId)) databaseIds.add(record.databaseId);
+      // A purged entry no longer has a membership row; its previous identity
+      // still identifies the source whose complete projection must remove it.
+      for (const source of previous.values())
+        if (
+          changed.has(source.databaseId) ||
+          source.entries.some((entry) => changed.has(entry.entryId))
+        )
+          databaseIds.add(source.databaseId);
       const sources: StructuredProjectionSource[] = [];
       const removedDatabaseIds: Uuid[] = [];
       for (const databaseId of databaseIds) {
@@ -802,6 +818,8 @@ export function createDatabaseQueryService(input: {
           db: input.db,
           databaseId,
           protectedContent: input.protectedContent,
+          previous: previous.get(databaseId),
+          changedItemIds,
         });
         if (source === null) removedDatabaseIds.push(databaseId);
         else sources.push(source);

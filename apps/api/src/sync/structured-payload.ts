@@ -23,6 +23,9 @@ export async function resolveDatabaseProjections(
     rows.push({
       itemId: record.databaseId,
       definitionVersion: record.definitionVersion,
+      ...(record.definitionRevisionId === null
+        ? {}
+        : { definitionRevisionId: record.definitionRevisionId }),
       definition: await resolveDatabaseDefinition(executor, record, content),
     });
   }
@@ -36,13 +39,16 @@ export async function resolveDatabaseEntryProjections(
   records: readonly DatabaseEntryRecord[],
   content: ProtectedContent | undefined,
 ): Promise<DatabaseEntryProjectionDto[]> {
+  const sealed = await content?.readDatabaseEntryValuesMany(executor, records);
   const rows = [];
   for (const record of records) {
     rows.push({
       entryItemId: record.entryId,
       databaseId: record.databaseId,
       valueVersion: record.valueVersion,
-      values: await resolveDatabaseEntryValues(executor, record, content),
+      values:
+        sealed?.get(record.entryId) ??
+        (await resolveDatabaseEntryValues(executor, record, content)),
     });
   }
   return rows.sort((left, right) =>

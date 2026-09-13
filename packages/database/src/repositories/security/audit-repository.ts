@@ -20,7 +20,7 @@
  */
 
 import { containsUnredactedField, redact, type SafeProblemCode } from "@myownnotion/domain";
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, notInArray } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { securityAuditEvents } from "../../schema/security/index.ts";
 import { SecurityRepositoryError, type SecurityScope } from "./repository-types.ts";
@@ -34,6 +34,12 @@ type Executor = Database | Transaction;
  * a flow is audited end to end. Adding a flow means adding its events here.
  */
 export const SECURITY_EVENT_TYPES = [
+  "mcp.granted",
+  "mcp.exchanged",
+  "mcp.revoked",
+  "mcp.operation",
+  "mcp.exchange-failed",
+  "mcp.authentication-failed",
   // Installation lifecycle
   "installation.created",
   "installation.state-changed",
@@ -124,7 +130,7 @@ export type AuditOutcome = (typeof AUDIT_OUTCOMES)[number];
  * remote administrator transport, so no HTTP route may ever write an event
  * with this actor class.
  */
-export const AUDIT_ACTOR_CLASSES = ["owner", "hosting-admin", "system"] as const;
+export const AUDIT_ACTOR_CLASSES = ["owner", "hosting-admin", "system", "mcp"] as const;
 export type AuditActorClass = (typeof AUDIT_ACTOR_CLASSES)[number];
 
 export interface AppendAuditEventInput {
@@ -229,6 +235,8 @@ export async function appendAuditEvent(
 
 export interface ListAuditEventsOptions {
   readonly eventType?: SecurityEventType;
+  /** Actor classes excluded before ordering and limiting the result set. */
+  readonly excludeActorClasses?: readonly AuditActorClass[];
   readonly since?: Date;
   readonly limit?: number;
 }
@@ -242,6 +250,9 @@ export async function listAuditEvents(
   const filters = [eq(securityAuditEvents.installationId, scope.installationId)];
   if (options.eventType !== undefined) {
     filters.push(eq(securityAuditEvents.eventType, options.eventType));
+  }
+  if (options.excludeActorClasses !== undefined && options.excludeActorClasses.length > 0) {
+    filters.push(notInArray(securityAuditEvents.actorClass, [...options.excludeActorClasses]));
   }
   if (options.since !== undefined) {
     filters.push(gte(securityAuditEvents.occurredAt, options.since));

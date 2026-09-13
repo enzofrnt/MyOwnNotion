@@ -23,8 +23,11 @@ import {
 import {
   checkProtectedWrite,
   checkReadiness,
+  checkRouteReadiness,
   type ReadinessRequirement,
   ROUTE_READINESS,
+  ROUTE_READINESS_BY_METHOD,
+  readinessRequirementForRoute,
 } from "../src/security/private-route-guard.ts";
 import {
   attachRequestContext,
@@ -394,6 +397,102 @@ describe("readiness", () => {
     expect(ROUTE_READINESS["/health"]).toBe("none");
     expect(ROUTE_READINESS["/v1/installation/status"]).toBe("none");
     expect(ROUTE_READINESS["/v1/bootstrap"]).toBe("uninitialized");
+  });
+
+  it("matches complete parameterized route shapes and protects unlisted descendants", () => {
+    expect(readinessRequirementForRoute("/v1/security/recovery-kits")).toBe("initialized");
+    expect(readinessRequirementForRoute("/v1/security/recovery-kits/:kitId/download")).toBe(
+      "protected",
+    );
+    expect(readinessRequirementForRoute("/v1/security/recovery-kits/kit-1/confirm")).toBe(
+      "protected",
+    );
+    expect(readinessRequirementForRoute("/v1/auth/sessions/:sessionId")).toBe("initialized");
+    expect(readinessRequirementForRoute("/v1/security/rotations")).toBe("initialized");
+    expect(readinessRequirementForRoute("/v1/security/rotations/policies")).toBe("initialized");
+    expect(
+      readinessRequirementForRoute("/v1/security/rotations/00000000-0000-7000-8000-000000000001"),
+    ).toBe("initialized");
+    expect(readinessRequirementForRoute("/v1/security/audit")).toBe("initialized");
+    expect(readinessRequirementForRoute("/v1/mcp/audit")).toBe("initialized");
+    expect(readinessRequirementForRoute("/v1/security/recovery-kits/future-operation")).toBe(
+      "protected",
+    );
+    expect(readinessRequirementForRoute("/v1/security/rotations/future/operation")).toBe(
+      "protected",
+    );
+    expect(readinessRequirementForRoute("/v1/pages/page-1/blocks")).toBe("protected");
+  });
+
+  it("keeps recovery-kit writes protected when the status collection is diagnostic", () => {
+    expect(readinessRequirementForRoute("/v1/security/recovery-kits")).toBe("initialized");
+    expect(readinessRequirementForRoute("/v1/security/recovery-kits", "GET")).toBe("initialized");
+    expect(readinessRequirementForRoute("/v1/security/recovery-kits", "POST")).toBe("protected");
+    expect(readinessRequirementForRoute("/v1/security/recovery-kits/kit-1/download")).toBe(
+      "protected",
+    );
+    expect(readinessRequirementForRoute("/v1/security/recovery-kits/kit-1/confirm")).toBe(
+      "protected",
+    );
+    expect(readinessRequirementForRoute("/v1/security/recovery-kits/revoke")).toBe("protected");
+    expect(readinessRequirementForRoute("/v1/security/rotations", "GET")).toBe("initialized");
+    expect(readinessRequirementForRoute("/v1/security/rotations", "POST")).toBe("protected");
+    expect(ROUTE_READINESS_BY_METHOD["POST /v1/security/recovery-kits"]).toBe("protected");
+    expect(ROUTE_READINESS_BY_METHOD["POST /v1/security/rotations"]).toBe("protected");
+  });
+
+  it("fails closed for protected owner routes while preserving safe status routes", () => {
+    const degraded = createRequestContext({
+      installationState: "degraded",
+      deploymentKeyAvailable: true,
+    });
+    const recoveryRequired = createRequestContext({
+      installationState: "recovery-required",
+      deploymentKeyAvailable: true,
+    });
+    const ready = createRequestContext({
+      installationState: "ready",
+      deploymentKeyAvailable: true,
+    });
+
+    expect(checkRouteReadiness(degraded, "/v1/security/recovery-kits/kit-1/download")).toEqual({
+      ready: false,
+      code: "installation_degraded",
+    });
+    expect(checkRouteReadiness(degraded, "/v1/security/recovery-kits")).toEqual({ ready: true });
+    expect(checkRouteReadiness(degraded, "/v1/security/recovery-kits", "POST")).toEqual({
+      ready: false,
+      code: "installation_degraded",
+    });
+    expect(checkRouteReadiness(recoveryRequired, "/v1/security/recovery-kits", "POST")).toEqual({
+      ready: false,
+      code: "installation_not_ready",
+    });
+    expect(checkRouteReadiness(degraded, "/v1/security/rotations", "POST")).toEqual({
+      ready: false,
+      code: "installation_degraded",
+    });
+    expect(checkRouteReadiness(recoveryRequired, "/v1/items/page-1")).toEqual({
+      ready: false,
+      code: "installation_not_ready",
+    });
+    expect(checkRouteReadiness(createRequestContext(), "/v1/items/page-1")).toEqual({
+      ready: false,
+      code: "installation_not_ready",
+    });
+    expect(checkRouteReadiness(degraded, "/v1/auth/session")).toEqual({ ready: true });
+    expect(checkRouteReadiness(degraded, "/v1/installation/status")).toEqual({ ready: true });
+    expect(checkRouteReadiness(ready, "/v1/security/recovery-kits/kit-1/confirm")).toEqual({
+      ready: true,
+    });
+  });
+
+  it("keeps diagnostic and public routes explicitly reachable", () => {
+    expect(readinessRequirementForRoute("/health")).toBe("none");
+    expect(readinessRequirementForRoute("/v1/installation/status")).toBe("none");
+    expect(readinessRequirementForRoute("/v1/bootstrap/attempt-1/recovery/confirm")).toBe(
+      "uninitialized",
+    );
   });
 });
 

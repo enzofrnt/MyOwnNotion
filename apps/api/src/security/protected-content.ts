@@ -3,24 +3,23 @@
  *
  * The bridge between the encryption machinery and the content the application
  * actually stores. It names the payload-bearing fields, one entity type each,
- * and provides the dual write the migration story depends on.
+ * and seals them into authenticated envelopes. Secured mutation, page-state
+ * and restore boundaries resolve these values before constructing snapshots,
+ * then neutralize readable canonical copies in the same transaction (025).
  *
- * **Dual write, on purpose.** Every protected payload is written twice for
- * now: once into the feature-001 column as before, and once as an envelope.
- * The plaintext column is scrubbed later, by the migration phase, only after a
- * verified cutover. Encrypting in place instead would mean a single deploy
- * where every existing row becomes unreadable if anything is wrong with the
- * key — and there would be no copy left to recover from. Writing both costs
- * storage and buys the ability to stop.
- *
- * **Reads prefer the envelope.** Once an envelope exists it is the truth,
- * because it is what a rotation and a later scrub will keep. The plaintext
- * column is a fallback for rows written before this landed, and it disappears
- * when the migration scrubs them.
+ * Historical columns remain a compatibility fallback until the verified storage
+ * transition processes them. A neutralized field without its protected envelope
+ * is unavailable; callers must never return the marker as owner content.
  */
 
 import type { Database, Transaction } from "@myownnotion/database";
-import type { DatabaseDefinition, EntryValues } from "@myownnotion/domain";
+import {
+  type DatabaseDefinition,
+  type EntryValues,
+  type ProtectedFileIdentity,
+  type ProtectedFileManifest,
+  readProtectedFileManifest,
+} from "@myownnotion/domain";
 import type { ProtectedRecordService } from "./protected-record-service.ts";
 
 /**
@@ -38,6 +37,10 @@ export const PROTECTED_ENTITY_TYPES = {
   databaseDefinition: "database.definition",
   databaseEntryValues: "database.entry-values",
   exportManifest: "export.manifest",
+  fileMetadata: "file.metadata",
+  fileContentManifest: "file.content-manifest",
+  uploadMetadata: "file.upload-metadata",
+  uploadState: "file.upload-state",
 } as const;
 
 export interface ProtectedContentDeps {
@@ -47,6 +50,24 @@ export interface ProtectedContentDeps {
 export interface ItemPresentation {
   readonly name: string;
   readonly icon: string | null;
+}
+
+export interface FileMetadata {
+  readonly originalName: string;
+  readonly mediaType: string;
+}
+
+function readFileMetadata(value: unknown): FileMetadata {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    !("originalName" in value) ||
+    typeof value.originalName !== "string" ||
+    !("mediaType" in value) ||
+    typeof value.mediaType !== "string"
+  )
+    throw new Error("Invalid protected file metadata.");
+  return { originalName: value.originalName, mediaType: value.mediaType };
 }
 
 function normalizeItemPresentation(value: string | ItemPresentation): ItemPresentation {
@@ -65,6 +86,67 @@ export class ProtectedContent {
 
   constructor(deps: ProtectedContentDeps) {
     this.#deps = deps;
+  }
+
+  async writeFileMetadata(
+    executor: Database | Transaction,
+    input: { kind: "file" | "upload"; id: string; recordVersion: number; metadata: FileMetadata },
+  ): Promise<void> {
+    await this.#write(
+      executor,
+      input.kind === "file"
+        ? PROTECTED_ENTITY_TYPES.fileMetadata
+        : PROTECTED_ENTITY_TYPES.uploadMetadata,
+      input.id,
+      input.recordVersion,
+      readFileMetadata(input.metadata),
+    );
+  }
+
+  async readFileMetadata(
+    executor: Database | Transaction,
+    input: { kind: "file" | "upload"; id: string; recordVersion?: number },
+  ): Promise<FileMetadata | null> {
+    const value = await this.#read<unknown>(
+      executor,
+      input.kind === "file"
+        ? PROTECTED_ENTITY_TYPES.fileMetadata
+        : PROTECTED_ENTITY_TYPES.uploadMetadata,
+      input.id,
+      input.recordVersion,
+    );
+    return value === null ? null : readFileMetadata(value);
+  }
+
+  async writeFileManifest(
+    executor: Database | Transaction,
+    manifest: ProtectedFileManifest,
+  ): Promise<void> {
+    const checked = readProtectedFileManifest(manifest, manifest);
+    await this.#write(
+      executor,
+      checked.kind === "content"
+        ? PROTECTED_ENTITY_TYPES.fileContentManifest
+        : PROTECTED_ENTITY_TYPES.uploadState,
+      checked.id,
+      checked.recordVersion,
+      checked,
+    );
+  }
+
+  async readFileManifest(
+    executor: Database | Transaction,
+    expected: ProtectedFileIdentity,
+  ): Promise<ProtectedFileManifest | null> {
+    const value = await this.#read<unknown>(
+      executor,
+      expected.kind === "content"
+        ? PROTECTED_ENTITY_TYPES.fileContentManifest
+        : PROTECTED_ENTITY_TYPES.uploadState,
+      expected.id,
+      expected.recordVersion,
+    );
+    return value === null ? null : readProtectedFileManifest(value, expected);
   }
 
   async #write(
@@ -104,11 +186,16 @@ export class ProtectedContent {
     executor: Database | Transaction,
     entityType: string,
     entityIds: readonly string[],
+    recordVersions?: ReadonlyMap<string, number>,
   ): Promise<ReadonlyMap<string, T>> {
     if (entityIds.length === 0) {
       return new Map();
     }
-    const opened = await this.#deps.records.readMany(executor, { entityType, entityIds });
+    const opened = await this.#deps.records.readMany(executor, {
+      entityType,
+      entityIds,
+      ...(recordVersions === undefined ? {} : { recordVersions }),
+    });
     return new Map(
       [...opened].map(([entityId, value]) => [
         entityId,
@@ -158,6 +245,20 @@ export class ProtectedContent {
 
   async readItemName(executor: Database | Transaction, itemId: string): Promise<string | null> {
     return (await this.readItemPresentation(executor, itemId))?.name ?? null;
+  }
+
+  async readItemPresentations(
+    executor: Database | Transaction,
+    itemIds: readonly string[],
+  ): Promise<ReadonlyMap<string, ItemPresentation>> {
+    const values = await this.#readMany<string | ItemPresentation>(
+      executor,
+      PROTECTED_ENTITY_TYPES.itemName,
+      itemIds,
+    );
+    return new Map(
+      [...values].map(([itemId, value]) => [itemId, normalizeItemPresentation(value)]),
+    );
   }
 
   async readItemNames(
@@ -235,6 +336,29 @@ export class ProtectedContent {
       PROTECTED_ENTITY_TYPES.relationshipMetadata,
       relationshipId,
       recordVersion,
+    );
+  }
+
+  async readRelationshipMetadataMany<T>(
+    executor: Database | Transaction,
+    relationshipIds: readonly string[],
+  ): Promise<ReadonlyMap<string, T>> {
+    return await this.#readMany<T>(
+      executor,
+      PROTECTED_ENTITY_TYPES.relationshipMetadata,
+      relationshipIds,
+    );
+  }
+
+  async readDatabaseEntryValuesMany(
+    executor: Database | Transaction,
+    entries: readonly { entryId: string; valueVersion: number }[],
+  ): Promise<ReadonlyMap<string, EntryValues>> {
+    return await this.#readMany<EntryValues>(
+      executor,
+      PROTECTED_ENTITY_TYPES.databaseEntryValues,
+      entries.map((entry) => entry.entryId),
+      new Map(entries.map((entry) => [entry.entryId, entry.valueVersion])),
     );
   }
 

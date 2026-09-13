@@ -111,6 +111,40 @@ describe("what the artifact holds", () => {
     expect(opened).toEqual(await hierarchy().exportRecoveryMaterial(handle.db));
   });
 
+  it("wipes the exported root-key buffer after sealing", async () => {
+    const payload = new Uint8Array(randomBytes(32));
+    const keys = {
+      ensureRootKey: async () => undefined,
+      exportRecoveryMaterial: async () => payload,
+    } as unknown as KeyHierarchy;
+
+    await renderBootstrapKit(deps({ keys }), KIT_ID);
+
+    // `createRecoveryKit` keeps ciphertext only. The plaintext buffer returned
+    // by the hierarchy belongs to the bootstrap caller and must be cleared
+    // after sealing.
+    expect(payload.every((byte) => byte === 0)).toBe(true);
+  });
+
+  it("wipes the exported root-key buffer when artifact creation fails", async () => {
+    const payload = new Uint8Array(randomBytes(32));
+    const keys = {
+      ensureRootKey: async () => undefined,
+      exportRecoveryMaterial: async () => payload,
+    } as unknown as KeyHierarchy;
+
+    await expect(
+      renderBootstrapKit(
+        deps({
+          keys,
+          now: () => new Date(Number.NaN),
+        }),
+        KIT_ID,
+      ),
+    ).rejects.toThrow(RangeError);
+    expect(payload.every((byte) => byte === 0)).toBe(true);
+  });
+
   it("carries the metadata a restore needs to identify itself", async () => {
     const artifact = await renderBootstrapKit(deps(), KIT_ID);
 

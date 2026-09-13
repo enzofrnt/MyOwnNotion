@@ -7,7 +7,9 @@ import {
   generateUuidV7,
   validateCanonicalExport,
 } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { resumePendingExports } from "../src/routes/export.ts";
 import {
   type ApiHarness,
   createApiHarness,
@@ -25,7 +27,11 @@ afterAll(async () => {
   await harness?.close();
 });
 
-async function exportArtifact(): Promise<{ manifest: CanonicalExportManifest; digest: string }> {
+async function exportArtifact(): Promise<{
+  exportId: string;
+  manifest: CanonicalExportManifest;
+  digest: string;
+}> {
   const started = await harness.built.app.inject({ method: "POST", url: "/v1/export" });
   expect(started.statusCode, started.body).toBe(202);
   const exportId = (started.json() as { exportId: string }).exportId;
@@ -42,7 +48,12 @@ async function exportArtifact(): Promise<{ manifest: CanonicalExportManifest; di
     url: `/v1/export/${exportId}/artifact`,
   });
   expect(artifact.statusCode, artifact.body).toBe(200);
-  return { manifest: artifact.json() as CanonicalExportManifest, digest: status.digest ?? "" };
+  expect(artifact.headers["cache-control"]).toBe("private, no-store");
+  return {
+    exportId,
+    manifest: artifact.json() as CanonicalExportManifest,
+    digest: status.digest ?? "",
+  };
 }
 
 describe("structured canonical export (T074)", () => {
@@ -149,6 +160,92 @@ describe("structured canonical export (T074)", () => {
 });
 
 describe("export status and artifacts", () => {
+  it("resumes a pending export job left behind by a process restart", async () => {
+    const exportId = generateUuidV7();
+    await harness.built.context.db.insert(schema.exports).values({
+      id: exportId,
+      workspaceId: harness.built.context.workspaceId,
+      status: "pending",
+    });
+
+    await resumePendingExports(harness.built.context);
+
+    const [row] = await harness.built.context.db
+      .select()
+      .from(schema.exports)
+      .where(eq(schema.exports.id, exportId));
+    expect(row?.status).toBe("ready");
+    expect(row?.digest).toMatch(/^[a-f0-9]{64}$/u);
+  });
+
+  it("finalizes a recovered job once when two processes discover it concurrently", async () => {
+    const exportId = generateUuidV7();
+    await harness.built.context.db.insert(schema.exports).values({
+      id: exportId,
+      workspaceId: harness.built.context.workspaceId,
+      status: "pending",
+    });
+
+    await Promise.all([
+      resumePendingExports(harness.built.context),
+      resumePendingExports(harness.built.context),
+    ]);
+
+    const [row] = await harness.built.context.db
+      .select()
+      .from(schema.exports)
+      .where(eq(schema.exports.id, exportId));
+    expect(row?.status).toBe("ready");
+    expect(row?.problem).toBeNull();
+    expect(row?.manifest).not.toBeNull();
+    expect(
+      createHash("sha256")
+        .update(canonicalExportString(row?.manifest as CanonicalExportManifest))
+        .digest("hex"),
+    ).toBe(row?.digest);
+  });
+
+  it("cleans unknown manifest properties before serving the digest-bound artifact", async () => {
+    const exported = await exportArtifact();
+    await harness.built.context.db
+      .update(schema.exports)
+      .set({
+        manifest: { ...exported.manifest, extra: "must not be serialized" },
+        digest: exported.digest,
+      })
+      .where(eq(schema.exports.id, exported.exportId));
+
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/export/${exported.exportId}/artifact`,
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as CanonicalExportManifest & { extra?: unknown };
+    expect(body).not.toHaveProperty("extra");
+    expect(response.headers["x-export-digest"]).toBe(
+      createHash("sha256").update(canonicalExportString(body)).digest("hex"),
+    );
+  });
+
+  it("refuses a manifest when its persisted digest diverges", async () => {
+    const exported = await exportArtifact();
+    const divergentDigest = exported.digest === "f".repeat(64) ? "e".repeat(64) : "f".repeat(64);
+    await harness.built.context.db
+      .update(schema.exports)
+      .set({ digest: divergentDigest })
+      .where(eq(schema.exports.id, exported.exportId));
+
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/export/${exported.exportId}/artifact`,
+    });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toMatchObject({
+      code: "internal.unexpected",
+      title: "Export artifact digest does not match its manifest",
+    });
+  });
+
   it("reports a pending job without a digest or download path", async () => {
     const exportId = generateUuidV7();
     await harness.built.context.db.insert(schema.exports).values({
@@ -176,6 +273,27 @@ describe("export status and artifacts", () => {
   it("refuses the artifact until a verified manifest is stored", async () => {
     const pendingId = generateUuidV7();
     const readyWithoutManifestId = generateUuidV7();
+    const readyWithoutDigestId = generateUuidV7();
+    const legacyManifestId = generateUuidV7();
+    const legacyManifest = {
+      format: "myownnotion.export+json",
+      formatVersion: 1,
+      workspaceId: harness.built.context.workspaceId,
+      schemaVersion: 1,
+      exportedAt: "2026-01-01T00:00:00.000Z",
+      changeCursor: "",
+      items: [],
+      relationships: [],
+      revisions: [],
+      counts: {
+        items: 0,
+        activeItems: 0,
+        trashedItems: 0,
+        placements: 0,
+        relationships: 0,
+        revisions: 0,
+      },
+    };
     await harness.built.context.db.insert(schema.exports).values([
       {
         id: pendingId,
@@ -190,6 +308,22 @@ describe("export status and artifacts", () => {
         digest: "abc",
         manifest: null,
       },
+      {
+        id: readyWithoutDigestId,
+        workspaceId: harness.built.context.workspaceId,
+        status: "ready",
+        ready: true,
+        digest: null,
+        manifest: {},
+      },
+      {
+        id: legacyManifestId,
+        workspaceId: harness.built.context.workspaceId,
+        status: "ready",
+        ready: true,
+        digest: "a".repeat(64),
+        manifest: legacyManifest,
+      },
     ]);
     const pending = await harness.built.app.inject({
       method: "GET",
@@ -201,5 +335,17 @@ describe("export status and artifacts", () => {
       url: `/v1/export/${readyWithoutManifestId}/artifact`,
     });
     expect(missingManifest.statusCode).toBe(404);
+    const missingDigest = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/export/${readyWithoutDigestId}/artifact`,
+    });
+    expect(missingDigest.statusCode).toBe(500);
+    expect(missingDigest.body).not.toContain('"x-export-digest"');
+    const legacy = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/export/${legacyManifestId}/artifact`,
+    });
+    expect(legacy.statusCode).toBe(500);
+    expect((legacy.json() as { code: string }).code).toBe("internal.unexpected");
   });
 });

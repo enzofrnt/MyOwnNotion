@@ -8,7 +8,7 @@
 | FR-001–FR-008, FR-015–FR-017 | US1 | T003–T012; real full restore, corruption and concurrency |
 | FR-009–FR-011 | US2 | T013–T015; old schema unchanged on failure |
 | FR-012–FR-014 | US3 | T016–T018; clock, retry, retention and remote failure |
-| FR-018–FR-020 | US4 | T019–T021; status and actual isolated rehearsal |
+| FR-018–FR-020 | US4 | T019–T021, T033; status, actual isolated rehearsal and HTTP contract |
 | FR-021 | Foundations | T006, T023; runtime/image tools on both architectures |
 | SC-001–SC-006 | All | T007, T012–T013, T016, T018, T023 |
 
@@ -42,6 +42,16 @@ The real integration test additionally covers outer archive A with SQL root
 keys already rewrapped B: activation authenticates/removes the A marker, then
 the B-configured application opens protected content and passes health.
 Configuration, API/CLI/scheduler/migration wiring, Compose mounts, operational
-docs and tests are included. No unbuilt T028 requirement remains; T023/T024
-are deliberately left pending for integration/full delivery gates. Feature 025
+docs and tests are included. No unbuilt T028 requirement remains;
+T023/T024/T029/T030 are deliberately left pending for the production-image,
+runtime-resource, integration and delivery gates. Feature 025
 readers are reviewed by the integrating agent, outside this 024-based commit.
+
+## T033 convergence result
+
+Commit `ca2174cd83fa328f8df808d2ccce5a66061c8999` closes the remaining backup
+HTTP/OpenAPI contract drift: complete and legacy status/rehearsal routes now
+declare their authenticated problem responses and redact unexpected failures,
+with matching contract and route tests. This is focused API evidence only;
+the production-image/runtime-resource/full local gates and PR/main delivery
+gates remain T023, T024, T029 and T030.

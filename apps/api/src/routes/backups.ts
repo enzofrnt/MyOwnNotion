@@ -7,7 +7,11 @@
  * on the protected local CLI.
  */
 
-import { FullBackupRehearsalSchema, FullBackupStatusSchema } from "@myownnotion/contracts";
+import {
+  FullBackupRehearsalSchema,
+  FullBackupStatusSchema,
+  SecurityProblemSchema,
+} from "@myownnotion/contracts";
 import {
   type Database,
   lastTestRestoration,
@@ -68,7 +72,7 @@ export const BackupStatusSchema = Type.Object(
   { additionalProperties: false },
 );
 
-const RehearsalResultSchema = Type.Object(
+export const RehearsalResultSchema = Type.Object(
   {
     outcome: Type.Literal("succeeded"),
     restoredItemCount: Type.Integer({ minimum: 0 }),
@@ -82,7 +86,16 @@ const REHEARSAL_AFTER_DAYS = 31;
 export function registerBackupRoutes(app: FastifyInstance, deps: BackupRouteDeps): void {
   app.get(
     "/v1/backups/full/status",
-    { schema: { response: { 200: FullBackupStatusSchema } } },
+    {
+      schema: {
+        response: {
+          200: FullBackupStatusSchema,
+          401: SecurityProblemSchema,
+          409: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       if (deps.require(request, reply, {}) === null) return reply;
       if (deps.fullBackupService === undefined)
@@ -104,7 +117,18 @@ export function registerBackupRoutes(app: FastifyInstance, deps: BackupRouteDeps
   );
   app.post(
     "/v1/backups/full/rehearsals",
-    { schema: { response: { 200: FullBackupRehearsalSchema } } },
+    {
+      schema: {
+        response: {
+          200: FullBackupRehearsalSchema,
+          401: SecurityProblemSchema,
+          403: SecurityProblemSchema,
+          409: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+          503: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       if (deps.require(request, reply, { csrf: true }) === null) return reply;
       if (deps.fullBackupService === undefined)
@@ -124,45 +148,73 @@ export function registerBackupRoutes(app: FastifyInstance, deps: BackupRouteDeps
   );
   app.get(
     "/v1/backups/status",
-    { schema: { response: { 200: BackupStatusSchema } } },
+    {
+      schema: {
+        response: {
+          200: BackupStatusSchema,
+          401: SecurityProblemSchema,
+          409: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const owner = deps.require(request, reply, {});
       if (owner === null) {
         return reply;
       }
 
-      const [verified, latest, rehearsal] = await Promise.all([
-        lastVerifiedBackupAtDestination(deps.db, deps.workspaceId),
-        latestBackupVerificationStatus(deps.db, deps.workspaceId),
-        lastTestRestoration(deps.db, deps.workspaceId),
-      ]);
-      const now = (deps.now ?? (() => new Date()))();
-      const rehearsalDue =
-        rehearsal === null ||
-        now.getTime() - rehearsal.startedAt.getTime() > REHEARSAL_AFTER_DAYS * 24 * 60 * 60 * 1000;
-      const outcome =
-        rehearsal?.outcome === "succeeded" || rehearsal?.outcome === "failed"
-          ? rehearsal.outcome
-          : null;
+      try {
+        const [verified, latest, rehearsal] = await Promise.all([
+          lastVerifiedBackupAtDestination(deps.db, deps.workspaceId),
+          latestBackupVerificationStatus(deps.db, deps.workspaceId),
+          lastTestRestoration(deps.db, deps.workspaceId),
+        ]);
+        const now = (deps.now ?? (() => new Date()))();
+        const rehearsalDue =
+          rehearsal === null ||
+          now.getTime() - rehearsal.startedAt.getTime() >
+            REHEARSAL_AFTER_DAYS * 24 * 60 * 60 * 1000;
+        const outcome =
+          rehearsal?.outcome === "succeeded" || rehearsal?.outcome === "failed"
+            ? rehearsal.outcome
+            : null;
 
-      return reply.status(200).send({
-        lastVerifiedAt: verified?.checkedAt.toISOString() ?? null,
-        lastVerifiedBackupId: verified?.backupId ?? null,
-        latestBackupAt: latest?.createdAt.toISOString() ?? null,
-        latestBackupId: latest?.backupId ?? null,
-        latestCreationVerification: latest?.afterCreation ?? null,
-        latestTransferVerification: latest?.afterTransfer ?? null,
-        lastRehearsalAt: rehearsal?.startedAt.toISOString() ?? null,
-        lastRehearsalOutcome: outcome,
-        stale: backupIsStale(verified?.checkedAt ?? null, now),
-        rehearsalDue,
-      });
+        return reply.status(200).send({
+          lastVerifiedAt: verified?.checkedAt.toISOString() ?? null,
+          lastVerifiedBackupId: verified?.backupId ?? null,
+          latestBackupAt: latest?.createdAt.toISOString() ?? null,
+          latestBackupId: latest?.backupId ?? null,
+          latestCreationVerification: latest?.afterCreation ?? null,
+          latestTransferVerification: latest?.afterTransfer ?? null,
+          lastRehearsalAt: rehearsal?.startedAt.toISOString() ?? null,
+          lastRehearsalOutcome: outcome,
+          stale: backupIsStale(verified?.checkedAt ?? null, now),
+          rehearsalDue,
+        });
+      } catch {
+        return sendSecurityProblem(reply, {
+          code: "internal_error",
+          correlationId: requestContext(request).correlationId,
+        });
+      }
     },
   );
 
   app.post(
     "/v1/backups/rehearsals",
-    { schema: { response: { 200: RehearsalResultSchema } } },
+    {
+      schema: {
+        response: {
+          200: RehearsalResultSchema,
+          401: SecurityProblemSchema,
+          403: SecurityProblemSchema,
+          409: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+          503: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const owner = deps.require(request, reply, { csrf: true });
       if (owner === null) {
@@ -174,7 +226,15 @@ export function registerBackupRoutes(app: FastifyInstance, deps: BackupRouteDeps
           correlationId: requestContext(request).correlationId,
         });
       }
-      const result = await deps.runRehearsal();
+      let result: CommandResult;
+      try {
+        result = await deps.runRehearsal();
+      } catch {
+        return sendSecurityProblem(reply, {
+          code: "internal_error",
+          correlationId: requestContext(request).correlationId,
+        });
+      }
       if (result.code !== 0) {
         request.log.warn({ exitCode: result.code }, "owner-requested backup rehearsal was refused");
         return sendSecurityProblem(reply, {

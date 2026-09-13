@@ -74,7 +74,7 @@
       "apps/api/src/server.ts",
       "apps/web/src/app.tsx",
       "apps/web/src/main.tsx",
-      "apps/web/src/styles.css",
+      "apps/web/src/global.css",
       "bun.lock",
       "bunfig.toml",
       "ci/test-impact.json",
@@ -270,7 +270,7 @@
     {
       "test": "tests/e2e/accessibility.spec.ts",
       "owners": {
-        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/global.css"],
         "prefixes": [
           "apps/web/src/components/",
           "apps/web/src/features/databases/",
@@ -344,6 +344,18 @@
           "apps/web/src/features/auth/bootstrap-page.tsx"
         ],
         "prefixes": ["apps/api/src/security/bootstrap-", "packages/domain/src/security/bootstrap"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/code-block-ui.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/page-documents.ts"],
+        "prefixes": [
+          "apps/web/src/features/editor/",
+          "packages/domain/src/document/",
+          "packages/page-state/"
+        ],
         "suffixes": []
       }
     },
@@ -462,9 +474,28 @@
       }
     },
     {
+      "test": "tests/e2e/linked-databases.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/databases.ts",
+          "apps/api/src/databases/database-query-service.ts",
+          "apps/web/src/services/databases.ts",
+          "apps/web/src/services/local-content.ts",
+          "apps/web/src/features/hierarchy/hierarchy-explorer.tsx",
+          "apps/web/src/features/workspace/workspace.css"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/databases-visual-views.spec.ts",
       "owners": {
-        "exact": ["apps/api/src/databases/database-query-service.ts", "apps/web/src/styles.css"],
+        "exact": ["apps/api/src/databases/database-query-service.ts", "apps/web/src/global.css"],
         "prefixes": [
           "apps/web/src/features/databases/",
           "packages/client-core/src/databases/",
@@ -645,9 +676,26 @@
       }
     },
     {
+      "test": "tests/e2e/mcp-access.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/mcp.ts",
+          "apps/web/src/services/security-api.ts",
+          "packages/contracts/src/mcp.ts"
+        ],
+        "prefixes": [
+          "apps/api/src/mcp/",
+          "apps/web/src/features/security/",
+          "apps/web/src/features/settings/",
+          "packages/database/src/schema/mcp"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/narrow-viewport.spec.ts",
       "owners": {
-        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/global.css"],
         "prefixes": [
           "apps/web/src/features/attachments/",
           "apps/web/src/features/editor/",
@@ -663,7 +711,7 @@
     {
       "test": "tests/e2e/touch-and-motion.spec.ts",
       "owners": {
-        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css", "apps/web/src/ui/tokens.css"],
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/global.css", "apps/web/src/ui/tokens.css"],
         "prefixes": [
           "apps/web/src/features/editor/",
           "apps/web/src/features/hierarchy/",
@@ -679,7 +727,7 @@
       "owners": {
         "exact": [
           "apps/web/src/app.tsx",
-          "apps/web/src/styles.css",
+          "apps/web/src/global.css",
           "apps/web/src/ui/copy/fr.ts",
           "apps/web/src/ui/primitives/primitives.css",
           "apps/web/src/ui/tokens.css"
@@ -1059,7 +1107,7 @@
     {
       "test": "tests/e2e/workspace-settings-boundary.spec.ts",
       "owners": {
-        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/global.css"],
         "prefixes": [
           "apps/web/src/features/diagnostics/",
           "apps/web/src/features/hierarchy/",
@@ -1073,7 +1121,7 @@
     {
       "test": "tests/e2e/workspace-shell-visual.spec.ts",
       "owners": {
-        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css", "apps/web/src/ui/tokens.css"],
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/global.css", "apps/web/src/ui/tokens.css"],
         "prefixes": [
           "apps/web/src/features/hierarchy/",
           "apps/web/src/features/navigation/",
@@ -1086,7 +1134,7 @@
     {
       "test": "tests/e2e/workspace-shell.spec.ts",
       "owners": {
-        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/global.css"],
         "prefixes": [
           "apps/web/src/features/hierarchy/",
           "apps/web/src/features/navigation/",
@@ -1099,7 +1147,7 @@
     {
       "test": "tests/e2e/desktop-accessibility.spec.ts",
       "owners": {
-        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/global.css"],
         "prefixes": [
           "apps/desktop/src/",
           "apps/web/src/features/connection/",
@@ -1159,6 +1207,43 @@
           "apps/web/src/features/update/desktop-update-panel.tsx"
         ],
         "prefixes": ["apps/desktop/src/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/database-form-lifecycle.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/ui/stable-action-button.tsx"],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/",
+          "apps/api/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/editor-caret.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/global.css", "apps/web/src/main.tsx", "apps/web/src/ui/tokens.css"],
+        "prefixes": ["apps/web/src/features/editor/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/protected-files.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/backup/guarded-migration.ts"],
+        "prefixes": [
+          "apps/api/src/files/",
+          "apps/api/src/routes/files",
+          "apps/api/src/routes/uploads",
+          "apps/api/src/security/",
+          "apps/web/src/features/files/",
+          "apps/web/src/features/attachments/",
+          "packages/blob-store/src/",
+          "packages/database/src/"
+        ],
         "suffixes": []
       }
     }

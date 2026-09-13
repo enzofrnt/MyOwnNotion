@@ -22,12 +22,15 @@ import {
   type DatabaseHandle,
   findCurrentGeneration,
   insertGeneration,
+  insertWrappingKeyVersion,
   retireGeneration,
 } from "@myownnotion/database";
+import { EMPTY_FILE_SHA256, type ProtectedFileManifest } from "@myownnotion/domain";
 import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { KeyHierarchy, KeyUnavailableError } from "../src/security/key-hierarchy.ts";
+import { ProtectedContent } from "../src/security/protected-content.ts";
 import { ProtectedRecordService } from "../src/security/protected-record-service.ts";
 
 let postgres: DisposablePostgres;
@@ -96,6 +99,145 @@ async function initialize(keys: KeyHierarchy): Promise<void> {
     await keys.initialize(tx);
   });
 }
+
+describe("protected file purpose boundaries", () => {
+  it("keeps lookup private and stable across both rotation kinds without exporting recovery material", async () => {
+    const keys = hierarchy();
+    await initialize(keys);
+    const exportSpy = vi
+      .spyOn(keys, "exportRecoveryMaterial")
+      .mockRejectedValue(new Error("recovery only"));
+    const digest = Buffer.alloc(32, 5);
+    const first = await keys.fileContentLookupTag(handle.db, digest, 100);
+    expect(first).toHaveLength(32);
+    expect(Buffer.from(first).equals(digest)).toBe(false);
+    expect(await keys.fileContentLookupTag(handle.db, digest, 101)).not.toEqual(first);
+    expect(await keys.fileContentLookupTag(handle.db, Buffer.alloc(32, 6), 100)).not.toEqual(first);
+    await handle.db.transaction((tx) => keys.startNextGeneration(tx));
+    expect(await keys.fileContentLookupTag(handle.db, digest, 100)).toEqual(first);
+    const replacement = Buffer.alloc(32, 9);
+    await handle.db.transaction(async (tx) => {
+      await tx.execute(
+        sql`UPDATE wrapping_key_versions SET state = 'previous' WHERE state = 'current'`,
+      );
+      const version = await insertWrappingKeyVersion(tx, {
+        id: randomUUID(),
+        installationId: INSTALLATION_ID,
+        version: 2,
+        externalSecretReference: "mounted:replacement",
+        algorithm: "AES-256-GCM",
+        createdAt: NOW,
+      });
+      await keys.rewrapRootKey(tx, {
+        newWrappingKey: replacement,
+        newWrappingKeyVersionId: version.id,
+      });
+    });
+    const reopened = new KeyHierarchy({
+      db: handle.db,
+      installationId: INSTALLATION_ID,
+      workspaceId: WORKSPACE_ID,
+      deploymentKey: () => replacement,
+      now: () => NOW,
+    });
+    expect(await reopened.fileContentLookupTag(handle.db, digest, 100)).toEqual(first);
+    expect(exportSpy).not.toHaveBeenCalled();
+    exportSpy.mockRestore();
+  });
+
+  it("refuses invalid lookup identities and unavailable deployment material", async () => {
+    const keys = hierarchy();
+    await initialize(keys);
+    for (const size of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1])
+      await expect(keys.fileContentLookupTag(handle.db, Buffer.alloc(32), size)).rejects.toThrow();
+    await expect(keys.fileContentLookupTag(handle.db, Buffer.alloc(31), 0)).rejects.toThrow();
+    key.available = false;
+    await expect(keys.fileContentLookupTag(handle.db, Buffer.alloc(32), 0)).rejects.toBeInstanceOf(
+      KeyUnavailableError,
+    );
+  });
+
+  it("authenticates completed and upload inventories under distinct identities", async () => {
+    const keys = hierarchy();
+    await initialize(keys);
+    const protection = new ProtectedContent({ records: records(keys) });
+    const manifest: ProtectedFileManifest = {
+      format: "myownnotion.protected-file",
+      formatVersion: 1,
+      kind: "content",
+      id: randomUUID(),
+      recordVersion: 1,
+      byteLength: 0,
+      sha256: EMPTY_FILE_SHA256,
+      chunks: [],
+    };
+    expect(await protection.readFileManifest(handle.db, manifest)).toBeNull();
+    await protection.writeFileManifest(handle.db, manifest);
+    expect(await protection.readFileManifest(handle.db, manifest)).toEqual(manifest);
+    const upload: ProtectedFileManifest = {
+      ...manifest,
+      kind: "upload",
+      declaredLength: 123,
+      sha256: null,
+    };
+    expect(await protection.readFileManifest(handle.db, upload)).toBeNull();
+    await protection.writeFileManifest(handle.db, upload);
+    expect(await protection.readFileManifest(handle.db, upload)).toEqual(upload);
+    expect(
+      await protection.readFileManifest(handle.db, { ...manifest, recordVersion: 2 }),
+    ).toBeNull();
+    await records(keys).write(handle.db, {
+      entityType: "file.content-manifest",
+      entityId: manifest.id,
+      recordVersion: 2,
+      payload: bytes(JSON.stringify(manifest)),
+    });
+    await expect(
+      protection.readFileManifest(handle.db, { ...manifest, recordVersion: 2 }),
+    ).rejects.toThrow();
+    await handle.db.execute(
+      sql`UPDATE protected_envelopes SET entity_id = ${randomUUID()} WHERE entity_type = 'file.content-manifest'`,
+    );
+    expect(await protection.readFileManifest(handle.db, manifest)).toBeNull();
+    await expect(
+      protection.writeFileManifest(handle.db, { ...manifest, byteLength: 1 }),
+    ).rejects.toThrow();
+  });
+
+  it("encrypts file and upload metadata separately and refuses malformed authenticated metadata", async () => {
+    const keys = hierarchy();
+    await initialize(keys);
+    const recordService = records(keys);
+    const protection = new ProtectedContent({ records: recordService });
+    const metadata = { originalName: "Private medical journal.pdf", mediaType: "application/pdf" };
+    const id = randomUUID();
+    expect(await protection.readFileMetadata(handle.db, { kind: "file", id })).toBeNull();
+    await protection.writeFileMetadata(handle.db, { kind: "file", id, recordVersion: 1, metadata });
+    expect(await protection.readFileMetadata(handle.db, { kind: "file", id })).toEqual(metadata);
+    expect(await protection.readFileMetadata(handle.db, { kind: "upload", id })).toBeNull();
+    await protection.writeFileMetadata(handle.db, {
+      kind: "upload",
+      id,
+      recordVersion: 1,
+      metadata,
+    });
+    expect(
+      await protection.readFileMetadata(handle.db, { kind: "upload", id, recordVersion: 1 }),
+    ).toEqual(metadata);
+    const rows = await handle.db.execute(sql`SELECT * FROM protected_envelopes`);
+    expect(JSON.stringify(rows.rows)).not.toContain(metadata.originalName);
+    expect(JSON.stringify(rows.rows)).not.toContain(metadata.mediaType);
+    await recordService.write(handle.db, {
+      entityType: "file.metadata",
+      entityId: id,
+      recordVersion: 2,
+      payload: bytes('{"originalName":false}'),
+    });
+    await expect(protection.readFileMetadata(handle.db, { kind: "file", id })).rejects.toThrow(
+      "Invalid protected file metadata",
+    );
+  });
+});
 
 describe("establishing the hierarchy", () => {
   it("creates a wrapping version, a root key, and a first generation", async () => {

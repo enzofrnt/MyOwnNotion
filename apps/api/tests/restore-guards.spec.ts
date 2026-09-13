@@ -13,9 +13,21 @@
  */
 
 import { createHash } from "node:crypto";
-import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, type BackupManifest } from "@myownnotion/domain";
+import {
+  BACKUP_FORMAT,
+  BACKUP_FORMAT_VERSION,
+  type BackupManifest,
+  type Uuid,
+} from "@myownnotion/domain";
+import { OPERATIONAL_FORMAT, OPERATIONAL_FORMAT_VERSION } from "@myownnotion/page-state";
 import { describe, expect, it, vi } from "vitest";
-import { encodeBackupArchive } from "../src/backup/archive-format.ts";
+import { decodeBackupArchive, encodeUncheckedBackupArchive } from "../src/backup/archive-format.ts";
+import {
+  PAGE_OPERATION_ARCHIVE_FORMAT,
+  PAGE_OPERATION_ARCHIVE_VERSION,
+  PageOperationArchiveService,
+  readPageOperationArchive,
+} from "../src/backup/page-operation-archive.ts";
 import {
   applyArchive,
   PREFLIGHT_ORDER,
@@ -24,6 +36,16 @@ import {
 } from "../src/backup/restore-service.ts";
 
 const DIGEST = `sha256:${createHash("sha256").update("abc").digest("hex")}`;
+const TEST_WORKSPACE = "00000000-0000-7000-8000-000000000001";
+const TEST_ITEM = "00000000-0000-7000-8000-000000000002";
+const TEST_REVISION = "00000000-0000-7000-8000-000000000003";
+const TEST_MUTATION = "00000000-0000-7000-8000-000000000004";
+const TEST_RELATIONSHIP = "00000000-0000-7000-8000-000000000005";
+const TEST_SECOND_ITEM = "00000000-0000-7000-8000-000000000006";
+const TEST_SECOND_REVISION = "00000000-0000-7000-8000-000000000007";
+const TEST_SECOND_MUTATION = "00000000-0000-7000-8000-000000000008";
+const TEST_FIRST_PLACEMENT = "00000000-0000-7000-8000-000000000009";
+const TEST_SECOND_PLACEMENT = "00000000-0000-7000-8000-000000000010";
 
 /**
  * A well-formed archive, with the manifest merged rather than replaced.
@@ -33,12 +55,78 @@ const DIGEST = `sha256:${createHash("sha256").update("abc").digest("hex")}`;
  * other one — and three tests then asserted against an archive that was broken
  * for a reason they were not testing.
  */
-function archive(manifestOverrides: Record<string, unknown> = {}, includeFile = true): Buffer {
-  const canonicalExport = JSON.stringify({
-    items: [{ id: "one" }],
-    relationships: [],
-    revisions: [],
-  });
+function archive(
+  manifestOverrides: Record<string, unknown> = {},
+  includeFile = true,
+  canonicalOverride?: string,
+  operationalState?: string | null,
+): Buffer {
+  const canonicalExport =
+    canonicalOverride ??
+    JSON.stringify({
+      format: "myownnotion.export+json",
+      formatVersion: 2,
+      workspaceId: TEST_WORKSPACE as Uuid,
+      schemaVersion: 1,
+      exportedAt: "2026-08-18T04:00:00.000Z",
+      changeCursor: "42",
+      items: [
+        {
+          id: TEST_ITEM,
+          workspaceId: TEST_WORKSPACE,
+          kind: "file",
+          name: "one",
+          icon: null,
+          lifecycle: "active",
+          trashedAt: null,
+          purgeAfter: null,
+          currentRevisionId: TEST_REVISION,
+          favourite: false,
+          offlineIntent: false,
+          pageDocument: null,
+          file: {
+            mediaType: "text/plain",
+            originalName: "one.txt",
+            byteLength: 3,
+            sha256: DIGEST.slice("sha256:".length),
+          },
+          placements: [
+            {
+              id: TEST_FIRST_PLACEMENT,
+              workspaceId: TEST_WORKSPACE,
+              itemId: TEST_ITEM,
+              itemIsFile: true,
+              kind: "hierarchy",
+              parentItemId: null,
+              positionKey: "V",
+              removedAt: null,
+            },
+          ],
+        },
+      ],
+      databases: [],
+      databaseEntries: [],
+      relationships: [],
+      revisions: [
+        {
+          id: TEST_REVISION,
+          itemId: TEST_ITEM,
+          mutationId: TEST_MUTATION,
+          parentRevisionIds: [],
+          acceptedAt: "2026-08-18T04:00:00.000Z",
+        },
+      ],
+      counts: {
+        items: 1,
+        activeItems: 1,
+        trashedItems: 0,
+        placements: 1,
+        relationships: 0,
+        revisions: 1,
+        databases: 0,
+        databaseEntries: 0,
+      },
+    });
   const manifest: BackupManifest = {
     format: BACKUP_FORMAT,
     formatVersion: BACKUP_FORMAT_VERSION,
@@ -53,11 +141,129 @@ function archive(manifestOverrides: Record<string, unknown> = {}, includeFile = 
     fileCount: 1,
     ...manifestOverrides,
   };
-  return encodeBackupArchive({
+  return encodeUncheckedBackupArchive({
     manifest,
     canonicalExport,
+    ...(operationalState === undefined ? {} : { operationalState }),
     files: includeFile ? new Map([[DIGEST, Buffer.from("abc")]]) : new Map(),
   });
+}
+
+function cyclicCanonical(kind: "hierarchy" | "revision"): string {
+  const hierarchy = kind === "hierarchy";
+  const itemIds = hierarchy ? [TEST_ITEM, TEST_SECOND_ITEM] : [TEST_ITEM];
+  const revisionIds = hierarchy
+    ? [TEST_REVISION, TEST_SECOND_REVISION]
+    : [TEST_REVISION, TEST_SECOND_REVISION];
+  const items = itemIds.map((id, index) => ({
+    id,
+    workspaceId: TEST_WORKSPACE,
+    kind: "folder",
+    name: `item-${index}`,
+    icon: null,
+    lifecycle: "active",
+    trashedAt: null,
+    purgeAfter: null,
+    currentRevisionId: revisionIds[index],
+    favourite: false,
+    offlineIntent: false,
+    pageDocument: null,
+    file: null,
+    placements: hierarchy
+      ? [
+          {
+            id: index === 0 ? TEST_FIRST_PLACEMENT : TEST_SECOND_PLACEMENT,
+            workspaceId: TEST_WORKSPACE,
+            itemId: id,
+            itemIsFile: false,
+            kind: "hierarchy",
+            parentItemId: index === 0 ? TEST_SECOND_ITEM : TEST_ITEM,
+            positionKey: "V",
+            removedAt: null,
+          },
+        ]
+      : [],
+  }));
+  const revisions = revisionIds.map((id, index) => ({
+    id,
+    itemId: hierarchy ? itemIds[index] : TEST_ITEM,
+    mutationId: index === 0 ? TEST_MUTATION : TEST_SECOND_MUTATION,
+    parentRevisionIds: hierarchy ? [] : index === 0 ? [TEST_SECOND_REVISION] : [TEST_REVISION],
+    acceptedAt: "2026-08-18T04:00:00.000Z",
+  }));
+  return JSON.stringify({
+    format: "myownnotion.export+json",
+    formatVersion: 2,
+    workspaceId: TEST_WORKSPACE,
+    schemaVersion: 1,
+    exportedAt: "2026-08-18T04:00:00.000Z",
+    changeCursor: "42",
+    items,
+    databases: [],
+    databaseEntries: [],
+    relationships: [],
+    revisions,
+    counts: {
+      items: items.length,
+      activeItems: items.length,
+      trashedItems: 0,
+      placements: hierarchy ? 2 : 0,
+      relationships: 0,
+      revisions: revisions.length,
+      databases: 0,
+      databaseEntries: 0,
+    },
+  });
+}
+
+function legacyOperationalState(pageId = TEST_ITEM): string {
+  return JSON.stringify({
+    format: PAGE_OPERATION_ARCHIVE_FORMAT,
+    formatVersion: PAGE_OPERATION_ARCHIVE_VERSION,
+    pages: [
+      {
+        pageId,
+        status: "legacy",
+        operationalFormat: OPERATIONAL_FORMAT,
+        operationalVersion: OPERATIONAL_FORMAT_VERSION,
+        currentCheckpointId: null,
+        currentFrontier: null,
+        operationalDigest: null,
+        canonicalDigest: "0".repeat(64),
+        canonicalFormatVersion: 3,
+        lastUpdateSequence: 0,
+        lastRevisionId: null,
+        revisionWindowStartedAt: null,
+        revisionWindowLastUpdateAt: null,
+        revisionWindowFrontier: null,
+        bootstrappedAt: null,
+        updatedAt: "2026-08-23T10:00:00.000Z",
+        checkpoints: [],
+        updates: [],
+        deviceFrontiers: [],
+        ambiguities: [],
+        legacyBranchConversions: [],
+      },
+    ],
+    counts: {
+      pages: 1,
+      checkpoints: 0,
+      updates: 0,
+      deviceFrontiers: 0,
+      ambiguities: 0,
+      legacyBranchConversions: 0,
+    },
+  });
+}
+
+function initializingOperationalState(pageId = TEST_ITEM): string {
+  const state = JSON.parse(legacyOperationalState(pageId)) as {
+    pages: Array<Record<string, unknown>>;
+  };
+  const page = state.pages[0];
+  if (page === undefined) throw new Error("the operational fixture has no page");
+  page["status"] = "initializing";
+  return JSON.stringify(state);
 }
 
 function input(overrides: Partial<PreflightInput> = {}): PreflightInput {
@@ -212,6 +418,485 @@ describe("a rehearsal", () => {
 });
 
 describe("writing a checked archive", () => {
+  type MutableCanonical = {
+    readonly items: Array<Record<string, unknown>>;
+    readonly counts: Record<string, unknown>;
+  };
+
+  function firstCanonicalItem(canonical: MutableCanonical): Record<string, unknown> {
+    const item = canonical.items[0];
+    if (item === undefined) throw new Error("canonical fixture has no item");
+    return item;
+  }
+
+  function firstCanonicalPlacement(item: Record<string, unknown>): Record<string, unknown> {
+    const placements = item["placements"];
+    if (!Array.isArray(placements)) throw new Error("canonical fixture has no placements");
+    const placement = placements[0];
+    if (typeof placement !== "object" || placement === null || Array.isArray(placement)) {
+      throw new Error("canonical fixture has no placement object");
+    }
+    return placement as Record<string, unknown>;
+  }
+
+  function markerArchive(formatVersion: 1 | 2, extra = false): Buffer {
+    const marker = extra
+      ? { $myownnotionProtected: 1, authored: true }
+      : { $myownnotionProtected: 1 };
+    const canonicalExport = JSON.stringify({
+      format: "myownnotion.export+json",
+      formatVersion: 2,
+      workspaceId: TEST_WORKSPACE,
+      schemaVersion: 1,
+      exportedAt: "2026-08-18T04:00:00.000Z",
+      changeCursor: "42",
+      items: [
+        {
+          id: TEST_ITEM,
+          workspaceId: TEST_WORKSPACE,
+          kind: "page",
+          name: "one",
+          icon: null,
+          lifecycle: "active",
+          trashedAt: null,
+          purgeAfter: null,
+          currentRevisionId: TEST_REVISION,
+          favourite: false,
+          offlineIntent: false,
+          pageDocument: {
+            format: "myownnotion.document+json",
+            formatVersion: 1,
+            body: marker,
+          },
+          file: null,
+          placements: [
+            {
+              id: TEST_FIRST_PLACEMENT,
+              workspaceId: TEST_WORKSPACE,
+              itemId: TEST_ITEM,
+              itemIsFile: false,
+              kind: "hierarchy",
+              parentItemId: null,
+              positionKey: "V",
+              removedAt: null,
+            },
+          ],
+        },
+      ],
+      databases: [],
+      databaseEntries: [],
+      relationships: [
+        {
+          id: TEST_RELATIONSHIP,
+          workspaceId: TEST_WORKSPACE,
+          sourceItemId: TEST_ITEM,
+          targetItemId: TEST_ITEM,
+          relationType: "mention:reference",
+          metadata: marker,
+          createdRevisionId: TEST_REVISION,
+          removedRevisionId: null,
+        },
+      ],
+      revisions: [
+        {
+          id: TEST_REVISION,
+          itemId: TEST_ITEM,
+          mutationId: TEST_MUTATION,
+          parentRevisionIds: [],
+          acceptedAt: "2026-08-18T04:00:00.000Z",
+        },
+      ],
+      counts: {
+        items: 1,
+        activeItems: 1,
+        trashedItems: 0,
+        placements: 1,
+        relationships: 1,
+        revisions: 1,
+        databases: 0,
+        databaseEntries: 0,
+      },
+    });
+    return encodeUncheckedBackupArchive({
+      manifest: {
+        format: BACKUP_FORMAT,
+        formatVersion,
+        createdAt: "2026-08-18T04:00:00.000Z",
+        cursor: "42",
+        applicationVersion: "0.1.0",
+        schemaVersion: 1,
+        recordFormatVersion: 1,
+        canonicalExportDigest: `sha256:${createHash("sha256").update(canonicalExport).digest("hex")}`,
+        files: [],
+        itemCount: 1,
+        fileCount: 0,
+      },
+      canonicalExport,
+      files: new Map(),
+    });
+  }
+
+  it("refuses a reserved marker in a new archive before target mutation starts", async () => {
+    const calls: string[] = [];
+    await expect(
+      applyArchive(markerArchive(BACKUP_FORMAT_VERSION), {
+        begin: async () => {
+          calls.push("begin");
+        },
+        writeFile: async () => {
+          calls.push("file");
+        },
+        writeRevision: async () => {
+          calls.push("revision");
+        },
+        writeItem: async () => {
+          calls.push("item");
+        },
+        writeRelationship: async () => {
+          calls.push("relationship");
+        },
+      }),
+    ).rejects.toThrow(/reserved protected-content/i);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a malformed V1 canonical export before target mutation starts", async () => {
+    const malformed = JSON.stringify({ items: [{}], relationships: [], revisions: [] });
+    const calls: string[] = [];
+    await expect(
+      applyArchive(archive({ formatVersion: 1, itemCount: 1 }, true, malformed), {
+        begin: async () => {
+          calls.push("begin");
+        },
+        writeFile: async () => {
+          calls.push("file");
+        },
+        writeRevision: async () => {
+          calls.push("revision");
+        },
+        writeItem: async () => {
+          calls.push("item");
+        },
+        writeRelationship: async () => {
+          calls.push("relationship");
+        },
+      }),
+    ).rejects.toThrow(/canonical export/i);
+    expect(calls).toEqual([]);
+  });
+
+  it.each([
+    [
+      "removed placement",
+      (canonical: MutableCanonical) => {
+        firstCanonicalPlacement(firstCanonicalItem(canonical))["removedAt"] =
+          "2026-08-18T05:00:00.000Z";
+      },
+      {},
+    ],
+    [
+      "orphaned active file",
+      (canonical: MutableCanonical) => {
+        firstCanonicalItem(canonical)["placements"] = [];
+        canonical.counts["placements"] = 0;
+      },
+      {},
+    ],
+    [
+      "missing page document",
+      (canonical: MutableCanonical) => {
+        const item = firstCanonicalItem(canonical);
+        item["kind"] = "page";
+        item["file"] = null;
+        item["pageDocument"] = null;
+        firstCanonicalPlacement(item)["itemIsFile"] = false;
+      },
+      { files: [], fileCount: 0 },
+    ],
+    [
+      "non-file attachment",
+      (canonical: MutableCanonical) => {
+        const item = firstCanonicalItem(canonical);
+        item["kind"] = "folder";
+        item["file"] = null;
+        item["pageDocument"] = null;
+        const placement = firstCanonicalPlacement(item);
+        placement["itemIsFile"] = false;
+        placement["kind"] = "attachment";
+        placement["parentItemId"] = TEST_ITEM;
+      },
+      { files: [], fileCount: 0 },
+    ],
+  ] as const)("refuses %s before target.begin", async (_name, mutate, manifestOverrides) => {
+    const canonical = JSON.parse(
+      decodeBackupArchive(archive()).canonicalExport,
+    ) as MutableCanonical;
+    mutate(canonical);
+    const calls: string[] = [];
+    await expect(
+      applyArchive(
+        archive(manifestOverrides, !("files" in manifestOverrides), JSON.stringify(canonical)),
+        {
+          begin: async () => {
+            calls.push("begin");
+          },
+          writeFile: async () => {
+            calls.push("file");
+          },
+          writeRevision: async () => {
+            calls.push("revision");
+          },
+          writeItem: async () => {
+            calls.push("item");
+          },
+          writeRelationship: async () => {
+            calls.push("relationship");
+          },
+        },
+      ),
+    ).rejects.toThrow(/canonical export|placement|page document|attachment/i);
+    expect(calls).toEqual([]);
+  });
+
+  it.each(["hierarchy", "revision"] as const)(
+    "refuses a %s cycle before target.begin",
+    async (kind) => {
+      const canonical = cyclicCanonical(kind);
+      const calls: string[] = [];
+      await expect(
+        applyArchive(
+          archive(
+            { files: [], itemCount: kind === "hierarchy" ? 2 : 1, fileCount: 0 },
+            false,
+            canonical,
+          ),
+          {
+            begin: async () => {
+              calls.push("begin");
+            },
+            writeFile: async () => {
+              calls.push("file");
+            },
+            writeRevision: async () => {
+              calls.push("revision");
+            },
+            writeItem: async () => {
+              calls.push("item");
+            },
+            writeRelationship: async () => {
+              calls.push("relationship");
+            },
+          },
+        ),
+      ).rejects.toThrow(/canonical export|cycle/i);
+      expect(calls).toEqual([]);
+    },
+  );
+
+  it("refuses a legacy page absent from the canonical page inventory before target.begin", async () => {
+    const operationalState = legacyOperationalState();
+    const service = new PageOperationArchiveService({
+      workspaceId: TEST_WORKSPACE as Uuid,
+      crypto: {} as never,
+    });
+    const calls: string[] = [];
+    await expect(
+      applyArchive(
+        archive(
+          {
+            operationalStateDigest: `sha256:${createHash("sha256").update(operationalState).digest("hex")}`,
+            operationalFormatVersion: 1,
+            operationalPageCount: 1,
+            operationalCheckpointCount: 0,
+            operationalUpdateCount: 0,
+          },
+          true,
+          undefined,
+          operationalState,
+        ),
+        {
+          begin: async () => {
+            calls.push("begin");
+          },
+          verifyPageOperations: async (state, canonical) => {
+            await service.verify(readPageOperationArchive(state), canonical);
+          },
+          verifyPageOperationDevices: async () => {},
+          writePageOperations: async () => {
+            calls.push("operations");
+          },
+          writeFile: async () => {
+            calls.push("file");
+          },
+          writeRevision: async () => {
+            calls.push("revision");
+          },
+          writeItem: async () => {
+            calls.push("item");
+          },
+          writeRelationship: async () => {
+            calls.push("relationship");
+          },
+        },
+      ),
+    ).rejects.toThrow(/canonical export|page/i);
+    expect(calls).toEqual([]);
+  });
+
+  it("runs device reference checks before target.begin", async () => {
+    const operationalState = legacyOperationalState();
+    const calls: string[] = [];
+    await expect(
+      applyArchive(
+        archive(
+          {
+            operationalStateDigest: `sha256:${createHash("sha256").update(operationalState).digest("hex")}`,
+            operationalFormatVersion: 1,
+            operationalPageCount: 1,
+            operationalCheckpointCount: 0,
+            operationalUpdateCount: 0,
+          },
+          true,
+          undefined,
+          operationalState,
+        ),
+        {
+          begin: async () => {
+            calls.push("begin");
+          },
+          verifyPageOperations: async () => {},
+          verifyPageOperationDevices: async () => {
+            calls.push("devices");
+            throw new Error("missing archived device");
+          },
+          writePageOperations: async () => {
+            calls.push("operations");
+          },
+          writeFile: async () => {
+            calls.push("file");
+          },
+          writeRevision: async () => {
+            calls.push("revision");
+          },
+          writeItem: async () => {
+            calls.push("item");
+          },
+          writeRelationship: async () => {
+            calls.push("relationship");
+          },
+        },
+      ),
+    ).rejects.toThrow("missing archived device");
+    expect(calls).toEqual(["devices"]);
+  });
+
+  it("restores an empty initializing operational state after target.begin", async () => {
+    const operationalState = initializingOperationalState();
+    const calls: string[] = [];
+    const service = new PageOperationArchiveService({
+      workspaceId: TEST_WORKSPACE as Uuid,
+      crypto: {} as never,
+    });
+    const result = await applyArchive(
+      archive(
+        {
+          operationalStateDigest: `sha256:${createHash("sha256").update(operationalState).digest("hex")}`,
+          operationalFormatVersion: 1,
+          operationalPageCount: 1,
+          operationalCheckpointCount: 0,
+          operationalUpdateCount: 0,
+        },
+        true,
+        undefined,
+        operationalState,
+      ),
+      {
+        begin: async () => {
+          calls.push("begin");
+        },
+        verifyPageOperations: async (state) => {
+          calls.push("verify");
+          await service.verify(readPageOperationArchive(state));
+        },
+        verifyPageOperationDevices: async () => {
+          calls.push("devices");
+        },
+        writePageOperations: async () => {
+          calls.push("operations");
+        },
+        writeFile: async () => {
+          calls.push("file");
+        },
+        writeRevision: async () => {
+          calls.push("revision");
+        },
+        writeItem: async () => {
+          calls.push("item");
+        },
+        writeRelationship: async () => {
+          calls.push("relationship");
+        },
+        finish: async () => {
+          calls.push("finish");
+        },
+      },
+    );
+
+    expect(result.restoredItemCount).toBe(1);
+    expect(calls).toEqual([
+      "devices",
+      "verify",
+      "begin",
+      "file",
+      "item",
+      "revision",
+      "finish",
+      "operations",
+    ]);
+  });
+
+  it("keeps exact markers restorable from a pre-reservation archive", async () => {
+    const written: unknown[] = [];
+    await applyArchive(markerArchive(1), {
+      begin: async () => {},
+      writeFile: async () => {},
+      writeRevision: async () => {},
+      writeItem: async (item) => {
+        written.push(item);
+      },
+      writeRelationship: async (relationship) => {
+        written.push(relationship);
+      },
+    });
+    expect(written).toHaveLength(2);
+    expect(written[0]).toMatchObject({
+      pageDocument: { body: { $myownnotionProtected: 1 } },
+    });
+    expect(written[1]).toMatchObject({ metadata: { $myownnotionProtected: 1 } });
+  });
+
+  it("accepts authored multi-key objects that contain the marker-shaped key", async () => {
+    const calls: string[] = [];
+    await applyArchive(markerArchive(BACKUP_FORMAT_VERSION, true), {
+      begin: async () => {
+        calls.push("begin");
+      },
+      writeFile: async () => {
+        calls.push("file");
+      },
+      writeRevision: async () => {
+        calls.push("revision");
+      },
+      writeItem: async () => {
+        calls.push("item");
+      },
+      writeRelationship: async () => {
+        calls.push("relationship");
+      },
+    });
+    expect(calls).toEqual(["begin", "item", "revision", "relationship"]);
+  });
+
   it("writes files before the items that name them", async () => {
     const order: string[] = [];
     await applyArchive(archive(), {

@@ -308,6 +308,118 @@ describe("what the scheduler says", () => {
 });
 
 describe("starting a rotation is deliberate", () => {
+  it.each(["degraded", "recovery-required"] as const)(
+    "keeps the status diagnostic but refuses a start while installation is %s",
+    async (state) => {
+      await seedPolicy("wrapping-key", { dueInDays: 100, blockInDays: 107 });
+      await seedPolicy("data-key", { dueInDays: 100, blockInDays: 107 });
+      const auth = await authenticate();
+      await harness.built.database.db.execute(
+        sql`UPDATE installations SET state = ${state} WHERE id = ${INSTALLATION_ID}::uuid`,
+      );
+
+      const status = await harness.built.app.inject({
+        method: "GET",
+        url: "/v1/security/rotations",
+        headers: authHeaders(auth),
+      });
+      expect(status.statusCode, status.body).toBe(200);
+      expect(status.headers["cache-control"]).toBe("private, no-store");
+
+      const response = await harness.built.app.inject({
+        method: "POST",
+        url: "/v1/security/rotations",
+        headers: authHeaders(auth),
+        payload: {
+          kind: "data-key",
+          mode: "scheduled",
+          reason: "annual rotation",
+          dryRun: false,
+          confirmation: true,
+        },
+      });
+      expect(response.statusCode, response.body).toBe(state === "degraded" ? 503 : 409);
+
+      const operations = await harness.built.database.db.select().from(schema.rotationOperations);
+      expect(operations).toHaveLength(0);
+    },
+  );
+
+  it("exposes exactly both policy projections", async () => {
+    await seedPolicy("wrapping-key", { dueInDays: 100, blockInDays: 107 });
+    await seedPolicy("data-key", { dueInDays: 100, blockInDays: 107 });
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/security/rotations/policies",
+      headers: authHeaders(auth),
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    expect((response.json() as { policies: { kind: string }[] }).policies).toHaveLength(2);
+  });
+
+  it("refuses a policy projection when one of the two policies is absent", async () => {
+    await seedPolicy("data-key", { dueInDays: 100, blockInDays: 107 });
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/security/rotations/policies",
+      headers: authHeaders(auth),
+    });
+    expect(response.statusCode, response.body).toBe(503);
+  });
+
+  it("returns a contract not-found when starting an unconfigured policy", async () => {
+    await seedPolicy("wrapping-key", { dueInDays: 100, blockInDays: 107 });
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/security/rotations",
+      headers: authHeaders(auth),
+      payload: {
+        kind: "data-key",
+        mode: "scheduled",
+        reason: "annual rotation",
+        dryRun: false,
+        confirmation: true,
+      },
+    });
+    expect(response.statusCode, response.body).toBe(404);
+    expect(response.json()).toMatchObject({ code: "not_found" });
+  });
+
+  it("returns an operation only from the current installation scope", async () => {
+    await seedPolicy("data-key", { dueInDays: -10, blockInDays: -1 });
+    const auth = await authenticate();
+    const started = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/security/rotations",
+      headers: authHeaders(auth),
+      payload: {
+        kind: "data-key",
+        mode: "scheduled",
+        reason: "annual rotation",
+        dryRun: false,
+        confirmation: true,
+      },
+    });
+    const operationId = (started.json() as { operationId: string }).operationId;
+    const found = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/security/rotations/${operationId}`,
+      headers: authHeaders(auth),
+    });
+    expect(found.statusCode, found.body).toBe(200);
+    expect((found.json() as { operationId: string }).operationId).toBe(operationId);
+
+    const missing = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/security/rotations/${randomUUID()}`,
+      headers: authHeaders(auth),
+    });
+    expect(missing.statusCode).toBe(404);
+  });
+
   it("refuses without confirmation, even with everything else right", async () => {
     // The field has no default in the contract, and the handler refuses false
     // rather than reading it as consent. A client that forgets it cannot start
@@ -316,7 +428,7 @@ describe("starting a rotation is deliberate", () => {
     const auth = await authenticate();
     const response = await harness.built.app.inject({
       method: "POST",
-      url: "/v1/security/rotation",
+      url: "/v1/security/rotations",
       headers: authHeaders(auth),
       payload: {
         kind: "data-key",
@@ -339,7 +451,7 @@ describe("starting a rotation is deliberate", () => {
     const auth = await authenticate();
     const response = await harness.built.app.inject({
       method: "POST",
-      url: "/v1/security/rotation",
+      url: "/v1/security/rotations",
       headers: authHeaders(auth),
       payload: {
         kind: "data-key",
@@ -362,7 +474,7 @@ describe("starting a rotation is deliberate", () => {
     const auth = await authenticate();
     const response = await harness.built.app.inject({
       method: "POST",
-      url: "/v1/security/rotation",
+      url: "/v1/security/rotations",
       headers: authHeaders(auth),
       payload: {
         kind: "data-key",
@@ -384,7 +496,7 @@ describe("starting a rotation is deliberate", () => {
     const start = () =>
       harness.built.app.inject({
         method: "POST",
-        url: "/v1/security/rotation",
+        url: "/v1/security/rotations",
         headers: authHeaders(auth),
         payload: {
           kind: "data-key",
@@ -406,7 +518,7 @@ describe("starting a rotation is deliberate", () => {
     const auth = await authenticate();
     const response = await harness.built.app.inject({
       method: "GET",
-      url: "/v1/security/rotation",
+      url: "/v1/security/rotations",
       headers: authHeaders(auth),
     });
     expect(response.statusCode, response.body).toBe(200);
@@ -418,7 +530,7 @@ describe("starting a rotation is deliberate", () => {
   it("refuses an unauthenticated caller", async () => {
     const response = await harness.built.app.inject({
       method: "GET",
-      url: "/v1/security/rotation",
+      url: "/v1/security/rotations",
     });
     expect(response.statusCode).toBeGreaterThanOrEqual(401);
   });

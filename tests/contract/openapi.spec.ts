@@ -7,6 +7,14 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
+  CanonicalExportDatabaseEntrySchema,
+  CanonicalExportDatabaseSchema,
+  CanonicalExportFileSchema,
+  CanonicalExportItemSchema,
+  CanonicalExportManifestSchema,
+  CanonicalExportPlacementSchema,
+  CanonicalExportRelationshipSchema,
+  CanonicalExportRevisionSchema,
   ChangeEnvelopeSchema,
   CreateDatabaseRequestSchema,
   CreateEntryRequestSchema,
@@ -38,13 +46,28 @@ import {
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
-interface OpenApiSchema {
+interface SchemaNode {
+  type?: string | string[];
+  format?: string;
+  const?: unknown;
+  enum?: unknown[] | null;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  uniqueItems?: boolean;
+  additionalProperties?: boolean | OpenApiSchema;
   required?: string[];
-  enum?: string[];
   properties?: Record<string, unknown>;
+  items?: unknown;
+  anyOf?: OpenApiSchema[];
+  oneOf?: OpenApiSchema[];
   allOf?: OpenApiSchema[];
   $ref?: string;
 }
+
+interface OpenApiSchema extends SchemaNode {}
 
 interface OpenApiDocument {
   openapi: string;
@@ -54,6 +77,13 @@ interface OpenApiDocument {
     schemas: Record<string, OpenApiSchema>;
   };
 }
+
+interface RuntimeObjectSchema {
+  readonly required?: readonly string[];
+  readonly properties?: Readonly<Record<string, unknown>>;
+}
+
+type ComparableSchema = Record<string, unknown>;
 
 const documentPath = path.resolve(
   import.meta.dirname,
@@ -102,6 +132,91 @@ function runtimeRequired(schema: { required?: string[] }): string[] {
   return schema.required ?? [];
 }
 
+function resolveOpenApiSchema(schema: OpenApiSchema): OpenApiSchema {
+  const reference = schema.$ref?.match(/^#\/components\/schemas\/(.+)$/)?.[1];
+  return reference === undefined ? schema : (openapi.components.schemas[reference] ?? schema);
+}
+
+function comparableSchema(schema: unknown, openApi = false): ComparableSchema {
+  const resolved: SchemaNode = openApi
+    ? resolveOpenApiSchema(schema as OpenApiSchema)
+    : (schema as SchemaNode);
+  const union = (resolved.anyOf ?? resolved.oneOf) as unknown[] | undefined;
+  if (union !== undefined) {
+    return {
+      union: union
+        .map((branch) => JSON.stringify(comparableSchema(branch, openApi)))
+        .sort()
+        .map((branch) => JSON.parse(branch) as ComparableSchema),
+    };
+  }
+
+  const type = resolved.type;
+  if (Array.isArray(type)) {
+    return {
+      union: type
+        .map((branchType) =>
+          comparableSchema(
+            branchType === "null" ? { type: "null" } : { ...resolved, type: branchType },
+            openApi,
+          ),
+        )
+        .map((branch) => JSON.stringify(branch))
+        .sort()
+        .map((branch) => JSON.parse(branch) as ComparableSchema),
+    };
+  }
+
+  if (Array.isArray(resolved.enum)) {
+    return {
+      union: resolved.enum
+        .map((value) =>
+          comparableSchema({
+            const: value,
+            type: typeof value === "string" ? "string" : typeof value,
+          }),
+        )
+        .map((branch: ComparableSchema) => JSON.stringify(branch))
+        .sort()
+        .map((branch: string) => JSON.parse(branch) as ComparableSchema),
+    };
+  }
+
+  const comparable: ComparableSchema = {};
+  for (const key of [
+    "type",
+    "format",
+    "const",
+    "minimum",
+    "maximum",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "uniqueItems",
+  ]) {
+    const value = (resolved as Record<string, unknown>)[key];
+    if (value !== undefined) comparable[key] = value;
+  }
+  if (comparable["const"] !== undefined && comparable["type"] === undefined) {
+    comparable["type"] =
+      typeof comparable["const"] === "string" ? "string" : typeof comparable["const"];
+  }
+  if (type === "object" || resolved.properties !== undefined) {
+    comparable["additionalProperties"] = resolved.additionalProperties ?? true;
+    comparable["required"] = [...(resolved.required ?? [])].sort();
+    const properties = resolved.properties ?? {};
+    comparable["properties"] = Object.fromEntries(
+      Object.entries(properties)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, value]) => [key, comparableSchema(value, openApi)]),
+    );
+  }
+  if (resolved.items !== undefined) {
+    comparable["items"] = comparableSchema(resolved.items, openApi);
+  }
+  return comparable;
+}
+
 describe("OpenAPI ↔ runtime schema alignment", () => {
   it("is an OpenAPI 3.1 document", () => {
     expect(openapi.openapi).toMatch(/^3\.1\./);
@@ -126,6 +241,47 @@ describe("OpenAPI ↔ runtime schema alignment", () => {
     for (const field of contractRequired) {
       expect(runtime, `${name}.${field} must be required at runtime`).toContain(field);
     }
+  });
+
+  it.each([
+    ["CanonicalExportManifest", CanonicalExportManifestSchema],
+    ["CanonicalExportItem", CanonicalExportItemSchema],
+    ["CanonicalExportPlacement", CanonicalExportPlacementSchema],
+    ["CanonicalExportFile", CanonicalExportFileSchema],
+    ["CanonicalExportDatabase", CanonicalExportDatabaseSchema],
+    ["CanonicalExportDatabaseEntry", CanonicalExportDatabaseEntrySchema],
+    ["CanonicalExportRelationship", CanonicalExportRelationshipSchema],
+    ["CanonicalExportRevision", CanonicalExportRevisionSchema],
+  ] as const)(
+    "keeps canonical export %s required fields and properties aligned",
+    (name, schema) => {
+      const contract = openapi.components.schemas[name];
+      const runtimeCandidates = (schema as { readonly anyOf?: readonly RuntimeObjectSchema[] })
+        .anyOf;
+      const runtimeObject =
+        runtimeCandidates?.find((candidate) => candidate.properties !== undefined) ??
+        (schema as RuntimeObjectSchema);
+      expect(contract).toBeDefined();
+      expect(contract?.required ?? []).toEqual(runtimeObject.required ?? []);
+      expect(Object.keys(contract?.properties ?? {}).sort()).toEqual(
+        Object.keys(runtimeObject.properties ?? {}).sort(),
+      );
+    },
+  );
+
+  it.each([
+    ["CanonicalExportManifest", CanonicalExportManifestSchema],
+    ["CanonicalExportItem", CanonicalExportItemSchema],
+    ["CanonicalExportPlacement", CanonicalExportPlacementSchema],
+    ["CanonicalExportFile", CanonicalExportFileSchema],
+    ["CanonicalExportDatabase", CanonicalExportDatabaseSchema],
+    ["CanonicalExportDatabaseEntry", CanonicalExportDatabaseEntrySchema],
+    ["CanonicalExportRelationship", CanonicalExportRelationshipSchema],
+    ["CanonicalExportRevision", CanonicalExportRevisionSchema],
+  ] as const)("keeps canonical export constraints aligned for %s", (name, schema) => {
+    expect(comparableSchema(openapi.components.schemas[name], true)).toEqual(
+      comparableSchema(schema),
+    );
   });
 
   it("covers every documented path with the API implementation table", () => {
@@ -153,8 +309,87 @@ describe("OpenAPI ↔ runtime schema alignment", () => {
         "/v1/snapshots/current",
         "/v1/export",
         "/v1/export/{exportId}",
+        "/v1/export/{exportId}/artifact",
       ]),
     );
+  });
+
+  it("documents the canonical export artifact exactly as the runtime download", () => {
+    const operation = openapi.paths["/v1/export/{exportId}/artifact"]?.["get"] as {
+      operationId?: string;
+      security?: unknown[];
+      parameters?: Array<{
+        in?: string;
+        name?: string;
+        required?: boolean;
+        schema?: { $ref?: string };
+      }>;
+      responses?: Record<
+        string,
+        {
+          headers?: Record<
+            string,
+            {
+              required?: boolean;
+              description?: string;
+              schema?: { type?: string; pattern?: string };
+            }
+          >;
+          content?: Record<string, { schema?: { $ref?: string } }>;
+        }
+      >;
+    };
+
+    expect(operation.operationId).toBe("downloadCanonicalExportArtifact");
+    expect(operation.security).toEqual([{ sessionCookie: [] }, { devSessionCookie: [] }]);
+    expect(operation.parameters).toEqual([
+      {
+        in: "path",
+        name: "exportId",
+        required: true,
+        schema: { $ref: "#/components/schemas/Uuid" },
+      },
+    ]);
+    expect(operation.responses).toEqual(
+      expect.objectContaining({
+        "400": { $ref: "#/components/responses/Problem" },
+        "404": { $ref: "#/components/responses/Problem" },
+      }),
+    );
+    expect(operation.responses?.["200"]?.content).toEqual({
+      "application/json": {
+        schema: { $ref: "#/components/schemas/CanonicalExportManifest" },
+      },
+    });
+    expect(operation.responses?.["200"]?.headers?.["X-Export-Digest"]).toEqual({
+      required: true,
+      description: "SHA-256 digest of the canonical JSON manifest",
+      schema: { type: "string", pattern: "^[a-f0-9]{64}$" },
+    });
+  });
+
+  it("documents authentication, CSRF, and operational failures for every export operation", () => {
+    const operations = [
+      openapi.paths["/v1/export"]?.["post"],
+      openapi.paths["/v1/export/{exportId}"]?.["get"],
+      openapi.paths["/v1/export/{exportId}/artifact"]?.["get"],
+    ] as Array<{
+      security?: unknown[];
+      parameters?: Array<{ $ref?: string }>;
+      responses?: Record<string, unknown>;
+    }>;
+    for (const operation of operations) {
+      expect(operation.security).toEqual([{ sessionCookie: [] }, { devSessionCookie: [] }]);
+      expect(operation.responses).toEqual(
+        expect.objectContaining({
+          "401": { $ref: "#/components/responses/SecurityProblem" },
+          "409": { $ref: "#/components/responses/SecurityProblem" },
+          "500": expect.any(Object),
+          "503": { $ref: "#/components/responses/SecurityProblem" },
+        }),
+      );
+    }
+    expect(operations[0]?.parameters).toEqual([{ $ref: "#/components/parameters/CsrfToken" }]);
   });
 
   it("documents the optional redacted search health state exposed at runtime", () => {

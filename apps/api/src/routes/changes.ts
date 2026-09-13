@@ -75,10 +75,7 @@ export function registerChangeRoutes(app: FastifyInstance, context: AppContext):
         const relationshipRows = [];
         for (const itemId of itemIds) {
           const databaseRecord = await readDatabaseRecord(tx, itemId);
-          if (
-            databaseRecord !== null &&
-            itemsById.get(databaseRecord.databaseId)?.lifecycle !== "purged"
-          ) {
+          if (databaseRecord !== null) {
             databaseRecords.push(databaseRecord);
           }
 

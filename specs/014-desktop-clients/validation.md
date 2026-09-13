@@ -508,6 +508,12 @@ Evidence: `/tmp/mon-9e9-webkit-mobile-ci.log`,
 `/tmp/mon-native-field-projection-webkit-fixed.log`,
 `/tmp/mon-native-field-projection-other-profiles.log`.
 
+The pre-V1 integration of T098 retains the independent unavailable-properties
+state and both sets of regression tests. Twenty-eight component cases, web/root
+types and the two WebKit mobile journeys pass after conflict resolution:
+`/tmp/mon-pre-v1-native-input-merge-tests.log`,
+`/tmp/mon-pre-v1-native-input-merge-browser.log`.
+
 ## T099 — Deterministic native test preparation — 2026-09-08
 
 CI 34220219342 runs the real parent/child test successfully on Windows x64

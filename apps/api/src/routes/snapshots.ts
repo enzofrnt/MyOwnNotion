@@ -66,9 +66,7 @@ export function registerSnapshotRoutes(app: FastifyInstance, context: AppContext
           context.protectedContent,
         );
         const retainedItemIds = new Set(items.map(({ id }) => id));
-        const databaseRecords = (await listDatabaseRecords(tx, context.workspaceId)).filter(
-          ({ databaseId }) => retainedItemIds.has(databaseId),
-        );
+        const databaseRecords = await listDatabaseRecords(tx, context.workspaceId);
         const entryRecords = [];
         for (const record of databaseRecords) {
           const records = await listDatabaseEntryRecords(tx, record.databaseId);

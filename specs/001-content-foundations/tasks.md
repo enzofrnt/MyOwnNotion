@@ -300,5 +300,12 @@ required by FR-045–FR-047 and the product canvas sections 10, 11 and 13.
 - [X] T107 [P] Add domain and editor conversion tests for the `pageLink` inline mark, including a descendant target that does not create a placement, in `packages/domain/tests/document-validate.spec.ts` and `apps/web/tests/editor-round-trip.property.spec.ts` (FR-045, FR-046)
 - [X] T108 [P] Extend the canonical relationship contract and page-document mutation tests for the reserved `page:link` relation type, stable target identity, and atomic document/relation reconciliation in `packages/database/tests/relationships.integration.spec.ts`, `apps/api/tests/page-documents.contract.spec.ts`, and `specs/001-content-foundations/contracts/content-api.openapi.yaml` (FR-045–FR-047)
 - [X] T109 Implement the `pageLink` mark in `packages/domain/src/document/block.ts`, validation/normalisation, Tiptap conversion, and the canonical page-link relation synchronization in `packages/database/src/mutations/execute-command.ts` and `packages/client-core/src/outbox/apply-to-projection.ts` (FR-045–FR-047)
-- [X] T110 [P] Add an accessible page picker and distinct internal-link rendering in `apps/web/src/features/editor/page-link-control.tsx`, `apps/web/src/features/editor/page-link.ts`, `apps/web/src/features/editor/editor-surface.tsx`, and `apps/web/src/styles.css` (FR-045, FR-047)
+- [X] T110 [P] Add an accessible page picker and distinct internal-link rendering in `apps/web/src/features/editor/page-link-control.tsx`, `apps/web/src/features/editor/page-link.ts`, `apps/web/src/features/editor/editor-surface.tsx`, and `apps/web/src/global.css` (FR-045, FR-047)
 - [X] T111 Add the responsive Playwright journey proving that a page can contain both a hierarchy child and an internal page link, and that rename/move/conversion preserve the link target in `tests/e2e/page-links.spec.ts` (US3/AC5–AC6, SC-015)
+
+## Phase 14: Canonical export contract convergence
+
+**Purpose**: Close the export-contract gap found while aligning the executable
+canonical V2 manifest with its OpenAPI representation and its integrity proof.
+
+- [X] T112 [P] Enforce the exact canonical export V2 manifest shape, recursive unknown-field removal, SHA-256 digest verification, and OpenAPI parity in `apps/api/src/routes/export.ts`, `packages/domain/src/export/canonical-export.ts`, `packages/contracts/src/content-api.ts`, `specs/001-content-foundations/contracts/content-api.openapi.yaml`, `tests/contract/export.spec.ts`, `tests/contract/openapi.spec.ts`, and `packages/domain/tests/canonical-export.spec.ts` (FR-023, FR-025, FR-047, SC-005). Evidence is recorded against commit `ca2174cd83fa328f8df808d2ccce5a66061c8999`; delivery and CI gates remain tracked separately.

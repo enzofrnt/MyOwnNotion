@@ -30,7 +30,14 @@ export const PlacementKindSchema = Type.Union([
 ]);
 
 const NullableUuid = Type.Union([UuidSchema, Type.Null()]);
+const CANONICAL_TIMESTAMP_PATTERN = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$";
+const CanonicalDateTimeSchema = Type.String({
+  format: "date-time",
+  pattern: CANONICAL_TIMESTAMP_PATTERN,
+});
 const NullableDateTime = Type.Union([Type.String({ format: "date-time" }), Type.Null()]);
+const NullableCanonicalDateTime = Type.Union([CanonicalDateTimeSchema, Type.Null()]);
+const SAFE_INTEGER_MAX = Number.MAX_SAFE_INTEGER;
 
 /**
  * The page document envelope.
@@ -52,7 +59,7 @@ const NullableDateTime = Type.Union([Type.String({ format: "date-time" }), Type.
 export const PageDocumentSchema = Type.Object(
   {
     format: Type.Literal("myownnotion.document+json"),
-    formatVersion: Type.Integer({ minimum: 1 }),
+    formatVersion: Type.Integer({ minimum: 1, maximum: SAFE_INTEGER_MAX }),
     body: Type.Object({}, { additionalProperties: true }),
   },
   { additionalProperties: false },
@@ -103,6 +110,139 @@ export const ItemSchema = Type.Object({
   placements: Type.Array(PlacementSchema),
 });
 export type ItemDto = Static<typeof ItemSchema>;
+
+/**
+ * The durable export shape. This is intentionally separate from ItemSchema:
+ * export manifests are complete canonical records, while the transport read
+ * model keeps a few fields optional for compatibility with older clients.
+ */
+export const CanonicalExportPlacementSchema = Type.Object(
+  {
+    id: UuidSchema,
+    workspaceId: UuidSchema,
+    itemId: UuidSchema,
+    itemIsFile: Type.Boolean(),
+    kind: PlacementKindSchema,
+    parentItemId: NullableUuid,
+    positionKey: Type.String({
+      minLength: 1,
+      maxLength: 255,
+      pattern: "^[0-9A-Za-z]+$",
+    }),
+    removedAt: Type.Null(),
+  },
+  { additionalProperties: false },
+);
+
+export const CanonicalExportFileSchema = Type.Object(
+  {
+    mediaType: Type.String({ minLength: 1 }),
+    originalName: Type.String({ minLength: 1 }),
+    byteLength: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+    sha256: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+  },
+  { additionalProperties: false },
+);
+
+export const CanonicalExportItemSchema = Type.Object(
+  {
+    id: UuidSchema,
+    workspaceId: UuidSchema,
+    kind: ItemKindSchema,
+    name: DisplayNameSchema,
+    icon: ItemIconSchema,
+    lifecycle: LifecycleSchema,
+    trashedAt: NullableCanonicalDateTime,
+    purgeAfter: NullableCanonicalDateTime,
+    currentRevisionId: UuidSchema,
+    favourite: Type.Boolean(),
+    offlineIntent: Type.Boolean(),
+    pageDocument: Type.Union([PageDocumentSchema, Type.Null()]),
+    file: Type.Union([CanonicalExportFileSchema, Type.Null()]),
+    placements: Type.Array(CanonicalExportPlacementSchema),
+  },
+  { additionalProperties: false },
+);
+
+export const CanonicalExportDatabaseSchema = Type.Object(
+  {
+    databaseId: UuidSchema,
+    definitionRevisionId: Type.Optional(UuidSchema),
+    definitionVersion: Type.Integer({ minimum: 1, maximum: SAFE_INTEGER_MAX }),
+    definition: Type.Object({}, { additionalProperties: true }),
+  },
+  { additionalProperties: false },
+);
+
+export const CanonicalExportDatabaseEntrySchema = Type.Object(
+  {
+    entryId: UuidSchema,
+    databaseId: UuidSchema,
+    valueVersion: Type.Integer({ minimum: 1, maximum: SAFE_INTEGER_MAX }),
+    addedRevisionId: UuidSchema,
+    values: Type.Object({}, { additionalProperties: true }),
+  },
+  { additionalProperties: false },
+);
+
+export const CanonicalExportRelationshipSchema = Type.Object(
+  {
+    id: UuidSchema,
+    workspaceId: UuidSchema,
+    sourceItemId: UuidSchema,
+    targetItemId: UuidSchema,
+    relationType: Type.String({
+      maxLength: 128,
+      pattern: "^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$",
+    }),
+    metadata: Type.Object({}, { additionalProperties: true }),
+    createdRevisionId: UuidSchema,
+    removedRevisionId: NullableUuid,
+  },
+  { additionalProperties: false },
+);
+
+export const CanonicalExportRevisionSchema = Type.Object(
+  {
+    id: UuidSchema,
+    itemId: UuidSchema,
+    mutationId: UuidSchema,
+    parentRevisionIds: Type.Array(UuidSchema, { uniqueItems: true }),
+    acceptedAt: CanonicalDateTimeSchema,
+    authoredByDeviceId: Type.Optional(Type.Union([UuidSchema, Type.Null()])),
+  },
+  { additionalProperties: false },
+);
+
+export const CanonicalExportManifestSchema = Type.Object(
+  {
+    format: Type.Literal("myownnotion.export+json"),
+    formatVersion: Type.Literal(2),
+    workspaceId: UuidSchema,
+    schemaVersion: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+    exportedAt: CanonicalDateTimeSchema,
+    changeCursor: Type.String(),
+    items: Type.Array(CanonicalExportItemSchema),
+    databases: Type.Array(CanonicalExportDatabaseSchema),
+    databaseEntries: Type.Array(CanonicalExportDatabaseEntrySchema),
+    relationships: Type.Array(CanonicalExportRelationshipSchema),
+    revisions: Type.Array(CanonicalExportRevisionSchema),
+    counts: Type.Object(
+      {
+        items: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+        activeItems: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+        trashedItems: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+        placements: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+        relationships: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+        revisions: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+        databases: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+        databaseEntries: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  { additionalProperties: false },
+);
 
 /**
  * One place a file is referenced from (feature 005, FR-005).
@@ -690,6 +830,20 @@ export const DatabaseDefinitionSchema = Type.Object(
     format: Type.Literal("myownnotion.database-definition+json"),
     formatVersion: Type.Literal(1),
     databaseId: UuidSchema,
+    name: Type.Optional(DisplayNameSchema),
+    embeddings: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            id: UuidSchema,
+            hostPageId: UuidSchema,
+            state: DatabaseStateSchema,
+            views: Type.Array(DatabaseViewSchema, { minItems: 1 }),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
     properties: Type.Array(DatabasePropertySchema, { minItems: 1 }),
     views: Type.Array(DatabaseViewSchema, { minItems: 1 }),
     taskRoles: Type.Union([DatabaseTaskRoleMappingSchema, Type.Null()]),
@@ -702,6 +856,7 @@ export const CreateDatabaseRequestSchema = Type.Object(
   {
     id: UuidSchema,
     name: DisplayNameSchema,
+    hostPageId: Type.Optional(UuidSchema),
     placement: DatabasePlacementInputSchema,
     titlePropertyId: UuidSchema,
     titlePropertyName: Type.Optional(DisplayNameSchema),
@@ -760,7 +915,7 @@ export const CreateEntryRequestSchema = Type.Object(
   {
     id: UuidSchema,
     title: DisplayNameSchema,
-    placement: DatabasePlacementInputSchema,
+    placement: Type.Optional(DatabasePlacementInputSchema),
     document: Type.Optional(PageDocumentSchema),
     values: DatabaseValuesMapSchema,
     relationTargets: DatabaseRelationTargetsMapSchema,
@@ -852,6 +1007,7 @@ export const DatabaseProjectionSchema = Type.Object(
   {
     itemId: UuidSchema,
     definitionVersion: Type.Integer({ minimum: 1 }),
+    definitionRevisionId: Type.Optional(UuidSchema),
     definition: DatabaseDefinitionSchema,
   },
   { additionalProperties: false },

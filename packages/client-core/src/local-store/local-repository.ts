@@ -113,6 +113,9 @@ function databaseRowFrom(dto: DatabaseProjectionDto): LocalDatabaseRow {
   return {
     itemId: dto.itemId as Uuid,
     definitionVersion: dto.definitionVersion,
+    ...(dto.definitionRevisionId === undefined
+      ? {}
+      : { definitionRevisionId: dto.definitionRevisionId as Uuid }),
     definition: dto.definition as unknown as DatabaseDefinition,
   };
 }
@@ -150,9 +153,15 @@ export class LocalRepository {
     rows: ReadonlyArray<{ row: SealedLocalItemRow; placements: LocalPlacementRow[] }>,
   ): Promise<ProjectedItem[]> {
     const opened: ProjectedItem[] = [];
-    for (const entry of rows) {
-      const item = await this.#codec.openItem(entry.row);
-      opened.push({ ...item, placements: entry.placements });
+    for (let offset = 0; offset < rows.length; offset += 64) {
+      opened.push(
+        ...(await Promise.all(
+          rows.slice(offset, offset + 64).map(async (entry) => ({
+            ...(await this.#codec.openItem(entry.row)),
+            placements: entry.placements,
+          })),
+        )),
+      );
     }
     return opened;
   }
@@ -192,16 +201,11 @@ export class LocalRepository {
       input.items.filter(({ lifecycle }) => lifecycle !== "purged").map(({ id }) => id),
     );
     const databaseRows = await Promise.all(
-      (input.databases ?? [])
-        .filter(({ itemId }) => retainedItemIds.has(itemId))
-        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
+      (input.databases ?? []).map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
     );
     const databaseEntryRows = await Promise.all(
       (input.databaseEntries ?? [])
-        .filter(
-          ({ entryItemId, databaseId }) =>
-            retainedItemIds.has(entryItemId) && retainedItemIds.has(databaseId),
-        )
+        .filter(({ entryItemId }) => retainedItemIds.has(entryItemId))
         .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
     );
     await this.db.transaction(
@@ -260,16 +264,11 @@ export class LocalRepository {
       input.items.filter(({ lifecycle }) => lifecycle === "purged").map(({ id }) => id),
     );
     const databaseRows = await Promise.all(
-      (input.databases ?? [])
-        .filter(({ itemId }) => !purgedItemIds.has(itemId))
-        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
+      (input.databases ?? []).map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
     );
     const databaseEntryRows = await Promise.all(
       (input.databaseEntries ?? [])
-        .filter(
-          ({ entryItemId, databaseId }) =>
-            !purgedItemIds.has(entryItemId) && !purgedItemIds.has(databaseId),
-        )
+        .filter(({ entryItemId }) => !purgedItemIds.has(entryItemId))
         .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
     );
     const changedItemIds = new Set(input.items.map(({ id }) => id));
@@ -299,9 +298,7 @@ export class LocalRepository {
             // projections. Keep the item identity unavailable, but remove its
             // definition/membership/value material immediately. A purged host
             // also invalidates every retained membership keyed to that base.
-            await this.db.databases.delete(itemId);
             await this.db.databaseEntries.delete(itemId);
-            await this.db.databaseEntries.where("databaseId").equals(itemId).delete();
           }
         }
         const relevantRelationships = relationshipRows.filter(({ sourceItemId }) =>
@@ -317,6 +314,31 @@ export class LocalRepository {
         await this.db.meta.put({ key: META_KEYS.lastChangeCursor, value: input.cursor });
       },
     );
+  }
+
+  async getItems(itemIds: readonly Uuid[]): Promise<ProjectedItem[]> {
+    if (itemIds.length === 0) return [];
+    const fetched = await this.db.transaction(
+      "r",
+      [this.db.items, this.db.placements],
+      async () => {
+        const items = await this.db.items.bulkGet([...itemIds]);
+        const placements = await this.db.placements
+          .where("itemId")
+          .anyOf([...itemIds])
+          .toArray();
+        const byItem = new Map<Uuid, LocalPlacementRow[]>();
+        for (const placement of placements) {
+          const values = byItem.get(placement.itemId) ?? [];
+          values.push(placement);
+          byItem.set(placement.itemId, values);
+        }
+        return items.flatMap((row) =>
+          row === undefined ? [] : [{ row, placements: byItem.get(row.id) ?? [] }],
+        );
+      },
+    );
+    return await this.#openAll(fetched);
   }
 
   async getItem(itemId: Uuid): Promise<ProjectedItem | null> {

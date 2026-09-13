@@ -39,6 +39,8 @@ const result = await Bun.build({
     path.join(sourceRoot, "server.ts"),
     path.join(sourceRoot, "migrate.ts"),
     path.join(sourceRoot, "admin", "admin-cli.ts"),
+    path.join(sourceRoot, "mcp", "exchange-cli.ts"),
+    path.join(sourceRoot, "imports", "notion", "cli.ts"),
   ],
   root: sourceRoot,
   outdir,
@@ -70,6 +72,10 @@ for (const relativePath of [
   "migrate.js.map",
   "admin/admin-cli.js",
   "admin/admin-cli.js.map",
+  "mcp/exchange-cli.js",
+  "mcp/exchange-cli.js.map",
+  "imports/notion/cli.js",
+  "imports/notion/cli.js.map",
 ]) {
   await access(path.join(outdir, relativePath));
 }

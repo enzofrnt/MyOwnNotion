@@ -3,6 +3,7 @@
 import { createCipheriv, randomBytes } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { open as openFile, rm } from "node:fs/promises";
+import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { open, seal } from "@myownnotion/domain/security";
 
@@ -33,6 +34,20 @@ export async function sealBackupArchiveFile(
   plaintextPath: string,
   sealedPath: string,
 ): Promise<void> {
+  return sealBackupArchiveStream(
+    key,
+    (async function* () {
+      yield* createReadStream(plaintextPath);
+    })(),
+    sealedPath,
+  );
+}
+
+export async function sealBackupArchiveStream(
+  key: Uint8Array,
+  plaintext: AsyncIterable<Uint8Array>,
+  sealedPath: string,
+): Promise<void> {
   const nonce = randomBytes(NONCE_BYTES);
   const cipher = createCipheriv(CIPHER, Buffer.from(key), nonce, { authTagLength: TAG_BYTES });
   cipher.setAAD(AAD);
@@ -41,7 +56,7 @@ export async function sealBackupArchiveFile(
     await handle.write(nonce, 0, nonce.byteLength, 0);
     await handle.write(Buffer.alloc(TAG_BYTES), 0, TAG_BYTES, NONCE_BYTES);
     await pipeline(
-      createReadStream(plaintextPath),
+      Readable.from(plaintext, { objectMode: false }),
       cipher,
       createWriteStream(sealedPath, {
         fd: handle.fd,

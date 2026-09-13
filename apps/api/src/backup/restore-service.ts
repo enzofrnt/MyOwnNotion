@@ -169,6 +169,8 @@ export interface RestoreTarget {
     operationalState: unknown,
     canonicalExport: unknown,
   ) => Promise<void>;
+  /** Verifies database-backed device references before mutation begins. */
+  readonly verifyPageOperationDevices?: (operationalState: unknown) => Promise<void>;
   /** Restores the already verified causal state once referenced rows exist. */
   readonly writePageOperations?: (operationalState: unknown) => Promise<void>;
   /** Flushes writes that require every item and revision to exist first. */
@@ -205,12 +207,17 @@ export async function applyArchive(archive: Buffer, target: RestoreTarget): Prom
   const databaseEntries = exported.databaseEntries ?? [];
   let operationalState: unknown = null;
   if (body.operationalState !== null) {
-    if (target.verifyPageOperations === undefined || target.writePageOperations === undefined) {
+    if (
+      target.verifyPageOperations === undefined ||
+      target.verifyPageOperationDevices === undefined ||
+      target.writePageOperations === undefined
+    ) {
       throw new Error("the restore target cannot restore operational page state");
     }
     operationalState = JSON.parse(body.operationalState);
     // This is intentionally before file ingestion and before the first row:
     // a canonical/causal mismatch must leave no restore artefact behind.
+    await target.verifyPageOperationDevices(operationalState);
     await target.verifyPageOperations(operationalState, exported);
   }
   await target.begin?.();

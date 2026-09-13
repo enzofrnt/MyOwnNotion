@@ -8,9 +8,26 @@
  * canonical string, so adapters can digest and independently validate it.
  */
 
-import type { CanonicalItem, PageDocument, Placement, Relationship } from "../content/types.ts";
+import { validatePageDocument } from "../content/hierarchy.ts";
+import { isValidPositionKey } from "../content/position-key.ts";
+import { isValidRelationType } from "../content/relationships.ts";
+import {
+  type CanonicalItem,
+  isProtectedContentPayload,
+  type PageDocument,
+  type Placement,
+  type Relationship,
+} from "../content/types.ts";
+import { validateDatabaseDefinition } from "../databases/schema.ts";
 import type { DatabaseDefinition, EntryValues } from "../databases/types.ts";
-import type { Uuid } from "../ids/uuid.ts";
+import {
+  normalizeCivilDate,
+  normalizeDecimal,
+  normalizeInstant,
+  normalizePropertyValue,
+} from "../databases/values.ts";
+import { validatePageDocumentEnvelopeV3 } from "../document/validate.ts";
+import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type { RevisionHeader } from "../revisions/types.ts";
 
 export const CANONICAL_EXPORT_FORMAT = "myownnotion.export+json";
@@ -32,6 +49,7 @@ export interface ExportedItem extends CanonicalItem {
 
 export interface ExportedDatabase {
   readonly databaseId: Uuid;
+  readonly definitionRevisionId?: Uuid;
   readonly definitionVersion: number;
   readonly definition: DatabaseDefinition;
 }
@@ -73,6 +91,16 @@ export interface CanonicalExportManifest {
   };
 }
 
+export type LegacyCanonicalExportManifest = Omit<
+  CanonicalExportManifest,
+  "formatVersion" | "databases" | "databaseEntries" | "counts"
+> & {
+  readonly formatVersion: 1;
+  readonly counts: Omit<CanonicalExportManifest["counts"], "databases" | "databaseEntries">;
+};
+
+export type AnyCanonicalExportManifest = CanonicalExportManifest | LegacyCanonicalExportManifest;
+
 export interface BuildExportInput {
   readonly workspaceId: Uuid;
   readonly schemaVersion: number;
@@ -100,8 +128,8 @@ function sortByKey<T>(entries: ReadonlyArray<T>, key: (entry: T) => string): T[]
 }
 
 export function buildCanonicalExport(input: BuildExportInput): CanonicalExportManifest {
-  // Purged items are represented only through revision headers and lifecycle
-  // diagnostics; active and trashed items are exported completely (FR-025).
+  // Purged items carry neutral structural tombstones so retained journal owners
+  // resolve during restore. Their names, documents, files and placements are absent.
   const items = sortById(input.items).map((item) => ({
     ...item,
     placements: [...item.placements].sort((a, b) => (a.id < b.id ? -1 : 1)),
@@ -167,17 +195,500 @@ export interface ExportValidationIssue {
   readonly detail: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function isIdentifier(value: unknown): value is string {
+  return isUuid(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
+}
+
+/** Finds a NUL in any JSON string value or object key without recursive depth limits. */
+function findNulPath(value: unknown): string | null {
+  const pending: Array<{ readonly value: unknown; readonly path: string }> = [{ value, path: "$" }];
+  const visited = new WeakSet<object>();
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined) continue;
+    if (typeof current.value === "string") {
+      if (current.value.includes("\u0000")) return current.path;
+      continue;
+    }
+    if (typeof current.value !== "object" || current.value === null) continue;
+    if (visited.has(current.value)) continue;
+    visited.add(current.value);
+    if (Array.isArray(current.value)) {
+      for (let index = current.value.length - 1; index >= 0; index -= 1) {
+        pending.push({ value: current.value[index], path: `${current.path}[${index}]` });
+      }
+      continue;
+    }
+    const entries = Object.entries(current.value);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const [key, child] = entries[index] as [string, unknown];
+      if (key.includes(String.fromCharCode(0))) {
+        return `${current.path}.<object-key-with-U+0000>`;
+      }
+      pending.push({ value: child, path: `${current.path}.${key}` });
+    }
+  }
+  return null;
+}
+
+function isTimestamp(value: unknown): value is string {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return false;
+  try {
+    return new Date(value).toISOString() === value;
+  } catch {
+    return false;
+  }
+}
+
+const DATABASE_PROPERTY_TYPES_SET = new Set([
+  "title",
+  "text",
+  "number",
+  "date",
+  "status",
+  "select",
+  "multi-select",
+  "checkbox",
+  "relation",
+]);
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const expected = new Set(keys);
+  return (
+    Object.keys(value).every((key) => expected.has(key)) &&
+    keys.every((key) => Object.hasOwn(value, key))
+  );
+}
+
+function validEntryPropertyValue(value: unknown): boolean {
+  if (!isRecord(value) || typeof value["kind"] !== "string") return false;
+  switch (value["kind"]) {
+    case "text":
+      return hasExactKeys(value, ["kind", "value"]) && typeof value["value"] === "string";
+    case "number":
+      return (
+        hasExactKeys(value, ["kind", "decimal"]) &&
+        typeof value["decimal"] === "string" &&
+        normalizeDecimal(value["decimal"]).ok
+      );
+    case "date":
+      return (
+        hasExactKeys(value, ["kind", "date"]) &&
+        typeof value["date"] === "string" &&
+        normalizeCivilDate(value["date"]).ok
+      );
+    case "instant":
+      return (
+        hasExactKeys(value, ["kind", "instant"]) &&
+        typeof value["instant"] === "string" &&
+        normalizeInstant(value["instant"]).ok
+      );
+    case "status":
+    case "select":
+      return hasExactKeys(value, ["kind", "optionId"]) && isIdentifier(value["optionId"]);
+    case "multi-select":
+      return (
+        hasExactKeys(value, ["kind", "optionIds"]) &&
+        Array.isArray(value["optionIds"]) &&
+        value["optionIds"].every(isIdentifier) &&
+        new Set(value["optionIds"]).size === value["optionIds"].length
+      );
+    case "checkbox":
+      return hasExactKeys(value, ["kind", "checked"]) && typeof value["checked"] === "boolean";
+    default:
+      return false;
+  }
+}
+
+function validPreservedValue(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, ["propertyId", "sourceType", "value", "preservedAtRevisionId", "reason"]) &&
+    isIdentifier(value["propertyId"]) &&
+    typeof value["sourceType"] === "string" &&
+    DATABASE_PROPERTY_TYPES_SET.has(value["sourceType"]) &&
+    isIdentifier(value["preservedAtRevisionId"]) &&
+    ["incompatible-conversion", "retired-property", "retired-option"].includes(
+      String(value["reason"]),
+    )
+  );
+}
+
+function shapeIssue(code: string, detail: string): ExportValidationIssue {
+  return { code: `shape.${code}`, detail };
+}
+
+function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
+  if (!isRecord(value)) return [shapeIssue("manifest", "Canonical export must be an object")];
+  const issues: ExportValidationIssue[] = [];
+  const nulPath = findNulPath(value);
+  if (nulPath !== null) {
+    issues.push(shapeIssue("nul", `Canonical export contains U+0000 at ${nulPath}`));
+  }
+  if (value["format"] !== CANONICAL_EXPORT_FORMAT)
+    issues.push(shapeIssue("manifest", "Canonical export has an unsupported format"));
+  const isLegacy = value["formatVersion"] === 1;
+  const isCurrent = value["formatVersion"] === CANONICAL_EXPORT_VERSION;
+  if (!isLegacy && !isCurrent)
+    issues.push(shapeIssue("manifest", "Canonical export has an unsupported version"));
+  for (const field of ["workspaceId", "exportedAt"] as const) {
+    if (!isNonEmptyString(value[field]))
+      issues.push(shapeIssue("manifest", `${field} is required`));
+  }
+  if (!isTimestamp(value["exportedAt"]))
+    issues.push(shapeIssue("manifest", "exportedAt must be an RFC3339 timestamp"));
+  if (typeof value["changeCursor"] !== "string")
+    issues.push(shapeIssue("manifest", "changeCursor is required"));
+  if (!isIdentifier(value["workspaceId"]))
+    issues.push(shapeIssue("manifest", "workspaceId must be a UUID"));
+  if (!isNonNegativeInteger(value["schemaVersion"]))
+    issues.push(shapeIssue("manifest", "schemaVersion must be a non-negative integer"));
+  const requiredArrays = isCurrent
+    ? ["items", "databases", "databaseEntries", "relationships", "revisions"]
+    : ["items", "relationships", "revisions"];
+  for (const field of requiredArrays) {
+    if (!Array.isArray(value[field]))
+      issues.push(shapeIssue("manifest", `${field} must be an array`));
+  }
+  const counts = value["counts"];
+  if (!isRecord(counts)) {
+    issues.push(shapeIssue("counts", "counts must be an object"));
+  } else {
+    const requiredCounts = isCurrent
+      ? [
+          "items",
+          "activeItems",
+          "trashedItems",
+          "placements",
+          "relationships",
+          "revisions",
+          "databases",
+          "databaseEntries",
+        ]
+      : ["items", "activeItems", "trashedItems", "placements", "relationships", "revisions"];
+    for (const field of requiredCounts) {
+      if (!isNonNegativeInteger(counts[field]))
+        issues.push(shapeIssue("counts", `${field} must be a non-negative integer`));
+    }
+  }
+  if (issues.length > 0) return issues;
+
+  const items = value["items"] as unknown[];
+  for (const [index, item] of items.entries()) {
+    if (!isRecord(item)) {
+      issues.push(shapeIssue("item", `items[${index}] must be an object`));
+      continue;
+    }
+    const icon = item["icon"];
+    const iconValid = isLegacy
+      ? icon === undefined ||
+        icon === null ||
+        (typeof icon === "string" && icon.length >= 1 && icon.length <= 64)
+      : icon === null || (typeof icon === "string" && icon.length >= 1 && icon.length <= 64);
+    if (
+      !isIdentifier(item["id"]) ||
+      !isIdentifier(item["workspaceId"]) ||
+      !["page", "folder", "file"].includes(String(item["kind"])) ||
+      !(
+        typeof item["name"] === "string" &&
+        item["name"].length >= 1 &&
+        item["name"].length <= 512
+      ) ||
+      !iconValid ||
+      (item["kind"] === "file" && icon !== null && icon !== undefined) ||
+      !["active", "trashed", "purged"].includes(String(item["lifecycle"])) ||
+      !(item["trashedAt"] === null || isTimestamp(item["trashedAt"])) ||
+      !(item["purgeAfter"] === null || isTimestamp(item["purgeAfter"])) ||
+      !isIdentifier(item["currentRevisionId"]) ||
+      typeof item["favourite"] !== "boolean" ||
+      typeof item["offlineIntent"] !== "boolean" ||
+      !Array.isArray(item["placements"])
+    ) {
+      issues.push(shapeIssue("item", `items[${index}] is incomplete`));
+      continue;
+    }
+    const pageDocument = item["pageDocument"];
+    if (
+      pageDocument !== null &&
+      (!isRecord(pageDocument) ||
+        !isNonEmptyString(pageDocument["format"]) ||
+        !isPositiveInteger(pageDocument["formatVersion"]) ||
+        !isRecord(pageDocument["body"]))
+    ) {
+      issues.push(shapeIssue("item", `items[${index}].pageDocument is invalid`));
+    } else if (pageDocument !== null && !isProtectedContentPayload(pageDocument["body"])) {
+      const pageDocumentValid =
+        pageDocument["formatVersion"] === 3
+          ? validatePageDocumentEnvelopeV3(pageDocument).ok
+          : validatePageDocument(pageDocument as unknown as PageDocument).ok;
+      if (!pageDocumentValid) {
+        issues.push(shapeIssue("item", `items[${index}].pageDocument is not supported`));
+      }
+    }
+    if (
+      (item["kind"] !== "page" && pageDocument !== null) ||
+      (item["kind"] === "page" && item["lifecycle"] !== "purged" && pageDocument === null) ||
+      (item["kind"] === "page" && item["lifecycle"] === "purged" && pageDocument !== null)
+    ) {
+      issues.push(shapeIssue("item", `items[${index}].pageDocument does not match item kind`));
+    }
+    const file = item["file"];
+    if (
+      file !== null &&
+      (!isRecord(file) ||
+        !isNonEmptyString(file["mediaType"]) ||
+        !isNonEmptyString(file["originalName"]) ||
+        !isNonNegativeInteger(file["byteLength"]) ||
+        typeof file["sha256"] !== "string" ||
+        !/^[0-9a-f]{64}$/.test(file["sha256"]))
+    ) {
+      issues.push(shapeIssue("item", `items[${index}].file is invalid`));
+    }
+    if (
+      (item["kind"] !== "file" && file !== null) ||
+      (item["kind"] === "file" && item["lifecycle"] !== "purged" && file === null) ||
+      (item["lifecycle"] === "purged" &&
+        (file !== null || pageDocument !== null || (item["placements"] as unknown[]).length > 0))
+    ) {
+      issues.push(shapeIssue("item", `items[${index}] has inconsistent file or tombstone state`));
+    }
+    for (const [placementIndex, placement] of (item["placements"] as unknown[]).entries()) {
+      if (
+        !isRecord(placement) ||
+        !isIdentifier(placement["id"]) ||
+        !isIdentifier(placement["workspaceId"]) ||
+        !isIdentifier(placement["itemId"]) ||
+        typeof placement["itemIsFile"] !== "boolean" ||
+        !["hierarchy", "attachment"].includes(String(placement["kind"])) ||
+        !(placement["parentItemId"] === null || isIdentifier(placement["parentItemId"])) ||
+        typeof placement["positionKey"] !== "string" ||
+        !isValidPositionKey(placement["positionKey"]) ||
+        placement["itemIsFile"] !== (item["kind"] === "file") ||
+        (placement["kind"] === "attachment" &&
+          (placement["parentItemId"] === null || item["kind"] !== "file")) ||
+        placement["removedAt"] !== null
+      ) {
+        issues.push(shapeIssue("item", `items[${index}].placements[${placementIndex}] is invalid`));
+      }
+    }
+  }
+
+  const revisions = value["revisions"] as unknown[];
+  for (const [index, revision] of revisions.entries()) {
+    if (
+      !isRecord(revision) ||
+      !isIdentifier(revision["id"]) ||
+      !isIdentifier(revision["itemId"]) ||
+      !isIdentifier(revision["mutationId"]) ||
+      !Array.isArray(revision["parentRevisionIds"]) ||
+      !(revision["parentRevisionIds"] as unknown[]).every(isIdentifier) ||
+      !isTimestamp(revision["acceptedAt"]) ||
+      !(
+        revision["authoredByDeviceId"] === undefined ||
+        revision["authoredByDeviceId"] === null ||
+        isIdentifier(revision["authoredByDeviceId"])
+      ) ||
+      new Set(revision["parentRevisionIds"] as unknown[]).size !==
+        (revision["parentRevisionIds"] as unknown[]).length
+    ) {
+      issues.push(shapeIssue("revision", `revisions[${index}] is incomplete`));
+    }
+  }
+
+  const relationships = value["relationships"] as unknown[];
+  for (const [index, relationship] of relationships.entries()) {
+    if (
+      !isRecord(relationship) ||
+      !isIdentifier(relationship["id"]) ||
+      !isIdentifier(relationship["workspaceId"]) ||
+      !isIdentifier(relationship["sourceItemId"]) ||
+      !isIdentifier(relationship["targetItemId"]) ||
+      typeof relationship["relationType"] !== "string" ||
+      !isValidRelationType(relationship["relationType"]) ||
+      !isRecord(relationship["metadata"]) ||
+      !isIdentifier(relationship["createdRevisionId"]) ||
+      !(
+        relationship["removedRevisionId"] === null ||
+        isIdentifier(relationship["removedRevisionId"])
+      )
+    ) {
+      issues.push(shapeIssue("relationship", `relationships[${index}] is incomplete`));
+    }
+  }
+
+  const databases = (Array.isArray(value["databases"]) ? value["databases"] : []) as unknown[];
+  for (const [index, database] of isCurrent ? databases.entries() : []) {
+    const definition = isRecord(database) ? database["definition"] : undefined;
+    if (
+      !isRecord(database) ||
+      !isIdentifier(database["databaseId"]) ||
+      !isPositiveInteger(database["definitionVersion"]) ||
+      !(
+        database["definitionRevisionId"] === undefined ||
+        isIdentifier(database["definitionRevisionId"])
+      ) ||
+      !isRecord(definition) ||
+      !isNonEmptyString(definition["format"]) ||
+      !isNonNegativeInteger(definition["formatVersion"]) ||
+      !isIdentifier(definition["databaseId"]) ||
+      !Array.isArray(definition["properties"]) ||
+      !Array.isArray(definition["views"]) ||
+      !(definition["taskRoles"] === null || isRecord(definition["taskRoles"]))
+    ) {
+      issues.push(shapeIssue("database", `databases[${index}] is incomplete`));
+    } else {
+      try {
+        if (!validateDatabaseDefinition(definition as unknown as DatabaseDefinition).ok) {
+          issues.push(shapeIssue("database", `databases[${index}].definition is invalid`));
+        }
+      } catch {
+        issues.push(shapeIssue("database", `databases[${index}].definition is invalid`));
+      }
+    }
+  }
+
+  const entries = (
+    Array.isArray(value["databaseEntries"]) ? value["databaseEntries"] : []
+  ) as unknown[];
+  for (const [index, entry] of isCurrent ? entries.entries() : []) {
+    const values = isRecord(entry) ? entry["values"] : undefined;
+    if (
+      !isRecord(entry) ||
+      !isIdentifier(entry["entryId"]) ||
+      !isIdentifier(entry["databaseId"]) ||
+      !isPositiveInteger(entry["valueVersion"]) ||
+      !isIdentifier(entry["addedRevisionId"]) ||
+      !isRecord(values) ||
+      values["format"] !== "myownnotion.database-entry-values+json" ||
+      values["formatVersion"] !== 1 ||
+      !isIdentifier(values["databaseId"]) ||
+      !isIdentifier(values["entryId"]) ||
+      !isRecord(values["values"]) ||
+      !Array.isArray(values["preserved"]) ||
+      !(values["preserved"] as unknown[]).every(validPreservedValue)
+    ) {
+      issues.push(shapeIssue("database-entry", `databaseEntries[${index}] is incomplete`));
+    } else {
+      for (const [propertyId, propertyValue] of Object.entries(
+        values["values"] as Record<string, unknown>,
+      )) {
+        if (!isIdentifier(propertyId) || !validEntryPropertyValue(propertyValue)) {
+          issues.push(shapeIssue("database-entry", `databaseEntries[${index}].values is invalid`));
+          break;
+        }
+      }
+    }
+  }
+  return issues;
+}
+
+function hasDirectedCycle(
+  nodes: Iterable<string>,
+  edges: ReadonlyMap<string, readonly string[]>,
+): boolean {
+  const state = new Map<string, "visiting" | "visited">();
+  for (const start of nodes) {
+    if (state.has(start)) continue;
+    state.set(start, "visiting");
+    const stack: Array<{ id: string; next: number }> = [{ id: start, next: 0 }];
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1];
+      if (frame === undefined) break;
+      const neighbors = edges.get(frame.id) ?? [];
+      if (frame.next >= neighbors.length) {
+        state.set(frame.id, "visited");
+        stack.pop();
+        continue;
+      }
+      const neighbor = neighbors[frame.next];
+      frame.next += 1;
+      if (neighbor === undefined) continue;
+      const neighborState = state.get(neighbor);
+      if (neighborState === "visiting") return true;
+      if (neighborState === "visited") continue;
+      state.set(neighbor, "visiting");
+      stack.push({ id: neighbor, next: 0 });
+    }
+  }
+  return false;
+}
+
 /**
  * Independent completeness validation (SC-005): every placement parent and
  * relationship endpoint must resolve to an exported item or be explicitly
  * diagnosable, and counts must match the actual arrays.
  */
 export function validateCanonicalExport(
-  manifest: CanonicalExportManifest,
+  manifest: AnyCanonicalExportManifest,
 ): ExportValidationIssue[] {
-  const issues: ExportValidationIssue[] = [];
+  const issues: ExportValidationIssue[] = validateCanonicalShape(manifest);
+  if (issues.length > 0) return issues;
+  const databases = "databases" in manifest ? manifest.databases : [];
+  const databaseEntries = "databaseEntries" in manifest ? manifest.databaseEntries : [];
+  const duplicateCodes: ReadonlyArray<readonly [string, readonly string[]]> = [
+    ["item.duplicate", manifest.items.map((item) => item.id)],
+    ["revision.duplicate", manifest.revisions.map((revision) => revision.id)],
+    ["relationship.duplicate", manifest.relationships.map((relationship) => relationship.id)],
+    [
+      "placement.duplicate",
+      manifest.items.flatMap((item) => item.placements.map((placement) => placement.id)),
+    ],
+  ];
+  for (const [code, ids] of duplicateCodes) {
+    if (new Set(ids).size !== ids.length)
+      issues.push({
+        code,
+        detail: `Canonical export contains duplicate ${code.split(".")[0]} IDs`,
+      });
+  }
   const itemIds = new Set(manifest.items.map((item) => item.id));
+  const itemsById = new Map(manifest.items.map((item) => [item.id, item]));
   const revisionIds = new Set(manifest.revisions.map((revision) => revision.id));
+  const revisionsById = new Map(manifest.revisions.map((revision) => [revision.id, revision]));
+  // A linked database source and its entries are canonical pages, but they do
+  // not belong to the navigation hierarchy by default (FR-012/026). Keep the
+  // ordinary page cardinality invariant for every other active page.
+  const databaseIds = new Set(databases.map((database) => database.databaseId));
+  const entryIds = new Set(databaseEntries.map((entry) => entry.entryId));
+  const hierarchyParents = new Map(
+    manifest.items.map((item) => [
+      item.id,
+      item.placements
+        .filter((placement) => placement.kind === "hierarchy" && placement.parentItemId !== null)
+        .map((placement) => placement.parentItemId as string),
+    ]),
+  );
+  if (hasDirectedCycle(itemIds, hierarchyParents)) {
+    issues.push({
+      code: "placement.hierarchy-cycle",
+      detail: "Canonical export contains a cycle in item hierarchy placements",
+    });
+  }
+  const revisionParents = new Map(
+    manifest.revisions.map((revision) => [revision.id, revision.parentRevisionIds]),
+  );
+  if (hasDirectedCycle(revisionIds, revisionParents)) {
+    issues.push({
+      code: "revision.cycle",
+      detail: "Canonical export contains a cycle in revision lineage",
+    });
+  }
 
   if (manifest.counts.items !== manifest.items.length) {
     issues.push({ code: "counts.items", detail: "Item count does not match items array" });
@@ -191,10 +702,25 @@ export function validateCanonicalExport(
   if (manifest.counts.revisions !== manifest.revisions.length) {
     issues.push({ code: "counts.revisions", detail: "Revision count does not match array" });
   }
-  if (manifest.counts.databases !== manifest.databases.length) {
+  const expectedActiveItems = manifest.items.filter((item) => item.lifecycle === "active").length;
+  const expectedTrashedItems = manifest.items.filter((item) => item.lifecycle === "trashed").length;
+  const expectedPlacements = manifest.items.reduce(
+    (total, item) => total + item.placements.length,
+    0,
+  );
+  if (manifest.counts.activeItems !== expectedActiveItems)
+    issues.push({ code: "counts.active-items", detail: "Active item count does not match items" });
+  if (manifest.counts.trashedItems !== expectedTrashedItems)
+    issues.push({
+      code: "counts.trashed-items",
+      detail: "Trashed item count does not match items",
+    });
+  if (manifest.counts.placements !== expectedPlacements)
+    issues.push({ code: "counts.placements", detail: "Placement count does not match items" });
+  if ("databases" in manifest && manifest.counts.databases !== databases.length) {
     issues.push({ code: "counts.databases", detail: "Database count does not match array" });
   }
-  if (manifest.counts.databaseEntries !== manifest.databaseEntries.length) {
+  if ("databaseEntries" in manifest && manifest.counts.databaseEntries !== databaseEntries.length) {
     issues.push({
       code: "counts.database-entries",
       detail: "Database entry count does not match array",
@@ -202,11 +728,38 @@ export function validateCanonicalExport(
   }
 
   for (const item of manifest.items) {
+    if (item.workspaceId !== manifest.workspaceId) {
+      issues.push({
+        code: "item.workspace-mismatch",
+        detail: `Item ${item.id} belongs to another workspace`,
+      });
+    }
     if (!revisionIds.has(item.currentRevisionId)) {
       issues.push({
         code: "item.revision-missing",
         detail: `Item ${item.id} references missing revision ${item.currentRevisionId}`,
       });
+    }
+    const currentRevision = revisionsById.get(item.currentRevisionId);
+    if (currentRevision !== undefined && currentRevision.itemId !== item.id) {
+      issues.push({
+        code: "item.revision-item-mismatch",
+        detail: `Item ${item.id} names a revision owned by ${currentRevision.itemId}`,
+      });
+    }
+    for (const placement of item.placements) {
+      if (placement.workspaceId !== manifest.workspaceId) {
+        issues.push({
+          code: "placement.workspace-mismatch",
+          detail: `Placement ${placement.id} belongs to another workspace`,
+        });
+      }
+      if (placement.itemId !== item.id) {
+        issues.push({
+          code: "placement.item-mismatch",
+          detail: `Placement ${placement.id} names item ${placement.itemId} instead of ${item.id}`,
+        });
+      }
     }
     if (item.lifecycle === "trashed" && (item.trashedAt === null || item.purgeAfter === null)) {
       issues.push({
@@ -221,10 +774,65 @@ export function validateCanonicalExport(
           detail: `Placement ${placement.id} references missing parent ${placement.parentItemId}`,
         });
       }
+      if (placement.parentItemId !== null) {
+        const parent = itemsById.get(placement.parentItemId);
+        if (parent !== undefined) {
+          if (placement.kind === "attachment" && parent.kind !== "page") {
+            issues.push({
+              code: "placement.attachment-parent-kind",
+              detail: `Attachment ${placement.id} must be owned by a page`,
+            });
+          }
+          if (placement.kind === "hierarchy" && parent.kind === "file") {
+            issues.push({
+              code: "placement.hierarchy-parent-kind",
+              detail: `Hierarchy placement ${placement.id} cannot be owned by a file`,
+            });
+          }
+        }
+      }
+    }
+    const hierarchyPlacements = item.placements.filter(
+      (placement) => placement.kind === "hierarchy",
+    );
+    if (item.kind !== "file" && hierarchyPlacements.length > 1) {
+      issues.push({
+        code: "placement.hierarchy-duplicate",
+        detail: `Item ${item.id} has more than one hierarchy placement`,
+      });
+    }
+    if (item.lifecycle === "active") {
+      const valid =
+        item.kind === "file"
+          ? item.placements.length > 0
+          : hierarchyPlacements.length === 1 ||
+            (item.kind === "page" &&
+              hierarchyPlacements.length === 0 &&
+              (databaseIds.has(item.id) || entryIds.has(item.id)));
+      if (!valid) {
+        issues.push({
+          code: "placement.cardinality",
+          detail:
+            item.kind === "file"
+              ? `Active file ${item.id} must have at least one placement`
+              : `Active ${item.kind} ${item.id} must have exactly one hierarchy placement`,
+        });
+      }
+    } else if (item.lifecycle === "trashed" && item.kind === "file" && item.placements.length > 0) {
+      issues.push({
+        code: "placement.trashed-file",
+        detail: `Trashed file ${item.id} must not have active placements`,
+      });
     }
   }
 
   for (const relationship of manifest.relationships) {
+    if (relationship.workspaceId !== manifest.workspaceId) {
+      issues.push({
+        code: "relationship.workspace-mismatch",
+        detail: `Relationship ${relationship.id} belongs to another workspace`,
+      });
+    }
     for (const endpoint of [relationship.sourceItemId, relationship.targetItemId]) {
       if (!itemIds.has(endpoint)) {
         issues.push({
@@ -233,21 +841,76 @@ export function validateCanonicalExport(
         });
       }
     }
+    if (!revisionIds.has(relationship.createdRevisionId)) {
+      issues.push({
+        code: "relationship.revision-missing",
+        detail: `Relationship ${relationship.id} references missing creation revision`,
+      });
+    }
+    const createdRevision = revisionsById.get(relationship.createdRevisionId);
+    if (createdRevision !== undefined && createdRevision.itemId !== relationship.sourceItemId) {
+      issues.push({
+        code: "relationship.revision-owner-mismatch",
+        detail: `Relationship ${relationship.id} creation revision belongs to another item`,
+      });
+    }
+    if (
+      relationship.removedRevisionId !== null &&
+      !revisionIds.has(relationship.removedRevisionId)
+    ) {
+      issues.push({
+        code: "relationship.revision-missing",
+        detail: `Relationship ${relationship.id} references missing removal revision`,
+      });
+    }
+    const removedRevision =
+      relationship.removedRevisionId === null
+        ? undefined
+        : revisionsById.get(relationship.removedRevisionId);
+    if (removedRevision !== undefined && removedRevision.itemId !== relationship.sourceItemId) {
+      issues.push({
+        code: "relationship.revision-owner-mismatch",
+        detail: `Relationship ${relationship.id} removal revision belongs to another item`,
+      });
+    }
   }
 
-  const databaseIds = new Set<Uuid>();
-  for (const database of manifest.databases) {
-    if (databaseIds.has(database.databaseId)) {
+  const seenDatabaseIds = new Set<Uuid>();
+  for (const database of databases) {
+    if (seenDatabaseIds.has(database.databaseId)) {
       issues.push({
         code: "database.duplicate",
         detail: `Database ${database.databaseId} is listed more than once`,
       });
     }
-    databaseIds.add(database.databaseId);
+    seenDatabaseIds.add(database.databaseId);
     if (!itemIds.has(database.databaseId)) {
       issues.push({
         code: "database.item-missing",
         detail: `Database ${database.databaseId} has no exported host page`,
+      });
+    } else if (itemsById.get(database.databaseId)?.kind !== "page") {
+      issues.push({
+        code: "database.host-kind",
+        detail: `Database ${database.databaseId} must be hosted by a page`,
+      });
+    }
+    if (
+      database.definitionRevisionId !== undefined &&
+      !revisionIds.has(database.definitionRevisionId)
+    )
+      issues.push({
+        code: "database.revision-missing",
+        detail: "Database source revision is missing",
+      });
+    const definitionRevision =
+      database.definitionRevisionId === undefined
+        ? undefined
+        : revisionsById.get(database.definitionRevisionId);
+    if (definitionRevision !== undefined && definitionRevision.itemId !== database.databaseId) {
+      issues.push({
+        code: "database.revision-owner-mismatch",
+        detail: `Database ${database.databaseId} source revision belongs to another item`,
       });
     }
     if (database.definition.databaseId !== database.databaseId) {
@@ -257,20 +920,32 @@ export function validateCanonicalExport(
       });
     }
   }
+  const databasesById = new Map(databases.map((database) => [database.databaseId, database]));
 
-  const entryIds = new Set<Uuid>();
-  for (const entry of manifest.databaseEntries) {
-    if (entryIds.has(entry.entryId)) {
+  const seenEntryIds = new Set<Uuid>();
+  for (const entry of databaseEntries) {
+    if (seenEntryIds.has(entry.entryId)) {
       issues.push({
         code: "database-entry.duplicate",
         detail: `Database entry ${entry.entryId} is listed more than once`,
       });
     }
-    entryIds.add(entry.entryId);
+    seenEntryIds.add(entry.entryId);
     if (!itemIds.has(entry.entryId)) {
       issues.push({
         code: "database-entry.item-missing",
         detail: `Database entry ${entry.entryId} has no exported page`,
+      });
+    } else if (itemsById.get(entry.entryId)?.kind !== "page") {
+      issues.push({
+        code: "database-entry.item-kind",
+        detail: `Database entry ${entry.entryId} must reference a page`,
+      });
+    }
+    if (entry.entryId === entry.databaseId) {
+      issues.push({
+        code: "database-entry.self",
+        detail: `Database entry ${entry.entryId} cannot be its own database`,
       });
     }
     if (!databaseIds.has(entry.databaseId)) {
@@ -285,20 +960,68 @@ export function validateCanonicalExport(
         detail: `Database entry ${entry.entryId} references missing revision ${entry.addedRevisionId}`,
       });
     }
+    const addedRevision = revisionsById.get(entry.addedRevisionId);
+    if (addedRevision !== undefined && addedRevision.itemId !== entry.entryId) {
+      issues.push({
+        code: "database-entry.revision-owner-mismatch",
+        detail: `Database entry ${entry.entryId} added revision belongs to another item`,
+      });
+    }
     if (entry.values.entryId !== entry.entryId || entry.values.databaseId !== entry.databaseId) {
       issues.push({
         code: "database-entry.values-identity",
         detail: `Database entry ${entry.entryId} carries mismatched values`,
       });
     }
+    const database = databasesById.get(entry.databaseId);
+    if (database !== undefined) {
+      const propertiesById = new Map(
+        database.definition.properties.map((property) => [property.id, property]),
+      );
+      for (const [propertyId, value] of Object.entries(entry.values.values)) {
+        const property = propertiesById.get(propertyId as Uuid);
+        if (
+          property === undefined ||
+          !normalizePropertyValue(property, value, { intent: "decode" }).ok
+        ) {
+          issues.push({
+            code: "database-entry.value-invalid",
+            detail: `Database entry ${entry.entryId} contains a value incompatible with its definition`,
+          });
+        }
+      }
+      for (const preserved of entry.values.preserved) {
+        if (
+          !database.definition.properties.some((property) => property.id === preserved.propertyId)
+        ) {
+          issues.push({
+            code: "database-entry.preserved-property-missing",
+            detail: `Database entry ${entry.entryId} preserves an unknown property`,
+          });
+        }
+      }
+    }
   }
 
   for (const revision of manifest.revisions) {
+    if (!itemIds.has(revision.itemId)) {
+      issues.push({
+        code: "revision.item-missing",
+        detail: `Revision ${revision.id} references missing item ${revision.itemId}`,
+      });
+    }
     for (const parent of revision.parentRevisionIds) {
       if (!revisionIds.has(parent)) {
         issues.push({
           code: "revision.parent-missing",
           detail: `Revision ${revision.id} references missing parent ${parent}`,
+        });
+      }
+      const parentRevision = revisionsById.get(parent);
+      if (parentRevision !== undefined && parentRevision.itemId !== revision.itemId) {
+        issues.push({
+          code: "revision.parent-owner-mismatch",
+          detail: `Revision ${revision.id} has a parent owned by another item`,
         });
       }
     }

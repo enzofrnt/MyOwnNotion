@@ -230,14 +230,17 @@ export function seal(
   if (nonce.length !== CRYPTO_SIZES.nonce) {
     throw new CryptoInputError(`nonce must be ${CRYPTO_SIZES.nonce} bytes`);
   }
-  const cipher = createCipheriv(AES_GCM_CIPHER, Buffer.from(key), Buffer.from(nonce), {
+  const cipher = createCipheriv(AES_GCM_CIPHER, key, nonce, {
     authTagLength: CRYPTO_SIZES.tag,
   });
-  cipher.setAAD(Buffer.from(additionalData), { plaintextLength: plaintext.length });
-  const ciphertext = Buffer.concat([cipher.update(Buffer.from(plaintext)), cipher.final()]);
+  cipher.setAAD(additionalData, { plaintextLength: plaintext.length });
+  // GCM emits the complete payload in update; final emits only authentication state.
+  // The cipher owns this new buffer, so transfer its storage without copying a file chunk.
+  const ciphertext = cipher.update(plaintext);
+  cipher.final();
   return {
     nonce,
-    ciphertext: new Uint8Array(ciphertext),
+    ciphertext: new Uint8Array(ciphertext.buffer, ciphertext.byteOffset, ciphertext.byteLength),
     tag: new Uint8Array(cipher.getAuthTag()),
   };
 }
@@ -255,20 +258,21 @@ export function open(key: Uint8Array, sealed: SealedBytes, additionalData: Uint8
   ) {
     throw new EnvelopeDecryptionError();
   }
+  let plaintext: Uint8Array | undefined;
   try {
-    const decipher = createDecipheriv(AES_GCM_CIPHER, Buffer.from(key), Buffer.from(sealed.nonce), {
+    const decipher = createDecipheriv(AES_GCM_CIPHER, key, sealed.nonce, {
       authTagLength: CRYPTO_SIZES.tag,
     });
-    decipher.setAAD(Buffer.from(additionalData), {
+    decipher.setAAD(additionalData, {
       plaintextLength: sealed.ciphertext.length,
     });
-    decipher.setAuthTag(Buffer.from(sealed.tag));
-    const plaintext = Buffer.concat([
-      decipher.update(Buffer.from(sealed.ciphertext)),
-      decipher.final(),
-    ]);
-    return new Uint8Array(plaintext);
+    decipher.setAuthTag(sealed.tag);
+    plaintext = decipher.update(sealed.ciphertext);
+    // Never expose update's bytes until final has authenticated the complete chunk.
+    decipher.final();
+    return new Uint8Array(plaintext.buffer, plaintext.byteOffset, plaintext.byteLength);
   } catch {
+    plaintext?.fill(0);
     throw new EnvelopeDecryptionError();
   }
 }

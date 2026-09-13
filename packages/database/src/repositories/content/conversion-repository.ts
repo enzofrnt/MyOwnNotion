@@ -55,6 +55,7 @@ export async function executeConvertItem(
     }) => Promise<void>;
     readonly buildItemSnapshot: (itemId: Uuid) => Promise<Readonly<Record<string, unknown>>>;
     readonly supersedeRevision: (revisionId: Uuid, at: Date) => Promise<void>;
+    readonly resolvePageBody?: (pageId: Uuid, stored: unknown) => Promise<unknown>;
   },
 ): Promise<DomainResult<ConvertItemResult>> {
   const item = await getItem(tx, input.command.itemId);
@@ -69,7 +70,11 @@ export async function executeConvertItem(
           .from(pageDocuments)
           .where(eq(pageDocuments.pageId, item.id))
           .limit(1);
-  const hasContent = existing.length > 0 && pageBodyHoldsEditorialContent(existing[0]?.body);
+  const body =
+    input.resolvePageBody === undefined
+      ? existing[0]?.body
+      : await input.resolvePageBody(input.command.itemId, existing[0]?.body);
+  const hasContent = existing.length > 0 && pageBodyHoldsEditorialContent(body);
 
   const plan = planConversion(item, input.command, hasContent);
   if (!plan.ok) {

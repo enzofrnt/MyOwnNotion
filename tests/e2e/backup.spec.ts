@@ -10,7 +10,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION } from "@myownnotion/domain";
+import {
+  asUuid,
+  BACKUP_FORMAT,
+  BACKUP_FORMAT_VERSION,
+  buildCanonicalExport,
+  canonicalExportString,
+  canonicalStructuredDataString,
+} from "@myownnotion/domain";
 import pg from "pg";
 import { sealBackupArchive } from "../../apps/api/src/backup/archive-crypto.ts";
 import { encodeBackupArchive } from "../../apps/api/src/backup/archive-format.ts";
@@ -37,7 +44,16 @@ async function seedVerifiedBackup(checkedAt: Date): Promise<void> {
     }
     const backupId = randomUUID();
     const remoteName = `seeded-${backupId}.tar`;
-    const canonicalExport = JSON.stringify({ items: [], relationships: [], revisions: [] });
+    const canonicalManifest = buildCanonicalExport({
+      workspaceId: asUuid(workspaceId),
+      schemaVersion: 1,
+      exportedAt: checkedAt.toISOString(),
+      changeCursor: "42",
+      items: [],
+      relationships: [],
+      revisions: [],
+    });
+    const canonicalExport = canonicalExportString(canonicalManifest);
     const digest = (bytes: Uint8Array) =>
       `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
     const archive = encodeBackupArchive({
@@ -53,6 +69,9 @@ async function seedVerifiedBackup(checkedAt: Date): Promise<void> {
         files: [],
         itemCount: 0,
         fileCount: 0,
+        databaseCount: canonicalManifest.databases.length,
+        databaseEntryCount: canonicalManifest.databaseEntries.length,
+        structuredDataDigest: digest(Buffer.from(canonicalStructuredDataString(canonicalManifest))),
       },
       canonicalExport,
       files: new Map(),

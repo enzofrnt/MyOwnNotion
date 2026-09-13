@@ -226,7 +226,7 @@ describe("owner database contract (T020)", () => {
     });
   });
 
-  it("announces the active database entry count before trash confirmation", async () => {
+  it("does not announce source entries as casualties of deleting its old host", async () => {
     const created = await createDatabase();
     for (let index = 0; index < 2; index += 1) {
       const response = await harness.built.app.inject({
@@ -253,7 +253,7 @@ describe("owner database contract (T020)", () => {
       url: `/v1/items/${created.databaseId}/trash-impact`,
     });
     expect(impact.statusCode, impact.body).toBe(200);
-    expect(impact.json()).toEqual({ isDatabase: true, activeEntryCount: 2 });
+    expect(impact.json()).toEqual({ isDatabase: false, activeEntryCount: 0 });
   });
 
   it("returns safe problems without reflecting private values", async () => {

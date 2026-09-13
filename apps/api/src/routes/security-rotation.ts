@@ -30,12 +30,15 @@ import {
 } from "@myownnotion/contracts";
 import {
   type Database,
+  findLatestCheckpoint,
+  findRotationOperation,
   findRotationPolicy,
   findRunningRotation,
   type RotationKind,
   type RotationMode,
   RotationRepositoryError,
   startRotationOperation,
+  type Transaction,
 } from "@myownnotion/database";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -68,6 +71,39 @@ const RotationStatusSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const RotationPoliciesSchema = Type.Object(
+  { policies: Type.Array(RotationPolicyViewSchema, { minItems: 2, maxItems: 2 }) },
+  { additionalProperties: false },
+);
+const RotationOperationParams = Type.Object({ operationId: Type.String({ format: "uuid" }) });
+const problemResponses = {
+  400: SecurityProblemSchema,
+  401: SecurityProblemSchema,
+  403: SecurityProblemSchema,
+  404: SecurityProblemSchema,
+  409: SecurityProblemSchema,
+  428: SecurityProblemSchema,
+  500: SecurityProblemSchema,
+  503: SecurityProblemSchema,
+} as const;
+
+type RotationOperation = NonNullable<Awaited<ReturnType<typeof findRotationOperation>>>;
+
+function operationView(operation: RotationOperation, checkpointDigest: string | null) {
+  return {
+    operationId: operation.id,
+    kind: operation.kind,
+    mode: operation.mode,
+    phase: operation.phase,
+    fromVersionOrGeneration: operation.fromVersionOrGeneration,
+    toVersionOrGeneration: operation.toVersionOrGeneration,
+    processedCount: operation.processedCount,
+    totalCount: operation.totalCount,
+    checkpointDigest,
+    failureCode: operation.failureCode,
+  };
+}
+
 function toPolicyViews(health: RotationHealth) {
   return (
     [
@@ -95,9 +131,10 @@ export function registerRotationRoutes(app: FastifyInstance, deps: RotationRoute
   });
 
   app.get(
-    "/v1/security/rotation",
-    { schema: { response: { 200: RotationStatusSchema, 401: SecurityProblemSchema } } },
+    "/v1/security/rotations",
+    { schema: { response: { 200: RotationStatusSchema, ...problemResponses } } },
     async (request, reply) => {
+      reply.header("cache-control", "private, no-store");
       // No recency requirement: this is how an owner discovers a rotation is
       // overdue, and a prompt in front of it would discourage looking.
       const owner = deps.require(request, reply, {});
@@ -133,11 +170,11 @@ export function registerRotationRoutes(app: FastifyInstance, deps: RotationRoute
   );
 
   app.post(
-    "/v1/security/rotation",
+    "/v1/security/rotations",
     {
       schema: {
         body: RotationStartSchema,
-        response: { 200: RotationViewSchema, 202: RotationViewSchema },
+        response: { 200: RotationViewSchema, 202: RotationViewSchema, ...problemResponses },
       },
     },
     async (request, reply) => {
@@ -185,7 +222,7 @@ export function registerRotationRoutes(app: FastifyInstance, deps: RotationRoute
           startRotationOperation(tx, {
             id: randomUUID(),
             installationId: deps.installationId,
-            policyId: await policyIdFor(deps, kind),
+            policyId: await policyIdFor(tx, deps.installationId, kind),
             kind,
             mode: body.mode as RotationMode,
             fromVersionOrGeneration: evaluation.currentGeneration,
@@ -203,30 +240,72 @@ export function registerRotationRoutes(app: FastifyInstance, deps: RotationRoute
         });
         // 202: accepted and running, not finished. A rotation that returned
         // 200 would suggest the rewrite was already done.
-        return reply.status(202).send({
-          operationId: operation.id,
-          kind: operation.kind,
-          mode: operation.mode,
-          phase: operation.phase,
-          fromVersionOrGeneration: operation.fromVersionOrGeneration,
-          toVersionOrGeneration: operation.toVersionOrGeneration,
-          processedCount: operation.processedCount,
-          totalCount: operation.totalCount,
-        });
+        return reply.status(202).send(operationView(operation, null));
       } catch (error) {
-        if (error instanceof RotationRepositoryError) {
+        if (error instanceof RotationRepositoryError && error.code === "rotation_in_progress") {
           return sendSecurityProblem(reply, { code: "rotation_in_progress", correlationId });
+        }
+        if (error instanceof RotationRepositoryError && error.code === "policy_missing") {
+          return sendSecurityProblem(reply, { code: "not_found", correlationId });
         }
         throw error;
       }
     },
   );
+
+  app.get(
+    "/v1/security/rotations/policies",
+    { schema: { response: { 200: RotationPoliciesSchema, ...problemResponses } } },
+    async (request, reply) => {
+      const owner = deps.require(request, reply, {});
+      if (owner === null) return reply;
+      const health = await deps.policies.health();
+      if (health.wrappingKey === null || health.dataKey === null) {
+        return sendSecurityProblem(reply, {
+          code: "installation_degraded",
+          correlationId: requestContext(request).correlationId,
+        });
+      }
+      return reply.status(200).send({ policies: toPolicyViews(health) });
+    },
+  );
+
+  app.get(
+    "/v1/security/rotations/:operationId",
+    {
+      schema: {
+        params: RotationOperationParams,
+        response: { 200: RotationViewSchema, ...problemResponses },
+      },
+    },
+    async (request, reply) => {
+      const owner = deps.require(request, reply, {});
+      if (owner === null) return reply;
+      const { operationId } = request.params as { operationId: string };
+      const operation = await findRotationOperation(deps.db, {
+        installationId: deps.installationId,
+        operationId,
+      });
+      if (operation === null) {
+        return sendSecurityProblem(reply, {
+          code: "not_found",
+          correlationId: requestContext(request).correlationId,
+        });
+      }
+      const checkpoint = await findLatestCheckpoint(deps.db, operation.id);
+      return reply.status(200).send(operationView(operation, checkpoint?.checkpointDigest ?? null));
+    },
+  );
 }
 
 /** The policy row id for a kind, which `startRotationOperation` needs. */
-async function policyIdFor(deps: RotationRouteDeps, kind: RotationKind): Promise<string> {
-  const record = await findRotationPolicy(deps.db, {
-    installationId: deps.installationId,
+async function policyIdFor(
+  tx: Transaction,
+  installationId: string,
+  kind: RotationKind,
+): Promise<string> {
+  const record = await findRotationPolicy(tx, {
+    installationId,
     kind,
   });
   if (record === null) {

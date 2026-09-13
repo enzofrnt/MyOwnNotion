@@ -30,7 +30,8 @@ convergence finale 017 suivent.
 | Sync temps réel — feature 018 | Livrée. | Conserver les régressions HAR dans la gate. |
 | Tableaux blancs — feature 011 | Après la V1. | Spécifier plus tard. |
 | Publication — feature 012 | Après la V1. | — |
-| MCP — feature 013 | Après la V1. | — |
+| MCP — feature 013 | Requis avant la V1 : accès limité et révocable. | [Configuration](docs/mcp.md) |
+| Import Notion — feature 028 | CLI avant la V1 : aperçu, import canonique et reprise. | [Guide](docs/notion-import.md) |
 | iOS — feature 015 | Après la V1. | — |
 
 Le détail, les dépendances et les limites de chaque étape sont dans la

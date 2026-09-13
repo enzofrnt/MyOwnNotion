@@ -55,6 +55,15 @@ export interface DatabaseCommandContext {
   readonly workspaceId: Uuid;
   readonly mutationId: Uuid;
   readonly acceptedAt: Date;
+  readonly resolveRevisionSnapshot?: (
+    tx: Transaction,
+    revisionId: Uuid,
+  ) => Promise<Record<string, unknown> | null>;
+}
+
+function snapshotResolver(tx: Transaction, context: DatabaseCommandContext) {
+  return (revisionId: Uuid) =>
+    context.resolveRevisionSnapshot?.(tx, revisionId) ?? Promise.resolve(null);
 }
 
 export interface DatabaseCommandExecution {
@@ -68,33 +77,15 @@ export interface DatabaseTrashImpact {
   readonly activeEntryCount: number;
 }
 
-/**
- * Reports database membership separately from hierarchy descendants.
- *
- * An entry may be moved anywhere without changing its database membership, so
- * counting only children below the host would understate the destructive
- * action and, worse, make the preview disagree with the commit.
- */
+/** Membership never adds entries to a page trash operation (026). */
 export async function previewDatabaseTrashImpact(
-  tx: Transaction,
-  itemId: Uuid,
+  _tx: Transaction,
+  _itemId: Uuid,
 ): Promise<DatabaseTrashImpact> {
-  const database = await readDatabaseRecord(tx, itemId);
-  if (database === null) return { isDatabase: false, activeEntryCount: 0 };
-  const entries = await listDatabaseEntryRecords(tx, itemId);
-  let activeEntryCount = 0;
-  for (const entry of entries) {
-    const item = await getItem(tx, entry.entryId);
-    if (item?.lifecycle === "active") activeEntryCount += 1;
-  }
-  return { isDatabase: true, activeEntryCount };
+  return { isDatabase: false, activeEntryCount: 0 };
 }
 
-/**
- * Trashes a database's hierarchy branch and every active member page in the
- * caller's transaction. Every nested lifecycle execution uses the same
- * mutation identity, which is also the durable restore-group identity.
- */
+/** Apply ordinary page branch lifecycle independently of source membership. */
 export async function executeDatabaseTrash(
   tx: Transaction,
   input: {
@@ -103,28 +94,7 @@ export async function executeDatabaseTrash(
     readonly acceptedAt: Date;
   },
 ): Promise<DomainResult<LifecycleExecution>> {
-  const membership = await listDatabaseEntryRecords(tx, input.itemId);
-  const root = await executeTrash(tx, input);
-  if (!root.ok) return root;
-
-  const revisionIds = [...root.value.revisionIds];
-  const changedItemIds = [...root.value.changedItemIds];
-  const changed = new Set(changedItemIds);
-  for (const entry of membership) {
-    if (changed.has(entry.entryId)) continue;
-    const item = await getItem(tx, entry.entryId);
-    if (item?.lifecycle !== "active") continue;
-    const nested = await executeTrash(tx, { ...input, itemId: entry.entryId });
-    if (!nested.ok) return nested;
-    for (const revisionId of nested.value.revisionIds) revisionIds.push(revisionId);
-    for (const itemId of nested.value.changedItemIds) {
-      if (!changed.has(itemId)) {
-        changed.add(itemId);
-        changedItemIds.push(itemId);
-      }
-    }
-  }
-  return ok({ revisionIds, changedItemIds, rootItemId: input.itemId });
+  return executeTrash(tx, input);
 }
 
 /** Restores the complete lifecycle group recorded by executeDatabaseTrash. */
@@ -232,6 +202,11 @@ async function executeCreateDatabase(
     },
   );
   if (!plan.ok) return plan as DomainResult<DatabaseCommandExecution>;
+  if (command.hostPageId !== undefined) {
+    const host = await getItem(tx, command.hostPageId);
+    if (host === null || host.kind !== "page" || host.lifecycle !== "active")
+      return err("item.not-active", "Database display needs an active page");
+  }
   const definition = createInitialDatabaseDefinition(command);
   const validatedDefinition = validateDatabaseDefinition(definition);
   if (!validatedDefinition.ok) return validatedDefinition as DomainResult<DatabaseCommandExecution>;
@@ -253,18 +228,21 @@ async function executeCreateDatabase(
     formatVersion: EMPTY_PAGE_DOCUMENT.formatVersion,
     body: EMPTY_PAGE_DOCUMENT.body,
   });
-  await tx.insert(placements).values({
-    id: command.placement.id,
-    workspaceId: context.workspaceId,
-    itemId: command.id,
-    itemIsFile: false,
-    kind: "hierarchy",
-    parentItemId: command.placement.parentItemId,
-    positionKey: command.placement.positionKey,
-    createdRevisionId: revisionId,
-  });
+  if (command.hostPageId === undefined) {
+    await tx.insert(placements).values({
+      id: command.placement.id,
+      workspaceId: context.workspaceId,
+      itemId: command.id,
+      itemIsFile: false,
+      kind: "hierarchy",
+      parentItemId: command.placement.parentItemId,
+      positionKey: command.placement.positionKey,
+      createdRevisionId: revisionId,
+    });
+  }
   await insertDatabaseRecord(tx, {
     databaseId: command.id,
+    definitionRevisionId: revisionId,
     workspaceId: context.workspaceId,
     acceptedAt: context.acceptedAt,
   });
@@ -296,24 +274,40 @@ async function executeReplaceDefinition(
   // queue that Promise.all relied on.
   const record = await readDatabaseRecord(tx, command.databaseId);
   const item = await getItem(tx, command.databaseId);
-  const currentDefinition = await readCurrentDatabaseDefinition(tx, command.databaseId);
+  const currentDefinition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+  );
   if (record === null || item === null || currentDefinition === null) {
     return err("database.not-found", "Database does not exist");
   }
-  if (item.lifecycle !== "active") return err("item.not-active", "Database is not active");
-  if (item.currentRevisionId !== command.baseRevisionId) {
+  if ((record.definitionRevisionId ?? item.currentRevisionId) !== command.baseRevisionId) {
     return err("revision.stale-base", "Database changed since this definition was prepared", {
-      competingRevisionIds: [item.currentRevisionId],
+      competingRevisionIds: [record.definitionRevisionId ?? item.currentRevisionId],
     });
   }
   const candidate = validateDatabaseDefinition(command.definition);
   if (!candidate.ok || candidate.value.databaseId !== command.databaseId) {
     return err("validation.invalid-payload", "Database definition is invalid");
   }
+  for (const embedding of candidate.value.embeddings ?? []) {
+    const previous = currentDefinition.embeddings?.find((value) => value.id === embedding.id);
+    if (embedding.state === "retired" || previous?.hostPageId === embedding.hostPageId) continue;
+    const host = await getItem(tx, embedding.hostPageId);
+    if (host === null || host.kind !== "page" || host.lifecycle !== "active")
+      return err("item.not-active", "Database display needs an active page");
+  }
+  if (currentDefinition.embeddings !== undefined && candidate.value.embeddings === undefined)
+    return err("validation.invalid-payload", "This client must preserve linked database displays");
   const entryRecords = await listDatabaseEntryRecords(tx, command.databaseId);
   const entryValues: EntryValues[] = [];
   for (const entry of entryRecords) {
-    const values = await readCurrentDatabaseEntryValues(tx, entry.entryId);
+    const values = await readCurrentDatabaseEntryValues(
+      tx,
+      entry.entryId,
+      snapshotResolver(tx, context),
+    );
     if (values !== null) entryValues.push(values);
   }
   const impact = await previewDefinitionImpact({
@@ -336,26 +330,30 @@ async function executeReplaceDefinition(
   const revisionId = generateUuidV7();
   const advanced = await advanceDatabaseDefinitionVersion(tx, {
     databaseId: command.databaseId,
+    definitionRevisionId: revisionId,
     expectedVersion: record.definitionVersion,
     acceptedAt: context.acceptedAt,
   });
   if (!advanced) return err("mutation.conflict", "Database definition version changed");
-  await tx
-    .update(items)
-    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
-    .where(eq(items.id, command.databaseId));
-  const snapshot = await buildItemSnapshot(tx, command.databaseId);
-  snapshot["databaseDefinition"] = candidate.value;
-  snapshot["databaseDefinitionVersion"] = record.definitionVersion + 1;
+  // A source revision never recopies private editorial content from its former
+  // host. Its journal owns only the live independent resource definition.
+  const snapshot = {
+    databaseDefinition: candidate.value,
+    databaseDefinitionVersion: record.definitionVersion + 1,
+  };
   await insertRevision(tx, {
     id: revisionId,
     itemId: command.databaseId,
     mutationId: context.mutationId,
-    parentRevisionIds: [item.currentRevisionId],
+    parentRevisionIds: [record.definitionRevisionId ?? item.currentRevisionId],
     snapshot,
     acceptedAt: context.acceptedAt,
   });
-  await supersedeRevision(tx, item.currentRevisionId, context.acceptedAt);
+  await supersedeRevision(
+    tx,
+    record.definitionRevisionId ?? item.currentRevisionId,
+    context.acceptedAt,
+  );
   return ok({
     revisionIds: [revisionId],
     changedItemIds: [command.databaseId],
@@ -370,27 +368,46 @@ async function executeResolveDefinitionConflict(
 ): Promise<DomainResult<DatabaseCommandExecution>> {
   const record = await readDatabaseRecord(tx, command.databaseId);
   const item = await getItem(tx, command.databaseId);
-  const currentDefinition = await readCurrentDatabaseDefinition(tx, command.databaseId);
+  const currentDefinition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+  );
   if (record === null || item === null || currentDefinition === null) {
     return err("database.not-found", "Database does not exist");
   }
-  if (!command.resolvedRevisionIds.includes(item.currentRevisionId)) {
+  if (
+    !command.resolvedRevisionIds.includes(record.definitionRevisionId ?? item.currentRevisionId)
+  ) {
     return err("revision.stale-base", "Database changed since this conflict was reviewed", {
-      competingRevisionIds: [item.currentRevisionId],
+      competingRevisionIds: [record.definitionRevisionId ?? item.currentRevisionId],
     });
   }
   const candidate = validateDatabaseDefinition(command.definition);
   if (!candidate.ok || candidate.value.databaseId !== command.databaseId) {
     return err("validation.invalid-payload", "Database definition is invalid");
   }
+  for (const embedding of candidate.value.embeddings ?? []) {
+    const previous = currentDefinition.embeddings?.find((value) => value.id === embedding.id);
+    if (embedding.state === "retired" || previous?.hostPageId === embedding.hostPageId) continue;
+    const host = await getItem(tx, embedding.hostPageId);
+    if (host === null || host.kind !== "page" || host.lifecycle !== "active")
+      return err("item.not-active", "Database display needs an active page");
+  }
+  if (currentDefinition.embeddings !== undefined && candidate.value.embeddings === undefined)
+    return err("validation.invalid-payload", "This client must preserve linked database displays");
   const entryRecords = await listDatabaseEntryRecords(tx, command.databaseId);
   const entryValues: EntryValues[] = [];
   for (const entry of entryRecords) {
-    const values = await readCurrentDatabaseEntryValues(tx, entry.entryId);
+    const values = await readCurrentDatabaseEntryValues(
+      tx,
+      entry.entryId,
+      snapshotResolver(tx, context),
+    );
     if (values !== null) entryValues.push(values);
   }
   const impact = await previewDefinitionImpact({
-    baseRevisionId: item.currentRevisionId,
+    baseRevisionId: record.definitionRevisionId ?? item.currentRevisionId,
     current: currentDefinition,
     candidate: candidate.value,
     entries: entryValues,
@@ -409,17 +426,17 @@ async function executeResolveDefinitionConflict(
   const revisionId = generateUuidV7();
   const advanced = await advanceDatabaseDefinitionVersion(tx, {
     databaseId: command.databaseId,
+    definitionRevisionId: revisionId,
     expectedVersion: record.definitionVersion,
     acceptedAt: context.acceptedAt,
   });
   if (!advanced) return err("mutation.conflict", "Database definition version changed");
-  await tx
-    .update(items)
-    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
-    .where(eq(items.id, command.databaseId));
-  const snapshot = await buildItemSnapshot(tx, command.databaseId);
-  snapshot["databaseDefinition"] = candidate.value;
-  snapshot["databaseDefinitionVersion"] = record.definitionVersion + 1;
+  // A source revision never recopies private editorial content from its former
+  // host. Its journal owns only the live independent resource definition.
+  const snapshot = {
+    databaseDefinition: candidate.value,
+    databaseDefinitionVersion: record.definitionVersion + 1,
+  };
   await insertRevision(tx, {
     id: revisionId,
     itemId: command.databaseId,
@@ -445,7 +462,11 @@ async function executeCreateEntry(
 ): Promise<DomainResult<DatabaseCommandExecution>> {
   const database = await readDatabaseRecord(tx, command.databaseId);
   const databaseItem = await getItem(tx, command.databaseId);
-  const definition = await readCurrentDatabaseDefinition(tx, command.databaseId);
+  const definition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+  );
   const existingItem = await getItem(tx, command.id);
   const existingMembership = await readDatabaseEntryRecord(tx, command.id);
   if (database === null || databaseItem === null || definition === null) {
@@ -454,10 +475,17 @@ async function executeCreateEntry(
   if (existingMembership !== null || existingItem !== null) {
     return err("database.membership-conflict", "Page already has a database membership");
   }
+  // Reuse ordinary page/document validation without assigning an implicit
+  // navigation location to pages whose membership is their creation context.
+  const placement = command.placement ?? {
+    id: generateUuidV7(),
+    parentItemId: null,
+    positionKey: "a0",
+  };
   const parent =
-    command.placement.parentItemId === null
+    (placement.parentItemId === command.databaseId ? null : placement.parentItemId) === null
       ? null
-      : await getItem(tx, command.placement.parentItemId);
+      : await getItem(tx, placement.parentItemId as Uuid);
   const plan = validateCreateItem(
     {
       getItem: (id) => (id === parent?.id ? parent : null),
@@ -468,7 +496,11 @@ async function executeCreateEntry(
       id: command.id,
       kind: "page",
       name: command.title,
-      placement: { ...command.placement, kind: "hierarchy" },
+      placement: {
+        ...placement,
+        parentItemId: placement.parentItemId === command.databaseId ? null : placement.parentItemId,
+        kind: "hierarchy",
+      },
       pageDocument: command.document ?? EMPTY_PAGE_DOCUMENT,
     },
   );
@@ -498,16 +530,17 @@ async function executeCreateEntry(
     formatVersion: document.formatVersion,
     body: document.body,
   });
-  await tx.insert(placements).values({
-    id: command.placement.id,
-    workspaceId: context.workspaceId,
-    itemId: command.id,
-    itemIsFile: false,
-    kind: "hierarchy",
-    parentItemId: command.placement.parentItemId,
-    positionKey: command.placement.positionKey,
-    createdRevisionId: revisionId,
-  });
+  if (command.placement !== undefined)
+    await tx.insert(placements).values({
+      id: placement.id,
+      workspaceId: context.workspaceId,
+      itemId: command.id,
+      itemIsFile: false,
+      kind: "hierarchy",
+      parentItemId: placement.parentItemId === command.databaseId ? null : placement.parentItemId,
+      positionKey: placement.positionKey,
+      createdRevisionId: revisionId,
+    });
   const entryValues: EntryValues = {
     format: "myownnotion.database-entry-values+json",
     formatVersion: 1,
@@ -556,8 +589,16 @@ async function executeReplaceEntryValues(
 ): Promise<DomainResult<DatabaseCommandExecution>> {
   const entry = await readDatabaseEntryRecord(tx, command.entryId);
   const item = await getItem(tx, command.entryId);
-  const definition = await readCurrentDatabaseDefinition(tx, command.databaseId);
-  const priorValues = await readCurrentDatabaseEntryValues(tx, command.entryId);
+  const definition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+  );
+  const priorValues = await readCurrentDatabaseEntryValues(
+    tx,
+    command.entryId,
+    snapshotResolver(tx, context),
+  );
   if (entry === null || item === null || entry.databaseId !== command.databaseId) {
     return err("database.entry-not-found", "Database entry does not exist");
   }
@@ -671,8 +712,16 @@ async function executeResolveEntryValuesConflict(
 ): Promise<DomainResult<DatabaseCommandExecution>> {
   const entry = await readDatabaseEntryRecord(tx, command.entryId);
   const item = await getItem(tx, command.entryId);
-  const definition = await readCurrentDatabaseDefinition(tx, command.databaseId);
-  const priorValues = await readCurrentDatabaseEntryValues(tx, command.entryId);
+  const definition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+  );
+  const priorValues = await readCurrentDatabaseEntryValues(
+    tx,
+    command.entryId,
+    snapshotResolver(tx, context),
+  );
   if (entry === null || item === null || entry.databaseId !== command.databaseId) {
     return err("database.entry-not-found", "Database entry does not exist");
   }

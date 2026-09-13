@@ -65,6 +65,14 @@ interface OpenApiDocument {
   components: { schemas: Record<string, SchemaNode> };
 }
 
+interface OpenApiOperation {
+  requestBody?: {
+    required?: boolean;
+    content?: Record<string, { schema?: { $ref?: string } }>;
+  };
+  responses: Record<string, { content?: Record<string, { schema?: { $ref?: string } }> }>;
+}
+
 const document = parse(readFileSync(contractPath, "utf8")) as OpenApiDocument;
 
 function schema(name: string): SchemaNode {
@@ -98,6 +106,16 @@ function refName(reference: string): string {
   return reference.replace("#/components/schemas/", "");
 }
 
+function operationAt(pathName: string, method: string): OpenApiOperation {
+  const operation = document.paths[pathName]?.[method] as OpenApiOperation | undefined;
+  expect(operation, `${method.toUpperCase()} ${pathName}`).toBeDefined();
+  return operation as OpenApiOperation;
+}
+
+function responseRef(operation: OpenApiOperation, status: string): string | undefined {
+  return operation.responses[status]?.content?.["application/json"]?.schema?.$ref;
+}
+
 describe("document shape", () => {
   it("is OpenAPI 3.1", () => {
     expect(document.openapi.startsWith("3.1")).toBe(true);
@@ -109,16 +127,61 @@ describe("document shape", () => {
     expect(paths).toContain("/v1/bootstrap");
     expect(paths).toContain("/v1/auth/passkeys/enrollment/options");
     expect(paths).toContain("/v1/auth/passkeys/enrollment/complete");
+    expect(paths).toContain("/v1/auth/login/passkey/options");
     expect(paths).toContain("/v1/auth/passkeys");
     expect(paths).toContain("/v1/auth/password");
     expect(paths).toContain("/v1/auth/sessions");
     expect(paths).toContain("/v1/security/recovery-kits");
+    expect(paths).toContain("/v1/security/recovery-kits/{kitId}/download");
+    expect(paths).toContain("/v1/security/recovery-kits/{kitId}/confirm");
+    expect(paths).toContain("/v1/security/recovery-kits/revoke");
+    expect(paths).not.toContain("/v1/security/recovery");
     expect(paths).toContain("/v1/security/rotations");
+    expect(paths).toContain("/v1/security/rotations/policies");
+    expect(paths).toContain("/v1/security/rotations/{operationId}");
+    expect(paths).toContain("/v1/security/audit");
 
     // V1 administration is the protected local CLI only. A remote
     // administrator route here would be a transport the design excludes.
     const administratorPaths = paths.filter((entry) => /\/admin(istrator)?\b/i.test(entry));
     expect(administratorPaths).toEqual([]);
+  });
+});
+
+describe("authenticated recovery-kit replacement", () => {
+  it("describes the bodyless preparation/revocation and explicit confirmation", () => {
+    const collection = operationAt("/v1/security/recovery-kits", "post");
+    const confirm = operationAt("/v1/security/recovery-kits/{kitId}/confirm", "post");
+    const revoke = operationAt("/v1/security/recovery-kits/revoke", "post");
+
+    expect(collection.requestBody).toBeUndefined();
+    expect(responseRef(collection, "201")).toBe("#/components/schemas/PreparedRecoveryKit");
+    expect(confirm.requestBody?.required).toBe(true);
+    expect(confirm.requestBody?.content?.["application/json"]?.schema?.$ref).toBe(
+      "#/components/schemas/OfflineConfirmation",
+    );
+    expect(responseRef(confirm, "200")).toBe("#/components/schemas/ConfirmedRecoveryKit");
+    expect(revoke.requestBody).toBeUndefined();
+    expect(responseRef(revoke, "200")).toBe("#/components/schemas/RevokedRecoveryKit");
+    expect(schema("RecoveryKitStatus").required).toEqual(["active", "pending", "notice"]);
+  });
+
+  it("declares every recovery operation refusal that the route can emit", () => {
+    const expectedPost = ["400", "401", "403", "404", "409", "428", "500"];
+    const download = operationAt("/v1/security/recovery-kits/{kitId}/download", "post");
+    const confirm = operationAt("/v1/security/recovery-kits/{kitId}/confirm", "post");
+    const revoke = operationAt("/v1/security/recovery-kits/revoke", "post");
+    for (const operation of [download, confirm]) {
+      expect(Object.keys(operation.responses)).toEqual(expect.arrayContaining([...expectedPost]));
+      expect(Object.keys(operation.responses)).toContain("503");
+    }
+    expect(Object.keys(revoke.responses)).toEqual(
+      expect.arrayContaining(["401", "403", "404", "409", "428", "500", "503"]),
+    );
+    const prepare = operationAt("/v1/security/recovery-kits", "post");
+    expect(Object.keys(prepare.responses)).toEqual(
+      expect.arrayContaining(["401", "403", "409", "428", "500", "503"]),
+    );
   });
 });
 
@@ -298,6 +361,84 @@ describe("device timestamps", () => {
   });
 });
 
+describe("security route response statuses", () => {
+  const responsesOf = (path: string, method: string): Record<string, unknown> => {
+    const operation = document.paths[path]?.[method] as { responses: Record<string, unknown> };
+    expect(operation, `${method.toUpperCase()} ${path}`).toBeDefined();
+    return operation.responses;
+  };
+
+  it("documents device validation, authentication, CSRF, and server failures", () => {
+    expect(Object.keys(responsesOf("/v1/devices", "get"))).toEqual(
+      expect.arrayContaining(["200", "401", "500"]),
+    );
+    for (const [path, method, expected] of [
+      ["/v1/devices/{deviceId}", "get", ["200", "400", "401", "404", "500"]],
+      ["/v1/devices/{deviceId}/revoke", "post", ["200", "400", "401", "403", "404", "428", "500"]],
+      [
+        "/v1/devices/{deviceId}/reauthorize",
+        "post",
+        ["200", "400", "401", "403", "404", "428", "500"],
+      ],
+    ] as const) {
+      expect(Object.keys(responsesOf(path, method))).toEqual(expect.arrayContaining([...expected]));
+    }
+    expect(Object.keys(responsesOf("/v1/devices/{deviceId}", "patch"))).toEqual(
+      expect.arrayContaining(["200", "400", "401", "403", "404", "500"]),
+    );
+  });
+
+  it("documents passkey refusal statuses without a nonexistent 404", () => {
+    expect(Object.keys(responsesOf("/v1/auth/passkeys/enrollment/options", "post"))).toEqual(
+      expect.arrayContaining(["200", "401", "403", "428", "500"]),
+    );
+    expect(Object.keys(responsesOf("/v1/auth/passkeys/enrollment/complete", "post"))).toEqual(
+      expect.arrayContaining(["201", "400", "401", "403", "428", "500"]),
+    );
+    const remove = responsesOf("/v1/auth/passkeys/{credentialId}", "delete");
+    expect(Object.keys(remove)).toEqual(
+      expect.arrayContaining(["204", "400", "401", "403", "409", "428", "500"]),
+    );
+    expect(remove).not.toHaveProperty("404");
+  });
+
+  it("keeps inline response wrappers closed and query validation documented", () => {
+    const devices = (
+      responsesOf("/v1/devices", "get")["200"] as {
+        content: { "application/json": { schema: SchemaNode } };
+      }
+    ).content["application/json"].schema;
+    const policies = (
+      responsesOf("/v1/security/rotations/policies", "get")["200"] as {
+        content: { "application/json": { schema: SchemaNode } };
+      }
+    ).content["application/json"].schema;
+    const audit = (
+      responsesOf("/v1/security/audit", "get")["200"] as {
+        content: { "application/json": { schema: SchemaNode } };
+      }
+    ).content["application/json"].schema;
+    expect(devices.additionalProperties).toBe(false);
+    expect(policies.additionalProperties).toBe(false);
+    expect(audit.additionalProperties).toBe(false);
+    expect(
+      (
+        responsesOf("/v1/security/audit", "get")["200"] as {
+          headers?: Record<string, { required?: boolean; schema?: { const?: unknown } }>;
+        }
+      ).headers?.["Cache-Control"]?.required,
+    ).toBe(true);
+    expect(
+      (
+        responsesOf("/v1/security/audit", "get")["200"] as {
+          headers?: Record<string, { schema?: { const?: unknown } }>;
+        }
+      ).headers?.["Cache-Control"]?.schema?.const,
+    ).toBe("no-store");
+    expect(Object.keys(responsesOf("/v1/security/audit", "get"))).toContain("400");
+  });
+});
+
 describe("recovery views", () => {
   it("encodes exactly the seven legal state pairs, in the contract's order", () => {
     const contractPairs = (schema("RecoveryKitView").oneOf ?? []).map((variant) => ({
@@ -324,12 +465,21 @@ describe("recovery views", () => {
   });
 
   it("never returns kit key material in a view", () => {
-    for (const name of ["RecoveryKitView", "RecoveryKitDownloadView"]) {
+    for (const name of ["RecoveryKitView"]) {
       const properties = Object.keys(effectiveProperties(schema(name)));
       for (const forbidden of ["ciphertext", "encryption", "kdf", "passphrase", "key"]) {
         expect(properties, `${name}.${forbidden}`).not.toContain(forbidden);
       }
     }
+  });
+
+  it("uses the complete canonical recovery artifact for a download", () => {
+    const download = operationAt("/v1/security/recovery-kits/{kitId}/download", "post");
+    expect(responseRef(download, "200")).toBe("#/components/schemas/RecoveryKitArtifact");
+    expect(schema("RecoveryKitArtifact").oneOf).toHaveLength(7);
+    expect(schema("RecoveryKitArtifactBase").properties?.["kdf"]?.oneOf).toHaveLength(2);
+    expect(schema("RecoveryKitArtifactBase").properties).toHaveProperty("encryption");
+    expect(schema("RecoveryKitArtifactBase").properties).toHaveProperty("supportedKeyGenerations");
   });
 });
 

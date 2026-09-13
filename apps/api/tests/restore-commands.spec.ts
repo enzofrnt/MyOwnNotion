@@ -31,7 +31,29 @@ let destinationRoot: string;
 let destination: FilesystemDestination;
 
 function checkedArchive(): Buffer {
-  const canonicalExport = JSON.stringify({ items: [], relationships: [], revisions: [] });
+  const canonicalExport = JSON.stringify({
+    format: "myownnotion.export+json",
+    formatVersion: 2,
+    workspaceId: generateUuidV7(),
+    schemaVersion: 1,
+    exportedAt: "2026-08-18T04:00:00.000Z",
+    changeCursor: "42",
+    items: [],
+    databases: [],
+    databaseEntries: [],
+    relationships: [],
+    revisions: [],
+    counts: {
+      items: 0,
+      activeItems: 0,
+      trashedItems: 0,
+      placements: 0,
+      relationships: 0,
+      revisions: 0,
+      databases: 0,
+      databaseEntries: 0,
+    },
+  });
   const digest = (bytes: Uint8Array) =>
     `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
   return encodeBackupArchive({

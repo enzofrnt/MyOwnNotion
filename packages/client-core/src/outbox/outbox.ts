@@ -187,7 +187,7 @@ export class Outbox {
         let retry = false;
         await this.#db.transaction(
           "rw",
-          [this.#db.items, this.#db.outbox, this.#db.revisionHeaders],
+          [this.#db.items, this.#db.databases, this.#db.outbox, this.#db.revisionHeaders],
           async () => {
             const current = await this.#db.outbox.toArray();
             const currentFingerprint = JSON.stringify(
@@ -201,6 +201,16 @@ export class Outbox {
               await this.#db.outbox.put(replacement as OutboxMutationRow);
             }
             if (revisions.size > 0) {
+              for (const source of await this.#db.databases.toArray()) {
+                const canonicalRevisionId =
+                  source.definitionRevisionId === undefined
+                    ? undefined
+                    : revisions.get(source.definitionRevisionId);
+                if (canonicalRevisionId !== undefined)
+                  await this.#db.databases.update(source.itemId, {
+                    definitionRevisionId: canonicalRevisionId,
+                  });
+              }
               const headers = await this.#db.revisionHeaders.toArray();
               for (const header of headers) {
                 const canonicalRevisionId = revisions.get(header.id);

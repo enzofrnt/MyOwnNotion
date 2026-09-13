@@ -19,6 +19,7 @@
  * exactly how a carefully stored kit turns out to be useless.
  */
 
+import { useState } from "react";
 import type { RecoveryStatusView } from "../../services/security-api.ts";
 import { FR_COPY, formatDate } from "../../ui/copy/index.ts";
 import { AsyncState, Button } from "../../ui/primitives/index.ts";
@@ -26,7 +27,9 @@ import { AsyncState, Button } from "../../ui/primitives/index.ts";
 export interface RecoveryReadinessPanelProps {
   readonly status: RecoveryStatusView | null;
   readonly busy: boolean;
+  readonly loading?: boolean;
   readonly onPrepareReplacement: () => Promise<void>;
+  readonly onRevoke?: () => Promise<void>;
 }
 
 /**
@@ -64,6 +67,8 @@ export function describeReadiness(status: RecoveryStatusView | null): {
 
 export function RecoveryReadinessPanel(props: RecoveryReadinessPanelProps) {
   const readiness = describeReadiness(props.status);
+  const [revokeRequested, setRevokeRequested] = useState(false);
+  const loading = props.loading === true;
 
   return (
     <section
@@ -73,10 +78,10 @@ export function RecoveryReadinessPanel(props: RecoveryReadinessPanelProps) {
       <h2 id="recovery-readiness-heading">{FR_COPY.security.recovery.title}</h2>
 
       <AsyncState
-        className={`recovery-readiness-panel__state is-${readiness.ready ? "ready" : "not-ready"}`}
+        className={`recovery-readiness-panel__state is-${loading ? "loading" : readiness.ready ? "ready" : "not-ready"}`}
         compact
-        kind={readiness.ready ? "success" : "error"}
-        title={readiness.message}
+        kind={loading ? "loading" : readiness.ready ? "success" : "error"}
+        title={loading ? FR_COPY.security.recovery.loading : readiness.message}
         testId="recovery-readiness"
       />
 
@@ -103,6 +108,7 @@ export function RecoveryReadinessPanel(props: RecoveryReadinessPanelProps) {
 
       <Button
         variant="secondary"
+        disabled={loading}
         onClick={() => {
           void props.onPrepareReplacement();
         }}
@@ -118,6 +124,45 @@ export function RecoveryReadinessPanel(props: RecoveryReadinessPanelProps) {
             all — which leaves them on a kit they may have lost. */}
         {FR_COPY.security.recovery.replacementSafety}
       </p>
+
+      {props.status?.active !== null && props.status !== null && props.onRevoke !== undefined ? (
+        <div className="recovery-revoke">
+          {!revokeRequested ? (
+            <Button
+              variant="danger"
+              busy={props.busy}
+              onClick={() => setRevokeRequested(true)}
+              data-testid="revoke-recovery-kit"
+            >
+              {FR_COPY.security.recovery.replacement.revoke}
+            </Button>
+          ) : (
+            <fieldset className="recovery-revoke-confirm" aria-label="Révocation">
+              <p>{FR_COPY.security.recovery.replacement.revokePrompt}</p>
+              <div className="recovery-revoke-actions">
+                <Button
+                  variant="danger"
+                  busy={props.busy}
+                  onClick={() => {
+                    void props.onRevoke?.();
+                  }}
+                  data-testid="confirm-revoke-recovery-kit"
+                >
+                  {FR_COPY.security.recovery.replacement.revokeConfirm}
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={props.busy}
+                  onClick={() => setRevokeRequested(false)}
+                  data-testid="cancel-revoke-recovery-kit"
+                >
+                  {FR_COPY.security.recovery.replacement.revokeCancel}
+                </Button>
+              </div>
+            </fieldset>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -10,6 +10,7 @@
 
 import type { LocalRecordCodec } from "@myownnotion/client-core";
 import {
+  applyCommandToProjection,
   applyLocalMutation,
   type LocalDatabase,
   openLocalDatabase,
@@ -31,6 +32,11 @@ let codec: LocalRecordCodec;
 async function readItem(itemId: Uuid) {
   const row = await db.items.get(itemId);
   return row === undefined ? undefined : await codec.openItem(row);
+}
+
+async function readDatabase(databaseId: Uuid) {
+  const row = await db.databases.get(databaseId);
+  return row === undefined ? undefined : await codec.openDatabase(row);
 }
 
 const FIXED_NOW = new Date("2026-08-09T12:00:00.000Z");
@@ -71,6 +77,36 @@ async function createItem(
   );
   expect(result.ok).toBe(true);
   return { itemId, placementId };
+}
+
+async function applyMutation(
+  commandType: string,
+  payload: Record<string, unknown>,
+  baseRevisionIds: Uuid[] = [],
+) {
+  return await applyLocalMutation(
+    db,
+    {
+      mutationId: generateUuidV7(),
+      commandType,
+      payload,
+      baseRevisionIds,
+    },
+    now,
+    codec,
+  );
+}
+
+function createDatabasePayload(overrides: Record<string, unknown> = {}) {
+  return {
+    id: generateUuidV7(),
+    name: "Offline projects",
+    placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
+    titlePropertyId: generateUuidV7(),
+    initialViewId: generateUuidV7(),
+    initialViewName: "Offline table",
+    ...overrides,
+  };
 }
 
 describe("item.create", () => {
@@ -243,6 +279,230 @@ describe("item.create", () => {
     if (!result.ok) {
       expect(result.error.code).toBe("item.not-found");
     }
+  });
+});
+
+describe("database projection placement and host guards", () => {
+  it("creates a reusable source with a hierarchy placement", async () => {
+    const payload = createDatabasePayload();
+    const result = await applyMutation("database.create", payload);
+
+    expect(result.ok).toBe(true);
+    expect((await readItem(payload.id))?.kind).toBe("page");
+    expect((await readDatabase(payload.id))?.definition.databaseId).toBe(payload.id);
+    expect((await db.placements.get(payload.placement.id))?.parentItemId).toBeNull();
+    expect(await db.outbox.count()).toBe(1);
+  });
+
+  it("creates an embedded display without adding a second hierarchy placement", async () => {
+    const host = await createItem("page", "Host", null);
+    const payload = createDatabasePayload({ hostPageId: host.itemId });
+    const result = await applyMutation("database.create", payload);
+
+    expect(result.ok).toBe(true);
+    expect((await readDatabase(payload.id))?.definition.embeddings).toHaveLength(1);
+    expect(await db.placements.where("itemId").equals(payload.id).count()).toBe(0);
+  });
+
+  it.each([
+    ["an absent page", async () => generateUuidV7()],
+    [
+      "a purged page",
+      async () => {
+        const host = await createItem("page", "Purged host", null);
+        await db.items.update(host.itemId, { lifecycle: "purged" });
+        return host.itemId;
+      },
+    ],
+    [
+      "a file",
+      async () => {
+        const fileId = generateUuidV7();
+        await db.items.add(
+          await codec.sealItem({
+            id: fileId,
+            kind: "file",
+            name: "diagram.png",
+            icon: null,
+            lifecycle: "active",
+            currentRevisionId: generateUuidV7(),
+            trashedAt: null,
+            purgeAfter: null,
+            favourite: false,
+            offlineIntent: false,
+            localAvailability: "present",
+            pageDocument: null,
+            file: { mediaType: "image/png", originalName: "diagram.png", byteLength: 4 },
+          }),
+        );
+        return fileId;
+      },
+    ],
+  ])("rejects a database display hosted by %s", async (_label, hostId) => {
+    const resolvedHostId = await hostId();
+    const beforeOutbox = await db.outbox.count();
+    const payload = createDatabasePayload({ hostPageId: resolvedHostId });
+    const result = await applyMutation("database.create", payload);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("item.not-found");
+    expect(await db.items.get(payload.id)).toBeUndefined();
+    expect(await db.databases.get(payload.id)).toBeUndefined();
+    expect(await db.outbox.count()).toBe(beforeOutbox);
+  });
+
+  it("rolls back a prepared database when its hierarchy parent is invalid", async () => {
+    const host = await createItem("page", "Host", null);
+    const payload = createDatabasePayload({
+      hostPageId: host.itemId,
+      placement: { id: generateUuidV7(), parentItemId: generateUuidV7(), positionKey: "a" },
+    });
+    const result = await applyMutation("database.create", payload);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("item.not-found");
+    expect(await db.items.get(payload.id)).toBeUndefined();
+    expect(await db.databases.get(payload.id)).toBeUndefined();
+    expect(await db.revisionHeaders.where("itemId").equals(payload.id).count()).toBe(0);
+    expect(await db.outbox.count()).toBe(1);
+  });
+
+  it("preserves linked database embeddings when a definition omits them", async () => {
+    const host = await createItem("page", "Host", null);
+    const payload = createDatabasePayload({ hostPageId: host.itemId });
+    expect((await applyMutation("database.create", payload)).ok).toBe(true);
+    const current = await readDatabase(payload.id);
+    if (current === undefined || current.definitionRevisionId === undefined)
+      throw new Error("Database fixture is missing its source revision");
+
+    const result = await applyMutation("database.definition.replace", {
+      databaseId: payload.id,
+      baseRevisionId: current.definitionRevisionId,
+      definition: { ...current.definition, embeddings: undefined },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("validation.invalid-payload");
+    expect((await readDatabase(payload.id))?.definition.embeddings).toHaveLength(1);
+    expect(await db.outbox.count()).toBe(2);
+  });
+
+  it("refuses applying a definition when the source has no revision head", async () => {
+    const payload = createDatabasePayload();
+    expect((await applyMutation("database.create", payload)).ok).toBe(true);
+    const stored = await db.databases.get(payload.id);
+    if (stored === undefined) throw new Error("Database fixture is missing");
+    const opened = await codec.openDatabase(stored);
+    const withoutRevision = await codec.sealDatabase({
+      itemId: opened.itemId,
+      definitionVersion: opened.definitionVersion,
+      definition: opened.definition,
+    });
+    await db.databases.put(withoutRevision);
+    await db.items.delete(payload.id);
+
+    await expect(
+      applyCommandToProjection(
+        db,
+        {
+          type: "database.definition.replace",
+          databaseId: payload.id,
+          baseRevisionId: generateUuidV7(),
+          definition: opened.definition,
+        },
+        now,
+        { database: withoutRevision, revisionId: generateUuidV7() },
+      ),
+    ).rejects.toMatchObject({ code: "database.not-found" });
+    expect(await db.revisionHeaders.where("itemId").equals(payload.id).count()).toBe(1);
+  });
+});
+
+describe("database entry placement guards", () => {
+  async function createDatabase() {
+    const payload = createDatabasePayload();
+    expect((await applyMutation("database.create", payload)).ok).toBe(true);
+    return payload;
+  }
+
+  it("places an entry beneath an active container", async () => {
+    const database = await createDatabase();
+    const parent = await createItem("folder", "Board", null);
+    const entryId = generateUuidV7();
+    const result = await applyMutation("database.entry.create", {
+      databaseId: database.id,
+      id: entryId,
+      title: "Entry",
+      placement: { id: generateUuidV7(), parentItemId: parent.itemId, positionKey: "a" },
+      values: {},
+      relationTargets: {},
+    });
+
+    expect(result.ok).toBe(true);
+    expect((await db.placements.where("itemId").equals(entryId).first())?.parentItemId).toBe(
+      parent.itemId,
+    );
+  });
+
+  it("treats the reusable source itself as the entry container", async () => {
+    const database = await createDatabase();
+    const entryId = generateUuidV7();
+    const result = await applyMutation("database.entry.create", {
+      databaseId: database.id,
+      id: entryId,
+      title: "Entry",
+      placement: { id: generateUuidV7(), parentItemId: database.id, positionKey: "a" },
+      values: {},
+      relationTargets: {},
+    });
+
+    expect(result.ok).toBe(true);
+    expect((await db.placements.where("itemId").equals(entryId).first())?.parentItemId).toBeNull();
+  });
+
+  it.each([
+    ["an absent parent", async () => generateUuidV7()],
+    [
+      "a file parent",
+      async () => {
+        const fileId = generateUuidV7();
+        await db.items.add(
+          await codec.sealItem({
+            id: fileId,
+            kind: "file",
+            name: "diagram.png",
+            icon: null,
+            lifecycle: "active",
+            currentRevisionId: generateUuidV7(),
+            trashedAt: null,
+            purgeAfter: null,
+            favourite: false,
+            offlineIntent: false,
+            localAvailability: "present",
+            pageDocument: null,
+            file: { mediaType: "image/png", originalName: "diagram.png", byteLength: 4 },
+          }),
+        );
+        return fileId;
+      },
+    ],
+  ])("rejects an entry under %s", async (_label, parentId) => {
+    const database = await createDatabase();
+    const entryId = generateUuidV7();
+    const result = await applyMutation("database.entry.create", {
+      databaseId: database.id,
+      id: entryId,
+      title: "Rejected entry",
+      placement: { id: generateUuidV7(), parentItemId: await parentId(), positionKey: "a" },
+      values: {},
+      relationTargets: {},
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("item.not-found");
+    expect(await db.items.get(entryId)).toBeUndefined();
+    expect(await db.databaseEntries.get(entryId)).toBeUndefined();
+    expect(await db.outbox.count()).toBe(1);
   });
 });
 

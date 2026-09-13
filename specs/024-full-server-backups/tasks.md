@@ -75,9 +75,18 @@ retention evidence until full backups explicitly prove equivalent coverage.
 
 - [x] T027 Align existing accessibility, narrow-layout and settings-history journeys with full backup as the primary panel and explicitly opened portable exports in `tests/e2e/accessibility.spec.ts`, `tests/e2e/narrow-viewport.spec.ts` and `tests/e2e/workspace-settings-boundary.spec.ts`; retain both surfaces' checks (FR-018/FR-019).
 
+
+## Storage audit follow-up — feature 025
+
+Feature 025 follows delivery of this feature. Its historical storage transition requires a verified full pre-update artifact. Full inventory becomes format-aware for encrypted completed/upload chunks and quarantine while retaining legacy-schema recovery; complete archive format remains opaque SQL plus durable files.
+
+See the [canonical plan](../025-storage-coherence-audit/plan.md) and
+[implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
+does not mark that follow-up implemented or delivered.
+
 ## Phase 9 — Historical backup keys
 
-- [x] T028 Preserve complete-backup recovery across wrapping-key rotation: implement bounded external historical-key configuration and private loading, current-only writes and authenticated historical reads for archives/receipts/activity/rehearsal, wire all runtime and CLI entry points, preserve explicit restore keys and immutable archives, document optional Docker mounting and version/fingerprint custody, remove destructive rotation advice, and verify real A→B rotation/catalogue/scheduling/retry/retention/A restoration with restored root-key access and refusal tests. Record focused checks in `validation.md`; T023/T024 remain integration delivery gates.
+- [x] T028 Preserve complete-backup recovery across wrapping-key rotation: implement bounded external historical-key configuration and private loading, current-only writes and authenticated historical reads for archives/receipts/activity/rehearsal, wire all runtime and CLI entry points, preserve explicit restore keys and immutable archives, document optional Docker mounting and version/fingerprint custody, remove destructive rotation advice, and verify real A→B rotation/catalogue/scheduling/retry/retention/A restoration with restored root-key access and refusal tests. Record focused checks in `validation.md`; T023/T024/T029/T030 remain integration, runtime-resource and delivery gates.
 
 - [ ] T029 Bound per-component archive-reader resources in `apps/api/src/backup/full/crypto.ts`: reproduce retained FileHandle close listeners across completed/cancelled reads, use bounded positional I/O without weakening authentication or truncation checks, verify archive and real recovery suites plus the existing performance budget, and record integration evidence (FR-007/FR-015/FR-016, audit A31).
 
@@ -85,6 +94,17 @@ retention evidence until full backups explicitly prove equivalent coverage.
 
 ## Phase 10: Convergence
 
-- [x] T031 Harden remote retention and retry fairness in `apps/api/src/backup/full/service.ts` and `receipts.ts`: require a receipt marked `verified` plus an exact remote read-back before deleting an expired local artifact, preserve local copies for pending/failed remote protection when provider deletion is idempotent or unavailable, and persist bounded retry metadata so one durable failure cannot starve other receipts across restarts; accept legacy receipts with absent metadata, handle equal-age legacy retry ties, and refuse a published artifact whose size changes before receipt publication. RED/GREEN regressions are covered in `apps/api/tests/full-backup-service.integration.spec.ts`, `apps/api/tests/full-backup-service-branches.spec.ts` and metadata validation per FR-013/FR-014, SC-006. The full delivery gates remain T023/T024.
+- [x] T031 Harden remote retention and retry fairness in `apps/api/src/backup/full/service.ts` and `receipts.ts`: require a receipt marked `verified` plus an exact remote read-back before deleting an expired local artifact, preserve local copies for pending/failed remote protection when provider deletion is idempotent or unavailable, and persist bounded retry metadata so one durable failure cannot starve other receipts across restarts; accept legacy receipts with absent metadata, handle equal-age legacy retry ties, and refuse a published artifact whose size changes before receipt publication. RED/GREEN regressions are covered in `apps/api/tests/full-backup-service.integration.spec.ts`, `apps/api/tests/full-backup-service-branches.spec.ts` and metadata validation per FR-013/FR-014, SC-006. The full integration, runtime-resource and delivery gates remain T023/T024/T029/T030.
 
 - [x] T032 [US4] Surface the monthly full-restore rehearsal invitation in `apps/web/src/features/backup/full-backup-panel.tsx`, with an explanatory no-backup state and a stable keyboard action at narrow widths; add RED/GREEN coverage in `tests/e2e/full-backup-ui.spec.ts` and preserve the canvas 30–31 traceability in the feature artifacts (FR-018, canvas §30–31).
+
+## Phase 11 — HTTP contract convergence
+
+- [x] T033 [US4] Align the complete and legacy backup HTTP responses with the
+  authenticated security-problem contract, including status, rehearsal and
+  failure variants in `specs/024-full-server-backups/contracts/backup-api.openapi.yaml`,
+  `apps/api/src/routes/backups.ts`, `apps/api/tests/backup-routes.spec.ts` and
+  `tests/contract/backup-api.spec.ts`; implemented and focused-checked in
+  commit `ca2174cd83fa328f8df808d2ccce5a66061c8999`. This closes the HTTP/API
+  contract task only; T023, T024, T029 and T030 remain the production-image,
+  runtime-resource, full integration and delivery gates.

@@ -18,6 +18,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { acceptedWriteGuards } from "../src/plugins/mutations.ts";
+import { StorageTransitionPendingError } from "../src/security/file-storage-transition-guard.ts";
 import { RotationWriteBlockedError } from "../src/security/rotation-policy-service.ts";
 
 const command = {
@@ -41,7 +42,7 @@ describe("the guards attached to an accepted write", () => {
       { assertWritesAllowed } as never,
     );
 
-    const tx = {} as never;
+    const tx = { execute: vi.fn(async () => ({ rows: [{ blocked: false }] })) } as never;
     await guards.onAccepted?.(tx, { revisionIds: [] });
 
     // The transaction handle itself is passed on, not a fresh connection. A
@@ -49,6 +50,23 @@ describe("the guards attached to an accepted write", () => {
     // in between, and the write it let through would be sealed under a key the
     // policy had already stopped.
     expect(assertWritesAllowed).toHaveBeenCalledWith(tx);
+  });
+
+  it("refuses an incomplete storage transition before rotation policy or accepted publication", async () => {
+    const assertWritesAllowed = vi.fn(async () => {});
+    const sealItemName = vi.fn(async () => {});
+    const guards = acceptedWriteGuards(
+      command,
+      { sealItemName } as never,
+      { assertWritesAllowed } as never,
+    );
+    const tx = { execute: async () => ({ rows: [{ blocked: true }] }) } as never;
+    await expect(guards.beforeExecute?.(tx)).rejects.toBeInstanceOf(StorageTransitionPendingError);
+    await expect(guards.onAccepted?.(tx, { revisionIds: [] })).rejects.toBeInstanceOf(
+      StorageTransitionPendingError,
+    );
+    expect(assertWritesAllowed).not.toHaveBeenCalled();
+    expect(sealItemName).not.toHaveBeenCalled();
   });
 
   it("does not seal when the policy refuses", async () => {
@@ -63,9 +81,11 @@ describe("the guards attached to an accepted write", () => {
       } as never,
     );
 
-    await expect(guards.onAccepted?.({} as never, { revisionIds: [] })).rejects.toBeInstanceOf(
-      RotationWriteBlockedError,
-    );
+    await expect(
+      guards.onAccepted?.({ execute: async () => ({ rows: [{ blocked: false }] }) } as never, {
+        revisionIds: [],
+      }),
+    ).rejects.toBeInstanceOf(RotationWriteBlockedError);
     // The throw is what rolls the mutation back, so a refused write leaves
     // neither content nor envelope behind.
     expect(sealItemName).not.toHaveBeenCalled();

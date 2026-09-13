@@ -83,28 +83,40 @@ export async function renderBootstrapKit(
 
   const generation = await findCurrentGeneration(deps.db, deps.workspaceId);
   const now = deps.now();
-  return createRecoveryKit({
-    installationId: deps.installationId,
-    sourceLineageId: deps.workspaceId,
-    kitId,
-    // The first kit an installation has. Replacements advance it on
-    // confirmation; this one is issued before there is anything to supersede.
-    recoveryEpoch: 1,
-    // Sealed under the mounted deployment key, which is the same secret the
-    // installation already depends on to read anything. The consequence — that
-    // the file is useless without that key, so both must be kept, apart — is
-    // stated beside the download button rather than only in a document.
-    secret: { kind: "deployment-key", deploymentKey: new Uint8Array(key) },
-    payload: await deps.keys.exportRecoveryMaterial(deps.db),
-    // Every generation up to the current one: a restored installation has to
-    // open records written under any of them. During bootstrap that is
-    // generation one, but reading it rather than assuming it means this stays
-    // right if a kit is ever re-issued later.
-    supportedKeyGenerations:
-      generation === null
-        ? [1]
-        : Array.from({ length: generation.generation }, (_, index) => index + 1),
-    createdAt: now,
-    downloadExpiresAt: new Date(now.getTime() + BOOTSTRAP_KIT_WINDOW_MS),
-  });
+  let payload: Uint8Array | undefined;
+  let deploymentKeyCopy: Uint8Array | undefined;
+  try {
+    payload = await deps.keys.exportRecoveryMaterial(deps.db);
+    deploymentKeyCopy = new Uint8Array(key);
+    return createRecoveryKit({
+      installationId: deps.installationId,
+      sourceLineageId: deps.workspaceId,
+      kitId,
+      // The first kit an installation has. Replacements advance it on
+      // confirmation; this one is issued before there is anything to supersede.
+      recoveryEpoch: 1,
+      // Sealed under the mounted deployment key, which is the same secret the
+      // installation already depends on to read anything. The consequence — that
+      // the file is useless without that key, so both must be kept, apart — is
+      // stated beside the download button rather than only in a document.
+      secret: { kind: "deployment-key", deploymentKey: deploymentKeyCopy },
+      payload,
+      // Every generation up to the current one: a restored installation has to
+      // open records written under any of them. During bootstrap that is
+      // generation one, but reading it rather than assuming it means this stays
+      // right if a kit is ever re-issued later.
+      supportedKeyGenerations:
+        generation === null
+          ? [1]
+          : Array.from({ length: generation.generation }, (_, index) => index + 1),
+      createdAt: now,
+      downloadExpiresAt: new Date(now.getTime() + BOOTSTRAP_KIT_WINDOW_MS),
+    });
+  } finally {
+    // The kit contains ciphertext only. The unwrapped root key must not remain
+    // in the caller's buffer after sealing, including when validation or
+    // encryption fails.
+    payload?.fill(0);
+    deploymentKeyCopy?.fill(0);
+  }
 }

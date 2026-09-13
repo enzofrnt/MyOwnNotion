@@ -121,25 +121,100 @@ export function checkProtectedWrite(input: WriteGateInput): ReadinessDecision {
 /**
  * Readiness requirement per route family, in one table.
  *
- * Kept together so a reviewer can see the whole surface at once. A route added
- * without an entry here has no requirement, which is why `checkReadiness` is
- * called explicitly by each route rather than inferred from a path prefix —
- * an inferred default is a rule nobody notices is missing.
+ * Kept together so a reviewer can see the whole security surface at once. The
+ * composition root applies this table before private handlers run; a private
+ * route added without an entry receives the protected requirement below.
  */
 export const ROUTE_READINESS: Readonly<Record<string, ReadinessRequirement>> = {
   "/health": "none",
   "/v1/installation/status": "none",
   "/v1/bootstrap": "uninitialized",
+  "/v1/bootstrap/:attemptId/credential": "uninitialized",
+  "/v1/bootstrap/:attemptId/recovery/download": "uninitialized",
+  "/v1/bootstrap/:attemptId/recovery/regenerate": "uninitialized",
+  "/v1/bootstrap/:attemptId/recovery/confirm": "uninitialized",
   "/v1/auth/login/passkey": "initialized",
   "/v1/auth/login/password": "initialized",
   "/v1/auth/session": "initialized",
   "/v1/auth/sessions": "initialized",
+  "/v1/auth/sessions/:sessionId": "initialized",
+  "/v1/auth/sessions/revoke-all": "initialized",
   "/v1/auth/passkeys": "initialized",
+  "/v1/auth/passkeys/enrollment/options": "initialized",
+  "/v1/auth/passkeys/enrollment/complete": "initialized",
+  "/v1/auth/passkeys/:credentialId": "initialized",
   "/v1/auth/password": "initialized",
   "/v1/devices": "initialized",
+  "/v1/devices/:deviceId": "initialized",
   "/v1/backups/status": "initialized",
+  "/v1/backups/full/status": "initialized",
+  "/v1/backups/full/rehearsals": "protected",
   "/v1/backups/rehearsals": "protected",
-  "/v1/security/recovery-kits": "protected",
+  "/v1/security/recovery-kits": "initialized",
+  "/v1/security/recovery-kits/:kitId/download": "protected",
+  "/v1/security/recovery-kits/:kitId/confirm": "protected",
+  "/v1/security/recovery-kits/revoke": "protected",
   "/v1/security/rotations": "initialized",
+  "/v1/security/rotations/policies": "initialized",
+  "/v1/security/rotations/:operationId": "initialized",
   "/v1/security/audit": "initialized",
+  "/v1/mcp/audit": "initialized",
 };
+
+/**
+ * Method-specific overrides for route declarations whose diagnostic GET and
+ * mutating POST have different installation requirements. The path table
+ * remains the default so routes without an override retain their documented
+ * family requirement.
+ */
+export const ROUTE_READINESS_BY_METHOD: Readonly<Record<string, ReadinessRequirement>> = {
+  "POST /v1/security/recovery-kits": "protected",
+  "POST /v1/security/rotations": "protected",
+};
+
+/**
+ * Resolves the requirement for a Fastify route declaration.
+ *
+ * Route declarations use parameter placeholders (`:kitId`) while a caller can
+ * also reach this helper with a concrete path. Patterns match one complete
+ * route shape only. An unlisted descendant therefore falls through to the
+ * protected default instead of inheriting a diagnostic collection's weaker
+ * requirement.
+ */
+export function readinessRequirementForRoute(
+  route: string,
+  method: string = "GET",
+): ReadinessRequirement | undefined {
+  const normalized = route.replace(/\/+$/u, "") || "/";
+  const methodOverride = ROUTE_READINESS_BY_METHOD[`${method.toUpperCase()} ${normalized}`];
+  if (methodOverride !== undefined) return methodOverride;
+  const exact = ROUTE_READINESS[normalized];
+  if (exact !== undefined) return exact;
+
+  const family = Object.entries(ROUTE_READINESS)
+    .filter(([pattern]) => routePatternMatches(normalized, pattern))
+    .sort(([left], [right]) => right.length - left.length)[0];
+  if (family !== undefined) return family[1];
+
+  return normalized.startsWith("/v1/") ? "protected" : undefined;
+}
+
+/** Matches both Fastify declarations (`:id`) and concrete request paths. */
+function routePatternMatches(path: string, pattern: string): boolean {
+  const pathSegments = path.split("/").filter(Boolean);
+  const patternSegments = pattern.split("/").filter(Boolean);
+  if (pathSegments.length !== patternSegments.length) return false;
+  return patternSegments.every(
+    (segment, index) => segment.startsWith(":") || segment === pathSegments[index],
+  );
+}
+
+/** Applies the resolved route requirement, with an open result for public paths. */
+export function checkRouteReadiness(
+  context: SecurityRequestContext,
+  route: string,
+  method: string = "GET",
+): ReadinessDecision {
+  const requirement = readinessRequirementForRoute(route, method);
+  return requirement === undefined ? { ready: true } : checkReadiness(context, requirement);
+}

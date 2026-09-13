@@ -466,15 +466,17 @@ away, and no feature-001 artifact was touched.
 | Field | Value |
 | --- | --- |
 | Candidate commit SHA | `e4764ef` |
-| Requirements in `spec.md` | 35 functional, 10 success criteria |
+| Requirements in `spec.md` at historical candidate `e4764ef` | 35 functional, 10 success criteria |
 | Requirements with at least one task | 35 of 35 |
-| Success criteria with at least one task | 10 of 10 |
+| Success criteria with at least one task at that checkpoint | 10 of 10 |
 | Critical findings | 0 |
 
 ### Coverage
 
-Every FR-001 – FR-035 and SC-001 – SC-011 is named by at least one task. No
-task exists that references no requirement.
+The historical candidate covered every then-current FR-001 – FR-035 and
+SC-001 – SC-010. The later structured-logging extension added SC-011 and covers
+it through T121–T129; the current task matrix therefore names every FR-001 –
+FR-035 and SC-001 – SC-011. No task exists that references no requirement.
 
 ### Findings
 
@@ -483,7 +485,7 @@ task exists that references no requirement.
 | A1 | Inconsistency | MEDIUM | Seven ledger rows named a test path that was never written — `packages/database/tests/key-rotation.integration.spec.ts`, `recovery-kit.integration.spec.ts`, `administrative-recovery.integration.spec.ts`, `security-migration.integration.spec.ts`, and `apps/api/tests/key-rotation-write-block.integration.spec.ts` among them. The work exists; it landed at a different layer than the plan anticipated. | Each row now names the file that actually holds the evidence, with the original path and the reason for the move recorded inline. A row pointing at a file that does not exist is worse than a `pending` row, because it reads as covered. |
 | A2 | Inconsistency | LOW | T091 named a separate fault-injection file; the tests live in the orchestrator suite. | Recorded in the task note. Every integration file starts its own PostgreSQL container, and a separate suite for the same subject exceeded what the run host can start at once — producing serialization failures in unrelated tests. |
 | A3 | Underspecification | RESOLVED | T059 carried a blocking design question — where the recovery kit's passphrase comes from — which the specification never answered. | Answered by the installation owner: there is no passphrase; the kit is sealed under the mounted deployment key. The consequence, that the kit alone restores nothing, is now stated in the artifact's own type, in every service response, and beside the download button. |
-| A4 | Coverage | ACCEPTED | Nine tasks remain open and none can be closed by writing code: they are validation protocols requiring recorded runs (T035, T036, T049, T062, T089, T105, T107), a usability protocol requiring ten human participants (T106), and one suite that becomes meaningful only after the encrypted-read cutover (T053). | Left open with the reason on each. Marking a protocol done without running it is the exact false pass the ledger exists to prevent. |
+| A4 | Coverage | ACCEPTED | At the time of this analysis, nine tasks remained open and none could be closed by writing code: they were validation protocols requiring recorded runs (T035, T036, T049, T062, T089, T105, T107), a usability protocol requiring ten human participants (T106), and one suite that became meaningful only after the encrypted-read cutover (T053). This is a historical count, not the current task state. | The historical tasks stayed open with the reason on each. The current ledger and the later convergence evidence below are authoritative; marking a protocol done without running it remains the exact false pass this ledger exists to prevent. |
 
 ### What this pass did not find
 
@@ -491,6 +493,41 @@ No conflicting requirements, no duplicate requirements, and no requirement
 whose acceptance criterion is untestable as written. The vague-adjective sweep
 ("fast", "secure", "intuitive") returns matches only inside rationale prose,
 never inside an acceptance criterion.
+
+## Follow-up convergence evidence (T130–T132)
+
+The security/storage audit follow-up was reviewed against the executable code
+and the feature artifacts at commit
+`ca2174cd83fa328f8df808d2ccce5a66061c8999`. The review found one tracking
+defect — the local projection task reused `T121`, already assigned to the
+structured-logging phase — and two implementation-traceability gaps. The task
+was renamed to `T130`; completed recovery replacement and route/readiness/
+security-contract work is recorded as `T131` and `T132`. The requirement matrix
+below points to those IDs. No requirement or acceptance criterion was changed,
+and no external delivery gate or real-data verification was promoted.
+
+| Task | Evidence path | Candidate SHA | Result |
+| --- | --- | --- | --- |
+| T130 | `packages/client-core/tests/local-encryption.integration.spec.ts`; `packages/client-core/tests/reseal.spec.ts`; local encrypted projection implementation | `ca2174cd83fa328f8df808d2ccce5a66061c8999` | pass; the local projection write/read and plaintext-to-sealed reseal paths are covered under the renamed task |
+| T131 | `apps/api/tests/recovery-kit-replacement.integration.spec.ts`; `apps/web/tests/recovery-replacement.spec.tsx`; `tests/e2e/security-recovery.spec.ts` | `ca2174cd83fa328f8df808d2ccce5a66061c8999` | pass; replacement keeps the active kit until confirmed and exposes readiness states |
+| T132 | `tests/contract/security-api.spec.ts`; `tests/contract/backup-api.spec.ts`; `tests/contract/export.spec.ts`; `apps/api/tests/security-recovery-routes.spec.ts` | `ca2174cd83fa328f8df808d2ccce5a66061c8999` | pass; runtime route guards, responses, and OpenAPI contracts are aligned |
+
+This evidence closes the traceability correction only. The delivery rows,
+human protocols, and any real-data/HAR verification remain pending where their
+own raw evidence is still required.
+
+## Targeted recovery-artifact lifecycle evidence (T133)
+
+This local evidence records the lifecycle hardening delivered by commit
+`333ea73ba7dc08162719a2a695478f5f94ca6828`. It covers the process-memory
+boundary and key-buffer cleanup; it does not promote PR or `main` delivery
+evidence and does not close the human or real-data protocols below.
+
+| Requirement/criterion | Command or test path | Candidate SHA | Controlled clock/configuration | Raw evidence/artifact | Reviewer/date | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-015/FR-016/FR-018/FR-023/SC-005 | `packages/domain/tests/recovery-artifact.property.spec.ts`; `apps/api/tests/bootstrap-kit-artifact.contract.spec.ts`; `apps/api/tests/recovery-kit-replacement.integration.spec.ts`; `apps/api/tests/security-recovery-routes.spec.ts` | `333ea73ba7dc08162719a2a695478f5f94ca6828` | Isolated PostgreSQL fixture; injected service clocks; replacement TTL and restart fixtures | **4 files / 86 tests passed**; prepared artifacts remain process-memory-only, preparation/status/download races are serialized and re-read, terminal lifecycle cleanup is covered, and key buffers are cleared on success/failure. Raw log: `final-recovery-focused-333ea73-20260913.log` | Codex / 2026-09-13 | `pass` |
+| FR-015/FR-016/FR-018/FR-023/SC-005 | `tests/e2e/backup.spec.ts` and `tests/e2e/security-recovery.spec.ts` on `chromium-desktop` | `333ea73ba7dc08162719a2a695478f5f94ca6828` | `MYOWNNOTION_E2E_JOBS=1`; isolated local matrix | **15/15 Chromium journeys passed**; one-time recovery delivery, replay semantics, replacement readiness, and backup artifact flow remain coherent. Raw log: `final-recovery-chromium-333ea73-20260913.log` | Codex / 2026-09-13 | `pass` |
+| FR-023/SC-005 | `bun run format:check`, `bun run lint:ci`, `bun run typecheck` | `333ea73ba7dc08162719a2a695478f5f94ca6828` | Pinned repository toolchain | Formatting, Biome lint, and TypeScript checks passed | Codex / 2026-09-13 | `pass` |
 
 ## Functional-requirement ledger
 

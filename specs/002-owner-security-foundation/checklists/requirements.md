@@ -44,7 +44,7 @@
 ## Validation Notes
 
 - Revalidated on 2026-08-10 after the strict Analyze findings and targeted Specify refinement.
-- Preserved the permanent single-owner boundary, feature-001 identity authority, product-canvas scope/exclusions, all accepted scope, and FR-001–FR-035 and SC-001–SC-010 numbering.
+- Preserved the permanent single-owner boundary, feature-001 identity authority, product-canvas scope/exclusions, all accepted scope, and FR-001–FR-035 and SC-001–SC-011 numbering.
 - Installation counts are state-dependent and committed-only: every uninitialized and pre-confirmation bootstrap state is exactly `0/0` with no committed owner/workspace rows; only the successful one-time download plus explicit offline-storage confirmation atomically commits the owner, binds the feature-001 canonical workspace, activates recovery, and changes the installation to `ready` with `1/1`; initialized `recovery-required`, `ready`, `migration-in-progress`, and `degraded` states are exactly `1/1`; no fabricated entity is reported.
 - FR-004 and FR-005 explicitly cover the owner-facing credential lifecycle: listing passkeys, enrolling/adding a passkey, removing a selected passkey, setting/changing the password alternative, and recent authentication for every credential change; no remote administrator API is introduced.
 - FR-016 explicitly keeps bootstrap recovery-kit regeneration session-free, binds it to the valid browser-held capability for the same credential-verified bootstrap attempt, issues a new kit/download opportunity while retaining `0/0`, rejects/expires prior material, creates no second owner/workspace, and never revives an expired download.

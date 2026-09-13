@@ -136,6 +136,15 @@ Implement US1's format and real restore first, US2 guard second, US3 scheduling
 third, then US4 inspection/settings. Follow the current full `checks:local` gate,
 container Trivy when runtime changes, every PR check and post-merge main CI.
 
+
+## Storage audit follow-up — feature 025
+
+Feature 025 follows delivery of this feature. Its historical storage transition requires a verified full pre-update artifact. Full inventory becomes format-aware for encrypted completed/upload chunks and quarantine while retaining legacy-schema recovery; complete archive format remains opaque SQL plus durable files.
+
+See the [canonical plan](../025-storage-coherence-audit/plan.md) and
+[implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
+does not mark that follow-up implemented or delivered.
+
 ## T028: retain external backup key history across wrapping rotation
 
 Use `MYOWNNOTION_BACKUP_HISTORICAL_KEY_FILES`, a JSON array of at most 16 unique

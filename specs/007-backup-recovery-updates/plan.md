@@ -155,3 +155,12 @@ reverse:
 | Three tables | A backup, its verifications and a restoration attempt have different lifetimes and different failure modes. | One table with nullable columns, which would make "verified after transfer" and "verified after creation" indistinguishable when one is absent. |
 | A Google Drive client | The canvas names it as the first destination. | Shipping only the local destination, which would meet every test and none of the point. |
 | A scheduler | FR-005 is a time, and time has to come from somewhere. | Reusing the rotation scheduler, which evaluates daily for a different reason and would tie two unrelated schedules together. |
+
+
+## Storage audit follow-up — feature 025
+
+Feature 025 removes plaintext portable-archive staging, streams authorized file content directly into encryption and restores through protected ingestion. Complete physical recovery remains feature 024; portable exports remain credential-free.
+
+See the [canonical plan](../025-storage-coherence-audit/plan.md) and
+[implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
+does not mark that follow-up implemented or delivered.

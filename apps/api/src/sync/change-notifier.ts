@@ -1,11 +1,10 @@
 /**
  * Telling open streams that the feed advanced (T006, FR-001).
  *
- * In-process and deliberately so. This product is one server for one owner, so
- * a message bus would be infrastructure to run, monitor and secure in order to
- * deliver a notification between two objects in the same heap. If the day comes
- * that several API processes serve one workspace, this is the seam to replace —
- * and until then a `Set` is the honest implementation.
+ * In-process for immediate notifications within the API. Local import/admin
+ * commands have another heap, so the existing SSE heartbeat also checks the
+ * durable cursor and recovers their announcements. One owner and one server
+ * need no message bus; the journal remains authoritative across both paths.
  *
  * Three properties matter, and all three are about failure rather than the happy
  * path:

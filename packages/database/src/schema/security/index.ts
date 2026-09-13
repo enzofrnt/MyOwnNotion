@@ -870,7 +870,7 @@ export const securityAuditEvents = pgTable(
     ),
     check(
       "security_audit_events_actor_check",
-      sql`${table.actorClass} IN ('owner', 'hosting-admin', 'system')`,
+      sql`${table.actorClass} IN ('owner', 'hosting-admin', 'system', 'mcp')`,
     ),
   ],
 );

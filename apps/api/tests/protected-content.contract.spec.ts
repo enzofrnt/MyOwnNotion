@@ -20,6 +20,7 @@ import { SCRUBBED_PLACEHOLDER } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { PROTECTED_PAYLOAD } from "../src/security/canonical-payloads.ts";
 import { ProtectedContent } from "../src/security/protected-content.ts";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
@@ -130,6 +131,205 @@ async function envelopeTypes(): Promise<string[]> {
 }
 
 describe("writing content through the ordinary routes", () => {
+  it("refuses the protected-content placeholder as a new title", async () => {
+    const pageId = generateUuidV7();
+    const response = await injectAsOwner({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: pageId,
+        kind: "page",
+        name: "\uFFFD",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+    });
+
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json()).toMatchObject({ code: "validation.invalid-name" });
+    const absent = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    expect(absent.statusCode).toBe(404);
+    expect(await envelopeTypes()).toEqual([]);
+  });
+
+  it("refuses renaming a protected item to the storage placeholder", async () => {
+    const pageId = await createPage("Visible title");
+    const before = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const beforeItem = before.json() as { currentRevisionId: string; name: string };
+    const response = await injectAsOwner({
+      method: "PATCH",
+      url: `/v1/items/${pageId}`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { name: "\uFFFD", baseRevisionId: beforeItem.currentRevisionId },
+    });
+
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json()).toMatchObject({ code: "validation.invalid-name" });
+    const after = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    expect(after.json()).toMatchObject({
+      name: "Visible title",
+      currentRevisionId: beforeItem.currentRevisionId,
+    });
+  });
+
+  it("refuses restoring a retained title that collides with the storage placeholder", async () => {
+    const pageId = await createPage("Earlier title");
+    const earlier = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const earlierRevisionId = (earlier.json() as { currentRevisionId: string }).currentRevisionId;
+    const renamed = await injectAsOwner({
+      method: "PATCH",
+      url: `/v1/items/${pageId}`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { name: "Current title", baseRevisionId: earlierRevisionId },
+    });
+    expect(renamed.statusCode, renamed.body).toBe(200);
+    const currentRevisionId = (renamed.json() as { item: { currentRevisionId: string } }).item
+      .currentRevisionId;
+    const protectedContent = harness.built.context.protectedContent;
+    if (protectedContent === undefined) throw new Error("Protected content is unavailable");
+    const snapshot = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
+      harness.built.database.db,
+      earlierRevisionId,
+    );
+    if (snapshot === null) throw new Error("Retained snapshot is unavailable");
+    await protectedContent.writeRevisionSnapshot(harness.built.database.db, {
+      revisionId: earlierRevisionId,
+      snapshot: { ...snapshot, name: "\uFFFD" },
+    });
+
+    const response = await injectAsOwner({
+      method: "POST",
+      url: `/v1/revisions/${earlierRevisionId}/restore`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { currentRevisionId },
+    });
+
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json()).toMatchObject({ code: "validation.invalid-name" });
+    const after = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    expect(after.json()).toMatchObject({ name: "Current title", currentRevisionId });
+  });
+
+  it("refuses the exact protected payload on page creation while preserving larger objects", async () => {
+    const reservedId = generateUuidV7();
+    const reserved = await injectAsOwner({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: reservedId,
+        kind: "page",
+        name: "Reserved body",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 1,
+          body: PROTECTED_PAYLOAD,
+        },
+      },
+    });
+    expect(reserved.statusCode, reserved.body).toBe(400);
+    expect(reserved.json()).toMatchObject({ code: "validation.invalid-payload" });
+    expect(
+      (await injectAsOwner({ method: "GET", url: `/v1/items/${reservedId}` })).statusCode,
+    ).toBe(404);
+
+    const authoredId = generateUuidV7();
+    const authoredBody = { ...PROTECTED_PAYLOAD, text: "authored content" };
+    const authored = await injectAsOwner({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: authoredId,
+        kind: "page",
+        name: "Authored body",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "W" },
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 1,
+          body: authoredBody,
+        },
+      },
+    });
+    expect(authored.statusCode, authored.body).toBe(201);
+    expect(
+      (await injectAsOwner({ method: "GET", url: `/v1/items/${authoredId}` })).json(),
+    ).toMatchObject({ pageDocument: { body: authoredBody } });
+  });
+
+  it("refuses replacing a page with the exact protected payload", async () => {
+    const pageId = await createPage("Stable page");
+    await replaceBody(pageId, { text: "stable body" });
+    const before = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const beforeItem = before.json() as {
+      currentRevisionId: string;
+      pageDocument: { body: Record<string, unknown> };
+    };
+
+    const replaced = await injectAsOwner({
+      method: "PUT",
+      url: `/v1/pages/${pageId}/document`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        baseRevisionId: beforeItem.currentRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 1,
+          body: PROTECTED_PAYLOAD,
+        },
+      },
+    });
+    expect(replaced.statusCode, replaced.body).toBe(400);
+    expect(replaced.json()).toMatchObject({ code: "validation.invalid-payload" });
+
+    const after = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    expect(after.json()).toMatchObject({
+      currentRevisionId: beforeItem.currentRevisionId,
+      pageDocument: { body: { text: "stable body" } },
+    });
+  });
+
+  it("refuses restoring a page with the exact protected payload", async () => {
+    const pageId = await createPage("Stable page");
+    const initial = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const retainedRevisionId = (initial.json() as { currentRevisionId: string }).currentRevisionId;
+    await replaceBody(pageId, { text: "stable body" });
+    const before = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const beforeItem = before.json() as { currentRevisionId: string };
+
+    const content = harness.built.context.protectedContent;
+    if (content === undefined) throw new Error("Protected content is unavailable");
+    const retained = await content.readRevisionSnapshot<Record<string, unknown>>(
+      harness.built.database.db,
+      retainedRevisionId,
+    );
+    const retainedDocument = retained?.["pageDocument"];
+    if (retained === null || typeof retainedDocument !== "object" || retainedDocument === null)
+      throw new Error("Retained page document is unavailable");
+    await content.writeRevisionSnapshot(harness.built.database.db, {
+      revisionId: retainedRevisionId,
+      snapshot: {
+        ...retained,
+        pageDocument: { ...retainedDocument, body: PROTECTED_PAYLOAD },
+      },
+    });
+    const restored = await injectAsOwner({
+      method: "POST",
+      url: `/v1/revisions/${retainedRevisionId}/restore`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { currentRevisionId: beforeItem.currentRevisionId },
+    });
+    expect(restored.statusCode, restored.body).toBe(400);
+    expect(restored.json()).toMatchObject({ code: "validation.invalid-payload" });
+
+    const after = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    expect(after.json()).toMatchObject({
+      currentRevisionId: beforeItem.currentRevisionId,
+      pageDocument: { body: { text: "stable body" } },
+    });
+  });
+
   it("seals the title", async () => {
     await createPage(SECRET_TITLE);
     expect(await envelopeTypes()).toContain("item.name");
@@ -199,6 +399,49 @@ describe("writing content through the ordinary routes", () => {
     expect(row?.source_item_id).toBe(source);
     expect(row?.target_item_id).toBe(target);
     expect(row?.relation_type).toBe("note:mentions");
+  });
+
+  it("refuses only the exact protected relationship metadata marker", async () => {
+    const source = await createPage("Reserved relationship source");
+    const target = await createPage("Reserved relationship target");
+    const reservedId = generateUuidV7();
+    const reserved = await injectAsOwner({
+      method: "POST",
+      url: "/v1/relationships",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: reservedId,
+        sourceItemId: source,
+        targetItemId: target,
+        relationType: "note:mentions",
+        metadata: PROTECTED_PAYLOAD,
+      },
+    });
+    expect(reserved.statusCode, reserved.body).toBe(400);
+    expect(reserved.json()).toMatchObject({ code: "validation.invalid-payload" });
+
+    const authoredId = generateUuidV7();
+    const authoredMetadata = { ...PROTECTED_PAYLOAD, note: "authored metadata" };
+    const authored = await injectAsOwner({
+      method: "POST",
+      url: "/v1/relationships",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: authoredId,
+        sourceItemId: source,
+        targetItemId: target,
+        relationType: "note:mentions",
+        metadata: authoredMetadata,
+      },
+    });
+    expect(authored.statusCode, authored.body).toBe(201);
+    const listed = await injectAsOwner({
+      method: "GET",
+      url: `/v1/relationships?itemId=${source}`,
+    });
+    expect(listed.json()).toMatchObject({
+      relationships: [{ id: authoredId, metadata: authoredMetadata }],
+    });
   });
 
   it("keeps the identifier readable", async () => {
@@ -666,6 +909,96 @@ describe("content and its envelope commit together", () => {
 });
 
 describe("history is sealed too", () => {
+  it("does not expose a raw revision snapshot when its envelope is missing", async () => {
+    const pageId = await createPage("Missing history envelope");
+    const item = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const revisionId = item.json().currentRevisionId as string;
+    const content = harness.built.context.protectedContent;
+    if (content === undefined) throw new Error("Protected content is unavailable");
+    const retained = await content.readRevisionSnapshot<Record<string, unknown>>(
+      harness.built.database.db,
+      revisionId,
+    );
+    if (retained === null) throw new Error("Retained snapshot is unavailable");
+
+    await harness.built.database.db.execute(
+      sql`DELETE FROM protected_envelopes
+          WHERE entity_type = 'revision.snapshot' AND entity_id = ${revisionId}::uuid`,
+    );
+    await harness.built.database.db.execute(
+      sql`UPDATE revisions SET snapshot = ${JSON.stringify(retained)}::jsonb
+          WHERE id = ${revisionId}::uuid`,
+    );
+
+    const response = await injectAsOwner({ method: "GET", url: `/v1/revisions/${revisionId}` });
+    expect(response.statusCode, response.body).toBe(500);
+    expect(response.json()).toMatchObject({ code: "protected_read_failed" });
+  });
+
+  it("does not restore from a raw revision snapshot when its envelope is missing", async () => {
+    const pageId = await createPage("Missing restore envelope");
+    const initial = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const retainedRevisionId = initial.json().currentRevisionId as string;
+    await replaceBody(pageId, { text: "current body" });
+    const current = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const currentRevisionId = current.json().currentRevisionId as string;
+    const content = harness.built.context.protectedContent;
+    if (content === undefined) throw new Error("Protected content is unavailable");
+    const retained = await content.readRevisionSnapshot<Record<string, unknown>>(
+      harness.built.database.db,
+      retainedRevisionId,
+    );
+    if (retained === null) throw new Error("Retained snapshot is unavailable");
+
+    await harness.built.database.db.execute(
+      sql`DELETE FROM protected_envelopes
+          WHERE entity_type = 'revision.snapshot' AND entity_id = ${retainedRevisionId}::uuid`,
+    );
+    await harness.built.database.db.execute(
+      sql`UPDATE revisions SET snapshot = ${JSON.stringify(retained)}::jsonb
+          WHERE id = ${retainedRevisionId}::uuid`,
+    );
+
+    const response = await injectAsOwner({
+      method: "POST",
+      url: `/v1/revisions/${retainedRevisionId}/restore`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { currentRevisionId },
+    });
+    expect(response.statusCode, response.body).toBe(500);
+    expect(response.json()).toMatchObject({ code: "protected_read_failed" });
+  });
+
+  it("keeps an expired protected revision unavailable for read and restore", async () => {
+    const pageId = await createPage("Expired protected history");
+    const initial = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const retainedRevisionId = initial.json().currentRevisionId as string;
+    await replaceBody(pageId, { text: "current body" });
+    const current = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
+    const currentRevisionId = current.json().currentRevisionId as string;
+
+    await harness.built.database.db.execute(
+      sql`UPDATE revisions SET snapshot_expires_at = now() - interval '1 second'
+          WHERE id = ${retainedRevisionId}::uuid`,
+    );
+
+    const read = await injectAsOwner({
+      method: "GET",
+      url: `/v1/revisions/${retainedRevisionId}`,
+    });
+    expect(read.statusCode, read.body).toBe(410);
+    expect(read.json()).toMatchObject({ code: "revision.snapshot-expired" });
+
+    const restored = await injectAsOwner({
+      method: "POST",
+      url: `/v1/revisions/${retainedRevisionId}/restore`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { currentRevisionId },
+    });
+    expect(restored.statusCode, restored.body).toBe(410);
+    expect(restored.json()).toMatchObject({ code: "revision.snapshot-expired" });
+  });
+
   it("seals the snapshot of every revision a mutation produces", async () => {
     // A snapshot is the whole record as it stood. Sealing only the current
     // title and body would leave every previous state of every page readable

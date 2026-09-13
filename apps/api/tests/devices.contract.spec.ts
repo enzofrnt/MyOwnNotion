@@ -15,7 +15,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createInstallation } from "@myownnotion/database";
+import { createInstallation, schema } from "@myownnotion/database";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { hashPassword } from "../src/security/password-service.ts";
@@ -129,6 +129,20 @@ describe("who may see the inventory", () => {
     const response = await harness.built.app.inject({ method: "GET", url: "/v1/devices" });
     expect(response.statusCode).toBeGreaterThanOrEqual(401);
     // And says nothing about the devices in the refusal.
+    expect(response.body).not.toContain("Laptop");
+  });
+
+  it("returns a correlated security problem for an invalid device id", async () => {
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/devices/not-a-uuid",
+    });
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json()).toMatchObject({
+      status: 400,
+      code: "validation.invalid-payload",
+      correlationId: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+    });
     expect(response.body).not.toContain("Laptop");
   });
 
@@ -300,6 +314,71 @@ describe("reauthorization is not revocation", () => {
       payload: { name: "Still mine" },
     });
     expect(renamed.statusCode, renamed.body).toBe(200);
+  });
+});
+
+describe("the redacted security audit route", () => {
+  it("returns newest installation-scoped events with nullable safe codes", async () => {
+    const now = new Date(Date.now() + 10_000);
+    const auth = await authenticate();
+    await harness.built.database.db.insert(schema.securityAuditEvents).values([
+      {
+        id: randomUUID(),
+        installationId: INSTALLATION_ID,
+        eventType: "auth.succeeded",
+        outcome: "success",
+        actorClass: "owner",
+        correlationId: randomUUID(),
+        safeCode: null,
+        metadata: {},
+        occurredAt: now,
+      },
+      {
+        id: randomUUID(),
+        installationId: INSTALLATION_ID,
+        eventType: "auth.failed",
+        outcome: "failure",
+        actorClass: "owner",
+        correlationId: randomUUID(),
+        safeCode: "forbidden",
+        metadata: {},
+        occurredAt: new Date(now.getTime() + 1),
+      },
+      {
+        id: randomUUID(),
+        installationId: INSTALLATION_ID,
+        eventType: "mcp.operation",
+        outcome: "success",
+        actorClass: "mcp",
+        correlationId: randomUUID(),
+        safeCode: null,
+        metadata: {},
+        occurredAt: new Date(now.getTime() + 2),
+      },
+    ]);
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/security/audit?limit=1",
+      headers: authHeaders(auth),
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    const body = response.json() as { events: { eventType: string; safeCode: string | null }[] };
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0]).toMatchObject({ eventType: "auth.failed", safeCode: "forbidden" });
+
+    const all = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/security/audit?limit=100",
+      headers: authHeaders(auth),
+    });
+    expect(
+      (all.json() as { events: { eventType: string; safeCode: string | null }[] }).events,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventType: "auth.succeeded", safeCode: null }),
+      ]),
+    );
   });
 });
 

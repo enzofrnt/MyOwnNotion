@@ -9,6 +9,7 @@
  */
 
 import type { Locator, Page, Request } from "@playwright/test";
+import { expectPrivateCanonicalStorage } from "./canonical-storage.ts";
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
@@ -231,6 +232,25 @@ test("same-origin tabs adopt offline edits and recover a crashed sender", async 
     });
     await waitForPageSynced(survivor);
     expect(replacements).toEqual([]);
+    const committed = await survivor.evaluate(async (title) => {
+      const listed = await fetch("/v1/items");
+      if (!listed.ok) throw new Error("Unable to read committed page identities");
+      const items = (await listed.json()).items as Array<{ id: string; name: string }>;
+      const identity = items.find((item) => item.name === title);
+      if (identity === undefined) throw new Error("The synchronized page is missing");
+      const response = await fetch(`/v1/items/${identity.id}`);
+      if (!response.ok) throw new Error("Unable to read the committed page");
+      return response.json();
+    }, pageName);
+    expect(committed.name).toBe(pageName);
+    const body = JSON.stringify(committed.pageDocument.body);
+    expect(body).toContain("visible hors ligne sur B");
+    expect(body).toContain("repris après crash");
+    await expectPrivateCanonicalStorage([
+      pageName,
+      "visible hors ligne sur B",
+      "repris après crash",
+    ]);
   } finally {
     context.off("request", recordReplacement);
     await context.setOffline(false);

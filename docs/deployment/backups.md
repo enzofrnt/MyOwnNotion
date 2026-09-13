@@ -87,6 +87,23 @@ Validate both the restored file bytes and protected record/root-key access
 before retiring any recovery material. A byte-level restore rehearsal alone
 does not establish that all historical SQL key envelopes can be reopened.
 
+## Process-bound replacement recovery artifacts
+
+An encrypted replacement artifact that has been prepared but not downloaded is
+held only in the memory of the active API process. It is not a durable backup
+record and is not recoverable from the database or a full archive. Status and
+download wait for any preparation already in progress and re-read the state if
+a preparation starts during their read. Expiry, a later replacement, one-time
+consumption, API shutdown, and process restart purge the artifact. A restart
+therefore loses an unclaimed preparation safely; prepare a new artifact before
+downloading again.
+
+The official V1 installation must run one active API instance. The current
+deployment provides neither shared ephemeral storage nor inter-process
+affinity, so multiple API processes must not serve replacement downloads until
+one of those guarantees is introduced. Root-key, deployment-key, and derived
+wrapping-key buffers are cleared after use and on failure.
+
 ## Create, inspect and rehearse
 
 The image includes PostgreSQL 18 client tools and the same CLI as development:
@@ -154,3 +171,40 @@ Legacy `backup run` and `restore apply --id …` handle portable content exports
 with their original in-place restore workflow and safety export. They are shown
 separately in settings. They do not contain the complete historical server
 database and do not satisfy nightly or pre-migration complete-backup protection.
+
+
+## Protected-storage upgrade and interrupted retirement
+
+The protected-storage transition retains its original pre-update archive identity
+until completion. Stop the previous API process before upgrading. The guarded
+migration verifies the authenticated receipt and the actual archive, then binds
+its encrypted source inventory and per-object checkpoints to that backup. A
+restart resumes those checkpoints; it cannot replace missing original evidence
+with a newer snapshot of a partially migrated installation. Repair or remount the
+original archive and external deployment key, then rerun the same migration
+command. Never delete transition rows or change their phase to unblock startup.
+
+Provision space for the complete encrypted source archive, a private archive
+verification copy, and encrypted replacements while the readable originals still
+exist. Budget at least two copies of the source files in the blob volume during
+backfill, plus the archive and verification copy in the backup volume, database
+snapshot/WAL growth and normal free-space margin. Compression and deduplication
+are not guaranteed capacity savings. Disk or authentication failures leave the
+transition incomplete; release space or repair the underlying storage and rerun.
+The old application version is not marked successfully upgraded on such failure.
+
+Unreferenced historical files and unacknowledged upload tails are preserved as
+protected quarantine contents. Their chunk references and encrypted manifests
+survive key rotation and portable workspace replacement; they are included in
+complete backups. They have no ordinary page placement and are not automatically
+discarded by garbage collection. Retain this recovery inventory while investigating
+historical data; removing its database references manually discards that protection.
+
+For a full rollback, restore the original archive into separate empty PostgreSQL
+and file targets using the commands above, activate recovery, and use the matching
+source application version. Preserve both the interrupted source and its archive
+until the recovered installation has been checked. Completed transitions do not
+require an ancient archive to remain forever: normal backup retention applies
+after completion. SQL neutralization and file retirement do not erase old WAL,
+dead PostgreSQL pages, pre-existing archives or storage snapshots; manage those
+through the storage system's own retention and access controls.

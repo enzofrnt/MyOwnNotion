@@ -14,6 +14,7 @@ export interface ApiHarness {
   readonly built: BuiltApp;
   readonly postgres: DisposablePostgres;
   readonly blobRoot: string;
+  readonly requestHeaders?: Record<string, string>;
   close(): Promise<void>;
 }
 
@@ -105,7 +106,7 @@ export async function createItemViaApi(
   const response = await harness.built.app.inject({
     method: "POST",
     url: "/v1/items",
-    headers: { ...idempotencyHeaders(), ...input.headers },
+    headers: { ...harness.requestHeaders, ...idempotencyHeaders(), ...input.headers },
     payload: {
       id: generateUuidV7(),
       kind: input.kind,

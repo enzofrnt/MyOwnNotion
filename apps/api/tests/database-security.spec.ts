@@ -17,7 +17,7 @@ import type { DatabaseDefinition, Uuid } from "@myownnotion/domain";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { sealBackupArchiveFile } from "../src/backup/archive-crypto.ts";
+import { sealBackupArchiveStream } from "../src/backup/archive-crypto.ts";
 import { BackupService } from "../src/backup/backup-service.ts";
 import type { BackupDestination, StoredBackup } from "../src/backup/destinations/destination.ts";
 import { createApplicationLogger } from "../src/plugins/logging.ts";
@@ -220,13 +220,13 @@ afterAll(async () => {
 describe("structured security sentinels", () => {
   it("keeps private content out of the new structured PostgreSQL surfaces while preserving the owner export", async () => {
     const exported = await exportArtifact();
-    // Item titles and retained revision snapshots belong to feature 002's
-    // bounded plaintext-migration protocol. This feature audits every storage
-    // surface it adds plus the export job it extends; querying inherited source
-    // columns here would test the pre-scrub migration state rather than the 009
-    // boundary. The protected revision envelope is still required below.
+    // New writes commit only protected payloads, including inherited canonical
+    // columns. Historical source backfill remains a separate verified transition.
     const raw = await harness.built.database.db.execute(sql`
       SELECT jsonb_build_object(
+        'items', (SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM items t),
+        'revisions', (SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM revisions t),
+        'pages', (SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM page_documents t),
         'databases', (SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM databases t),
         'entries', (SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM database_entries t),
         'relationships', (SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM relationships t),
@@ -334,8 +334,8 @@ describe("structured security sentinels", () => {
       context: harness.built.context,
       destination,
       applicationVersion: "0.1.0-security-test",
-      seal: async (plaintextPath, sealedPath) =>
-        await sealBackupArchiveFile(backupKey, plaintextPath, sealedPath),
+      seal: async (plaintext, sealedPath) =>
+        await sealBackupArchiveStream(backupKey, plaintext, sealedPath),
     }).run("manual");
 
     expect(outcome.verifiedAfterCreation).toBe(true);

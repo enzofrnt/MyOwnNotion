@@ -693,6 +693,16 @@ function sameBlock(left: CanonicalBlockV3, right: CanonicalBlockV3): boolean {
   );
 }
 
+function sameIndexedBlock(left: IndexedNode, right: IndexedNode | undefined): boolean {
+  return (
+    right?.block !== undefined &&
+    left.block !== undefined &&
+    sameBlock(left.block, right.block) &&
+    left.parentBlockId === right.parentBlockId &&
+    left.beforeBlockId === right.beforeBlockId
+  );
+}
+
 function commandBlockId(command: LegacySemanticCommand): Uuid {
   if ("blockId" in command) return command.blockId;
   if (command.type === "insert-block") return command.block.id;
@@ -769,6 +779,7 @@ function activeCommand(input: {
   const proofBefore = indexDocument(input.proofBefore);
   const proofAfter = indexDocument(input.proofAfter);
   const active = indexDocument(input.active);
+  const branchFinal = indexDocument(input.branch.localDocument);
   const command = input.command;
   const recoverable = proofAfter.get(commandBlockId(command))?.block;
   const ambiguity = (
@@ -797,9 +808,10 @@ function activeCommand(input: {
 
   switch (command.type) {
     case "insert-block": {
-      const existing = active.get(command.block.id)?.block;
-      if (existing === undefined) return { command };
-      if (sameBlock(existing, command.block)) return {};
+      const existing = active.get(command.block.id);
+      if (existing?.block === undefined) return { command };
+      if (sameIndexedBlock(existing, proofAfter.get(command.block.id))) return {};
+      if (sameIndexedBlock(existing, branchFinal.get(command.block.id))) return {};
       return { ambiguity: ambiguity("schema", command.block.id) };
     }
     case "move-block": {
@@ -845,6 +857,36 @@ function activeCommand(input: {
       const removed = before.text.slice(command.baseFrom, command.baseTo);
       const currentGap = current.text.slice(gap.beforeEnd, gap.afterStart);
       if (command.baseFrom === command.baseTo) {
+        const proofAfterBlock = proofAfter.get(command.blockId)?.block;
+        const branchFinalBlock = branchFinal.get(command.blockId)?.block;
+        if (currentGap === command.text) return {};
+        // A partially applied branch may already have this insertion at the
+        // active head while later branch transactions remain unapplied.
+        // Consume the matching prefix without replaying its text.
+        if (
+          proofAfterBlock !== undefined &&
+          before.block !== undefined &&
+          current.block !== undefined &&
+          !sameBlock(proofAfterBlock, before.block) &&
+          sameBlock(current.block, proofAfterBlock)
+        ) {
+          return {};
+        }
+        // A conversion may be retried after its update reached the active head.
+        // Treat an exact, non-neutral branch result as consumed, but keep a
+        // concurrent insertion that leaves a different projection. Comparing
+        // only the local context would otherwise insert the same text again.
+        if (
+          proofAfterBlock !== undefined &&
+          branchFinalBlock !== undefined &&
+          before.block !== undefined &&
+          current.block !== undefined &&
+          !sameBlock(proofAfterBlock, before.block) &&
+          !sameBlock(branchFinalBlock, before.block) &&
+          sameBlock(current.block, branchFinalBlock)
+        ) {
+          return {};
+        }
         return {
           command: {
             type: "replace-text",

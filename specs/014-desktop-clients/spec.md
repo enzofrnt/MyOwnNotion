@@ -35,8 +35,8 @@ canonique (001), sécurité (002), workspace et éditeur (003, 017), conversion
 feature fournit leur hôte desktop commun.
 
 Elle ne dépend pas des tableaux blancs, du partage public ni de MCP (011 à
-013). Ces capacités restent après la V1 ; le même hôte les accueillera plus
-tard sans seconde application. La feature 021 (journaux serveur) reste une
+013). Les tableaux blancs et le partage public restent après la V1 ; MCP
+rejoint la V1 via sa spécification 013, sans bloquer la fondation desktop. La feature 021 (journaux serveur) reste une
 condition de sortie V1 distincte : son implémentation commence **après** la
 014. Elle ne bloque pas le démarrage du desktop.
 

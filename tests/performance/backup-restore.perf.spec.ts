@@ -16,7 +16,7 @@ import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/tes
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   openBackupArchive,
-  sealBackupArchiveFile,
+  sealBackupArchiveStream,
 } from "../../apps/api/src/backup/archive-crypto.ts";
 import { BackupService } from "../../apps/api/src/backup/backup-service.ts";
 import { createDatabaseRestoreTarget } from "../../apps/api/src/backup/database-restore-target.ts";
@@ -113,8 +113,8 @@ describe(`backup and restore of ${ITEM_COUNT} items`, () => {
       },
       destination,
       applicationVersion: "0.1.0-performance",
-      seal: async (plaintextPath, sealedPath) =>
-        await sealBackupArchiveFile(key, plaintextPath, sealedPath),
+      seal: async (plaintext, sealedPath) =>
+        await sealBackupArchiveStream(key, plaintext, sealedPath),
     });
 
     const backupStarted = performance.now();

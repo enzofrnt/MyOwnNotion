@@ -1,9 +1,12 @@
 /** Backup/restore of the causal page state with an absent replica (T126/T147, US5). */
 
 import { randomUUID } from "node:crypto";
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
 import { startDisposablePostgres } from "@myownnotion/test-utils";
@@ -129,7 +132,11 @@ function backupRuntime(destination: FilesystemDestination) {
     context: harness.api.built.context,
     destination,
     applicationVersion: "0.1.0-operation-test",
-    seal: async (plaintextPath, sealedPath) => await copyFile(plaintextPath, sealedPath),
+    seal: async (plaintext, sealedPath) =>
+      await pipeline(
+        Readable.from(plaintext, { objectMode: false }),
+        createWriteStream(sealedPath, { flags: "wx", mode: 0o600 }),
+      ),
   });
 }
 
@@ -463,6 +470,23 @@ describe("operational backup and restore", () => {
     });
     expect(advanced.statusCode, advanced.body).toBe(200);
 
+    const causallyAhead = JSON.parse(decoded.operationalState) as {
+      pages: Array<{
+        updates: Array<{
+          resultFrontier: { versionVector: string; frontiers: string };
+        }>;
+      }>;
+    };
+    const archivedUpdate = causallyAhead.pages[0]?.updates[0];
+    if (archivedUpdate === undefined) throw new Error("the archived update is missing");
+    archivedUpdate.resultFrontier = {
+      versionVector: Buffer.from(later.resultVersionVector).toString("base64url"),
+      frontiers: Buffer.from(later.resultFrontiers).toString("base64url"),
+    };
+    expect(() => readPageOperationArchive(causallyAhead)).toThrow(
+      "checkpoint frontier does not match its covered sequence",
+    );
+
     await restoreBackup(compactedBackup.archive);
     const item = await harness.api.built.app.inject({
       method: "GET",
@@ -513,6 +537,32 @@ it("round-trips every SQL table in a full archive and accepts an offline replica
   });
   expect(accepted.statusCode, accepted.body).toBe(200);
   const key = Buffer.from((await readFile(harness.deploymentKeyFile, "utf8")).trim(), "base64");
+  const transferIds: string[] = [];
+  for (const length of [4, 8]) {
+    const created = await harness.api.built.app.inject({
+      method: "POST",
+      url: "/v1/uploads",
+      headers: {
+        ...headers,
+        "upload-length": String(length),
+        "upload-metadata": `filename ${Buffer.from("Recovered private attachment.txt").toString("base64")}`,
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = created.json().id as string;
+    transferIds.push(id);
+    const accepted = await harness.api.built.app.inject({
+      method: "PATCH",
+      url: `/v1/uploads/${id}`,
+      headers: {
+        ...headers,
+        "upload-offset": "0",
+        "content-type": "application/offset+octet-stream",
+      },
+      payload: Buffer.from("head"),
+    });
+    expect(accepted.statusCode, accepted.body).toBe(length === 4 ? 201 : 204);
+  }
   const full = new FullBackupService({
     connectionString: harness.api.postgres.connectionString,
     blobRoot: harness.api.blobRoot,
@@ -591,6 +641,38 @@ it("round-trips every SQL table in a full archive and accepts an offline replica
       "x-csrf-token": login.json().csrfToken,
       "x-myownnotion-client-protocol": "3",
     };
+    const attachment = await restored.app.inject({
+      method: "GET",
+      url: `/v1/files/${transferIds[0]}/content`,
+      headers: fresh,
+    });
+    expect(attachment.statusCode, attachment.body).toBe(200);
+    expect(attachment.body).toBe("head");
+    const partial = await restored.app.inject({
+      method: "HEAD",
+      url: `/v1/uploads/${transferIds[1]}`,
+      headers: fresh,
+    });
+    expect(partial.statusCode).toBe(200);
+    expect(partial.headers["upload-offset"]).toBe("4");
+    const completed = await restored.app.inject({
+      method: "PATCH",
+      url: `/v1/uploads/${transferIds[1]}`,
+      headers: {
+        ...fresh,
+        "upload-offset": "4",
+        "content-type": "application/offset+octet-stream",
+      },
+      payload: Buffer.from("tail"),
+    });
+    expect(completed.statusCode, completed.body).toBe(201);
+    const resumed = await restored.app.inject({
+      method: "GET",
+      url: `/v1/files/${transferIds[1]}/content`,
+      headers: fresh,
+    });
+    expect(resumed.statusCode, resumed.body).toBe(200);
+    expect(resumed.body).toBe("headtail");
     const offlineTransaction = absent.transact([
       {
         type: "insert-block",

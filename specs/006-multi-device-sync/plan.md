@@ -46,7 +46,10 @@ browsers, two most recent stable major versions.
 **Project Type**: web application, existing monorepo.
 
 **Performance Goals**: a change visible on another device in under two seconds
-in 95% of measured cases; one notification plus one fetch, no polling.
+in 95% of measured cases for ordinary API/device mutations; one immediate
+notification plus one fetch. Feature028 adds recovery of separate-process local
+CLI writes through the existing20s heartbeat, which verifies access before
+checking the durable cursor and suppresses redundant or regressive events.
 
 **Constraints**: no event ever lost; no version destroyed before resolution;
 nothing pushed that bypasses the protections the pull path enforces.

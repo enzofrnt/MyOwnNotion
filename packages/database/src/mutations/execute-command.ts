@@ -12,7 +12,9 @@ import {
   type DomainResult,
   err,
   generateUuidV7,
+  isUuid,
   type MutationCommand,
+  normalizeDisplayName,
   ok,
   pageLinkTargets,
   planRestoreRevision,
@@ -25,11 +27,12 @@ import {
   validateFavouriteItem,
   validateItemIcon,
   validateOfflineIntent,
+  validatePageDocument,
   validateRenameItem,
   validateReplacePageDocument,
   validateResolveConflict,
 } from "@myownnotion/domain";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import { recordChange } from "../repositories/change-repository.ts";
 import { executeConvertItem } from "../repositories/content/conversion-repository.ts";
@@ -54,7 +57,9 @@ import {
   supersedeRevision,
 } from "../repositories/revision-repository.ts";
 import {
+  fileContents,
   items,
+  logicalFiles,
   mutations,
   pageDocuments,
   placements as placementsTable,
@@ -76,9 +81,15 @@ export interface CommandExecution {
 }
 
 export interface MutationContext {
+  readonly resolvePageBody?: (tx: Transaction, pageId: Uuid, stored: unknown) => Promise<unknown>;
   readonly workspaceId: Uuid;
   readonly mutationId: Uuid;
   readonly acceptedAt: Date;
+  /** Trusted server resolver; protected snapshots never return to readable SQL. */
+  readonly resolveRevisionSnapshot?: (
+    tx: Transaction,
+    revisionId: Uuid,
+  ) => Promise<Record<string, unknown> | null>;
 }
 
 /**
@@ -551,10 +562,25 @@ async function executeRestoreRevision(
   context: MutationContext,
   command: Extract<MutationCommand, { type: "revision.restore" }>,
 ): Promise<DomainResult<CommandExecution>> {
-  const source = await getRevision(tx, command.revisionId);
-  if (source === null) {
+  const raw = await getRevision(tx, command.revisionId);
+  if (raw === null) {
     return err("revision.not-found", "Revision does not exist");
   }
+  if (
+    raw.snapshotExpiresAt !== null &&
+    Date.parse(raw.snapshotExpiresAt) <= context.acceptedAt.getTime()
+  ) {
+    return err("revision.snapshot-expired", "Revision content is no longer retained");
+  }
+  const resolvedSnapshot = await context.resolveRevisionSnapshot?.(tx, command.revisionId);
+  const source = {
+    ...raw,
+    // A configured protected resolver is authoritative. Falling back to
+    // the legacy column after it returns null would resurrect a readable
+    // historical copy after its authenticated envelope was lost.
+    snapshot:
+      context.resolveRevisionSnapshot === undefined ? raw.snapshot : (resolvedSnapshot ?? null),
+  };
   const item = await getItem(tx, source.itemId);
   if (item === null) {
     return err("item.not-found", "Revised item does not exist");
@@ -571,12 +597,74 @@ async function executeRestoreRevision(
   // history): name and page document are restored; lifecycle and placements
   // are not touched by a content restore.
   const restored = plan.value.restoredSnapshot;
+  const restoredName = typeof restored["name"] === "string" ? restored["name"] : null;
+  const normalizedRestoredName = restoredName === null ? null : normalizeDisplayName(restoredName);
+  if (normalizedRestoredName !== null && !normalizedRestoredName.ok) {
+    return normalizedRestoredName as DomainResult<CommandExecution>;
+  }
+  const restoredDocument = restored["pageDocument"] as
+    | { format: "myownnotion.document+json"; formatVersion: number; body: Record<string, unknown> }
+    | null
+    | undefined;
+  if (item.kind === "page" && restoredDocument != null) {
+    const document = validatePageDocument(restoredDocument);
+    if (!document.ok) return document as DomainResult<CommandExecution>;
+  }
+  if (item.kind === "file") {
+    const file = restored["file"];
+    if (
+      file === null ||
+      typeof file !== "object" ||
+      !("contentId" in file) ||
+      typeof file.contentId !== "string" ||
+      !isUuid(file.contentId) ||
+      !("originalName" in file) ||
+      typeof file.originalName !== "string" ||
+      !("mediaType" in file) ||
+      typeof file.mediaType !== "string" ||
+      !("byteLength" in file) ||
+      typeof file.byteLength !== "number"
+    ) {
+      return err("revision.snapshot-expired", "Retained file content is unavailable");
+    }
+    const originalName = normalizeDisplayName(file.originalName);
+    if (!originalName.ok) {
+      return originalName as DomainResult<CommandExecution>;
+    }
+    const [content] = await tx
+      .select()
+      .from(fileContents)
+      .where(eq(fileContents.id, file.contentId))
+      .limit(1);
+    if (
+      content === undefined ||
+      content.verifiedAt === null ||
+      content.byteLength !== file.byteLength
+    )
+      return err("revision.snapshot-expired", "Retained file content is unavailable");
+    await tx
+      .update(fileContents)
+      .set({ referenceCount: sql`${fileContents.referenceCount} + 1` })
+      .where(eq(fileContents.id, content.id));
+    await tx
+      .update(logicalFiles)
+      .set({
+        contentId: content.id,
+        originalName: originalName.value,
+        mediaType: file.mediaType,
+        byteLength: content.byteLength,
+      })
+      .where(eq(logicalFiles.itemId, item.id));
+  }
   const revisionId = generateUuidV7();
-  const restoredName = typeof restored["name"] === "string" ? (restored["name"] as string) : null;
-  if (restoredName !== null) {
+  if (normalizedRestoredName?.ok) {
     await tx
       .update(items)
-      .set({ name: restoredName, currentRevisionId: revisionId, updatedAt: context.acceptedAt })
+      .set({
+        name: normalizedRestoredName.value,
+        currentRevisionId: revisionId,
+        updatedAt: context.acceptedAt,
+      })
       .where(eq(items.id, item.id));
   } else {
     await tx
@@ -584,10 +672,6 @@ async function executeRestoreRevision(
       .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
       .where(eq(items.id, item.id));
   }
-  const restoredDocument = restored["pageDocument"] as
-    | { format: "myownnotion.document+json"; formatVersion: number; body: Record<string, unknown> }
-    | null
-    | undefined;
   if (item.kind === "page" && restoredDocument != null) {
     await tx
       .insert(pageDocuments)
@@ -662,6 +746,12 @@ export async function executeCommand(
         acceptedAt: context.acceptedAt,
         insertRevision: (revision) => insertRevision(tx, revision),
         buildItemSnapshot: (itemId) => buildItemSnapshot(tx, itemId),
+        ...(context.resolvePageBody === undefined
+          ? {}
+          : {
+              resolvePageBody: (pageId: Uuid, stored: unknown) =>
+                context.resolvePageBody?.(tx, pageId, stored) ?? Promise.resolve(stored),
+            }),
         supersedeRevision: (revisionId, at) => supersedeRevision(tx, revisionId, at),
       });
       return result.ok
@@ -852,6 +942,10 @@ export async function submitMutation(
     readonly commandType: string;
     readonly command: MutationCommand;
     readonly now?: () => Date;
+    readonly resolveRevisionSnapshot?: MutationContext["resolveRevisionSnapshot"];
+    readonly resolvePageBody?: MutationContext["resolvePageBody"];
+    /** Acquire deployment maintenance guards before touching canonical rows. */
+    readonly beforeExecute?: (tx: Transaction) => Promise<void>;
     /**
      * Runs inside the mutation's transaction, after the command is accepted.
      *
@@ -879,6 +973,7 @@ export async function submitMutation(
   const acceptedAt = (input.now ?? (() => new Date()))();
   try {
     return await runMutation(db, async (tx) => {
+      await input.beforeExecute?.(tx);
       const existing = await readMutationRecord(tx, input.mutationId);
       if (existing !== undefined) {
         return {
@@ -900,6 +995,10 @@ export async function submitMutation(
         workspaceId: input.workspaceId,
         mutationId: input.mutationId,
         acceptedAt,
+        ...(input.resolvePageBody === undefined ? {} : { resolvePageBody: input.resolvePageBody }),
+        ...(input.resolveRevisionSnapshot === undefined
+          ? {}
+          : { resolveRevisionSnapshot: input.resolveRevisionSnapshot }),
       };
       const execution = await executeCommand(tx, context, input.command);
       if (!execution.ok) {

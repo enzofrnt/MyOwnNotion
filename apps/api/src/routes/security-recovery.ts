@@ -1,8 +1,8 @@
 /**
  * Recovery-kit replacement over HTTP (T081, US5, FR-016, FR-018).
  *
- * Four routes, and the interesting decisions are about which of them demand
- * what.
+ * Five operations across four route families, and the interesting decisions
+ * are about which of them demand what.
  *
  * **Reading status asks for nothing.** It is how an owner finds out whether
  * they have a usable kit at all, and a re-authentication prompt in front of
@@ -19,7 +19,12 @@
  * recovery kit in a browser's back button and in its disk cache.
  */
 
-import { SecurityProblemSchema } from "@myownnotion/contracts";
+import {
+  OfflineConfirmationSchema,
+  RecoveryKitSchema,
+  SecurityProblemSchema,
+  SecurityUuidSchema,
+} from "@myownnotion/contracts";
 import { isSafeProblemCode, type SafeProblemCode } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -46,9 +51,9 @@ const KitStatusSchema = Type.Object(
     active: Type.Union([
       Type.Object(
         {
-          kitId: Type.String(),
+          kitId: SecurityUuidSchema,
           recoveryEpoch: Type.Integer({ minimum: 1 }),
-          confirmedAt: Type.Union([Type.String(), Type.Null()]),
+          confirmedAt: Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
         },
         { additionalProperties: false },
       ),
@@ -57,9 +62,13 @@ const KitStatusSchema = Type.Object(
     pending: Type.Union([
       Type.Object(
         {
-          kitId: Type.String(),
-          deliveryState: Type.String(),
-          downloadExpiresAt: Type.Union([Type.String(), Type.Null()]),
+          kitId: SecurityUuidSchema,
+          deliveryState: Type.Union([
+            Type.Literal("prepared"),
+            Type.Literal("downloadable"),
+            Type.Literal("download-consumed"),
+          ]),
+          downloadExpiresAt: Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
         },
         { additionalProperties: false },
       ),
@@ -76,9 +85,9 @@ const KitStatusSchema = Type.Object(
 
 const PreparedKitSchema = Type.Object(
   {
-    kitId: Type.String(),
+    kitId: SecurityUuidSchema,
     recoveryEpoch: Type.Integer({ minimum: 1 }),
-    downloadExpiresAt: Type.String(),
+    downloadExpiresAt: Type.String({ format: "date-time" }),
     notice: Type.String(),
   },
   { additionalProperties: false },
@@ -94,6 +103,65 @@ const RevokedKitSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const KitIdParamsSchema = Type.Object(
+  { kitId: SecurityUuidSchema },
+  { additionalProperties: false },
+);
+
+const AuthenticatedRecoveryResponses = {
+  401: SecurityProblemSchema,
+  403: SecurityProblemSchema,
+  428: SecurityProblemSchema,
+  409: SecurityProblemSchema,
+  500: SecurityProblemSchema,
+  503: SecurityProblemSchema,
+} as const;
+
+const RecoveryKitResponses = {
+  400: SecurityProblemSchema,
+  ...AuthenticatedRecoveryResponses,
+  404: SecurityProblemSchema,
+} as const;
+
+const RecoveryRevokeResponses = {
+  ...AuthenticatedRecoveryResponses,
+  404: SecurityProblemSchema,
+} as const;
+
+/** Fastify removes unknown body members before validation by default. */
+const strictOfflineConfirmationCompiler =
+  ({ httpPart }: { httpPart?: string }) =>
+  (data: unknown) => {
+    const isObject = typeof data === "object" && data !== null && !Array.isArray(data);
+    const keys = isObject ? Object.keys(data) : [];
+    const validBody =
+      isObject &&
+      keys.length === 1 &&
+      keys[0] === "storedOffline" &&
+      (data as { storedOffline?: unknown }).storedOffline === true;
+    const validParams =
+      isObject &&
+      keys.length === 1 &&
+      keys[0] === "kitId" &&
+      typeof (data as { kitId?: unknown }).kitId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+        (data as { kitId: string }).kitId,
+      );
+    const valid = httpPart === "body" ? validBody : httpPart === "params" ? validParams : true;
+    if (valid) return { value: data };
+    return {
+      error: [
+        {
+          keyword: "strictConfirmation",
+          instancePath: "/",
+          schemaPath: "#/properties/storedOffline",
+          params: {},
+          message: "body must be exactly {storedOffline:true}",
+        },
+      ],
+    };
+  };
+
 export function registerRecoveryRoutes(app: FastifyInstance, deps: RecoveryRouteDeps): void {
   const auditContext = (request: FastifyRequest) => ({
     installationId: deps.installationId,
@@ -102,9 +170,19 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: RecoveryRoute
   });
 
   app.get(
-    "/v1/security/recovery",
-    { schema: { response: { 200: KitStatusSchema, 401: SecurityProblemSchema } } },
+    "/v1/security/recovery-kits",
+    {
+      schema: {
+        response: {
+          200: KitStatusSchema,
+          401: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+          503: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
+      reply.header("cache-control", "private, no-store");
       // No recency requirement: this is the check an owner should be able to
       // make casually, and it reveals no material.
       const owner = deps.require(request, reply, {});
@@ -116,8 +194,15 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: RecoveryRoute
   );
 
   app.post(
-    "/v1/security/recovery",
-    { schema: { response: { 201: PreparedKitSchema, 401: SecurityProblemSchema } } },
+    "/v1/security/recovery-kits",
+    {
+      schema: {
+        response: {
+          201: PreparedKitSchema,
+          ...AuthenticatedRecoveryResponses,
+        },
+      },
+    },
     async (request, reply) => {
       const owner = deps.require(request, reply, { csrf: true, recentAuthentication: true });
       if (owner === null) {
@@ -141,11 +226,16 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: RecoveryRoute
   );
 
   app.post(
-    "/v1/security/recovery/:kitId/download",
-    // No response schema for the success case: the artifact is a file, and a
-    // serializer that validated it would have to know the kit format, which
-    // would put a second definition of it in the HTTP layer.
-    { schema: { response: { 200: Type.Any(), 401: SecurityProblemSchema } } },
+    "/v1/security/recovery-kits/:kitId/download",
+    {
+      schema: {
+        params: KitIdParamsSchema,
+        response: {
+          200: RecoveryKitSchema,
+          ...RecoveryKitResponses,
+        },
+      },
+    },
     async (request, reply) => {
       const owner = deps.require(request, reply, { csrf: true, recentAuthentication: true });
       if (owner === null) {
@@ -179,8 +269,18 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: RecoveryRoute
   );
 
   app.post(
-    "/v1/security/recovery/:kitId/confirm",
-    { schema: { response: { 200: ConfirmedKitSchema, 401: SecurityProblemSchema } } },
+    "/v1/security/recovery-kits/:kitId/confirm",
+    {
+      schema: {
+        body: OfflineConfirmationSchema,
+        params: KitIdParamsSchema,
+        response: {
+          200: ConfirmedKitSchema,
+          ...RecoveryKitResponses,
+        },
+      },
+      validatorCompiler: strictOfflineConfirmationCompiler,
+    },
     async (request, reply) => {
       const owner = deps.require(request, reply, { csrf: true, recentAuthentication: true });
       if (owner === null) {
@@ -214,8 +314,15 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: RecoveryRoute
   );
 
   app.post(
-    "/v1/security/recovery/revoke",
-    { schema: { response: { 200: RevokedKitSchema, 401: SecurityProblemSchema } } },
+    "/v1/security/recovery-kits/revoke",
+    {
+      schema: {
+        response: {
+          200: RevokedKitSchema,
+          ...RecoveryRevokeResponses,
+        },
+      },
+    },
     async (request, reply) => {
       const owner = deps.require(request, reply, { csrf: true, recentAuthentication: true });
       if (owner === null) {

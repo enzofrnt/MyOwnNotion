@@ -9,7 +9,7 @@
 
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, statSync } from "node:fs";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -17,6 +17,7 @@ import {
   openBackupArchive,
   sealBackupArchive,
   sealBackupArchiveFile,
+  sealBackupArchiveStream,
 } from "../src/backup/archive-crypto.ts";
 
 const KEY = randomBytes(32);
@@ -61,6 +62,45 @@ describe("the in-memory sealed framing", () => {
 });
 
 describe("sealing a staged file", () => {
+  it("seals producer chunks without a readable stage and removes interrupted output", async () => {
+    const root = scratch();
+    const sealedPath = path.join(root, "sealed.bin");
+    const bytes = randomBytes(10000);
+    await sealBackupArchiveStream(
+      KEY,
+      (async function* () {
+        yield bytes.subarray(0, 100);
+        expect(await readdir(root)).toEqual(["sealed.bin"]);
+        yield bytes.subarray(100);
+      })(),
+      sealedPath,
+    );
+    expect(openBackupArchive(KEY, await readFile(sealedPath))).toEqual(bytes);
+    const brokenPath = path.join(root, "broken.bin");
+    await expect(
+      sealBackupArchiveStream(
+        KEY,
+        (async function* () {
+          yield bytes;
+          throw new Error("producer interrupted");
+        })(),
+        brokenPath,
+      ),
+    ).rejects.toThrow("producer interrupted");
+    expect(await readdir(root)).toEqual(["sealed.bin"]);
+    let consumed = false;
+    await expect(
+      sealBackupArchiveStream(
+        KEY,
+        (async function* () {
+          consumed = true;
+          yield bytes;
+        })(),
+        sealedPath,
+      ),
+    ).rejects.toThrow();
+    expect(consumed).toBe(false);
+  });
   it("produces the same framing the in-memory sealer does", async () => {
     const root = scratch();
     const plaintextPath = path.join(root, "plain.bin");

@@ -200,3 +200,12 @@ makes large ones practical. Each phase ends at a checkpoint that can ship.
 - US1: T009 and T010 (tests) together; T011 and T014 together.
 - US3: T024 and T025 together; T028 and T029 together.
 - US4: T033 and T034 together; T038, T039 and T041 together.
+
+
+## Storage audit follow-up — feature 025
+
+Feature 025 preserves file identities, verified deduplication, resumable offsets and range contracts while replacing raw persistent storage and whole-file buffering with the shared protected file service.
+
+See the [canonical plan](../025-storage-coherence-audit/plan.md) and
+[implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
+does not mark that follow-up implemented or delivered.

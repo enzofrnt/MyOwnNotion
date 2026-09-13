@@ -187,7 +187,13 @@ export function createRecoveryKit(input: CreateRecoveryKitInput): RecoveryKit {
       : { algorithm: "deployment-key", keyLength: 32, salt: toBase64Url(salt) };
   const wrappingKey = recoveryWrappingKey(input.secret, salt, parameters);
   const aad = recoveryAad(input);
-  const sealed = seal(wrappingKey, input.payload, aad, randomNonce());
+  const sealed = (() => {
+    try {
+      return seal(wrappingKey, input.payload, aad, randomNonce());
+    } finally {
+      wrappingKey.fill(0);
+    }
+  })();
 
   return {
     format: RECOVERY_FORMAT,
@@ -271,7 +277,11 @@ export function openRecoveryKit(
           keyLength: kit.kdf.keyLength,
         })
       : recoveryWrappingKey(secret, salt, DEFAULT_SCRYPT_PARAMETERS);
-  return open(wrappingKey, { nonce, ciphertext, tag }, recoveryAad(kit));
+  try {
+    return open(wrappingKey, { nonce, ciphertext, tag }, recoveryAad(kit));
+  } finally {
+    wrappingKey.fill(0);
+  }
 }
 
 /**

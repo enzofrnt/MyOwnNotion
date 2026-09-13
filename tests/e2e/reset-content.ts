@@ -120,6 +120,13 @@ async function resetCanonicalContentOnce(): Promise<void> {
     // they must survive a production migration scrub. In an isolated E2E
     // installation that also means they must be cleared explicitly, otherwise
     // a later run can read an old envelope for a reused canonical identity.
+    // MCP labels share these envelopes; dedicated grants/codes must be reset
+    // before their protected labels, or the next inventory reads orphaned data.
+    await client.query(`DELETE FROM mcp_mutations`);
+    // Exchange codes cascade from their owning connection (migration 0017).
+    await client.query(`DELETE FROM mcp_connections`);
+    await client.query(`DELETE FROM security_audit_events WHERE event_type IN
+      ('mcp.granted', 'mcp.exchanged', 'mcp.revoked', 'mcp.operation')`);
     await client.query(`DELETE FROM protected_blob_chunks`);
     await client.query(`DELETE FROM protected_envelopes`);
     await client.query("COMMIT");

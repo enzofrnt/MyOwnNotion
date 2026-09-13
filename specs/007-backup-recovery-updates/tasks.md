@@ -193,3 +193,12 @@ owner has seen work, and US4 puts it under the operation most likely to need it.
 - US2: T009, T010 and T011 (tests) together; T017 and T018 together.
 - US1: T021 and T022 together.
 - Phase 8: T044, T045 and T046 together.
+
+
+## Storage audit follow-up — feature 025
+
+Feature 025 removes plaintext portable-archive staging, streams authorized file content directly into encryption and restores through protected ingestion. Complete physical recovery remains feature 024; portable exports remain credential-free.
+
+See the [canonical plan](../025-storage-coherence-audit/plan.md) and
+[implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
+does not mark that follow-up implemented or delivered.

@@ -29,9 +29,9 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Database } from "@myownnotion/database";
 import {
+  allocateNextRecoveryEpoch,
   confirmReplacementKit,
   consumeKitDownload,
-  currentRecoveryEpoch,
   findActiveKit,
   findKit,
   findPendingKit,
@@ -120,6 +120,9 @@ export class RecoveryKitService {
    * failure: the owner prepares another.
    */
   readonly #prepared = new Map<string, RecoveryKit>();
+  readonly #preparedTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  #prepareQueue: Promise<void> = Promise.resolve();
+  #closed = false;
 
   constructor(deps: RecoveryKitServiceDeps) {
     this.#deps = deps;
@@ -129,11 +132,85 @@ export class RecoveryKitService {
     return (this.#deps.newId ?? (() => randomUUID()))();
   }
 
+  #assertOpen(): void {
+    if (this.#closed) {
+      throw new RecoveryKitError("recovery_unavailable", "the recovery-kit service is closed");
+    }
+  }
+
+  async #waitForPreparations(): Promise<void> {
+    // A status or download started while a replacement is being prepared must
+    // observe the database row and its process-owned artifact together. Loop
+    // because a second caller can append to the queue while the first one is
+    // still completing.
+    let observed: Promise<void>;
+    do {
+      observed = this.#prepareQueue;
+      await observed;
+    } while (observed !== this.#prepareQueue);
+    this.#assertOpen();
+  }
+
+  async #readWithStablePreparations<T>(read: () => Promise<T>): Promise<T> {
+    for (;;) {
+      await this.#waitForPreparations();
+      const observed = this.#prepareQueue;
+      const value = await read();
+      // A preparation can begin while the database read is in flight. Repeat
+      // after it publishes so callers never combine a newer persisted row
+      // with an older view of the process-owned artifact.
+      if (observed === this.#prepareQueue) return value;
+    }
+  }
+
+  #forgetPrepared(kitId: string): void {
+    this.#prepared.delete(kitId);
+    const timer = this.#preparedTimers.get(kitId);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this.#preparedTimers.delete(kitId);
+    }
+  }
+
+  #forgetAllPrepared(): void {
+    for (const timer of this.#preparedTimers.values()) clearTimeout(timer);
+    this.#preparedTimers.clear();
+    this.#prepared.clear();
+  }
+
+  #rememberPrepared(kitId: string, artifact: RecoveryKit, expiresAt: Date): void {
+    // One installation has one pending replacement in the database. Clearing
+    // before publishing the committed winner keeps the process copy bounded
+    // even when callers prepare replacements concurrently.
+    this.#forgetAllPrepared();
+    this.#prepared.set(kitId, artifact);
+    const delay = Math.max(0, expiresAt.getTime() - this.#deps.now().getTime());
+    const timer = setTimeout(() => {
+      // The identity check prevents an old timer from deleting a newer
+      // preparation if a test clock or scheduler delivers callbacks late.
+      if (this.#prepared.get(kitId) === artifact) this.#forgetPrepared(kitId);
+    }, delay);
+    timer.unref?.();
+    this.#preparedTimers.set(kitId, timer);
+  }
+
+  /** Releases in-memory recovery material and cancels its expiry callbacks. */
+  async dispose(): Promise<void> {
+    this.#closed = true;
+    this.#forgetAllPrepared();
+    // Do not let an in-flight transaction repopulate the map after shutdown.
+    await this.#prepareQueue;
+    this.#forgetAllPrepared();
+  }
+
   async status(): Promise<KitStatusView> {
-    const [active, pending] = await Promise.all([
-      findActiveKit(this.#deps.db, this.#deps.installationId),
-      findPendingKit(this.#deps.db, this.#deps.installationId),
-    ]);
+    this.#assertOpen();
+    const [active, pending] = await this.#readWithStablePreparations(async () =>
+      Promise.all([
+        findActiveKit(this.#deps.db, this.#deps.installationId),
+        findPendingKit(this.#deps.db, this.#deps.installationId),
+      ]),
+    );
     return {
       active:
         active === null
@@ -164,64 +241,94 @@ export class RecoveryKitService {
    * they might not finish.
    */
   async prepareReplacement(): Promise<PreparedKitView> {
-    const key = this.#deps.deploymentKey();
-    if (key === null) {
-      throw new RecoveryKitError(
-        "recovery_unavailable",
-        "the deployment key is unavailable, so a kit cannot be sealed",
-      );
-    }
-
-    const generations = await this.#deps.supportedKeyGenerations();
-    if (generations.length === 0) {
-      throw new RecoveryKitError(
-        "recovery_unavailable",
-        "this installation has no key generation to recover into",
-      );
-    }
-    const payload = await this.#deps.recoveryPayload();
-    const now = this.#deps.now();
-    const kitId = this.#id();
-    const epoch = (await currentRecoveryEpoch(this.#deps.db, this.#deps.installationId)) + 1;
-    const downloadExpiresAt = new Date(now.getTime() + KIT_DOWNLOAD_WINDOW_MS);
-
-    const artifact = createRecoveryKit({
-      installationId: this.#deps.installationId,
-      sourceLineageId: this.#deps.sourceLineageId,
-      kitId,
-      recoveryEpoch: epoch,
-      secret: { kind: "deployment-key", deploymentKey: new Uint8Array(key) },
-      payload,
-      supportedKeyGenerations: generations,
-      createdAt: now,
-      downloadExpiresAt,
+    this.#assertOpen();
+    // Serialize the complete preparation, including payload extraction. This
+    // bounds unwrapped root-key copies as well as committed artifact copies
+    // when several authenticated requests arrive concurrently.
+    const previous = this.#prepareQueue;
+    let release!: () => void;
+    this.#prepareQueue = new Promise<void>((resolve) => {
+      release = resolve;
     });
+    await previous;
+    let payload: Uint8Array | undefined;
+    try {
+      this.#assertOpen();
+      const key = this.#deps.deploymentKey();
+      if (key === null) {
+        throw new RecoveryKitError(
+          "recovery_unavailable",
+          "the deployment key is unavailable, so a kit cannot be sealed",
+        );
+      }
+      const generations = await this.#deps.supportedKeyGenerations();
+      if (generations.length === 0) {
+        throw new RecoveryKitError(
+          "recovery_unavailable",
+          "this installation has no key generation to recover into",
+        );
+      }
+      const recoveryPayload = await this.#deps.recoveryPayload();
+      payload = recoveryPayload;
+      const now = this.#deps.now();
+      const kitId = this.#id();
+      const downloadExpiresAt = new Date(now.getTime() + KIT_DOWNLOAD_WINDOW_MS);
+      const prepared = await runSecurityTransaction(this.#deps.db, async (tx) => {
+        // Epoch allocation and row insertion share one transaction. In
+        // particular, a confirmation cannot advance the epoch between this
+        // read and the replacement insert.
+        const epoch = await allocateNextRecoveryEpoch(tx, this.#deps.installationId);
+        const deploymentKeyCopy = new Uint8Array(key);
+        const artifact = (() => {
+          try {
+            return createRecoveryKit({
+              installationId: this.#deps.installationId,
+              sourceLineageId: this.#deps.sourceLineageId,
+              kitId,
+              recoveryEpoch: epoch,
+              secret: { kind: "deployment-key", deploymentKey: deploymentKeyCopy },
+              payload: recoveryPayload,
+              supportedKeyGenerations: generations,
+              createdAt: now,
+              downloadExpiresAt,
+            });
+          } finally {
+            deploymentKeyCopy.fill(0);
+          }
+        })();
 
-    await runSecurityTransaction(this.#deps.db, async (tx) =>
-      prepareReplacementKit(tx, {
+        await prepareReplacementKit(tx, {
+          kitId,
+          installationId: this.#deps.installationId,
+          sourceLineageId: this.#deps.sourceLineageId,
+          recoveryEpoch: epoch,
+          // A digest of the artifact, never the artifact. The row exists so an
+          // operator can tell whether the file an owner produces is the one
+          // this installation issued; storing the ciphertext would put the
+          // thing being protected in the database it is meant to survive.
+          artifactDigest: digestOf(artifact),
+          downloadTokenHash: hashToken(kitId),
+          downloadExpiresAt,
+          supportedKeyGenerations: generations,
+          now,
+        });
+        return { artifact, epoch };
+      });
+
+      this.#rememberPrepared(kitId, prepared.artifact, downloadExpiresAt);
+      return {
         kitId,
-        installationId: this.#deps.installationId,
-        sourceLineageId: this.#deps.sourceLineageId,
-        recoveryEpoch: epoch,
-        // A digest of the artifact, never the artifact. The row exists so an
-        // operator can tell whether the file an owner produces is the one this
-        // installation issued; storing the ciphertext would put the thing
-        // being protected in the database it is meant to survive.
-        artifactDigest: digestOf(artifact),
-        downloadTokenHash: hashToken(kitId),
-        downloadExpiresAt,
-        supportedKeyGenerations: generations,
-        now,
-      }),
-    );
-
-    this.#prepared.set(kitId, artifact);
-    return {
-      kitId,
-      recoveryEpoch: epoch,
-      downloadExpiresAt: downloadExpiresAt.toISOString(),
-      notice: DEPLOYMENT_KEY_NOTICE,
-    };
+        recoveryEpoch: prepared.epoch,
+        downloadExpiresAt: downloadExpiresAt.toISOString(),
+        notice: DEPLOYMENT_KEY_NOTICE,
+      };
+    } finally {
+      // The payload contains the unwrapped workspace root key. The recovery
+      // artifact retains only its sealed ciphertext, so clear this caller-owned
+      // plaintext as soon as artifact creation/transaction publication ends.
+      payload?.fill(0);
+      release();
+    }
   }
 
   /**
@@ -234,12 +341,29 @@ export class RecoveryKitService {
    * it again.
    */
   async download(kitId: string): Promise<RecoveryKit> {
-    const record = await findKit(this.#deps.db, kitId);
+    this.#assertOpen();
+    const record = await this.#readWithStablePreparations(async () =>
+      findKit(this.#deps.db, kitId),
+    );
     if (record === null || record.installationId !== this.#deps.installationId) {
+      this.#forgetPrepared(kitId);
       throw new RecoveryKitError("not_found", "no such recovery kit");
     }
-    if (record.downloadExpiresAt !== null && record.downloadExpiresAt <= this.#deps.now()) {
-      throw new RecoveryKitError("recovery_unavailable", "the download window has closed");
+    if (record.authorizationState !== "provisional" || record.deliveryState === "expired") {
+      this.#forgetPrepared(kitId);
+      throw new RecoveryKitError("recovery_unavailable", "this recovery kit is no longer usable");
+    }
+    // The persisted consumption fact survives after the one-time artifact is
+    // removed from memory. Check it first so a replay is reported as already
+    // consumed, while a still-downloadable preparation lost on restart keeps
+    // the distinct recovery_unavailable response below.
+    if (record.downloadConsumedAt !== null || record.deliveryState === "download-consumed") {
+      this.#forgetPrepared(kitId);
+      throw new RecoveryKitError("conflict", "this kit has already been downloaded");
+    }
+    if (record.deliveryState !== "downloadable") {
+      this.#forgetPrepared(kitId);
+      throw new RecoveryKitError("recovery_unavailable", "this recovery kit is not downloadable");
     }
     const artifact = this.#prepared.get(kitId);
     if (artifact === undefined) {
@@ -252,13 +376,22 @@ export class RecoveryKitService {
       );
     }
 
-    const consumed = await runSecurityTransaction(this.#deps.db, async (tx) =>
-      consumeKitDownload(tx, { kitId, now: this.#deps.now() }),
-    );
-    if (!consumed) {
+    // Read the clock only after the row and in-memory artifact have been
+    // found, immediately before the conditional mutation. The mutation's
+    // expiry predicate and its consumed timestamp use this same instant, so
+    // an expiration crossing during findKit cannot be bypassed.
+    const consumption = await runSecurityTransaction(this.#deps.db, async (tx) => {
+      const now = this.#deps.now();
+      return { consumed: await consumeKitDownload(tx, { kitId, now }), now };
+    });
+    if (!consumption.consumed) {
+      this.#forgetPrepared(kitId);
+      if (record.downloadExpiresAt !== null && record.downloadExpiresAt <= consumption.now) {
+        throw new RecoveryKitError("recovery_unavailable", "the download window has closed");
+      }
       throw new RecoveryKitError("conflict", "this kit has already been downloaded");
     }
-    this.#prepared.delete(kitId);
+    this.#forgetPrepared(kitId);
     return artifact;
   }
 

@@ -13,6 +13,7 @@ import {
   rebuildEmbedUsages,
   recordPlacementUsage,
   registerContent,
+  SCRUBBED_PLACEHOLDER,
   schema,
   type Transaction,
 } from "@myownnotion/database";
@@ -25,8 +26,18 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { eq, sql } from "drizzle-orm";
+import {
+  type ProtectedFileService,
+  ProtectedFileUnavailableError,
+} from "../files/protected-file-service.ts";
 import type { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
+import {
+  PROTECTED_PAYLOAD,
+  protectCurrentItem,
+  resolveSnapshotPayload,
+} from "../security/canonical-payloads.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
+import { shareFullFileMutation } from "./full/locks.ts";
 import { PageOperationArchiveService, readPageOperationArchive } from "./page-operation-archive.ts";
 import type { RestoreTarget } from "./restore-service.ts";
 
@@ -40,20 +51,14 @@ interface ExportedRelationship {
   readonly removedRevisionId: Uuid | null;
 }
 
-interface StoredFile {
-  readonly contentId: Uuid;
-  readonly sha256: Uint8Array;
-  readonly byteLength: number;
-  readonly storageKey: string;
-  readonly verifiedAt: Date;
-  readonly reusedExisting: boolean;
-}
+type StoredFile = Parameters<typeof registerContent>[1];
 
 export interface DatabaseRestoreTargetOptions {
   readonly tx: Transaction;
   readonly workspaceId: Uuid;
   readonly contentStore: ContentStore;
   readonly protectedContent?: ProtectedContent;
+  readonly protectedFiles?: ProtectedFileService;
   readonly pageOperationCrypto?: PageOperationCrypto;
   /** Destructive targets clear their old state only after archive verification. */
   readonly prepare?: () => Promise<void>;
@@ -61,6 +66,7 @@ export interface DatabaseRestoreTargetOptions {
 
 /** Removes the state the archive replaces, inside the restore transaction. */
 export async function clearWorkspaceForRestore(tx: Transaction, workspaceId: Uuid): Promise<void> {
+  await shareFullFileMutation(tx);
   // The current-revision foreign key is deferred, which lets the old revisions
   // and items disappear in one transaction without ever exposing half a tree.
   await tx.execute(sql`SET CONSTRAINTS ALL DEFERRED`);
@@ -79,8 +85,16 @@ export async function clearWorkspaceForRestore(tx: Transaction, workspaceId: Uui
   await tx.execute(sql`DELETE FROM page_operation_updates WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM page_operation_checkpoints WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM page_operation_states WHERE workspace_id = ${workspaceId}`);
-  await tx.execute(sql`DELETE FROM protected_blob_chunks WHERE workspace_id = ${workspaceId}`);
-  await tx.execute(sql`DELETE FROM protected_envelopes WHERE workspace_id = ${workspaceId}`);
+  // Quarantine belongs to recovery, not the logical workspace being replaced.
+  await tx.execute(sql`DELETE FROM protected_blob_chunks b WHERE b.workspace_id = ${workspaceId}
+    AND NOT EXISTS (SELECT 1 FROM protected_file_quarantine q WHERE q.content_id = b.content_id)`);
+  await tx.execute(sql`DELETE FROM protected_envelopes p WHERE p.workspace_id = ${workspaceId}
+    AND NOT EXISTS (SELECT 1 FROM file_storage_transitions t WHERE t.source_inventory_envelope_id = p.id)
+    AND NOT EXISTS (SELECT 1 FROM file_storage_transition_entries e
+      WHERE e.source_envelope_id = p.id OR e.replacement_envelope_id = p.id)
+    AND NOT EXISTS (SELECT 1 FROM protected_file_quarantine q
+      WHERE q.manifest_envelope_id = p.id OR
+        (p.entity_type = 'file.content-manifest' AND p.entity_id = q.content_id))`);
   // Pending transfers and generated exports describe the old workspace and
   // cannot truthfully survive replacing it.
   await tx.execute(sql`DELETE FROM uploads WHERE workspace_id = ${workspaceId}`);
@@ -106,7 +120,8 @@ export async function clearWorkspaceForRestore(tx: Transaction, workspaceId: Uui
   await tx.execute(sql`DELETE FROM mutations WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM items WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM file_contents WHERE NOT EXISTS
-    (SELECT 1 FROM logical_files WHERE logical_files.content_id = file_contents.id)`);
+    (SELECT 1 FROM logical_files WHERE logical_files.content_id = file_contents.id)
+    AND NOT EXISTS (SELECT 1 FROM protected_file_quarantine q WHERE q.content_id = file_contents.id)`);
 }
 
 export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOptions): RestoreTarget {
@@ -137,6 +152,12 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       }
       await pageOperationArchive.verify(readPageOperationArchive(raw), canonicalExport);
     },
+    verifyPageOperationDevices: async (raw) => {
+      if (pageOperationArchive === null) {
+        throw new Error("the restore target cannot verify operational page state");
+      }
+      await pageOperationArchive.verifyDeviceReferences(options.tx, readPageOperationArchive(raw));
+    },
 
     writePageOperations: async (raw) => {
       if (pageOperationArchive === null) {
@@ -146,7 +167,18 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
     },
 
     writeFile: async (digest, bytes) => {
-      const stored = await options.contentStore.ingest(bytes, async () => null);
+      if (options.protectedContent !== undefined && options.protectedFiles === undefined)
+        throw new ProtectedFileUnavailableError();
+      const stored =
+        options.protectedFiles === undefined
+          ? await options.contentStore.ingest(bytes, async () => null)
+          : await options.protectedFiles.ingest(
+              options.tx,
+              (async function* () {
+                yield bytes;
+              })(),
+              { maxBytes: bytes.byteLength, expectedLength: bytes.byteLength },
+            );
       if (`sha256:${Buffer.from(stored.sha256).toString("hex")}` !== digest) {
         throw new Error("restored file bytes changed while being stored");
       }
@@ -160,8 +192,14 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
         id: item.id,
         workspaceId: options.workspaceId,
         kind: item.kind,
-        name: item.name,
-        icon: item.icon ?? null,
+        name:
+          item.kind === "file" && options.protectedContent !== undefined
+            ? SCRUBBED_PLACEHOLDER
+            : item.name,
+        icon:
+          item.kind === "file" && options.protectedContent !== undefined
+            ? null
+            : (item.icon ?? null),
         lifecycle: item.lifecycle,
         trashedAt: item.trashedAt === null ? null : new Date(item.trashedAt),
         purgeAfter: item.purgeAfter === null ? null : new Date(item.purgeAfter),
@@ -201,9 +239,19 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
         await options.tx.insert(schema.logicalFiles).values({
           itemId: item.id,
           contentId,
-          mediaType: item.file.mediaType,
-          originalName: item.file.originalName,
+          mediaType:
+            options.protectedContent === undefined
+              ? item.file.mediaType
+              : "application/octet-stream",
+          originalName:
+            options.protectedContent === undefined ? item.file.originalName : SCRUBBED_PLACEHOLDER,
           byteLength: item.file.byteLength,
+        });
+        await options.protectedContent?.writeFileMetadata(options.tx, {
+          kind: "file",
+          id: item.id,
+          recordVersion: 1,
+          metadata: { originalName: item.file.originalName, mediaType: item.file.mediaType },
         });
       }
 
@@ -260,12 +308,14 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
 
     writeDatabase: async (raw) => {
       const database = raw as ExportedDatabase;
-      if (!itemsById.has(database.databaseId)) {
-        throw new Error("a restored database has no host page");
+      const journalItem = itemsById.get(database.databaseId);
+      if (journalItem === undefined) {
+        throw new Error("a restored database has no journal identity");
       }
       restoredDatabases.set(database.databaseId, database);
       await options.tx.insert(schema.databases).values({
         itemId: database.databaseId,
+        definitionRevisionId: database.definitionRevisionId ?? journalItem.currentRevisionId,
         workspaceId: options.workspaceId,
         definitionVersion: database.definitionVersion,
       });
@@ -304,7 +354,11 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
         sourceItemId: relationship.sourceItemId,
         targetItemId: relationship.targetItemId,
         relationType: relationship.relationType,
-        metadata: relationship.metadata,
+        metadata:
+          options.protectedContent !== undefined &&
+          relationship.relationType !== "database:property"
+            ? PROTECTED_PAYLOAD
+            : relationship.metadata,
         createdRevisionId: relationship.createdRevisionId,
         removedRevisionId: relationship.removedRevisionId,
       });
@@ -348,8 +402,9 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       for (const [itemId, item] of itemsById) {
         const database = restoredDatabases.get(itemId);
         const entry = restoredEntries.get(itemId);
-        if (database === undefined && entry === undefined) continue;
-        const snapshot = await buildItemSnapshot(options.tx, itemId);
+        if (database === undefined && entry === undefined && options.protectedContent === undefined)
+          continue;
+        let snapshot = await buildItemSnapshot(options.tx, itemId);
         if (database !== undefined) {
           snapshot["databaseDefinition"] = database.definition;
           snapshot["databaseDefinitionVersion"] = database.definitionVersion;
@@ -359,14 +414,40 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
           snapshot["databaseEntryValues"] = entry.values;
           snapshot["databaseEntryValueVersion"] = entry.valueVersion;
         }
+        if (options.protectedContent !== undefined)
+          snapshot = await resolveSnapshotPayload(
+            options.tx,
+            options.protectedContent,
+            itemId,
+            snapshot,
+          );
         await options.tx
           .update(schema.revisions)
-          .set({ snapshot })
+          .set({ snapshot: options.protectedContent === undefined ? snapshot : null })
           .where(eq(schema.revisions.id, item.currentRevisionId));
         await options.protectedContent?.writeRevisionSnapshot(options.tx, {
           revisionId: item.currentRevisionId,
           snapshot,
         });
+        if (
+          database?.definitionRevisionId !== undefined &&
+          database.definitionRevisionId !== item.currentRevisionId
+        ) {
+          const sourceSnapshot = {
+            databaseDefinition: database.definition,
+            databaseDefinitionVersion: database.definitionVersion,
+          };
+          await options.tx
+            .update(schema.revisions)
+            .set({ snapshot: options.protectedContent === undefined ? sourceSnapshot : null })
+            .where(eq(schema.revisions.id, database.definitionRevisionId));
+          await options.protectedContent?.writeRevisionSnapshot(options.tx, {
+            revisionId: database.definitionRevisionId,
+            snapshot: sourceSnapshot,
+          });
+        }
+        if (options.protectedContent !== undefined)
+          await protectCurrentItem(options.tx, options.protectedContent, itemId);
       }
     },
   };

@@ -228,6 +228,28 @@ Running the gates rather than assuming they passed surfaced four real defects:
    `mutation-status.tsx` now derives `pending`, `sending`, `retrying`,
    `conflict`, and `rejected` from the stored rows.
 
+## Canonical export V2 contract evidence (T112)
+
+Candidate commit: `ca2174cd83fa328f8df808d2ccce5a66061c8999`.
+
+The canonical export route now accepts and emits the exact V2 manifest shape,
+cleans unknown fields recursively according to the executable schema, and
+refuses an artifact when the persisted manifest digest does not match the
+manifest bytes. The TypeBox schema, domain validator, API route, and checked-in
+OpenAPI contract are compared by contract tests so the runtime and documented
+surface keep the same version, required fields, bounds, and SHA-256 integrity
+semantics. V1 artifacts remain an explicit unsupported-version refusal.
+
+| Evidence | Result |
+| --- | --- |
+| `apps/api/tests/export.contract.spec.ts`, `tests/contract/export.spec.ts`, `packages/domain/tests/canonical-export.spec.ts` | pass; V2 shape, digest mismatch refusal, recursive cleaning, and canonical round-trip covered |
+| `tests/contract/openapi.spec.ts`, `tests/contract/security-api.spec.ts` | pass; executable schemas and OpenAPI paths/components agree |
+| Candidate SHA | `ca2174cd83fa328f8df808d2ccce5a66061c8999` |
+
+This section records the implementation evidence only; the feature's external
+delivery gate and any real-data release verification remain governed by their
+respective open tasks.
+
 ## Deviations
 
 | Item | Status | Reason |

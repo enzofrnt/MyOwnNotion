@@ -521,6 +521,7 @@ export const FR_COPY = {
     },
     recovery: {
       title: "Récupération du compte",
+      loading: "Chargement de l’état de récupération…",
       unknown:
         "L’état de la récupération n’a pas pu être chargé. Impossible de confirmer si cette installation est récupérable.",
       missing:
@@ -538,6 +539,39 @@ export const FR_COPY = {
         "Votre kit actuel reste valable jusqu’au téléchargement du nouveau et à la confirmation de sa conservation.",
       prepared: "Un nouveau kit est prêt à être téléchargé.",
       prepareFailed: "Le nouveau kit n’a pas pu être préparé. Votre kit actuel reste valable.",
+      replacement: {
+        title: "Confirmer le nouveau kit de récupération",
+        introduction:
+          "Téléchargez le fichier, conservez-le hors ligne avec une copie de la clé de déploiement, puis confirmez sa conservation.",
+        expires: "Téléchargement disponible jusqu’à",
+        download: "Télécharger le nouveau kit",
+        downloaded: "Nouveau kit téléchargé",
+        resumed:
+          "Ce kit a déjà été téléchargé. Si vous ne l’avez pas conservé hors ligne, préparez un nouveau kit avant de confirmer.",
+        oneDownload: "Ce fichier ne peut être téléchargé qu’une seule fois.",
+        acknowledge:
+          "J’ai conservé ce nouveau kit et une copie de la clé de déploiement hors ligne, dans un emplacement accessible sans cet appareil.",
+        confirm: "Confirmer la conservation du nouveau kit",
+        downloadFailed:
+          "Le nouveau kit n’a pas pu être téléchargé. Réessayez ou préparez-en un autre.",
+        downloadConsumedUnreadable:
+          "Le téléchargement a été consommé mais le fichier n’a pas pu être lu. Préparez un nouveau kit avant de confirmer.",
+        downloadAlreadyConsumed:
+          "Ce kit a déjà été téléchargé dans une autre fenêtre ou installation. Reprenez la confirmation si vous l’avez conservé, sinon préparez un nouveau kit.",
+        saveFailed:
+          "Le fichier a été reçu mais n’a pas pu être enregistré. Préparez un nouveau kit avant de confirmer.",
+        confirmFailed: "La conservation du nouveau kit n’a pas pu être confirmée. Réessayez.",
+        confirmed: "Le nouveau kit est confirmé et votre ancien kit a été remplacé.",
+        revoked: "Le kit de récupération actif a été révoqué.",
+        revokedWithCode: (code: string) =>
+          `Le kit de récupération actif a été révoqué. Code de révocation : ${code}.`,
+        revoke: "Révoquer le kit actif",
+        revokePrompt:
+          "Révoquer le kit actif maintenant ? Il ne permettra plus de récupérer cet espace.",
+        revokeConfirm: "Oui, révoquer le kit",
+        revokeCancel: "Annuler",
+        revokeFailed: "Le kit actif n’a pas pu être révoqué. Réessayez.",
+      },
     },
     rotation: {
       title: "Clés de chiffrement",

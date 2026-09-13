@@ -15,6 +15,7 @@ import type {
   TaskSemanticProjection,
   TaskStatusValue,
 } from "./types.ts";
+import { DATABASE_PROPERTY_TYPES, DATABASE_VIEW_TYPES } from "./types.ts";
 
 function invalidDefinition(fields: readonly string[]): DomainResult<DatabaseDefinition> {
   return err("validation.invalid-payload", "Database definition is invalid", {
@@ -47,6 +48,7 @@ function normalizeOption(option: PropertyOption): PropertyOption | null {
 function normalizeProperty(property: DatabaseProperty): DatabaseProperty | null {
   const name = normalizeDisplayName(property.name);
   if (
+    !DATABASE_PROPERTY_TYPES.includes(property.type) ||
     !isUuid(property.id) ||
     !name.ok ||
     !validPositionKey(property.positionKey) ||
@@ -85,6 +87,7 @@ function normalizeProperty(property: DatabaseProperty): DatabaseProperty | null 
 function normalizeView(view: DatabaseView): DatabaseView | null {
   const name = normalizeDisplayName(view.name);
   if (
+    !DATABASE_VIEW_TYPES.includes(view.type) ||
     !isUuid(view.id) ||
     !name.ok ||
     !validPositionKey(view.positionKey) ||
@@ -163,6 +166,32 @@ export function validateDatabaseDefinition(
     invalidFields.push("properties.title");
 
   const views = definition.views.map(normalizeView);
+  if (definition.name !== undefined && !normalizeDisplayName(definition.name).ok)
+    invalidFields.push("name");
+  if (definition.embeddings !== undefined) {
+    if (
+      !Array.isArray(definition.embeddings) ||
+      duplicateIds(definition.embeddings.map((embedding) => embedding.id)) ||
+      definition.embeddings.some(
+        (embedding) =>
+          !isUuid(embedding.hostPageId) ||
+          (embedding.state !== "active" && embedding.state !== "retired") ||
+          !Array.isArray(embedding.views) ||
+          duplicateIds(embedding.views.map((view: DatabaseView) => view.id)) ||
+          !embedding.views.some((view: DatabaseView) => view.state === "active") ||
+          embedding.views.some((view: DatabaseView) => normalizeView(view) === null),
+      )
+    )
+      invalidFields.push("embeddings");
+    else if (
+      duplicateIds(
+        definition.embeddings.flatMap((embedding) =>
+          embedding.views.map((view: DatabaseView) => view.id),
+        ),
+      )
+    )
+      invalidFields.push("embeddings.views");
+  }
   if (views.some((view) => view === null)) invalidFields.push("views");
   const normalizedViews = views.filter((view): view is DatabaseView => view !== null);
   if (!normalizedViews.some((view) => view.state === "active")) invalidFields.push("views.active");
@@ -173,6 +202,16 @@ export function validateDatabaseDefinition(
     ...definition,
     properties: normalizedProperties,
     views: normalizedViews,
+    ...(definition.embeddings === undefined
+      ? {}
+      : {
+          embeddings: definition.embeddings.map((embedding) => ({
+            ...embedding,
+            views: embedding.views
+              .map(normalizeView)
+              .filter((view: DatabaseView | null): view is DatabaseView => view !== null),
+          })),
+        }),
   });
 }
 

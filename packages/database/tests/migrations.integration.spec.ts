@@ -349,6 +349,9 @@ describe("reviewed SQL migrations", () => {
         "0012_upload_attachment_parent",
         "0013_item_icons",
         "0014_full_backup_provenance",
+        "0015_protected_file_storage",
+        "0016_linked_databases",
+        "0017_mcp_access",
       ]);
       const { rows } = await client.query<{
         format_version: number;

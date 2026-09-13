@@ -130,7 +130,8 @@ function sameValue(left: ComparableValue, right: ComparableValue): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function operandFor(
+/** Canonical operands shared with candidate indexes; invalid values fail closed. */
+export function prepareDatabaseFilterOperand(
   property: DatabaseProperty,
   criterion: FilterCriterion,
 ): DomainResult<PreparedOperand | undefined> {
@@ -403,7 +404,7 @@ export function evaluateDatabaseView(
     ) {
       return queryError(`filter.${criterion.id}`, "property-or-operator-unavailable");
     }
-    const operand = operandFor(property, criterion);
+    const operand = prepareDatabaseFilterOperand(property, criterion);
     if (!operand.ok) return operand;
     preparedCriteria.push({ criterion, property, operand: operand.value });
   }

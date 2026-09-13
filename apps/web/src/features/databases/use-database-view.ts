@@ -132,20 +132,44 @@ export function resolveActiveDatabaseViewId({
   return urlViewId ?? firstActiveViewId;
 }
 
-export function useDatabaseView(definition: DatabaseDefinition) {
+function storedActiveView(
+  definition: DatabaseDefinition,
+  embeddingId: Uuid | undefined,
+): Uuid | null {
+  if (embeddingId === undefined || typeof window === "undefined") return null;
+  try {
+    const id = window.sessionStorage.getItem(
+      `${VIEW_CONTEXT_STORAGE_PREFIX}.embedding.${embeddingId}`,
+    );
+    return definition.views.find((view) => view.id === id && view.state === "active")?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function useDatabaseView(definition: DatabaseDefinition, embeddingId?: Uuid) {
+  const viewParameter = embeddingId === undefined ? "view" : `view-${embeddingId}`;
   const firstActive = definition.views.find(({ state }) => state === "active");
   if (firstActive === undefined) throw new Error("A database needs one active view");
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearch = searchParams.toString();
+  const viewSearch = new URLSearchParams({
+    view: searchParams.get(viewParameter) ?? "",
+  }).toString();
   const writeViewToUrl = useCallback(
     (viewId: Uuid): void => {
-      const next = new URLSearchParams(databaseSearchForView(serializedSearch, viewId));
+      const next = new URLSearchParams(serializedSearch);
+      next.set(viewParameter, viewId);
+      next.delete("entry");
       setSearchParams(next, { replace: true, preventScrollReset: true });
     },
-    [serializedSearch, setSearchParams],
+    [serializedSearch, setSearchParams, viewParameter],
   );
   const [context, setContext] = useState<DatabaseViewContext>(() => {
-    const activeViewId = databaseViewIdFromSearch(definition, serializedSearch) ?? firstActive.id;
+    const activeViewId =
+      databaseViewIdFromSearch(definition, viewSearch) ??
+      storedActiveView(definition, embeddingId) ??
+      firstActive.id;
     return (
       storedContext(definition.databaseId, activeViewId) ?? {
         activeViewId,
@@ -171,7 +195,7 @@ export function useDatabaseView(definition: DatabaseDefinition) {
     const databaseChanged = databaseId.current !== definition.databaseId;
     databaseId.current = definition.databaseId;
     if (databaseChanged) requestedView.current = null;
-    const urlView = databaseViewIdFromSearch(definition, serializedSearch);
+    const urlView = databaseViewIdFromSearch(definition, viewSearch);
     setContext((current) => {
       const currentIsActive = activeViewIds.includes(current.activeViewId);
       const requested = requestedView.current;
@@ -203,16 +227,26 @@ export function useDatabaseView(definition: DatabaseDefinition) {
       writeViewToUrl(activeViewId);
       return next;
     });
-  }, [activeViewIds, definition, firstActive.id, serializedSearch, writeViewToUrl]);
+  }, [activeViewIds, definition, firstActive.id, viewSearch, writeViewToUrl]);
 
   const updateContext = useCallback(
     (update: (current: DatabaseViewContext) => DatabaseViewContext): void => {
       const next = update(contextRef.current);
       contextRef.current = next;
       persistContext(definition.databaseId, next);
+      if (embeddingId !== undefined) {
+        try {
+          window.sessionStorage.setItem(
+            `${VIEW_CONTEXT_STORAGE_PREFIX}.embedding.${embeddingId}`,
+            next.activeViewId,
+          );
+        } catch {
+          /* In-memory and URL context remain available. */
+        }
+      }
       setContext(next);
     },
-    [definition.databaseId],
+    [definition.databaseId, embeddingId],
   );
 
   const selectView = useCallback(

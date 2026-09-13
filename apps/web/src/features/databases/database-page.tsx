@@ -5,7 +5,7 @@ import {
   extractSearchableDocumentText,
   readDocumentBody,
 } from "@myownnotion/domain";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewResult } from "../../services/databases.ts";
 import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
@@ -37,6 +37,7 @@ export interface DefinitionConfirmation {
 
 export function DatabasePage({
   database,
+  embeddingId,
   entries,
   onReplaceDefinition,
   onPreviewDefinitionImpact,
@@ -51,6 +52,7 @@ export function DatabasePage({
   onReturnFocusRestored,
 }: {
   readonly database: DatabaseDto;
+  readonly embeddingId?: Uuid;
   readonly entries: readonly DatabaseEntryDto[];
   readonly onReplaceDefinition: (
     definition: DatabaseDefinition,
@@ -65,10 +67,11 @@ export function DatabasePage({
   readonly relationOptions?: readonly RelationOption[];
   readonly queryPage?: DatabaseViewPage | null;
   readonly queryState?: "loading" | "ready" | "invalid" | "degraded";
-  readonly onQueryView?: (viewId: Uuid) => Promise<DatabaseViewResult>;
+  readonly onQueryView?: (viewId: Uuid, cursor?: string) => Promise<DatabaseViewResult>;
   readonly returnFocusEntryId?: Uuid | null;
   readonly onReturnFocusRestored?: () => void;
 }) {
+  const sectionRef = useRef<HTMLElement>(null);
   const [editingProperty, setEditingProperty] = useState(false);
   const [propertyDraft, setPropertyDraft] = useState<DatabasePropertyDraft>(EMPTY_PROPERTY_DRAFT);
   const propertyDraftRef = useRef<DatabasePropertyDraft>(EMPTY_PROPERTY_DRAFT);
@@ -84,6 +87,9 @@ export function DatabasePage({
   const [pendingDefinition, setPendingDefinition] = useState<DatabaseDefinition | null>(null);
   const [impact, setImpact] = useState<DefinitionImpact | null>(null);
   const [loadedPage, setLoadedPage] = useState<DatabaseViewPage | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const pageGeneration = useRef(0);
   const [loadedState, setLoadedState] = useState<"loading" | "ready" | "invalid" | "degraded">(
     onQueryView === undefined ? "ready" : "loading",
   );
@@ -105,7 +111,7 @@ export function DatabasePage({
     }
   };
   const activeProperties = definition.properties.filter((property) => property.state === "active");
-  const viewContext = useDatabaseView(definition);
+  const viewContext = useDatabaseView(definition, embeddingId);
   const activeView =
     definition.views.find(
       ({ id, state }) => id === viewContext.context.activeViewId && state === "active",
@@ -180,24 +186,32 @@ export function DatabasePage({
   useEffect(() => {
     if (activeViewId === undefined || onQueryView === undefined) return;
     let cancelled = false;
+    ++pageGeneration.current;
+    setLoadingMore(false);
+    setPageError(null);
     setLoadedState("loading");
-    void onQueryView(activeViewId).then((result) => {
-      if (cancelled) return;
-      if (result.ok) {
-        setLoadedPage(result.value);
-        setLoadedState("ready");
-        return;
-      }
-      setLoadedState(
-        result.problem.code === "database.invalid-view"
-          ? "invalid"
-          : result.problem.code.includes("projection")
-            ? "degraded"
-            : "ready",
-      );
-    });
+    void onQueryView(activeViewId)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.ok) {
+          setLoadedPage(result.value);
+          setLoadedState("ready");
+          return;
+        }
+        setLoadedState(
+          result.problem.code === "database.invalid-view"
+            ? "invalid"
+            : result.problem.code.includes("projection")
+              ? "degraded"
+              : "ready",
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setLoadedState("degraded");
+      });
     return () => {
       cancelled = true;
+      ++pageGeneration.current;
     };
   }, [activeViewId, database.definitionRevisionId, entryRevisionKey, onQueryView]);
   const effectiveQueryState = queryState ?? loadedState;
@@ -207,7 +221,77 @@ export function DatabasePage({
       : effectiveQueryState === "ready" && loadedPage?.viewId === activeView?.id
         ? loadedPage
         : fallbackPage;
-  const canRestoreEntryFocus = page !== null;
+  const loadMore = useCallback(async (): Promise<void> => {
+    if (
+      loadingMore ||
+      page?.nextCursor == null ||
+      onQueryView === undefined ||
+      activeViewId === undefined
+    )
+      return;
+    const currentPage = page;
+    const generation = pageGeneration.current;
+    setLoadingMore(true);
+    setPageError(null);
+    try {
+      const result = await onQueryView(activeViewId, currentPage.nextCursor ?? undefined);
+      if (generation !== pageGeneration.current) return;
+      if (!result.ok) {
+        setPageError("Les entrées suivantes n'ont pas pu être chargées. Réessayez.");
+        return;
+      }
+      const next = result.value;
+      const compatible =
+        !next.staleCursorRecovered &&
+        next.viewId === currentPage.viewId &&
+        next.definitionRevisionId === currentPage.definitionRevisionId &&
+        next.generation === currentPage.generation;
+      setLoadedPage(
+        compatible
+          ? {
+              ...next,
+              rows: [
+                ...new Map(
+                  [...currentPage.rows, ...next.rows].map((row) => [row.entryId, row]),
+                ).values(),
+              ],
+            }
+          : { ...next, staleCursorRecovered: true },
+      );
+      setLoadedState("ready");
+    } catch {
+      if (generation === pageGeneration.current)
+        setPageError("Les entrées suivantes n'ont pas pu être chargées. Réessayez.");
+    } finally {
+      if (generation === pageGeneration.current) setLoadingMore(false);
+    }
+  }, [activeViewId, loadingMore, onQueryView, page]);
+  const returnEntryIsLoaded = page?.rows.some((row) => row.entryId === returnFocusEntryId) === true;
+  const canRestoreEntryFocus =
+    page !== null &&
+    effectiveQueryState === "ready" &&
+    (returnEntryIsLoaded || page.nextCursor === null);
+  // Returning from a canonical entry may remount this display at page one.
+  // Follow the saved view's cursors until its trigger is available again.
+  useEffect(() => {
+    if (
+      returnFocusEntryId != null &&
+      effectiveQueryState === "ready" &&
+      !returnEntryIsLoaded &&
+      page?.nextCursor != null &&
+      pageError === null &&
+      !loadingMore
+    )
+      void loadMore();
+  }, [
+    returnFocusEntryId,
+    effectiveQueryState,
+    returnEntryIsLoaded,
+    page?.nextCursor,
+    pageError,
+    loadingMore,
+    loadMore,
+  ]);
   useEffect(() => {
     if (returnFocusEntryId === undefined || returnFocusEntryId === null || !canRestoreEntryFocus) {
       return;
@@ -228,7 +312,7 @@ export function DatabasePage({
     };
 
     const restore = (): void => {
-      const trigger = document.querySelector<HTMLElement>(
+      const trigger = sectionRef.current?.querySelector<HTMLElement>(
         `[data-entry-trigger="${returnFocusEntryId}"]`,
       );
       const activeElement = document.activeElement;
@@ -246,7 +330,7 @@ export function DatabasePage({
       // A local fallback, then the loaded view, can each render their own
       // trigger. Follow only those replacements; never steal focus once the
       // owner has moved to another connected control.
-      if (trigger !== null) {
+      if (trigger != null) {
         if (activeElement !== trigger) trigger.focus();
         lastFocusedTrigger = trigger;
       }
@@ -408,15 +492,20 @@ export function DatabasePage({
 
   return (
     <section
+      ref={sectionRef}
       className="database-page"
-      aria-labelledby={`database-heading-${database.databaseId}`}
+      aria-labelledby={`database-heading-${embeddingId ?? database.databaseId}`}
       aria-busy={pendingDefinitionMutations > 0}
       data-definition-state={pendingDefinitionMutations > 0 ? "saving" : "idle"}
     >
       <header className="database-page__header">
         <div>
-          <p className="muted">{DATABASE_COPY.page.eyebrow}</p>
-          <h2 id={`database-heading-${database.databaseId}`}>{DATABASE_COPY.page.contents}</h2>
+          <p className="muted">
+            {embeddingId === undefined ? DATABASE_COPY.page.eyebrow : "Base de données"}
+          </p>
+          <h2 id={`database-heading-${embeddingId ?? database.databaseId}`}>
+            {embeddingId === undefined ? DATABASE_COPY.page.contents : database.name}
+          </h2>
         </div>
         <Button
           type="button"
@@ -468,8 +557,13 @@ export function DatabasePage({
         </>
       )}
 
-      <section className="database-schema" aria-labelledby="database-schema-heading">
-        <h3 id="database-schema-heading">{DATABASE_COPY.page.properties}</h3>
+      <section
+        className="database-schema"
+        aria-labelledby={`database-schema-heading-${embeddingId ?? database.databaseId}`}
+      >
+        <h3 id={`database-schema-heading-${embeddingId ?? database.databaseId}`}>
+          {DATABASE_COPY.page.properties}
+        </h3>
         <ul>
           {activeProperties.map((property) => (
             <li key={property.id}>
@@ -549,7 +643,7 @@ export function DatabasePage({
         <div className="field-row">
           <Field
             ref={entryInputRef}
-            id={`new-entry-${database.databaseId}`}
+            id={`new-entry-${embeddingId ?? database.databaseId}`}
             label={DATABASE_COPY.page.newEntry}
             error={entryError ?? undefined}
             defaultValue=""
@@ -585,7 +679,10 @@ export function DatabasePage({
         {page?.staleCursorRecovered ? (
           <AsyncState compact kind="info" description={DATABASE_COPY.page.staleView} />
         ) : null}
-        {page === null ? null : page.coverage === "complete" ? (
+        {pageError === null ? null : <AsyncState compact kind="error" description={pageError} />}
+        {page === null ||
+        effectiveQueryState === "loading" ||
+        effectiveQueryState === "degraded" ? null : page.coverage === "complete" ? (
           <AsyncState
             compact
             kind="success"
@@ -600,6 +697,32 @@ export function DatabasePage({
         )}
       </div>
 
+      {page === null ? null : (
+        <section
+          className="database-pagination"
+          aria-label="Chargement des entrées"
+          aria-busy={effectiveQueryState === "loading"}
+        >
+          <span role="status">
+            {effectiveQueryState === "loading"
+              ? "Actualisation des entrées…"
+              : `${page.rows.length} ${page.rows.length === 1 ? "entrée chargée" : "entrées chargées"}`}
+          </span>
+          {page.nextCursor !== null && onQueryView !== undefined ? (
+            <StableActionButton
+              type="button"
+              busy={loadingMore}
+              disabled={effectiveQueryState !== "ready"}
+              onActivate={() => {
+                void loadMore();
+              }}
+            >
+              Charger les entrées suivantes
+            </StableActionButton>
+          ) : null}
+        </section>
+      )}
+
       {activeView !== undefined && page !== null ? (
         activeView.type === "list" ? (
           <ListView
@@ -612,6 +735,7 @@ export function DatabasePage({
           />
         ) : activeView.type === "table" ? (
           <TableView
+            {...(returnFocusEntryId === undefined ? {} : { returnFocusEntryId })}
             properties={definition.properties}
             view={activeView}
             page={page}
@@ -644,6 +768,7 @@ export function DatabasePage({
           />
         ) : activeView.type === "gallery" ? (
           <GalleryView
+            {...(returnFocusEntryId === undefined ? {} : { returnFocusEntryId })}
             properties={definition.properties}
             view={activeView}
             page={page}

@@ -1,17 +1,17 @@
 # Structured databases
 
-Feature 009 adds structured collections and task views without creating a new
-content identity. A database is a capability of an ordinary page, and every
-entry is also an ordinary page. The editor, hierarchy, history, files, search,
-offline queue, export and lifecycle therefore continue to refer to the same
-`itemId`.
+Features 009 and 026 provide independent reusable database sources. Ordinary
+pages display a source through an embedding; each embedding owns its views.
+Every entry remains one canonical page. The editor, hierarchy, history, files,
+search, offline queue and export continue to refer to the same entry `itemId`.
 
 ## Canonical model
 
 PostgreSQL migration `0007_databases.sql` adds two structural tables:
 
-- `databases` binds a page identity to a monotonically increasing definition
-  version;
+- `databases` retains an opaque source identity and a monotonically increasing
+  definition version. Migration `0016_linked_databases.sql` removes its host
+  item foreign keys and adds its own `definition_revision_id`;
 - `database_entries` binds one entry-page identity to one database and a value
   version.
 
@@ -24,8 +24,8 @@ sealed as `relationship.metadata`.
 
 The page and membership lifecycles are separate. Moving an entry in the
 hierarchy does not change its database membership, and renaming either page does
-not replace an identity. A page hosting a database or belonging to one cannot be
-converted to a folder while that role exists.
+not replace an identity. An entry must remain a page. An ordinary display page
+may change kind or lifecycle without making the source unavailable.
 
 ## Definition and values
 
@@ -65,9 +65,31 @@ mutation identity.
 
 The canonical change feed and snapshot carry items, relationships, database
 definitions and entry values under one cursor. Applying a snapshot replaces all
-four projected sets and the cursor atomically. A purge tombstone retains the
-item identity needed for convergence while removing the database definition,
-membership, values and derived query state.
+four projected sets and the cursor atomically. A host purge keeps independent
+sources and their entry memberships available. Purging an entry removes only
+that entry's active values and derived query state.
+
+A definition adds an optional source `name` and `embeddings` array. An embedding
+has a stable ID, host page ID, active/retired state and its own views. Absent
+embeddings mean the legacy display on the original page; an empty array means
+a reusable source without a display. New displays clone view IDs. Shared schema
+and entry edits remain common to every display. The local URL stores a selected
+view per embedding, and closing an entry returns focus to its originating page.
+
+The source head advances independently from `items.current_revision_id`. Its
+new snapshots contain only the definition, so editing a source never copies
+private editorial history from a former host. The retained internal item is a
+journal identity; unplaced anchors stay out of navigation and text search.
+Migration 0016 detaches legacy entry placements from their source parent,
+preserving placement IDs, entry IDs and historical revisions, and emits durable
+refresh events for existing devices. An upgraded offline device applies the
+same detachment when trashing an old host before that refresh arrives.
+
+Portable export includes neutral purged item tombstones required by immutable
+revision foreign keys. These contain no old name, icon, body, file, favourite,
+offline intent or placements; restoration does not resurrect them. Only live
+source definitions are retained, with their independent revision IDs. Full
+backup 024 retains its guarded, catalogue-driven migration path.
 
 ## Query projection and views
 

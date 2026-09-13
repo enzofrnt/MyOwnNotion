@@ -1,3 +1,6 @@
+import { McpAccessService } from "./mcp/access-service.ts";
+import { registerMcpHttp } from "./mcp/http.ts";
+import { registerMcpManagementRoutes } from "./routes/mcp.ts";
 import { requiresOwnerHttpAccess } from "./security/http-access.ts";
 /**
  * Fastify composition (T017).
@@ -41,6 +44,9 @@ import {
   createDatabaseQueryService,
   type DatabaseQueryService,
 } from "./databases/database-query-service.ts";
+import { startProtectedFileCleanup } from "./files/protected-file-cleanup.ts";
+import { createProtectedFileRuntime } from "./files/protected-file-runtime.ts";
+import type { ProtectedFileService } from "./files/protected-file-service.ts";
 import { CanonicalMaterializer } from "./page-state/canonical-materializer.ts";
 import {
   type PageCheckpointRetentionPolicy,
@@ -52,7 +58,7 @@ import { PageAmbiguityService } from "./page-state/page-ambiguity-service.ts";
 import { PageHistoryService } from "./page-state/page-history-service.ts";
 import { PageOperationCrypto } from "./page-state/page-operation-crypto.ts";
 import { PageOperationService } from "./page-state/page-operation-service.ts";
-import { registerErrorHandling } from "./plugins/errors.ts";
+import { registerErrorHandling, sendSecurityProblem } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
 import { registerProtocolAnnouncement } from "./plugins/protocol.ts";
 import { PageAdvanceNotifier } from "./realtime/page-advance-notifier.ts";
@@ -78,10 +84,11 @@ import { registerPlacementRoutes } from "./routes/placements.ts";
 import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
 import { registerSearchRoutes } from "./routes/search.ts";
+import { registerSecurityAuditRoutes } from "./routes/security-audit.ts";
 import { registerRecoveryRoutes } from "./routes/security-recovery.ts";
 import { registerRotationRoutes } from "./routes/security-rotation.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
-import { registerUploadRoutes } from "./routes/uploads.ts";
+import { maxFileBytes, registerUploadRoutes } from "./routes/uploads.ts";
 import { createDatabaseSearchService, type SearchService } from "./search/search-service.ts";
 import { AuditService } from "./security/audit-service.ts";
 import { resolvePrincipal } from "./security/authentication-hook.ts";
@@ -90,17 +97,19 @@ import { BootstrapService } from "./security/bootstrap-service.ts";
 import { setSessionCookie } from "./security/cookie-policy.ts";
 import { loadDeploymentKey } from "./security/deployment-key.ts";
 import { DeviceService } from "./security/device-service.ts";
-import { KeyHierarchy } from "./security/key-hierarchy.ts";
+import { assertStorageTransitionReady } from "./security/file-storage-transition-guard.ts";
+import type { KeyHierarchy } from "./security/key-hierarchy.ts";
 import { createOwnerPrincipalResolver } from "./security/owner-principal.ts";
-import { ProtectedContent } from "./security/protected-content.ts";
+import { checkRouteReadiness } from "./security/private-route-guard.ts";
+import type { ProtectedContent } from "./security/protected-content.ts";
 import { INSTALLATION_ID } from "./security/protected-content-runtime.ts";
-import { ProtectedRecordService } from "./security/protected-record-service.ts";
 import { isWebSocketUpgradeRequest } from "./security/realtime-authorization.ts";
 import { RecoveryKitService } from "./security/recovery-kit-service.ts";
 import {
   attachRequestContext,
   createRequestContext,
   type RequestPrincipal,
+  requestContext,
   updateRequestContext,
 } from "./security/request-context.ts";
 import { RotationPolicyService } from "./security/rotation-policy-service.ts";
@@ -217,6 +226,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   await assertFullRestoreActivated(options.blobRoot);
   const database = createDatabase(options.databaseUrl);
   try {
+    await assertStorageTransitionReady(database.db);
     return await composeApp(options, database);
   } catch (error) {
     // The pool is open by now. Leaving it behind on a failed build leaks a
@@ -244,6 +254,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
    * write a page.
    */
   let protectedContent: ProtectedContent | undefined;
+  let protectedFiles: ProtectedFileService | undefined;
   /** Set with the rest of the security layer; absent leaves feature-001 alone. */
   let rotationPolicies: RotationPolicyService | undefined;
   let keyHierarchy: KeyHierarchy | undefined;
@@ -266,6 +277,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     workspaceId: workspace.id,
     schemaVersion: workspace.schemaVersion,
     contentStore,
+    get protectedFiles() {
+      return protectedFiles;
+    },
     partialUploads,
     get rotationPolicies() {
       return rotationPolicies;
@@ -299,7 +313,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     options: { maxPayload: MAX_REALTIME_PAGE_SYNC_MESSAGE_BYTES },
   });
   await app.register(multipart, {
-    limits: { fileSize: 256 * 1024 * 1024, files: 1 },
+    limits: { fileSize: maxFileBytes(), files: 1 },
   });
   // Every request gets a security context before any route runs, including
   // anonymous and rejected ones: the correlation ID it carries is the only
@@ -369,13 +383,42 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     //
     // `dataKey` creates it on the first protected write instead. See the
     // comment there.
-    keyHierarchy = new KeyHierarchy({
+    const protectedRuntime = createProtectedFileRuntime({
       db: database.db,
+      journalDb: database.journalDb,
       installationId: INSTALLATION_ID,
       workspaceId: workspace.id,
+      blobRoot: options.blobRoot,
       deploymentKey,
       now,
+      reportIntegrityFailure: async (failure) => {
+        await audit.record(
+          {
+            installationId: INSTALLATION_ID,
+            workspaceId: workspace.id,
+            // No request is in scope here — this is reached from inside a
+            // repository read — so the event carries its own correlation id
+            // rather than borrowing one it cannot verify.
+            correlationId: randomUUID(),
+            actorClass: "system",
+          },
+          {
+            eventType: "integrity.envelope-rejected",
+            outcome: "failure",
+            objectKind: failure.entityType,
+            objectId: failure.entityId,
+            // Reason, generation and version only. No ciphertext, no key,
+            // no opened bytes — the audit trail must stay safe to read.
+            metadata: {
+              reason: failure.reason,
+              keyGeneration: failure.keyGeneration,
+              recordVersion: failure.recordVersion,
+            },
+          },
+        );
+      },
     });
+    keyHierarchy = protectedRuntime.keys;
 
     // One policy object, shared by the service and the routes. Two calls would
     // be two objects that could drift the moment the policy takes an argument.
@@ -424,45 +467,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     // route can seal its payload without knowing anything about key
     // generations. Absent when security is not configured, which is what keeps
     // the feature-001 harness behaving exactly as it did.
-    const protectedRecords = new ProtectedRecordService({
-      db: database.db,
-      keys: keyHierarchy,
-      installationId: INSTALLATION_ID,
-      workspaceId: workspace.id,
-      now,
-      // A refused envelope is the one integrity signal an operator cannot
-      // reconstruct afterwards: the request is answered with an opaque
-      // refusal and nothing is left behind. `AuditService.record` swallows
-      // its own failures, so recording can never turn the refusal into a
-      // different error.
-      reportIntegrityFailure: async (failure) => {
-        await audit.record(
-          {
-            installationId: INSTALLATION_ID,
-            workspaceId: workspace.id,
-            // No request is in scope here — this is reached from inside a
-            // repository read — so the event carries its own correlation id
-            // rather than borrowing one it cannot verify.
-            correlationId: randomUUID(),
-            actorClass: "system",
-          },
-          {
-            eventType: "integrity.envelope-rejected",
-            outcome: "failure",
-            objectKind: failure.entityType,
-            objectId: failure.entityId,
-            // Reason, generation and version only. No ciphertext, no key,
-            // no opened bytes — the audit trail must stay safe to read.
-            metadata: {
-              reason: failure.reason,
-              keyGeneration: failure.keyGeneration,
-              recordVersion: failure.recordVersion,
-            },
-          },
-        );
-      },
-    });
-    protectedContent = new ProtectedContent({ records: protectedRecords });
+    const protectedRecords = protectedRuntime.records;
+    protectedContent = protectedRuntime.content;
+    protectedFiles = protectedRuntime.files;
 
     search = createDatabaseSearchService({
       db: database.db,
@@ -496,10 +503,27 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     app.addHook("preHandler", (request, reply, done) => {
       const route = request.routeOptions.url ?? "";
       if (!isWebSocketUpgradeRequest(request) && requiresOwnerHttpAccess(route)) {
+        const checkRouteReadinessBeforeCredentialProof = (): boolean => {
+          const readiness = checkRouteReadiness(requestContext(request), route, request.method);
+          if (readiness.ready) return true;
+          sendSecurityProblem(reply, {
+            code: readiness.code,
+            correlationId: requestContext(request).correlationId,
+          });
+          return false;
+        };
+
+        // A valid owner session is already resolved by onRequest. Evaluate
+        // readiness before CSRF so a missing deployment key is reported as the
+        // installation failure it is, rather than as a misleading CSRF error.
+        const ownerAlreadyResolved = requestContext(request).principal.kind === "owner";
+        if (ownerAlreadyResolved && !checkRouteReadinessBeforeCredentialProof()) return;
+
         const owner = requireOwner(request, reply, {
           csrf: !["GET", "HEAD", "OPTIONS"].includes(request.method),
         });
         if (owner === null) return;
+        if (!ownerAlreadyResolved && !checkRouteReadinessBeforeCredentialProof()) return;
       }
       done();
     });
@@ -566,6 +590,11 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       now,
       require: requireOwner,
     });
+    registerSecurityAuditRoutes(app, {
+      db: database.db,
+      installationId: INSTALLATION_ID,
+      require: requireOwner,
+    });
     const rotationScheduler = new RotationScheduler({
       policies: rotationPolicies,
       logger: app.log,
@@ -609,37 +638,41 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     // through the hierarchy's one named export rather than a general accessor,
     // and the kit is sealed under the mounted deployment key — so the routes
     // need the key reader as well as the database.
+    const recoveryKits = new RecoveryKitService({
+      db: database.db,
+      installationId: INSTALLATION_ID,
+      sourceLineageId: INSTALLATION_ID,
+      workspaceId: workspace.id,
+      deploymentKey,
+      supportedKeyGenerations: async () => {
+        const current = await findCurrentGeneration(database.db, workspace.id);
+        // Every generation up to the current one, because a restored
+        // installation has to open records written under any of them. An
+        // empty list means the hierarchy was never established, and the
+        // service refuses rather than sealing a kit that opens nothing.
+        return current === null
+          ? []
+          : Array.from({ length: current.generation }, (_, index) => index + 1);
+      },
+      recoveryPayload: async () => {
+        if (keyHierarchy === undefined) {
+          // Unreachable from this branch — the hierarchy is built above —
+          // but the service must fail closed rather than seal an empty kit
+          // if that ever stops being true.
+          throw new Error("the key hierarchy is unavailable");
+        }
+        return await keyHierarchy.exportRecoveryMaterial(database.db);
+      },
+      now,
+    });
     registerRecoveryRoutes(app, {
-      kits: new RecoveryKitService({
-        db: database.db,
-        installationId: INSTALLATION_ID,
-        sourceLineageId: INSTALLATION_ID,
-        workspaceId: workspace.id,
-        deploymentKey,
-        supportedKeyGenerations: async () => {
-          const current = await findCurrentGeneration(database.db, workspace.id);
-          // Every generation up to the current one, because a restored
-          // installation has to open records written under any of them. An
-          // empty list means the hierarchy was never established, and the
-          // service refuses rather than sealing a kit that opens nothing.
-          return current === null
-            ? []
-            : Array.from({ length: current.generation }, (_, index) => index + 1);
-        },
-        recoveryPayload: async () => {
-          if (keyHierarchy === undefined) {
-            // Unreachable from this branch — the hierarchy is built above —
-            // but the service must fail closed rather than seal an empty kit
-            // if that ever stops being true.
-            throw new Error("the key hierarchy is unavailable");
-          }
-          return await keyHierarchy.exportRecoveryMaterial(database.db);
-        },
-        now,
-      }),
+      kits: recoveryKits,
       audit,
       installationId: INSTALLATION_ID,
       require: requireOwner,
+    });
+    app.addHook("onClose", async () => {
+      await recoveryKits.dispose();
     });
 
     const pageAdvances = new PageAdvanceNotifier();
@@ -736,6 +769,31 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       onPageCommitted: (event) => pageAdvances.publish(event),
       now,
     });
+    const mcpAccess = new McpAccessService({
+      db: database.db,
+      installationId: INSTALLATION_ID,
+      workspaceId: workspace.id,
+      records: protectedRecords,
+      audit,
+      now,
+      assertReady: async (executor) => {
+        await protectedRuntime.keys.dataKey(executor, { writable: false });
+      },
+    });
+    registerMcpManagementRoutes(app, {
+      access: mcpAccess,
+      require: requireOwner,
+      publicOrigin: securityConfig.publicOrigin.origin,
+    });
+    registerMcpHttp(app, {
+      context,
+      access: mcpAccess,
+      operations: pageOperations,
+      activation: pageActivation,
+      onPageCommitted: (event) => pageAdvances.publish(event),
+      publicOrigin: securityConfig.publicOrigin.origin,
+    });
+
     registerPageOperationRoutes(app, {
       db: database.db,
       require: requireOwner,
@@ -811,6 +869,19 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       },
     });
   }
+  if (protectedFiles !== undefined) {
+    const stopCleanup = startProtectedFileCleanup({
+      db: database.db,
+      files: protectedFiles,
+      now: options.now ?? (() => new Date()),
+      reportFailure: (error) =>
+        app.log.error(
+          { errorName: error instanceof Error ? error.name : "unknown" },
+          "protected file cleanup failed",
+        ),
+    });
+    app.addHook("onClose", stopCleanup);
+  }
   if (pageHistory !== undefined) {
     let consolidationRunning = false;
     const historyTimer = setInterval(() => {
@@ -867,7 +938,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   registerFileRoutes(app, context);
   registerUploadRoutes(app, context);
   registerRelationshipRoutes(app, context);
-  registerRevisionRoutes(app, context, { history: pageHistory });
+  registerRevisionRoutes(app, context, { history: pageHistory, now: options.now });
   registerChangeRoutes(app, context);
   registerChangeStreamRoutes(app, context);
   registerSnapshotRoutes(app, context);

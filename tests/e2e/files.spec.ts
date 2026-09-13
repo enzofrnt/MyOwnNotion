@@ -107,6 +107,40 @@ test.describe("canonical files (US2)", () => {
   test("keeps a hierarchy file under a page distinct from that page's attachments", async ({
     page,
   }) => {
+    const attempts: Array<string | undefined> = [];
+    const responses: Array<Promise<{ status: number; code: unknown }>> = [];
+    page.on("response", (response) => {
+      if (
+        response.request().method() !== "POST" ||
+        new URL(response.url()).pathname !== "/v1/files"
+      )
+        return;
+      const status = response.status();
+      responses.push(
+        status === 409
+          ? response.json().then((body: unknown) => ({
+              status,
+              code: body !== null && typeof body === "object" && "code" in body ? body.code : null,
+            }))
+          : Promise.resolve({ status, code: null }),
+      );
+    });
+    await page.route("**/v1/files", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      attempts.push(route.request().headers()["idempotency-key"]);
+      if (attempts.length === 1) {
+        return route.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            code: "file.concurrent-write",
+            status: 409,
+            title: "Publication rolled back; resend the file",
+          }),
+        });
+      }
+      return route.continue();
+    });
     await openWorkspace(page);
     const pageName = uniqueName("FileContainer");
     const fileName = `${uniqueName("standalone")}.txt`;
@@ -124,6 +158,17 @@ test.describe("canonical files (US2)", () => {
     });
 
     await ensureNavigationRowVisible(page, fileName);
+    expect(attempts.length).toBeGreaterThanOrEqual(2);
+    expect(attempts.length).toBeLessThanOrEqual(3);
+    expect(attempts[0]).toBeTruthy();
+    expect(new Set(attempts).size).toBe(1);
+    const replies = await Promise.all(responses);
+    expect(replies).toHaveLength(attempts.length);
+    expect(replies.at(-1)?.status).toBe(201);
+    for (const reply of replies.slice(0, -1)) {
+      expect(reply).toEqual({ status: 409, code: "file.concurrent-write" });
+    }
+    await expect(page.getByTestId(`tree-item-${fileName}`)).toHaveCount(1);
     await openPageAttachments(page, pageName);
     await expect(page.getByTestId("attachments-empty")).toBeVisible();
     await expect(page.getByTestId(`attachment-${fileName}`)).toHaveCount(0);

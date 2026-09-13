@@ -5,6 +5,7 @@ import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { PageCheckpointRetentionPolicy } from "../src/page-state/checkpoint-service.ts";
+import { ProtectedContentUnavailableError } from "../src/security/content-resolution.ts";
 import {
   type AuthenticatedPageOperationHarness,
   createAuthenticatedPageOperationHarness,
@@ -316,6 +317,105 @@ describe("frontier-bounded compaction", () => {
       kind: "blocked",
       reason: "history-retained",
     });
+  });
+
+  it("does not release history retention from a raw revision snapshot", async () => {
+    const { page } = await createAcceptedUpdate();
+    const candidate = await checkpoints().createCandidate(page.itemId);
+    await checkpoints().verifyCandidate(page.itemId, candidate.id as Uuid);
+    await closeRevisionWindow(page.itemId);
+
+    const state = await harness.api.built.database.db.execute(sql`
+      SELECT last_revision_id
+        FROM page_operation_states
+       WHERE page_id = ${page.itemId}::uuid
+    `);
+    const revisionId = (state as unknown as { rows: Array<{ last_revision_id: Uuid | null }> })
+      .rows[0]?.last_revision_id;
+    if (revisionId === null || revisionId === undefined) {
+      throw new Error("the active page has no visible revision");
+    }
+    const protectedContent = harness.api.built.context.protectedContent;
+    if (protectedContent === undefined) throw new Error("protected content is unavailable");
+    const retained = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
+      harness.api.built.database.db,
+      revisionId,
+    );
+    if (retained === null) throw new Error("the visible revision has no protected snapshot");
+    await harness.api.built.database.db.execute(sql`
+      UPDATE revisions
+         SET snapshot = ${JSON.stringify(retained)}::jsonb
+       WHERE id = ${revisionId}::uuid
+    `);
+    await harness.api.built.database.db.execute(sql`
+      DELETE FROM protected_envelopes
+       WHERE entity_type = 'revision.snapshot' AND entity_id = ${revisionId}::uuid
+    `);
+
+    const history = harness.api.built.pageHistory;
+    if (history === undefined) throw new Error("page history service is unavailable");
+    const allowed = await harness.api.built.database.db.transaction((tx) =>
+      history.historyAllowsCompaction(tx, {
+        workspaceId: harness.api.built.context.workspaceId,
+        pageId: page.itemId,
+        checkpointId: candidate.id as Uuid,
+        throughPageSequence: candidate.throughPageSequence,
+        snapshotDigest: candidate.snapshotDigest,
+        canonicalDigest: candidate.canonicalDigest,
+      }),
+    );
+    expect(allowed).toBe(false);
+  });
+
+  it("fails an active restore when its protected revision envelope is missing", async () => {
+    const { page } = await createAcceptedUpdate();
+    const state = await harness.api.built.database.db.execute(sql`
+      SELECT last_revision_id
+        FROM page_operation_states
+       WHERE page_id = ${page.itemId}::uuid
+    `);
+    const revisionId = (state as unknown as { rows: Array<{ last_revision_id: Uuid | null }> })
+      .rows[0]?.last_revision_id;
+    if (revisionId === null || revisionId === undefined) {
+      throw new Error("the active page has no visible revision");
+    }
+    const protectedContent = harness.api.built.context.protectedContent;
+    if (protectedContent === undefined) throw new Error("protected content is unavailable");
+    const retained = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
+      harness.api.built.database.db,
+      revisionId,
+    );
+    if (retained === null) throw new Error("the visible revision has no protected snapshot");
+    await harness.api.built.database.db.execute(sql`
+      UPDATE revisions
+         SET snapshot = ${JSON.stringify(retained)}::jsonb
+       WHERE id = ${revisionId}::uuid
+    `);
+    await harness.api.built.database.db.execute(sql`
+      DELETE FROM protected_envelopes
+       WHERE entity_type = 'revision.snapshot' AND entity_id = ${revisionId}::uuid
+    `);
+    const item = await harness.api.built.database.db.execute(sql`
+      SELECT current_revision_id
+        FROM items
+       WHERE id = ${page.itemId}::uuid
+    `);
+    const currentRevisionId = (
+      item as unknown as { rows: Array<{ current_revision_id: Uuid | null }> }
+    ).rows[0]?.current_revision_id;
+    if (currentRevisionId === null || currentRevisionId === undefined) {
+      throw new Error("the active page has no current revision");
+    }
+    const history = harness.api.built.pageHistory;
+    if (history === undefined) throw new Error("page history service is unavailable");
+    await expect(
+      history.restoreRevision({
+        revisionId,
+        expectedCurrentRevisionId: currentRevisionId,
+        mutationId: generateUuidV7(),
+        deviceId: PAGE_OPERATION_DEVICE_ID,
+      }),
+    ).rejects.toBeInstanceOf(ProtectedContentUnavailableError);
   });
 
   it("refuses to compact while a restoration is unfinished", async () => {

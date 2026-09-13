@@ -64,6 +64,25 @@ describe("navigationIdentityKey", () => {
 });
 
 describe("replaceProjectedItem", () => {
+  it("keeps source journal anchors invisible after a definition upsert", () => {
+    const id = generateUuidV7();
+    const sources = new Set([id]);
+    const hidden = replaceProjectedItem([], [], id, item(id, { placements: [] }), sources);
+    expect(hidden.items).toEqual([]);
+    expect(hidden.catalogChanged).toBe(false);
+    const legacyHost = replaceProjectedItem([], [], id, item(id), sources);
+    expect(legacyHost.items).toHaveLength(1);
+    expect(
+      replaceProjectedItem(
+        legacyHost.items,
+        [],
+        id,
+        item(id, { lifecycle: "purged", placements: [] }),
+        sources,
+      ).items,
+    ).toEqual([]);
+  });
+
   it("does not report a catalog change for a body-only upsert", () => {
     const id = generateUuidV7();
     const current = item(id);

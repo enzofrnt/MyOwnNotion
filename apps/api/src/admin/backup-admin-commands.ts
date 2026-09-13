@@ -7,6 +7,7 @@ import type { BackupService } from "../backup/backup-service.ts";
 import type { BackupDestination } from "../backup/destinations/destination.ts";
 import type { FullBackupReceipt } from "../backup/full/receipts.ts";
 import type { RestoreScope } from "../backup/restore-service.ts";
+import type { ProtectedFileService } from "../files/protected-file-service.ts";
 import type { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { CommandResult } from "./command-output.ts";
@@ -28,6 +29,7 @@ export interface BackupAdminContext {
   readonly destination: BackupDestination;
   readonly contentStore: ContentStore;
   readonly protectedContent: ProtectedContent;
+  readonly protectedFiles?: ProtectedFileService;
   readonly pageOperationCrypto?: PageOperationCrypto;
   readonly deploymentKey?: () => Buffer;
   readonly open: (ciphertext: Buffer) => Promise<Buffer>;
@@ -125,6 +127,9 @@ export async function runBackupAdminCommand(
           ...restoreDeps,
           contentStore: context.contentStore,
           protectedContent: context.protectedContent,
+          ...(context.protectedFiles === undefined
+            ? {}
+            : { protectedFiles: context.protectedFiles }),
           ...(context.pageOperationCrypto === undefined
             ? {}
             : { pageOperationCrypto: context.pageOperationCrypto }),

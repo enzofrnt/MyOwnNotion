@@ -15,6 +15,7 @@ import {
 } from "@myownnotion/domain";
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { ProtectedContentUnavailableError } from "../security/content-resolution.ts";
+import { StorageTransitionPendingError } from "../security/file-storage-transition-guard.ts";
 import { requestContext } from "../security/request-context.ts";
 import { RotationWriteBlockedError } from "../security/rotation-policy-service.ts";
 import { ProtocolTooOldError, REQUIRED_PROTOCOL_HEADER } from "./protocol.ts";
@@ -27,6 +28,7 @@ export interface ProblemBody {
   readonly detail?: string;
   readonly invalidFields?: ReadonlyArray<{ readonly field: string; readonly code: string }>;
   readonly competingRevisionIds?: ReadonlyArray<string>;
+  readonly correlationId?: string;
 }
 
 const STATUS_BY_CODE: Partial<Record<SafeErrorCode, number>> = {
@@ -149,6 +151,18 @@ export function registerErrorHandling(app: FastifyInstance): void {
     // reading it: "unexpected" invites a bug report, and this is a key or an
     // envelope problem with an operator-side cause. The code is deliberately
     // coarse — naming the failed check would be a decryption oracle.
+    if (error instanceof StorageTransitionPendingError) {
+      return reply
+        .status(503)
+        .header("content-type", "application/problem+json")
+        .send({
+          type: "https://myownnotion.dev/problems/migration_in_progress",
+          title: "Encryption migration is in progress",
+          status: 503,
+          code: "migration_in_progress",
+          correlationId: safeCorrelationId(_request),
+        });
+    }
     if (error instanceof ProtectedContentUnavailableError) {
       _request.log.error({ err: error }, "protected read failed");
       const problem: ProblemBody = {
@@ -156,6 +170,7 @@ export function registerErrorHandling(app: FastifyInstance): void {
         title: "Protected record could not be read",
         status: 500,
         code: "protected_read_failed",
+        correlationId: safeCorrelationId(_request),
       };
       return reply.status(500).header("content-type", "application/problem+json").send(problem);
     }
@@ -167,9 +182,10 @@ export function registerErrorHandling(app: FastifyInstance): void {
     if (error instanceof RotationWriteBlockedError) {
       const problem: ProblemBody = {
         type: "https://myownnotion.dev/problems/write_blocked",
-        title: error.message,
+        title: "Protected writes are blocked",
         status: 409,
         code: "write_blocked",
+        correlationId: safeCorrelationId(_request),
       };
       return reply.status(409).header("content-type", "application/problem+json").send(problem);
     }
@@ -185,6 +201,7 @@ export function registerErrorHandling(app: FastifyInstance): void {
         title: error.reason,
         status: 426,
         code: "protocol.too_old",
+        correlationId: safeCorrelationId(_request),
       };
       return reply
         .status(426)
@@ -206,15 +223,17 @@ export function registerErrorHandling(app: FastifyInstance): void {
         title: "Unexpected server error",
         status: 500,
         code: "internal.unexpected",
+        correlationId: safeCorrelationId(_request),
       };
       return reply.status(500).header("content-type", "application/problem+json").send(problem);
     }
 
     const problem: ProblemBody = {
       type: "https://myownnotion.dev/problems/http",
-      title: error.message,
+      title: "Request could not be processed",
       status: statusCode,
       code: `http.${statusCode}`,
+      correlationId: safeCorrelationId(_request),
     };
     return reply
       .status(statusCode)
@@ -222,12 +241,13 @@ export function registerErrorHandling(app: FastifyInstance): void {
       .send(problem);
   });
 
-  app.setNotFoundHandler((_request, reply) => {
+  app.setNotFoundHandler((request, reply) => {
     const problem: ProblemBody = {
       type: "https://myownnotion.dev/problems/http",
       title: "Route not found",
       status: 404,
       code: "http.404",
+      correlationId: safeCorrelationId(request),
     };
     return reply.status(404).header("content-type", "application/problem+json").send(problem);
   });

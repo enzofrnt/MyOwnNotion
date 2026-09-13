@@ -15,6 +15,7 @@ import {
   type DomainResult,
   err,
   type ItemKind,
+  isProtectedContentPayload,
   normalizeDisplayName,
   normalizeItemIcon,
   ok,
@@ -93,6 +94,9 @@ export function validatePageDocument(document: PageDocument): DomainResult<PageD
   }
   if (typeof document.body !== "object" || document.body === null || Array.isArray(document.body)) {
     return err("validation.invalid-payload", "Page document body must be an object");
+  }
+  if (isProtectedContentPayload(document.body)) {
+    return err("validation.invalid-payload", "Page document body uses a reserved value");
   }
   return ok(document);
 }

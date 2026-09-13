@@ -37,9 +37,12 @@ blocs d'éditeur et ne deviennent pas automatiquement des tâches structurées.
 Une base peut posséder plusieurs vues enregistrées sur les mêmes entrées. Les
 vues changent la présentation, le filtrage, le tri et le regroupement ; elles
 ne copient pas les pages et ne modifient pas leur identité. Cette livraison
-couvre les bases ouvertes comme des éléments du workspace. Les vues liées ou
-intégrées dans une autre page sont différées afin de ne pas confondre le modèle
-structuré avec l'évolution visuelle de l'éditeur préparée dans la feature 003.
+couvrait initialement les bases ouvertes comme des éléments du workspace.
+La [feature 026](../026-linked-databases/spec.md) remplace ce report : les bases
+deviennent des ressources indépendantes intégrables dans des pages normales,
+avec des vues propres à chaque emplacement. La suppression d'une page hôte ne
+supprime plus les entrées par appartenance ; les identités existantes restent
+conservées. Les autres exigences de la 009 restent applicables.
 
 Le produit reste strictement mono-utilisateur. Toutes les bases, propriétés,
 vues et tâches de cette feature sont privées et accessibles au propriétaire
@@ -74,9 +77,10 @@ une entrée et éditer son contenu comme une page ordinaire.
 
 **Acceptance Scenarios**:
 
-1. **Given** un emplacement du workspace, **When** le propriétaire crée une
-   base et lui donne un nom, **Then** elle apparaît dans la navigation avec une
-   identité stable et une première vue utilisable.
+1. **Given** une page ordinaire du workspace, **When** le propriétaire crée une
+   base et lui donne un nom, **Then** une source indépendante est créée avec une
+   identité stable et une première vue intégrée ; la page reste dans la navigation
+   (évolution 026).
 2. **Given** une base, **When** le propriétaire ajoute des propriétés texte,
    nombre, date, statut, sélection, sélection multiple, case à cocher et
    relation, **Then** chacune accepte uniquement des valeurs conformes à son
@@ -277,8 +281,10 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
 
 **Bases, schémas et identités**
 
-- **FR-001**: Le propriétaire MUST pouvoir créer, renommer, déplacer, mettre à
-  la corbeille et restaurer une base comme un élément identifiable du workspace.
+- **FR-001**: Le propriétaire MUST pouvoir créer et nommer une source de base
+  identifiable, puis l'afficher dans des pages ordinaires. Déplacer, mettre à la
+  corbeille ou restaurer une page d'affichage MUST conserver la source et ses
+  entrées ; la 026 remplace le cycle de vie initialement couplé à cette page.
 - **FR-002**: Chaque base MUST conserver une identité stable indépendante de
   son nom, de son emplacement et de ses vues.
 - **FR-003**: Chaque entrée MUST être une page canonique ouvrable et éditable,
@@ -416,10 +422,9 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
   tâches dans un format versionné et vérifiable.
 - **FR-045**: La mise à la corbeille d'une entrée MUST la retirer de toutes ses
   vues et la restauration MUST la rétablir avec ses valeurs. La mise à la
-  corbeille d'une base MUST annoncer le nombre d'entrées affectées et placer la
-  base et ses entrées actives dans la corbeille comme une opération atomique ;
-  leur restauration MUST rétablir schéma, vues, valeurs, historique et
-  relations sans ancienne copie résiduelle.
+  corbeille d'une page affichant une base MUST conserver la source et ses
+  entrées indépendantes (évolution 026). Retirer tous les affichages MUST
+  laisser la source disponible à une nouvelle insertion.
 - **FR-046**: La suppression définitive MUST rester déléguée à la future
   orchestration de cycle de vie ; cette feature MUST seulement respecter son
   état canonique et retirer les données dérivées actives correspondantes.
@@ -512,9 +517,9 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
   édition, fichiers, synchronisation, sauvegarde et recherche.
 - Une entrée appartient activement à une seule base. Elle peut être reliée ou
   affichée dans plusieurs vues sans duplication.
-- La première livraison expose des bases ouvrables depuis la hiérarchie. Les
-  vues liées ou intégrées dans une autre page seront spécifiées avec leur
-  interaction éditoriale plutôt qu'ajoutées implicitement ici.
+- Les anciennes pages de base restent ouvrables depuis la hiérarchie. La 026
+  expose les mêmes sources indépendantes dans plusieurs pages ordinaires,
+  avec des configurations de vue propres à chaque emplacement.
 - Les filtres de cette livraison utilisent un ensemble plat de critères combiné
   par « tous » ou « au moins un ». Les groupes logiques imbriqués et un langage
   de formule sont différés.
@@ -538,7 +543,7 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
 - Modèles de base ou d'entrée, automatisations, dépendances de tâches,
   récurrence, rappels et notifications.
 - Conversion automatique des cases à cocher éditoriales en tâches structurées.
-- Vues liées ou bases intégrées dans le contenu d'une autre page.
+- Les bases liées/intégrées sont désormais couvertes par la feature 026.
 - Backlinks, propriétés réciproques automatiques, traversal relationnel et
   visualisation du graphe — feature 010.
 - Tableaux blancs — feature 011.
@@ -548,3 +553,7 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
   future feature de cycle de vie.
 - Collaboration multi-utilisateur, assignation à une autre personne, présence
   et coédition, incompatibles avec le produit mono-utilisateur.
+
+### Clarification 026 — emplacement des entrées
+
+Une nouvelle entrée créée depuis une vue reste une page canonique sans placement hiérarchique automatique. Les clients peuvent demander un placement explicitement ; les placements historiques sont conservés. La recherche et l’ouverture canonique ne dépendent pas d’un emplacement dans la navigation.

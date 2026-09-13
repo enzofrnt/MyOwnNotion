@@ -13,6 +13,12 @@ import { databaseEntries, databases, items, pageDocuments } from "../schema/inde
 
 type Executor = Database | Transaction;
 
+// A new source's unplaced journal anchor is not an editorial search result.
+const visibleEditorialItem = sql`NOT EXISTS (
+  SELECT 1 FROM databases source WHERE source.item_id = ${items.id}
+  AND NOT EXISTS (SELECT 1 FROM placements p WHERE p.item_id = ${items.id} AND p.removed_at IS NULL)
+)`;
+
 export interface SearchSourceRecord {
   readonly itemId: Uuid;
   readonly revisionId: Uuid;
@@ -97,7 +103,9 @@ export async function listSearchSources(
     .leftJoin(pageDocuments, eq(pageDocuments.pageId, items.id))
     .leftJoin(databaseEntries, eq(databaseEntries.entryItemId, items.id))
     .leftJoin(databases, eq(databases.itemId, databaseEntries.databaseId))
-    .where(and(eq(items.workspaceId, workspaceId), eq(items.lifecycle, "active")))
+    .where(
+      and(eq(items.workspaceId, workspaceId), eq(items.lifecycle, "active"), visibleEditorialItem),
+    )
     .orderBy(asc(items.id));
 
   return rows.map(mapSearchSource);
@@ -136,6 +144,7 @@ export async function readSearchSources(
         eq(items.workspaceId, workspaceId),
         eq(items.lifecycle, "active"),
         inArray(items.id, expandedItemIds),
+        visibleEditorialItem,
       ),
     )
     .orderBy(asc(items.id));

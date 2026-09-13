@@ -1970,6 +1970,82 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.recovery-replacement-panel,
+.recovery-readiness-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
+}
+
+.recovery-replacement-panel {
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+}
+
+.recovery-replacement-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--ui-space-2);
+  margin: 0;
+}
+
+.recovery-replacement-facts dt {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+}
+
+.recovery-replacement-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.recovery-replacement-actions,
+.recovery-replacement-confirm,
+.recovery-revoke-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.recovery-replacement-confirm {
+  align-items: flex-start;
+}
+
+.recovery-replacement-confirm input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+  flex: 0 0 auto;
+}
+
+.recovery-replacement-confirm label {
+  min-width: 0;
+}
+
+.recovery-replacement-notice,
+.recovery-revoke-confirm p {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+}
+
+.recovery-revoke {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+
+.recovery-revoke-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-color-danger);
+  border-radius: var(--ui-radius-md);
+}
+
 /* React does not insert text nodes between adjacent Button components. Keep a
    real wrapping boundary around the three actions in each device row. */
 .device-actions {
@@ -2002,6 +2078,8 @@ textarea {
    ------------------------------------------------------------------------ */
 
 .page-editor {
+  /* Contain the toolbar margin so hydration cannot shift controls below it. */
+  display: flow-root;
   position: relative;
   width: 100%;
   max-width: 100%;
@@ -2009,15 +2087,16 @@ textarea {
 }
 
 .editor-history-controls {
+  --editor-history-target: var(--ui-target-compact);
   display: flex;
   box-sizing: border-box;
   width: max-content;
   max-width: 100%;
-  min-height: var(--ui-target-compact);
+  min-height: var(--editor-history-target);
   justify-content: flex-end;
   gap: var(--ui-space-1);
   /* Sit on the same row as the Page/Folder caption under the title. */
-  margin: calc(-1 * var(--ui-target-compact)) 0 0 auto;
+  margin: calc(-1 * var(--editor-history-target)) 0 0 auto;
   padding-inline: var(--ui-space-1) var(--workspace-page-inline-end, var(--ui-space-2));
   /* The empty leading space of a full-width toolbar must not eat clicks on
      notices or title actions that share this vertical band. */
@@ -2264,11 +2343,12 @@ textarea {
 }
 
 .page-editor .bn-block-content[data-content-type="codeBlock"] {
-  margin-block: var(--ui-space-2);
+  display: block;
+  min-width: 0;
+  padding: 0;
   color: var(--ui-color-text);
-  background: var(--ui-color-surface-sunken);
-  border: 1px solid var(--ui-color-border);
-  border-radius: var(--ui-radius-md);
+  background: transparent;
+  border: 0;
 }
 
 /* A true preformatted block may scroll horizontally. Inline `code` must not
@@ -2290,7 +2370,7 @@ code,
 
 .editor-code-block pre {
   margin: 0;
-  padding: var(--ui-space-3) var(--ui-space-4) var(--ui-space-4);
+  padding: var(--ui-space-4);
   border: 0;
 }
 
@@ -2646,6 +2726,8 @@ code,
 }
 
 .editor-code-block {
+  width: 100%;
+  min-width: 0;
   margin-block: var(--ui-space-2);
   overflow: hidden;
   background: var(--ui-color-surface-sunken);
@@ -2653,14 +2735,94 @@ code,
   border-radius: var(--ui-radius-md);
 }
 
+.editor-code-block code.bn-inline-content {
+  display: block;
+  min-height: 1.65em;
+  padding: 0;
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-sm);
+  font-weight: 400;
+  line-height: var(--ui-leading-relaxed);
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  tab-size: 2;
+  caret-color: var(--ui-color-text);
+}
+
+/* Decorations follow the application theme without changing the document or
+   rebuilding contentDOM when the owner switches themes. */
+.editor-code-block code span[style*="--shiki-light"] {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style, normal);
+  font-weight: var(--shiki-light-font-weight, inherit);
+  text-decoration: var(--shiki-light-text-decoration, none);
+}
+
+:root[data-theme="dark"] .editor-code-block code span[style*="--shiki-dark"] {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style, normal);
+  font-weight: var(--shiki-dark-font-weight, inherit);
+  text-decoration: var(--shiki-dark-text-decoration, none);
+}
+
 .editor-code-toolbar {
   display: flex;
   min-height: var(--ui-target-compact);
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--ui-space-1);
+  justify-content: space-between;
+  gap: var(--ui-space-2);
   padding: var(--ui-space-1) var(--ui-space-2);
   border-bottom: 1px solid var(--ui-color-border);
+}
+
+.editor-code-language {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  color: var(--ui-color-text-muted);
+}
+
+.editor-code-language > svg {
+  flex-shrink: 0;
+  margin-left: var(--ui-space-2);
+}
+
+.editor-code-language select {
+  min-width: 0;
+  max-width: 100%;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.editor-code-language select:disabled {
+  cursor: default;
+}
+
+.editor-code-copy {
+  flex-shrink: 0;
+}
+
+.editor-code-copy .ui-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+}
+
+.editor-code-feedback {
+  display: block;
+  padding: var(--ui-space-2) var(--ui-space-4) 0;
+  color: var(--ui-color-success);
+  font-size: var(--ui-text-xs);
+}
+
+.editor-code-feedback:empty {
+  display: none;
+}
+
+.editor-code-feedback[data-state="failed"] {
+  color: var(--ui-color-danger);
 }
 
 .editor-code-toolbar select,
@@ -3028,6 +3190,10 @@ code,
 }
 
 @media (pointer: coarse) {
+  .editor-history-controls {
+    --editor-history-target: var(--ui-target);
+  }
+
   .editor-history-controls .ui-button,
   .page-editor .bn-ak-button,
   .editor-code-toolbar select,

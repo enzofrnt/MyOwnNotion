@@ -261,3 +261,149 @@ describe("database definitions", () => {
     });
   });
 });
+
+describe("task values and destructive option changes", () => {
+  it("distinguishes disabled task roles from missing optional values", () => {
+    expect(projectTaskSemantics(definition({ taskRoles: null }), values(IDS.entryA))).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(projectTaskSemantics(definition(), values(IDS.entryA))).toMatchObject({
+      ok: true,
+      value: {
+        status: { propertyId: IDS.status, value: null },
+        dueDate: { propertyId: IDS.date, value: null },
+        priority: { propertyId: IDS.select, value: null },
+      },
+    });
+    expect(
+      projectTaskSemantics(
+        definition({
+          taskRoles: {
+            statusPropertyId: IDS.status,
+            dueDatePropertyId: null,
+            priorityPropertyId: null,
+          },
+        }),
+        values(IDS.entryA),
+      ),
+    ).toMatchObject({ ok: true, value: { dueDate: null, priority: null } });
+  });
+  it.each([IDS.status, IDS.date, IDS.select])(
+    "refuses incompatible retained data in task field %s",
+    (propertyId) => {
+      expect(
+        projectTaskSemantics(
+          definition(),
+          values(IDS.entryA, { [propertyId]: { kind: "text", value: "Retained original" } }),
+        ).ok,
+      ).toBe(false);
+    },
+  );
+  it("preserves supported alternative task representations without casting their values", () => {
+    const input = values(IDS.entryA, {
+      [IDS.status]: { kind: "select", optionId: IDS.todo },
+      [IDS.date]: { kind: "instant", instant: "2026-09-08T10:00:00Z" },
+      [IDS.select]: { kind: "status", optionId: IDS.high },
+    });
+    expect(projectTaskSemantics(definition(), input)).toMatchObject({
+      ok: true,
+      value: {
+        status: { value: input.values[IDS.status] },
+        dueDate: { value: input.values[IDS.date] },
+        priority: { value: input.values[IDS.select] },
+      },
+    });
+  });
+  it("refuses invalid definitions and foreign or unsupported entry envelopes", () => {
+    expect(projectTaskSemantics(definition({ properties: [] }), values(IDS.entryA)).ok).toBe(false);
+    const original = values(IDS.entryA);
+    for (const patch of [
+      { databaseId: IDS.entryB },
+      { format: "foreign-format" },
+      { formatVersion: 2 },
+    ])
+      expect(
+        projectTaskSemantics(definition(), { ...original, ...patch } as unknown as typeof original)
+          .ok,
+      ).toBe(false);
+  });
+  it("counts only values that actually reference retired choices across select and multi-select", async () => {
+    const current = definition({ taskRoles: null });
+    const candidate = definition({
+      taskRoles: null,
+      properties: current.properties.map((property) =>
+        property.type === "status" || property.type === "select" || property.type === "multi-select"
+          ? {
+              ...property,
+              config: {
+                options: property.config.options.map((option) =>
+                  option.id === IDS.todo || option.id === IDS.high
+                    ? { ...option, state: "retired" as const }
+                    : option,
+                ),
+              },
+            }
+          : property,
+      ),
+    });
+    const entries = [
+      values(IDS.entryA, {
+        [IDS.status]: { kind: "status", optionId: IDS.todo },
+        [IDS.select]: { kind: "select", optionId: IDS.high },
+        [IDS.multi]: { kind: "multi-select", optionIds: [IDS.todo, IDS.doing] },
+      }),
+      values(IDS.entryB, {
+        [IDS.status]: { kind: "status", optionId: IDS.doing },
+        [IDS.multi]: { kind: "multi-select", optionIds: [IDS.doing] },
+      }),
+    ];
+    const result = await previewDefinitionImpact({
+      baseRevisionId: IDS.revision,
+      current,
+      candidate,
+      entries,
+    });
+    expect(result).toMatchObject({
+      destructive: true,
+      affectedEntryCount: 1,
+      affectedValueCount: 3,
+      reasons: ["option-retired"],
+    });
+    const reordered = await previewDefinitionImpact({
+      baseRevisionId: IDS.revision,
+      current,
+      candidate,
+      entries: [...entries].reverse(),
+    });
+    expect(reordered).toEqual(result);
+  });
+  it("counts removal of a property and refuses invalid or foreign candidate definitions", async () => {
+    const current = definition();
+    const entries = [
+      values(IDS.entryA, { [IDS.text]: { kind: "text", value: "Keep recoverable" } }),
+    ];
+    expect(
+      await previewDefinitionImpact({
+        baseRevisionId: IDS.revision,
+        current,
+        candidate: definition({
+          properties: current.properties.filter((property) => property.id !== IDS.text),
+        }),
+        entries,
+      }),
+    ).toMatchObject({
+      affectedEntryCount: 1,
+      affectedValueCount: 1,
+      reasons: ["property-retired"],
+      destructive: true,
+    });
+    for (const candidate of [
+      definition({ databaseId: IDS.entryB }),
+      definition({ properties: [] }),
+    ])
+      await expect(
+        previewDefinitionImpact({ baseRevisionId: IDS.revision, current, candidate, entries }),
+      ).rejects.toThrow("invalid database definition impact input");
+  });
+});

@@ -13,6 +13,7 @@
 import type { PasskeyViewDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useState } from "react";
 import type {
+  PreparedRecoveryKit,
   RecoveryStatusView,
   RotationStatusView,
   SecurityApi,
@@ -21,7 +22,13 @@ import { FR_COPY } from "../../ui/copy/index.ts";
 import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
 import { DevicePanel } from "./device-panel.tsx";
 import { KeyRotationPanel } from "./key-rotation-panel.tsx";
+import { McpAccessPanel } from "./mcp-access-panel.tsx";
+import { saveKitBlob } from "./recovery-kit-panel.tsx";
 import { RecoveryReadinessPanel } from "./recovery-readiness-panel.tsx";
+import {
+  type RecoveryReplacementDelivery,
+  RecoveryReplacementPanel,
+} from "./recovery-replacement-panel.tsx";
 import { SessionPanel } from "./session-panel.tsx";
 
 export interface SecuritySettingsProps {
@@ -37,6 +44,7 @@ export interface SecuritySettingsProps {
    */
   readonly currentDeviceId?: string | null;
   readonly onSignedOut: () => void;
+  readonly onReauthenticated?: () => void;
 }
 
 interface SecurityNotice {
@@ -52,6 +60,13 @@ export function SecuritySettings(props: SecuritySettingsProps) {
   const [loading, setLoading] = useState(true);
   const [rotation, setRotation] = useState<RotationStatusView | null>(null);
   const [recovery, setRecovery] = useState<RecoveryStatusView | null>(null);
+  const [replacement, setReplacement] = useState<Pick<
+    PreparedRecoveryKit,
+    "kitId" | "downloadExpiresAt" | "notice"
+  > | null>(null);
+  const [replacementConsumedKitId, setReplacementConsumedKitId] = useState<string | null>(null);
+  const [replacementSavedKitId, setReplacementSavedKitId] = useState<string | null>(null);
+  const [replacementNotice, setReplacementNotice] = useState<SecurityNotice | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -71,9 +86,48 @@ export function SecuritySettings(props: SecuritySettingsProps) {
     // "cannot tell you either way", which is the honest answer and is not the
     // same as "you have no kit".
     const recoveryResult = await props.api.recoveryStatus();
-    setRecovery(recoveryResult.ok ? recoveryResult.value : null);
+    if (recoveryResult.ok) {
+      setRecovery(recoveryResult.value);
+      const pending = recoveryResult.value.pending;
+      if (pending === null) {
+        setReplacement(null);
+        setReplacementConsumedKitId(null);
+        setReplacementSavedKitId(null);
+      } else {
+        const resumedConsumedKit = pending.deliveryState === "download-consumed";
+        const alreadyKnownConsumed = replacementConsumedKitId === pending.kitId;
+        if (resumedConsumedKit) {
+          setReplacementConsumedKitId(pending.kitId);
+          // After a reload, the server is the only durable evidence that the
+          // one-time response was delivered. Let the owner acknowledge it;
+          // preserve a known in-session save failure instead of overriding it.
+          if (!alreadyKnownConsumed) {
+            setReplacementSavedKitId(pending.kitId);
+            setReplacementNotice({
+              kind: "info",
+              message: FR_COPY.security.recovery.replacement.resumed,
+            });
+          }
+        }
+        setReplacement((current) =>
+          current?.kitId === pending.kitId
+            ? {
+                ...current,
+                downloadExpiresAt: pending.downloadExpiresAt ?? current.downloadExpiresAt,
+                notice: recoveryResult.value.notice,
+              }
+            : {
+                kitId: pending.kitId,
+                downloadExpiresAt: pending.downloadExpiresAt ?? "",
+                notice: recoveryResult.value.notice,
+              },
+        );
+      }
+    } else {
+      setRecovery(null);
+    }
     setLoading(false);
-  }, [props.api]);
+  }, [props.api, replacementConsumedKitId]);
 
   useEffect(() => {
     void refresh();
@@ -130,6 +184,115 @@ export function SecuritySettings(props: SecuritySettingsProps) {
   );
 
   const activePasskeys = passkeys.filter((passkey) => passkey.state === "active");
+
+  const prepareReplacement = useCallback(async () => {
+    setBusy(true);
+    setNotice(null);
+    setReplacementNotice(null);
+    const result = await props.api.prepareRecoveryReplacement();
+    if (!result.ok) {
+      setNotice({ kind: "error", message: FR_COPY.security.recovery.prepareFailed });
+      setBusy(false);
+      return;
+    }
+    setReplacement(result.value);
+    setReplacementConsumedKitId(null);
+    setReplacementSavedKitId(null);
+    setNotice({ kind: "success", message: FR_COPY.security.recovery.prepared });
+    await refresh();
+    setBusy(false);
+  }, [props.api, refresh]);
+
+  const downloadReplacement = useCallback(async () => {
+    if (replacement === null) return;
+    setBusy(true);
+    setNotice(null);
+    setReplacementNotice(null);
+    const result = await props.api.downloadRecoveryKit(replacement.kitId);
+    if (!result.ok) {
+      setReplacementNotice({
+        kind: "error",
+        message: result.consumed
+          ? result.problem.status === 409
+            ? FR_COPY.security.recovery.replacement.downloadAlreadyConsumed
+            : FR_COPY.security.recovery.replacement.downloadConsumedUnreadable
+          : FR_COPY.security.recovery.replacement.downloadFailed,
+      });
+      setReplacementSavedKitId(null);
+      if (result.consumed) {
+        setReplacementConsumedKitId(replacement.kitId);
+      }
+      setBusy(false);
+      return;
+    }
+    let saved = false;
+    try {
+      saved = await saveKitBlob(result.value, "myownnotion-recovery.json");
+      if (!saved) {
+        setReplacementNotice({
+          kind: "error",
+          message: FR_COPY.security.recovery.replacement.saveFailed,
+        });
+      }
+    } catch {
+      setReplacementNotice({
+        kind: "error",
+        message: FR_COPY.security.recovery.replacement.saveFailed,
+      });
+    }
+    setReplacementConsumedKitId(replacement.kitId);
+    setReplacementSavedKitId(saved ? replacement.kitId : null);
+    setBusy(false);
+  }, [props.api, replacement]);
+
+  const confirmReplacement = useCallback(async () => {
+    if (
+      replacement === null ||
+      replacementConsumedKitId !== replacement.kitId ||
+      replacementSavedKitId !== replacement.kitId
+    )
+      return;
+    setBusy(true);
+    setNotice(null);
+    setReplacementNotice(null);
+    const result = await props.api.confirmRecoveryKit(replacement.kitId);
+    if (!result.ok) {
+      setReplacementNotice({
+        kind: "error",
+        message: FR_COPY.security.recovery.replacement.confirmFailed,
+      });
+      setBusy(false);
+      return;
+    }
+    setReplacement(null);
+    setReplacementConsumedKitId(null);
+    setReplacementSavedKitId(null);
+    setNotice({ kind: "success", message: FR_COPY.security.recovery.replacement.confirmed });
+    await refresh();
+    setBusy(false);
+  }, [props.api, refresh, replacement, replacementConsumedKitId, replacementSavedKitId]);
+
+  const revokeRecovery = useCallback(async () => {
+    setBusy(true);
+    setNotice(null);
+    setReplacementNotice(null);
+    const result = await props.api.revokeRecoveryKit();
+    if (!result.ok) {
+      setNotice({ kind: "error", message: FR_COPY.security.recovery.replacement.revokeFailed });
+      setReplacementNotice({
+        kind: "error",
+        message: FR_COPY.security.recovery.replacement.revokeFailed,
+      });
+      setBusy(false);
+      return;
+    }
+    setNotice({
+      kind: "success",
+      message: FR_COPY.security.recovery.replacement.revokedWithCode(result.value.revocationCode),
+    });
+    await refresh();
+    setBusy(false);
+  }, [props.api, refresh]);
 
   return (
     <section
@@ -205,22 +368,34 @@ export function SecuritySettings(props: SecuritySettingsProps) {
 
       <DevicePanel api={props.api} currentDeviceId={props.currentDeviceId ?? null} />
 
+      <McpAccessPanel api={props.api} onReauthenticated={props.onReauthenticated} />
+
       <RecoveryReadinessPanel
         status={recovery}
         busy={busy}
-        onPrepareReplacement={async () => {
-          setBusy(true);
-          const result = await props.api.prepareRecoveryReplacement();
-          setNotice({
-            kind: result.ok ? "success" : "error",
-            message: result.ok
-              ? FR_COPY.security.recovery.prepared
-              : FR_COPY.security.recovery.prepareFailed,
-          });
-          await refresh();
-          setBusy(false);
-        }}
+        loading={loading}
+        onPrepareReplacement={prepareReplacement}
+        onRevoke={revokeRecovery}
       />
+
+      {replacement === null ? null : (
+        <RecoveryReplacementPanel
+          key={replacement.kitId}
+          kit={replacement}
+          delivery={
+            replacementConsumedKitId === replacement.kitId
+              ? ("download-consumed" satisfies RecoveryReplacementDelivery)
+              : "downloadable"
+          }
+          downloadSaved={replacementSavedKitId === replacement.kitId}
+          busy={busy}
+          {...(replacementNotice === null
+            ? {}
+            : { message: { kind: replacementNotice.kind, text: replacementNotice.message } })}
+          onDownload={downloadReplacement}
+          onConfirm={confirmReplacement}
+        />
+      )}
 
       {rotation !== null && (
         <KeyRotationPanel

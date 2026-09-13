@@ -40,7 +40,6 @@ import {
   adoptSourceIdentity,
   RecoveryImportError,
   readTargetOccupancy,
-  resetDeviceTrust,
   runSecurityTransaction,
   type TargetOccupancy,
   targetIsEmpty,
@@ -219,7 +218,7 @@ export class AdministrativeRecoveryService {
     );
 
     try {
-      const devicesRevoked = await runSecurityTransaction(this.#deps.db, async (tx) => {
+      await runSecurityTransaction(this.#deps.db, async (tx) => {
         await adoptSourceIdentity(tx, {
           installationId: kit.installationId,
           sourceLineageId: kit.sourceLineageId,
@@ -232,7 +231,6 @@ export class AdministrativeRecoveryService {
           wrappingKeyVersion: 1,
           now,
         });
-        return await resetDeviceTrust(tx, kit.installationId);
       });
 
       return {
@@ -240,7 +238,9 @@ export class AdministrativeRecoveryService {
         sourceLineageId: kit.sourceLineageId,
         workspaceId: workspaceIdOf(kit),
         recoveryEpoch: kit.recoveryEpoch,
-        devicesRevoked,
+        // An empty target has no owner, hence no owner-bound devices or sessions.
+        // Keep the CLI result shape; complete restore has its own trust activation.
+        devicesRevoked: 0,
         occupancyBefore: report.occupancy,
       };
     } catch (error) {

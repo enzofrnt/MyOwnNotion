@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StableActionButton } from "../src/ui/stable-action-button.tsx";
 
-describe("pointer-stable actions", () => {
+describe("semantic action controls", () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -21,7 +21,7 @@ describe("pointer-stable actions", () => {
     vi.restoreAllMocks();
   });
 
-  it("starts on pointerdown and suppresses that gesture's compatibility click", () => {
+  it("waits for a semantic click instead of activating on pointerdown", () => {
     const onActivate = vi.fn();
     act(() => root.render(<StableActionButton onActivate={onActivate}>Save</StableActionButton>));
     const button = container.querySelector("button");
@@ -35,10 +35,13 @@ describe("pointer-stable actions", () => {
     });
     act(() => {
       button?.dispatchEvent(pointer);
-      button?.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
     });
 
-    expect(pointer.defaultPrevented).toBe(true);
+    expect(pointer.defaultPrevented).toBe(false);
+    expect(onActivate).not.toHaveBeenCalled();
+    act(() => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+    });
     expect(onActivate).toHaveBeenCalledTimes(1);
     expect(onActivate).toHaveBeenCalledWith(button);
   });

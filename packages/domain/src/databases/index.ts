@@ -1,6 +1,7 @@
 /** Canonical structured-database rules (feature 009). */
 
 export * from "./commands.ts";
+export * from "./embeddings.ts";
 export * from "./merge.ts";
 export * from "./query.ts";
 export * from "./schema.ts";

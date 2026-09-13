@@ -1,5 +1,6 @@
 export * from "./content-api.ts";
 export * from "./full-backups.ts";
+export * from "./mcp.ts";
 export * from "./page-operations.ts";
 export * from "./realtime-page-sync.ts";
 export * from "./security-api.ts";

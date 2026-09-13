@@ -39,6 +39,7 @@ export type DatabaseMutationCommand =
       readonly type: "database.create";
       readonly id: Uuid;
       readonly name: string;
+      readonly hostPageId?: Uuid;
       readonly placement: DatabasePlacementInput;
       readonly titlePropertyId: Uuid;
       readonly titlePropertyName?: string;
@@ -64,7 +65,7 @@ export type DatabaseMutationCommand =
       readonly databaseId: Uuid;
       readonly id: Uuid;
       readonly title: string;
-      readonly placement: DatabasePlacementInput;
+      readonly placement?: DatabasePlacementInput;
       readonly document?: PageDocument;
       readonly values: Readonly<Record<Uuid, NonRelationPropertyValue>>;
       readonly relationTargets: RelationTargets;
@@ -90,10 +91,11 @@ export type DatabaseMutationCommand =
 export function createInitialDatabaseDefinition(
   command: Extract<DatabaseMutationCommand, { type: "database.create" }>,
 ): DatabaseDefinition {
-  return {
+  const definition: DatabaseDefinition = {
     format: "myownnotion.database-definition+json",
     formatVersion: 1,
     databaseId: command.id,
+    name: command.name,
     properties: [
       {
         id: command.titlePropertyId,
@@ -120,6 +122,19 @@ export function createInitialDatabaseDefinition(
     ],
     taskRoles: null,
   };
+  return command.hostPageId === undefined
+    ? definition
+    : {
+        ...definition,
+        embeddings: [
+          {
+            id: command.placement.id,
+            hostPageId: command.hostPageId,
+            state: "active",
+            views: definition.views,
+          },
+        ],
+      };
 }
 
 type Payload = Readonly<Record<string, unknown>>;
@@ -308,11 +323,12 @@ export function parseDatabaseMutationCommand(
         !hasExactKeys(
           payload,
           ["id", "name", "placement", "titlePropertyId", "initialViewId", "initialViewName"],
-          ["titlePropertyName"],
+          ["titlePropertyName", "hostPageId"],
         ) ||
         !isUuid(payload["id"]) ||
         !isUuid(payload["titlePropertyId"]) ||
         !isUuid(payload["initialViewId"]) ||
+        (payload["hostPageId"] !== undefined && !isUuid(payload["hostPageId"])) ||
         typeof payload["name"] !== "string" ||
         typeof payload["initialViewName"] !== "string" ||
         (payload["titlePropertyName"] !== undefined &&
@@ -331,6 +347,9 @@ export function parseDatabaseMutationCommand(
         type: commandType,
         id: payload["id"],
         name: name.value,
+        ...(payload["hostPageId"] === undefined
+          ? {}
+          : { hostPageId: payload["hostPageId"] as Uuid }),
         placement,
         titlePropertyId: payload["titlePropertyId"],
         titlePropertyName: titlePropertyName.value,
@@ -408,8 +427,8 @@ export function parseDatabaseMutationCommand(
       if (
         !hasExactKeys(
           payload,
-          ["databaseId", "id", "title", "placement", "values", "relationTargets"],
-          ["document"],
+          ["databaseId", "id", "title", "values", "relationTargets"],
+          ["document", "placement"],
         ) ||
         !isUuid(payload["databaseId"]) ||
         !isUuid(payload["id"]) ||
@@ -418,7 +437,8 @@ export function parseDatabaseMutationCommand(
         return invalid();
       }
       const title = normalizeDisplayName(payload["title"]);
-      const placement = parsePlacement(payload["placement"]);
+      const placement =
+        payload["placement"] === undefined ? undefined : parsePlacement(payload["placement"]);
       const values = parseValues(payload["values"]);
       const relationTargets = parseRelationTargets(payload["relationTargets"]);
       const document =
@@ -432,7 +452,7 @@ export function parseDatabaseMutationCommand(
         databaseId: payload["databaseId"],
         id: payload["id"],
         title: title.value,
-        placement,
+        ...(placement === undefined ? {} : { placement }),
         ...(document === undefined ? {} : { document }),
         values,
         relationTargets,

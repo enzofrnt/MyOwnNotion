@@ -52,7 +52,9 @@ import {
   versionVectorDominates,
 } from "@myownnotion/page-state";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { SearchService } from "../search/search-service.ts";
+import { resolveSnapshotPayload } from "../security/canonical-payloads.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
 import { authorizeSynchronizationWrite } from "../security/synchronization-authorization.ts";
@@ -494,6 +496,7 @@ export class PageOperationService {
   }): Promise<ActivePageSyncResponseDto> {
     let committedSequence: number | undefined;
     const response = await runMutation(this.#deps.db, async (tx) => {
+      await shareFullFileMutation(tx);
       const authorization = await authorizeSynchronizationWrite(tx, input);
       if (!authorization.allowed) {
         throw new PageOperationServiceError(
@@ -1081,13 +1084,18 @@ export class PageOperationService {
 
     const acceptedAt = this.#deps.now();
     const revisionId = generateUuidV7();
-    const snapshot = await buildItemSnapshot(tx, input.pageId);
+    const snapshot = await resolveSnapshotPayload(
+      tx,
+      this.#deps.protectedContent,
+      input.pageId,
+      await buildItemSnapshot(tx, input.pageId),
+    );
     await insertRevision(tx, {
       id: revisionId,
       itemId: input.pageId,
       mutationId: input.mutationId,
       parentRevisionIds: [itemRevisionHead],
-      snapshot,
+      snapshot: null,
       acceptedAt,
     });
     await this.#deps.protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot });

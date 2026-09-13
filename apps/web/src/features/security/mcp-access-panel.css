@@ -1,0 +1,179 @@
+.mcp-panel {
+  display: grid;
+  gap: var(--ui-space-6);
+  min-width: 0;
+}
+.mcp-panel h2,
+.mcp-panel h3,
+.mcp-panel p {
+  margin: 0;
+}
+.mcp-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-space-4);
+  flex-wrap: wrap;
+}
+.mcp-heading > div {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+.mcp-panel p,
+.mcp-panel small,
+.mcp-audit {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+}
+.mcp-grant,
+.mcp-code,
+.mcp-inventory,
+.mcp-reauth,
+.mcp-reauth form {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.mcp-grant > .ui-button {
+  justify-self: start;
+}
+.mcp-panel fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.mcp-panel legend {
+  font-weight: 600;
+  padding: 0 0 var(--ui-space-2);
+}
+.mcp-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--ui-space-2);
+}
+.mcp-choices label,
+.mcp-choice {
+  display: flex;
+  gap: var(--ui-space-2);
+  align-items: center;
+  min-height: var(--ui-target);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.mcp-panel input[type="checkbox"] {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: 0 0 auto;
+  accent-color: var(--ui-color-accent);
+  margin: 0;
+}
+.mcp-panel input[type="checkbox"]:focus-visible,
+.mcp-audit summary:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 3px;
+}
+.mcp-branches {
+  max-height: 15rem;
+  overflow: auto;
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-2) var(--ui-space-3);
+}
+.mcp-branches small {
+  display: block;
+}
+.mcp-warning,
+.mcp-code,
+.mcp-reauth {
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-4);
+}
+.mcp-code code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: var(--ui-color-text);
+}
+.mcp-code ol {
+  list-style: decimal;
+  padding-inline-start: var(--ui-space-6);
+  margin: 0;
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.mcp-code input {
+  font-family: var(--ui-font-mono);
+}
+.mcp-code [role="status"]:empty {
+  display: none;
+}
+.mcp-actions {
+  display: flex;
+  gap: var(--ui-space-2);
+  flex-wrap: wrap;
+}
+.mcp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ui-space-4);
+}
+.mcp-list > li {
+  display: grid;
+  gap: var(--ui-space-2);
+  padding-block: var(--ui-space-4);
+  border: 0;
+  border-top: 1px solid var(--ui-color-border);
+  border-radius: 0;
+  overflow-wrap: anywhere;
+}
+.mcp-audit summary {
+  min-height: var(--ui-target);
+  display: list-item;
+  cursor: pointer;
+  color: var(--ui-color-text);
+}
+.mcp-audit ol {
+  padding-inline-start: var(--ui-space-5);
+  display: grid;
+  gap: var(--ui-space-3);
+}
+
+.security-settings .mcp-audit li {
+  border: 0;
+  padding: 0;
+}
+
+/* The legacy security forms use a shrinking flex column. This panel needs
+   full-width fields and a responsive grid for its independent permissions. */
+.security-settings .mcp-grant,
+.security-settings .mcp-reauth form {
+  display: grid;
+  align-items: stretch;
+  gap: var(--ui-space-4);
+}
+.security-settings .mcp-grant fieldset {
+  width: 100%;
+}
+.security-settings .mcp-list {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+.security-settings .mcp-list > li {
+  display: grid;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--ui-color-border);
+  border-radius: 0;
+}
+.security-settings .mcp-code li {
+  display: list-item;
+  padding: 0;
+  border: 0;
+}

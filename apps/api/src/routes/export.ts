@@ -6,7 +6,13 @@
  * stored. GET reports status and returns the verified artifact when ready.
  */
 import { createHash } from "node:crypto";
-import { CreateExportResponseSchema, ExportStatusSchema } from "@myownnotion/contracts";
+import {
+  CanonicalExportManifestSchema,
+  CreateExportResponseSchema,
+  ExportStatusSchema,
+  ProblemSchema,
+  SecurityProblemSchema,
+} from "@myownnotion/contracts";
 import {
   currentSequence,
   listDatabaseEntryRecords,
@@ -19,6 +25,7 @@ import {
 } from "@myownnotion/database";
 import {
   buildCanonicalExport,
+  type CanonicalExportManifest,
   canonicalExportString,
   type ExportedItem,
   generateUuidV7,
@@ -28,13 +35,16 @@ import {
 } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import fastJsonStringify from "fast-json-stringify";
 import type { FastifyInstance } from "fastify";
+import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
 import {
   resolveDatabaseDefinition,
   resolveDatabaseEntryValues,
   resolveProtectedContent,
+  resolveProtectedRelationships,
 } from "../security/content-resolution.ts";
 
 /**
@@ -68,15 +78,24 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
   const sequence = await currentSequence(tx, context.workspaceId);
   const active = await listItems(tx, context.workspaceId, { lifecycle: "active" });
   const trashed = await listItems(tx, context.workspaceId, { lifecycle: "trashed" });
-  const models = await resolveProtectedContent(
-    tx,
-    [...active, ...trashed],
-    context.protectedContent,
-  );
+  const purged = await listItems(tx, context.workspaceId, { lifecycle: "purged" });
+  const models = [
+    ...(await resolveProtectedContent(tx, [...active, ...trashed], context.protectedContent)),
+    ...purged.map((item) => ({
+      ...item,
+      name: "Élément supprimé",
+      icon: null,
+      pageDocument: null,
+      file: null,
+      favourite: false,
+      offlineIntent: false,
+    })),
+  ];
 
   const fileRows = await tx
     .select({
       itemId: schema.logicalFiles.itemId,
+      contentId: schema.logicalFiles.contentId,
       mediaType: schema.logicalFiles.mediaType,
       originalName: schema.logicalFiles.originalName,
       byteLength: schema.logicalFiles.byteLength,
@@ -84,7 +103,22 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
     })
     .from(schema.logicalFiles)
     .innerJoin(schema.fileContents, eq(schema.logicalFiles.contentId, schema.fileContents.id));
-  const filesByItem = new Map(fileRows.map((row) => [row.itemId, row]));
+  const filesByItem = new Map<
+    string,
+    { mediaType: string; originalName: string; byteLength: number; sha256: string }
+  >();
+  for (const row of fileRows) {
+    const manifest =
+      row.sha256 === null ? await context.protectedFiles?.manifest(tx, row.contentId) : null;
+    const metadata = await context.protectedContent?.readFileMetadata(tx, {
+      kind: "file",
+      id: row.itemId,
+    });
+    const digest = row.sha256 === null ? manifest?.sha256 : Buffer.from(row.sha256).toString("hex");
+    if (digest === undefined || (row.sha256 === null && metadata == null))
+      throw new Error("Protected file metadata must be resolved before export.");
+    filesByItem.set(row.itemId, { ...row, ...metadata, sha256: digest });
+  }
 
   const revisionRows = await tx.select().from(schema.revisions);
   const parentRows = await tx.select().from(schema.revisionParents);
@@ -135,47 +169,48 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
       offlineIntent: model.offlineIntent,
       pageDocument: model.pageDocument,
       file:
-        file === undefined
+        file === undefined || model.lifecycle === "purged"
           ? null
           : {
               mediaType: file.mediaType,
               originalName: file.originalName,
               byteLength: file.byteLength,
-              sha256: Buffer.from(file.sha256).toString("hex"),
+              sha256: file.sha256,
             },
-      placements: (placementsByItem.get(model.id) ?? []).map((placement) => ({
-        id: placement.id as Uuid,
-        workspaceId: placement.workspaceId as Uuid,
-        itemId: placement.itemId as Uuid,
-        // Not the item's kind: the exported item already carries that, and
-        // duplicating it here is what tied a placement to a value that
-        // changes when a page becomes a folder.
-        itemIsFile: placement.itemIsFile,
-        kind: placement.kind as "hierarchy" | "attachment",
-        parentItemId: (placement.parentItemId as Uuid | null) ?? null,
-        positionKey: placement.positionKey,
-        removedAt: null,
-      })),
+      placements: (model.lifecycle === "purged" ? [] : (placementsByItem.get(model.id) ?? [])).map(
+        (placement) => ({
+          id: placement.id as Uuid,
+          workspaceId: placement.workspaceId as Uuid,
+          itemId: placement.itemId as Uuid,
+          // Not the item's kind: the exported item already carries that, and
+          // duplicating it here is what tied a placement to a value that
+          // changes when a page becomes a folder.
+          itemIsFile: placement.itemIsFile,
+          kind: placement.kind as "hierarchy" | "attachment",
+          parentItemId: (placement.parentItemId as Uuid | null) ?? null,
+          positionKey: placement.positionKey,
+          removedAt: null,
+        }),
+      ),
     };
   });
 
-  const relationships = await Promise.all(
-    (await listRelationships(tx, context.workspaceId)).map(async (relationship) => ({
-      id: relationship.id,
-      workspaceId: context.workspaceId,
-      sourceItemId: relationship.sourceItemId,
-      targetItemId: relationship.targetItemId,
-      relationType: relationship.relationType,
-      metadata:
-        context.protectedContent === undefined
-          ? relationship.metadata
-          : ((await context.protectedContent.readRelationshipMetadata<
-              Readonly<Record<string, unknown>>
-            >(tx, relationship.id)) ?? relationship.metadata),
-      createdRevisionId: relationship.createdRevisionId,
-      removedRevisionId: relationship.removedRevisionId,
-    })),
-  );
+  const relationships = (
+    await resolveProtectedRelationships(
+      tx,
+      await listRelationships(tx, context.workspaceId),
+      context.protectedContent,
+    )
+  ).map((relationship) => ({
+    id: relationship.id,
+    workspaceId: context.workspaceId,
+    sourceItemId: relationship.sourceItemId,
+    targetItemId: relationship.targetItemId,
+    relationType: relationship.relationType,
+    metadata: relationship.metadata,
+    createdRevisionId: relationship.createdRevisionId,
+    removedRevisionId: relationship.removedRevisionId,
+  }));
 
   const databaseRecords = structuredTablesAvailable
     ? await listDatabaseRecords(tx, context.workspaceId)
@@ -187,6 +222,9 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
     databases.push({
       databaseId: record.databaseId,
       definitionVersion: record.definitionVersion,
+      ...(record.definitionRevisionId === null
+        ? {}
+        : { definitionRevisionId: record.definitionRevisionId }),
       definition,
     });
     const entries = await listDatabaseEntryRecords(tx, record.databaseId);
@@ -227,9 +265,18 @@ export async function buildManifest(context: AppContext) {
   );
 }
 
+const serializeCanonicalExport = fastJsonStringify(CanonicalExportManifestSchema);
+
+function cleanCanonicalExportManifest(value: unknown): CanonicalExportManifest {
+  // Use the exact Fastify response serializer as the canonical projection. It
+  // removes closed-object extras while preserving the intentionally open
+  // database definition/value payloads.
+  return JSON.parse(serializeCanonicalExport(value)) as CanonicalExportManifest;
+}
+
 async function processExport(context: AppContext, exportId: Uuid): Promise<void> {
   try {
-    const manifest = await buildManifest(context);
+    const manifest = cleanCanonicalExportManifest(await buildManifest(context));
     const issues = validateCanonicalExport(manifest);
     if (issues.length > 0) {
       await context.db
@@ -239,16 +286,13 @@ async function processExport(context: AppContext, exportId: Uuid): Promise<void>
           problem: { code: "export.validation-failed", issues },
           completedAt: new Date(),
         })
-        .where(eq(schema.exports.id, exportId));
+        .where(and(eq(schema.exports.id, exportId), eq(schema.exports.status, "pending")));
       return;
     }
     const canonical = canonicalExportString(manifest);
     const digest = createHash("sha256").update(canonical).digest("hex");
     await context.db.transaction(async (tx) => {
-      if (context.protectedContent !== undefined) {
-        await context.protectedContent.writeExportManifest(tx, { exportId, manifest });
-      }
-      await tx
+      const finalized = await tx
         .update(schema.exports)
         .set({
           status: "ready",
@@ -259,7 +303,15 @@ async function processExport(context: AppContext, exportId: Uuid): Promise<void>
           manifest: context.protectedContent === undefined ? manifest : null,
           completedAt: new Date(),
         })
-        .where(eq(schema.exports.id, exportId));
+        .where(and(eq(schema.exports.id, exportId), eq(schema.exports.status, "pending")))
+        .returning({ id: schema.exports.id });
+      await Promise.all(
+        finalized.map(async () => {
+          if (context.protectedContent !== undefined) {
+            await context.protectedContent.writeExportManifest(tx, { exportId, manifest });
+          }
+        }),
+      );
     });
   } catch (error) {
     await context.db
@@ -269,24 +321,56 @@ async function processExport(context: AppContext, exportId: Uuid): Promise<void>
         problem: { code: "export.unexpected", message: (error as Error).name },
         completedAt: new Date(),
       })
-      .where(eq(schema.exports.id, exportId));
+      .where(and(eq(schema.exports.id, exportId), eq(schema.exports.status, "pending")));
   }
 }
 
+/** Rebuild export jobs that survived a process restart in the pending state. */
+export async function resumePendingExports(context: AppContext): Promise<void> {
+  const pending = await context.db
+    .select({ id: schema.exports.id })
+    .from(schema.exports)
+    .where(
+      and(
+        eq(schema.exports.workspaceId, context.workspaceId),
+        eq(schema.exports.status, "pending"),
+      ),
+    );
+  await Promise.all(pending.map(async ({ id }) => await processExport(context, id as Uuid)));
+}
+
 export function registerExportRoutes(app: FastifyInstance, context: AppContext): void {
+  app.addHook("onReady", () => {
+    setImmediate(() => {
+      void resumePendingExports(context).catch(() => {
+        app.log.error("pending export recovery failed");
+      });
+    });
+  });
+
   app.post(
     "/v1/export",
     {
       schema: {
-        response: { 202: CreateExportResponseSchema },
+        response: {
+          202: CreateExportResponseSchema,
+          401: SecurityProblemSchema,
+          403: SecurityProblemSchema,
+          409: SecurityProblemSchema,
+          500: ProblemSchema,
+          503: SecurityProblemSchema,
+        },
       },
     },
     async (_request, reply) => {
       const exportId = generateUuidV7();
-      await context.db.insert(schema.exports).values({
-        id: exportId,
-        workspaceId: context.workspaceId,
-        status: "pending",
+      await context.db.transaction(async (tx) => {
+        await shareFullFileMutation(tx);
+        await tx.insert(schema.exports).values({
+          id: exportId,
+          workspaceId: context.workspaceId,
+          status: "pending",
+        });
       });
       // Asynchronous processing; status is polled through GET.
       setImmediate(() => {
@@ -301,7 +385,15 @@ export function registerExportRoutes(app: FastifyInstance, context: AppContext):
     {
       schema: {
         params: Type.Object({ exportId: Type.String({ format: "uuid" }) }),
-        response: { 200: ExportStatusSchema },
+        response: {
+          200: ExportStatusSchema,
+          400: ProblemSchema,
+          401: SecurityProblemSchema,
+          404: ProblemSchema,
+          409: SecurityProblemSchema,
+          500: ProblemSchema,
+          503: SecurityProblemSchema,
+        },
       },
     },
     async (request, reply) => {
@@ -329,6 +421,15 @@ export function registerExportRoutes(app: FastifyInstance, context: AppContext):
     {
       schema: {
         params: Type.Object({ exportId: Type.String({ format: "uuid" }) }),
+        response: {
+          200: CanonicalExportManifestSchema,
+          400: ProblemSchema,
+          401: SecurityProblemSchema,
+          404: ProblemSchema,
+          409: SecurityProblemSchema,
+          500: ProblemSchema,
+          503: SecurityProblemSchema,
+        },
       },
     },
     async (request, reply) => {
@@ -342,16 +443,56 @@ export function registerExportRoutes(app: FastifyInstance, context: AppContext):
       if (row === undefined || row.status !== "ready") {
         return sendProblem(reply, { code: "item.not-found", title: "Export artifact not ready" });
       }
-      const manifest =
+      const storedManifest =
         row.manifest ??
         (await context.protectedContent?.readExportManifest(context.db, row.id)) ??
         null;
-      if (manifest === null) {
+      if (storedManifest === null) {
         return sendProblem(reply, { code: "item.not-found", title: "Export artifact not ready" });
+      }
+      const manifest = cleanCanonicalExportManifest(storedManifest);
+      if (
+        typeof manifest !== "object" ||
+        manifest === null ||
+        (manifest as { formatVersion?: unknown }).formatVersion !== 2
+      ) {
+        return sendProblem(reply, {
+          code: "internal.unexpected",
+          title: "Export artifact version is unsupported",
+        });
+      }
+      // A ready record without a digest is not a verifiable artifact. Never
+      // turn the missing value into an empty header that callers could mistake
+      // for a successful download.
+      if (!/^[a-f0-9]{64}$/.test(row.digest ?? "")) {
+        return sendProblem(reply, {
+          code: "internal.unexpected",
+          title: "Export artifact digest is unavailable",
+        });
+      }
+      if (
+        validateCanonicalExport(manifest as Parameters<typeof validateCanonicalExport>[0]).length >
+        0
+      ) {
+        return sendProblem(reply, {
+          code: "internal.unexpected",
+          title: "Export artifact is invalid",
+        });
+      }
+      const canonical = canonicalExportString(
+        manifest as Parameters<typeof canonicalExportString>[0],
+      );
+      const computedDigest = createHash("sha256").update(canonical).digest("hex");
+      if (computedDigest !== row.digest) {
+        return sendProblem(reply, {
+          code: "internal.unexpected",
+          title: "Export artifact digest does not match its manifest",
+        });
       }
       return reply
         .header("content-type", "application/json")
-        .header("x-export-digest", row.digest ?? "")
+        .header("cache-control", "private, no-store")
+        .header("x-export-digest", row.digest)
         .send(manifest);
     },
   );

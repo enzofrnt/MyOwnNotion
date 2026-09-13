@@ -253,8 +253,10 @@ export async function activateFullRestore(input: {
         devices: string | null;
         bootstrap: string | null;
         kits: string | null;
+        mcp: string | null;
+        exchanges: string | null;
       }>(
-        "SELECT to_regclass('public.sessions')::text AS sessions, to_regclass('public.authorized_devices')::text AS devices, to_regclass('public.bootstrap_attempts')::text AS bootstrap, to_regclass('public.recovery_kits')::text AS kits",
+        "SELECT to_regclass('public.sessions')::text AS sessions, to_regclass('public.authorized_devices')::text AS devices, to_regclass('public.bootstrap_attempts')::text AS bootstrap, to_regclass('public.recovery_kits')::text AS kits, to_regclass('public.mcp_connections')::text AS mcp, to_regclass('public.mcp_exchange_tokens')::text AS exchanges",
       );
       if (tables.rows[0]?.sessions != null)
         sessionsInvalidated =
@@ -286,6 +288,14 @@ export async function activateFullRestore(input: {
           delivery_state = CASE WHEN authorization_state = 'provisional' THEN 'expired' ELSE delivery_state END,
           authorization_state = CASE WHEN authorization_state = 'provisional' THEN 'rejected' ELSE authorization_state END`);
       }
+      if (tables.rows[0]?.mcp != null)
+        await client.query(
+          "UPDATE public.mcp_connections SET revoked_at = now() WHERE revoked_at IS NULL",
+        );
+      if (tables.rows[0]?.exchanges != null)
+        await client.query(
+          "UPDATE public.mcp_exchange_tokens SET consumed_at = now() WHERE consumed_at IS NULL",
+        );
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

@@ -31,22 +31,28 @@ const owner = {
 };
 
 let apps: FastifyInstance[] = [];
+let seenRequirements: Array<{ csrf?: boolean; recentAuthentication?: boolean }> = [];
 
 async function appFor(overrides: Partial<BackupRouteDeps> = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   apps.push(app);
+  const defaultRequire: BackupRouteDeps["require"] = (_request, _reply, requirement) => {
+    seenRequirements.push(requirement);
+    return owner;
+  };
   registerBackupRoutes(app, {
     db: {} as never,
     workspaceId: "018f2b7c-0000-7000-8000-000000000001" as Uuid,
     now: () => NOW,
-    require: () => owner,
     ...overrides,
+    require: overrides.require ?? defaultRequire,
   });
   await app.ready();
   return app;
 }
 
 beforeEach(() => {
+  seenRequirements = [];
   repositoryMocks.lastVerified.mockReset().mockResolvedValue(null);
   repositoryMocks.latest.mockReset().mockResolvedValue(null);
   repositoryMocks.lastRehearsal.mockReset().mockResolvedValue(null);
@@ -73,6 +79,7 @@ describe("owner backup status", () => {
       stale: true,
       rehearsalDue: true,
     });
+    expect(seenRequirements).toEqual([{}]);
   });
 
   it("reports recent recorded evidence without leaking destination metadata", async () => {
@@ -106,11 +113,29 @@ describe("owner backup status", () => {
     expect(response.body).not.toMatch(/destination|digest|remote/i);
   });
 
+  it("redacts an unexpected status-read failure as an internal problem", async () => {
+    repositoryMocks.lastVerified.mockRejectedValue(new Error("private status detail"));
+    const response = await (await appFor()).inject({ method: "GET", url: "/v1/backups/status" });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toMatchObject({
+      code: "internal_error",
+      status: 500,
+      correlationId: expect.any(String),
+    });
+    expect(response.body).not.toContain("private status detail");
+  });
+
   it("stops when the owner gate has already refused the request", async () => {
     const response = await (
       await appFor({
         require: (_request, reply: FastifyReply) => {
-          void reply.status(401).send({ refused: true });
+          void reply.status(401).send({
+            type: "https://myownnotion.dev/problems/authentication_required",
+            title: "Authentication required",
+            status: 401,
+            code: "authentication_required",
+            correlationId: "018f2b7c-0000-7000-8000-0000000000ff",
+          });
           return null;
         },
       })
@@ -136,6 +161,7 @@ describe("owner-requested restore rehearsals", () => {
       restoredItemCount: 4,
       restoredFileCount: 2,
     });
+    expect(seenRequirements).toEqual([{ csrf: true }]);
   });
 
   it("fails closed when the host rehearsal is unavailable", async () => {
@@ -145,6 +171,23 @@ describe("owner-requested restore rehearsals", () => {
     });
     expect(response.statusCode).toBe(500);
     expect(response.json().code).toBe("internal_error");
+  });
+
+  it("redacts an unexpected rehearsal failure as an internal problem", async () => {
+    const response = await (
+      await appFor({
+        runRehearsal: async () => {
+          throw new Error("private rehearsal detail");
+        },
+      })
+    ).inject({ method: "POST", url: "/v1/backups/rehearsals" });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toMatchObject({
+      code: "internal_error",
+      status: 500,
+      correlationId: expect.any(String),
+    });
+    expect(response.body).not.toContain("private rehearsal detail");
   });
 
   it.each([
@@ -175,11 +218,15 @@ it("uses the real clock and returns safe errors for unreadable full metadata and
   const root = await mkdtemp(join(tmpdir(), "mon-full-routes-"));
   const app = Fastify({ logger: false });
   apps.push(app);
+  const seenFullRequirements: Array<{ csrf?: boolean; recentAuthentication?: boolean }> = [];
   try {
     registerBackupRoutes(app, {
       db: {} as never,
       workspaceId: "018f2b7c-0000-7000-8000-000000000001" as Uuid,
-      require: () => owner,
+      require: (_request, _reply, requirement) => {
+        seenFullRequirements.push(requirement);
+        return owner;
+      },
       fullBackupService: new FullBackupService({
         connectionString: "postgres://fixture@127.0.0.1:1/unavailable",
         blobRoot: join(root, "blobs"),
@@ -197,6 +244,7 @@ it("uses the real clock and returns safe errors for unreadable full metadata and
     const failed = await app.inject({ method: "POST", url: "/v1/backups/full/rehearsals" });
     expect(failed.statusCode).toBe(409);
     expect(failed.body).not.toMatch(/postgres|unavailable|fixture/);
+    expect(seenFullRequirements).toContainEqual({ csrf: true });
   } finally {
     await rm(root, { recursive: true, force: true });
   }

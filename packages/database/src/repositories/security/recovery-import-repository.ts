@@ -31,7 +31,6 @@ import { count, eq } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { items, workspaces } from "../../schema/index.ts";
 import {
-  authorizedDevices,
   installations,
   owners,
   protectedEnvelopes,
@@ -213,23 +212,4 @@ export async function adoptSourceIdentity(
     state: "active",
     createdAt: input.now,
   });
-}
-
-/**
- * Clears any device the target believed it had.
- *
- * Belt and braces on an empty target, and the point at which this becomes
- * load-bearing is a re-import after a partial one. A device row surviving into
- * a restored installation would be hardware nobody present has ever
- * authorized, holding a binding the new owner cannot revoke because they do
- * not know it exists.
- */
-export async function resetDeviceTrust(tx: Transaction, installationId: string): Promise<number> {
-  const rows = await tx
-    .update(authorizedDevices)
-    .set({ state: "revoked" })
-    .where(eq(authorizedDevices.state, "active"))
-    .returning({ id: authorizedDevices.id });
-  void installationId;
-  return rows.length;
 }

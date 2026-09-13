@@ -25,6 +25,7 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
+import { authenticatedContent } from "./helpers/content-owner.ts";
 
 let harness: ApiHarness;
 let keyDirectory: string;
@@ -51,7 +52,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await harness.built.database.db.execute(sql`TRUNCATE recovery_kits, recovery_epochs CASCADE`);
+  await harness.built.database.db.execute(
+    sql`TRUNCATE recovery_kits, recovery_epochs, sessions, authorized_devices, owners, installations CASCADE`,
+  );
   await createInstallation(harness.built.database.db, {
     id: INSTALLATION_ID,
     sourceLineageId: INSTALLATION_ID,
@@ -63,10 +66,29 @@ beforeEach(async () => {
 });
 
 describe("who may reach these routes", () => {
+  it.each(["degraded", "recovery-required"] as const)(
+    "keeps status available but refuses replacement preparation while installation is %s",
+    async (state) => {
+      const owner = await authenticatedContent(harness);
+      await harness.built.database.db.execute(
+        sql`UPDATE installations SET state = ${state} WHERE id = ${INSTALLATION_ID}::uuid`,
+      );
+
+      const status = await owner({ method: "GET", url: "/v1/security/recovery-kits" });
+      expect(status.statusCode, status.body).toBe(200);
+
+      const response = await owner({ method: "POST", url: "/v1/security/recovery-kits" });
+      expect(response.statusCode, response.body).toBe(state === "degraded" ? 503 : 409);
+
+      const kits = await harness.built.database.db.select().from(schema.recoveryKits);
+      expect(kits).toHaveLength(0);
+    },
+  );
+
   it("refuses status to an unauthenticated caller", async () => {
     const response = await harness.built.app.inject({
       method: "GET",
-      url: "/v1/security/recovery",
+      url: "/v1/security/recovery-kits",
     });
     expect(response.statusCode).toBe(401);
   });
@@ -74,7 +96,7 @@ describe("who may reach these routes", () => {
   it("refuses preparation to an unauthenticated caller", async () => {
     const response = await harness.built.app.inject({
       method: "POST",
-      url: "/v1/security/recovery",
+      url: "/v1/security/recovery-kits",
     });
     // The material that recovers the whole workspace. Nothing about this may
     // be reachable without proof of who is asking.
@@ -84,7 +106,7 @@ describe("who may reach these routes", () => {
   it("refuses download to an unauthenticated caller", async () => {
     const response = await harness.built.app.inject({
       method: "POST",
-      url: `/v1/security/recovery/${randomUUID()}/download`,
+      url: `/v1/security/recovery-kits/${randomUUID()}/download`,
     });
     expect(response.statusCode).toBe(401);
   });
@@ -92,7 +114,8 @@ describe("who may reach these routes", () => {
   it("refuses confirmation to an unauthenticated caller", async () => {
     const response = await harness.built.app.inject({
       method: "POST",
-      url: `/v1/security/recovery/${randomUUID()}/confirm`,
+      url: `/v1/security/recovery-kits/${randomUUID()}/confirm`,
+      payload: { storedOffline: true },
     });
     expect(response.statusCode).toBe(401);
   });
@@ -100,7 +123,7 @@ describe("who may reach these routes", () => {
   it("refuses revocation to an unauthenticated caller", async () => {
     const response = await harness.built.app.inject({
       method: "POST",
-      url: "/v1/security/recovery/revoke",
+      url: "/v1/security/recovery-kits/revoke",
     });
     // Revocation removes the ability to recover. An attacker who could reach
     // it would be able to make an owner's kit useless without ever signing in.
@@ -112,7 +135,7 @@ describe("what a refusal says", () => {
   it("carries a correlation id and no detail about the installation", async () => {
     const response = await harness.built.app.inject({
       method: "GET",
-      url: "/v1/security/recovery",
+      url: "/v1/security/recovery-kits",
     });
     const body = response.json();
     expect(body).toHaveProperty("correlationId");
@@ -134,12 +157,24 @@ describe("the routes that exist", () => {
     expect(routes).not.toMatch(/recovery\/open/);
   });
 
-  it("registers exactly the four owner-facing operations", async () => {
+  it("registers exactly the five owner-facing operations", async () => {
     const routes = harness.built.app.printRoutes({ commonPrefix: false });
-    expect(routes).toMatch(/v1\/security\/recovery/);
+    expect(routes).toMatch(/v1\/security\/recovery-kits/);
+    expect(routes).not.toMatch(/v1\/security\/recovery(?:\/|\s|$)/);
     expect(routes).toMatch(/download/);
     expect(routes).toMatch(/confirm/);
     expect(routes).toMatch(/revoke/);
+  });
+
+  it("does not keep a singular legacy recovery route alive", async () => {
+    for (const request of [
+      { method: "GET" as const, url: "/v1/security/recovery" },
+      { method: "POST" as const, url: "/v1/security/recovery" },
+      { method: "POST" as const, url: "/v1/security/recovery/revoke" },
+    ]) {
+      const response = await harness.built.app.inject(request);
+      expect(response.statusCode, request.url).toBe(404);
+    }
   });
 });
 
@@ -147,7 +182,7 @@ describe("the audit trail", () => {
   it("records a refused attempt without saying what was asked for", async () => {
     await harness.built.app.inject({
       method: "POST",
-      url: `/v1/security/recovery/${randomUUID()}/download`,
+      url: `/v1/security/recovery-kits/${randomUUID()}/download`,
     });
 
     // Unauthenticated requests are refused by the gate before the handler, so

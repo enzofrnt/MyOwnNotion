@@ -34,7 +34,7 @@ export interface InsertRevisionInput {
   readonly itemId: Uuid;
   readonly mutationId: Uuid;
   readonly parentRevisionIds: ReadonlyArray<Uuid>;
-  readonly snapshot: Readonly<Record<string, unknown>>;
+  readonly snapshot: Readonly<Record<string, unknown>> | null;
   readonly acceptedAt: Date;
 }
 
@@ -149,6 +149,12 @@ export async function supersedeRevision(
   revisionId: Uuid,
   supersededAt: Date,
 ): Promise<void> {
+  const [source] = await tx
+    .select({ id: databases.itemId })
+    .from(databases)
+    .where(eq(databases.definitionRevisionId, revisionId))
+    .limit(1);
+  if (source !== undefined) return;
   await tx
     .update(revisions)
     .set({ snapshotExpiresAt: snapshotExpiry(supersededAt) })
@@ -291,6 +297,7 @@ export async function buildItemSnapshot(
   }
   const snapshot: Record<string, unknown> = {
     name: item.name,
+    icon: item.icon,
     kind: item.kind,
     lifecycle: item.lifecycle,
     trashedAt: item.trashedAt?.toISOString() ?? null,

@@ -17,24 +17,38 @@ import {
   readDatabaseEntryRecord,
   readDatabaseRecord,
   readItem,
-  readItemPresentation,
   readRelationshipMetadata,
   readRevisionSnapshots,
-  SCRUBBED_PLACEHOLDER,
+  schema,
   submitMutation,
   type Transaction,
 } from "@myownnotion/database";
 import { isUuid, type MutationCommand, type SafeError, type Uuid } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { DatabaseQueryService } from "../databases/database-query-service.ts";
 import type { SearchService } from "../search/search-service.ts";
-import { resolveProtectedContent } from "../security/content-resolution.ts";
+import {
+  isProtectedPayload,
+  PROTECTED_PAYLOAD,
+  protectCurrentItem,
+  resolveSnapshotPayload,
+} from "../security/canonical-payloads.ts";
+import {
+  ProtectedContentUnavailableError,
+  resolveProtectedContent,
+} from "../security/content-resolution.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import { requestContext } from "../security/request-context.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
 import { sendProblem } from "./errors.ts";
 import { requireWriteProtocol } from "./protocol.ts";
+
+type AcceptedContentCommand =
+  | MutationCommand
+  | { readonly type: "file.import" | "file.content.replace" };
 
 /**
  * The attribution to record for this request, if it has one (FR-022).
@@ -77,41 +91,48 @@ export function mutationIdFrom(request: FastifyRequest): Uuid | null {
 async function sealPayloads(
   protectedContent: ProtectedContent,
   tx: Transaction,
-  command: MutationCommand,
+  command: AcceptedContentCommand,
   primaryItemId: string | undefined,
   revisionIds: readonly string[],
 ): Promise<void> {
-  // **The snapshots first, because they are the largest exposure.** A snapshot
-  // is the whole record as it stood, so sealing only the current title and
-  // body would leave every previous state of every page readable in the
-  // clear — and a scrub of the current rows would then remove nothing that
-  // mattered.
-  //
-  // A revision is immutable, so each snapshot is sealed once, at record
-  // version 1, and never rewritten.
+  const itemIds = new Set<string>(primaryItemId === undefined ? [] : [primaryItemId]);
+  const sourceOnlyId =
+    command.type === "database.definition.replace" ||
+    command.type === "database.definition.resolve-conflict"
+      ? command.databaseId
+      : null;
   const snapshots = await readRevisionSnapshots(tx, revisionIds);
   for (const [revisionId, snapshot] of snapshots) {
-    await protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot });
+    const [revision] = await tx
+      .select({ itemId: schema.revisions.itemId })
+      .from(schema.revisions)
+      .where(eq(schema.revisions.id, revisionId));
+    if (revision === undefined) throw new Error("Accepted revision is unavailable.");
+    itemIds.add(revision.itemId);
+    if (snapshot === null) {
+      if ((await protectedContent.readRevisionSnapshot(tx, revisionId)) === null)
+        throw new Error("Accepted revision payload is unavailable.");
+      continue;
+    }
+    const opened =
+      revision.itemId === sourceOnlyId
+        ? snapshot
+        : await resolveSnapshotPayload(
+            tx,
+            protectedContent,
+            revision.itemId,
+            snapshot,
+            command.type === "item.icon" && command.itemId === revision.itemId,
+          );
+    await protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot: opened });
+    await tx
+      .update(schema.revisions)
+      .set({ snapshot: null })
+      .where(eq(schema.revisions.id, revisionId));
   }
+  const resolveSnapshot = (revisionId: Uuid) =>
+    protectedContent.readRevisionSnapshot<Record<string, unknown>>(tx, revisionId);
 
-  if (command.type === "page.document.replace" || command.type === "document.resolve-conflict") {
-    // A resolution writes a page body exactly as an edit does, so it is sealed
-    // by the same branch. Sealing is about what a command *stored*, never about
-    // why it stored it — and a resolution left out of this list would be the one
-    // write that commits an owner's words in the clear.
-    await protectedContent.writePageBody(tx, {
-      pageId: command.itemId,
-      recordVersion: 1,
-      body: command.document.body,
-    });
-  }
-  if (command.type === "database.entry.create" && command.document !== undefined) {
-    await protectedContent.writePageBody(tx, {
-      pageId: command.id,
-      recordVersion: 1,
-      body: command.document.body,
-    });
-  }
   // A relationship's metadata: the free-form note explaining *why* two items
   // are related, which is often more revealing than either title. The
   // endpoints and the relation type stay in the clear so the graph can be
@@ -124,6 +145,10 @@ async function sealPayloads(
         recordVersion: 1,
         metadata,
       });
+      await tx
+        .update(schema.relationships)
+        .set({ metadata: PROTECTED_PAYLOAD })
+        .where(eq(schema.relationships.id, command.id));
     }
   }
   if (
@@ -133,7 +158,7 @@ async function sealPayloads(
   ) {
     const databaseId = command.type === "database.create" ? command.id : command.databaseId;
     const record = await readDatabaseRecord(tx, databaseId);
-    const definition = await readCurrentDatabaseDefinition(tx, databaseId);
+    const definition = await readCurrentDatabaseDefinition(tx, databaseId, resolveSnapshot);
     if (record !== null && definition !== null) {
       await protectedContent.writeDatabaseDefinition(tx, {
         databaseId,
@@ -149,7 +174,7 @@ async function sealPayloads(
   ) {
     const entryId = command.type === "database.entry.create" ? command.id : command.entryId;
     const record = await readDatabaseEntryRecord(tx, entryId);
-    const values = await readCurrentDatabaseEntryValues(tx, entryId);
+    const values = await readCurrentDatabaseEntryValues(tx, entryId, resolveSnapshot);
     const propertyRelationships = await listDatabasePropertyRelationships(tx, entryId);
     if (record !== null && values !== null) {
       await protectedContent.writeDatabaseEntryValues(tx, {
@@ -166,35 +191,16 @@ async function sealPayloads(
       });
     }
   }
-  // The title, whatever created or renamed it. Read back from the row the
-  // mutation just wrote rather than taken from the command, so a rename and a
-  // creation are handled by one branch and a command shape that carries the
-  // name differently cannot slip past.
-  if (primaryItemId !== undefined) {
-    // A successful command returning a primary item id has just written that
-    // row in this transaction. Treating a missing row as a recoverable branch
-    // would let accepted content escape sealing; a broken invariant must throw
-    // and roll the transaction back instead.
-    const presentation = (await readItemPresentation(tx, primaryItemId)) as {
-      readonly name: string;
-      readonly icon: string | null;
-    };
-    // After encryption cutover the relational title is deliberately replaced
-    // by U+FFFD. Presentation-neutral writes (favourite, offline intent) and
-    // icon-only writes must not seal that marker over the real title. Read
-    // the current envelope in the same transaction and retain its title;
-    // an actual rename has already written a non-placeholder title and takes
-    // the ordinary branch.
-    const current =
-      presentation.name === SCRUBBED_PLACEHOLDER
-        ? await protectedContent.readItemPresentation(tx, primaryItemId)
-        : null;
-    await protectedContent.writeItemPresentation(tx, {
-      itemId: primaryItemId,
-      recordVersion: 1,
-      name: current?.name ?? presentation.name,
-      icon: presentation.icon,
-    });
+  for (const itemId of itemIds) {
+    // Source-only revisions do not depend on retained editorial envelopes of
+    // the former host, which canonical purge may already have removed.
+    if (itemId === sourceOnlyId) continue;
+    await protectCurrentItem(
+      tx,
+      protectedContent,
+      itemId,
+      command.type === "item.icon" && command.itemId === itemId,
+    );
   }
 }
 
@@ -213,7 +219,7 @@ async function sealPayloads(
  * content commit without its envelope.
  */
 export function acceptedWriteGuards(
-  command: MutationCommand,
+  command: AcceptedContentCommand,
   protectedContent: ProtectedContent | undefined,
   rotationPolicies: RotationPolicyService | undefined,
   /**
@@ -226,7 +232,18 @@ export function acceptedWriteGuards(
    * and "device unknown" is then recorded honestly as null.
    */
   attribution?: { readonly mutationId: Uuid; readonly deviceId: string } | undefined,
-) {
+): {
+  beforeExecute?: (tx: Transaction) => Promise<void>;
+  resolvePageBody?: (tx: Transaction, pageId: Uuid, stored: unknown) => Promise<unknown>;
+  resolveRevisionSnapshot?: (
+    tx: Transaction,
+    revisionId: Uuid,
+  ) => Promise<Record<string, unknown> | null>;
+  onAccepted?: (
+    tx: Transaction,
+    accepted: { primaryItemId?: Uuid; revisionIds: readonly Uuid[] },
+  ) => Promise<void>;
+} {
   if (protectedContent === undefined && attribution === undefined) {
     // Feature-001 harnesses build an app with no security layer at all and must
     // keep writing; there is nothing to seal, no policy to consult, and no
@@ -234,10 +251,30 @@ export function acceptedWriteGuards(
     return {};
   }
   return {
+    beforeExecute: shareFullFileMutation,
+    ...(protectedContent === undefined
+      ? {}
+      : {
+          resolvePageBody: async (tx: Transaction, pageId: Uuid, stored: unknown) => {
+            const body = await protectedContent.readPageBody(tx, pageId);
+            if (body === null && isProtectedPayload(stored))
+              throw new Error("Protected page body is unavailable.");
+            return body ?? stored;
+          },
+          resolveRevisionSnapshot: async (tx: Transaction, revisionId: Uuid) => {
+            const snapshot = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
+              tx,
+              revisionId,
+            );
+            if (snapshot === null) throw new ProtectedContentUnavailableError(revisionId);
+            return snapshot;
+          },
+        }),
     onAccepted: async (
       tx: Transaction,
       accepted: { primaryItemId?: Uuid; revisionIds: readonly Uuid[] },
     ) => {
+      await shareFullFileMutation(tx);
       if (attribution !== undefined) {
         await attributeRevisionsToDevice(tx, attribution);
       }
@@ -310,57 +347,11 @@ export async function handleMutation(input: {
     });
   }
 
-  // Bound once so the callback closes over a narrowed value rather than
-  // re-reading an optional property.
-  const protectedContent = input.protectedContent;
-  const command = input.command;
-
-  const outcome = await submitMutation(input.db, {
-    workspaceId: input.workspaceId,
+  const outcome = await submitCanonicalMutation({
+    ...input,
     mutationId,
-    commandType: input.command.type,
-    command,
-    // Sealing happens inside the mutation's transaction. Content and its
-    // envelope commit together or neither does, and there is no second round
-    // trip on the request path.
-    ...acceptedWriteGuards(
-      command,
-      protectedContent,
-      input.rotationPolicies,
-      attributionFor(input.request, mutationId),
-    ),
+    attribution: attributionFor(input.request, mutationId),
   });
-
-  // After the transaction returned, which is the only moment a device can be
-  // told to read and find the change there (feature 006, FR-001).
-  announceCommitted(outcome.committedSequence);
-  if (
-    outcome.committedSequence !== undefined &&
-    outcome.changedItemIds !== undefined &&
-    input.search !== undefined
-  ) {
-    try {
-      await input.search.applyCommittedChanges(outcome.changedItemIds, outcome.committedSequence);
-    } catch {
-      // The canonical write already committed. Search invalidates itself and
-      // rebuilds; the owner still receives the successful mutation result.
-    }
-  }
-  if (
-    outcome.committedSequence !== undefined &&
-    outcome.changedItemIds !== undefined &&
-    input.structuredQueries !== undefined
-  ) {
-    try {
-      await input.structuredQueries.applyCommittedChanges(
-        outcome.changedItemIds,
-        outcome.committedSequence,
-      );
-    } catch {
-      // The canonical write already committed. The projection refuses stale
-      // completeness and starts a rebuild; the write response remains valid.
-    }
-  }
 
   const { result } = outcome;
   if (result.status === "accepted" || result.status === "already-accepted") {
@@ -404,4 +395,81 @@ export async function handleMutation(input: {
     input.reply,
     result.problem ?? { code: "mutation.rejected", title: "Mutation rejected" },
   );
+}
+
+/** Canonical transaction and projection updates shared by app routes and scoped MCP. */
+export async function submitCanonicalMutation(input: {
+  db: Database;
+  workspaceId: Uuid;
+  mutationId: Uuid;
+  command: MutationCommand;
+  protectedContent?: ProtectedContent | undefined;
+  rotationPolicies?: RotationPolicyService | undefined;
+  search?: SearchService | undefined;
+  structuredQueries?: DatabaseQueryService | undefined;
+  attribution?: { mutationId: Uuid; deviceId: string } | undefined;
+  authorize?: (tx: Transaction) => Promise<void>;
+  onAccepted?: (
+    tx: Transaction,
+    accepted: { readonly changedItemIds: readonly Uuid[] },
+  ) => Promise<void>;
+}) {
+  const { command, protectedContent, mutationId } = input;
+  const guards = acceptedWriteGuards(
+    command,
+    protectedContent,
+    input.rotationPolicies,
+    input.attribution,
+  );
+  const outcome = await submitMutation(input.db, {
+    workspaceId: input.workspaceId,
+    mutationId,
+    commandType: input.command.type,
+    command,
+    // Sealing happens inside the mutation's transaction. Content and its
+    // envelope commit together or neither does, and there is no second round
+    // trip on the request path.
+    ...guards,
+    beforeExecute: async (tx) => {
+      await guards.beforeExecute?.(tx);
+      await input.authorize?.(tx);
+    },
+    onAccepted: async (tx, accepted) => {
+      await guards.onAccepted?.(tx, accepted);
+      await input.onAccepted?.(tx, accepted);
+    },
+  });
+
+  // After the transaction returned, which is the only moment a device can be
+  // told to read and find the change there (feature 006, FR-001).
+  announceCommitted(outcome.committedSequence);
+  if (
+    outcome.committedSequence !== undefined &&
+    outcome.changedItemIds !== undefined &&
+    input.search !== undefined
+  ) {
+    try {
+      await input.search.applyCommittedChanges(outcome.changedItemIds, outcome.committedSequence);
+    } catch {
+      // The canonical write already committed. Search invalidates itself and
+      // rebuilds; the owner still receives the successful mutation result.
+    }
+  }
+  if (
+    outcome.committedSequence !== undefined &&
+    outcome.changedItemIds !== undefined &&
+    input.structuredQueries !== undefined
+  ) {
+    try {
+      await input.structuredQueries.applyCommittedChanges(
+        outcome.changedItemIds,
+        outcome.committedSequence,
+      );
+    } catch {
+      // The canonical write already committed. The projection refuses stale
+      // completeness and starts a rebuild; the write response remains valid.
+    }
+  }
+
+  return outcome;
 }

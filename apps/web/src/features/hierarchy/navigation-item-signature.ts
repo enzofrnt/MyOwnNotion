@@ -31,11 +31,13 @@ export function replaceProjectedItem(
   trashed: readonly ProjectedItem[],
   itemId: Uuid,
   next: ProjectedItem | null,
+  sourceItemIds: ReadonlySet<Uuid> = new Set(),
 ): {
   readonly items: ProjectedItem[];
   readonly trashed: ProjectedItem[];
   readonly catalogChanged: boolean;
 } {
+  if (next !== null && next.placements.length === 0 && sourceItemIds.has(next.id)) next = null;
   const previous =
     items.find((item) => item.id === itemId) ?? trashed.find((item) => item.id === itemId) ?? null;
   const nextItems = items.filter((item) => item.id !== itemId);

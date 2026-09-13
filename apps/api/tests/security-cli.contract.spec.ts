@@ -34,6 +34,7 @@ import {
 function context(): CommandContext {
   return {
     db: undefined as never,
+    journalDb: undefined as never,
     installationId: "018f2b7c-0000-7000-8000-000000000001",
     deploymentKeyFile: undefined,
     now: () => new Date("2026-06-01T00:00:00.000Z"),

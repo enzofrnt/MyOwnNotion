@@ -4,7 +4,7 @@ import {
   type DatabasePropertyType,
   generateUuidV7,
 } from "@myownnotion/domain";
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
@@ -165,6 +165,7 @@ export function PropertyEditor({
   // repaints the older draft in that gap and silently erases what is visibly in
   // the field. The ref gives event handlers one current draft while FormData
   // remains authoritative at submission.
+  const fieldId = useId();
   const [visibleDraft, setVisibleDraft] = useState(draft);
   const visibleDraftRef = useRef(draft);
   const changeDraft = (update: (current: DatabasePropertyDraft) => DatabasePropertyDraft): void => {
@@ -200,17 +201,17 @@ export function PropertyEditor({
       onSubmit={submit}
     >
       <div className="field-row">
-        <label htmlFor="property-name">{DATABASE_COPY.property.name}</label>
+        <label htmlFor={`${fieldId}-name`}>{DATABASE_COPY.property.name}</label>
         <input
-          id="property-name"
+          id={`${fieldId}-name`}
           name="property-name"
           defaultValue={visibleDraft.name}
           autoComplete="off"
           onChange={(event) => changeDraft((current) => ({ ...current, name: event.target.value }))}
         />
-        <label htmlFor="property-type">{DATABASE_COPY.property.type}</label>
+        <label htmlFor={`${fieldId}-type`}>{DATABASE_COPY.property.type}</label>
         <select
-          id="property-type"
+          id={`${fieldId}-type`}
           name="property-type"
           defaultValue={visibleDraft.type}
           onChange={(event) =>

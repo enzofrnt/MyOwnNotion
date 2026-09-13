@@ -15,20 +15,22 @@
 
 import { randomBytes, randomUUID } from "node:crypto";
 import {
+  consumeKitDownload,
   createDatabase,
   createInstallation,
   type DatabaseHandle,
   findActiveKit,
   findPendingKit,
+  runSecurityTransaction,
   schema,
 } from "@myownnotion/database";
 import { openRecoveryKit } from "@myownnotion/domain/security";
 import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEPLOYMENT_KEY_NOTICE,
-  RecoveryKitError,
+  KIT_DOWNLOAD_WINDOW_MS,
   RecoveryKitService,
 } from "../src/security/recovery-kit-service.ts";
 
@@ -41,18 +43,27 @@ const KEY = Buffer.from(randomBytes(32));
 const PAYLOAD = new Uint8Array(Buffer.from("the workspace root key would go here", "utf8"));
 
 const key = { available: true };
+const services: RecoveryKitService[] = [];
 
-function service(): RecoveryKitService {
-  return new RecoveryKitService({
-    db: handle.db,
+function service(
+  now: () => Date = () => new Date(),
+  recoveryPayload: () => Promise<Uint8Array> = async () => new Uint8Array(PAYLOAD),
+  newId?: () => string,
+  database = handle.db,
+): RecoveryKitService {
+  const driver = new RecoveryKitService({
+    db: database,
     installationId: INSTALLATION_ID,
     sourceLineageId: INSTALLATION_ID,
     workspaceId: WORKSPACE_ID,
     deploymentKey: () => (key.available ? KEY : null),
     supportedKeyGenerations: async () => [1],
-    recoveryPayload: async () => PAYLOAD,
-    now: () => new Date(),
+    recoveryPayload,
+    now,
+    ...(newId === undefined ? {} : { newId }),
   });
+  services.push(driver);
+  return driver;
 }
 
 beforeAll(async () => {
@@ -63,6 +74,11 @@ beforeAll(async () => {
 afterAll(async () => {
   await handle?.close();
   await postgres?.stop();
+});
+
+afterEach(async () => {
+  await Promise.all(services.splice(0).map((driver) => driver.dispose()));
+  vi.useRealTimers();
 });
 
 beforeEach(async () => {
@@ -166,19 +182,142 @@ describe("the one-time download", () => {
 
     const artifact = await driver.download(prepared.kitId);
     expect(artifact.kitId).toBe(prepared.kitId);
+    expect(artifact.deliveryState).toBe("prepared");
+    expect(artifact.downloadConsumedAt).toBeUndefined();
+    expect(
+      openRecoveryKit(
+        artifact,
+        { kind: "deployment-key", deploymentKey: new Uint8Array(KEY) },
+        { requireUsable: false },
+      ),
+    ).toEqual(PAYLOAD);
 
-    await expect(driver.download(prepared.kitId)).rejects.toThrow(RecoveryKitError);
+    await expect(driver.download(prepared.kitId)).rejects.toMatchObject({
+      code: "conflict",
+    });
+  });
+
+  it("distinguishes a downloadable artifact lost on restart from a consumed replay", async () => {
+    await seedActiveKit();
+    const prepared = await service().prepareReplacement();
+
+    await expect(service().download(prepared.kitId)).rejects.toMatchObject({
+      code: "recovery_unavailable",
+    });
+  });
+
+  it("serializes concurrent downloads before either artifact is handed over", async () => {
+    await seedActiveKit();
+    const driver = service();
+    const prepared = await driver.prepareReplacement();
+
+    const outcomes = await Promise.allSettled([
+      driver.download(prepared.kitId),
+      driver.download(prepared.kitId),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === "rejected")).toHaveLength(1);
+    expect((await findPendingKit(handle.db, INSTALLATION_ID))?.deliveryState).toBe(
+      "download-consumed",
+    );
+  });
+
+  it("refuses a download that expires while the request is in flight", async () => {
+    await seedActiveKit();
+    let now = new Date("2026-09-13T09:00:00.000Z");
+    const driver = service(() => now);
+    const prepared = await driver.prepareReplacement();
+
+    now = new Date(prepared.downloadExpiresAt);
+    await expect(driver.download(prepared.kitId)).rejects.toMatchObject({
+      code: "recovery_unavailable",
+    });
+
+    const pending = await findPendingKit(handle.db, INSTALLATION_ID);
+    expect(pending?.id).toBe(prepared.kitId);
+    expect(pending?.deliveryState).toBe("downloadable");
+  });
+
+  it("does not consume an already expired row at the database boundary", async () => {
+    await seedActiveKit();
+    const driver = service(() => new Date("2026-09-13T09:00:00.000Z"));
+    const prepared = await driver.prepareReplacement();
+    const expiredAt = new Date(prepared.downloadExpiresAt);
+
+    const consumed = await runSecurityTransaction(handle.db, (tx) =>
+      consumeKitDownload(tx, {
+        kitId: prepared.kitId,
+        now: new Date(expiredAt.getTime() + 1),
+      }),
+    );
+    expect(consumed).toBe(false);
+    expect((await findPendingKit(handle.db, INSTALLATION_ID))?.deliveryState).toBe("downloadable");
   });
 
   it("refuses confirmation of a kit that was never downloaded", async () => {
     await seedActiveKit();
     const driver = service();
     const prepared = await driver.prepareReplacement();
+    const original = await findActiveKit(handle.db, INSTALLATION_ID);
 
     // An owner cannot have stored a file they never received. This is the one
     // check between "I clicked the button" and an installation whose only kit
     // is a file nobody has.
     await expect(driver.confirm(prepared.kitId)).rejects.toThrow(/not been downloaded/);
+    expect(await findActiveKit(handle.db, INSTALLATION_ID)).toMatchObject({
+      id: original?.id,
+      recoveryEpoch: original?.recoveryEpoch,
+    });
+    const epochs = await handle.db
+      .select()
+      .from(schema.recoveryEpochs)
+      .where(sql`state = 'active'`);
+    expect(epochs).toHaveLength(1);
+    expect(epochs[0]?.epoch).toBe(1);
+  });
+
+  it("refuses a second confirmation without retiring the active replacement", async () => {
+    await seedActiveKit();
+    const driver = service();
+    const replacement = await replace(driver);
+
+    await expect(driver.confirm(replacement)).rejects.toThrow(
+      /not been downloaded|no longer current/,
+    );
+    expect(await findActiveKit(handle.db, INSTALLATION_ID)).toMatchObject({
+      id: replacement,
+      recoveryEpoch: 2,
+    });
+    const epochs = await handle.db
+      .select()
+      .from(schema.recoveryEpochs)
+      .where(sql`state = 'active'`);
+    expect(epochs).toHaveLength(1);
+    expect(epochs[0]?.epoch).toBe(2);
+  });
+
+  it("serializes concurrent confirmations of the same pending kit", async () => {
+    await seedActiveKit();
+    const driver = service();
+    const prepared = await driver.prepareReplacement();
+    await driver.download(prepared.kitId);
+
+    const outcomes = await Promise.allSettled([
+      driver.confirm(prepared.kitId),
+      driver.confirm(prepared.kitId),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === "rejected")).toHaveLength(1);
+    expect(await findActiveKit(handle.db, INSTALLATION_ID)).toMatchObject({
+      id: prepared.kitId,
+      recoveryEpoch: 2,
+    });
+    const epochs = await handle.db
+      .select()
+      .from(schema.recoveryEpochs)
+      .where(sql`state = 'active'`);
+    expect(epochs).toHaveLength(1);
+    expect(epochs[0]?.epoch).toBe(2);
   });
 
   it("rejects an earlier unfinished attempt when a new one is prepared", async () => {
@@ -191,7 +330,46 @@ describe("the one-time download", () => {
     // Two downloadable kits would mean two one-time downloads and no way to
     // tell which one the owner kept.
     expect((await findPendingKit(handle.db, INSTALLATION_ID))?.id).toBe(fresh.kitId);
-    await expect(driver.download(abandoned.kitId)).rejects.toThrow(RecoveryKitError);
+    await expect(driver.download(abandoned.kitId)).rejects.toMatchObject({
+      code: "recovery_unavailable",
+    });
+    await expect(driver.download(fresh.kitId)).resolves.toMatchObject({ kitId: fresh.kitId });
+  });
+
+  it("removes an expired artifact before a later retry can use it", async () => {
+    await seedActiveKit();
+    let now = new Date("2026-09-13T09:00:00.000Z");
+    const driver = service(() => now);
+    const prepared = await driver.prepareReplacement();
+
+    now = new Date(prepared.downloadExpiresAt);
+    await expect(driver.download(prepared.kitId)).rejects.toMatchObject({
+      code: "recovery_unavailable",
+    });
+
+    // Move the injected clock back only to distinguish an expired artifact
+    // that was purged from one still retained in the private process map.
+    now = new Date("2026-09-13T09:00:01.000Z");
+    await expect(driver.download(prepared.kitId)).rejects.toMatchObject({
+      code: "recovery_unavailable",
+    });
+  });
+
+  it("purges the artifact on its TTL even when no download request arrives", async () => {
+    vi.useFakeTimers();
+    await seedActiveKit();
+    const issuedAt = new Date("2026-09-13T09:00:00.000Z");
+    vi.setSystemTime(issuedAt);
+    const driver = service(() => issuedAt);
+    const prepared = await driver.prepareReplacement();
+
+    await vi.advanceTimersByTimeAsync(KIT_DOWNLOAD_WINDOW_MS + 1);
+    await handle.db.execute(
+      sql`UPDATE recovery_kits SET download_expires_at = ${new Date("2026-09-13T10:00:00.000Z")} WHERE id = ${prepared.kitId}::uuid`,
+    );
+    await expect(driver.download(prepared.kitId)).rejects.toMatchObject({
+      code: "recovery_unavailable",
+    });
   });
 });
 
@@ -210,12 +388,12 @@ describe("what the kit needs to be opened", () => {
       ),
     ).toEqual(PAYLOAD);
 
-    await expect(async () =>
+    expect(() =>
       openRecoveryKit(
         { ...artifact, authorizationState: "active", deliveryState: "confirmed" },
         { kind: "deployment-key", deploymentKey: new Uint8Array(32).fill(3) },
       ),
-    ).rejects.toThrow();
+    ).toThrow();
   });
 
   it("says so in every response", async () => {
@@ -254,6 +432,32 @@ describe("what the kit needs to be opened", () => {
     expect(serialized).not.toContain(artifact.encryption.ciphertext);
     expect(serialized).not.toContain(KEY.toString("base64"));
   });
+
+  it("clears the unwrapped recovery payload after preparation", async () => {
+    await seedActiveKit();
+    const payload = new Uint8Array(Buffer.from("temporary root key material", "utf8"));
+    const driver = service(
+      () => new Date(),
+      async () => payload,
+    );
+
+    await driver.prepareReplacement();
+
+    expect(payload.every((byte) => byte === 0)).toBe(true);
+  });
+
+  it("clears the unwrapped recovery payload when preparation fails", async () => {
+    await seedActiveKit();
+    const payload = new Uint8Array(Buffer.from("temporary root key material", "utf8"));
+    const driver = service(
+      () => new Date(),
+      async () => payload,
+    );
+    await handle.db.execute(sql`TRUNCATE recovery_kits, recovery_epochs, installations CASCADE`);
+
+    await expect(driver.prepareReplacement()).rejects.toThrow(/installation.*does not exist/);
+    expect(payload.every((byte) => byte === 0)).toBe(true);
+  });
 });
 
 describe("the epoch", () => {
@@ -275,6 +479,114 @@ describe("the epoch", () => {
     const rows = await handle.db.select().from(schema.recoveryEpochs).where(sql`state = 'active'`);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.epoch).toBe(2);
+  });
+
+  it("allocates a raced pair of preparations under one recovery-state lock", async () => {
+    await seedActiveKit();
+    let waiting = 0;
+    let release!: () => void;
+    const bothPayloadsReady = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const gatedPayload = async (): Promise<Uint8Array> => {
+      waiting += 1;
+      if (waiting === 2) release();
+      await bothPayloadsReady;
+      return new Uint8Array(PAYLOAD);
+    };
+
+    const outcomes = await Promise.allSettled([
+      service(() => new Date(), gatedPayload).prepareReplacement(),
+      service(() => new Date(), gatedPayload).prepareReplacement(),
+    ]);
+    expect(outcomes.some((outcome) => outcome.status === "fulfilled")).toBe(true);
+
+    const pendingRows = await handle.db
+      .select()
+      .from(schema.recoveryKits)
+      .where(sql`authorization_state = 'provisional'`);
+    expect(pendingRows).toHaveLength(1);
+    expect(pendingRows[0]?.recoveryEpoch).toBe(2);
+  });
+
+  it("serializes root-key extraction for concurrent preparations", async () => {
+    await seedActiveKit();
+    let activePayloads = 0;
+    let maximumPayloads = 0;
+    let payloadCalls = 0;
+    let releaseFirst!: () => void;
+    let extractionStarted!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      extractionStarted = resolve;
+    });
+    const gatedPayload = async (): Promise<Uint8Array> => {
+      activePayloads++;
+      maximumPayloads = Math.max(maximumPayloads, activePayloads);
+      payloadCalls++;
+      if (payloadCalls === 1) {
+        extractionStarted();
+        await new Promise<void>((resolveRelease) => {
+          releaseFirst = resolveRelease;
+        });
+      }
+      activePayloads--;
+      return new Uint8Array(PAYLOAD);
+    };
+    const driver = service(() => new Date(), gatedPayload);
+    const first = driver.prepareReplacement();
+    await entered;
+    const second = driver.prepareReplacement();
+    await Promise.resolve();
+    expect(activePayloads).toBe(1);
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(maximumPayloads).toBe(1);
+    expect(payloadCalls).toBe(2);
+  });
+
+  it("keeps status and download behind an in-flight preparation", async () => {
+    await seedActiveKit();
+    const kitId = randomUUID();
+    let releasePayload!: () => void;
+    let markPayloadStarted!: () => void;
+    const payloadStarted = new Promise<void>((resolve) => {
+      markPayloadStarted = resolve;
+    });
+    let selectCalls = 0;
+    const observedDatabase = new Proxy(handle.db, {
+      get(target, property) {
+        if (property === "select") selectCalls += 1;
+        const value = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const driver = service(
+      () => new Date(),
+      async () => {
+        markPayloadStarted();
+        await new Promise<void>((resolve) => {
+          releasePayload = resolve;
+        });
+        return new Uint8Array(PAYLOAD);
+      },
+      () => kitId,
+      observedDatabase,
+    );
+
+    const preparation = driver.prepareReplacement();
+    await payloadStarted;
+    const status = driver.status();
+    const download = driver.download(kitId);
+    // Both methods reach their first await synchronously. Neither may start a
+    // database read until the queued preparation publishes its process-owned
+    // artifact.
+    expect(selectCalls).toBe(0);
+    releasePayload();
+
+    await expect(preparation).resolves.toMatchObject({ kitId });
+    await expect(status).resolves.toMatchObject({ pending: { kitId } });
+    await expect(download).resolves.toMatchObject({ kitId });
+    expect(selectCalls).toBeGreaterThan(0);
   });
 });
 
