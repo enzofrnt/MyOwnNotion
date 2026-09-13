@@ -2,7 +2,8 @@
 
 **Feature Branch**: `codex/023-ui-quality-guidance`
 **Created**: 2026-09-05
-**Status**: Specified
+**Status**: Delivered; validation and PR delivery provenance are recorded in
+`validation.md`.
 **Input**: The owner requests a reusable in-repository UI skill covering buttons,
 spacing, nested rounded surfaces and UX fundamentals, used during UI phases.
 

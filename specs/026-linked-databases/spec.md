@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/026-linked-databases`
 **Created**: 2026-09-05
-**Status**: Implémentée et vérifiée localement ; gate de livraison après intégration
+**Status**: Implémentée et vérifiée localement/PR ; finalisation de la CI main en attente
 
 **Input**: Une base indépendante peut être affichée dans plusieurs pages normales, avec des vues configurables table, Kanban et calendrier. Les entrées restent des pages canoniques.
 

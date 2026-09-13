@@ -26,8 +26,8 @@ Source d'autorité : `package.json` racine.
 
 | Field | Type | Rules |
 | --- | --- | --- |
-| `packageManager` | exact string | `bun@1.4.0` uniquement |
-| `engines.bun` | exact string | `1.4.0`, sans plage |
+| `packageManager` | exact string | `bun@1.4.2` uniquement |
+| `engines.bun` | exact string | `1.4.2`, sans plage |
 | `workspaces` | list | `apps/*`, `packages/*` ; chaque workspace possède un nom unique |
 | `scripts` | map | toutes les commandes canoniques sont lancées par Bun |
 | `devDependencies` | map | outils tiers verrouillés, aucun gestionnaire parallèle |
@@ -48,7 +48,7 @@ Source d'autorité : `bun.lock`.
 
 | Field/concept | Meaning |
 | --- | --- |
-| `lockfileVersion` | version de format comprise par Bun 1.4.0 |
+| `lockfileVersion` | version de format comprise par Bun 1.4.2 |
 | `workspaces` | manifestes et dépendances directes de chaque workspace |
 | `packages` | résolutions exactes, intégrités, peers et dépendances transitives |
 | workspace reference | lien local, jamais publication ou résolution distante |
@@ -71,7 +71,7 @@ Source d'autorité : `bun.lock`.
 | Field | Type | Rules |
 | --- | --- | --- |
 | `runtimeName` | literal | `bun` |
-| `runtimeVersion` | string | `1.4.0` exactement |
+| `runtimeVersion` | string | `1.4.2` exactement |
 | `entrypoint` | path | source TypeScript en développement, bundle JS en production |
 | `mode` | enum | `development`, `test`, `migration`, `administration`, `production` |
 | `exitCode` | integer | code de l'outil ou de l'application, jamais masqué |
@@ -80,7 +80,7 @@ Source d'autorité : `bun.lock`.
 
 ~~~text
 version lue
-   ├── 1.4.0 ──► commande exécutée ──► code réel propagé
+   ├── 1.4.2 ──► commande exécutée ──► code réel propagé
    └── autre ───► refus immédiat ─────► code non nul
 ~~~
 
@@ -121,9 +121,9 @@ Source d'autorité : sortie de `apps/api/build.ts`.
 
 | Artifact | Purpose | Required runtime |
 | --- | --- | --- |
-| `dist/server.js` | serveur HTTP/WebSocket et tâches planifiées | Bun 1.4.0 |
-| `dist/migrate.js` | migration gardée et one-shot Compose | Bun 1.4.0 |
-| `dist/admin/admin-cli.js` | sauvegarde, restauration, inspection, rotation | Bun 1.4.0 |
+| `dist/server.js` | serveur HTTP/WebSocket et tâches planifiées | Bun 1.4.2 |
+| `dist/migrate.js` | migration gardée et one-shot Compose | Bun 1.4.2 |
+| `dist/admin/admin-cli.js` | sauvegarde, restauration, inspection, rotation | Bun 1.4.2 |
 | matching `.map` files | diagnostic | none at rest |
 | `/app/migrations/**` in image | SQL revu, non bundlé | read by migration bundle |
 
@@ -170,7 +170,7 @@ Source d'autorité : `.github/actions/setup-bun/action.yml`.
 | Field | Value/rule |
 | --- | --- |
 | setup action | `oven-sh/setup-bun` épinglé par SHA |
-| Bun version | `1.4.0` |
+| Bun version | `1.4.2` |
 | executable cache | cache interne de `setup-bun`, lié à la version exacte |
 | dependency cache | aucun cache `node_modules` ou `~/.bun/install/cache` entre runners |
 | install | `bun ci` |
@@ -193,14 +193,14 @@ Source d'autorité : `docker/base-images.json` et les Dockerfiles.
 
 | Image | Build runtime | Production runtime | User |
 | --- | --- | --- | --- |
-| API | Bun 1.4.0 Debian | Bun 1.4.0 Debian | `bun` (1000) |
-| Web | Bun 1.4.0 Debian | nginx unprivileged | `101` |
+| API | Bun 1.4.2 Debian | Bun 1.4.2 Debian | `bun` (1000) |
+| Web | Bun 1.4.2 Debian | nginx unprivileged | `101` |
 
 ### Invariants
 
 - Les deux bases sont référencées par manifeste multiarchitecture SHA-256.
 - `linux/amd64` et `linux/arm64` sont présents.
-- L'image API retourne Bun 1.4.0 et ne résout pas `node`.
+- L'image API retourne Bun 1.4.2 et ne résout pas `node`.
 - Les volumes blobs/sauvegardes restent accessibles par l'utilisateur non
   privilégié.
 - Aucun fichier `.env`, clé ou contenu utilisateur n'entre dans une couche.

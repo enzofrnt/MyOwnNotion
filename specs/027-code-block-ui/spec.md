@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-05
 
-**Status**: Implemented; focused integration validated, delivery gate pending
+**Status**: Implemented and validated locally/PR; main CI finalization pending
 
 **Input**: The owner finds the existing code blocks unattractive and missing syntax colors.
 

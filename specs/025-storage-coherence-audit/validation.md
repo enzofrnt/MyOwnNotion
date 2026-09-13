@@ -805,10 +805,11 @@ At `333ea73`:
 - independent Luna review checked preparation/read races, one-time replay,
   expiry timers, replacement, application disposal and caller/key-buffer
   clearing, then reported no remaining P0/P1/P2 in the mono-process boundary.
-- the final SpecKit analysis/convergence pass maps **14 FR, 7 SC, 91 unique
-  tasks and 80 audit findings** with no duplicate, placeholder, uncovered
-  requirement or new unbuilt work; only T037/T038/T040/T041 remain open for
-  delivery.
+- the then-current, pre-T092 SpecKit analysis/convergence pass mapped **14 FR,
+  7 SC, 91 unique tasks and 80 audit findings** with no duplicate, placeholder,
+  uncovered requirement or new unbuilt work; at that historical checkpoint,
+  T037/T038/T040/T041 remained open for delivery. The current inventory is 94
+  tasks and 85 findings, with only T041 still open.
 
 The process-owned artifact is never persisted. The official V1 deployment
 therefore runs one active API process per installation; a restart loses only the
@@ -824,5 +825,77 @@ the failed full-gate
 `final-pre-v1-checks-local-d71723a6-attempt2-20260913.log` and the corrected
 focused/browser runs `final-recovery-focused-333ea73-20260913.log` and
 `final-recovery-chromium-333ea73-20260913.log`. These focused results close
-T089–T091 implementation evidence only. A new exact clean `checks:local`,
-required image scans, PR CI and post-merge main CI remain T037/T038/T040/T041.
+T089–T091 implementation evidence only. At that historical checkpoint, a new
+exact clean `checks:local`, required image scans, PR CI and post-merge main CI
+were still assigned to T037/T038/T040/T041; the integrated closure below
+supersedes that interim status.
+
+## T092 — protected database envelopes are authoritative
+
+The final read-only audit reproduced a plaintext downgrade after protected
+cutover. With a readable database definition or entry-values payload injected
+back into `revisions.snapshot`, deleting only the corresponding protected
+envelope let the previous resolver reopen the legacy value.
+
+The corrected resolver and complete-search loader choose the legacy repository
+only when no protected-content runtime is configured. With protection active,
+an absent current envelope fails closed; projection loading likewise refuses a
+missing protected value rather than using its stored fallback.
+
+Focused evidence on Bun 1.4.2 and isolated PostgreSQL:
+
+- `apps/api/tests/database-projection-loading.contract.spec.ts`: **5/5**;
+- real database and entry `GET` routes return `500 protected_read_failed`;
+- complete search enters its explicit degraded state for missing definition or
+  entry-value envelopes;
+- projection resolution rejects the same missing protected values;
+- API typecheck, focused Biome and `git diff --check`: pass.
+
+The fixture restores every mutated snapshot and envelope in `finally` blocks.
+No owner database or personal import source is read or changed. Full exact-commit
+delivery remains owned by T041.
+
+## T093–T094 — folder identity and narrow workspace actions
+
+The final branch review reproduced a database source labelled as a page in the
+folder canvas and a deeply nested row whose action menu fell outside a 320 px
+touch viewport. It also found that tab middle-click closure bypassed focus
+restoration, arrow keys bubbled from close controls and compact targets remained
+32 px on touch profiles.
+
+The accepted local projection now publishes database-source identities beside
+the hierarchy. Folder rows render matching sources with the table icon,
+« Base de données » label and a native `/notes/:itemId` link. Navigation CSS
+bounds only visual deep indentation and hides only a redundant quick-create
+shortcut on coarse pointers; the complete menu remains reachable. Touch close
+and reorder targets measure at least 44 px, while button, shortcut and middle
+button closures share the same neighbour-focus helper.
+
+Focused evidence on Bun 1.4.2:
+
+- open tabs, folder children and item icons: **3 files / 23 tests**;
+- impact/inventory contract: **37/37 tests**;
+- feature 022 browser journey: **5/5 projects in 96 s**, including Chromium,
+  Firefox and WebKit desktop plus Chromium and WebKit mobile;
+- real sixth-level menu and touch action at 320 px, 390/320 px tab containment,
+  second-device order,
+  history/reload, rename/emoji/conversion and the scoped axe audit all pass
+  without retry.
+
+These results close T093–T094 implementation evidence. The exact clean local
+gate and PR/main delivery remain owned by T041.
+
+## Integrated delivery closure — exact SHA `52dfdc926164f392cf812ead302bddb9662ac356`
+
+The complete `bun run checks:local` gate passed on the exact integration SHA
+`52dfdc926164f392cf812ead302bddb9662ac356`, including the required format,
+types, tests, browser, image/runtime, security and Compose responsibilities.
+This closes T037, T038 and T040 with the AMD64/ARM64 restore evidence and the
+browser/theme/viewport/native parity evidence on the same commit.
+
+PR #175 ran against that exact SHA; required PR run `34747879571` is green.
+The pull request was merged normally as merge commit
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`, closing the PR portion of T041.
+Main run `34748994269` is not green yet and is not presented as a successful
+gate. Root will finalize the remaining main-CI closure and any resulting
+publication verification. No personal Notion source was applied.

@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-05
 
-**Status**: Implemented; integrated delivery validation in progress
+**Status**: Implemented; integrated delivery recorded; main CI finalization pending
 
 **Input**: Owner requests a substantial code audit and correction of serious
 inconsistencies before importing valuable Notion data. Existing privacy and

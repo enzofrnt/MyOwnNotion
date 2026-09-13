@@ -167,13 +167,14 @@ export async function resolveDatabaseDefinition(
   record: DatabaseRecord,
   content: ProtectedContent | undefined,
 ): Promise<DatabaseDefinition> {
-  const sealed = await content?.readDatabaseDefinition(
-    executor,
-    record.databaseId,
-    record.definitionVersion,
-  );
-  const fallback = await readCurrentDatabaseDefinition(executor, record.databaseId);
-  const definition = sealed ?? fallback;
+  // A protected runtime treats the versioned envelope as authoritative. It
+  // must not even read the legacy revision snapshot when that envelope is
+  // missing, because a partially restored or corrupted row could reintroduce
+  // plaintext after cutover.
+  const definition =
+    content === undefined
+      ? await readCurrentDatabaseDefinition(executor, record.databaseId)
+      : await content.readDatabaseDefinition(executor, record.databaseId, record.definitionVersion);
   if (definition === null) throw new ProtectedContentUnavailableError(record.databaseId);
   if (definition.name !== undefined) return definition;
   const revision =
@@ -192,13 +193,10 @@ export async function resolveDatabaseEntryValues(
   record: DatabaseEntryRecord,
   content: ProtectedContent | undefined,
 ): Promise<EntryValues> {
-  const sealed = await content?.readDatabaseEntryValues(
-    executor,
-    record.entryId,
-    record.valueVersion,
-  );
-  const fallback = await readCurrentDatabaseEntryValues(executor, record.entryId);
-  const values = sealed ?? fallback;
+  const values =
+    content === undefined
+      ? await readCurrentDatabaseEntryValues(executor, record.entryId)
+      : await content.readDatabaseEntryValues(executor, record.entryId, record.valueVersion);
   if (values === null) throw new ProtectedContentUnavailableError(record.entryId);
   return values;
 }
@@ -286,7 +284,10 @@ export async function resolveDatabaseProjectionEntries(
   }
   return records.map((record) => {
     const title = names.get(record.entryId) ?? record.storedName;
-    const entryValues = values.get(record.entryId) ?? record.storedValues;
+    const entryValues =
+      content === undefined
+        ? (values.get(record.entryId) ?? record.storedValues)
+        : (values.get(record.entryId) ?? null);
     if (title === SCRUBBED_PLACEHOLDER || entryValues === null || isProtectedPayload(entryValues))
       throw new ProtectedContentUnavailableError(record.entryId);
     return {

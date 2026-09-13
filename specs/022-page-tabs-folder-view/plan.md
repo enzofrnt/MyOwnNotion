@@ -4,6 +4,11 @@
 
 **Input**: Feature specification from `/specs/022-page-tabs-folder-view/spec.md`
 
+**Phases UI**: charger et appliquer le
+[skill UI partagé](../../.agents/skills/ui-quality/SKILL.md) pendant la
+conception, l'implémentation et la revue des boutons, espacements, arrondis,
+états de focus et surfaces étroites de cette feature.
+
 ## Summary
 
 Trois surfaces du canevas changent, sans nouvelle donnée canonique :
@@ -22,7 +27,7 @@ Trois surfaces du canevas changent, sans nouvelle donnée canonique :
 
 ## Technical Context
 
-**Language/Version**: TypeScript strict, React 19, Bun 1.4.0
+**Language/Version**: TypeScript strict, React 19, Bun 1.4.2
 
 **Primary Dependencies**: react-router-dom 7 (URL = source de vérité),
 `@ariakit/react` (menus), `@dnd-kit/core` + `@dnd-kit/sortable` (déjà en
@@ -46,7 +51,8 @@ mutations passent par `runCommand` (outbox + refresh) ; pas de nouveau
 `localStorage` pour l’état de présentation.
 
 **Scale/Scope**: ~6 fichiers modifiés, 3 composants nouveaux, 1 helper
-client-core, tests unitaires + 1 spec e2e.
+client-core, tests unitaires + 1 spec e2e. Les composants UI suivent les
+tokens et critères du skill partagé.
 
 ## Constitution Check
 
@@ -81,14 +87,17 @@ apps/web/src/features/workspace/
 ├── page-title-editor.tsx      # slot `breadcrumbs` rendu au-dessus de l’emoji
 ├── path-breadcrumbs.tsx       # NOUVEAU : fil d’Ariane mesuré + « … » (menu)
 ├── breadcrumb-layout.ts       # NOUVEAU : algorithme pur de sélection des segments visibles
-├── open-tabs-strip.tsx        # NOUVEAU : bande d’onglets défilante, rôles tablist/tab
+├── open-tabs-strip.tsx        # NOUVEAU : barre d’onglets défilante, toolbar et boutons nommés
 ├── folder-children-list.tsx   # NOUVEAU : liste réordonnable (dnd-kit sortable + menu Monter/Descendre)
 └── workspace.css              # styles des trois surfaces + viewport étroit
+
+apps/web/src/ui/item-icon.tsx   # identité visuelle explicite des sources de base
 
 apps/web/src/features/hierarchy/hierarchy-explorer.tsx
   # câblage : état openTabIds (hydratation/persistance), ajout à l’ouverture,
   # fermeture → voisin ou /notes, purge des éléments indisponibles,
-  # canevas dossier → FolderChildrenList branché sur handleTreeDrop/reorder
+  # canevas dossier → FolderChildrenList branché sur handleTreeDrop/reorder,
+  # jointure avec le registre local des sources de base
 
 apps/web/tests/
 ├── breadcrumb-layout.spec.ts
@@ -139,24 +148,34 @@ shell existant.
   ?? null)` (suivant, sinon précédent, sinon `/notes`).
 - Élément mis à la corbeille : disparaît des items actifs → purgé ; si c’était
   l’onglet actif, la même règle de voisin s’applique.
-- Rendu : `OpenTabsStrip` (`role="tablist"`, `role="tab"` +
-  `aria-selected`, bouton de fermeture séparé), flèches gauche/droite pour
-  déplacer le focus, défilement horizontal CSS, `scrollIntoView` de l’onglet
-  actif, molette verticale traduite en défilement horizontal.
+- Rendu : `OpenTabsStrip` (`role="toolbar"`, boutons de destination avec
+  `aria-current="page"`, bouton de fermeture séparé et focusable), flèches
+  gauche/droite limitées aux boutons de destination pour déplacer le focus,
+  défilement horizontal CSS, `scrollIntoView` de l’onglet actif, molette
+  verticale traduite en défilement horizontal. Toute fermeture, y compris
+  ⌘W/Ctrl+W et le clic central, prépare le même retour de focus vers le voisin.
 - La bande est passée à `PageHeader` via la prop `tabs` et rendue dans la
   rangée compacte, avant les actions contextuelles.
 
 ### Vue de dossier
 
 - Enfants directs = `tree` (déjà construit) → nœud du dossier → `children`
-  (déjà triés par `positionKey`).
+  (déjà triés par `positionKey`). Le registre IndexedDB des sources de base est
+  lu avec la même actualisation locale afin qu’une source placée sous le dossier
+  soit annoncée et illustrée comme « Base de données », même si son item
+  canonique conserve le kind `page`. Chaque destination est un lien natif vers
+  `notePath`, dont le clic simple sans modificateur emprunte la navigation SPA.
 - `FolderChildrenList` utilise `DndContext` + `SortableContext` (stratégie
   verticale, capteurs pointeur + clavier). `onDragEnd` produit
   `{ itemId, targetId, edge }` ; l’explorateur le traduit en intent `place` et
   appelle `handleTreeDrop`, exactement comme la barre latérale. Le menu de
   ligne « Monter / Descendre » appelle `reorder(node, ±1)` existant.
-- État vide : `WorkspaceState kind="empty"` avec actions « Nouvelle page » /
-  « Nouveau dossier » branchées sur `createItem(kind, folderId)`.
+- État vide : `Status kind="info"` dans la liste ; le contrôle de création du
+  titre reste branché sur `createItem(kind, folderId)`.
+- Sur pointeur grossier, les poignées et fermetures utilisent la cible tactile
+  de 44 px. L’indentation visuelle est plafonnée au-delà du troisième niveau
+  pour conserver les actions essentielles à 320 px ; le menu de ligne garde
+  les créations quand le raccourci « + » profond est masqué.
 - Aucun `EditorView` n’est monté pour un dossier (déjà le cas).
 
 ## Complexity Tracking

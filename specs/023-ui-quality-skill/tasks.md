@@ -27,7 +27,7 @@
 ## Phase 5 — Convergence and delivery
 
 - [x] T007 Check links, Spec Kit prerequisites, requirement coverage and `git diff --check`; record accurate limits in `specs/023-ui-quality-skill/validation.md`.
-- [ ] T008 Deliver this increment after desktop merge, verify applicable PR and main CI, and update `specs/023-ui-quality-skill/validation.md` with provenance.
+- [x] T008 Deliver this increment after desktop merge, verify applicable PR and main CI, and update `specs/023-ui-quality-skill/validation.md` with provenance. PR 172 merged at `68058cad`; PR run `34696888149` and main run `34697161864` are green.
 
 ## Dependencies and implementation strategy
 

@@ -183,6 +183,16 @@ describe("pull-request selection", () => {
     );
   });
 
+  it("keeps the tabs, breadcrumbs and folder journey attached to its workspace source", () => {
+    const plan = pullRequestPlan(["apps/web/src/features/workspace/open-tabs-strip.tsx"]);
+    const navigationPlan = pullRequestPlan(["apps/web/src/features/navigation/navigation.css"]);
+
+    expect(plan.e2e.testFiles).toContain("tests/e2e/workspace-tabs-folder.spec.ts");
+    expect(plan.e2e.testFiles).toContain("tests/e2e/accessibility.spec.ts");
+    expect(navigationPlan.e2e.testFiles).toContain("tests/e2e/workspace-tabs-folder.spec.ts");
+    expect(navigationPlan.e2e.testFiles).toContain("tests/e2e/accessibility.spec.ts");
+  });
+
   it("always runs a changed test directly", () => {
     const plan = pullRequestPlan(["apps/web/tests/sidebar.spec.ts"]);
     expect(plan.vitest.mode).toBe("direct");

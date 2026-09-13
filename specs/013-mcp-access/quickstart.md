@@ -15,7 +15,8 @@ Check native MCP discovery, content mutations through ordinary API readback,
 protected SQL, branch/file denial, actual full backup/restore activation and
 new configuration file permissions. Desktop/narrow settings journeys are owned
 by the feature's Playwright suite. The integration branch runs all local gates
-before any push; this isolated implementation does not push or merge.
+before delivery; this feature worktree did not perform an additional push or
+merge.
 
 ## Backend evidence — 2026-09-05
 
@@ -31,8 +32,9 @@ before any push; this isolated implementation does not push or merge.
 - API typecheck, production Bun build, compiled MCP CLI help and focused Biome
   checks passed. The API bundle emits the dedicated exchange CLI.
 - UI tasks T011/T012/T014/T015 are complete; see [UI validation](ui-validation.md).
-  Full `checks:local` remains the integration branch gate before publishing;
-  no push here.
+  The exact `checks:local` gate and PR #175 delivery provenance are recorded by
+  the integration owner; post-merge `main` verification remains open under
+  T016. No additional push was performed from this worktree.
 
 ### Refused credential audit regression — 2026-09-12
 
@@ -100,5 +102,13 @@ The six measured MCP modules improved from 90.72% statements / 77.66% branches
 all tool and management-route lines are exercised. Function coverage remains
 79/80: the standalone CLI stdout callback runs in an uninstrumented child process.
 These are focused module numbers, not the combined application's coverage gate.
-No coverage exclusions, debt budgets or timeouts changed. T016 still requires
-full local gates on the combined tree, then CI/review and delivery.
+No coverage exclusions, debt budgets or timeouts changed. The focused evidence
+and PR delivery are recorded above; T016 remains open for the non-green
+post-merge `main` verification.
+
+## Final integration evidence — 2026-09-13
+
+The feature is included in the delivered pre-V1 integration at merge
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`. The combined local gate and the
+focused MCP/UI evidence above were completed before delivery; this worktree did
+not perform a separate push or merge.

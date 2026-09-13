@@ -34,12 +34,18 @@ changing the guidance scope: the difference from that desktop commit is still
 19 maintained Markdown files. Feature prerequisites, whitespace checks and the
 skill-creator validator pass. Local Markdown links in the skill and feature
 artifacts resolve. No application suite was run for this documentation update;
-PR/main delivery still follows the desktop merge.
+PR/main delivery was subsequently completed; see the final evidence below.
 
-2026-09-08 delivery update: desktop PR 171 merged as fb36befc. UI PR 172 is
-retargeted to main and that main commit is integrated without changing the UI
-scope: the complete difference remains 19 maintained Markdown files. The prior
-PR run 34238596213 passed its aggregate gate and all five native desktop targets;
-its browser impact selection was an explicit no-op, not a new full browser run.
-The main native Windows failure is being investigated in 014 T102. Documentation
-checks are renewed for this base update; new PR and main results remain pending.
+2026-09-08 delivery update: desktop PR 171 merged as fb36befc. UI PR 172 was
+retargeted to main and integrated without changing the UI scope: the complete
+difference remained 19 maintained Markdown files. The prior PR run 34238596213
+passed its aggregate gate and all five native desktop targets; its browser
+impact selection was an explicit no-op, not a new full browser run. The main
+native Windows failure was tracked in 014 T102.
+
+## Final delivery evidence — 2026-09-13
+
+T008 is delivered. PR 172 merged at `68058cad`; PR run `34696888149` and the
+post-merge main run `34697161864` are green. The feature remains guidance-only:
+no runtime suite or new visual campaign is claimed beyond the documented
+validator and link/whitespace checks.

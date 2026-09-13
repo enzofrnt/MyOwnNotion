@@ -46,7 +46,15 @@
 
 ## Phase 9: Integrated delivery
 
-- [ ] T021 Run the required complete local gate on the integration commit, verify every PR check, merge after green checks and verify all main CI; record commit-addressable evidence in `specs/028-notion-import/validation.md`. T014's focused handoff does not complete delivery. Personal source application remains separate from implementation and validation.
+- [ ] T021 Run the required complete local gate on the integration commit,
+      verify every PR check, merge after green checks, verify all main CI and
+      record commit-addressable evidence in
+      `specs/028-notion-import/validation.md`; PR #175 and its merge are
+      recorded, but main run `34748994269` failed on the Firefox overflow
+      regression tracked by audit A82, so final delivery remains open for the
+      corrected candidate. T014's focused handoff does not complete delivery.
+      Personal source application remains separate from implementation and
+      validation.
 
 ## Phase 10: Convergence — source race and YAML bounds
 

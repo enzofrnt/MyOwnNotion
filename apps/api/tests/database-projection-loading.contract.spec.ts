@@ -2,11 +2,22 @@ import { randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { schema } from "@myownnotion/database";
+import {
+  listDatabaseProjectionEntries,
+  readDatabaseEntryRecord,
+  readDatabaseRecord,
+  schema,
+} from "@myownnotion/database";
 import { type EntryValues, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createDatabaseQueryService } from "../src/databases/database-query-service.ts";
+import { createDatabaseSearchService } from "../src/search/search-service.ts";
+import {
+  resolveDatabaseDefinition,
+  resolveDatabaseEntryValues,
+  resolveDatabaseProjectionEntries,
+} from "../src/security/content-resolution.ts";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
 import {
   type ApiHarness,
@@ -228,6 +239,127 @@ describe("SQL loading of encrypted database projections", () => {
     await input.db.update(schema.protectedEnvelopes).set({ tag: name.tag }).where(nameScope);
     await corrupt.rebuild();
     expect(corrupt.query(databaseId, { viewId, limit: 1000 }).rows).toHaveLength(24);
+  });
+
+  it("fails closed when protected database envelopes are missing instead of reopening revision snapshots", async () => {
+    const input = dependencies();
+    const database = await readDatabaseRecord(input.db, databaseId);
+    if (database === null) throw new Error("Missing database fixture");
+    const definitionScope = and(
+      eq(schema.protectedEnvelopes.entityType, "database.definition"),
+      eq(schema.protectedEnvelopes.entityId, databaseId),
+      eq(schema.protectedEnvelopes.recordVersion, database.definitionVersion),
+    );
+    const [definitionEnvelope] = await input.db
+      .select()
+      .from(schema.protectedEnvelopes)
+      .where(definitionScope);
+    if (definitionEnvelope === undefined) throw new Error("Missing sealed definition fixture");
+    if (database.definitionRevisionId === null) throw new Error("Missing definition revision");
+    const [definitionRevision] = await input.db
+      .select({ snapshot: schema.revisions.snapshot })
+      .from(schema.revisions)
+      .where(eq(schema.revisions.id, database.definitionRevisionId));
+    if (definitionRevision === undefined) throw new Error("Missing definition snapshot fixture");
+    const plaintextDefinition = {
+      ...(definitionRevision.snapshot as Record<string, unknown> | null),
+      databaseDefinition: { name: "plaintext revision fallback" },
+    };
+    await input.db
+      .update(schema.revisions)
+      .set({ snapshot: plaintextDefinition })
+      .where(eq(schema.revisions.id, database.definitionRevisionId));
+    await input.db.delete(schema.protectedEnvelopes).where(definitionScope);
+    try {
+      await expect(
+        resolveDatabaseDefinition(input.db, database, input.protectedContent),
+      ).rejects.toThrow("protected content is unavailable");
+      const databaseResponse = await owner({ method: "GET", url: `/v1/databases/${databaseId}` });
+      expect(databaseResponse.statusCode, databaseResponse.body).toBe(500);
+      expect(databaseResponse.json()).toMatchObject({ code: "protected_read_failed" });
+      const search = createDatabaseSearchService(input);
+      await expect(search.rebuild()).rejects.toThrow(
+        "Protected database definition is unavailable",
+      );
+      expect(search.status().state).toBe("degraded");
+    } finally {
+      await input.db
+        .update(schema.revisions)
+        .set({ snapshot: definitionRevision.snapshot })
+        .where(eq(schema.revisions.id, database.definitionRevisionId));
+      await input.db.insert(schema.protectedEnvelopes).values(definitionEnvelope);
+    }
+
+    const entryId = entryIds[3] as Uuid;
+    const entry = await readDatabaseEntryRecord(input.db, entryId);
+    if (entry === null) throw new Error("Missing entry fixture");
+    const valuesScope = and(
+      eq(schema.protectedEnvelopes.entityType, "database.entry-values"),
+      eq(schema.protectedEnvelopes.entityId, entryId),
+      eq(schema.protectedEnvelopes.recordVersion, entry.valueVersion),
+    );
+    const [valuesEnvelope] = await input.db
+      .select()
+      .from(schema.protectedEnvelopes)
+      .where(valuesScope);
+    if (valuesEnvelope === undefined) throw new Error("Missing sealed values fixture");
+    const [entryItem] = await input.db
+      .select({ currentRevisionId: schema.items.currentRevisionId })
+      .from(schema.items)
+      .where(eq(schema.items.id, entryId));
+    if (entryItem === undefined) throw new Error("Missing entry item fixture");
+    const [entryRevision] = await input.db
+      .select({ snapshot: schema.revisions.snapshot })
+      .from(schema.revisions)
+      .where(eq(schema.revisions.id, entryItem.currentRevisionId));
+    if (entryRevision === undefined) throw new Error("Missing entry snapshot fixture");
+    const plaintextValues = {
+      ...(entryRevision.snapshot as Record<string, unknown> | null),
+      databaseEntryValues: {
+        format: "myownnotion.database-entry-values+json",
+        formatVersion: 1,
+        databaseId,
+        entryId,
+        values: {},
+        preserved: [],
+      },
+    };
+    await input.db
+      .update(schema.revisions)
+      .set({ snapshot: plaintextValues })
+      .where(eq(schema.revisions.id, entryItem.currentRevisionId));
+    await input.db.delete(schema.protectedEnvelopes).where(valuesScope);
+    try {
+      await expect(
+        resolveDatabaseEntryValues(input.db, entry, input.protectedContent),
+      ).rejects.toThrow("protected content is unavailable");
+      const entryResponse = await owner({
+        method: "GET",
+        url: `/v1/databases/${databaseId}/entries/${entryId}`,
+      });
+      expect(entryResponse.statusCode, entryResponse.body).toBe(500);
+      expect(entryResponse.json()).toMatchObject({ code: "protected_read_failed" });
+      const search = createDatabaseSearchService(input);
+      await expect(search.rebuild()).rejects.toThrow("Protected database values are unavailable");
+      expect(search.status().state).toBe("degraded");
+      const [projection] = await listDatabaseProjectionEntries(input.db, databaseId, [entryId]);
+      if (projection === undefined) throw new Error("Missing projection fixture");
+      await expect(
+        resolveDatabaseProjectionEntries(
+          input.db,
+          databaseId,
+          [projection],
+          [],
+          input.protectedContent,
+        ),
+      ).rejects.toThrow("protected content is unavailable");
+    } finally {
+      await input.db
+        .update(schema.revisions)
+        .set({ snapshot: entryRevision.snapshot })
+        .where(eq(schema.revisions.id, entryItem.currentRevisionId));
+      await input.db.insert(schema.protectedEnvelopes).values(valuesEnvelope);
+    }
   });
 
   it("removes a trashed entry from an incremental source without reloading unchanged names", async () => {

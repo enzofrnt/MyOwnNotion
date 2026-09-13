@@ -31,24 +31,27 @@
 - [x] T015 Validate grant/exchange/revoke on desktop and narrow Playwright profiles, then record evidence per SC-003 (completed; see ui-validation.md).
 
 - [ ] T016 Integration owner: run all required local gates on combined changes
-  before push, then PR CI/review; record the delivery result. Focused MCP/UI
-  evidence does not replace this full gate.
+  before push, then PR CI/review and final `main` verification; record the
+  delivery result. The exact local gate and PR #175 are green and merged, but
+  post-merge `main` run `34748994269` is not yet green, so this delivery task
+  remains open. Focused MCP/UI evidence and the available provenance are
+  recorded in `quickstart.md` and `ui-validation.md`.
 
 - [x] T017 Refuse unsupported file-permission platforms before consuming an exchange code in `apps/api/src/mcp/exchange-cli.ts`; verify the newly opened POSIX file's ownership/mode before receiving credentials, retain no-secret/refusal cleanup tests, and document the helper's host boundary in `docs/mcp.md` (FR-005/FR-008).
-- [x] T018 Strengthen meaningful MCP boundary evidence in `apps/api/tests/mcp*` for recursive scope redaction/immutability, independent actions, pagination, mutation replay/collisions, availability and expired/revoked inventories, rate limits, and CLI failure cleanup; correct confirmed defects in `apps/api/src/mcp/` or `apps/api/src/routes/mcp.ts`, record focused coverage and remaining limitations without exclusions or budget changes (FR-002–FR-009). Completed focused evidence: 45 tests, API types and Biome pass; 12 MCP branches remain unmeasured, and the combined gate remains T016 (see quickstart.md and analysis.md).
+- [x] T018 Strengthen meaningful MCP boundary evidence in `apps/api/tests/mcp*` for recursive scope redaction/immutability, independent actions, pagination, mutation replay/collisions, availability and expired/revoked inventories, rate limits, and CLI failure cleanup; correct confirmed defects in `apps/api/src/mcp/` or `apps/api/src/routes/mcp.ts`, record focused coverage and remaining limitations without exclusions or budget changes (FR-002–FR-009). Completed focused evidence: 45 tests, API types and Biome pass; 12 MCP branches remain unmeasured. The local/PR evidence is recorded, while final `main` delivery remains open under T016 (see quickstart.md and analysis.md).
 
 ## Phase 6: Convergence
 
-- [x] T019 Register tests/e2e/mcp-access.spec.ts in ci/test-impact.json and verify its complete inventory contract per plan: Validation and Constitution III/VII (resolved; focused contract passes; final delivery gate remains).
-- [x] T020 Prove with the real protocol client that reusable source displays grant no implicit access to unplaced entries or entries placed outside the allowed hierarchy, while explicit permitted placements and allContent remain usable per FR-004/FR-006 and canvas section 14 (partial integration evidence).
+- [x] T019 Register tests/e2e/mcp-access.spec.ts in ci/test-impact.json and verify its complete inventory contract per plan: Validation and Constitution III/VII (focused contract passes; final `main` delivery remains open under T016).
+- [x] T020 Prove with the real protocol client that reusable source displays grant no implicit access to unplaced entries or entries placed outside the allowed hierarchy, while explicit permitted placements and allContent remain usable per FR-004/FR-006 and canvas section 14. The bounded protocol evidence is complete; final delivery remains owned by T016.
 
 ## Phase 7: Convergence
 
-- [x] T021 Complete the app-routing security API fixture with the three MCP inventory methods mounted by the settings route; rerun the routing suite without an unhandled rejection and record the integrated gate finding per FR-001/FR-011 and T016 (partial test integration).
+- [x] T021 Complete the app-routing security API fixture with the three MCP inventory methods mounted by the settings route; rerun the routing suite without an unhandled rejection and record the integrated gate finding per FR-001/FR-011 and T016. The bounded fixture integration is complete; final delivery remains owned by T016.
 
 ## Phase 8: P1 audit convergence
 
-- [x] T022 Add RED/GREEN integration coverage for invalid, consumed, expired and revoked exchange credentials plus invalid, expired and revoked bearer credentials; persist fixed, redacted refusal classifications through the canonical `AuditService`, expose them in the owner MCP audit inventory, and record focused evidence (FR-008, canvas §35; full T016 gate remains pending).
+- [x] T022 Add RED/GREEN integration coverage for invalid, consumed, expired and revoked exchange credentials plus invalid, expired and revoked bearer credentials; persist fixed, redacted refusal classifications through the canonical `AuditService`, expose them in the owner MCP audit inventory, and record focused evidence (FR-008, canvas §35; final `main` delivery remains open under T016).
 
 ## Requirement traceability
 

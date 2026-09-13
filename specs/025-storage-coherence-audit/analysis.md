@@ -15,11 +15,12 @@ Research clarified that administrative key import refuses occupied targets and
 that historical MVCC/WAL erasure is not promised by application-level migration.
 
 Current reconciliation extends that historical baseline to 14 functional
-requirements, seven success criteria, 91 ordered tasks and 80 audit findings.
+requirements, seven success criteria, 94 ordered tasks and 85 audit findings.
 The final archive/code-audit corrections and complete coverage evidence are
 recorded at `ca2174cd83fa328f8df808d2ccce5a66061c8999`; the renewed browser and
-recovery lifecycle corrections are recorded at `333ea73`. Exact complete local,
-PR and main delivery gates remain open.
+recovery lifecycle corrections are recorded at `333ea73`. At this historical
+baseline, exact delivery gates remained open; the integrated closure is
+recorded at the end of this analysis.
 
 | Requirement | Tasks |
 | --- | --- |
@@ -32,15 +33,15 @@ PR and main delivery gates remain open.
 | FR-007 | T004, T022–T028, T087–T089 |
 | FR-008 | T006, T009, T014, T018, T025–T026 |
 | FR-009 | T029–T031, T082, T085, T090–T091 |
-| FR-010 | T032–T033 |
-| FR-011 | T001–T002, T028, T036, T039, T079–T091 |
-| FR-012 | T030, T034–T035, T083, T089–T091 |
-| FR-013 | T002, T020, T035, T037–T041, T080, T082, T084–T085, T087, T089–T091 |
-| FR-014 | T042–T045, T064–T079, T081, T083, T086, T088 |
+| FR-010 | T032–T033, T093–T094 |
+| FR-011 | T001–T002, T028, T036, T039, T079–T094 |
+| FR-012 | T030, T034–T035, T083, T089–T091, T093–T094 |
+| FR-013 | T002, T020, T035, T037–T041, T080, T082, T084–T085, T087, T089–T094 |
+| FR-014 | T042–T045, T064–T079, T081, T083, T086, T088, T092 |
 
 SC-001 maps to T010/T019/T027; SC-002 to T019; SC-003 to T022/T027/T089; SC-004
 to T021/T049; SC-005 to T029/T031/T082/T085/T090–T091; SC-006 to T032/T038;
-SC-007 to T036/T039/T079–T091.
+SC-007 to T036/T039/T079–T094. SC-006 also maps to T093–T094.
 
 Proceed through speckit-implement in dependency order. This result says nothing
 about implementation correctness or completed delivery; those require the tests,
@@ -415,5 +416,49 @@ archive byte is emitted or any restore-target mutation begins. The final focused
 proof passes 168 unit/property/contract
 tests, 41 PostgreSQL/API tests, the separate 10,000-change long-offline case,
 complete workspace type checking and changed-source formatting. Independent
-post-fix reviews found no remaining P0/P1/P2 in these boundaries. Complete local,
-PR and main delivery remains T037/T038/T040/T041.
+post-fix reviews found no remaining P0/P1/P2 in these boundaries. The final
+integrated delivery evidence below closes T037, T038, T040 and T041's local/PR
+portions; the non-green main run remains explicitly assigned to root.
+
+## T092 — protected database reads fail closed
+
+The final data audit reproduced a protected-runtime downgrade: deleting a
+`database.definition` or `database.entry-values` envelope and reintroducing a
+readable legacy revision snapshot allowed the resolver to use that plaintext
+fallback. Complete search carried the same independent fallback.
+
+T092 makes the protected envelope authoritative for database routes, search and
+projection loading. Only a runtime without the protected-content boundary may
+read the legacy representation used by the explicit migration path. The focused
+regression injects readable snapshots, removes each current envelope, then
+expects `protected_read_failed` from HTTP, a degraded search rebuild and a
+projection refusal. Five API contract cases, API types and focused Biome pass;
+T041 retains complete PR/main delivery.
+
+## T093–T094 — final workspace coherence findings
+
+The final UI and code review found two bounded integration defects. A reusable
+database source placed in a folder inherited its generic page presentation, and
+deep hierarchy indentation could clip the only visible action menu at 320 px.
+The feature 022 interaction review also exposed undersized touch targets and two
+focus paths that differed from button closure.
+
+The hierarchy now reads source identities with its local projection refresh,
+labels matching folder children as databases and supplies native canonical
+links. Deep coarse-pointer rows retain their complete menu within the viewport;
+touch close/reorder controls measure at least 44 px, and every close gesture
+restores focus through one helper; a non-tab file destination retains the first
+tab as a keyboard entry point, and closing the final tab focuses the workspace.
+Twenty-three component tests and all five browser
+projects pass on Bun 1.4.2. These tasks close A84–A85 implementation evidence;
+T041 retains the exact PR/main delivery obligation.
+
+## Integrated delivery closure — 2026-09-13
+
+The exact integration SHA `52dfdc926164f392cf812ead302bddb9662ac356` passed the
+complete `bun run checks:local` gate. PR #175 passed in green run
+`34747879571` and merged normally as
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`. T037, T038 and T040 are therefore
+complete, and T041 has commit-addressable PR/merge evidence. Main run
+`34748994269` is not green and is not treated as a successful main gate; root
+will finalize the remaining main-CI verification.

@@ -18,4 +18,16 @@ separation and idempotent replay. All 22 task IDs remain unique. A fresh
 source-only personal preview after the correction still reports 342 files,
 278 pages, 8 databases, 110 memberships, 58 attachments, 284 retained originals
 and 202 issues with no blocking issue. No personal path, title or content is
-committed, and no personal apply ran. Full integrated delivery remains pending.
+committed, and no personal apply ran. At this historical checkpoint, full
+integrated delivery remained pending; the final delivery evidence is recorded
+below.
+
+## Clôture de cohérence de livraison — 2026-09-13
+
+The exact integration SHA `52dfdc926164f392cf812ead302bddb9662ac356` passed the
+complete `bun run checks:local` gate. PR #175 passed in green run
+`34747879571` for that SHA and merged normally as
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`, which records the local/PR
+portions of T021. Main run `34748994269` is not green and is not represented as
+a successful gate; final `main` verification remains open. Personal source
+application remains separate and was not performed.

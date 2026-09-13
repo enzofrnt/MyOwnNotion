@@ -2,6 +2,7 @@
   display: grid;
   grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
   min-height: 100dvh;
+  overflow-x: clip;
   color: var(--color-text);
   background: var(--color-canvas);
 }

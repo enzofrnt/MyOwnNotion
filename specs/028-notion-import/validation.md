@@ -141,7 +141,7 @@ ambiguous content links, plus7 ambiguous and1 missing property links. Those
 counts identify conversion limits, not successful reconstruction of missing
 Notion settings.
 
-## Delivery boundary
+## Historical delivery boundary
 
 ## T022 — source ancestors and frontmatter bounds
 
@@ -230,4 +230,18 @@ Source and protected integration suites pass 40 tests
 (`/tmp/mon-notion-csv-scope-final.log`), API types and focused Biome pass. The
 first integration assertion used the wrong fixture field `entryId`; correcting
 it to the actual `entryItemId` preserved the intended membership assertion.
-Full integrated coverage and delivery gates remain required.
+Full integrated coverage and delivery were subsequently recorded below; no
+personal APPLY was performed.
+
+## Integrated delivery closure — exact SHA `52dfdc926164f392cf812ead302bddb9662ac356`
+
+The complete `bun run checks:local` gate passed on exact SHA
+`52dfdc926164f392cf812ead302bddb9662ac356`. PR #175 for that SHA passed in
+green run `34747879571` and merged normally as
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`. This records the local and PR
+portions of T021 and the commit-addressable evidence for the import feature;
+the task remains open for final `main` verification.
+
+Main run `34748994269` is not green yet and is not claimed as successful.
+Root will finalize the remaining main-CI verification. The authorized personal
+source was only previewed; no APPLY was performed.

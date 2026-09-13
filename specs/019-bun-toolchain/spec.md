@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-27
 
-**Status**: Implemented and converged
+**Status**: Implemented and PR-validated; final `main` CI verification remains open
 
 **Input**: User description: "Après avoir livré tous les retours d'interface
 dans une autre PR, migrer dans une PR dédiée tout le runtime, la compilation et
@@ -29,8 +29,9 @@ le comportement et le niveau de contrôle.
 
 La constitution 3.1.0 rend Bun exclusif pour le runtime TypeScript/JavaScript,
 les espaces de travail, les scripts et la compilation de production. Cette
-feature **est livrée et convergée** : `main` n'a ni double lockfile, ni double
-gestionnaire, ni second runtime applicatif. Les mentions de pnpm ou Node.js
+feature a son **code fusionné et sa validation de livraison reste ouverte** :
+le code de `main` n'a ni double lockfile, ni double gestionnaire, ni second
+runtime applicatif. Les mentions de pnpm ou Node.js
 dans les `tasks.md` / `quickstart.md` des features 001–018 décrivent l'époque
 où elles ont été construites ; elles ne sont plus la procédure à suivre.
 La procédure vivante est [`docs/development.md`](../../docs/development.md)
@@ -365,9 +366,9 @@ qu'aucune procédure active ne dépend du système retiré.
 
 ## Assumptions
 
-- Bun 1.4.0 est la version stable disponible et installée au début de la
-  feature ; elle sera épinglée partout plutôt que remplacée implicitement par
-  `latest`.
+- Bun 1.4.2 est le runtime actif épinglé partout plutôt que remplacé
+  implicitement par `latest`. Bun 1.4.0 reste seulement le checkpoint historique
+  du début de cette feature, remplacé par T051.
 - Les navigateurs Playwright, PostgreSQL, Docker et les outils système requis
   restent des dépendances externes spécialisées ; ils ne constituent pas un
   second runtime applicatif.

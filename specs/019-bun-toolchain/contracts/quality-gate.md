@@ -33,7 +33,7 @@ constrained host.
 Every job executing repository TypeScript/JavaScript MUST:
 
 1. check out the exact candidate;
-2. install Bun 1.4.0 through the repository's composite setup action or the
+2. install Bun 1.4.2 through the repository's composite setup action or the
    identical pinned official action when no dependency install is needed;
 3. execute `bun ci` before dependency-backed commands;
 4. call the same named root script used locally.

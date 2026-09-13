@@ -9,10 +9,11 @@
 
 Remplacer en une seule migration pré-V1 le gestionnaire pnpm, le runtime
 Node.js des applications et scripts, ainsi que les compilations de production
-esbuild/Vite par Bun 1.4.0 exactement épinglé. Le code métier, les API, les
+esbuild/Vite par Bun 1.4.2 exactement épinglé. Le code métier, les API, les
 données, le protocole de synchronisation et l'interface restent inchangés. Le
 transport WebSocket Fastify reçoit seulement l'adaptation de cycle de vie
-requise par le module `ws` intégré à Bun 1.4.0.
+initialement requise par le module `ws` intégré à Bun 1.4.0 et conservée sous
+le runtime maintenu 1.4.2.
 
 Le dépôt devient un workspace Bun avec `bun.lock`, une installation CI par
 `bun ci`, des scripts TypeScript exécutés directement, une API compilée par
@@ -33,14 +34,14 @@ capture les premières trames dans une file strictement bornée, puis les rejoue
 uniquement après authentification par le résolveur existant.
 
 Les images de construction et d'exécution API utilisent l'image officielle Bun
-1.4.0 multiarchitecture épinglée ; l'image Web conserve nginx comme runtime
+1.4.2 multiarchitecture épinglée ; l'image Web conserve nginx comme runtime
 statique. La CI emploie l'action officielle `setup-bun` épinglée par SHA et le
 verrouillage strict, sans préparer Node.js ni pnpm ni restaurer un cache externe
 de dépendances plus coûteux que l'installation directe.
 
 ## Technical Context
 
-**Language/Version**: Bun 1.4.0 exactement ; TypeScript 5.9.3 ; JavaScriptCore ;
+**Language/Version**: Bun 1.4.2 exactement ; TypeScript 5.9.3 ; JavaScriptCore ;
 sources applicatives TypeScript/TSX
 
 **Primary Dependencies**: React 19.2, Fastify 5.7.4,
@@ -97,7 +98,7 @@ CI existant de 18 jobs bloquants
 | IV. Privacy and Security by Default | Aucun secret n'entre dans le lockfile ou les builds ; audits, licences, scans, utilisateur non privilégié et images épinglées restent bloquants | PASS |
 | V. Simple, Modular Architecture | Le code métier est conservé ; deux petits scripts de build Bun remplacent les compilateurs de production et Vite reste uniquement là où son proxy/HMR est utile | PASS |
 | VI. Practical and Predictable Experience | Aucun parcours visible ne change ; les tests clavier et navigateurs existants restent requis | PASS |
-| VII. Reproducible Toolchains and Enforced Quality | Bun 1.4.0, `bun.lock`, `bun ci`, builds Bun, runtime Bun, CI et images satisfont le nouveau contrat exclusif | PASS |
+| VII. Reproducible Toolchains and Enforced Quality | Bun 1.4.2, `bun.lock`, `bun ci`, builds Bun, runtime Bun, CI et images satisfont le nouveau contrat exclusif | PASS |
 | VIII. Canonical Product Direction | La feature réalise les fondations de livraison des sections 38–46 et phase 0 sans empiéter sur les features produit suivantes | PASS |
 
 ### Post-design re-check
@@ -123,7 +124,7 @@ CI existant de 18 jobs bloquants
 - Le bundle API ne modifie aucune entrée : serveur, migration et administration
   restent trois commandes distinctes. Les migrations SQL restent externes,
   lisibles et copiées dans l'image.
-- L'image officielle Bun 1.4.0 ne fournit pas de runtime Node.js autonome. Son
+- L'image officielle Bun 1.4.2 ne fournit pas de runtime Node.js autonome. Son
   alias de compatibilité `node` pointe vers Bun lui-même ; la fumée d'image
   vérifie cette identité plutôt que de déduire le runtime depuis le nom de la
   commande.
@@ -213,7 +214,7 @@ frontière métier, aucun package partagé et aucun service ne sont créés.
 
 ### 1. Contrat de version, workspace et verrouillage
 
-Déclarer `packageManager: bun@1.4.0`, `engines.bun: 1.4.0` et les globs de
+Déclarer `packageManager: bun@1.4.2`, `engines.bun: 1.4.2` et les globs de
 workspace dans le manifeste racine. `bunfig.toml` force les exécutables de
 paquets à utiliser Bun même lorsque leur shebang nomme Node. Le contrôle
 d'outillage compare la version runtime exacte, exige `bun.lock`, refuse les
@@ -239,8 +240,9 @@ compatibilité fournies par Bun, pas un processus Node.js.
 
 L'API utilise `bun --watch src/server.ts`. Le Web conserve Vite pour le HMR
 React et le proxy same-origin `/v1` + `/health`, lancé par Bun avec l'alias de
-runtime forcé. Un prototype Bun 1.4.0 a validé l'upgrade WebSocket à travers ce
-proxy.
+runtime forcé. Le prototype initial sous Bun 1.4.0 a validé l'upgrade WebSocket
+à travers ce proxy ; ce résultat historique reste couvert sous le pin actif
+1.4.2.
 
 Le HTTPS local (passkeys, cookie `__Host-`) utilise le helper détaché
 `compose.dev.yaml`, lancé par `bun run dev:stack`. Le démarrage et le reset
@@ -312,8 +314,9 @@ cookie et origine. Le helper ferme toujours les sockets et le listener. Cela
 couvre le vrai chemin d'upgrade sous Bun et remplace `injectWS()`, dont le faux
 duplex crée `new WebSocket(null)`.
 
-Bun 1.4.0 surcharge `ws` avec son module de compatibilité intégré. Celui-ci ne
-peut plus terminer `handleUpgrade()` après une macrotâche, alors que les hooks
+La migration initiale a montré que Bun 1.4.0 surchargeait `ws` avec son module
+de compatibilité intégré et ne pouvait plus terminer `handleUpgrade()` après
+une macrotâche, alors que les hooks
 Fastify historiques attendaient une lecture PostgreSQL avant l'upgrade. Les
 gardes synchrones vérifient donc d'abord l'origine exacte et la présence du
 cookie, l'upgrade se termine dans le même tour, puis la route appelle le même
@@ -333,7 +336,7 @@ leur harnais dépendait du runtime supprimé.
 
 Une action composite locale utilise
 `oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6`
-avec `bun-version: 1.4.0`, conserve le cache intégré du seul exécutable Bun,
+avec `bun-version: 1.4.2`, conserve le cache intégré du seul exécutable Bun,
 puis exécute `bun ci`. Elle ne restaure ni `node_modules` ni
 `~/.bun/install/cache` : les mesures du dépôt montrent que le transfert du
 cache de paquets coûte plus de temps que le gain observé sur l'installation.
@@ -352,7 +355,7 @@ source, de Compose, d'images et les artefacts SARIF ne changent pas de
 politique.
 
 L'image Bun officielle
-`oven/bun:1.4.0-debian@sha256:5bb0f9be3a1a36a03e27c9a9dd894a3b1ad26657155c7df4dda771e17bf872ef`
+`oven/bun:1.4.2-debian@sha256:4f6e31d1a54d6a3dd312daef655fc998101b5043d52e12592ac293ef04b9bc73`
 sert aux builders et au runtime API. L'API s'exécute comme utilisateur `bun`
 et le healthcheck emploie `bun --eval`. La fumée vérifie `bun --version`,
 l'absence de runtime Node.js autonome (un alias `node` vers Bun est permis),
@@ -365,7 +368,7 @@ JavaScript en production.
 Mettre à jour les procédures actives, le README, `docs/development.md`, les
 contrats de livraison et les tests qui les lisent. Une note de rupture explique
 que la branche principale n'accepte plus les commandes pnpm/Node, comment
-installer Bun 1.4.0, comment effectuer `bun ci`, et comment supprimer seulement
+installer Bun 1.4.2, comment effectuer `bun ci`, et comment supprimer seulement
 `node_modules` et les caches locaux obsolètes si nécessaire.
 
 La branche peut connaître un état intermédiaire pendant l'implémentation. Avant
@@ -443,11 +446,13 @@ et ses hooks ; il est volontairement écarté de cette migration ciblée.
 
 ## Maintenance 2026-09-08 — Bun 1.4.2
 
-La version active remplace explicitement le pin initial 1.4.0 par 1.4.2, y compris
-les types, l'installation CI, les contrôles du runtime, les exemples exécutables
-et les images par digest. Les paragraphes précédents décrivent la migration
-initiale ; ses preuves historiques restent inchangées. Le quickstart décrit la
-version active. Aucun format persistant, schéma SQL ou protocole ne change.
+La version active remplace explicitement le pin initial 1.4.0 par 1.4.2, y
+compris les types, l'installation CI, les contrôles du runtime, les exemples
+exécutables et les images par digest. Les références précédentes à un défaut ou
+à un prototype 1.4.0 sont historiques ; toutes les prescriptions de version,
+d'installation, de CI et d'image ci-dessus décrivent désormais 1.4.2. Le
+quickstart décrit la même version active. Aucun format persistant, schéma SQL
+ou protocole ne change.
 
 Le test isolé de https://github.com/oven-sh/bun/pull/39966 ferme quatre fichiers
 étrangers au sous-processus sous Windows 1.4.0 et passe avec 1.4.2. Le défaut

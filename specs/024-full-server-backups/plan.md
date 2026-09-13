@@ -175,11 +175,13 @@ Validation uses synthetic private key files, actual A→B wrapping rotation, PG1
 dumps/restores and disposable databases on the test server. Cover mixed-key
 receipts/activity, historical rehearsal, remote retry/prune, scheduling B,
 explicit A restore and restored data-key access, plus configuration/integrity
-refusals. Full delivery gates remain T023/T024 and run during parent integration.
+refusals. Full delivery gates T023/T024/T029/T030 run during parent
+integration and are recorded in `validation.md`.
 
 ## T029 — Bounded archive reader resources
 
-An integrated Bun 1.4.0 run emits `MaxListenersExceededWarning` during archive
+The historical integrated Bun 1.4.0 checkpoint emits
+`MaxListenersExceededWarning` during archive
 reads. A synthetic public `openFullStream` probe confirms a single borrowed
 FileHandle retains 100 close listeners after 100 completed reads. Whole-archive
 verification and restoration reuse that handle for every component, so retained

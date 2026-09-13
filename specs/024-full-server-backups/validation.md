@@ -70,7 +70,8 @@ claims must not be inferred from these focused tests.
   It uses its own PostgreSQL container, Docker network and volume and cleans them.
   This smoke is now included in the image gate for future PR/main runs.
 
-These are focused proofs, not a completed full workspace gate or delivery claim.
+These are focused proofs from earlier checkpoints; the final delivery evidence
+is recorded below.
 
 ## Convergence and current gate status
 
@@ -95,10 +96,12 @@ These are focused proofs, not a completed full workspace gate or delivery claim.
   found an overly broad PostgreSQL source-major acceptance in the manifest.
   T025 closes that gap: 19 manifest tests pass, including older/future majors,
   malformed provenance, impossible dates and invalid file metadata. Delivery
-  evidence in T023/T024/T029/T030 remains open.
-- The current feature still requires a green full workspace gate, final image
-  verification on the delivered source, PR CI and post-merge main CI. No push,
-  merge, live-data restore or Notion import has been performed for feature 024.
+  evidence in T023/T029/T030 and the PR portion of T024 was completed by the
+  final delivery run below; T024 remains open for post-merge `main` verification.
+- At this checkpoint the feature still required a green full workspace gate,
+  final image verification on the delivered source, PR CI and post-merge main
+  CI. Those first delivery items are recorded below; the post-merge main run is
+  intentionally still pending and is not presented as green.
 
 ### Additional failure-path verification — 2026-09-05
 
@@ -143,7 +146,8 @@ These are focused proofs, not a completed full workspace gate or delivery claim.
   zero-byte attachment recovery, rejection of directory-shaped upload data,
   idempotent remote retry, loss immediately after remote upload, cancellation
   before rehearsal database creation, invalid restore parents and safe scheduler
-  behavior under clock movement/non-Error failures. Final full gates remain open.
+  behavior under clock movement/non-Error failures. At that checkpoint, final
+  full gates remained open.
 
 - Full gate on bdfdda04 passed all code/style/type checks, 387 files / 3,715
   aggregate tests with every unchanged coverage budget, all eight isolated
@@ -259,8 +263,9 @@ checks pass. Evidence:
 
 The integrated gate at `51baab5f` was deliberately interrupted during coverage
 (exit 130) to fix this reproduced issue. It is not delivery evidence:
-`/tmp/mon-pre-v1-entry-activation-full-gate.log`. The complete gate must restart
-on the corrected commit; PR and main remain pending.
+`/tmp/mon-pre-v1-entry-activation-full-gate.log`. The complete gate was
+subsequently renewed on the delivered source; the PR result is recorded below
+and the post-merge main result remains pending.
 
 The first restarted gate on `85a1cd68` stops at API typechecking: the pinned
 Node types omit FileHandle's EventEmitter methods. The resource test now narrows
@@ -298,7 +303,7 @@ three durable remote failures are retried oldest-first across a service restart;
 failed receipts keep their local files when the remote has no object and delete
 is idempotent; a later exact remote verification permits pruning only the verified
 old copy. This is focused evidence only; full local, image, PR and main delivery
-gates remain T023/T024/T029/T030.
+gates were later closed by the final delivery evidence below.
 
 ### Coverage budget follow-up — 2026-09-12
 
@@ -311,7 +316,8 @@ The legacy comparator correction treats two absent timestamps as equal instead o
 propagating `NaN`, so the identity tie-breaker is reachable and fair. The targeted
 API suite passes **25/25 tests**; API typechecking, Biome checks and diff checks
 also pass. The full `checks:local` gate must be rerun on the resulting commit;
-T023/T024/T029/T030 remain open until that evidence exists.
+T023/T029/T030 were later closed by the local/PR delivery evidence below; T024
+remains open for the post-merge `main` result.
 
 ### T032 — Monthly full-restore rehearsal invitation — 2026-09-12
 
@@ -330,7 +336,7 @@ Focused E2E execution was attempted on this macOS checkout but the configured
 API web server did not become healthy within Playwright's 120-second startup
 window, so no browser pass is claimed here. Web typechecking and formatting/lint
 checks are recorded with the implementation commit; the full delivery gates
-remain T023/T024.
+are recorded in the final delivery evidence below.
 
 The renewed candidate and its delivery gates use repository-pinned Bun 1.4.2.
 References to Bun 1.4.0 elsewhere in this document describe historical checkpoints.
@@ -341,8 +347,8 @@ The standalone 024 delivery branch now includes desktop corrections through
 `a2f2eb9b` and the T029 bounded-reader/type correction from the integrated audit.
 At `c31eabe0`, all 56 archive, PostgreSQL, consistency, complete restore and
 actual A→B wrapping-history cases pass (`/tmp/mon-024-reader-delivery-focus.log`).
-The full 024 local gate and PR/main checks remain required; these focused cases
-are not permission to push. Delivery order remains desktop, UI guidance,
+The full 024 local gate and PR delivery evidence are recorded below. The
+post-merge main check remains pending; delivery order was desktop, UI guidance,
 complete backups, then the integrated audit and remaining pre-V1 features.
 # T030 — Image verifier host boundary
 
@@ -352,8 +358,8 @@ failure locally with Bun absent from PATH. With the receipt parsed by the tested
 image's Bun, the same restricted-host check passes real SQL/blob restoration,
 committed upload prefix, rehearsal and activation against the retained ARM64
 full-backup fixture image. The renewed exact-commit complete local gate and
-remote image verification remain pending. No host runtime dependency or skipped
-recovery assertion was introduced.
+remote image verification were subsequently recorded on the delivered source.
+No host runtime dependency or skipped recovery assertion was introduced.
 
 ## T033 — Backup HTTP/OpenAPI contract convergence — 2026-09-13
 
@@ -366,7 +372,25 @@ correlation-bearing errors without private details. Focused route and contract
 coverage is present in `apps/api/tests/backup-routes.spec.ts` and
 `tests/contract/backup-api.spec.ts`.
 
-This proves the HTTP/OpenAPI boundary only. It does not claim production-image
-restore, bounded archive-reader resources, the host-without-Bun image boundary,
-the complete local gate, PR CI or main CI; T023, T024, T029 and T030 remain
-open.
+This proves the HTTP/OpenAPI boundary only. The production-image restore,
+bounded archive-reader resources, host-without-Bun image boundary, complete
+local gate and PR delivery are recorded in the final evidence below; the
+post-merge main run remains pending.
+
+## Final delivery evidence — PR 175 — 2026-09-13
+
+- Candidate source: exact PR 175 SHA
+  `52dfdc926164f392cf812ead302bddb9662ac356`.
+- T023: real production-image backup/restore verification and Spec Kit
+  convergence completed on that source; the complete `bun run checks:local`
+  gate passed.
+- T029: bounded archive-reader resources were verified on the delivered source,
+  including completed/cancelled reads, archive and recovery coverage, and the
+  existing performance budget.
+- T030: full-image recovery verification passed with the tested image's pinned
+  runtime and without requiring Bun from the host PATH.
+- T024: PR run `34747879571` passed and PR 175 merged as
+  `4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`.
+- The post-merge main run `34748994269` is not yet green. It remains an open
+  integration follow-up for the root agent and is not counted as a successful
+  main-CI proof here.

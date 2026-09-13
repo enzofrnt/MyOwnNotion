@@ -5,7 +5,10 @@ Source préservée : commit local `7dc9d030` et les 150 chemins modifiés/non su
 copiés depuis `/Users/enzofournet/Git/MyOwnNotion`. Le checkout source n'a pas été
 réinitialisé ni modifié par cette reprise.
 
-Runtime : Bun 1.4.0 ; hôte Electron 44.1.1 ; production construite par Bun.
+Runtime actif : Bun 1.4.2 ; hôte Electron 44.1.1 ; production construite par Bun.
+
+Les mentions de Bun 1.4.0 dans les journaux ci-dessous décrivent les essais
+antérieurs ou la régression comparée ; le pin actif de la feature est Bun 1.4.2.
 
 ## Preuves acquises
 
@@ -18,7 +21,7 @@ Runtime : Bun 1.4.0 ; hôte Electron 44.1.1 ; production construite par Bun.
   avec comparaison du contenu chiffré de l'outbox, fichiers natifs, refus des
   liens dangereux, erreurs de connexion et état explicite des mises à jour non
   configurées. Les ajouts sauvegarde native et ouverture du navigateur système
-  ont également passé. Le parcours signé réel vérifie l'écran de report,
+  ont également passé. Le parcours à signature de test vérifie l'écran de report,
   téléchargement corrompu refusé et nouvelle tentative réussie avant handoff.
   Les deux scans axe onboarding/workspace/sécurité et le démarrage hors ligne
   avec édition de texte ont passé lors des contrôles ciblés suivants.
@@ -745,3 +748,54 @@ not a real installed upgrade. The desktop unit project passes 107 cases with
 two Windows-only cases skipped on macOS. Strict root types and Biome pass.
 Complete local and all native remote gates remain pending on the committed
 candidate.
+
+## État de convergence documentaire — T074, T076, T088, T093–T107
+
+La convergence est partielle. Les preuves ciblées restent utiles et sont
+conservées ci-dessus, mais une tâche n'est cochée que lorsque son libellé
+complet est démontré par les preuves disponibles. Les scénarios ciblés et les
+corrections locales ne valent pas, à eux seuls, validation native complète,
+preuve de livraison PR/main, signature d'artefact ou installation réelle.
+
+Restent ouverts :
+
+- T069, pour une nouvelle exécution complète de `bun run checks:local`, des
+  parcours Playwright desktop et du quickstart sur le candidat final ;
+- T073, pour une installation réelle d'une mise à jour autorisée avec
+  téléchargement vérifié et préservation du coffre et de l'outbox ;
+- T074, car les scénarios ciblés existent mais la matrice native complète et
+  l'upgrade release réel ne sont pas démontrés ;
+- T075, pour les artefacts effectivement signés/notarisés, leurs empreintes
+  publiées et un manifest de release exécuté ;
+- T076, car les résultats verts et complets du candidat courant sur PR et
+  `main` ne sont pas encore établis ;
+- T088, car la correction des fixtures doit encore être validée sur les deux
+  architectures natives sans parcours omis ;
+- T093–T096, car les preuves Windows natives, les ACL réelles, le cycle de
+  processus complet et la reprise à froid restent à renouveler sur les runners
+  concernés ;
+- T099, car la préparation Electron et les tests ciblés passent localement,
+  mais le gate complet et les deux jobs Windows requis par le libellé restent
+  ouverts ;
+- T100–T103, car les corrections ciblées sont documentées, tandis que les
+  relectures natives et les gates complets PR/main demandés restent à produire ;
+- T104, car le packaging Bun-only et le smoke ciblés passent, mais
+  l'installateur et les gates complets restent à valider ;
+- T105, car la correction est reproduite sous Bun 1.4.2 et les parcours ciblés
+  passent, mais les checks locaux complets, l'image et les CI PR/main restent
+  requis ;
+- T106, car le correctif Tiptap et les tests ciblés passent, mais les gates
+  locaux, image, PR et `main` restent à renouveler ;
+- T107, car la matrice macOS empaquetée est une preuve ciblée, tandis que la
+  validation locale complète et les cinq cibles natives PR/main restent
+  ouvertes.
+
+T097 et T098 restent cochées pour leur périmètre ciblé : le refus IndexedDB et
+  la conservation des propriétés natives ont été rejoués avec leurs tests
+  dédiés. Cette clôture ciblée ne ferme pas les gates de livraison transversaux
+  encore demandés par les autres tâches.
+
+Les parcours de mise à jour à signature de test, les handoffs vérifiés et les
+tests de rollback ne constituent pas une validation d'un vrai upgrade N→N+1
+sur installateur publié. Aucun installateur signé ou notarisé n'est déclaré
+produit ici.

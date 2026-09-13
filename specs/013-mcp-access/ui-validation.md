@@ -57,13 +57,21 @@ authentication suite owns that coverage.
 
 ## Delivery boundary
 
-The integration owner must run the complete `docs/development.md` gate inventory,
-including `bun run checks:local`, before any push. This focused report is not a
-full-gate or publication claim.
+The integration owner completed the applicable `docs/development.md` gate
+inventory, including `bun run checks:local`, before PR delivery. This report
+retains focused UI evidence and the green PR #175 provenance; post-merge
+`main` verification remains open under T016.
 
 ## Final convergence
 
 T011/T014 implement the remaining settings requirements and T012/T015 provide
 SC-003 evidence. Existing backend evidence plus these owner journeys cover the
 feature's 11 requirements and three success criteria. No missing implementation
-was identified. T016 is the explicit remaining integration/delivery gate.
+was identified. T016 remains open until the post-merge `main` run is green;
+the local and PR portions are evidenced below.
+
+The integrated source is merge
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`; the combined local gate was
+completed before PR delivery and PR #175 passed. The browser evidence above
+remains the feature-local proof; post-merge `main` run `34748994269` is not
+green, and no separate push or merge was performed from this worktree.

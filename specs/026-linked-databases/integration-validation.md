@@ -64,7 +64,8 @@ enveloppes manquantes ou corrompues ; la projection n'ouvre pas les corps de pag
 - Deux suites complémentaires, 14 tests réussis :
   `encryption-read-faults.integration.spec.ts` et `export.contract.spec.ts`.
   Journal : `/tmp/mon-feature-integration-extra.log`.
-- Contrat CI : 35 tests réussis après correction de l'oubli décrit ci-dessous.
+- Contrat CI à ce checkpoint historique : 35 tests réussis après correction de
+  l'oubli décrit ci-dessous. L'inventaire intégré courant en compte 37.
   Journal : `/tmp/mon-feature-integration-ci-impact.log`.
 
 Cela représente 31 suites et 235 tests distincts réussis, avec deux workers
@@ -79,7 +80,7 @@ Le premier contrôle `tests/contract/test-impact.spec.ts` a échoué sur deux
 assertions : `tests/e2e/code-block-ui.spec.ts` manquait dans l'inventaire
 `ci/test-impact.json`. La tâche 027 T014 inscrit ce parcours avec les chemins
 de l'éditeur, du document canonique, de l'état de page et de sa route API.
-Le contrôle complet des 35 assertions passe après correction. Aucune
+Le contrôle complet des 35 assertions de ce checkpoint passe après correction. Aucune
 modification fonctionnelle supplémentaire n'a été nécessaire à l'intégration.
 
 ## Limites et suite de livraison
@@ -179,12 +180,11 @@ Aucun corpus personnel n'est appliqué et aucune matrice navigateur ou gate
 complet n'est relancé ici. Les preuves navigateur antérieures des features
 restent identifiées comme telles.
 
-### Reste à intégrer avant livraison
+### État historique avant la livraison intégrée
 
-T050 et le correctif 024 de clés historiques sont désormais intégrés et
-disposent de preuves ciblées. Il reste à relancer les gates complets sur le
-commit final, puis à obtenir les validations PR et main. Aucun succès de gate
-final n'est encore revendiqué.
+T050 et le correctif 024 de clés historiques étaient alors intégrés et
+disposaient de preuves ciblées. Ce passage précédait la clôture intégrée
+documentée ci-dessous ; il ne décrit pas l'état final.
 
 ## Troisième étape : corrections révélées par la couverture globale
 
@@ -243,7 +243,17 @@ MCP and import integration report:
 The implementation commit supplies T023's initial matrix and completes T033.
 Follow-up commit `4da2c2f9aece80b109ec15551b78af1cae4b76eb`
 completes T023's direct rollback assertions for a missing containment parent;
-the two commits together close T023. Feature 027 T012 and feature 028
-T021 remain open until the complete local gate, every PR check, merge and main
-CI are verified on the final integration commit. No personal Notion source was
-applied.
+the two commits together close T023. Feature 027 T012 has local/PR evidence;
+feature 028 T021 remains open for final `main` verification. No personal
+Notion source was applied.
+
+## Final integrated delivery evidence — exact SHA `52dfdc926164f392cf812ead302bddb9662ac356`
+
+The complete `bun run checks:local` gate passed on the exact integration SHA
+`52dfdc926164f392cf812ead302bddb9662ac356`. PR #175 passed in green run
+`34747879571` and merged normally as
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`. This records the integrated
+026/027 local/PR delivery evidence, including T018, T020 and the related
+cross-feature handoffs.
+Main run `34748994269` is not green and is not claimed as successful; root will
+finalize the remaining main-CI state.
