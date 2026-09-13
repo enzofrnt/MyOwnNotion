@@ -474,6 +474,162 @@ describe("streaming archive writing", () => {
     });
     await expect(stream.next()).rejects.toThrow(/file.*inventory|canonical.*file|manifest.*file/i);
   });
+
+  it("rejects producer preflight mismatches before writing any TAR bytes", async () => {
+    const canonical = emptyCanonical();
+    const structuredDataDigest = digest(
+      Buffer.from(canonicalStructuredDataString({ databases: [], databaseEntries: [] })),
+    );
+    const cases = [
+      {
+        manifest: manifestFor(canonical, [], {
+          canonicalExportDigest: digest(Buffer.from("different")),
+        }),
+        message: /canonical export.*digest/i,
+      },
+      {
+        manifest: manifestFor(canonical, [], { itemCount: 1 }),
+        message: /item count/i,
+      },
+      {
+        manifest: manifestFor(canonical, [], {
+          databaseCount: 1,
+          databaseEntryCount: 0,
+          structuredDataDigest,
+        }),
+        message: /structured counts/i,
+      },
+    ] as const;
+
+    for (const { manifest, message } of cases) {
+      expect(() =>
+        encodeBackupArchive({ manifest, canonicalExport: canonical, files: new Map() }),
+      ).toThrow(message);
+      const stream = streamBackupArchive({
+        manifest,
+        canonicalExport: canonical,
+        readFile: async function* () {},
+      });
+      await expect(stream.next()).rejects.toThrow(message);
+    }
+  });
+
+  it("rejects encoded files that do not satisfy the manifest inventory", () => {
+    const bytes = Buffer.from("authenticated file");
+    const fileDigest = digest(bytes);
+    const canonical = canonicalWithFile(fileDigest.slice("sha256:".length), bytes.byteLength);
+    const manifest = manifestFor(canonical, [{ digest: fileDigest, byteLength: bytes.length }], {
+      formatVersion: 2,
+      itemCount: 1,
+    });
+
+    expect(() =>
+      encodeBackupArchive({ manifest, canonicalExport: canonical, files: new Map() }),
+    ).toThrow(/encoded archive files.*inventory/i);
+    expect(() =>
+      encodeBackupArchive({
+        manifest,
+        canonicalExport: canonical,
+        files: new Map([[fileDigest, Buffer.from("tampered")]]),
+      }),
+    ).toThrow(/authenticated inventory/i);
+    expect(() =>
+      encodeUncheckedBackupArchive({
+        manifest: manifestFor(canonical),
+        canonicalExport: canonical,
+        files: new Map([["sha256:not-a-digest", bytes]]),
+      }),
+    ).toThrow(/sha256 digest/i);
+  });
+
+  it("rejects declared operational state when the archive is missing, altered or miscounted", () => {
+    const canonical = emptyCanonical();
+    const operationalState = emptyInitializingOperationalState();
+    const operationalBytes = Buffer.from(operationalState);
+    const manifest = manifestFor(canonical, [], {
+      formatVersion: 2,
+      operationalFormatVersion: 1,
+      operationalStateDigest: digest(operationalBytes),
+      operationalPageCount: 1,
+      operationalCheckpointCount: 0,
+      operationalUpdateCount: 0,
+    });
+
+    const missing = encodeUncheckedBackupArchive({
+      manifest,
+      canonicalExport: canonical,
+      files: new Map(),
+    });
+    expect(inspectBackupArchive(missing)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/missing the operational page state/i),
+    });
+
+    const altered = encodeUncheckedBackupArchive({
+      manifest,
+      canonicalExport: canonical,
+      operationalState: JSON.stringify({ ...JSON.parse(operationalState), altered: true }),
+      files: new Map(),
+    });
+    expect(inspectBackupArchive(altered)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/operational page state.*digest/i),
+    });
+
+    const miscounted = encodeUncheckedBackupArchive({
+      manifest: { ...manifest, operationalUpdateCount: 1 },
+      canonicalExport: canonical,
+      operationalState,
+      files: new Map(),
+    });
+    expect(inspectBackupArchive(miscounted)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/version and counts/i),
+    });
+  });
+
+  it("rejects malformed V2 content at each reserved boundary before canonical restore", async () => {
+    const cases = [
+      {
+        canonical: JSON.stringify([]),
+        message: /canonical export is not an object/i,
+      },
+      {
+        canonical: JSON.stringify({ items: [null], relationships: [] }),
+        message: /invalid item/i,
+      },
+      {
+        canonical: JSON.stringify({ items: [], relationships: [null] }),
+        message: /invalid relationship/i,
+      },
+      {
+        canonical: JSON.stringify({ items: [], relationships: [{ metadata: [] }] }),
+        message: /relationship metadata/i,
+      },
+      {
+        canonical: JSON.stringify({ items: [], relationships: [{ metadata: { bad: true } }] }),
+        message: /canonical export/i,
+      },
+    ] as const;
+
+    for (const { canonical, message } of cases) {
+      const manifest = manifestFor(canonical, [], { formatVersion: 2 });
+      const stream = streamBackupArchive({
+        manifest,
+        canonicalExport: canonical,
+        readFile: async function* () {},
+      });
+      await expect(stream.next()).rejects.toThrow(message);
+    }
+
+    const missingRelationships = JSON.stringify({ items: [] });
+    const stream = streamBackupArchive({
+      manifest: manifestFor(missingRelationships, [], { formatVersion: 2 }),
+      canonicalExport: missingRelationships,
+      readFile: async function* () {},
+    });
+    await expect(stream.next()).rejects.toThrow(/relationships/i);
+  });
 });
 
 describe("portable TAR framing", () => {
@@ -1109,6 +1265,55 @@ describe("archive content inspection", () => {
         }),
       ).toMatchObject({ ok: false, reason: expect.stringMatching(/replacement character/i) });
     }
+  });
+
+  it("rejects conflicting and unreferenced canonical file inventory entries", () => {
+    const firstDigest = "a".repeat(64);
+    const secondDigest = "b".repeat(64);
+    const conflicting = canonicalWithFiles([
+      { digest: firstDigest, byteLength: 1 },
+      { digest: firstDigest, byteLength: 2 },
+    ]);
+    const conflictingBytes = new Map([[`sha256:${firstDigest}`, Buffer.from("x")]]);
+    expect(
+      inspect({
+        canonical: conflicting,
+        manifest: manifestFor(
+          conflicting,
+          [...conflictingBytes].map(([digest, value]) => ({ digest, byteLength: value.length })),
+          {
+            formatVersion: 2,
+            itemCount: 2,
+          },
+        ),
+        files: conflictingBytes,
+      }),
+    ).toMatchObject({ ok: false, reason: expect.stringMatching(/conflicting sizes/i) });
+
+    const referenced = canonicalWithFile(firstDigest, 1);
+    const unreferenced = emptyCanonical();
+    const unreferencedBytes = Buffer.from("orphan");
+    const unreferencedDigest = digest(unreferencedBytes);
+    expect(
+      inspect({
+        canonical: unreferenced,
+        manifest: manifestFor(unreferenced, [
+          { digest: unreferencedDigest, byteLength: unreferencedBytes.length },
+        ]),
+        files: new Map([[unreferencedDigest, unreferencedBytes]]),
+      }),
+    ).toMatchObject({ ok: false, reason: expect.stringMatching(/does not reference/i) });
+
+    expect(
+      inspect({
+        canonical: referenced,
+        manifest: manifestFor(referenced, [{ digest: `sha256:${secondDigest}`, byteLength: 1 }], {
+          formatVersion: 2,
+          itemCount: 1,
+        }),
+        files: new Map([[`sha256:${secondDigest}`, Buffer.from("x")]]),
+      }),
+    ).toMatchObject({ ok: false, reason: expect.stringMatching(/file reference/i) });
   });
 
   it("keeps longer authored names containing the replacement character", () => {

@@ -15,11 +15,13 @@
 
 import { randomBytes, randomUUID } from "node:crypto";
 import {
+  consumeKitDownload,
   createDatabase,
   createInstallation,
   type DatabaseHandle,
   findActiveKit,
   findPendingKit,
+  runSecurityTransaction,
   schema,
 } from "@myownnotion/database";
 import { openRecoveryKit } from "@myownnotion/domain/security";
@@ -42,7 +44,10 @@ const PAYLOAD = new Uint8Array(Buffer.from("the workspace root key would go here
 
 const key = { available: true };
 
-function service(): RecoveryKitService {
+function service(
+  now: () => Date = () => new Date(),
+  recoveryPayload: () => Promise<Uint8Array> = async () => PAYLOAD,
+): RecoveryKitService {
   return new RecoveryKitService({
     db: handle.db,
     installationId: INSTALLATION_ID,
@@ -50,8 +55,8 @@ function service(): RecoveryKitService {
     workspaceId: WORKSPACE_ID,
     deploymentKey: () => (key.available ? KEY : null),
     supportedKeyGenerations: async () => [1],
-    recoveryPayload: async () => PAYLOAD,
-    now: () => new Date(),
+    recoveryPayload,
+    now,
   });
 }
 
@@ -166,19 +171,131 @@ describe("the one-time download", () => {
 
     const artifact = await driver.download(prepared.kitId);
     expect(artifact.kitId).toBe(prepared.kitId);
+    expect(artifact.deliveryState).toBe("prepared");
+    expect(artifact.downloadConsumedAt).toBeUndefined();
+    expect(
+      openRecoveryKit(
+        artifact,
+        { kind: "deployment-key", deploymentKey: new Uint8Array(KEY) },
+        { requireUsable: false },
+      ),
+    ).toEqual(PAYLOAD);
 
     await expect(driver.download(prepared.kitId)).rejects.toThrow(RecoveryKitError);
+  });
+
+  it("serializes concurrent downloads before either artifact is handed over", async () => {
+    await seedActiveKit();
+    const driver = service();
+    const prepared = await driver.prepareReplacement();
+
+    const outcomes = await Promise.allSettled([
+      driver.download(prepared.kitId),
+      driver.download(prepared.kitId),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === "rejected")).toHaveLength(1);
+    expect((await findPendingKit(handle.db, INSTALLATION_ID))?.deliveryState).toBe(
+      "download-consumed",
+    );
+  });
+
+  it("refuses a download that expires while the request is in flight", async () => {
+    await seedActiveKit();
+    let now = new Date("2026-09-13T09:00:00.000Z");
+    const driver = service(() => now);
+    const prepared = await driver.prepareReplacement();
+
+    now = new Date(prepared.downloadExpiresAt);
+    await expect(driver.download(prepared.kitId)).rejects.toMatchObject({
+      code: "recovery_unavailable",
+    });
+
+    const pending = await findPendingKit(handle.db, INSTALLATION_ID);
+    expect(pending?.id).toBe(prepared.kitId);
+    expect(pending?.deliveryState).toBe("downloadable");
+  });
+
+  it("does not consume an already expired row at the database boundary", async () => {
+    await seedActiveKit();
+    const driver = service(() => new Date("2026-09-13T09:00:00.000Z"));
+    const prepared = await driver.prepareReplacement();
+    const expiredAt = new Date(prepared.downloadExpiresAt);
+
+    const consumed = await runSecurityTransaction(handle.db, (tx) =>
+      consumeKitDownload(tx, {
+        kitId: prepared.kitId,
+        now: new Date(expiredAt.getTime() + 1),
+      }),
+    );
+    expect(consumed).toBe(false);
+    expect((await findPendingKit(handle.db, INSTALLATION_ID))?.deliveryState).toBe("downloadable");
   });
 
   it("refuses confirmation of a kit that was never downloaded", async () => {
     await seedActiveKit();
     const driver = service();
     const prepared = await driver.prepareReplacement();
+    const original = await findActiveKit(handle.db, INSTALLATION_ID);
 
     // An owner cannot have stored a file they never received. This is the one
     // check between "I clicked the button" and an installation whose only kit
     // is a file nobody has.
     await expect(driver.confirm(prepared.kitId)).rejects.toThrow(/not been downloaded/);
+    expect(await findActiveKit(handle.db, INSTALLATION_ID)).toMatchObject({
+      id: original?.id,
+      recoveryEpoch: original?.recoveryEpoch,
+    });
+    const epochs = await handle.db
+      .select()
+      .from(schema.recoveryEpochs)
+      .where(sql`state = 'active'`);
+    expect(epochs).toHaveLength(1);
+    expect(epochs[0]?.epoch).toBe(1);
+  });
+
+  it("refuses a second confirmation without retiring the active replacement", async () => {
+    await seedActiveKit();
+    const driver = service();
+    const replacement = await replace(driver);
+
+    await expect(driver.confirm(replacement)).rejects.toThrow(
+      /not been downloaded|no longer current/,
+    );
+    expect(await findActiveKit(handle.db, INSTALLATION_ID)).toMatchObject({
+      id: replacement,
+      recoveryEpoch: 2,
+    });
+    const epochs = await handle.db
+      .select()
+      .from(schema.recoveryEpochs)
+      .where(sql`state = 'active'`);
+    expect(epochs).toHaveLength(1);
+    expect(epochs[0]?.epoch).toBe(2);
+  });
+
+  it("serializes concurrent confirmations of the same pending kit", async () => {
+    await seedActiveKit();
+    const driver = service();
+    const prepared = await driver.prepareReplacement();
+    await driver.download(prepared.kitId);
+
+    const outcomes = await Promise.allSettled([
+      driver.confirm(prepared.kitId),
+      driver.confirm(prepared.kitId),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === "rejected")).toHaveLength(1);
+    expect(await findActiveKit(handle.db, INSTALLATION_ID)).toMatchObject({
+      id: prepared.kitId,
+      recoveryEpoch: 2,
+    });
+    const epochs = await handle.db
+      .select()
+      .from(schema.recoveryEpochs)
+      .where(sql`state = 'active'`);
+    expect(epochs).toHaveLength(1);
+    expect(epochs[0]?.epoch).toBe(2);
   });
 
   it("rejects an earlier unfinished attempt when a new one is prepared", async () => {
@@ -210,12 +327,12 @@ describe("what the kit needs to be opened", () => {
       ),
     ).toEqual(PAYLOAD);
 
-    await expect(async () =>
+    expect(() =>
       openRecoveryKit(
         { ...artifact, authorizationState: "active", deliveryState: "confirmed" },
         { kind: "deployment-key", deploymentKey: new Uint8Array(32).fill(3) },
       ),
-    ).rejects.toThrow();
+    ).toThrow();
   });
 
   it("says so in every response", async () => {
@@ -275,6 +392,34 @@ describe("the epoch", () => {
     const rows = await handle.db.select().from(schema.recoveryEpochs).where(sql`state = 'active'`);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.epoch).toBe(2);
+  });
+
+  it("allocates a raced pair of preparations under one recovery-state lock", async () => {
+    await seedActiveKit();
+    let waiting = 0;
+    let release!: () => void;
+    const bothPayloadsReady = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const gatedPayload = async (): Promise<Uint8Array> => {
+      waiting += 1;
+      if (waiting === 2) release();
+      await bothPayloadsReady;
+      return PAYLOAD;
+    };
+
+    const outcomes = await Promise.allSettled([
+      service(() => new Date(), gatedPayload).prepareReplacement(),
+      service(() => new Date(), gatedPayload).prepareReplacement(),
+    ]);
+    expect(outcomes.some((outcome) => outcome.status === "fulfilled")).toBe(true);
+
+    const pendingRows = await handle.db
+      .select()
+      .from(schema.recoveryKits)
+      .where(sql`authorization_state = 'provisional'`);
+    expect(pendingRows).toHaveLength(1);
+    expect(pendingRows[0]?.recoveryEpoch).toBe(2);
   });
 });
 

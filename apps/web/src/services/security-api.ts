@@ -56,7 +56,7 @@ export type ClientProblem = Omit<SecurityProblemDto, "correlationId"> & {
 };
 
 /**
- * What `GET /v1/security/rotation` answers.
+ * What `GET /v1/security/rotations` answers.
  *
  * Declared here rather than imported because the route composes it inline
  * from the policy view and the running operations; this is the shape of that
@@ -77,7 +77,7 @@ export interface RotationStatusView {
   }[];
 }
 
-/** What `GET /v1/security/recovery` answers. */
+/** What `GET /v1/security/recovery-kits` answers. */
 export interface RecoveryStatusView {
   readonly active: {
     readonly kitId: string;
@@ -91,6 +91,22 @@ export interface RecoveryStatusView {
   } | null;
   /** What the owner must also keep. Part of the payload, not documentation. */
   readonly notice: string;
+}
+
+export interface PreparedRecoveryKit {
+  readonly kitId: string;
+  readonly recoveryEpoch: number;
+  readonly downloadExpiresAt: string;
+  readonly notice: string;
+}
+
+export interface ConfirmedRecoveryKit {
+  readonly recoveryEpoch: number;
+  readonly notice: string;
+}
+
+export interface RevokedRecoveryKit {
+  readonly revocationCode: string;
 }
 
 /** Safe backup facts returned to the authenticated owner. */
@@ -124,6 +140,14 @@ export interface BackupRehearsalResult {
 export type SecurityResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly problem: ClientProblem };
+
+/**
+ * A download refusal also records whether the server has already consumed the
+ * one-time response. A consumed response must never be retried by the UI.
+ */
+export type RecoveryDownloadResult =
+  | { readonly ok: true; readonly value: Blob }
+  | { readonly ok: false; readonly problem: ClientProblem; readonly consumed: boolean };
 
 const UNREACHABLE: ClientProblem = {
   type: "https://myownnotion.dev/problems/network",
@@ -559,11 +583,11 @@ export class SecurityApi {
    * in front of it would discourage looking.
    */
   async rotationStatus(): Promise<SecurityResult<RotationStatusView>> {
-    return await this.#authenticatedJson<RotationStatusView>("/v1/security/rotation");
+    return await this.#authenticatedJson<RotationStatusView>("/v1/security/rotations");
   }
 
   async recoveryStatus(): Promise<SecurityResult<RecoveryStatusView>> {
-    return await this.#authenticatedJson<RecoveryStatusView>("/v1/security/recovery");
+    return await this.#authenticatedJson<RecoveryStatusView>("/v1/security/recovery-kits");
   }
 
   async backupStatus(): Promise<SecurityResult<BackupStatusView>> {
@@ -588,8 +612,52 @@ export class SecurityApi {
     });
   }
 
-  async prepareRecoveryReplacement(): Promise<SecurityResult<{ kitId: string }>> {
-    return await this.#authenticatedJson<{ kitId: string }>("/v1/security/recovery", {
+  async prepareRecoveryReplacement(): Promise<SecurityResult<PreparedRecoveryKit>> {
+    return await this.#authenticatedJson<PreparedRecoveryKit>("/v1/security/recovery-kits", {
+      method: "POST",
+      csrf: true,
+    });
+  }
+
+  /** Downloads a replacement kit as the one-time JSON attachment. */
+  async downloadRecoveryKit(kitId: string): Promise<RecoveryDownloadResult> {
+    const response = await this.#sendAuthenticated(
+      `/v1/security/recovery-kits/${encodeURIComponent(kitId)}/download`,
+      { method: "POST", csrf: true, headers: { Accept: "application/json" } },
+    );
+    if (response === null) {
+      return { ok: false, problem: UNREACHABLE, consumed: false };
+    }
+    if (!response.ok) {
+      const problem = await this.#problem(response);
+      return {
+        ok: false,
+        problem,
+        consumed: response.status === 409 && problem.code === "conflict",
+      };
+    }
+    try {
+      return { ok: true, value: await response.blob() };
+    } catch {
+      return { ok: false, problem: UNREACHABLE, consumed: true };
+    }
+  }
+
+  /** Confirms storage after the owner has downloaded the replacement file. */
+  async confirmRecoveryKit(kitId: string): Promise<SecurityResult<ConfirmedRecoveryKit>> {
+    return await this.#authenticatedJson<ConfirmedRecoveryKit>(
+      `/v1/security/recovery-kits/${encodeURIComponent(kitId)}/confirm`,
+      {
+        method: "POST",
+        csrf: true,
+        body: JSON.stringify({ storedOffline: true }),
+      },
+    );
+  }
+
+  /** Revokes the currently active recovery kit. */
+  async revokeRecoveryKit(): Promise<SecurityResult<RevokedRecoveryKit>> {
+    return await this.#authenticatedJson<RevokedRecoveryKit>("/v1/security/recovery-kits/revoke", {
       method: "POST",
       csrf: true,
     });

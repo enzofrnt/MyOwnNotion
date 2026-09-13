@@ -336,6 +336,429 @@ describe("operational archive envelope", () => {
     expect(() => readPageOperationArchive(invalidUpdate)).toThrow(/U\+0000/);
   });
 
+  it("rejects malformed checkpoint, update, frontier, ambiguity and conversion fields", async () => {
+    const { archive } = await validArchive({ withUpdate: true });
+    const page = archive.pages[0];
+    const checkpoint = page?.checkpoints[0];
+    const update = page?.updates[0];
+    if (page === undefined || checkpoint === undefined || update === undefined) {
+      throw new Error("invalid corruption matrix fixture");
+    }
+    const frontier = page.currentFrontier ?? checkpoint.frontier;
+    const deviceFrontier = {
+      deviceId: generateUuidV7(),
+      frontier,
+      frontierDigest: "a".repeat(64),
+      confirmedPageSequence: 0,
+      recordVersion: 1,
+      lastConfirmedAt: "2026-08-23T10:00:01.000Z",
+      deviceState: "authorized" as const,
+    };
+    const ambiguity = {
+      id: generateUuidV7(),
+      logicalKey: "matrix-ambiguity",
+      kind: "schema" as const,
+      status: "open" as const,
+      detailsBytes: "",
+      sourceUpdateIds: [update.id],
+      openedAt: "2026-08-23T10:00:01.000Z",
+      resolvedAt: null,
+      resolutionRevisionId: null,
+    };
+    const conversion = {
+      branchId: generateUuidV7(),
+      requestDigest: "b".repeat(64),
+      status: "sending" as const,
+      responseBytes: null,
+      checkpointId: null,
+      conversionUpdateIds: [],
+      localDocumentDigest: "c".repeat(64),
+      createdAt: "2026-08-23T10:00:01.000Z",
+      convertedAt: null,
+    };
+    const cases: Array<{ readonly candidate: unknown; readonly message: RegExp }> = [
+      {
+        candidate: withPage(archive, {
+          checkpoints: [{ ...checkpoint, throughPageSequence: 0.5 }],
+        }),
+        message: /checkpoints\[0\]\.throughPageSequence.*integer/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          checkpoints: [{ ...checkpoint, frontier: null as never }],
+        }),
+        message: /checkpoints\[0\]\.frontier.*invalid shape/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          checkpoints: [{ ...checkpoint, snapshotBytes: "A" }],
+        }),
+        message: /checkpoints\[0\]\.snapshotBytes.*canonical base64url/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          checkpoints: [{ ...checkpoint, snapshotDigest: "bad" }],
+        }),
+        message: /checkpoints\[0\]\.snapshotDigest.*SHA-256/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          checkpoints: [{ ...checkpoint, canonicalDigest: "bad" }],
+        }),
+        message: /checkpoints\[0\]\.canonicalDigest.*SHA-256/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          checkpoints: [{ ...checkpoint, revisionId: "revision" as Uuid }],
+        }),
+        message: /checkpoints\[0\]\.revisionId.*UUID/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          checkpoints: [{ ...checkpoint, state: "unknown" as never }],
+        }),
+        message: /checkpoints\[0\]\.state.*invalid value/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          checkpoints: [{ ...checkpoint, createdAt: "yesterday" }],
+        }),
+        message: /checkpoints\[0\]\.createdAt.*timestamp/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          checkpoints: [{ ...checkpoint, verifiedAt: "yesterday" }],
+        }),
+        message: /checkpoints\[0\]\.verifiedAt.*timestamp/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          updates: [{ ...update, pageSequence: 0 }],
+        }),
+        message: /updates\[0\]\.pageSequence.*integer >= 1/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          updates: [{ ...update, authoredByDeviceId: "device" as Uuid }],
+        }),
+        message: /updates\[0\]\.authoredByDeviceId.*UUID/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          updates: [{ ...update, baseFrontier: null, resultFrontier: null as never }],
+        }),
+        message: /updates\[0\]\.resultFrontier.*invalid shape/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          updates: [{ ...update, updateBytes: "A" }],
+        }),
+        message: /updates\[0\]\.updateBytes.*canonical base64url/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          updates: [{ ...update, updateDigest: "bad" }],
+        }),
+        message: /updates\[0\]\.updateDigest.*SHA-256/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          updates: [{ ...update, status: "pending" as never }],
+        }),
+        message: /updates\[0\]\.status.*invalid value/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          updates: [{ ...update, failureCode: 7 as never }],
+        }),
+        message: /updates\[0\]\.failureCode.*string/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          updates: [{ ...update, acceptedAt: "yesterday" }],
+        }),
+        message: /updates\[0\]\.acceptedAt.*timestamp/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          updates: [{ ...update, compactedAt: "yesterday" }],
+        }),
+        message: /updates\[0\]\.compactedAt.*timestamp/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          deviceFrontiers: [{ ...deviceFrontier, frontier: null as never }],
+        }),
+        message: /deviceFrontiers\[0\]\.frontier.*invalid shape/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          deviceFrontiers: [{ ...deviceFrontier, frontierDigest: "bad" }],
+        }),
+        message: /deviceFrontiers\[0\]\.frontierDigest.*SHA-256/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          deviceFrontiers: [{ ...deviceFrontier, confirmedPageSequence: -1 }],
+        }),
+        message: /deviceFrontiers\[0\]\.confirmedPageSequence.*integer/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          deviceFrontiers: [{ ...deviceFrontier, recordVersion: 0 }],
+        }),
+        message: /deviceFrontiers\[0\]\.recordVersion.*integer >= 1/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          deviceFrontiers: [{ ...deviceFrontier, lastConfirmedAt: "yesterday" }],
+        }),
+        message: /deviceFrontiers\[0\]\.lastConfirmedAt.*timestamp/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          deviceFrontiers: [{ ...deviceFrontier, deviceState: "unknown" as never }],
+        }),
+        message: /deviceFrontiers\[0\]\.deviceState.*invalid value/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          ambiguities: [{ ...ambiguity, logicalKey: 7 as never }],
+        }),
+        message: /ambiguities\[0\]\.logicalKey.*string/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          ambiguities: [{ ...ambiguity, kind: "unknown" as never }],
+        }),
+        message: /ambiguities\[0\]\.kind.*invalid value/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          ambiguities: [{ ...ambiguity, status: "unknown" as never }],
+        }),
+        message: /ambiguities\[0\]\.status.*invalid value/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          ambiguities: [{ ...ambiguity, detailsBytes: "A" }],
+        }),
+        message: /ambiguities\[0\]\.detailsBytes.*canonical base64url/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          ambiguities: [{ ...ambiguity, sourceUpdateIds: null as never }],
+        }),
+        message: /ambiguities\[0\]\.sourceUpdateIds.*invalid shape/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          ambiguities: [{ ...ambiguity, sourceUpdateIds: ["update"] as never }],
+        }),
+        message: /ambiguities\[0\]\.sourceUpdateIds\[0\].*UUID/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          ambiguities: [{ ...ambiguity, openedAt: "yesterday" }],
+        }),
+        message: /ambiguities\[0\]\.openedAt.*timestamp/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          ambiguities: [{ ...ambiguity, resolvedAt: "yesterday" }],
+        }),
+        message: /ambiguities\[0\]\.resolvedAt.*timestamp/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          ambiguities: [{ ...ambiguity, resolutionRevisionId: "revision" as Uuid }],
+        }),
+        message: /ambiguities\[0\]\.resolutionRevisionId.*UUID/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          legacyBranchConversions: [{ ...conversion, requestDigest: "bad" }],
+        }),
+        message: /legacyBranchConversions\[0\]\.requestDigest.*SHA-256/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          legacyBranchConversions: [{ ...conversion, status: "unknown" as never }],
+        }),
+        message: /legacyBranchConversions\[0\]\.status.*invalid value/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          legacyBranchConversions: [{ ...conversion, responseBytes: "A" }],
+        }),
+        message: /legacyBranchConversions\[0\]\.responseBytes.*canonical base64url/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          legacyBranchConversions: [{ ...conversion, checkpointId: "checkpoint" as Uuid }],
+        }),
+        message: /legacyBranchConversions\[0\]\.checkpointId.*UUID/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          legacyBranchConversions: [{ ...conversion, conversionUpdateIds: null as never }],
+        }),
+        message: /legacyBranchConversions\[0\]\.conversionUpdateIds.*invalid shape/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          legacyBranchConversions: [{ ...conversion, conversionUpdateIds: ["update"] as never }],
+        }),
+        message: /legacyBranchConversions\[0\]\.conversionUpdateIds\[0\].*UUID/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          legacyBranchConversions: [{ ...conversion, localDocumentDigest: "bad" }],
+        }),
+        message: /legacyBranchConversions\[0\]\.localDocumentDigest.*SHA-256/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          legacyBranchConversions: [{ ...conversion, createdAt: "yesterday" }],
+        }),
+        message: /legacyBranchConversions\[0\]\.createdAt.*timestamp/iu,
+      },
+      {
+        candidate: withPage(archive, {
+          legacyBranchConversions: [{ ...conversion, convertedAt: "yesterday" }],
+        }),
+        message: /legacyBranchConversions\[0\]\.convertedAt.*timestamp/iu,
+      },
+    ];
+    for (const { candidate, message } of cases) {
+      expect(() => readPageOperationArchive(candidate)).toThrow(message);
+    }
+  });
+
+  it("round-trips a rich valid archive with every optional record state", async () => {
+    const { archive, head } = await validArchive({ withUpdate: true });
+    const page = archive.pages[0];
+    const checkpoint = page?.checkpoints[0];
+    const update = page?.updates[0];
+    if (page === undefined || checkpoint === undefined || update === undefined) {
+      throw new Error("invalid rich archive fixture");
+    }
+
+    const currentCheckpoint = await head.checkpoint();
+    const currentProjection = await head.project();
+    const currentCheckpointId = generateUuidV7();
+    const currentFrontier = {
+      versionVector: encoded(currentCheckpoint.versionVector),
+      frontiers: encoded(currentCheckpoint.frontiers),
+    };
+    const compactedUpdate = {
+      ...update,
+      baseFrontier: null,
+      updateBytes: null,
+      compactedAt: "2026-08-23T10:00:02.000Z",
+    };
+    const deviceFrontierDigest = await sha256Hex(
+      Buffer.from(currentFrontier.versionVector, "base64url"),
+    );
+    const currentDevice = {
+      deviceId: generateUuidV7(),
+      frontier: currentFrontier,
+      frontierDigest: deviceFrontierDigest,
+      confirmedPageSequence: 1,
+      recordVersion: 1,
+      lastConfirmedAt: "2026-08-23T10:00:02.000Z",
+      deviceState: "authorized" as const,
+    };
+    const revokedDevice = {
+      ...currentDevice,
+      deviceId: generateUuidV7(),
+      deviceState: "revoked" as const,
+    };
+    const openAmbiguity = {
+      id: generateUuidV7(),
+      logicalKey: "rich-open",
+      kind: "schema" as const,
+      status: "open" as const,
+      detailsBytes: encoded(Buffer.from("open details")),
+      sourceUpdateIds: [update.id],
+      openedAt: "2026-08-23T10:00:01.000Z",
+      resolvedAt: null,
+      resolutionRevisionId: null,
+    };
+    const resolvedAmbiguity = {
+      ...openAmbiguity,
+      id: generateUuidV7(),
+      logicalKey: "rich-resolved",
+      status: "resolved-custom" as const,
+      resolvedAt: "2026-08-23T10:00:02.000Z",
+    };
+    const conversions = [
+      {
+        branchId: generateUuidV7(),
+        requestDigest: "a".repeat(64),
+        status: "sending" as const,
+        responseBytes: null,
+        checkpointId: null,
+        conversionUpdateIds: [],
+        localDocumentDigest: "b".repeat(64),
+        createdAt: "2026-08-23T10:00:01.000Z",
+        convertedAt: null,
+      },
+      {
+        branchId: generateUuidV7(),
+        requestDigest: "c".repeat(64),
+        status: "blocked" as const,
+        responseBytes: null,
+        checkpointId: null,
+        conversionUpdateIds: [update.id],
+        localDocumentDigest: "d".repeat(64),
+        createdAt: "2026-08-23T10:00:01.000Z",
+        convertedAt: null,
+      },
+      {
+        branchId: generateUuidV7(),
+        requestDigest: "e".repeat(64),
+        status: "converted" as const,
+        responseBytes: encoded(Buffer.from("conversion response")),
+        checkpointId: currentCheckpointId,
+        conversionUpdateIds: [update.id],
+        localDocumentDigest: "f".repeat(64),
+        createdAt: "2026-08-23T10:00:01.000Z",
+        convertedAt: "2026-08-23T10:00:02.000Z",
+      },
+    ];
+    const rich = withPage(archive, {
+      currentCheckpointId,
+      currentFrontier,
+      operationalDigest: currentProjection.operationalDigest,
+      canonicalDigest: currentProjection.canonicalDigest,
+      updatedAt: "2026-08-23T10:00:02.000Z",
+      checkpoints: [
+        {
+          id: currentCheckpointId,
+          throughPageSequence: 1,
+          frontier: currentFrontier,
+          snapshotBytes: encoded(currentCheckpoint.bytes),
+          snapshotDigest: currentCheckpoint.digest,
+          canonicalDigest: currentProjection.canonicalDigest,
+          revisionId: generateUuidV7(),
+          state: "retained",
+          createdAt: "2026-08-23T10:00:02.000Z",
+          verifiedAt: "2026-08-23T10:00:02.500Z",
+        },
+      ],
+      updates: [compactedUpdate],
+      deviceFrontiers: [currentDevice, revokedDevice],
+      ambiguities: [openAmbiguity, resolvedAmbiguity],
+      legacyBranchConversions: conversions,
+    });
+
+    const serialized = pageOperationArchiveString(rich);
+    const restored = readPageOperationArchive(JSON.parse(serialized));
+    expect(restored).toEqual(rich);
+    await expect(service().verify(restored)).resolves.toBeUndefined();
+  });
+
   it("deduplicates device references and lets an explicit revoked frontier win", () => {
     const activeId = generateUuidV7();
     const revokedId = generateUuidV7();
@@ -384,7 +807,24 @@ describe("operational archive envelope", () => {
 
     await service().verifyDeviceReferences(tx, archive);
 
+    expect(query.where).toHaveBeenCalledTimes(1);
+    const predicateContains = (
+      value: unknown,
+      needle: string,
+      seen = new Set<object>(),
+    ): boolean => {
+      if (value === needle) return true;
+      if (typeof value !== "object" || value === null || seen.has(value)) return false;
+      seen.add(value);
+      return Object.values(value).some((nested) => predicateContains(nested, needle, seen));
+    };
+    expect(predicateContains(query.where.mock.calls[0]?.[0], deviceId)).toBe(true);
     expect(query.for).toHaveBeenCalledWith("key share");
+
+    query.for.mockResolvedValueOnce([]);
+    await expect(service().verifyDeviceReferences(tx, archive)).rejects.toThrow(
+      /missing an archived authorized device/u,
+    );
   });
 
   it("rejects SQL state invariants before verification", async () => {

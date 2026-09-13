@@ -22,6 +22,7 @@ import {
   rotationOperations,
   rotationPolicies,
 } from "../../schema/security/index.ts";
+import { isUniqueViolation } from "./repository-types.ts";
 
 export type RotationKind = "wrapping-key" | "data-key";
 export type RotationMode = "scheduled" | "emergency";
@@ -65,6 +66,7 @@ export interface RotationOperationRecord {
   readonly cursor: string;
   readonly processedCount: number;
   readonly totalCount: number;
+  readonly failureCode: string | null;
 }
 
 export class RotationRepositoryError extends Error {
@@ -141,23 +143,36 @@ export async function startRotationOperation(
       `a ${input.kind} rotation is already running`,
     );
   }
-  const [row] = await tx
-    .insert(rotationOperations)
-    .values({
-      id: input.id,
-      installationId: input.installationId,
-      policyId: input.policyId,
-      kind: input.kind,
-      mode: input.mode,
-      fromVersionOrGeneration: input.fromVersionOrGeneration,
-      toVersionOrGeneration: input.toVersionOrGeneration,
-      phase: "planned",
-      cursor: "",
-      processedCount: 0,
-      totalCount: input.totalCount,
-      ...(input.auditReason === undefined ? {} : { auditReason: input.auditReason }),
-    })
-    .returning();
+  let row: typeof rotationOperations.$inferSelect | undefined;
+  try {
+    [row] = await tx
+      .insert(rotationOperations)
+      .values({
+        id: input.id,
+        installationId: input.installationId,
+        policyId: input.policyId,
+        kind: input.kind,
+        mode: input.mode,
+        fromVersionOrGeneration: input.fromVersionOrGeneration,
+        toVersionOrGeneration: input.toVersionOrGeneration,
+        phase: "planned",
+        cursor: "",
+        processedCount: 0,
+        totalCount: input.totalCount,
+        ...(input.auditReason === undefined ? {} : { auditReason: input.auditReason }),
+      })
+      .returning();
+  } catch (error) {
+    // The lookup above is only an early refusal. Two transactions can both
+    // pass it, so the partial unique index is the authoritative race guard.
+    if (isUniqueViolation(error, "rotation_operations_active_unique")) {
+      throw new RotationRepositoryError(
+        "rotation_in_progress",
+        `a ${input.kind} rotation is already running`,
+      );
+    }
+    throw error;
+  }
   return toOperation(row as typeof rotationOperations.$inferSelect);
 }
 
@@ -173,7 +188,27 @@ function toOperation(row: typeof rotationOperations.$inferSelect): RotationOpera
     cursor: row.cursor,
     processedCount: row.processedCount,
     totalCount: row.totalCount,
+    failureCode: row.failureCode ?? null,
   };
+}
+
+/** Finds one operation only inside the caller's installation scope. */
+export async function findRotationOperation(
+  executor: Executor,
+  input: { installationId: string; operationId: string },
+): Promise<RotationOperationRecord | null> {
+  const rows = await executor
+    .select()
+    .from(rotationOperations)
+    .where(
+      and(
+        eq(rotationOperations.installationId, input.installationId),
+        eq(rotationOperations.id, input.operationId),
+      ),
+    )
+    .limit(1);
+  const row = rows[0];
+  return row === undefined ? null : toOperation(row);
 }
 
 /** The unfinished operation for a kind, if there is one. */
@@ -244,7 +279,12 @@ export async function recordRotationCheckpoint(
 export async function findLatestCheckpoint(
   executor: Executor,
   operationId: string,
-): Promise<{ sequence: number; cursor: string; processedCount: number } | null> {
+): Promise<{
+  sequence: number;
+  cursor: string;
+  processedCount: number;
+  checkpointDigest: string;
+} | null> {
   const rows = await executor
     .select()
     .from(rotationCheckpoints)
@@ -254,7 +294,12 @@ export async function findLatestCheckpoint(
   const row = rows[0];
   return row === undefined
     ? null
-    : { sequence: row.sequence, cursor: row.cursor, processedCount: row.processedCount };
+    : {
+        sequence: row.sequence,
+        cursor: row.cursor,
+        processedCount: row.processedCount,
+        checkpointDigest: row.checkpointDigest,
+      };
 }
 
 export async function finishRotationOperation(

@@ -58,7 +58,7 @@ import { PageAmbiguityService } from "./page-state/page-ambiguity-service.ts";
 import { PageHistoryService } from "./page-state/page-history-service.ts";
 import { PageOperationCrypto } from "./page-state/page-operation-crypto.ts";
 import { PageOperationService } from "./page-state/page-operation-service.ts";
-import { registerErrorHandling } from "./plugins/errors.ts";
+import { registerErrorHandling, sendSecurityProblem } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
 import { registerProtocolAnnouncement } from "./plugins/protocol.ts";
 import { PageAdvanceNotifier } from "./realtime/page-advance-notifier.ts";
@@ -84,6 +84,7 @@ import { registerPlacementRoutes } from "./routes/placements.ts";
 import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
 import { registerSearchRoutes } from "./routes/search.ts";
+import { registerSecurityAuditRoutes } from "./routes/security-audit.ts";
 import { registerRecoveryRoutes } from "./routes/security-recovery.ts";
 import { registerRotationRoutes } from "./routes/security-rotation.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
@@ -99,6 +100,7 @@ import { DeviceService } from "./security/device-service.ts";
 import { assertStorageTransitionReady } from "./security/file-storage-transition-guard.ts";
 import type { KeyHierarchy } from "./security/key-hierarchy.ts";
 import { createOwnerPrincipalResolver } from "./security/owner-principal.ts";
+import { checkRouteReadiness } from "./security/private-route-guard.ts";
 import type { ProtectedContent } from "./security/protected-content.ts";
 import { INSTALLATION_ID } from "./security/protected-content-runtime.ts";
 import { isWebSocketUpgradeRequest } from "./security/realtime-authorization.ts";
@@ -107,6 +109,7 @@ import {
   attachRequestContext,
   createRequestContext,
   type RequestPrincipal,
+  requestContext,
   updateRequestContext,
 } from "./security/request-context.ts";
 import { RotationPolicyService } from "./security/rotation-policy-service.ts";
@@ -500,10 +503,27 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     app.addHook("preHandler", (request, reply, done) => {
       const route = request.routeOptions.url ?? "";
       if (!isWebSocketUpgradeRequest(request) && requiresOwnerHttpAccess(route)) {
+        const checkRouteReadinessBeforeCredentialProof = (): boolean => {
+          const readiness = checkRouteReadiness(requestContext(request), route, request.method);
+          if (readiness.ready) return true;
+          sendSecurityProblem(reply, {
+            code: readiness.code,
+            correlationId: requestContext(request).correlationId,
+          });
+          return false;
+        };
+
+        // A valid owner session is already resolved by onRequest. Evaluate
+        // readiness before CSRF so a missing deployment key is reported as the
+        // installation failure it is, rather than as a misleading CSRF error.
+        const ownerAlreadyResolved = requestContext(request).principal.kind === "owner";
+        if (ownerAlreadyResolved && !checkRouteReadinessBeforeCredentialProof()) return;
+
         const owner = requireOwner(request, reply, {
           csrf: !["GET", "HEAD", "OPTIONS"].includes(request.method),
         });
         if (owner === null) return;
+        if (!ownerAlreadyResolved && !checkRouteReadinessBeforeCredentialProof()) return;
       }
       done();
     });
@@ -568,6 +588,11 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       audit,
       installationId: INSTALLATION_ID,
       now,
+      require: requireOwner,
+    });
+    registerSecurityAuditRoutes(app, {
+      db: database.db,
+      installationId: INSTALLATION_ID,
       require: requireOwner,
     });
     const rotationScheduler = new RotationScheduler({

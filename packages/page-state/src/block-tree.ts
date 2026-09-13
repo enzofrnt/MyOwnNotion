@@ -744,6 +744,7 @@ export function insertOperationalTableRow(
   beforeRowId: Uuid | null,
 ): void {
   const tree = getOperationalBlockTree(doc);
+  assertUniqueOperationalIdentities(tree);
   const tableNode = operationalTableNode(doc, tableId);
   const columns = tableColumns(tableNode, `block ${tableId}`);
   if (row.cells.length !== columns.length) {
@@ -797,6 +798,7 @@ export function insertOperationalTableColumn(
   beforeColumnId: Uuid | null,
 ): void {
   const tree = getOperationalBlockTree(doc);
+  assertUniqueOperationalIdentities(tree);
   const tableNode = operationalTableNode(doc, tableId);
   const columns = tableColumns(tableNode, `block ${tableId}`);
   if (columns.some(({ id }) => id === column.id)) {
@@ -807,6 +809,14 @@ export function insertOperationalTableColumn(
   if (cellsByRow.size !== rows.length || cells.length !== rows.length) {
     throw new BlockTreeOperationError("a new table column needs exactly one cell per row");
   }
+  const rowsWithCells = rows.map((rowNode) => {
+    const rowId = nodeIdentity(rowNode);
+    const cell = cellsByRow.get(rowId);
+    if (cell === undefined) {
+      throw new BlockTreeOperationError(`new column has no cell for row ${rowId}`);
+    }
+    return { rowNode, cell };
+  });
   const identities = cells.flatMap(({ cell }) => [
     cell.id,
     ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
@@ -818,16 +828,34 @@ export function insertOperationalTableColumn(
   if (index < 0) {
     throw new BlockTreeOperationError(`column ${beforeColumnId} is not in table ${tableId}`);
   }
+  const current = operationalBlockSnapshot(doc, tableId);
+  if (current.type !== "table") {
+    throw new BlockTreeOperationError(`${tableId} is not a table`);
+  }
+  const candidateRows = current.rows.map((row) => {
+    const cell = cellsByRow.get(row.id);
+    if (cell === undefined) {
+      throw new BlockTreeOperationError(`new column has no cell for row ${row.id}`);
+    }
+    return {
+      ...row,
+      cells: [...row.cells.slice(0, index), cell, ...row.cells.slice(index)],
+    };
+  });
+  validateInputDocument({
+    blocks: [
+      {
+        ...current,
+        columns: [...current.columns.slice(0, index), column, ...current.columns.slice(index)],
+        rows: candidateRows,
+      },
+    ],
+  });
   mutableTableColumns(tableNode, `block ${tableId}`).insert(index, {
     id: column.id,
     width: column.width,
   });
-  for (const rowNode of rows) {
-    const rowId = nodeIdentity(rowNode);
-    const cell = cellsByRow.get(rowId);
-    if (cell === undefined) {
-      throw new BlockTreeOperationError(`new column has no cell for row ${rowId}`);
-    }
+  for (const { rowNode, cell } of rowsWithCells) {
     const cellNode = rowNode.createNode(index);
     setNodeHeader(cellNode, cell.id, "tableCell");
     cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, column.id);
@@ -839,6 +867,7 @@ export function insertOperationalTableColumn(
 
 export function deleteOperationalTableColumn(doc: LoroDoc, tableId: Uuid, columnId: Uuid): void {
   const tree = getOperationalBlockTree(doc);
+  assertUniqueOperationalIdentities(tree);
   const tableNode = operationalTableNode(doc, tableId);
   const columns = tableColumns(tableNode, `block ${tableId}`);
   if (columns.length <= 1) {
@@ -846,7 +875,9 @@ export function deleteOperationalTableColumn(doc: LoroDoc, tableId: Uuid, column
   }
   const index = columns.findIndex(({ id }) => id === columnId);
   if (index < 0) throw new BlockTreeOperationError(`column ${columnId} is not in table ${tableId}`);
-  mutableTableColumns(tableNode, `block ${tableId}`).delete(index, 1);
+  const current = operationalBlockSnapshot(doc, tableId);
+  validateInputDocument({ blocks: [current] });
+  const targets: LoroTreeNode[] = [];
   for (const rowNode of operationalTableRows(tableNode)) {
     const cells = rowNode.children() ?? [];
     const target =
@@ -856,8 +887,10 @@ export function deleteOperationalTableColumn(doc: LoroDoc, tableId: Uuid, column
         `row ${nodeIdentity(rowNode)} has no cell for column ${columnId}`,
       );
     }
-    tree.delete(target.id);
+    targets.push(target);
   }
+  mutableTableColumns(tableNode, `block ${tableId}`).delete(index, 1);
+  for (const target of targets) tree.delete(target.id);
 }
 
 export function operationalBlockSnapshot(doc: LoroDoc, blockId: Uuid): CanonicalBlockV3 {

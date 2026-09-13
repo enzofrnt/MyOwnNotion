@@ -349,6 +349,27 @@ describe("buildCanonicalExport", () => {
     expect(validateCanonicalExport(v2 as never).map((issue) => issue.code)).toContain("shape.item");
   });
 
+  it("accepts a zero schema version but requires positive page-document versions", () => {
+    const current = consistentFixture();
+    expect(validateCanonicalExport({ ...current, schemaVersion: 0 })).toEqual([]);
+    const first = current.items[0];
+    if (first === undefined || first.pageDocument === null) throw new Error("fixture missing");
+    const invalid = {
+      ...current,
+      items: current.items.map((entry) =>
+        entry.id === first.id
+          ? {
+              ...entry,
+              pageDocument: { ...first.pageDocument, formatVersion: 0 },
+            }
+          : entry,
+      ),
+    };
+    expect(validateCanonicalExport(invalid as never).map((issue) => issue.code)).toContain(
+      "shape.item",
+    );
+  });
+
   it("rejects item, placement and relationship values that violate storage constraints", () => {
     const manifest = consistentFixture();
     const first = manifest.items[0];
@@ -376,6 +397,13 @@ describe("buildCanonicalExport", () => {
     };
     expect(
       validateCanonicalExport(invalidRelationship as never).map((issue) => issue.code),
+    ).toContain("shape.relationship");
+    const overlongRelationship = {
+      ...manifest,
+      relationships: [{ ...relationship, relationType: `a:${"b".repeat(127)}` }],
+    };
+    expect(
+      validateCanonicalExport(overlongRelationship as never).map((issue) => issue.code),
     ).toContain("shape.relationship");
   });
 
@@ -1116,5 +1144,448 @@ describe("validateCanonicalExport", () => {
     expect(validateCanonicalExport(malformedValue as never).map((issue) => issue.code)).toContain(
       "database-entry.value-invalid",
     );
+  });
+
+  it("accepts every typed entry value and rejects malformed representations", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+
+    const textPropertyId = generateUuidV7();
+    const numberPropertyId = generateUuidV7();
+    const datePropertyId = generateUuidV7();
+    const instantPropertyId = generateUuidV7();
+    const statusPropertyId = generateUuidV7();
+    const selectPropertyId = generateUuidV7();
+    const multiSelectPropertyId = generateUuidV7();
+    const checkboxPropertyId = generateUuidV7();
+    const statusOptionId = generateUuidV7();
+    const selectOptionId = generateUuidV7();
+    const multiSelectOptionId = generateUuidV7();
+    const option = (id: Uuid, label: string) => ({
+      id,
+      label,
+      positionKey: "a",
+      tone: "default",
+      state: "active" as const,
+    });
+    const properties = [
+      {
+        id: textPropertyId,
+        name: "Text",
+        type: "text",
+        positionKey: "b",
+        state: "active",
+        config: {},
+      },
+      {
+        id: numberPropertyId,
+        name: "Number",
+        type: "number",
+        positionKey: "c",
+        state: "active",
+        config: {},
+      },
+      {
+        id: datePropertyId,
+        name: "Date",
+        type: "date",
+        positionKey: "d",
+        state: "active",
+        config: { mode: "date" },
+      },
+      {
+        id: instantPropertyId,
+        name: "Instant",
+        type: "date",
+        positionKey: "e",
+        state: "active",
+        config: { mode: "instant" },
+      },
+      {
+        id: statusPropertyId,
+        name: "Status",
+        type: "status",
+        positionKey: "f",
+        state: "active",
+        config: { options: [option(statusOptionId, "Open")] },
+      },
+      {
+        id: selectPropertyId,
+        name: "Select",
+        type: "select",
+        positionKey: "g",
+        state: "active",
+        config: { options: [option(selectOptionId, "One")] },
+      },
+      {
+        id: multiSelectPropertyId,
+        name: "Multi",
+        type: "multi-select",
+        positionKey: "h",
+        state: "active",
+        config: { options: [option(multiSelectOptionId, "One")] },
+      },
+      {
+        id: checkboxPropertyId,
+        name: "Checked",
+        type: "checkbox",
+        positionKey: "i",
+        state: "active",
+        config: {},
+      },
+    ] as const;
+    const typedDatabase = {
+      ...database,
+      definition: {
+        ...database.definition,
+        properties: [...database.definition.properties, ...properties],
+      },
+    };
+    const typedValues = {
+      ...entry.values,
+      values: {
+        [textPropertyId]: { kind: "text", value: "hello" },
+        [numberPropertyId]: { kind: "number", decimal: "12.50" },
+        [datePropertyId]: { kind: "date", date: "2026-09-05" },
+        [instantPropertyId]: { kind: "instant", instant: "2026-09-05T12:30:00Z" },
+        [statusPropertyId]: { kind: "status", optionId: statusOptionId },
+        [selectPropertyId]: { kind: "select", optionId: selectOptionId },
+        [multiSelectPropertyId]: { kind: "multi-select", optionIds: [multiSelectOptionId] },
+        [checkboxPropertyId]: { kind: "checkbox", checked: true },
+      },
+    };
+    const typed = {
+      ...manifest,
+      databases: [typedDatabase],
+      databaseEntries: [{ ...entry, values: typedValues }],
+    };
+    expect(validateCanonicalExport(typed as never)).toEqual([]);
+
+    const malformed = [
+      ["text shape", textPropertyId, { kind: "text" }, "shape.database-entry"],
+      [
+        "number syntax",
+        numberPropertyId,
+        { kind: "number", decimal: "NaN" },
+        "shape.database-entry",
+      ],
+      ["civil date", datePropertyId, { kind: "date", date: "2026-02-31" }, "shape.database-entry"],
+      [
+        "instant syntax",
+        instantPropertyId,
+        { kind: "instant", instant: "2026-09-05" },
+        "shape.database-entry",
+      ],
+      [
+        "status identifier",
+        statusPropertyId,
+        { kind: "status", optionId: "bad" },
+        "shape.database-entry",
+      ],
+      [
+        "multi-select duplicates",
+        multiSelectPropertyId,
+        { kind: "multi-select", optionIds: [multiSelectOptionId, multiSelectOptionId] },
+        "shape.database-entry",
+      ],
+      [
+        "checkbox shape",
+        checkboxPropertyId,
+        { kind: "checkbox", checked: "yes" },
+        "shape.database-entry",
+      ],
+      ["unknown kind", textPropertyId, { kind: "unknown", value: true }, "shape.database-entry"],
+      [
+        "unknown property",
+        generateUuidV7(),
+        { kind: "text", value: "unknown property" },
+        "database-entry.value-invalid",
+      ],
+    ] as const;
+    for (const [_name, propertyId, value, expected] of malformed) {
+      const candidate = {
+        ...typed,
+        databaseEntries: [
+          {
+            ...entry,
+            values: {
+              ...typedValues,
+              values: { ...typedValues.values, [propertyId]: value },
+            },
+          },
+        ],
+      };
+      expect(validateCanonicalExport(candidate as never).map((issue) => issue.code)).toContain(
+        expected,
+      );
+    }
+
+    const unknownPreservedProperty = {
+      ...typed,
+      databaseEntries: [
+        {
+          ...entry,
+          values: {
+            ...typedValues,
+            preserved: [
+              {
+                propertyId: generateUuidV7(),
+                sourceType: "text",
+                value: "legacy",
+                preservedAtRevisionId: entry.addedRevisionId,
+                reason: "retired-property",
+              },
+            ],
+          },
+        },
+      ],
+    };
+    expect(
+      validateCanonicalExport(unknownPreservedProperty as never).map((issue) => issue.code),
+    ).toContain("database-entry.preserved-property-missing");
+  });
+
+  it.each([
+    [
+      "active and placement counts",
+      () => {
+        const manifest = structuredFixture();
+        return {
+          ...manifest,
+          counts: { ...manifest.counts, activeItems: 0, trashedItems: 1, placements: 0 },
+        };
+      },
+      ["counts.active-items", "counts.trashed-items", "counts.placements"],
+    ],
+    [
+      "item workspace",
+      () => {
+        const manifest = consistentFixture();
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) =>
+            entry === manifest.items[0] ? { ...entry, workspaceId: generateUuidV7() } : entry,
+          ),
+        };
+      },
+      ["item.workspace-mismatch"],
+    ],
+    [
+      "item revision owner",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.items[0];
+        const second = manifest.items[1];
+        if (first === undefined || second === undefined) throw new Error("fixture missing");
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) =>
+            entry.id === first.id
+              ? { ...entry, currentRevisionId: second.currentRevisionId }
+              : entry,
+          ),
+        };
+      },
+      ["item.revision-item-mismatch"],
+    ],
+    [
+      "placement identity",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.items[0];
+        if (first === undefined) throw new Error("fixture missing");
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) =>
+            entry.id === first.id
+              ? {
+                  ...entry,
+                  placements: [
+                    {
+                      ...entry.placements[0],
+                      workspaceId: generateUuidV7(),
+                      itemId: generateUuidV7(),
+                    },
+                  ],
+                }
+              : entry,
+          ),
+        };
+      },
+      ["placement.workspace-mismatch", "placement.item-mismatch"],
+    ],
+    [
+      "duplicate hierarchy",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.items[0];
+        if (first === undefined || first.placements[0] === undefined)
+          throw new Error("fixture missing");
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) =>
+            entry.id === first.id
+              ? {
+                  ...entry,
+                  placements: [
+                    first.placements[0],
+                    { ...first.placements[0], id: generateUuidV7() },
+                  ],
+                }
+              : entry,
+          ),
+        };
+      },
+      ["placement.hierarchy-duplicate"],
+    ],
+    [
+      "hierarchy under file",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.items[0];
+        const second = manifest.items[1];
+        if (first === undefined || second === undefined || second.placements[0] === undefined)
+          throw new Error("fixture missing");
+        const file = {
+          ...second,
+          kind: "file" as const,
+          pageDocument: null,
+          file: {
+            mediaType: "text/plain",
+            originalName: "file.txt",
+            byteLength: 0,
+            sha256: "0".repeat(64),
+          },
+          placements: [{ ...second.placements[0], itemIsFile: true }],
+        };
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) =>
+            entry.id === first.id
+              ? {
+                  ...entry,
+                  placements: [{ ...entry.placements[0], parentItemId: second.id }],
+                }
+              : entry.id === second.id
+                ? file
+                : entry,
+          ),
+        };
+      },
+      ["placement.hierarchy-parent-kind"],
+    ],
+    [
+      "trashed file placement",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.items[0];
+        if (first === undefined || first.placements[0] === undefined)
+          throw new Error("fixture missing");
+        const file = {
+          ...first,
+          kind: "file" as const,
+          lifecycle: "trashed" as const,
+          trashedAt: EXPORTED_AT,
+          purgeAfter: "2026-09-08T12:00:00.000Z",
+          pageDocument: null,
+          file: {
+            mediaType: "text/plain",
+            originalName: "file.txt",
+            byteLength: 0,
+            sha256: "0".repeat(64),
+          },
+          placements: [{ ...first.placements[0], itemIsFile: true }],
+        };
+        return {
+          ...manifest,
+          items: manifest.items.map((entry) => (entry.id === first.id ? file : entry)),
+        };
+      },
+      ["placement.trashed-file"],
+    ],
+    [
+      "relationship references",
+      () => {
+        const manifest = consistentFixture();
+        const relationship = manifest.relationships[0];
+        if (relationship === undefined) throw new Error("fixture missing");
+        return {
+          ...manifest,
+          relationships: [
+            {
+              ...relationship,
+              workspaceId: generateUuidV7(),
+              createdRevisionId: generateUuidV7(),
+              removedRevisionId: generateUuidV7(),
+            },
+          ],
+        };
+      },
+      ["relationship.workspace-mismatch", "relationship.revision-missing"],
+    ],
+    [
+      "revision parent owner",
+      () => {
+        const manifest = consistentFixture();
+        const first = manifest.revisions[0];
+        const second = manifest.revisions[1];
+        if (first === undefined || second === undefined) throw new Error("fixture missing");
+        return {
+          ...manifest,
+          revisions: manifest.revisions.map((revision) =>
+            revision.id === first.id ? { ...revision, parentRevisionIds: [second.id] } : revision,
+          ),
+        };
+      },
+      ["revision.parent-owner-mismatch"],
+    ],
+    [
+      "database and entry references",
+      () => {
+        const manifest = structuredFixture();
+        const database = manifest.databases[0];
+        const entry = manifest.databaseEntries[0];
+        if (database === undefined || entry === undefined) throw new Error("fixture missing");
+        const missingDatabaseId = generateUuidV7();
+        const missingEntryId = generateUuidV7();
+        const missingEntryDatabaseId = generateUuidV7();
+        return {
+          ...manifest,
+          databases: [
+            {
+              ...database,
+              databaseId: missingDatabaseId,
+              definition: { ...database.definition, databaseId: missingDatabaseId },
+              definitionRevisionId: generateUuidV7(),
+            },
+          ],
+          databaseEntries: [
+            {
+              ...entry,
+              entryId: missingEntryId,
+              databaseId: missingEntryDatabaseId,
+              addedRevisionId: generateUuidV7(),
+              values: {
+                ...entry.values,
+                entryId: missingEntryId,
+                databaseId: missingEntryDatabaseId,
+              },
+            },
+          ],
+        };
+      },
+      [
+        "database.item-missing",
+        "database.revision-missing",
+        "database-entry.item-missing",
+        "database-entry.database-missing",
+        "database-entry.revision-missing",
+      ],
+    ],
+  ] as const)("reports useful cross-record incoherence: %s", (_name, build, expected) => {
+    const codes = validateCanonicalExport(build() as never).map((issue) => issue.code);
+    expect(codes).toEqual(expect.arrayContaining([...expected]));
   });
 });

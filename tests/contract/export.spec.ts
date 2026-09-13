@@ -28,7 +28,12 @@ afterAll(async () => {
   await harness.close();
 });
 
-async function runExport(): Promise<{ manifest: CanonicalExportManifest; digest: string }> {
+async function runExport(): Promise<{
+  manifest: CanonicalExportManifest;
+  digest: string;
+  artifactContentType: string | undefined;
+  artifactDigest: string | undefined;
+}> {
   const created = await harness.built.app.inject({
     method: "POST",
     url: "/v1/export",
@@ -53,7 +58,18 @@ async function runExport(): Promise<{ manifest: CanonicalExportManifest; digest:
     url: `/v1/export/${exportId}/artifact`,
   });
   expect(artifact.statusCode).toBe(200);
-  return { manifest: artifact.json() as CanonicalExportManifest, digest };
+  return {
+    manifest: artifact.json() as CanonicalExportManifest,
+    digest,
+    artifactContentType:
+      typeof artifact.headers["content-type"] === "string"
+        ? artifact.headers["content-type"]
+        : undefined,
+    artifactDigest:
+      typeof artifact.headers["x-export-digest"] === "string"
+        ? artifact.headers["x-export-digest"]
+        : undefined,
+  };
 }
 
 describe("canonical export (T086/T088)", () => {
@@ -76,7 +92,7 @@ describe("canonical export (T086/T088)", () => {
       },
     });
 
-    const { manifest, digest } = await runExport();
+    const { manifest, digest, artifactContentType, artifactDigest } = await runExport();
     expect(manifest.format).toBe("myownnotion.export+json");
     expect(manifest.formatVersion).toBe(CANONICAL_EXPORT_VERSION);
     expect(manifest.items.map((item) => item.id)).toEqual(
@@ -92,6 +108,8 @@ describe("canonical export (T086/T088)", () => {
     // The digest matches an independent recomputation of the canonical string.
     const recomputed = createHash("sha256").update(canonicalExportString(manifest)).digest("hex");
     expect(recomputed).toBe(digest);
+    expect(artifactContentType).toContain("application/json");
+    expect(artifactDigest).toBe(digest);
   });
 
   it("includes trashed items with deletion time, recovery deadline, and lineage (FR-025)", async () => {
@@ -118,5 +136,15 @@ describe("canonical export (T086/T088)", () => {
     const normalize = (manifest: CanonicalExportManifest) =>
       canonicalExportString({ ...manifest, exportedAt: "fixed" });
     expect(normalize(first.manifest)).toBe(normalize(second.manifest));
+  });
+
+  it("returns the shared problem shape for an invalid artifact id", async () => {
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/export/not-a-uuid/artifact",
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.headers["content-type"]).toContain("application/problem+json");
+    expect((response.json() as { code: string }).code).toBe("validation.invalid-payload");
   });
 });

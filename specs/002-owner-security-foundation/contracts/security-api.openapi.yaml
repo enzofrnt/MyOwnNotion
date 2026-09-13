@@ -215,8 +215,12 @@ paths:
                 $ref: '#/components/schemas/WebAuthnOptions'
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '428':
           $ref: '#/components/responses/RecentAuthenticationRequired'
+        '500':
+          $ref: '#/components/responses/Problem'
   /v1/auth/passkeys/enrollment/complete:
     post:
       tags: [Authentication]
@@ -247,8 +251,12 @@ paths:
           $ref: '#/components/responses/Problem'
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '428':
           $ref: '#/components/responses/RecentAuthenticationRequired'
+        '500':
+          $ref: '#/components/responses/Problem'
   /v1/auth/passkeys:
     get:
       tags: [Authentication]
@@ -273,6 +281,8 @@ paths:
                 additionalProperties: false
         '401':
           $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
   /v1/auth/passkeys/{credentialId}:
     delete:
       tags: [Authentication]
@@ -290,12 +300,18 @@ paths:
       responses:
         '204':
           description: Selected passkey removed
+        '400':
+          $ref: '#/components/responses/Problem'
         '401':
           $ref: '#/components/responses/Problem'
-        '404':
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
           $ref: '#/components/responses/Problem'
         '428':
           $ref: '#/components/responses/RecentAuthenticationRequired'
+        '500':
+          $ref: '#/components/responses/Problem'
   /v1/auth/password:
     put:
       tags: [Authentication]
@@ -350,6 +366,18 @@ paths:
                 $ref: '#/components/schemas/AuthenticatedSession'
         '401':
           $ref: '#/components/responses/Problem'
+  /v1/auth/login/passkey/options:
+    post:
+      tags: [Authentication]
+      operationId: getPasskeyLoginOptions
+      description: Anonymous WebAuthn login challenge without owner-disclosure.
+      responses:
+        '200':
+          description: WebAuthn login options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebAuthnOptions'
   /v1/auth/login/password:
     post:
       tags: [Authentication]
@@ -472,7 +500,35 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Device'
+                additionalProperties: false
+        '401':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
   /v1/devices/{deviceId}:
+    get:
+      tags: [Devices]
+      operationId: inspectDevice
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: Owner-visible device details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
     patch:
       tags: [Devices]
       operationId: updateDevice
@@ -495,7 +551,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Device'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '404':
+          $ref: '#/components/responses/Problem'
+        '500':
           $ref: '#/components/responses/Problem'
   /v1/devices/{deviceId}/revoke:
     post:
@@ -508,32 +572,77 @@ paths:
         - $ref: '#/components/parameters/DeviceId'
         - $ref: '#/components/parameters/CsrfToken'
       responses:
-        '204':
-          description: Device revoked; no remote-erasure guarantee
+        '200':
+          description: Revoked device details; no remote-erasure guarantee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
         '428':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+  /v1/devices/{deviceId}/reauthorize:
+    post:
+      tags: [Devices]
+      operationId: reauthorizeDevice
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Device scheduled for reauthorization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+        '500':
           $ref: '#/components/responses/Problem'
   /v1/security/recovery-kits:
     get:
       tags: [Recovery]
-      operationId: listRecoveryKits
+      operationId: getRecoveryKitStatus
       security:
         - sessionCookie: []
         - devSessionCookie: []
       responses:
         '200':
-          description: Readiness and redacted kit inventory
+          description: Active and pending recovery-kit status with the required key-custody notice
+          headers:
+            Cache-Control:
+              required: true
+              schema: { const: 'private, no-store' }
           content:
             application/json:
               schema:
-                type: object
-                required: [ready, kits]
-                properties:
-                  ready:
-                    type: boolean
-                  kits:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/RecoveryKitView'
+                $ref: '#/components/schemas/RecoveryKitStatus'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
     post:
       tags: [Recovery]
       operationId: prepareAuthenticatedRecoveryKitReplacement
@@ -542,20 +651,24 @@ paths:
         - devSessionCookie: []
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RecoveryKitPrepare'
       responses:
         '201':
-          description: Replacement is downloadable; active kit remains valid
+          description: Replacement is prepared and downloadable; active kit remains valid
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RecoveryKitDownloadView'
+                $ref: '#/components/schemas/PreparedRecoveryKit'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
         '428':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
           $ref: '#/components/responses/Problem'
   /v1/security/recovery-kits/{kitId}/download:
     post:
@@ -569,13 +682,26 @@ paths:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '200':
-          description: Exactly one streamed replacement artifact
+          description: Exactly one streamed replacement artifact, returned as an attachment
           content:
             application/json:
               schema:
-                type: string
-                contentMediaType: application/json
-        '410':
+                $ref: '#/components/schemas/RecoveryKitArtifact'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
           $ref: '#/components/responses/Problem'
   /v1/security/recovery-kits/{kitId}/confirm:
     post:
@@ -594,11 +720,96 @@ paths:
             schema:
               $ref: '#/components/schemas/OfflineConfirmation'
       responses:
-        '204':
+        '200':
           description: Epoch advancement and supersession committed atomically
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmedRecoveryKit'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /v1/security/recovery-kits/revoke:
+    post:
+      tags: [Recovery]
+      operationId: revokeAuthenticatedRecoveryKit
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Active recovery kit revoked; the response carries the owner-facing revocation code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevokedRecoveryKit'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
   /v1/security/rotations:
+    get:
+      tags: [Rotation]
+      operationId: getSecurityRotationStatus
+      description: Combined status for both rotation policies and any running operation.
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      responses:
+        '200':
+          description: Combined rotation policy and operation status
+          headers:
+            Cache-Control:
+              required: true
+              schema: { const: 'private, no-store' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [policies, writesAllowed, running]
+                properties:
+                  policies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RotationPolicyView'
+                  writesAllowed:
+                    type: boolean
+                  running:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RotationView'
+                additionalProperties: false
+        '401':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
     post:
       tags: [Rotation]
       operationId: startSecurityRotation
@@ -614,15 +825,31 @@ paths:
             schema:
               $ref: '#/components/schemas/RotationStart'
       responses:
+        '200':
+          description: Dry run plan; no operation is started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotationView'
         '202':
           description: One resumable operation for the selected policy kind
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RotationView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
         '428':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
           $ref: '#/components/responses/Problem'
   /v1/security/rotations/policies:
     get:
@@ -643,8 +870,16 @@ paths:
                   policies:
                     type: array
                     minItems: 2
+                    maxItems: 2
                     items:
                       $ref: '#/components/schemas/RotationPolicyView'
+                additionalProperties: false
+        '401':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
   /v1/security/rotations/{operationId}:
     get:
       tags: [Rotation]
@@ -661,7 +896,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RotationView'
+        '400':
+          $ref: '#/components/responses/Problem'
         '404':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
           $ref: '#/components/responses/Problem'
   /v1/security/audit:
     get:
@@ -670,9 +913,23 @@ paths:
       security:
         - sessionCookie: []
         - devSessionCookie: []
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          description: Maximum number of newest redacted events to return, capped at 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
       responses:
         '200':
           description: Redacted security events
+          headers:
+            Cache-Control:
+              required: true
+              schema: { const: no-store }
           content:
             application/json:
               schema:
@@ -683,6 +940,15 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/AuditEvent'
+                additionalProperties: false
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     sessionCookie:
@@ -1182,22 +1448,92 @@ components:
           type: integer
           minimum: 1
       additionalProperties: false
-    RecoveryKitPrepare:
+    RecoveryKitStatus:
       type: object
-      required: [passphrase]
+      required: [active, pending, notice]
       properties:
-        passphrase:
+        active:
+          oneOf:
+            - $ref: '#/components/schemas/ActiveRecoveryKit'
+            - type: 'null'
+        pending:
+          oneOf:
+            - $ref: '#/components/schemas/PendingRecoveryKit'
+            - type: 'null'
+        notice:
           type: string
-          minLength: 12
-          maxLength: 1024
-          writeOnly: true
       additionalProperties: false
-    RecoveryKitDownloadView:
+    ActiveRecoveryKit:
       type: object
-      required: [kitId, format, formatVersion, installationId, sourceLineageId, authorizationState, deliveryState, downloadExpiresAt]
+      required: [kitId, recoveryEpoch, confirmedAt]
       properties:
         kitId:
           $ref: '#/components/schemas/Uuid'
+        recoveryEpoch:
+          type: integer
+          minimum: 1
+        confirmedAt:
+          type: [string, 'null']
+          format: date-time
+      additionalProperties: false
+    PendingRecoveryKit:
+      type: object
+      required: [kitId, deliveryState, downloadExpiresAt]
+      properties:
+        kitId:
+          $ref: '#/components/schemas/Uuid'
+        deliveryState:
+          enum: [prepared, downloadable, download-consumed]
+        downloadExpiresAt:
+          type: [string, 'null']
+          format: date-time
+      additionalProperties: false
+    PreparedRecoveryKit:
+      type: object
+      required: [kitId, recoveryEpoch, downloadExpiresAt, notice]
+      properties:
+        kitId:
+          $ref: '#/components/schemas/Uuid'
+        recoveryEpoch:
+          type: integer
+          minimum: 1
+        downloadExpiresAt:
+          type: string
+          format: date-time
+        notice:
+          type: string
+      additionalProperties: false
+    ConfirmedRecoveryKit:
+      type: object
+      required: [recoveryEpoch, notice]
+      properties:
+        recoveryEpoch:
+          type: integer
+          minimum: 1
+        notice:
+          type: string
+      additionalProperties: false
+    RevokedRecoveryKit:
+      type: object
+      required: [revocationCode]
+      properties:
+        revocationCode:
+          type: string
+      additionalProperties: false
+    RecoveryKitArtifact:
+      description: Complete versioned recovery artifact returned by the download operation.
+      oneOf:
+        - $ref: '#/components/schemas/RecoveryKitArtifactPrepared'
+        - $ref: '#/components/schemas/RecoveryKitArtifactDownloadable'
+        - $ref: '#/components/schemas/RecoveryKitArtifactConsumed'
+        - $ref: '#/components/schemas/RecoveryKitArtifactActive'
+        - $ref: '#/components/schemas/RecoveryKitArtifactSuperseded'
+        - $ref: '#/components/schemas/RecoveryKitArtifactRevoked'
+        - $ref: '#/components/schemas/RecoveryKitArtifactExpired'
+    RecoveryKitArtifactBase:
+      type: object
+      required: [format, formatVersion, installationId, sourceLineageId, kitId, recoveryEpoch, createdAt, supportedKeyGenerations, kdf, encryption]
+      properties:
         format:
           const: myownnotion.recovery+json
         formatVersion:
@@ -1206,14 +1542,169 @@ components:
           $ref: '#/components/schemas/Uuid'
         sourceLineageId:
           $ref: '#/components/schemas/Uuid'
+        kitId:
+          $ref: '#/components/schemas/Uuid'
+        recoveryEpoch:
+          type: integer
+          minimum: 1
         authorizationState:
-          const: provisional
+          enum: [provisional, active, superseded, revoked, rejected]
         deliveryState:
-          enum: [downloadable, download-consumed]
+          enum: [prepared, downloadable, download-consumed, confirmed, expired]
+        createdAt:
+          type: string
+          format: date-time
         downloadExpiresAt:
           type: string
           format: date-time
+        downloadConsumedAt:
+          type: string
+          format: date-time
+        confirmedAt:
+          type: string
+          format: date-time
+        supportedKeyGenerations:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 1
+        kdf:
+          oneOf:
+            - $ref: '#/components/schemas/RecoveryScryptKdf'
+            - $ref: '#/components/schemas/RecoveryDeploymentKeyKdf'
+        encryption:
+          $ref: '#/components/schemas/RecoveryEncryption'
       additionalProperties: false
+    RecoveryScryptKdf:
+      type: object
+      required: [algorithm, N, r, p, keyLength, salt]
+      properties:
+        algorithm:
+          const: scrypt
+        N:
+          type: integer
+          enum: [8192, 16384, 32768, 65536, 131072]
+        r:
+          const: 8
+        p:
+          type: integer
+          minimum: 1
+          maximum: 10
+        keyLength:
+          const: 32
+        salt:
+          type: string
+          pattern: '^[A-Za-z0-9_-]+$'
+          minLength: 22
+          maxLength: 22
+      additionalProperties: false
+    RecoveryDeploymentKeyKdf:
+      type: object
+      required: [algorithm, keyLength, salt]
+      properties:
+        algorithm:
+          const: deployment-key
+        keyLength:
+          const: 32
+        salt:
+          type: string
+          pattern: '^[A-Za-z0-9_-]+$'
+          minLength: 22
+          maxLength: 22
+      additionalProperties: false
+    RecoveryEncryption:
+      type: object
+      required: [algorithm, nonce, ciphertext, tag]
+      properties:
+        algorithm:
+          const: AES-256-GCM
+        nonce:
+          type: string
+          pattern: '^[A-Za-z0-9_-]+$'
+          minLength: 16
+          maxLength: 16
+        ciphertext:
+          type: string
+          pattern: '^[A-Za-z0-9_-]+$'
+          minLength: 1
+        tag:
+          type: string
+          pattern: '^[A-Za-z0-9_-]+$'
+          minLength: 22
+          maxLength: 22
+      additionalProperties: false
+    RecoveryKitArtifactPrepared:
+      allOf:
+        - $ref: '#/components/schemas/RecoveryKitArtifactBase'
+        - type: object
+          required: [authorizationState, deliveryState, downloadExpiresAt]
+          properties:
+            authorizationState:
+              const: provisional
+            deliveryState:
+              const: prepared
+    RecoveryKitArtifactDownloadable:
+      allOf:
+        - $ref: '#/components/schemas/RecoveryKitArtifactBase'
+        - type: object
+          required: [authorizationState, deliveryState, downloadExpiresAt]
+          properties:
+            authorizationState:
+              const: provisional
+            deliveryState:
+              const: downloadable
+    RecoveryKitArtifactConsumed:
+      allOf:
+        - $ref: '#/components/schemas/RecoveryKitArtifactBase'
+        - type: object
+          required: [authorizationState, deliveryState, downloadExpiresAt, downloadConsumedAt]
+          properties:
+            authorizationState:
+              const: provisional
+            deliveryState:
+              const: download-consumed
+    RecoveryKitArtifactActive:
+      allOf:
+        - $ref: '#/components/schemas/RecoveryKitArtifactBase'
+        - type: object
+          required: [authorizationState, deliveryState, confirmedAt]
+          properties:
+            authorizationState:
+              const: active
+            deliveryState:
+              const: confirmed
+    RecoveryKitArtifactSuperseded:
+      allOf:
+        - $ref: '#/components/schemas/RecoveryKitArtifactBase'
+        - type: object
+          required: [authorizationState, deliveryState, confirmedAt]
+          properties:
+            authorizationState:
+              const: superseded
+            deliveryState:
+              const: confirmed
+    RecoveryKitArtifactRevoked:
+      allOf:
+        - $ref: '#/components/schemas/RecoveryKitArtifactBase'
+        - type: object
+          required: [authorizationState, deliveryState, confirmedAt]
+          properties:
+            authorizationState:
+              const: revoked
+            deliveryState:
+              const: confirmed
+    RecoveryKitArtifactExpired:
+      allOf:
+        - $ref: '#/components/schemas/RecoveryKitArtifactBase'
+        - type: object
+          required: [authorizationState, deliveryState, downloadExpiresAt]
+          properties:
+            authorizationState:
+              const: rejected
+            deliveryState:
+              const: expired
     RecoveryKitView:
       type: object
       required: [kitId, recoveryEpoch, sourceLineageId, authorizationState, deliveryState, createdAt, supportedKeyGenerations]
@@ -1397,7 +1888,7 @@ components:
         correlationId:
           $ref: '#/components/schemas/Uuid'
         safeCode:
-          type: string
+          type: [string, 'null']
           maxLength: 128
         occurredAt:
           type: string

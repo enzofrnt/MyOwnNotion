@@ -29,9 +29,9 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Database } from "@myownnotion/database";
 import {
+  allocateNextRecoveryEpoch,
   confirmReplacementKit,
   consumeKitDownload,
-  currentRecoveryEpoch,
   findActiveKit,
   findKit,
   findPendingKit,
@@ -182,23 +182,26 @@ export class RecoveryKitService {
     const payload = await this.#deps.recoveryPayload();
     const now = this.#deps.now();
     const kitId = this.#id();
-    const epoch = (await currentRecoveryEpoch(this.#deps.db, this.#deps.installationId)) + 1;
     const downloadExpiresAt = new Date(now.getTime() + KIT_DOWNLOAD_WINDOW_MS);
 
-    const artifact = createRecoveryKit({
-      installationId: this.#deps.installationId,
-      sourceLineageId: this.#deps.sourceLineageId,
-      kitId,
-      recoveryEpoch: epoch,
-      secret: { kind: "deployment-key", deploymentKey: new Uint8Array(key) },
-      payload,
-      supportedKeyGenerations: generations,
-      createdAt: now,
-      downloadExpiresAt,
-    });
+    const prepared = await runSecurityTransaction(this.#deps.db, async (tx) => {
+      // Epoch allocation and row insertion share one transaction. In
+      // particular, a confirmation cannot advance the epoch between this
+      // read and the replacement insert.
+      const epoch = await allocateNextRecoveryEpoch(tx, this.#deps.installationId);
+      const artifact = createRecoveryKit({
+        installationId: this.#deps.installationId,
+        sourceLineageId: this.#deps.sourceLineageId,
+        kitId,
+        recoveryEpoch: epoch,
+        secret: { kind: "deployment-key", deploymentKey: new Uint8Array(key) },
+        payload,
+        supportedKeyGenerations: generations,
+        createdAt: now,
+        downloadExpiresAt,
+      });
 
-    await runSecurityTransaction(this.#deps.db, async (tx) =>
-      prepareReplacementKit(tx, {
+      await prepareReplacementKit(tx, {
         kitId,
         installationId: this.#deps.installationId,
         sourceLineageId: this.#deps.sourceLineageId,
@@ -212,13 +215,14 @@ export class RecoveryKitService {
         downloadExpiresAt,
         supportedKeyGenerations: generations,
         now,
-      }),
-    );
+      });
+      return { artifact, epoch };
+    });
 
-    this.#prepared.set(kitId, artifact);
+    this.#prepared.set(kitId, prepared.artifact);
     return {
       kitId,
-      recoveryEpoch: epoch,
+      recoveryEpoch: prepared.epoch,
       downloadExpiresAt: downloadExpiresAt.toISOString(),
       notice: DEPLOYMENT_KEY_NOTICE,
     };
@@ -238,9 +242,6 @@ export class RecoveryKitService {
     if (record === null || record.installationId !== this.#deps.installationId) {
       throw new RecoveryKitError("not_found", "no such recovery kit");
     }
-    if (record.downloadExpiresAt !== null && record.downloadExpiresAt <= this.#deps.now()) {
-      throw new RecoveryKitError("recovery_unavailable", "the download window has closed");
-    }
     const artifact = this.#prepared.get(kitId);
     if (artifact === undefined) {
       // Prepared by a process that has since restarted. Saying so plainly is
@@ -252,10 +253,18 @@ export class RecoveryKitService {
       );
     }
 
-    const consumed = await runSecurityTransaction(this.#deps.db, async (tx) =>
-      consumeKitDownload(tx, { kitId, now: this.#deps.now() }),
-    );
-    if (!consumed) {
+    // Read the clock only after the row and in-memory artifact have been
+    // found, immediately before the conditional mutation. The mutation's
+    // expiry predicate and its consumed timestamp use this same instant, so
+    // an expiration crossing during findKit cannot be bypassed.
+    const consumption = await runSecurityTransaction(this.#deps.db, async (tx) => {
+      const now = this.#deps.now();
+      return { consumed: await consumeKitDownload(tx, { kitId, now }), now };
+    });
+    if (!consumption.consumed) {
+      if (record.downloadExpiresAt !== null && record.downloadExpiresAt <= consumption.now) {
+        throw new RecoveryKitError("recovery_unavailable", "the download window has closed");
+      }
       throw new RecoveryKitError("conflict", "this kit has already been downloaded");
     }
     this.#prepared.delete(kitId);

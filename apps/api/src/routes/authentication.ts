@@ -79,7 +79,9 @@ import {
   type WebAuthnChallenge,
 } from "../security/webauthn-service.ts";
 
-const CredentialParams = Type.Object({ credentialId: Type.String({ minLength: 1 }) });
+const CredentialParams = Type.Object({
+  credentialId: Type.String({ minLength: 1, maxLength: 512 }),
+});
 const SessionParams = Type.Object({ sessionId: Type.String({ format: "uuid" }) });
 
 /** The narrowed principal every authenticated handler in this file works from. */
@@ -531,7 +533,17 @@ export function registerAuthenticationRoutes(
 
   app.post(
     "/v1/auth/passkeys/enrollment/options",
-    { schema: { response: { 200: WebAuthnOptionsSchema } } },
+    {
+      schema: {
+        response: {
+          200: WebAuthnOptionsSchema,
+          401: SecurityProblemSchema,
+          403: SecurityProblemSchema,
+          428: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const owner = require(request, reply, { csrf: true, recentAuthentication: true });
       if (owner === null) {
@@ -548,7 +560,14 @@ export function registerAuthenticationRoutes(
     {
       schema: {
         body: PasskeyEnrollmentCompletionSchema,
-        response: { 201: PasskeyViewSchema, 401: SecurityProblemSchema },
+        response: {
+          201: PasskeyViewSchema,
+          400: SecurityProblemSchema,
+          401: SecurityProblemSchema,
+          403: SecurityProblemSchema,
+          428: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+        },
       },
     },
     async (request, reply) => {
@@ -610,6 +629,8 @@ export function registerAuthenticationRoutes(
             { passkeys: Type.Array(PasskeyViewSchema) },
             { additionalProperties: false },
           ),
+          401: SecurityProblemSchema,
+          500: SecurityProblemSchema,
         },
       },
     },
@@ -635,7 +656,20 @@ export function registerAuthenticationRoutes(
 
   app.delete(
     "/v1/auth/passkeys/:credentialId",
-    { schema: { params: CredentialParams } },
+    {
+      schema: {
+        params: CredentialParams,
+        response: {
+          204: Type.Null(),
+          400: SecurityProblemSchema,
+          401: SecurityProblemSchema,
+          403: SecurityProblemSchema,
+          409: SecurityProblemSchema,
+          428: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const owner = require(request, reply, { csrf: true, recentAuthentication: true });
       if (owner === null) {

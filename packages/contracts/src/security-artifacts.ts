@@ -157,7 +157,21 @@ export const RecoveryKdfSchema = Type.Object(
   },
   { additionalProperties: false },
 );
-export type RecoveryKdf = Static<typeof RecoveryKdfSchema>;
+const RecoveryDeploymentKeyKdfSchema = Type.Object(
+  {
+    algorithm: Type.Literal("deployment-key"),
+    keyLength: Type.Literal(32),
+    salt: Base64UrlOfBytes(B64_LENGTHS.salt),
+  },
+  { additionalProperties: false },
+);
+
+/** The artifact supports the mounted deployment-key mode used by the API. */
+export const RecoveryKdfDescriptorSchema = Type.Union([
+  RecoveryKdfSchema,
+  RecoveryDeploymentKeyKdfSchema,
+]);
+export type RecoveryKdf = Static<typeof RecoveryKdfDescriptorSchema>;
 
 export const RecoveryEncryptionSchema = Type.Object(
   {
@@ -183,7 +197,7 @@ const RecoveryKitCommonProperties = {
   recoveryEpoch: Type.Integer({ minimum: 1 }),
   createdAt: Type.String({ format: "date-time" }),
   supportedKeyGenerations: Type.Array(GenerationSchema, { minItems: 1, uniqueItems: true }),
-  kdf: RecoveryKdfSchema,
+  kdf: RecoveryKdfDescriptorSchema,
   encryption: RecoveryEncryptionSchema,
 } as const;
 

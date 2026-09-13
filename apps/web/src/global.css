@@ -1970,6 +1970,82 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.recovery-replacement-panel,
+.recovery-readiness-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
+}
+
+.recovery-replacement-panel {
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+}
+
+.recovery-replacement-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--ui-space-2);
+  margin: 0;
+}
+
+.recovery-replacement-facts dt {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+}
+
+.recovery-replacement-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.recovery-replacement-actions,
+.recovery-replacement-confirm,
+.recovery-revoke-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.recovery-replacement-confirm {
+  align-items: flex-start;
+}
+
+.recovery-replacement-confirm input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+  flex: 0 0 auto;
+}
+
+.recovery-replacement-confirm label {
+  min-width: 0;
+}
+
+.recovery-replacement-notice,
+.recovery-revoke-confirm p {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+}
+
+.recovery-revoke {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+}
+
+.recovery-revoke-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--ui-space-3);
+  border: 1px solid var(--ui-color-danger);
+  border-radius: var(--ui-radius-md);
+}
+
 /* React does not insert text nodes between adjacent Button components. Keep a
    real wrapping boundary around the three actions in each device row. */
 .device-actions {

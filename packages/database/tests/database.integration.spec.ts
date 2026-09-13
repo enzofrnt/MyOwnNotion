@@ -488,4 +488,382 @@ describe("database capability and entries (T019)", () => {
       .where(eq(schema.items.id, create.id));
     expect(item).toHaveLength(0);
   });
+
+  it("validates source hosts and placements before creating any database rows", async () => {
+    const activeHost = await createPage("Page hôte active");
+    const folderId = generateUuidV7();
+    const folder = await submit({
+      type: "item.create",
+      id: folderId,
+      kind: "folder",
+      name: "Dossier hôte invalide",
+      placement: { kind: "hierarchy", parentItemId: null, positionKey: "a" },
+    });
+    expect(folder.result.status).toBe("accepted");
+    const trashedHost = await createPage("Page hôte supprimée");
+    expect((await submit({ type: "item.trash", itemId: trashedHost })).result.status).toBe(
+      "accepted",
+    );
+
+    const accepted = { ...databaseCreate(), hostPageId: activeHost };
+    const acceptedResult = await submit(accepted);
+    expect(acceptedResult.result.status).toBe("accepted");
+    expect(await readDatabaseRecord(context.handle.db, accepted.id)).not.toBeNull();
+    expect(
+      await context.handle.db
+        .select()
+        .from(schema.placements)
+        .where(eq(schema.placements.id, accepted.placement.id)),
+    ).toHaveLength(0);
+    expect(
+      (await readCurrentDatabaseDefinition(context.handle.db, accepted.id))?.embeddings,
+    ).toEqual([
+      expect.objectContaining({
+        id: accepted.placement.id,
+        hostPageId: activeHost,
+        state: "active",
+      }),
+    ]);
+
+    const rejectedCases = [
+      { label: "missing host", hostPageId: generateUuidV7(), code: "item.not-active" },
+      { label: "folder host", hostPageId: folderId, code: "item.not-active" },
+      { label: "trashed host", hostPageId: trashedHost, code: "item.not-active" },
+    ] as const;
+    for (const rejected of rejectedCases) {
+      const command = { ...databaseCreate(), hostPageId: rejected.hostPageId };
+      const result = await submit(command);
+      expect(result.result.status, rejected.label).toBe("rejected");
+      expect(result.result.problem?.code, rejected.label).toBe(rejected.code);
+      expect(await readDatabaseRecord(context.handle.db, command.id), rejected.label).toBeNull();
+      expect(
+        await context.handle.db.select().from(schema.items).where(eq(schema.items.id, command.id)),
+        rejected.label,
+      ).toHaveLength(0);
+      expect(
+        await context.handle.db
+          .select()
+          .from(schema.placements)
+          .where(eq(schema.placements.itemId, command.id)),
+        rejected.label,
+      ).toHaveLength(0);
+      expect(
+        await context.handle.db
+          .select()
+          .from(schema.revisions)
+          .where(eq(schema.revisions.itemId, command.id)),
+        rejected.label,
+      ).toHaveLength(0);
+    }
+
+    const missingParentBase = databaseCreate();
+    const missingParent = {
+      ...missingParentBase,
+      placement: { ...missingParentBase.placement, parentItemId: generateUuidV7() },
+    };
+    const missingParentResult = await submit(missingParent);
+    expect(missingParentResult.result.status).toBe("rejected");
+    expect(missingParentResult.result.problem?.code).toBe("containment.parent-not-found");
+    expect(await readDatabaseRecord(context.handle.db, missingParent.id)).toBeNull();
+
+    const duplicate = databaseCreate();
+    expect((await submit(duplicate)).result.status).toBe("accepted");
+    const duplicateResult = await submit(duplicate);
+    expect(duplicateResult.result.status).toBe("rejected");
+    expect(duplicateResult.result.problem?.code).toBe("mutation.duplicate");
+    expect(
+      await context.handle.db
+        .select()
+        .from(schema.databases)
+        .where(eq(schema.databases.itemId, duplicate.id)),
+    ).toHaveLength(1);
+  });
+
+  it("keeps entry placement and structured validation atomic", async () => {
+    const create = databaseCreate();
+    expect((await submit(create)).result.status).toBe("accepted");
+    const relationPropertyId = generateUuidV7();
+    const textPropertyId = generateUuidV7();
+    const replaced = await submit({
+      type: "database.definition.replace",
+      databaseId: create.id,
+      baseRevisionId: (await readDatabaseRecord(context.handle.db, create.id))
+        ?.definitionRevisionId as Uuid,
+      definition: expandedDefinition(create, relationPropertyId, textPropertyId),
+    });
+    expect(replaced.result.status).toBe("accepted");
+    const target = await createPage("Relation valide");
+
+    const withoutPlacement = generateUuidV7();
+    const createdWithoutPlacement = await submit({
+      type: "database.entry.create",
+      databaseId: create.id,
+      id: withoutPlacement,
+      title: "Sans emplacement",
+      values: { [textPropertyId]: { kind: "text", value: "ok" } },
+      relationTargets: {},
+    });
+    expect(createdWithoutPlacement.result.status).toBe("accepted");
+    expect(
+      await context.handle.db
+        .select()
+        .from(schema.placements)
+        .where(eq(schema.placements.itemId, withoutPlacement)),
+    ).toHaveLength(0);
+
+    const selfParent = generateUuidV7();
+    const selfParentPlacement = { id: generateUuidV7(), parentItemId: create.id, positionKey: "b" };
+    const createdSelfParent = await submit({
+      type: "database.entry.create",
+      databaseId: create.id,
+      id: selfParent,
+      title: "Emplacement source",
+      placement: selfParentPlacement,
+      values: {},
+      relationTargets: {},
+    });
+    expect(createdSelfParent.result.status).toBe("accepted");
+    expect(
+      await context.handle.db
+        .select({ parentItemId: schema.placements.parentItemId })
+        .from(schema.placements)
+        .where(eq(schema.placements.id, selfParentPlacement.id)),
+    ).toEqual([{ parentItemId: null }]);
+
+    const rejectedCases = [
+      {
+        label: "missing parent",
+        id: generateUuidV7(),
+        placement: { id: generateUuidV7(), parentItemId: generateUuidV7(), positionKey: "c" },
+        values: {},
+        relationTargets: {},
+        code: "containment.parent-not-found",
+      },
+      {
+        label: "title in structured values",
+        id: generateUuidV7(),
+        values: { [create.titlePropertyId]: { kind: "text", value: "interdit" } },
+        relationTargets: {},
+        code: "validation.invalid-payload",
+      },
+      {
+        label: "unknown relation property",
+        id: generateUuidV7(),
+        values: {},
+        relationTargets: { [generateUuidV7()]: [target] },
+        code: "validation.invalid-payload",
+      },
+      {
+        label: "unavailable relation target",
+        id: generateUuidV7(),
+        values: {},
+        relationTargets: { [relationPropertyId]: [generateUuidV7()] },
+        code: "relationship.endpoint-unavailable",
+      },
+    ] as const;
+    for (const rejected of rejectedCases) {
+      const result = await submit({
+        type: "database.entry.create",
+        databaseId: create.id,
+        id: rejected.id,
+        title: rejected.label,
+        ...("placement" in rejected ? { placement: rejected.placement } : {}),
+        values: rejected.values,
+        relationTargets: rejected.relationTargets,
+      });
+      expect(result.result.status, rejected.label).toBe("rejected");
+      expect(result.result.problem?.code, rejected.label).toBe(rejected.code);
+      expect(
+        await readDatabaseEntryRecord(context.handle.db, rejected.id),
+        rejected.label,
+      ).toBeNull();
+      expect(
+        await context.handle.db.select().from(schema.items).where(eq(schema.items.id, rejected.id)),
+        rejected.label,
+      ).toHaveLength(0);
+      expect(
+        await context.handle.db
+          .select()
+          .from(schema.placements)
+          .where(eq(schema.placements.itemId, rejected.id)),
+        rejected.label,
+      ).toHaveLength(0);
+      expect(
+        await context.handle.db
+          .select()
+          .from(schema.databaseEntries)
+          .where(eq(schema.databaseEntries.entryItemId, rejected.id)),
+        rejected.label,
+      ).toHaveLength(0);
+      expect(
+        await context.handle.db
+          .select()
+          .from(schema.revisions)
+          .where(eq(schema.revisions.itemId, rejected.id)),
+        rejected.label,
+      ).toHaveLength(0);
+      expect(
+        await context.handle.db
+          .select()
+          .from(schema.relationships)
+          .where(eq(schema.relationships.sourceItemId, rejected.id)),
+        rejected.label,
+      ).toHaveLength(0);
+      expect(
+        await context.handle.db
+          .select()
+          .from(schema.relationships)
+          .where(eq(schema.relationships.targetItemId, rejected.id)),
+        rejected.label,
+      ).toHaveLength(0);
+    }
+
+    const existingPage = await createPage("Page déjà existante");
+    const duplicateMembership = await submit({
+      type: "database.entry.create",
+      databaseId: create.id,
+      id: existingPage,
+      title: "Collision identité",
+      values: {},
+      relationTargets: {},
+    });
+    expect(duplicateMembership.result.status).toBe("rejected");
+    expect(duplicateMembership.result.problem?.code).toBe("database.membership-conflict");
+  });
+
+  it("guards embedding hosts and entry value versions without partial writes", async () => {
+    const create = databaseCreate();
+    const created = await submit(create);
+    expect(created.result.status).toBe("accepted");
+    const baseRevisionId = created.result.revisionIds?.[0] as Uuid;
+    const hostA = await createPage("Vue A");
+    const hostB = await createPage("Vue B");
+    const relationPropertyId = generateUuidV7();
+    const textPropertyId = generateUuidV7();
+    const baseDefinition = expandedDefinition(create, relationPropertyId, textPropertyId);
+    const withEmbedding = {
+      ...baseDefinition,
+      embeddings: [
+        {
+          id: generateUuidV7(),
+          hostPageId: hostA,
+          state: "active" as const,
+          views: baseDefinition.views,
+        },
+      ],
+    };
+    const firstEmbedding = withEmbedding.embeddings[0];
+    if (firstEmbedding === undefined) throw new Error("embedding fixture was not created");
+    const firstDefinition = await submit({
+      type: "database.definition.replace",
+      databaseId: create.id,
+      baseRevisionId,
+      definition: withEmbedding,
+    });
+    expect(firstDefinition.result.status).toBe("accepted");
+    const embeddingId = firstEmbedding.id;
+    expect(
+      (await readCurrentDatabaseDefinition(context.handle.db, create.id))?.embeddings?.[0]
+        ?.hostPageId,
+    ).toBe(hostA);
+    const currentBase = firstDefinition.result.revisionIds?.[0] as Uuid;
+
+    const invalidHostDefinition = {
+      ...withEmbedding,
+      embeddings: [{ ...firstEmbedding, hostPageId: generateUuidV7() }],
+    };
+    const invalidHost = await submit({
+      type: "database.definition.replace",
+      databaseId: create.id,
+      baseRevisionId: currentBase,
+      definition: invalidHostDefinition,
+    });
+    expect(invalidHost.result.status).toBe("rejected");
+    expect(invalidHost.result.problem?.code).toBe("item.not-active");
+    expect(
+      (await readCurrentDatabaseDefinition(context.handle.db, create.id))?.embeddings?.[0],
+    ).toMatchObject({
+      id: embeddingId,
+      hostPageId: hostA,
+      state: "active",
+    });
+
+    const missingEmbeddings = await submit({
+      type: "database.definition.replace",
+      databaseId: create.id,
+      baseRevisionId: currentBase,
+      definition: baseDefinition,
+    });
+    expect(missingEmbeddings.result.status).toBe("rejected");
+    expect(missingEmbeddings.result.problem?.code).toBe("validation.invalid-payload");
+
+    const retiredInvalidHost = await submit({
+      type: "database.definition.replace",
+      databaseId: create.id,
+      baseRevisionId: currentBase,
+      definition: {
+        ...withEmbedding,
+        embeddings: [
+          { ...firstEmbedding, state: "retired" as const, hostPageId: generateUuidV7() },
+        ],
+      },
+    });
+    expect(retiredInvalidHost.result.status).toBe("accepted");
+    const retiredRevision = retiredInvalidHost.result.revisionIds?.[0] as Uuid;
+    const movedEmbedding = await submit({
+      type: "database.definition.replace",
+      databaseId: create.id,
+      baseRevisionId: retiredRevision,
+      definition: {
+        ...withEmbedding,
+        embeddings: [{ ...firstEmbedding, hostPageId: hostB }],
+      },
+    });
+    expect(movedEmbedding.result.status).toBe("accepted");
+    const staleDefinition = await submit({
+      type: "database.definition.replace",
+      databaseId: create.id,
+      baseRevisionId: retiredRevision,
+      definition: withEmbedding,
+    });
+    expect(staleDefinition.result.status).toBe("conflict");
+    expect(staleDefinition.result.problem?.code).toBe("revision.stale-base");
+
+    const entryId = generateUuidV7();
+    const entryCreated = await submit({
+      type: "database.entry.create",
+      databaseId: create.id,
+      id: entryId,
+      title: "Versionnée",
+      values: { [textPropertyId]: { kind: "text", value: "avant" } },
+      relationTargets: {},
+    });
+    expect(entryCreated.result.status).toBe("accepted");
+    const entryBase = entryCreated.result.revisionIds?.[0] as Uuid;
+    const entryUpdated = await submit({
+      type: "database.entry.values.replace",
+      databaseId: create.id,
+      entryId,
+      baseRevisionId: entryBase,
+      values: { [textPropertyId]: { kind: "text", value: "après" } },
+      relationTargets: {},
+    });
+    expect(entryUpdated.result.status).toBe("accepted");
+    const staleEntry = await submit({
+      type: "database.entry.values.replace",
+      databaseId: create.id,
+      entryId,
+      baseRevisionId: entryBase,
+      values: { [textPropertyId]: { kind: "text", value: "obsolète" } },
+      relationTargets: {},
+    });
+    expect(staleEntry.result.status).toBe("conflict");
+    expect(staleEntry.result.problem?.code).toBe("revision.stale-base");
+
+    expect(
+      (await readCurrentDatabaseEntryValues(context.handle.db, entryId))?.values,
+    ).toMatchObject({
+      [textPropertyId]: { kind: "text", value: "après" },
+    });
+  });
 });

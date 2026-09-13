@@ -445,27 +445,6 @@ export type DeviceUpdateDto = Static<typeof DeviceUpdateSchema>;
 // Recovery
 // ---------------------------------------------------------------------------
 
-export const RecoveryKitPrepareSchema = Type.Object(
-  { passphrase: Type.String({ minLength: 12, maxLength: 1024, writeOnly: true }) },
-  { additionalProperties: false },
-);
-export type RecoveryKitPrepareDto = Static<typeof RecoveryKitPrepareSchema>;
-
-export const RecoveryKitDownloadViewSchema = Type.Object(
-  {
-    kitId: SecurityUuidSchema,
-    format: Type.Literal("myownnotion.recovery+json"),
-    formatVersion: Type.Literal(1),
-    installationId: SecurityUuidSchema,
-    sourceLineageId: SecurityUuidSchema,
-    authorizationState: Type.Literal("provisional"),
-    deliveryState: Type.Union([Type.Literal("downloadable"), Type.Literal("download-consumed")]),
-    downloadExpiresAt: DateTime,
-  },
-  { additionalProperties: false },
-);
-export type RecoveryKitDownloadViewDto = Static<typeof RecoveryKitDownloadViewSchema>;
-
 /** The seven legal pairs, same as the artifact schema and the database. */
 export const RECOVERY_VIEW_STATE_PAIRS = [
   { authorizationState: "provisional", deliveryState: "prepared" },
@@ -568,7 +547,7 @@ export const AuditEventSchema = Type.Object(
       Type.Literal("system"),
     ]),
     correlationId: SecurityUuidSchema,
-    safeCode: Type.String({ maxLength: 128 }),
+    safeCode: Type.Union([Type.String({ maxLength: 128 }), Type.Null()]),
     occurredAt: DateTime,
   },
   { additionalProperties: false },

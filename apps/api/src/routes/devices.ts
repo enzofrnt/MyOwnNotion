@@ -83,7 +83,15 @@ export function registerDeviceRoutes(app: FastifyInstance, deps: DeviceRouteDeps
 
   app.get(
     "/v1/devices",
-    { schema: { response: { 200: DeviceListSchema, 401: SecurityProblemSchema } } },
+    {
+      schema: {
+        response: {
+          200: DeviceListSchema,
+          401: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const owner = deps.require(request, reply, {});
       if (owner === null) {
@@ -95,7 +103,18 @@ export function registerDeviceRoutes(app: FastifyInstance, deps: DeviceRouteDeps
 
   app.get(
     "/v1/devices/:deviceId",
-    { schema: { params: DeviceParams, response: { 200: DeviceSchema } } },
+    {
+      schema: {
+        params: DeviceParams,
+        response: {
+          200: DeviceSchema,
+          400: SecurityProblemSchema,
+          401: SecurityProblemSchema,
+          404: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const owner = deps.require(request, reply, {});
       if (owner === null) {
@@ -115,7 +134,20 @@ export function registerDeviceRoutes(app: FastifyInstance, deps: DeviceRouteDeps
 
   app.patch(
     "/v1/devices/:deviceId",
-    { schema: { params: DeviceParams, body: DeviceUpdateSchema, response: { 200: DeviceSchema } } },
+    {
+      schema: {
+        params: DeviceParams,
+        body: DeviceUpdateSchema,
+        response: {
+          200: DeviceSchema,
+          400: SecurityProblemSchema,
+          401: SecurityProblemSchema,
+          403: SecurityProblemSchema,
+          404: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       // CSRF but not recency: making an owner re-authenticate to fix a typo in
       // a device name trains them to approve prompts without reading them.
@@ -149,7 +181,20 @@ export function registerDeviceRoutes(app: FastifyInstance, deps: DeviceRouteDeps
 
   app.post(
     "/v1/devices/:deviceId/revoke",
-    { schema: { params: DeviceParams, response: { 200: DeviceSchema } } },
+    {
+      schema: {
+        params: DeviceParams,
+        response: {
+          200: DeviceSchema,
+          400: SecurityProblemSchema,
+          401: SecurityProblemSchema,
+          403: SecurityProblemSchema,
+          404: SecurityProblemSchema,
+          428: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       // Recent authentication, like "sign out everywhere else": this is the
       // control an attacker holding a stolen session would use, and it is the
@@ -177,7 +222,20 @@ export function registerDeviceRoutes(app: FastifyInstance, deps: DeviceRouteDeps
 
   app.post(
     "/v1/devices/:deviceId/reauthorize",
-    { schema: { params: DeviceParams, response: { 200: DeviceSchema } } },
+    {
+      schema: {
+        params: DeviceParams,
+        response: {
+          200: DeviceSchema,
+          400: SecurityProblemSchema,
+          401: SecurityProblemSchema,
+          403: SecurityProblemSchema,
+          404: SecurityProblemSchema,
+          428: SecurityProblemSchema,
+          500: SecurityProblemSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const owner = deps.require(request, reply, { csrf: true, recentAuthentication: true });
       if (owner === null) {

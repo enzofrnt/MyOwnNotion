@@ -4,6 +4,7 @@ import {
   canonicalDocumentJsonV3,
   generateUuidV7,
   migrateDocumentV2ToV3,
+  type TableBlockV3,
   type Uuid,
 } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
@@ -23,6 +24,36 @@ import {
 
 function legacyParagraph(id: Uuid, text: string): BlockDocument {
   return { blocks: [{ type: "paragraph", id, content: [{ text }] }] };
+}
+
+function tableInsertCommand(input: {
+  readonly tableId: Uuid;
+  readonly columnId: Uuid;
+  readonly rowId: Uuid;
+  readonly cellId: Uuid;
+  readonly text?: string;
+}): {
+  readonly type: "insert-block";
+  readonly block: TableBlockV3;
+  readonly parentBlockId: Uuid | null;
+  readonly beforeBlockId: Uuid | null;
+} {
+  return {
+    type: "insert-block",
+    block: {
+      type: "table",
+      id: input.tableId,
+      columns: [{ id: input.columnId, width: null }],
+      rows: [
+        {
+          id: input.rowId,
+          cells: [{ id: input.cellId, content: [{ text: input.text ?? "A1" }] }],
+        },
+      ],
+    },
+    parentBlockId: null,
+    beforeBlockId: null,
+  };
 }
 
 async function branchWith(input: {
@@ -693,6 +724,17 @@ describe("legacy offline branches", () => {
     expect(same.transaction).toBeUndefined();
     expect(same.ambiguities).toEqual([]);
 
+    const misplacedPage = OperationalPageDocument.create({
+      pageId,
+      document: { blocks: [inserted, baseBlock] },
+    });
+    const misplaced = await convertLegacyOfflineBranch({ branch, activePage: misplacedPage });
+    expect(misplaced.commands).toEqual([]);
+    expect(misplaced.ambiguities[0]).toMatchObject({
+      kind: "schema",
+      blockIds: [insertedId],
+    });
+
     const collisionPage = OperationalPageDocument.create({
       pageId,
       document: {
@@ -921,5 +963,678 @@ describe("journal coverage for move and property commands", () => {
         digest: edited.localDocumentDigest,
       });
     }
+  });
+
+  it("translates text insertions, idempotent edits, conflicts and deleted targets", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const baseDocument = legacyParagraph(blockId, "ABC");
+
+    const insertion = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 1,
+          baseTo: 1,
+          beforeContext: "A",
+          afterContext: "B",
+          text: "X",
+        },
+      ],
+    });
+    const insertionPage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    const inserted = await convertLegacyOfflineBranch({
+      branch: insertion,
+      activePage: insertionPage,
+    });
+    expect(inserted.commands).toMatchObject([
+      { type: "replace-text", blockId, from: 1, to: 1, text: "X" },
+    ]);
+    const replayedInsertion = await convertLegacyOfflineBranch({
+      branch: insertion,
+      activePage: insertionPage,
+    });
+    expect(replayedInsertion.commands).toEqual([]);
+    expect(replayedInsertion.ambiguities).toEqual([]);
+    const replayedBlock = (await insertionPage.project()).document.blocks[0];
+    expect(replayedBlock?.type).toBe("paragraph");
+    if (replayedBlock?.type === "paragraph") {
+      expect(replayedBlock.content.map((run) => run.text).join("")).toBe("AXBC");
+    }
+
+    const concurrentInsertionPage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(legacyParagraph(blockId, "ABCX")),
+    });
+    const concurrentInsertion = await convertLegacyOfflineBranch({
+      branch: insertion,
+      activePage: concurrentInsertionPage,
+    });
+    expect(concurrentInsertion.commands).toMatchObject([
+      { type: "replace-text", blockId, from: 1, to: 1, text: "X" },
+    ]);
+    const concurrentBlock = (await concurrentInsertionPage.project()).document.blocks[0];
+    expect(concurrentBlock?.type).toBe("paragraph");
+    if (concurrentBlock?.type === "paragraph") {
+      expect(concurrentBlock.content.map((run) => run.text).join("")).toBe("AXBCX");
+    }
+
+    const replacement = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 1,
+          baseTo: 2,
+          beforeContext: "A",
+          afterContext: "C",
+          text: "X",
+        },
+      ],
+    });
+    const alreadyInserted = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(legacyParagraph(blockId, "AXC")),
+    });
+    const idempotent = await convertLegacyOfflineBranch({
+      branch: replacement,
+      activePage: alreadyInserted,
+    });
+    expect(idempotent.commands).toEqual([]);
+    expect(idempotent.ambiguities).toEqual([]);
+
+    const changed = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(legacyParagraph(blockId, "AYC")),
+    });
+    const conflict = await convertLegacyOfflineBranch({ branch: replacement, activePage: changed });
+    expect(conflict.commands).toEqual([]);
+    expect(conflict.ambiguities[0]).toMatchObject({ kind: "schema", blockIds: [blockId] });
+
+    const deletion = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [{ type: "delete-block", blockId }],
+    });
+    const alreadyDeleted = OperationalPageDocument.create({
+      pageId,
+      document: { blocks: [] },
+    });
+    const deleted = await convertLegacyOfflineBranch({
+      branch: deletion,
+      activePage: alreadyDeleted,
+    });
+    expect(deleted.commands).toEqual([]);
+    expect(deleted.ambiguities).toEqual([]);
+
+    const marked = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        {
+          type: "set-mark",
+          blockId,
+          baseFrom: 0,
+          baseTo: 1,
+          mark: { type: "bold" },
+          enabled: true,
+        },
+      ],
+    });
+    const markTargetDeleted = OperationalPageDocument.create({ pageId, document: { blocks: [] } });
+    const markConflict = await convertLegacyOfflineBranch({
+      branch: marked,
+      activePage: markTargetDeleted,
+    });
+    expect(markConflict.commands).toEqual([]);
+    expect(markConflict.ambiguities[0]?.kind).toBe("delete-edit");
+  });
+
+  it("does not replay an already applied insertion in a partially converted branch", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const baseDocument = legacyParagraph(blockId, "ABC");
+    let branch = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId: generateUuidV7(),
+      baseDocument,
+      createdAt: "2026-08-20T12:00:00.000Z",
+    });
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 1,
+      commands: [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 1,
+          baseTo: 1,
+          beforeContext: "A",
+          afterContext: "B",
+          text: "X",
+        },
+      ],
+    });
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 2,
+      commands: [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 2,
+          baseTo: 2,
+          beforeContext: "AX",
+          afterContext: "B",
+          text: "Y",
+        },
+      ],
+    });
+
+    const activePage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(legacyParagraph(blockId, "AXBC")),
+    });
+    const conversion = await convertLegacyOfflineBranch({ branch, activePage });
+
+    expect(conversion.commands).toEqual([
+      { type: "replace-text", blockId, from: 2, to: 2, text: "Y" },
+    ]);
+    expect(conversion.ambiguities).toEqual([]);
+    const block = (await activePage.project()).document.blocks[0];
+    expect(block?.type).toBe("paragraph");
+    if (block?.type === "paragraph") {
+      expect(block.content.map((run) => run.text).join("")).toBe("AXYBC");
+    }
+
+    const concurrentPage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(legacyParagraph(blockId, "AXBCZ")),
+    });
+    const concurrent = await convertLegacyOfflineBranch({ branch, activePage: concurrentPage });
+    expect(concurrent.ambiguities).toEqual([]);
+    const concurrentBlock = (await concurrentPage.project()).document.blocks[0];
+    expect(concurrentBlock?.type).toBe("paragraph");
+    if (concurrentBlock?.type === "paragraph") {
+      expect(concurrentBlock.content.map((run) => run.text).join("")).toBe("AXYBCZ");
+    }
+  });
+
+  it("preserves causal edits whose final projection returns to the active state", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const baseDocument = legacyParagraph(blockId, "ABC");
+    const branch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 1,
+          baseTo: 2,
+          beforeContext: "A",
+          afterContext: "C",
+          text: "X",
+        },
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 1,
+          baseTo: 2,
+          beforeContext: "A",
+          afterContext: "C",
+          text: "B",
+        },
+      ],
+    });
+    const activePage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+
+    const conversion = await convertLegacyOfflineBranch({ branch, activePage });
+
+    expect(conversion.commands.map(({ type }) => type)).toEqual(["replace-text", "replace-text"]);
+    expect(conversion.transaction).toBeDefined();
+    expect(conversion.ambiguities).toEqual([]);
+    expect((await activePage.project()).document).toEqual(branch.localDocument);
+  });
+
+  it("preserves typed transform properties and reports a concurrent transform", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const baseDocument = legacyParagraph(blockId, "Texte");
+    const branch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        {
+          type: "set-type-or-property",
+          blockId,
+          key: "type",
+          before: "paragraph",
+          after: "heading",
+          properties: { level: 2 },
+        },
+      ],
+    });
+    const activePage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    activePage.transact([
+      { type: "set-block-type", blockId, blockType: "heading", properties: { level: 3 } },
+    ]);
+    const conversion = await convertLegacyOfflineBranch({ branch, activePage });
+    expect(conversion.commands).toEqual([]);
+    expect(conversion.ambiguities[0]?.kind).toBe("type-transform");
+
+    const calloutId = generateUuidV7();
+    const calloutDocument = {
+      blocks: [
+        {
+          type: "paragraph" as const,
+          id: calloutId,
+          content: [{ text: "Attention" }],
+        },
+      ],
+    };
+    const calloutPage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(calloutDocument),
+    });
+    const beforeCallout = calloutPage.snapshot();
+    const calloutTransaction = calloutPage.transact([
+      {
+        type: "set-block-type",
+        blockId: calloutId,
+        blockType: "callout",
+        properties: { icon: "⚠️", tone: "yellow" },
+      },
+    ]);
+    const calloutCommands = legacySemanticCommandsFromTransaction({
+      pageId,
+      beforeDocument: beforeCallout,
+      transaction: calloutTransaction,
+    });
+    expect(calloutCommands[0]).toMatchObject({
+      type: "set-type-or-property",
+      key: "type",
+      properties: { icon: "⚠️", tone: "yellow" },
+    });
+  });
+
+  it("rejects malformed semantic proofs instead of guessing a text location", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const baseDocument = legacyParagraph(blockId, "ABC");
+    const branch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 1,
+          baseTo: 2,
+          beforeContext: "A",
+          afterContext: "C",
+          text: "X",
+        },
+      ],
+    });
+    const activePage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(legacyParagraph(blockId, "AQC")),
+    });
+    const conflict = await convertLegacyOfflineBranch({ branch, activePage });
+    expect(conflict.ambiguities[0]?.kind).toBe("schema");
+
+    const malformed = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId: generateUuidV7(),
+      baseDocument,
+      createdAt: "2026-08-20T12:00:00.000Z",
+    });
+    await expect(
+      appendLegacySemanticTransaction(malformed, {
+        transactionId: generateUuidV7(),
+        sequence: 1,
+        commands: [
+          {
+            type: "set-type-or-property",
+            blockId,
+            key: "future",
+            before: { invalid: undefined } as never,
+            after: "value",
+          },
+        ],
+      }),
+    ).rejects.toThrow(/JSON key invalid is undefined/u);
+  });
+
+  it("classifies concurrent table row states and preserves valid row placement", async () => {
+    const pageId = generateUuidV7();
+    const baseId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const columnId = generateUuidV7();
+    const rowId = generateUuidV7();
+    const cellId = generateUuidV7();
+    const extraRowId = generateUuidV7();
+    const extraCellId = generateUuidV7();
+    const baseDocument = legacyParagraph(baseId, "Base");
+    const table = tableInsertCommand({ tableId, columnId, rowId, cellId });
+    const row = {
+      type: "insert-table-row" as const,
+      tableId,
+      row: { id: extraRowId, cells: [{ id: extraCellId, content: [{ text: "A2" }] }] },
+      beforeRowId: rowId,
+    };
+
+    const rowBranch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [table, row],
+    });
+    const validActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    const valid = await convertLegacyOfflineBranch({ branch: rowBranch, activePage: validActive });
+    expect(valid.commands).toMatchObject([
+      { type: "insert-block", block: { id: tableId } },
+      { type: "insert-table-row", tableId, beforeRowId: rowId },
+    ]);
+
+    const missingReferenceActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    missingReferenceActive.transact([
+      {
+        ...table,
+        block: {
+          ...table.block,
+          rows: [
+            {
+              id: generateUuidV7(),
+              cells: [{ id: generateUuidV7(), content: [{ text: "Concurrent" }] }],
+            },
+          ],
+        },
+      },
+    ]);
+    const missingReference = await convertLegacyOfflineBranch({
+      branch: rowBranch,
+      activePage: missingReferenceActive,
+    });
+    expect(missingReference.commands[0]).toMatchObject({
+      type: "insert-table-row",
+      beforeRowId: null,
+    });
+
+    const idempotentActive = OperationalPageDocument.create({
+      pageId,
+      document: rowBranch.localDocument,
+    });
+    const idempotent = await convertLegacyOfflineBranch({
+      branch: rowBranch,
+      activePage: idempotentActive,
+    });
+    expect(idempotent.commands).toEqual([]);
+    expect(idempotent.ambiguities).toEqual([]);
+
+    const extraColumnId = generateUuidV7();
+    const missingRowActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    missingRowActive.transact([
+      table,
+      {
+        type: "insert-table-column",
+        tableId,
+        column: { id: extraColumnId, width: null },
+        cells: [{ rowId, cell: { id: generateUuidV7(), content: [{ text: "B1" }] } }],
+        beforeColumnId: null,
+      },
+    ]);
+    const rowSkipped = await convertLegacyOfflineBranch({
+      branch: rowBranch,
+      activePage: missingRowActive,
+    });
+    expect(rowSkipped.ambiguities.map(({ kind }) => kind)).toContain("schema");
+    expect(rowSkipped.commands).toHaveLength(0);
+
+    const alteredRowBranch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [table, { ...row, beforeRowId: null }],
+    });
+    const alteredActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    alteredActive.transact([
+      tableInsertCommand({ tableId, columnId, rowId, cellId, text: "Concurrent" }),
+    ]);
+    const altered = await convertLegacyOfflineBranch({
+      branch: alteredRowBranch,
+      activePage: alteredActive,
+    });
+    expect(altered.ambiguities.map(({ kind }) => kind)).toContain("schema");
+  });
+
+  it("handles missing, changed and already-consumed table rows", async () => {
+    const pageId = generateUuidV7();
+    const baseId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const columnId = generateUuidV7();
+    const rowId = generateUuidV7();
+    const cellId = generateUuidV7();
+    const baseDocument = legacyParagraph(baseId, "Base");
+    const table = tableInsertCommand({ tableId, columnId, rowId, cellId });
+    const deleteRow = { type: "delete-table-row" as const, tableId, rowId };
+    const secondRowId = generateUuidV7();
+    const secondCellId = generateUuidV7();
+    const twoRowTable = {
+      ...table,
+      block: {
+        ...table.block,
+        rows: [
+          ...table.block.rows,
+          { id: secondRowId, cells: [{ id: secondCellId, content: [{ text: "A2" }] }] },
+        ],
+      },
+    };
+    const secondRow = twoRowTable.block.rows[1];
+    if (secondRow === undefined) throw new Error("table fixture is missing its second row");
+
+    const deletionBranch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [twoRowTable, deleteRow],
+    });
+    const noRowActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    const noRowTable = {
+      ...twoRowTable,
+      block: {
+        ...twoRowTable.block,
+        rows: [secondRow],
+      },
+    };
+    noRowActive.transact([noRowTable]);
+    const noRow = await convertLegacyOfflineBranch({
+      branch: deletionBranch,
+      activePage: noRowActive,
+    });
+    expect(noRow.commands).toEqual([]);
+    expect(noRow.ambiguities).toEqual([]);
+
+    const changedBranch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [twoRowTable, { type: "delete-table-row", tableId, rowId }],
+    });
+    const changedActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    changedActive.transact([
+      {
+        ...twoRowTable,
+        block: {
+          ...twoRowTable.block,
+          rows: [{ id: rowId, cells: [{ id: cellId, content: [{ text: "Changed" }] }] }, secondRow],
+        },
+      },
+    ]);
+    const changed = await convertLegacyOfflineBranch({
+      branch: changedBranch,
+      activePage: changedActive,
+    });
+    expect(changed.ambiguities.map(({ kind }) => kind)).toContain("delete-edit");
+  });
+
+  it("classifies concurrent table column shape changes and preserves column order", async () => {
+    const pageId = generateUuidV7();
+    const baseId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const columnId = generateUuidV7();
+    const rowId = generateUuidV7();
+    const cellId = generateUuidV7();
+    const addedColumnId = generateUuidV7();
+    const addedCellId = generateUuidV7();
+    const extraRowId = generateUuidV7();
+    const extraRowCellId = generateUuidV7();
+    const baseDocument = legacyParagraph(baseId, "Base");
+    const table = tableInsertCommand({ tableId, columnId, rowId, cellId });
+    const column = {
+      type: "insert-table-column" as const,
+      tableId,
+      column: { id: addedColumnId, width: 180 },
+      cells: [{ rowId, cell: { id: addedCellId, content: [{ text: "B1" }] } }],
+      beforeColumnId: columnId,
+    };
+    const deletion = { type: "delete-table-column" as const, tableId, columnId: addedColumnId };
+    const branch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [table, column, deletion],
+    });
+
+    const validActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    const valid = await convertLegacyOfflineBranch({ branch, activePage: validActive });
+    expect(valid.commands.map(({ type }) => type)).toEqual([
+      "insert-block",
+      "insert-table-column",
+      "delete-table-column",
+    ]);
+    expect(valid.commands[1]).toMatchObject({ beforeColumnId: columnId });
+
+    const missingReferenceActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    const alternateColumnId = generateUuidV7();
+    missingReferenceActive.transact([
+      {
+        ...table,
+        block: {
+          ...table.block,
+          columns: [{ id: alternateColumnId, width: null }],
+        },
+      },
+    ]);
+    const missingReference = await convertLegacyOfflineBranch({
+      branch,
+      activePage: missingReferenceActive,
+    });
+    expect(missingReference.commands[0]).toMatchObject({
+      type: "insert-table-column",
+      beforeColumnId: null,
+    });
+
+    const sameActive = OperationalPageDocument.create({ pageId, document: branch.localDocument });
+    const same = await convertLegacyOfflineBranch({ branch, activePage: sameActive });
+    expect(same.commands.map(({ type }) => type)).toEqual([
+      "insert-table-column",
+      "delete-table-column",
+    ]);
+    expect(same.ambiguities).toEqual([]);
+
+    const extraRowActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    extraRowActive.transact([
+      table,
+      {
+        type: "insert-table-row",
+        tableId,
+        row: {
+          id: extraRowId,
+          cells: [{ id: extraRowCellId, content: [{ text: "A2" }] }],
+        },
+        beforeRowId: null,
+      },
+    ]);
+    const missingColumn = await convertLegacyOfflineBranch({
+      branch,
+      activePage: extraRowActive,
+    });
+    expect(missingColumn.commands).toEqual([]);
+    expect(missingColumn.ambiguities.map(({ kind }) => kind)).toContain("schema");
+
+    const alteredColumnActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    alteredColumnActive.transact([
+      table,
+      {
+        type: "insert-table-column",
+        tableId,
+        column: { id: addedColumnId, width: 240 },
+        cells: [{ rowId, cell: { id: addedCellId, content: [{ text: "B1" }] } }],
+        beforeColumnId: null,
+      },
+    ]);
+    const altered = await convertLegacyOfflineBranch({
+      branch,
+      activePage: alteredColumnActive,
+    });
+    expect(altered.ambiguities.map(({ kind }) => kind)).toContain("schema");
+    expect(altered.ambiguities.map(({ kind }) => kind)).toContain("delete-edit");
+
+    const blockedActive = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3({
+        blocks: [
+          { type: "paragraph", id: baseId, content: [{ text: "Base" }] },
+          { type: "paragraph", id: tableId, content: [{ text: "same identity" }] },
+        ],
+      }),
+    });
+    const blocked = await convertLegacyOfflineBranch({ branch, activePage: blockedActive });
+    expect(blocked.commands).toEqual([]);
+    expect(blocked.ambiguities.map(({ kind }) => kind)).toContain("schema");
   });
 });

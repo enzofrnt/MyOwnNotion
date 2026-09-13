@@ -20,7 +20,7 @@
  */
 
 import { containsUnredactedField, redact, type SafeProblemCode } from "@myownnotion/domain";
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, notInArray } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { securityAuditEvents } from "../../schema/security/index.ts";
 import { SecurityRepositoryError, type SecurityScope } from "./repository-types.ts";
@@ -235,6 +235,8 @@ export async function appendAuditEvent(
 
 export interface ListAuditEventsOptions {
   readonly eventType?: SecurityEventType;
+  /** Actor classes excluded before ordering and limiting the result set. */
+  readonly excludeActorClasses?: readonly AuditActorClass[];
   readonly since?: Date;
   readonly limit?: number;
 }
@@ -248,6 +250,9 @@ export async function listAuditEvents(
   const filters = [eq(securityAuditEvents.installationId, scope.installationId)];
   if (options.eventType !== undefined) {
     filters.push(eq(securityAuditEvents.eventType, options.eventType));
+  }
+  if (options.excludeActorClasses !== undefined && options.excludeActorClasses.length > 0) {
+    filters.push(notInArray(securityAuditEvents.actorClass, [...options.excludeActorClasses]));
   }
   if (options.since !== undefined) {
     filters.push(gte(securityAuditEvents.occurredAt, options.since));

@@ -428,7 +428,7 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
       pageDocument !== null &&
       (!isRecord(pageDocument) ||
         !isNonEmptyString(pageDocument["format"]) ||
-        !isNonNegativeInteger(pageDocument["formatVersion"]) ||
+        !isPositiveInteger(pageDocument["formatVersion"]) ||
         !isRecord(pageDocument["body"]))
     ) {
       issues.push(shapeIssue("item", `items[${index}].pageDocument is invalid`));

@@ -97,6 +97,16 @@
         "salt": { "$ref": "#/$defs/B64", "minLength": 22, "maxLength": 22 }
       }
     },
+    "DeploymentKeyKdf": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "keyLength", "salt"],
+      "properties": {
+        "algorithm": { "const": "deployment-key" },
+        "keyLength": { "const": 32 },
+        "salt": { "$ref": "#/$defs/B64", "minLength": 22, "maxLength": 22 }
+      }
+    },
     "RecoveryKit": {
       "type": "object",
       "additionalProperties": false,
@@ -137,7 +147,9 @@
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/Generation" }
         },
-        "kdf": { "$ref": "#/$defs/Kdf" },
+        "kdf": {
+          "oneOf": [{ "$ref": "#/$defs/Kdf" }, { "$ref": "#/$defs/DeploymentKeyKdf" }]
+        },
         "encryption": {
           "type": "object",
           "additionalProperties": false,

@@ -272,6 +272,41 @@ describe("append-only behaviour", () => {
     ]);
   });
 
+  it("excludes actors before applying the limit", async () => {
+    const base = new Date("2026-01-01T00:00:00.000Z");
+    await appendAuditEvent(context.handle.db, scope, {
+      id: generateUuidV7(),
+      eventType: "auth.succeeded",
+      outcome: "success",
+      actorClass: "system",
+      correlationId: "corr-1",
+      occurredAt: base,
+    });
+    await appendAuditEvent(context.handle.db, scope, {
+      id: generateUuidV7(),
+      eventType: "mcp.operation",
+      outcome: "success",
+      actorClass: "mcp",
+      correlationId: "corr-2",
+      occurredAt: new Date(base.getTime() + 60_000),
+    });
+    await appendAuditEvent(context.handle.db, scope, {
+      id: generateUuidV7(),
+      eventType: "auth.failed",
+      outcome: "failure",
+      actorClass: "system",
+      correlationId: "corr-3",
+      occurredAt: new Date(base.getTime() + 120_000),
+    });
+
+    const events = await listAuditEvents(context.handle.db, scope, {
+      excludeActorClasses: ["mcp"],
+      limit: 2,
+    });
+
+    expect(events.map((event) => event.eventType)).toEqual(["auth.failed", "auth.succeeded"]);
+  });
+
   it("rolls the audit row back with the operation it describes", async () => {
     // An audit trail recording an action that then rolled back is worse than
     // no trail: it asserts something happened that did not.

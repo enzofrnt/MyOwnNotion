@@ -1,0 +1,186 @@
+openapi: 3.1.0
+info:
+  title: MyOwnNotion Backup API
+  version: 0.1.0
+  description: >-
+    Owner-facing status and isolated restoration rehearsal operations. The
+    portable backup surface and complete server backup surface remain separate.
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local development only
+tags:
+  - name: Backups
+paths:
+  /v1/backups/status:
+    get:
+      tags: [Backups]
+      operationId: getBackupStatus
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      responses:
+        '200':
+          description: Portable backup status without destination metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BackupStatus' }
+        '401': { $ref: '#/components/responses/SecurityProblem' }
+        '409': { $ref: '#/components/responses/SecurityProblem' }
+        '500': { $ref: '#/components/responses/SecurityProblem' }
+  /v1/backups/rehearsals:
+    post:
+      tags: [Backups]
+      operationId: runBackupRehearsal
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Isolated portable restore rehearsal result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RehearsalResult' }
+        '401': { $ref: '#/components/responses/SecurityProblem' }
+        '403': { $ref: '#/components/responses/SecurityProblem' }
+        '409': { $ref: '#/components/responses/SecurityProblem' }
+        '500': { $ref: '#/components/responses/SecurityProblem' }
+        '503': { $ref: '#/components/responses/SecurityProblem' }
+  /v1/backups/full/status:
+    get:
+      tags: [Backups]
+      operationId: getFullBackupStatus
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      responses:
+        '200':
+          description: Complete server backup status without archive metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FullBackupStatus' }
+        '401': { $ref: '#/components/responses/SecurityProblem' }
+        '409': { $ref: '#/components/responses/SecurityProblem' }
+        '500': { $ref: '#/components/responses/SecurityProblem' }
+  /v1/backups/full/rehearsals:
+    post:
+      tags: [Backups]
+      operationId: runFullBackupRehearsal
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Complete server backup rehearsal result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FullBackupRehearsal' }
+        '401': { $ref: '#/components/responses/SecurityProblem' }
+        '403': { $ref: '#/components/responses/SecurityProblem' }
+        '409': { $ref: '#/components/responses/SecurityProblem' }
+        '500': { $ref: '#/components/responses/SecurityProblem' }
+        '503': { $ref: '#/components/responses/SecurityProblem' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-mn_session
+    devSessionCookie:
+      type: apiKey
+      in: cookie
+      name: mn_dev_session
+  parameters:
+    CsrfToken:
+      in: header
+      name: X-CSRF-Token
+      required: true
+      description: Session-bound request token required for state-changing rehearsals
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 43
+  responses:
+    Problem:
+      description: Redacted security or operational problem
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    SecurityProblem:
+      description: Redacted owner-access or protected-operation problem
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/SecurityProblem' }
+  schemas:
+    BackupStatus:
+      type: object
+      required: [lastVerifiedAt, lastVerifiedBackupId, latestBackupAt, latestBackupId, latestCreationVerification, latestTransferVerification, lastRehearsalAt, lastRehearsalOutcome, stale, rehearsalDue]
+      properties:
+        lastVerifiedAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        lastVerifiedBackupId: { oneOf: [{ type: string, format: uuid }, { type: 'null' }] }
+        latestBackupAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        latestBackupId: { oneOf: [{ type: string, format: uuid }, { type: 'null' }] }
+        latestCreationVerification: { oneOf: [{ const: passed }, { const: failed }, { type: 'null' }] }
+        latestTransferVerification: { oneOf: [{ const: passed }, { const: failed }, { type: 'null' }] }
+        lastRehearsalAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        lastRehearsalOutcome: { oneOf: [{ const: succeeded }, { const: failed }, { type: 'null' }] }
+        stale: { type: boolean }
+        rehearsalDue: { type: boolean }
+      additionalProperties: false
+    FullBackupStatus:
+      type: object
+      required: [lastVerifiedAt, lastVerifiedBackupId, sourceVersion, sourceVersionLabel, remote, remoteVerifiedAt, latestAttemptAt, latestAttemptOutcome, lastRehearsalAt, lastRehearsalOutcome, stale, rehearsalDue]
+      properties:
+        lastVerifiedAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        lastVerifiedBackupId: { oneOf: [{ type: string, format: uuid }, { type: 'null' }] }
+        sourceVersion: { oneOf: [{ type: string }, { type: 'null' }] }
+        sourceVersionLabel: { type: string }
+        remote: { oneOf: [{ const: not-configured }, { const: pending }, { const: verified }, { const: failed }, { type: 'null' }] }
+        remoteVerifiedAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        latestAttemptAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        latestAttemptOutcome: { oneOf: [{ const: unfinished }, { const: succeeded }, { const: failed }, { type: 'null' }] }
+        lastRehearsalAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        lastRehearsalOutcome: { oneOf: [{ const: unfinished }, { const: succeeded }, { const: failed }, { type: 'null' }] }
+        stale: { type: boolean }
+        rehearsalDue: { type: boolean }
+      additionalProperties: false
+    RehearsalResult:
+      type: object
+      required: [outcome, restoredItemCount, restoredFileCount]
+      properties:
+        outcome: { const: succeeded }
+        restoredItemCount: { type: integer, minimum: 0 }
+        restoredFileCount: { type: integer, minimum: 0 }
+      additionalProperties: false
+    FullBackupRehearsal:
+      type: object
+      required: [backupId, databaseRestored, filesVerified]
+      properties:
+        backupId: { type: string, format: uuid }
+        databaseRestored: { const: true }
+        filesVerified: { type: integer, minimum: 0 }
+      additionalProperties: false
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string, maxLength: 120 }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        code: { type: string, maxLength: 128 }
+        detail: { type: string, maxLength: 256 }
+      additionalProperties: false
+    SecurityProblem:
+      type: object
+      required: [type, title, status, code, correlationId]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string, maxLength: 120 }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        code: { type: string, maxLength: 128 }
+        correlationId: { type: string, format: uuid }
+        detail: { type: string, maxLength: 256 }
+      additionalProperties: false
