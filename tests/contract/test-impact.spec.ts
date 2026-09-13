@@ -67,6 +67,16 @@ describe("impact policy", () => {
     expect(policy.e2eProjects).toEqual(playwrightConfig.projects?.map(({ name }) => name));
   });
 
+  it("keeps the isolated browser preview off Vite's transient compression path", () => {
+    const webServers = Array.isArray(playwrightConfig.webServer)
+      ? playwrightConfig.webServer
+      : [playwrightConfig.webServer];
+    expect(webServers.at(-1)?.env).toMatchObject({
+      MYOWNNOTION_E2E_PREVIEW_IDENTITY_ENCODING: "1",
+    });
+    expect(webServers.at(-1)?.reuseExistingServer).toBe(false);
+  });
+
   it("routes every unreliable macOS browser runtime through the pinned Linux image", () => {
     expect(
       BROWSER_PROJECTS.filter((project) => project.containerOnMac === true).map(

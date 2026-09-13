@@ -111,6 +111,9 @@ describe("Bun production artifacts", () => {
     expect(containerProject).toContain(`"--shard=\${shard}"`);
     expect(containerProject).toContain("--fail-on-flaky-tests");
 
+    const containerLauncher = read("scripts/test-e2e-firefox-container.sh");
+    expect(containerLauncher).toContain("MYOWNNOTION_E2E_SERVER_STDOUT");
+
     const playwrightConfig = read("playwright.config.ts");
     expect(playwrightConfig).toContain('timeout: name.startsWith("webkit-") ? 120_000 : 60_000');
     expect(playwrightConfig).toContain("expect: { timeout: 10_000 }");

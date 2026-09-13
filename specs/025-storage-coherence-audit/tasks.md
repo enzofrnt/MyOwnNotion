@@ -81,8 +81,10 @@ survive projection updates; active caret/style and native runtime are exercised.
       record commit-addressable delivery in
       `specs/025-storage-coherence-audit/validation.md` (FR-013). PR #175 and
       its merge are recorded, but main run `34748994269` failed on the Firefox
-      overflow regression tracked by A82; this delivery task remains open for
-      the corrected candidate and its main image publication.
+      overflow regression tracked by A82. Corrected PR #176 run `34761283724`
+      then failed only because its Firefox preview returned one invalid gzip
+      module response tracked by A88; this delivery task remains open for the
+      renewed candidate and its main image publication.
 
 ## Additional confirmed privacy boundary — required before delivery
 
@@ -229,3 +231,14 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
       `apps/api/tests/canonical-storage-migration.integration.spec.ts`
       (FR-007/FR-014, SC-003/SC-007, audit A86). Focused migration/projection
       tests, workspace types and Biome pass; complete delivery remains T041.
+
+## Phase 22: Deterministic browser-preview transport
+
+- [x] T096 [US4] Remove Vite's in-process response compression from the
+      isolated Playwright preview after Firefox rejected one successful module
+      response as `NS_ERROR_INVALID_CONTENT_ENCODING`; preserve ordinary
+      preview/production serving, forward the existing opt-in server diagnostic
+      output into the Linux browser container, and cover both configuration
+      boundaries plus the original Firefox journey (FR-011/FR-013, SC-007,
+      audit A88). The focused configuration suites and three pinned-Linux
+      Firefox repetitions pass; complete delivery remains T041.

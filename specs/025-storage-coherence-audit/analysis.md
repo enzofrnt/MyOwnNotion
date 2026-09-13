@@ -15,7 +15,7 @@ Research clarified that administrative key import refuses occupied targets and
 that historical MVCC/WAL erasure is not promised by application-level migration.
 
 Current reconciliation extends that historical baseline to 14 functional
-requirements, seven success criteria, 95 ordered tasks and 87 audit findings.
+requirements, seven success criteria, 96 ordered tasks and 88 audit findings.
 The final archive/code-audit corrections and complete coverage evidence are
 recorded at `ca2174cd83fa328f8df808d2ccce5a66061c8999`; the renewed browser and
 recovery lifecycle corrections are recorded at `333ea73`. At this historical
@@ -24,24 +24,27 @@ recorded at the end of this analysis.
 
 | Requirement | Tasks |
 | --- | --- |
-| FR-001 | T004, T006, T009–T012, T015–T016 |
+| FR-001 | T004, T006, T009–T012, T015–T016, T046 |
 | FR-002 | T007, T010, T013, T016, T024 |
 | FR-003 | T003, T005, T008, T014 |
-| FR-004 | T005, T011–T012, T014, T021, T049 |
-| FR-005 | T008, T011–T017, T037, T086 |
-| FR-006 | T003–T004, T007–T008, T017–T018, T037 |
-| FR-007 | T004, T022–T028, T087–T089 |
-| FR-008 | T006, T009, T014, T018, T025–T026 |
+| FR-004 | T005, T011–T012, T014, T049, T055, T057, T061–T063 |
+| FR-005 | T008, T011–T013, T015–T017, T037, T055, T057, T061, T063, T086 |
+| FR-006 | T003–T004, T007–T008, T017–T018, T037, T048 |
+| FR-007 | T004, T022–T026, T028, T044, T050, T052, T064–T068, T071–T078, T087–T089, T095 |
+| FR-008 | T006, T009, T014, T018, T025–T026, T048, T050, T052, T055, T057, T061–T063 |
 | FR-009 | T029–T031, T082, T085, T090–T091 |
-| FR-010 | T032–T033, T093–T094 |
-| FR-011 | T001–T002, T028, T036, T039, T079–T094 |
-| FR-012 | T030, T034–T035, T083, T089–T091, T093–T094 |
-| FR-013 | T002, T020, T035, T037–T041, T080, T082, T084–T085, T087, T089–T094 |
-| FR-014 | T042–T045, T064–T079, T081, T083, T086, T088, T092 |
+| FR-010 | T032–T033, T054–T057, T093–T094 |
+| FR-011 | T001–T002, T028, T036, T039, T047, T051–T053, T059–T060, T064–T065, T079–T091, T093–T094, T096 |
+| FR-012 | T030, T034–T035, T046, T051, T053–T054, T056, T060, T083, T089–T091, T093–T094 |
+| FR-013 | T002, T020, T035, T037, T039–T041, T047, T051, T054–T057, T059–T060, T080, T082, T084–T085, T087, T089–T091, T093–T094, T096 |
+| FR-014 | T042–T045, T064–T079, T081, T083, T086, T088, T092, T095 |
 
-SC-001 maps to T010/T019/T027; SC-002 to T019; SC-003 to T022/T027/T089; SC-004
-to T021/T049; SC-005 to T029/T031/T082/T085/T090–T091; SC-006 to T032/T038;
-SC-007 to T036/T039/T079–T094. SC-006 also maps to T093–T094.
+SC-001 maps to T010/T019/T027/T038; SC-002 to
+T019/T038/T048/T072/T074–T078/T086/T088; SC-003 to
+T022/T027/T038/T050/T052/T064–T068/T070–T078/T087–T089/T095; SC-004 to
+T021/T038/T049/T058/T062; SC-005 to T029/T031/T038/T082/T085/T090–T091;
+SC-006 to T032/T038/T093–T094; and SC-007 to
+T036/T038/T064–T065/T069–T070/T079–T096.
 
 Proceed through speckit-implement in dependency order. This result says nothing
 about implementation correctness or completed delivery; those require the tests,
@@ -480,6 +483,27 @@ T095 now proves that enabling the authenticated migration fallback still uses
 existing protected definition and entry-value envelopes. This closes A87's
 missing precedence evidence without changing the migration boundary; T041 still
 owns the renewed exact gate and delivery.
+
+## T096 — deterministic browser-preview transport
+
+PR #176 run `34761283724` passed every native, image, security, coverage,
+contract, database and build responsibility, plus Chromium and both WebKit
+profiles. Firefox completed 277 journeys but retried one initial blank page, so
+`--fail-on-flaky-tests` correctly failed the job. Its retained trace showed the
+HTML and entry chunks succeeded before Vite preview returned the 3.4 MiB dynamic
+router module with status 200 and `Content-Encoding: gzip`; Firefox rejected
+that response as `NS_ERROR_INVALID_CONTENT_ENCODING`. No API or application
+exception preceded the blank page, and the Playwright retry passed.
+
+T096 removes that Vite-only compression path from the isolated browser preview
+through an explicit Playwright environment boundary. Ordinary preview and
+production serving retain their existing configuration. The preview contract
+returns the router module byte-for-byte even when the client advertises gzip;
+the Vite configuration suite, test-impact contract and three repetitions of the
+original journey in the pinned Linux Firefox image pass. The existing opt-in
+web-server output flag is also forwarded into that container so an API or
+preview startup refusal remains diagnosable. T041 retains the renewed exact
+local, PR and post-merge delivery obligation.
 
 ## Integrated delivery closure — 2026-09-13
 

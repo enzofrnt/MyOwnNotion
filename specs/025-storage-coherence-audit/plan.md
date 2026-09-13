@@ -72,8 +72,9 @@ history and interrupted uploads; concrete audit boundaries listed in the spec.
 
 ## Constitution Check
 
-Before research: PASS by design. This enforces existing canvas 4/15/18–20/28–35
-and constitution I/III–VII; no permanent boundary changes or exception needed.
+Before research: PASS by design. This enforces existing canvas
+4/8–9/15–20/28–35/39–44 and constitution I/III–VII; no permanent boundary
+changes or exception needed.
 After design: PASS by design, subject to implementation evidence. Private file
 bytes and metadata are encrypted before persistence; sensitive candidate lookup
 uses a purpose-specific key; historical source retirement is resumable and
@@ -630,3 +631,28 @@ a source whose complete backup provenance is authenticated. Bind that temporary
 value to the captured metadata digest. Post-publication digest verification, cutover
 and retirement use only protected envelopes. Exercise route refusal before the
 migration and exact API readback afterward.
+
+### T096 — deterministic Playwright preview transport
+
+The retained Firefox trace from PR #176 shows one successful Vite preview
+response whose generated gzip stream was rejected as
+`NS_ERROR_INVALID_CONTENT_ENCODING`; the same Playwright attempt therefore
+never mounted its dynamic route, while the framework retry passed. Keep the
+repository's `--fail-on-flaky-tests` policy unchanged and remove this transport
+path at the isolated preview boundary.
+
+`playwright.config.ts` passes
+`MYOWNNOTION_E2E_PREVIEW_IDENTITY_ENCODING=1` only to its built-web preview.
+Under that explicit flag, `apps/web/vite.config.ts` sets the preview response
+encoding to `identity`, causing Vite's compression middleware to preserve the
+built bytes. The environment-free preview, development server and production
+image serving retain their existing headers and behavior. Configuration and
+impact contracts cover both the opt-in and ordinary paths; download a generated
+large router module while advertising gzip and compare it byte-for-byte, then
+repeat the original database-projection journey in the pinned Linux Firefox
+image without retry.
+
+Forward `MYOWNNOTION_E2E_SERVER_STDOUT` through the Firefox container launcher
+without enabling it by default. This keeps routine output quiet while allowing
+an explicitly diagnosed API or preview startup refusal to expose the underlying
+server error.

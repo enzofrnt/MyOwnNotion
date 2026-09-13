@@ -808,8 +808,8 @@ At `333ea73`:
 - the then-current, pre-T092 SpecKit analysis/convergence pass mapped **14 FR,
   7 SC, 91 unique tasks and 80 audit findings** with no duplicate, placeholder,
   uncovered requirement or new unbuilt work; at that historical checkpoint,
-  T037/T038/T040/T041 remained open for delivery. The current inventory is 95
-  tasks and 87 findings, with only T041 still open.
+  T037/T038/T040/T041 remained open for delivery. The current inventory is 96
+  tasks and 88 findings, with only T041 still open.
 
 The process-owned artifact is never persisted. The official V1 deployment
 therefore runs one active API process per installation; a restart loses only the
@@ -928,6 +928,32 @@ identical, directly proving protected content keeps precedence. The unchanged
 10-case focused migration suite, workspace types, formatter and linter pass;
 renewed exact coverage and delivery remain owned by T041. Durable log:
 `closure-checks-local-644f6022-attempt2-20260913.log`.
+
+## T096 — Firefox preview transport failure
+
+PR #176 run `34761283724` retained the original failure rather than accepting a
+Playwright retry as green. Firefox completed **277 passed / 30 skipped** journeys;
+the initial `preserves native property input across a remote projection before
+input delivery` attempt stayed blank and its retry passed. Artifact
+`10319263540` proves the dynamic router request returned status 200 with gzip,
+then failed as `NS_ERROR_INVALID_CONTENT_ENCODING`; the page reported only the
+resulting dynamic-import error. Every other PR job completed successfully, and
+`quality-gate` failed as designed.
+
+Focused correction evidence on Bun 1.4.2:
+
+- Vite serving configuration and real HTTP transport: **4/4 tests**;
+- CI/test-impact and Bun production-artifact contracts: **43/43 tests**;
+- an actual 3.4 MiB router response requested with gzip is served with identity
+  encoding and compares byte-for-byte with the built file;
+- the original database projection journey: **3/3** repetitions in the pinned
+  Linux Firefox image, without retry.
+
+The identity response is enabled only for the isolated Playwright preview.
+Ordinary preview and production configuration are unchanged. The container
+launcher now forwards the already opt-in server-output flag for startup
+diagnosis. Exact clean local, renewed PR and post-merge delivery remain owned by
+T041; the failed PR run is not treated as delivery evidence.
 
 ## Integrated delivery closure — exact SHA `52dfdc926164f392cf812ead302bddb9662ac356`
 

@@ -34,6 +34,19 @@ function portPolicy() {
 }
 
 /**
+ * Vite preview compresses responses in-process. Under the long Linux Firefox
+ * matrix that middleware can occasionally return a 200 response whose gzip
+ * stream is rejected as `NS_ERROR_INVALID_CONTENT_ENCODING`, so the initial
+ * dynamic route never mounts. The preview used by Playwright opts out of that
+ * transport-only path; ordinary preview and production serving are unchanged.
+ */
+function e2ePreviewHeaders() {
+  return process.env["MYOWNNOTION_E2E_PREVIEW_IDENTITY_ENCODING"] === "1"
+    ? { headers: { "Content-Encoding": "identity" } }
+    : {};
+}
+
+/**
  * When Caddy fronts Vite in `compose.dev.yaml`, the browser talks to
  * https://localhost:8443 or http://localhost:8080. Asset URLs must follow the
  * request host rather than a pinned HTTPS origin (Cursor cannot trust the
@@ -100,5 +113,6 @@ export default defineConfig({
     host: process.env["MYOWNNOTION_WEB_HOST"] || "127.0.0.1",
     ...portPolicy(),
     proxy: apiProxy(),
+    ...e2ePreviewHeaders(),
   },
 });
