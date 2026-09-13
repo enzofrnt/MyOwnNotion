@@ -19,8 +19,10 @@
 
 import { randomBytes, scryptSync } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { createDatabase } from "@myownnotion/database";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
+import { KeyHierarchy } from "../../apps/api/src/security/key-hierarchy.ts";
 import { withBoundedDatabaseClient } from "./bounded-database.ts";
 import { expectNoHorizontalOverflow, openSettings } from "./helpers.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
@@ -53,12 +55,59 @@ async function seedPassword(): Promise<void> {
 /** An installation that already holds a confirmed kit, as a live one does. */
 async function seedActiveKit(): Promise<void> {
   await withBoundedDatabaseClient("myownnotion-e2e-recovery-kit", async (client) => {
-    const { rows } = await client.query<{ id: string; source_lineage_id: string }>(
-      `SELECT id, source_lineage_id FROM installations LIMIT 1`,
-    );
+    const { rows } = await client.query<{
+      id: string;
+      source_lineage_id: string;
+      workspace_id: string | null;
+    }>(`SELECT id, source_lineage_id, workspace_id FROM installations LIMIT 1`);
     const installation = rows[0];
-    if (installation === undefined) {
+    if (installation === undefined || installation.workspace_id === null) {
       return;
+    }
+
+    // reset-installation deliberately clears the per-installation key
+    // hierarchy. Recreate the same three levels bootstrap would have left for
+    // a committed owner, so the API can both enumerate a supported data-key
+    // generation and unwrap the root key when preparing the replacement.
+    const deploymentKeyPath = process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"];
+    if (deploymentKeyPath === undefined) {
+      throw new Error("missing deployment-key fixture for recovery E2E");
+    }
+    const deploymentKey = Buffer.from((await readFile(deploymentKeyPath, "utf8")).trim(), "base64");
+    const database = createDatabase(
+      process.env["DATABASE_URL"] ??
+        "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion",
+    );
+    try {
+      const hierarchy = new KeyHierarchy({
+        db: database.db,
+        installationId: installation.id,
+        workspaceId: installation.workspace_id,
+        deploymentKey: () => deploymentKey,
+        now: () => new Date(),
+      });
+      await hierarchy.initialize(database.db);
+    } finally {
+      await database.close();
+    }
+    const { rows: hierarchy } = await client.query<{
+      wrapping_count: string;
+      root_count: string;
+      generation_count: string;
+    }>(
+      `SELECT
+         (SELECT count(*) FROM wrapping_key_versions WHERE installation_id = $1)::text AS wrapping_count,
+         (SELECT count(*) FROM workspace_root_keys WHERE installation_id = $1 AND workspace_id = $2)::text AS root_count,
+         (SELECT count(*) FROM data_key_generations WHERE installation_id = $1 AND workspace_id = $2)::text AS generation_count`,
+      [installation.id, installation.workspace_id],
+    );
+    const hierarchyCounts = hierarchy[0];
+    if (
+      hierarchyCounts?.wrapping_count !== "1" ||
+      hierarchyCounts.root_count !== "1" ||
+      hierarchyCounts.generation_count !== "1"
+    ) {
+      throw new Error("recovery E2E fixture did not establish one complete key hierarchy");
     }
     await client.query(
       `INSERT INTO recovery_epochs (id, installation_id, epoch, state)
@@ -188,7 +237,7 @@ async function postRecoveryOperation(
         method: "POST",
         credentials: "same-origin",
         headers: {
-          "content-type": "application/json",
+          ...(requestBody === undefined ? {} : { "content-type": "application/json" }),
           "x-csrf-token": token,
         },
         ...(requestBody === undefined ? {} : { body: JSON.stringify(requestBody) }),
@@ -282,7 +331,7 @@ test.describe("replacing a kit", () => {
     await expect(page.getByTestId("prepare-recovery-replacement")).toBeEnabled();
     // Nothing has been prepared merely by looking at the screen.
     await expect(page.getByTestId("recovery-readiness")).not.toContainText(
-      /remplacement en cours/i,
+      /remplacement (?:est )?en cours/i,
     );
   });
 
@@ -413,7 +462,9 @@ test.describe("replacing a kit", () => {
     await expect(page.getByRole("heading", { name: "Récupération du compte" })).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByTestId("recovery-readiness")).toContainText(/remplacement en cours/i);
+    await expect(page.getByTestId("recovery-readiness")).toContainText(
+      /remplacement (?:est )?en cours/i,
+    );
     const state = await readRecoveryState();
     expect(state.active?.epoch).toBe(1);
     expect(state.pending).toMatchObject({

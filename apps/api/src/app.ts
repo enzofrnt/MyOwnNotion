@@ -638,37 +638,41 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     // through the hierarchy's one named export rather than a general accessor,
     // and the kit is sealed under the mounted deployment key — so the routes
     // need the key reader as well as the database.
+    const recoveryKits = new RecoveryKitService({
+      db: database.db,
+      installationId: INSTALLATION_ID,
+      sourceLineageId: INSTALLATION_ID,
+      workspaceId: workspace.id,
+      deploymentKey,
+      supportedKeyGenerations: async () => {
+        const current = await findCurrentGeneration(database.db, workspace.id);
+        // Every generation up to the current one, because a restored
+        // installation has to open records written under any of them. An
+        // empty list means the hierarchy was never established, and the
+        // service refuses rather than sealing a kit that opens nothing.
+        return current === null
+          ? []
+          : Array.from({ length: current.generation }, (_, index) => index + 1);
+      },
+      recoveryPayload: async () => {
+        if (keyHierarchy === undefined) {
+          // Unreachable from this branch — the hierarchy is built above —
+          // but the service must fail closed rather than seal an empty kit
+          // if that ever stops being true.
+          throw new Error("the key hierarchy is unavailable");
+        }
+        return await keyHierarchy.exportRecoveryMaterial(database.db);
+      },
+      now,
+    });
     registerRecoveryRoutes(app, {
-      kits: new RecoveryKitService({
-        db: database.db,
-        installationId: INSTALLATION_ID,
-        sourceLineageId: INSTALLATION_ID,
-        workspaceId: workspace.id,
-        deploymentKey,
-        supportedKeyGenerations: async () => {
-          const current = await findCurrentGeneration(database.db, workspace.id);
-          // Every generation up to the current one, because a restored
-          // installation has to open records written under any of them. An
-          // empty list means the hierarchy was never established, and the
-          // service refuses rather than sealing a kit that opens nothing.
-          return current === null
-            ? []
-            : Array.from({ length: current.generation }, (_, index) => index + 1);
-        },
-        recoveryPayload: async () => {
-          if (keyHierarchy === undefined) {
-            // Unreachable from this branch — the hierarchy is built above —
-            // but the service must fail closed rather than seal an empty kit
-            // if that ever stops being true.
-            throw new Error("the key hierarchy is unavailable");
-          }
-          return await keyHierarchy.exportRecoveryMaterial(database.db);
-        },
-        now,
-      }),
+      kits: recoveryKits,
       audit,
       installationId: INSTALLATION_ID,
       require: requireOwner,
+    });
+    app.addHook("onClose", async () => {
+      await recoveryKits.dispose();
     });
 
     const pageAdvances = new PageAdvanceNotifier();
