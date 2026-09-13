@@ -15,10 +15,11 @@ Research clarified that administrative key import refuses occupied targets and
 that historical MVCC/WAL erasure is not promised by application-level migration.
 
 Current reconciliation extends that historical baseline to 14 functional
-requirements, seven success criteria, 88 ordered tasks and 73 audit findings.
-The final code-audit corrections and complete coverage evidence are recorded at
-`ca2174cd83fa328f8df808d2ccce5a66061c8999`; exact complete local, PR and main
-delivery gates remain open.
+requirements, seven success criteria, 91 ordered tasks and 80 audit findings.
+The final archive/code-audit corrections and complete coverage evidence are
+recorded at `ca2174cd83fa328f8df808d2ccce5a66061c8999`; the renewed browser and
+recovery lifecycle corrections are recorded at `333ea73`. Exact complete local,
+PR and main delivery gates remain open.
 
 | Requirement | Tasks |
 | --- | --- |
@@ -28,18 +29,18 @@ delivery gates remain open.
 | FR-004 | T005, T011–T012, T014, T021, T049 |
 | FR-005 | T008, T011–T017, T037, T086 |
 | FR-006 | T003–T004, T007–T008, T017–T018, T037 |
-| FR-007 | T004, T022–T028, T087–T088 |
+| FR-007 | T004, T022–T028, T087–T089 |
 | FR-008 | T006, T009, T014, T018, T025–T026 |
-| FR-009 | T029–T031, T082, T085 |
+| FR-009 | T029–T031, T082, T085, T090–T091 |
 | FR-010 | T032–T033 |
-| FR-011 | T001–T002, T028, T036, T039, T079–T088 |
-| FR-012 | T030, T034–T035, T083 |
-| FR-013 | T002, T020, T035, T037–T041, T080, T082, T084–T085, T087 |
+| FR-011 | T001–T002, T028, T036, T039, T079–T091 |
+| FR-012 | T030, T034–T035, T083, T089–T091 |
+| FR-013 | T002, T020, T035, T037–T041, T080, T082, T084–T085, T087, T089–T091 |
 | FR-014 | T042–T045, T064–T079, T081, T083, T086, T088 |
 
-SC-001 maps to T010/T019/T027; SC-002 to T019; SC-003 to T022/T027; SC-004
-to T021/T049; SC-005 to T029/T031/T082/T085; SC-006 to T032/T038; SC-007
-to T036/T039/T079–T088.
+SC-001 maps to T010/T019/T027; SC-002 to T019; SC-003 to T022/T027/T089; SC-004
+to T021/T049; SC-005 to T029/T031/T082/T085/T090–T091; SC-006 to T032/T038;
+SC-007 to T036/T039/T079–T091.
 
 Proceed through speckit-implement in dependency order. This result says nothing
 about implementation correctness or completed delivery; those require the tests,
@@ -163,6 +164,38 @@ platform-specific Windows tests skipped on macOS and the absolute branch budget
 unchanged. This is implementation/convergence evidence. T037/T038/T040/T041
 still own native architecture parity, the exact complete local gate, PR CI,
 merge and post-merge main verification.
+
+## T089–T091 — renewed browser and recovery lifecycle closure
+
+The first exact complete gate after T080–T088 passed coverage, integration,
+migrations and contracts, then exposed six Chromium failures rather than an
+archive-format regression. The backup browser seed still hand-wrote a pre-V2
+canonical payload, while the recovery browser seed inserted an active kit
+without the real wrapping/root/data-key hierarchy. A bodyless helper also
+advertised JSON and was rejected before the route. T089–T090 replace these proof
+fixtures with production-format data and retain the strict runtime contracts.
+
+The same review found that consumed replay depended on the volatile artifact
+map, prepared artifacts had no bounded expiry/close cleanup, and temporary root,
+deployment and derived wrapping keys were not consistently erased. T091 keeps
+one pending winner, serializes extraction and publication, repeats status and
+download reads around a changing preparation queue, applies TTL and terminal
+cleanup and erases caller-owned material on every exit. The generation list is
+explicitly issuance-time metadata: the sealed root material, lineage and epoch
+remain the recovery authority.
+
+Because the artifact intentionally never enters SQL, a different API process
+cannot serve it. Product, feature and operator documentation therefore make one
+active API process per installation the official V1 topology; restart safely
+loses only the unconfirmed opportunity. Supporting multiple API processes would
+require shared ephemeral custody or equivalent affinity before it could be
+claimed.
+
+At `333ea73`, the focused security matrix passes **4 files / 86 tests**, strict
+workspace types and Biome pass, and the affected Chromium matrix passes **15/15**
+journeys. Independent Luna rereview finds no remaining P0/P1/P2 in the corrected
+mono-process boundary. These results close implementation and focused evidence,
+not T037/T038/T040/T041 delivery.
 
 ## T051 — bounded synchronization convergence
 

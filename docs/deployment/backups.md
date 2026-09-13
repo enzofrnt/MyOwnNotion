@@ -87,6 +87,23 @@ Validate both the restored file bytes and protected record/root-key access
 before retiring any recovery material. A byte-level restore rehearsal alone
 does not establish that all historical SQL key envelopes can be reopened.
 
+## Process-bound replacement recovery artifacts
+
+An encrypted replacement artifact that has been prepared but not downloaded is
+held only in the memory of the active API process. It is not a durable backup
+record and is not recoverable from the database or a full archive. Status and
+download wait for any preparation already in progress and re-read the state if
+a preparation starts during their read. Expiry, a later replacement, one-time
+consumption, API shutdown, and process restart purge the artifact. A restart
+therefore loses an unclaimed preparation safely; prepare a new artifact before
+downloading again.
+
+The official V1 installation must run one active API instance. The current
+deployment provides neither shared ephemeral storage nor inter-process
+affinity, so multiple API processes must not serve replacement downloads until
+one of those guarantees is introduced. Root-key, deployment-key, and derived
+wrapping-key buffers are cleared after use and on failure.
+
 ## Create, inspect and rehearse
 
 The image includes PostgreSQL 18 client tools and the same CLI as development:

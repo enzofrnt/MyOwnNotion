@@ -516,6 +516,19 @@ This evidence closes the traceability correction only. The delivery rows,
 human protocols, and any real-data/HAR verification remain pending where their
 own raw evidence is still required.
 
+## Targeted recovery-artifact lifecycle evidence (T133)
+
+This local evidence records the lifecycle hardening delivered by commit
+`333ea73ba7dc08162719a2a695478f5f94ca6828`. It covers the process-memory
+boundary and key-buffer cleanup; it does not promote PR or `main` delivery
+evidence and does not close the human or real-data protocols below.
+
+| Requirement/criterion | Command or test path | Candidate SHA | Controlled clock/configuration | Raw evidence/artifact | Reviewer/date | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-015/FR-016/FR-018/FR-023/SC-005 | `packages/domain/tests/recovery-artifact.property.spec.ts`; `apps/api/tests/bootstrap-kit-artifact.contract.spec.ts`; `apps/api/tests/recovery-kit-replacement.integration.spec.ts`; `apps/api/tests/security-recovery-routes.spec.ts` | `333ea73ba7dc08162719a2a695478f5f94ca6828` | Isolated PostgreSQL fixture; injected service clocks; replacement TTL and restart fixtures | **4 files / 86 tests passed**; prepared artifacts remain process-memory-only, preparation/status/download races are serialized and re-read, terminal lifecycle cleanup is covered, and key buffers are cleared on success/failure. Raw log: `final-recovery-focused-333ea73-20260913.log` | Codex / 2026-09-13 | `pass` |
+| FR-015/FR-016/FR-018/FR-023/SC-005 | `tests/e2e/backup.spec.ts` and `tests/e2e/security-recovery.spec.ts` on `chromium-desktop` | `333ea73ba7dc08162719a2a695478f5f94ca6828` | `MYOWNNOTION_E2E_JOBS=1`; isolated local matrix | **15/15 Chromium journeys passed**; one-time recovery delivery, replay semantics, replacement readiness, and backup artifact flow remain coherent. Raw log: `final-recovery-chromium-333ea73-20260913.log` | Codex / 2026-09-13 | `pass` |
+| FR-023/SC-005 | `bun run format:check`, `bun run lint:ci`, `bun run typecheck` | `333ea73ba7dc08162719a2a695478f5f94ca6828` | Pinned repository toolchain | Formatting, Biome lint, and TypeScript checks passed | Codex / 2026-09-13 | `pass` |
+
 ## Functional-requirement ledger
 
 | Requirement/criterion | Command or test path | Candidate SHA | Controlled clock/configuration | Raw evidence/artifact | Reviewer/date | Status |

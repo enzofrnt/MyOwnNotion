@@ -246,6 +246,19 @@ transaction atomically advances the recovery epoch, makes the replacement
 revoked kit, wrong lineage, or malformed artifact is rejected. Active confirmed
 kits do not expire by age; `expired` applies only to an unconfirmed delivery.
 
+Replacement artifacts are deliberately process-bound: a prepared artifact that
+has not been downloaded is held only in an in-memory map of the active API
+process. Preparation is serialized, and status/download operations await the
+preparation queue before reading the artifact; they re-read the durable state
+when a preparation begins during that read. The service removes the artifact on
+expiry, replacement, one-time consumption, shutdown, and terminal failure, and
+clears root-key, deployment-key, and derived wrapping-key buffers after use or
+on failure. A restart therefore loses an unclaimed artifact safely and requires
+the owner to prepare a new one. The official V1 deployment runs one active API
+instance because no shared ephemeral store or inter-process affinity mechanism
+exists today; a future multi-process deployment must provide one of those
+guarantees before routing replacement downloads across processes.
+
 Administrative import through the protected local CLI requires a valid
 passphrase, source-lineage match,
 encrypted source data, an empty/uninitialized target, and a transaction that

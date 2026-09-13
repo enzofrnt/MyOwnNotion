@@ -574,3 +574,30 @@ coverage command as the convergence proof for code commit
 `ca2174cd83fa328f8df808d2ccce5a66061c8999`. These tasks do not replace the
 remaining exact local, native architecture, PR or main gates in
 T037/T038/T040/T041.
+
+### T089–T091 — renewed browser and recovery lifecycle closure
+
+Generate backup browser fixtures through the same V2 canonical serializer and
+structured digest used by production. Establish the real key hierarchy in
+recovery browser setup and let bodyless operations reach the route without a
+false JSON declaration. Keep strict archive/recovery validation; proof data must
+adapt to the runtime contract rather than weakening it.
+
+Treat an unconfirmed replacement artifact as process-owned secret material.
+Serialize extraction and publication, keep only the committed pending winner,
+and remove it on replacement, expiry, terminal state, consumption and
+application close. Status and download wait for preparation and repeat a
+database read if the preparation queue changes while that read is in flight.
+Erase exported root material, temporary deployment-key copies and derived
+wrapping keys on success and failure.
+
+The supported-generation array records the issuance-time inventory; it is not a
+lock against future data-key rotation. Actual recovery remains authenticated by
+the sealed workspace root material, lineage and epoch. Since the artifact never
+enters persistent storage, the official V1 topology uses one active API process
+per installation. A restart invalidates an unclaimed opportunity safely. Any
+future multi-process topology must first provide shared ephemeral custody or
+request affinity with equivalent one-time and cleanup guarantees.
+
+Record focused tests and independent review at `333ea73`, then rerun the exact
+complete local gate and PR/main delivery duties in T037/T038/T040/T041.

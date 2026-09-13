@@ -561,6 +561,7 @@ preserving machine-safe container output and one reusable developer contract.
 - [X] T130 [US4] Seal the projection on the write path: bump `LOCAL_SCHEMA_VERSION` in `packages/client-core/src/local-store/schema.ts` to store the sealed row shapes, route every `LocalRepository` read and write through `LocalRecordCodec`, and reseal an existing plaintext local database under the device key on first unlock (FR-012, FR-024). *(Split from T058 deliberately: the codec and its tests are complete and independently verifiable, while changing the stored shape touches the feature-001 projection and needs its own migration path.)* *(The projection now stores sealed rows. The restructuring the note anticipated turned out to be one rule: seal before the transaction opens, never inside it — Dexie commits as soon as control returns to the event loop for a non-Dexie promise, so sealing inside does not fail loudly, it ends the transaction early and lets the writes that follow land outside it. `applyCommandToProjection` takes no codec at all now, which makes that impossible rather than merely avoided.)* (NO CI here)
 - [X] T131 [US5] Complete and verify owner-facing recovery-kit replacement as a transactional flow: preserve the active kit until the replacement is downloaded and confirmed, serialize epoch allocation and promotion, expose honest readiness/replacement states, and cover the API, repository, UI, and responsive journey in `apps/api/src/security/recovery-kit-service.ts`, `packages/database/src/repositories/security/recovery-kit-repository.ts`, `apps/api/tests/recovery-kit-replacement.integration.spec.ts`, `apps/web/src/features/security/recovery-replacement-panel.tsx`, `apps/web/src/features/security/recovery-readiness-panel.tsx`, and `apps/web/tests/recovery-replacement.spec.tsx` (FR-015, FR-016, FR-018, SC-005, SC-008). Candidate evidence: `ca2174cd83fa328f8df808d2ccce5a66061c8999`.
 - [X] T132 [US5] Align security routes, method-aware readiness guards, audit/devices/rotation responses, export and backup contracts, and the security OpenAPI schemas with the executable runtime; cover the route, contract, and readiness journeys in `apps/api/src/security/private-route-guard.ts`, `apps/api/src/routes/security-recovery.ts`, `apps/api/src/routes/security-audit.ts`, `apps/api/src/routes/security-rotation.ts`, `apps/api/src/routes/devices.ts`, `apps/api/src/routes/export.ts`, `apps/api/src/routes/backups.ts`, `specs/002-owner-security-foundation/contracts/security-api.openapi.yaml`, `tests/contract/security-api.spec.ts`, `tests/contract/backup-api.spec.ts`, `tests/contract/export.spec.ts`, `apps/api/tests/security-recovery-routes.spec.ts`, and `tests/e2e/security-recovery.spec.ts` (FR-023, FR-030, FR-033, FR-034, FR-035, SC-007). Candidate evidence: `ca2174cd83fa328f8df808d2ccce5a66061c8999`.
+- [X] T133 [US5] Bound the lifecycle of prepared replacement recovery artifacts to the active API process: serialize preparation before status/download reads, re-read after a concurrent preparation starts, purge on expiry/replacement/consumption/closure/restart, clear root/deployment/derived wrapping-key buffers, and document the V1 single-active-API requirement because no shared ephemeral storage or process affinity exists (FR-015, FR-016, FR-018, FR-023, SC-005). Candidate evidence: `333ea73b` (`fix(recovery): bound replacement artifact lifecycle`). Targeted evidence is recorded in `validation.md`; this task does not claim PR or `main` delivery.
 
 ## Dependencies & Execution Order
 
@@ -680,15 +681,15 @@ the exact implementation, test, workflow, or evidence paths above.
 | FR-012 | `spec.md` §Requirements; `validation.md` FR-012 | T002, T052, T054, T058, T062, T108, T115, T130 |
 | FR-013 | `spec.md` §Requirements; `validation.md` FR-013 | T004, T016, T027, T053, T060, T062, T079, T115 |
 | FR-014 | `spec.md` §Requirements; `validation.md` FR-014 | T009, T011, T014, T015, T016, T018, T020, T023, T027, T036, T050, T051, T052, T053, T055, T056, T058, T060, T062, T079, T115 |
-| FR-015 | `spec.md` §Requirements; `validation.md` FR-015 | T009, T014, T024, T025, T027, T028, T029, T031, T032, T033, T034, T036, T059, T078, T081, T115, T131 |
-| FR-016 | `spec.md` §Requirements; `validation.md` FR-016 | T014, T024, T025, T027, T028, T029, T032, T033, T036, T054, T059, T078, T081, T088, T115, T131 |
+| FR-015 | `spec.md` §Requirements; `validation.md` FR-015 | T009, T014, T024, T025, T027, T028, T029, T031, T032, T033, T034, T036, T059, T078, T081, T115, T131, T133 |
+| FR-016 | `spec.md` §Requirements; `validation.md` FR-016 | T014, T024, T025, T027, T028, T029, T032, T033, T036, T054, T059, T078, T081, T088, T115, T131, T133 |
 | FR-017 | `spec.md` §Requirements; `validation.md` FR-017 | T003, T009, T014, T015, T019, T051, T077, T079, T083, T084, T089, T115 |
-| FR-018 | `spec.md` §Requirements; `validation.md` FR-018 | T014, T015, T018, T077, T078, T079, T081, T083, T084, T115 |
+| FR-018 | `spec.md` §Requirements; `validation.md` FR-018 | T014, T015, T018, T077, T078, T079, T081, T083, T084, T115, T133 |
 | FR-019 | `spec.md` §Requirements; `validation.md` FR-019 | T013, T020, T073, T078, T079, T082, T086, T115 |
 | FR-020 | `spec.md` §Requirements; `validation.md` FR-020 | T008, T022, T073, T082, T086, T115 |
 | FR-021 | `spec.md` §Requirements; `validation.md` FR-021 | T008, T022, T073, T086, T115 |
 | FR-022 | `spec.md` §Requirements; `validation.md` FR-022 | T012, T017, T019, T020, T034, T048, T061, T072, T087, T115 |
-| FR-023 | `spec.md` §Requirements; `validation.md` FR-023 | T008, T012, T013, T015, T016, T017, T020, T032, T037, T039, T040, T042, T043, T045, T046, T053, T060, T061, T069, T073, T086, T115, T121, T122, T123, T125, T127, T128, T129, T132 |
+| FR-023 | `spec.md` §Requirements; `validation.md` FR-023 | T008, T012, T013, T015, T016, T017, T020, T032, T037, T039, T040, T042, T043, T045, T046, T053, T060, T061, T069, T073, T086, T115, T121, T122, T123, T125, T127, T128, T129, T132, T133 |
 | FR-024 | `spec.md` §Requirements; `validation.md` FR-024 | T002, T007, T010, T011, T018, T019, T020, T021, T029, T031, T055, T057, T058, T059, T064, T065, T067, T068, T070, T082, T108, T111, T114, T115, T130 |
 | FR-025 | `spec.md` §Requirements; `validation.md` FR-025 | T003, T013, T018, T074, T075, T083, T084, T085, T088, T089, T115 |
 | FR-026 | `spec.md` §Requirements; `validation.md` FR-026 | T018, T074, T075, T076, T080, T085, T088, T089, T115 |
@@ -705,7 +706,7 @@ the exact implementation, test, workflow, or evidence paths above.
 | SC-002 | `spec.md` §Success Criteria; `validation.md` SC-002 | T035, T115 |
 | SC-003 | `spec.md` §Success Criteria; `validation.md` SC-003 | T040, T049, T065, T072, T115 |
 | SC-004 | `spec.md` §Success Criteria; `validation.md` SC-004 | T052, T053, T062, T108, T115 |
-| SC-005 | `spec.md` §Success Criteria; `validation.md` SC-005 | T078, T082, T089, T108, T115, T131 |
+| SC-005 | `spec.md` §Success Criteria; `validation.md` SC-005 | T078, T082, T089, T108, T115, T131, T133 |
 | SC-006 | `spec.md` §Success Criteria; `validation.md` SC-006 | T003, T077, T079, T083, T084, T089, T115 |
 | SC-007 | `spec.md` §Success Criteria; `validation.md` SC-007 | T092, T093, T094, T101, T102, T107, T109, T110, T115, T132 |
 | SC-008 | `spec.md` §Success Criteria; `validation.md` SC-008 | T033, T041, T066, T071, T080, T088, T106, T115, T131 |

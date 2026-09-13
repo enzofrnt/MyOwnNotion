@@ -776,3 +776,53 @@ output is `integrated-coverage-final-concurrency-20260913.log` under
 This closes implementation and focused convergence for T080–T088. It is not a
 substitute for the exact `checks:local`, native AMD64/ARM64, PR or post-merge
 main evidence; T037/T038/T040/T041 remain open.
+
+## T089–T091 — final recovery and browser gate closure
+
+Candidate implementation commit:
+`333ea73` (`fix(recovery): bound replacement artifact lifecycle`).
+
+The renewed complete local gate first passed **448 files / 4,599 tests** in
+coverage, **9/9** performance cases, **355/355** integration cases, **12/12**
+migration cases and **1,843/1,843** contract cases. Its Chromium phase then
+failed six journeys: two backup rehearsals used an incomplete hand-written
+canonical payload, and four recovery journeys seeded kit metadata without the
+real key hierarchy or sent a false JSON content type on a bodyless operation.
+That failed attempt remains evidence that the exact gate rejected invalid proof
+fixtures; it is not a passing delivery run.
+
+At `333ea73`:
+
+- `packages/domain/tests/recovery-artifact.property.spec.ts`,
+  `apps/api/tests/bootstrap-kit-artifact.contract.spec.ts`,
+  `apps/api/tests/recovery-kit-replacement.integration.spec.ts` and
+  `apps/api/tests/security-recovery-routes.spec.ts` pass **4 files / 86 tests**;
+- workspace `typecheck`, `lint:ci`, `format:check` and
+  `git diff --check` pass;
+- `tests/e2e/backup.spec.ts` plus `tests/e2e/security-recovery.spec.ts`
+  pass **15/15** on `chromium-desktop` with one worker and the isolated
+  PostgreSQL fixture on port 55435;
+- independent Luna review checked preparation/read races, one-time replay,
+  expiry timers, replacement, application disposal and caller/key-buffer
+  clearing, then reported no remaining P0/P1/P2 in the mono-process boundary.
+- the final SpecKit analysis/convergence pass maps **14 FR, 7 SC, 91 unique
+  tasks and 80 audit findings** with no duplicate, placeholder, uncovered
+  requirement or new unbuilt work; only T037/T038/T040/T041 remain open for
+  delivery.
+
+The process-owned artifact is never persisted. The official V1 deployment
+therefore runs one active API process per installation; a restart loses only the
+unconfirmed opportunity and requires a new preparation. Status and download
+wait for the local preparation queue and repeat a database read if that queue
+changes in flight. The supported-generation list records issuance-time
+inventory, while actual recoverability remains bound to the sealed workspace
+root material, authenticated lineage and epoch.
+
+Durable output under
+`/Users/enzofournet/.codex/task-artifacts/myownnotion-delivery/logs/` includes
+the failed full-gate
+`final-pre-v1-checks-local-d71723a6-attempt2-20260913.log` and the corrected
+focused/browser runs `final-recovery-focused-333ea73-20260913.log` and
+`final-recovery-chromium-333ea73-20260913.log`. These focused results close
+T089–T091 implementation evidence only. A new exact clean `checks:local`,
+required image scans, PR CI and post-merge main CI remain T037/T038/T040/T041.

@@ -1272,6 +1272,21 @@ Le kit :
 
 Le remplacement ou la rotation doit invalider les anciens moyens de récupération lorsque cela est annoncé, sans rendre les sauvegardes historiques irrécupérables. La stratégie d'enveloppement des anciennes clés doit donc être documentée et testée.
 
+Une préparation de remplacement qui n'a pas encore été téléchargée reste un
+artefact éphémère conservé uniquement dans la mémoire du processus API. Les
+opérations de statut et de téléchargement attendent la fin de toute préparation
+en cours et relisent l'état si une préparation commence pendant leur lecture.
+L'expiration, un remplacement ultérieur, la consommation, la fermeture du
+service et un redémarrage purgent cet artefact ; un redémarrage perd donc une
+préparation non réclamée de manière sûre et le propriétaire doit en préparer
+une nouvelle. Les buffers de clé racine, de clé de déploiement et de clé de
+wrapping dérivée sont effacés après usage ou en cas d'échec.
+
+Pour la V1 officielle, une installation ne doit exécuter qu'une instance API
+active. Aucun stockage éphémère partagé ni mécanisme d'affinité inter-processus
+n'est fourni aujourd'hui ; une installation multi-processus ne doit donc pas
+être utilisée pour cette fonction tant que cette propriété n'est pas garantie.
+
 La clé d'enveloppement doit être renouvelée au minimum une fois par an et immédiatement après toute suspicion de compromission. La rotation ne doit pas imposer le déchiffrement simultané de toutes les données si une stratégie progressive sûre est disponible.
 
 ### 28.5 Échec sécurisé
