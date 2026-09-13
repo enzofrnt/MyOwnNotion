@@ -966,6 +966,9 @@ correction evidence and does not replace the exact complete delivery gate.
 
 ## T097 — settings navigation during delayed trash projection
 
+Candidate implementation commit:
+`6b9c8b428a0b07680e61adee4aa3e6585079fa89`.
+
 The second exact-gate attempt on candidate `8f74d264` passed coverage,
 performance, integration, migration, contracts, Chromium and Firefox before
 desktop WebKit retained one retry in
@@ -994,16 +997,21 @@ Focused evidence on Bun 1.4.2:
   pass;
 - original trash/restore journey: **5/5** consecutive runs in the pinned Linux
   WebKit image, one worker, without retry;
+- complete coverage on the exact candidate tree: **448 passed / 2 skipped test
+  files**, **4,621 passed / 2 skipped tests**, with **91.41% statements / 85.72%
+  branches / 94.42% functions / 92.55% lines**;
 - independent Luna review of route/state behavior: no actionable P0/P1/P2.
 
 The durable gate output is
 `closure-checks-local-8f74d264-attempt2-20260913.log`; the 267-line WebKit
 runner output is retained as
 `closure-webkit-t097-reproduction-8f74d264-20260913.log` under the external
-delivery log directory. The transient Playwright trace was not retained after
-the subsequent clean focused run, so these logs preserve the reproducible
-retry and locator failure while the sequence above records the immediate trace
-inspection.
+delivery log directory. The exact-candidate focused pass is
+`closure-webkit-t097-6b9c8b42-20260913.log`, and the exact-tree coverage pass is
+`closure-coverage-t097-working-attempt2-20260913.log`. The transient Playwright
+trace was not retained after the subsequent clean focused run, so these logs
+preserve the reproducible retry and locator failure while the sequence above
+records the immediate trace inspection.
 
 The failed gate remains useful reproduction evidence, not a successful delivery
 run. Exact clean local, renewed PR and post-merge delivery remain owned by T041.
