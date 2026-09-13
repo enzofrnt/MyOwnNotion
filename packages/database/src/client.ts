@@ -53,7 +53,7 @@ async function closePool(pool: pg.Pool): Promise<void> {
   pool.on("remove", recordRemoval);
   try {
     await pool.end();
-    if (removedClients < clientsToClose) await allRemoved;
+    await allRemoved;
   } finally {
     pool.off("remove", recordRemoval);
   }
