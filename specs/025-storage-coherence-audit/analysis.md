@@ -15,7 +15,7 @@ Research clarified that administrative key import refuses occupied targets and
 that historical MVCC/WAL erasure is not promised by application-level migration.
 
 Current reconciliation extends that historical baseline to 14 functional
-requirements, seven success criteria, 96 ordered tasks and 88 audit findings.
+requirements, seven success criteria, 97 ordered tasks and 89 audit findings.
 The final archive/code-audit corrections and complete coverage evidence are
 recorded at `ca2174cd83fa328f8df808d2ccce5a66061c8999`; the renewed browser and
 recovery lifecycle corrections are recorded at `333ea73`. At this historical
@@ -33,10 +33,10 @@ recorded at the end of this analysis.
 | FR-007 | T004, T022–T026, T028, T044, T050, T052, T064–T068, T071–T078, T087–T089, T095 |
 | FR-008 | T006, T009, T014, T018, T025–T026, T048, T050, T052, T055, T057, T061–T063 |
 | FR-009 | T029–T031, T082, T085, T090–T091 |
-| FR-010 | T032–T033, T054–T057, T093–T094 |
-| FR-011 | T001–T002, T028, T036, T039, T047, T051–T053, T059–T060, T064–T065, T079–T091, T093–T094, T096 |
-| FR-012 | T030, T034–T035, T046, T051, T053–T054, T056, T060, T083, T089–T091, T093–T094 |
-| FR-013 | T002, T020, T035, T037, T039–T041, T047, T051, T054–T057, T059–T060, T080, T082, T084–T085, T087, T089–T091, T093–T094, T096 |
+| FR-010 | T032–T033, T054–T057, T093–T094, T097 |
+| FR-011 | T001–T002, T028, T036, T039, T047, T051–T053, T059–T060, T064–T065, T079–T091, T093–T094, T096–T097 |
+| FR-012 | T030, T034–T035, T046, T051, T053–T054, T056, T060, T083, T089–T091, T093–T094, T097 |
+| FR-013 | T002, T020, T035, T037, T039–T041, T047, T051, T054–T057, T059–T060, T080, T082, T084–T085, T087, T089–T091, T093–T094, T096–T097 |
 | FR-014 | T042–T045, T064–T079, T081, T083, T086, T088, T092, T095 |
 
 SC-001 maps to T010/T019/T027/T038; SC-002 to
@@ -44,7 +44,7 @@ T019/T038/T048/T072/T074–T078/T086/T088; SC-003 to
 T022/T027/T038/T050/T052/T064–T068/T070–T078/T087–T089/T095; SC-004 to
 T021/T038/T049/T058/T062; SC-005 to T029/T031/T038/T082/T085/T090–T091;
 SC-006 to T032/T038/T093–T094; and SC-007 to
-T036/T038/T064–T065/T069–T070/T079–T096.
+T036/T038/T064–T065/T069–T070/T079–T097.
 
 Proceed through speckit-implement in dependency order. This result says nothing
 about implementation correctness or completed delivery; those require the tests,
@@ -503,6 +503,25 @@ the Vite configuration suite, test-impact contract and three repetitions of the
 original journey in the pinned Linux Firefox image pass. The existing opt-in
 web-server output flag is also forwarded into that container so an API or
 preview startup refusal remains diagnosable. T041 retains the renewed exact
+local, PR and post-merge delivery obligation.
+
+## T097 — retained-workspace navigation coherence
+
+The renewed local gate exposed one WebKit retry in the branch trash/restore
+journey. The failure trace inspected immediately afterward showed that the
+local trash confirmation disappeared and settings opened before the server
+accepted the mutation. Once the delayed
+projection arrived, the retained hidden hierarchy removed the active tab and
+its replacement selection navigated the whole application from
+`/settings/trash` to `/notes`. The trash row became available, but the owner had
+already been ejected from the operational screen.
+
+The routed application now recognizes replacement navigation emitted while a
+settings destination is current. It keeps that settings route in front and
+updates only its safe workspace return state, including the retained scroll and
+focus destination. The direct routing regression and five consecutive runs of
+the original trash/restore journey in the pinned Linux WebKit image pass without
+retry. This closes A89 implementation evidence; T041 retains the renewed exact
 local, PR and post-merge delivery obligation.
 
 ## Integrated delivery closure — 2026-09-13

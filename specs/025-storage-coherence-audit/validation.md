@@ -808,8 +808,8 @@ At `333ea73`:
 - the then-current, pre-T092 SpecKit analysis/convergence pass mapped **14 FR,
   7 SC, 91 unique tasks and 80 audit findings** with no duplicate, placeholder,
   uncovered requirement or new unbuilt work; at that historical checkpoint,
-  T037/T038/T040/T041 remained open for delivery. The current inventory is 96
-  tasks and 88 findings, with only T041 still open.
+  T037/T038/T040/T041 remained open for delivery. The current inventory is 97
+  tasks and 89 findings, with only T041 still open.
 
 The process-owned artifact is never persisted. The official V1 deployment
 therefore runs one active API process per installation; a restart loses only the
@@ -954,6 +954,59 @@ Ordinary preview and production configuration are unchanged. The container
 launcher now forwards the already opt-in server-output flag for startup
 diagnosis. Exact clean local, renewed PR and post-merge delivery remain owned by
 T041; the failed PR run is not treated as delivery evidence.
+
+PR #176 run `34772342192` then passed all five browser profiles without retry,
+including **278 passed / 30 skipped** on Firefox and **278 passed / 30 skipped**
+on desktop WebKit. Its unit/coverage job alone failed because the new real HTTP
+transport test completed in 6.476 seconds under full instrumentation while it
+still inherited Vitest's five-second default. No transport assertion failed.
+The test now has a bounded 20-second timeout; the complete coverage command has
+passed twice afterward with all **4,620 executed tests** green. This is focused
+correction evidence and does not replace the exact complete delivery gate.
+
+## T097 — settings navigation during delayed trash projection
+
+The second exact-gate attempt on candidate `8f74d264` passed coverage,
+performance, integration, migration, contracts, Chromium and Firefox before
+desktop WebKit retained one retry in
+`trashes a branch into the 30-day trash and restores it`. The retained trace
+was inspected immediately after the failure and established this order:
+
+1. local trash confirmation disappeared and the settings action was available;
+2. `/settings/trash` rendered its initial empty state while the mutation batch
+   was still awaiting server acceptance;
+3. the accepted change reached the retained hidden hierarchy, which removed the
+   active tab and emitted replacement navigation;
+4. the whole application moved to `/notes`, so the settings trash locator timed
+   out even though its retry passed.
+
+The application now keeps settings foregrounded for replacement navigation from
+the retained workspace and replaces only the safe destination used by Back.
+The browser journey deliberately keeps the original immediate settings
+transition and asserts `/settings/trash` both before and after the delayed row
+appears.
+
+Focused evidence on Bun 1.4.2:
+
+- routed application behavior: **16/16 tests**, including settings retention and
+  Back returning to `/notes`;
+- focused Biome check for the application, routing test and WebKit journey:
+  pass;
+- original trash/restore journey: **5/5** consecutive runs in the pinned Linux
+  WebKit image, one worker, without retry;
+- independent Luna review of route/state behavior: no actionable P0/P1/P2.
+
+The durable gate output is
+`closure-checks-local-8f74d264-attempt2-20260913.log`; the 267-line WebKit
+runner output is retained as
+`closure-webkit-t097-reproduction-8f74d264-20260913.log` under the external
+delivery log directory. The transient Playwright trace was not retained after
+the subsequent clean focused run, so these logs preserve the reproducible
+retry and locator failure while the sequence above records the immediate trace
+inspection.
+
+The failed gate remains useful reproduction evidence, not a successful delivery
+run. Exact clean local, renewed PR and post-merge delivery remain owned by T041.
 
 ## Integrated delivery closure — exact SHA `52dfdc926164f392cf812ead302bddb9662ac356`
 

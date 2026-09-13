@@ -29,6 +29,13 @@ function RoutedHierarchy({
       </button>
       <button
         type="button"
+        data-testid="reconcile-hidden-workspace"
+        onClick={() => onOpenItem(null, { replace: true })}
+      >
+        Réconcilier la sélection cachée
+      </button>
+      <button
+        type="button"
         data-testid="rerender-routed-app"
         onClick={() => onTrashedItemsChange([])}
       >
@@ -240,6 +247,28 @@ describe("application routing", () => {
     expect(
       container.querySelector('[data-testid="workspace-surface"]')?.hasAttribute("hidden"),
     ).toBe(true);
+  });
+
+  it("keeps settings in front while the hidden workspace replaces a removed selection", async () => {
+    await renderAt("/settings/trash");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="reconcile-hidden-workspace"]')
+        ?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
+      "/settings/trash",
+    );
+    expect(container.querySelector('[data-testid="settings-section-trash"]')).not.toBeNull();
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="back-to-workspace"]')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe("/notes");
   });
 
   it("uses the explicit item identity for page details", async () => {

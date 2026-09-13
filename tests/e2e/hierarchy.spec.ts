@@ -435,7 +435,9 @@ test.describe("hierarchy organization (US1)", () => {
 
     await trashItem(page, root);
     await openSettingsSection(page, "trash");
-    await expect(page.getByTestId(`trash-item-${root}`)).toBeVisible();
+    await expect(page).toHaveURL(/\/settings\/trash$/u);
+    await expect(page.getByTestId(`trash-item-${root}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/\/settings\/trash$/u);
     await expect(page.getByTestId(`tree-item-${child}`)).toHaveCount(0);
 
     await page.getByTestId(`trash-item-${root}`).getByRole("button", { name: "Restaurer" }).click();

@@ -656,3 +656,19 @@ Forward `MYOWNNOTION_E2E_SERVER_STDOUT` through the Firefox container launcher
 without enabling it by default. This keeps routine output quiet while allowing
 an explicitly diagnosed API or preview startup refusal to expose the underlying
 server error.
+
+### T097 — retained-workspace navigation coherence
+
+Keep the workspace mounted while settings are open, but treat a replacement
+selection emitted by that hidden workspace as a return-destination update. When
+`onOpenItem` requests replacement from a settings route, preserve the current
+settings pathname and query, replace its history state with the new safe
+workspace return path, and retain the remembered focus and scroll position.
+Ordinary workspace navigation keeps the existing replacement behavior.
+
+Cover the state transition directly in the routed application test: settings
+remain rendered after a hidden selection is removed and Back opens the updated
+workspace destination. Retain the original unsynchronized trash-to-settings
+journey so the browser test exercises the late accepted projection rather than
+avoiding it, assert the settings URL before and after the trash row appears,
+and repeat that journey in the pinned Linux WebKit image without retry.

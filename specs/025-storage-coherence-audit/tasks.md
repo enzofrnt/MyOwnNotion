@@ -83,8 +83,11 @@ survive projection updates; active caret/style and native runtime are exercised.
       its merge are recorded, but main run `34748994269` failed on the Firefox
       overflow regression tracked by A82. Corrected PR #176 run `34761283724`
       then failed only because its Firefox preview returned one invalid gzip
-      module response tracked by A88; this delivery task remains open for the
-      renewed candidate and its main image publication.
+      module response tracked by A88. Renewed run `34772342192` passed every
+      browser and native target but its instrumented Vite transport probe
+      exceeded the test's five-second default; the timeout correction and the
+      settings reconciliation race tracked by A89 still require one exact
+      clean gate, renewed PR CI and main image publication.
 
 ## Additional confirmed privacy boundary — required before delivery
 
@@ -242,3 +245,13 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
       boundaries plus the original Firefox journey (FR-011/FR-013, SC-007,
       audit A88). The focused configuration suites and three pinned-Linux
       Firefox repetitions pass; complete delivery remains T041.
+
+## Phase 23: Retained-workspace navigation coherence
+
+- [x] T097 [US4] Keep the current settings destination visible when the retained
+      hidden workspace asynchronously replaces a trashed active selection;
+      update only the destination used by Back, preserve settings state and
+      prove the late-projection path with a routing regression plus repeated
+      pinned-Linux WebKit coverage of the original trash/restore journey
+      (FR-010–FR-013, SC-007, audit A89). Focused unit and five-repeat WebKit
+      evidence pass; complete delivery remains T041.
