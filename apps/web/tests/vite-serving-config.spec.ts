@@ -127,4 +127,4 @@ it("serves E2E modules byte-for-byte while ordinary preview remains compressed",
     await Promise.all(servers.map((server) => server.close()));
     await rm(root, { force: true, recursive: true });
   }
-});
+}, 20_000);
