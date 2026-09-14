@@ -206,8 +206,8 @@
 
 .open-tab__close {
   display: inline-flex;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -436,6 +436,7 @@
   gap: var(--space-2);
   padding: 0 var(--space-2);
   color: var(--color-text);
+  text-decoration: none;
   background: transparent;
   border: 0;
   border-radius: var(--radius-sm);
@@ -848,9 +849,14 @@
   }
 
   .folder-children__handle {
-    width: var(--ui-target-compact);
-    flex: 0 0 var(--ui-target-compact);
+    width: var(--ui-target);
+    flex: 0 0 var(--ui-target);
     margin-inline-start: 0;
+  }
+
+  .open-tab__close {
+    width: var(--ui-target);
+    height: var(--ui-target);
   }
 
   .open-tabs {

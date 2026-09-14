@@ -2,7 +2,7 @@ import type { MouseEvent } from "react";
 import { classNames } from "./class-names.ts";
 import { AppIcon, type AppIconName } from "./icons.tsx";
 
-export type ItemIconKind = "page" | "folder" | "file";
+export type ItemIconKind = "page" | "folder" | "file" | "database";
 export type ItemIconSize = "tree" | "inline" | "page";
 
 export interface ItemIdentityPresentation {
@@ -22,6 +22,7 @@ export interface ItemIconProps {
 export function itemKindIconName(kind: ItemIconKind): AppIconName {
   if (kind === "folder") return "folder";
   if (kind === "file") return "file";
+  if (kind === "database") return "table";
   return "fileText";
 }
 

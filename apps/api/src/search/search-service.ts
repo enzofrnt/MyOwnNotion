@@ -509,26 +509,34 @@ export function createDatabaseSearchService(input: {
       const definitions = new Map<Uuid, DatabaseDefinition>();
       await Promise.all(
         [...definitionMetadata].map(async ([databaseId, metadata]) => {
+          const sealed = await input.protectedContent?.readDatabaseDefinition(
+            input.db,
+            databaseId,
+            metadata.definitionVersion,
+          );
           const definition =
-            (await input.protectedContent?.readDatabaseDefinition(
-              input.db,
-              databaseId,
-              metadata.definitionVersion,
-            )) ?? (await readCurrentDatabaseDefinition(input.db, databaseId));
-          if (definition === null) throw new Error("Protected database definition is unavailable");
+            input.protectedContent !== undefined
+              ? sealed
+              : await readCurrentDatabaseDefinition(input.db, databaseId);
+          if (definition === null || definition === undefined)
+            throw new Error("Protected database definition is unavailable");
           definitions.set(databaseId, definition);
         }),
       );
       const structuredValues = new Map<Uuid, EntryValues>();
       await Promise.all(
         databaseEntries.map(async ({ itemId, databaseEntry }) => {
+          const sealed = await input.protectedContent?.readDatabaseEntryValues(
+            input.db,
+            itemId,
+            databaseEntry.valueVersion,
+          );
           const values =
-            (await input.protectedContent?.readDatabaseEntryValues(
-              input.db,
-              itemId,
-              databaseEntry.valueVersion,
-            )) ?? (await readCurrentDatabaseEntryValues(input.db, itemId));
-          if (values === null) throw new Error("Protected database values are unavailable");
+            input.protectedContent !== undefined
+              ? sealed
+              : await readCurrentDatabaseEntryValues(input.db, itemId);
+          if (values === null || values === undefined)
+            throw new Error("Protected database values are unavailable");
           structuredValues.set(itemId, values);
         }),
       );

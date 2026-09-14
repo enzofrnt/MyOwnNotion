@@ -119,10 +119,9 @@ test("the content graph stays distinct from folders and supports ten pointer jou
   await expect(page).toHaveURL("/graph");
   const graph = page.getByTestId("knowledge-graph");
   await expect(graph).toBeVisible();
-  await expect(page.getByTestId("open-tabs").getByRole("tab", { name: "Graphe" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(
+    page.getByTestId("open-tabs").getByRole("button", { name: "Graphe", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
   const canvas = page.getByTestId("knowledge-graph-canvas");
   const journeyItems = pageNames.map((name) => ({ name, id: identities[name] as string }));
   for (const { id: itemId } of journeyItems) {

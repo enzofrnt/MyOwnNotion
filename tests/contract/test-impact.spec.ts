@@ -67,6 +67,16 @@ describe("impact policy", () => {
     expect(policy.e2eProjects).toEqual(playwrightConfig.projects?.map(({ name }) => name));
   });
 
+  it("keeps the isolated browser preview off Vite's transient compression path", () => {
+    const webServers = Array.isArray(playwrightConfig.webServer)
+      ? playwrightConfig.webServer
+      : [playwrightConfig.webServer];
+    expect(webServers.at(-1)?.env).toMatchObject({
+      MYOWNNOTION_E2E_PREVIEW_IDENTITY_ENCODING: "1",
+    });
+    expect(webServers.at(-1)?.reuseExistingServer).toBe(false);
+  });
+
   it("routes every unreliable macOS browser runtime through the pinned Linux image", () => {
     expect(
       BROWSER_PROJECTS.filter((project) => project.containerOnMac === true).map(
@@ -181,6 +191,16 @@ describe("pull-request selection", () => {
         "tests/e2e/realtime-sync-security-and-restore.spec.ts",
       ]),
     );
+  });
+
+  it("keeps the tabs, breadcrumbs and folder journey attached to its workspace source", () => {
+    const plan = pullRequestPlan(["apps/web/src/features/workspace/open-tabs-strip.tsx"]);
+    const navigationPlan = pullRequestPlan(["apps/web/src/features/navigation/navigation.css"]);
+
+    expect(plan.e2e.testFiles).toContain("tests/e2e/workspace-tabs-folder.spec.ts");
+    expect(plan.e2e.testFiles).toContain("tests/e2e/accessibility.spec.ts");
+    expect(navigationPlan.e2e.testFiles).toContain("tests/e2e/workspace-tabs-folder.spec.ts");
+    expect(navigationPlan.e2e.testFiles).toContain("tests/e2e/accessibility.spec.ts");
   });
 
   it("always runs a changed test directly", () => {

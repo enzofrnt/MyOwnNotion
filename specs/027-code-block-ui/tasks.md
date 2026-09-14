@@ -31,7 +31,7 @@ single semantic activation from stable pointer/keyboard control.
 
 - [x] T010 Run focused unit/browser tests, typecheck, format/lint, production build and visual inspection; record results in specs/027-code-block-ui/validation.md.
 - [x] T011 Converge implementation and artifacts; record any residual work in specs/027-code-block-ui/tasks.md and commit locally for integration.
-- [ ] T012 Parent delivery: run complete docs/development.md gates (`bun run checks:local`) on integrated branch before push, then PR CI, review and merge; record evidence in specs/027-code-block-ui/validation.md.
+- [x] T012 Parent delivery: run complete docs/development.md gates (`bun run checks:local`) on integrated branch before push, then PR CI, review and merge; record evidence in specs/027-code-block-ui/validation.md. Main CI remains explicitly pending root finalization.
 
 ## Dependencies and parallel opportunities
 
@@ -46,7 +46,7 @@ ship coloring/editing correctness first, copy feedback second, complete gates.
 
 ## Phase 7: Convergence
 
-- [x] T014 Register tests/e2e/code-block-ui.spec.ts and its editor owners in ci/test-impact.json, run tests/contract/test-impact.spec.ts, and record integrated 026/027 validation per plan: Validation and delivery and Constitution III/VII (resolved; focused contract passes; final delivery gate remains).
+- [x] T014 Register tests/e2e/code-block-ui.spec.ts and its editor owners in ci/test-impact.json, run tests/contract/test-impact.spec.ts, and record integrated 026/027 validation per plan: Validation and delivery and Constitution III/VII (resolved; focused contract and integrated delivery pass).
 
 ## Requirement traceability
 

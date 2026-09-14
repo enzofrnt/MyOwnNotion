@@ -91,6 +91,7 @@ COPYFILE_DISABLE=1 tar --no-xattrs -C "${repo_root}" -cf - \
         --env MYOWNNOTION_DEPLOYMENT_KEY_FILE="${container_deployment_key_file}" \
         --env MYOWNNOTION_E2E_WEB_OUTDIR="${container_web_dist}" \
         --env MYOWNNOTION_WEB_DIST_DIR="${container_web_dist}" \
+        --env MYOWNNOTION_E2E_SERVER_STDOUT="${MYOWNNOTION_E2E_SERVER_STDOUT:-0}" \
         "${playwright_image}" \
         bash -lc 'tar -xf - -C /work && chmod 0400 "${MYOWNNOTION_DEPLOYMENT_KEY_FILE}" && test "$(bun --version)" = "1.4.2" && test -d node_modules && MYOWNNOTION_E2E_BUILD=1 bun run --filter @myownnotion/web build && exec bash scripts/e2e/run-container-project.sh "$@"' \
         -- "$@"

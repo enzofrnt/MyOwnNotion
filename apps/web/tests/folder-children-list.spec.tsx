@@ -23,9 +23,36 @@ function OrderProbe({
 }
 
 const children = [
-  { id: "a", name: "Feuille de route", kind: "page" as const, icon: "🗺️", childCount: 0 },
-  { id: "b", name: "Archives", kind: "folder" as const, icon: null, childCount: 3 },
-  { id: "c", name: "budget.xlsx", kind: "file" as const, childCount: 0 },
+  {
+    id: "a",
+    href: "/notes/a",
+    name: "Feuille de route",
+    kind: "page" as const,
+    icon: "🗺️",
+    childCount: 0,
+  },
+  {
+    id: "b",
+    href: "/notes/b",
+    name: "Archives",
+    kind: "folder" as const,
+    icon: null,
+    childCount: 3,
+  },
+  {
+    id: "c",
+    href: "/notes/c",
+    name: "budget.xlsx",
+    kind: "file" as const,
+    childCount: 0,
+  },
+  {
+    id: "d",
+    href: "/notes/d",
+    name: "Suivi",
+    kind: "database" as const,
+    childCount: 0,
+  },
 ];
 
 describe("reorderRequestFromIndexes", () => {
@@ -45,7 +72,7 @@ describe("reorderRequestFromIndexes", () => {
   it("ignores no-op and out-of-range moves", () => {
     expect(reorderRequestFromIndexes(children, 1, 1)).toBeNull();
     expect(reorderRequestFromIndexes(children, 0, -1)).toBeNull();
-    expect(reorderRequestFromIndexes(children, 2, 3)).toBeNull();
+    expect(reorderRequestFromIndexes(children, 3, 4)).toBeNull();
   });
 });
 
@@ -78,14 +105,23 @@ describe("folder children list", () => {
       );
     });
     const links = [
-      ...container.querySelectorAll<HTMLButtonElement>('[data-testid="folder-child-link"]'),
+      ...container.querySelectorAll<HTMLAnchorElement>('[data-testid="folder-child-link"]'),
     ];
     expect(links.map((link) => link.querySelector(".folder-children__name")?.textContent)).toEqual([
       "Feuille de route",
       "Archives",
       "budget.xlsx",
+      "Suivi",
     ]);
     expect(links[1]?.textContent).toContain("3 éléments");
+    expect(links[3]?.textContent).toContain("Base de données");
+    expect(links[3]?.querySelector('[data-icon="table"]')).not.toBeNull();
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/notes/a",
+      "/notes/b",
+      "/notes/c",
+      "/notes/d",
+    ]);
     expect(container.querySelector(".ProseMirror")).toBeNull();
     await act(async () => {
       links[1]?.click();
@@ -112,23 +148,23 @@ describe("folder children list", () => {
 
     await render(children);
     await act(async () => reorder?.(0, 2));
-    expect(order()).toBe("b,c,a");
+    expect(order()).toBe("b,c,a,d");
 
     // The projection still shows the old order for a moment: keep the target.
     await render([...children]);
-    expect(order()).toBe("b,c,a");
+    expect(order()).toBe("b,c,a,d");
 
     // The projection catches up: the override is released.
-    const confirmed = [children[1], children[2], children[0]] as FolderChild[];
+    const confirmed = [children[1], children[2], children[0], children[3]] as FolderChild[];
     await render(confirmed);
-    expect(order()).toBe("b,c,a");
+    expect(order()).toBe("b,c,a,d");
 
     // Any other change (here a rejected move restoring another order) wins.
     await act(async () => reorder?.(2, 0));
-    expect(order()).toBe("a,b,c");
-    const elsewhere = [children[2], children[0], children[1]] as FolderChild[];
+    expect(order()).toBe("a,b,c,d");
+    const elsewhere = [children[2], children[0], children[1], children[3]] as FolderChild[];
     await render(elsewhere);
-    expect(order()).toBe("c,a,b");
+    expect(order()).toBe("c,a,b,d");
   });
 
   it("explains an empty folder", async () => {

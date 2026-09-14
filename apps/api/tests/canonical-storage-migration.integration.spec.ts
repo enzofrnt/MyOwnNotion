@@ -724,6 +724,34 @@ it("protects historical database definitions, views and entry values while retai
     const expectedEntry = (
       await harness.owner({ method: "GET", url: `/v1/databases/${databaseId}/entries/${entryId}` })
     ).json();
+    const digestWithAndWithoutMigrationFallback = await db.transaction(async (tx) => ({
+      protectedDatabase: await canonicalMetadataDigest(tx, files.deps.content, {
+        category: "item",
+        entityId: databaseId,
+      }),
+      migrationDatabase: await canonicalMetadataDigest(
+        tx,
+        files.deps.content,
+        { category: "item", entityId: databaseId },
+        { allowLegacyDatabasePayload: true },
+      ),
+      protectedEntry: await canonicalMetadataDigest(tx, files.deps.content, {
+        category: "item",
+        entityId: entryId,
+      }),
+      migrationEntry: await canonicalMetadataDigest(
+        tx,
+        files.deps.content,
+        { category: "item", entityId: entryId },
+        { allowLegacyDatabasePayload: true },
+      ),
+    }));
+    expect(digestWithAndWithoutMigrationFallback.migrationDatabase).toBe(
+      digestWithAndWithoutMigrationFallback.protectedDatabase,
+    );
+    expect(digestWithAndWithoutMigrationFallback.migrationEntry).toBe(
+      digestWithAndWithoutMigrationFallback.protectedEntry,
+    );
     await db.transaction(async (tx) => {
       for (const revision of await tx.select().from(schema.revisions)) {
         const snapshot = await files.deps.content.readRevisionSnapshot<Record<string, unknown>>(
@@ -745,6 +773,28 @@ it("protects historical database definitions, views and entry values while retai
           ]),
         );
     });
+    const unavailableDatabase = await harness.owner({
+      method: "GET",
+      url: `/v1/databases/${databaseId}`,
+    });
+    const unavailableEntry = await harness.owner({
+      method: "GET",
+      url: `/v1/databases/${databaseId}/entries/${entryId}`,
+    });
+    expect(unavailableDatabase.statusCode, unavailableDatabase.body).toBe(500);
+    expect(unavailableDatabase.json()).toMatchObject({ code: "protected_read_failed" });
+    expect(unavailableEntry.statusCode, unavailableEntry.body).toBe(500);
+    expect(unavailableEntry.json()).toMatchObject({ code: "protected_read_failed" });
+    await expect(
+      db.transaction((tx) =>
+        canonicalMetadataDigest(
+          tx,
+          files.deps.content,
+          { category: "item", entityId: databaseId },
+          { requireProtected: true },
+        ),
+      ),
+    ).rejects.toThrow("protected content is unavailable");
     const records = new ProtectedRecordService({
       db,
       keys: files.deps.keys,

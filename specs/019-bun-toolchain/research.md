@@ -6,9 +6,13 @@ sur le commit `9700ba1b` avec Bun `1.4.0+1381054db`. Les prototypes ont été
 réalisés dans une copie jetable ; ils n'ont modifié ni la branche de feature ni
 les données de l'installation locale.
 
-## Decision 1 — Épingler Bun 1.4.0 et effectuer une bascule à sens unique
+> **Statut historique** : les décisions et mesures qui nomment Bun 1.4.0
+> décrivent la bascule initiale. Le pin actif est Bun 1.4.2 depuis T051 ; toute
+> prescription d'exécution ou de livraison suit désormais 1.4.2.
 
-**Decision**: Déclarer Bun 1.4.0 exactement dans `packageManager` et
+## Decision 1 — Épingler Bun exactement et effectuer une bascule à sens unique
+
+**Decision historique**: Déclarer Bun 1.4.0 exactement dans `packageManager` et
 `engines.bun`, versionner uniquement `bun.lock`, et supprimer de l'état final
 pnpm, son workspace, son lockfile et les lancements directs Node.js.
 
@@ -300,7 +304,7 @@ ou révoquée ferme en `4401`; un dépassement ferme en `1009`.
 
 ## Decision 8 — Centraliser l'installation CI dans une action composite Bun
 
-**Decision**: Créer une action locale qui installe Bun 1.4.0 via l'action
+**Decision historique**: Créer une action locale qui installe Bun 1.4.0 via l'action
 officielle épinglée et exécute `bun ci`. L'action officielle conserve son cache
 interne du binaire, mais l'action locale ne restaure ni `node_modules` ni le
 cache global de paquets Bun. L'utiliser dans chaque job TypeScript/JavaScript.

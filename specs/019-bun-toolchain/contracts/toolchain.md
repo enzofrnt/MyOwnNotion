@@ -6,8 +6,8 @@ The repository MUST expose this single JavaScript/TypeScript toolchain:
 
 ~~~json
 {
-  "packageManager": "bun@1.4.0",
-  "engines": { "bun": "1.4.0" },
+  "packageManager": "bun@1.4.2",
+  "engines": { "bun": "1.4.2" },
   "workspaces": ["apps/*", "packages/*"]
 }
 ~~~
@@ -42,7 +42,7 @@ tool MUST fail rather than produce a skipped success.
 
 ## Version behavior
 
-1. `Bun.version === "1.4.0"` MUST pass.
+1. `Bun.version === "1.4.2"` MUST pass.
 2. Any other exact version MUST fail `toolchain:check` with the expected
    version in the message.
 3. The same exact value MUST be used by local metadata, GitHub Actions and
@@ -65,7 +65,7 @@ The final branch MUST reject:
 
 - `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package-lock.json`,
   `npm-shrinkwrap.json`, `yarn.lock`, `bun.lockb`;
-- a package manager declaration other than exact Bun 1.4.0;
+- a package manager declaration other than exact Bun 1.4.2;
 - `actions/setup-node` and `pnpm/action-setup` in maintained project jobs;
 - a Node base image for a first-party build or runtime;
 - active repository commands invoking `node`, `npx`, `npm`, `yarn`, `pnpm`,
@@ -90,7 +90,7 @@ HTTP/WebSocket proxy. `apps/web` production artifacts MUST come from
 
 ## Acceptance probes
 
-- Run the policy under Bun 1.4.0 and assert success.
+- Run the policy under Bun 1.4.2 and assert success.
 - Feed the policy fixtures for a wrong version, foreign lockfile, forbidden
   command, Node image and setup-node action; assert one actionable failure per
   fixture.

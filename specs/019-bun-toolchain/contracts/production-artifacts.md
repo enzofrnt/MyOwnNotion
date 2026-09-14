@@ -20,7 +20,7 @@ apps/api/dist/
 
 Required behavior:
 
-- every entry loads with Bun 1.4.0;
+- every entry loads with Bun 1.4.2;
 - Loro resolves through its bundler export, emits a relocation-safe Wasm asset
   and never retains a build-host `node_modules` path;
 - `server.js` starts Fastify, serves `/health`, upgrades the page-sync
@@ -77,9 +77,9 @@ Required behavior:
 
 ### API
 
-- Builder and runtime use the pinned Bun 1.4.0 Debian manifest.
+- Builder and runtime use the pinned Bun 1.4.2 Debian manifest.
 - Runtime user is `bun`, not root.
-- `bun --version` returns exactly `1.4.0`.
+- `bun --version` returns exactly `1.4.2`.
 - no standalone Node.js runtime is present; the official image's optional
   `node` compatibility alias MUST resolve to the Bun binary itself.
 - Command is `bun dist/server.js`; migration is `bun dist/migrate.js`.

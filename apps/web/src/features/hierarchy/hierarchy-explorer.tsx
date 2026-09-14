@@ -50,6 +50,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { notePath } from "../../routing/paths.ts";
 import { DatabaseViewService } from "../../services/databases.ts";
 import { type LocalProjectionChange, localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
@@ -116,6 +117,10 @@ import { resolveLocalPageLinkTarget } from "./page-link-target.ts";
 
 type LoadState = "loading" | "ready" | "error";
 type LoadPhase = "initializing" | "reading-local" | "seeding" | "navigation" | "refreshing";
+
+function sameItemIds(left: ReadonlySet<Uuid>, right: ReadonlySet<Uuid>): boolean {
+  return left.size === right.size && [...left].every((itemId) => right.has(itemId));
+}
 
 interface TreeNode {
   readonly item: ProjectedItem;
@@ -310,7 +315,7 @@ export interface HierarchyExplorerProps {
   /** Settings live outside the workspace, so the shortcut asks rather than routes. */
   readonly onOpenSettings: () => void;
   readonly onOpenItem: (itemId: Uuid | null, options?: { readonly replace?: boolean }) => void;
-  readonly onOpenGraph: (itemId: Uuid | null) => void;
+  readonly onOpenGraph: (itemId: Uuid | null, options?: { readonly replace?: boolean }) => void;
   readonly onProblemChange: (problem: SafeError | null) => void;
   readonly onTrashedItemsChange: (items: readonly ProjectedItem[]) => void;
 }
@@ -344,6 +349,7 @@ export function HierarchyExplorer({
   graphModeRef.current = graphMode;
   const [items, setItems] = useState<ProjectedItem[]>([]);
   const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
+  const [databaseSourceIds, setDatabaseSourceIds] = useState<ReadonlySet<Uuid>>(new Set());
   const itemsRef = useRef<ProjectedItem[]>([]);
   const trashedItemsRef = useRef<ProjectedItem[]>([]);
   itemsRef.current = items;
@@ -528,6 +534,10 @@ export function HierarchyExplorer({
     setDatabaseFormParent(parentItemId);
   }, []);
 
+  const focusWorkspaceMain = useCallback(() => {
+    document.getElementById("workspace-main")?.focus();
+  }, []);
+
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -572,6 +582,9 @@ export function HierarchyExplorer({
           catalogChanged = catalogChanged || patched.catalogChanged;
         }
         if (refreshMounted.current && generation === refreshGeneration.current) {
+          setDatabaseSourceIds((current) =>
+            sameItemIds(current, sourceIds) ? current : sourceIds,
+          );
           if (catalogChanged) {
             setItems(nextItems);
             setTrashedItems(nextTrash);
@@ -586,9 +599,10 @@ export function HierarchyExplorer({
         }
         return nextItems;
       }
-      const [activeItems, trash] = await Promise.all([
+      const [activeItems, trash, sourceKeys] = await Promise.all([
         service.listActiveItems(),
         service.listTrashedItems(),
+        service.db.databases.toCollection().primaryKeys(),
       ]);
       // Local writes and synchronization can notify almost simultaneously. An
       // older IndexedDB read must never replace the projection produced by a
@@ -597,6 +611,8 @@ export function HierarchyExplorer({
       if (refreshMounted.current && generation === refreshGeneration.current) {
         setItems(activeItems);
         setTrashedItems(trash);
+        const sourceIds = new Set(sourceKeys);
+        setDatabaseSourceIds((current) => (sameItemIds(current, sourceIds) ? current : sourceIds));
         // Structured values can hydrate after the item row without changing the
         // item's visible metadata. Give an already-open database entry the same
         // accepted projection signal so it re-reads those late values.
@@ -819,11 +835,18 @@ export function HierarchyExplorer({
     ) {
       // Neighbours are looked up among the tabs that survive, with the closing
       // tab kept in place so "next, else previous" is measured from it.
-      const survivors = openTabIds.filter((id) => openable.has(id) || id === selectedId);
-      selectItemById(neighbourTab(survivors, selectedId) as Uuid | null, { replace: true });
+      const survivors = openTabIds.filter(
+        (id) => isGraphTabId(id) || openable.has(id) || id === selectedId,
+      );
+      const neighbour = neighbourTab(survivors, selectedId);
+      if (neighbour !== null && isGraphTabId(neighbour)) {
+        onOpenGraph(lastGraphCenter.current, { replace: true });
+      } else {
+        selectItemById(neighbour as Uuid | null, { replace: true });
+      }
     }
     setOpenTabIds(pruned);
-  }, [items, loadState, openTabIds, selectedId, selectItemById, trashedItems]);
+  }, [items, loadState, onOpenGraph, openTabIds, selectedId, selectItemById, trashedItems]);
 
   const closeOpenTab = useCallback(
     (itemId: string) => {
@@ -872,12 +895,13 @@ export function HierarchyExplorer({
     const node = allNodes.find((candidate) => candidate.item.id === selectedItem.id);
     return (node?.children ?? []).map((child) => ({
       id: child.item.id,
+      href: notePath(child.item.id),
       name: child.item.name,
-      kind: child.item.kind,
+      kind: databaseSourceIds.has(child.item.id) ? ("database" as const) : child.item.kind,
       icon: child.item.icon,
       childCount: child.children.length,
     }));
-  }, [allNodes, selectedItem]);
+  }, [allNodes, databaseSourceIds, selectedItem]);
 
   useEffect(() => {
     onActiveItemChange(selectedItem);
@@ -2167,6 +2191,7 @@ export function HierarchyExplorer({
                   openItem(itemId as Uuid);
                 }}
                 onClose={closeOpenTab}
+                onEmptyFocus={focusWorkspaceMain}
               />
             ) : undefined
           }

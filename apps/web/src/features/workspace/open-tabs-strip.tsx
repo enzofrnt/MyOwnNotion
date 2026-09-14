@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useRef, type WheelEvent } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useRef, type WheelEvent } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { ItemIcon, type ItemIconKind } from "../../ui/item-icon.tsx";
 
@@ -27,10 +27,20 @@ export interface OpenTabsStripProps {
   readonly activeId: string | null;
   readonly onActivate: (itemId: string) => void;
   readonly onClose: (itemId: string) => void;
+  readonly onEmptyFocus: () => void;
 }
 
 function tabLabel(tab: OpenTab): string {
   return tab.name.trim() || "Sans titre";
+}
+
+function findActivationButton(
+  list: HTMLDivElement | null,
+  itemId: string,
+): HTMLElement | undefined {
+  return [...(list?.querySelectorAll<HTMLElement>("[data-open-tab-activate]") ?? [])].find(
+    (button) => button.dataset["tabId"] === itemId,
+  );
 }
 
 /**
@@ -39,30 +49,69 @@ function tabLabel(tab: OpenTab): string {
  * Tabs are navigation shortcuts, so the active one follows the URL rather than
  * owning it. The list scrolls horizontally instead of wrapping, the active tab
  * is scrolled into view when it changes, and arrow keys move focus between
- * tabs so the strip is one tab stop.
+ * destination buttons. Close buttons remain ordinary, separately focusable
+ * controls so keyboard and assistive-technology users can reach them.
  */
-export function OpenTabsStrip({ activeId, onActivate, onClose, tabs }: OpenTabsStripProps) {
+export function OpenTabsStrip({
+  activeId,
+  onActivate,
+  onClose,
+  onEmptyFocus,
+  tabs,
+}: OpenTabsStripProps) {
   const list = useRef<HTMLDivElement | null>(null);
+  const focusAfterClose = useRef<string | null>(null);
+  const activeTabIndex = activeId === null ? -1 : tabs.findIndex((tab) => tab.id === activeId);
+  const activeTabId = activeTabIndex >= 0 ? activeId : null;
+  const keyboardEntryId = activeTabId ?? tabs[0]?.id ?? null;
+
+  const requestClose = useCallback(
+    (itemId: string): void => {
+      const index = tabs.findIndex((tab) => tab.id === itemId);
+      const neighbour = tabs[index + 1]?.id ?? tabs[index - 1]?.id ?? null;
+      focusAfterClose.current = neighbour;
+      if (neighbour === null) onEmptyFocus();
+      onClose(itemId);
+    },
+    [onClose, onEmptyFocus, tabs],
+  );
 
   useEffect(() => {
     const onDocumentKeyDown = (event: globalThis.KeyboardEvent): void => {
-      if (activeId === null || !isCloseTabShortcut(event)) return;
+      if (activeTabId === null || !isCloseTabShortcut(event)) return;
       event.preventDefault();
-      onClose(activeId);
+      requestClose(activeTabId);
     };
     document.addEventListener("keydown", onDocumentKeyDown, true);
     return () => document.removeEventListener("keydown", onDocumentKeyDown, true);
-  }, [activeId, onClose]);
+  }, [activeTabId, requestClose]);
 
   useEffect(() => {
     // The active tab is often appended in the render that follows the route
     // change, so the strip must react to the list as well as to the id.
-    if (activeId === null || !tabs.some((tab) => tab.id === activeId)) return;
-    const active = [...(list.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])].find(
-      (button) => button.dataset["tabId"] === activeId,
-    );
+    if (activeTabId === null || activeTabIndex < 0) return;
+    const active = findActivationButton(list.current, activeTabId);
     active?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-  }, [activeId, tabs]);
+  }, [activeTabId, activeTabIndex]);
+
+  useEffect(() => {
+    const targetId = focusAfterClose.current;
+    if (targetId === null) return;
+    const currentTargetId = tabs.some((tab) => tab.id === targetId)
+      ? targetId
+      : (activeTabId ?? tabs[0]?.id ?? null);
+    focusAfterClose.current = null;
+    if (currentTargetId === null) {
+      onEmptyFocus();
+      return;
+    }
+    const target = findActivationButton(list.current, currentTargetId);
+    if (target === undefined) {
+      onEmptyFocus();
+      return;
+    }
+    target.focus();
+  }, [activeTabId, onEmptyFocus, tabs]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (
@@ -73,7 +122,15 @@ export function OpenTabsStrip({ activeId, onActivate, onClose, tabs }: OpenTabsS
     ) {
       return;
     }
-    const buttons = [...(list.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
+    if (
+      !(event.target instanceof HTMLElement) ||
+      !event.target.matches("[data-open-tab-activate]")
+    ) {
+      return;
+    }
+    const buttons = [
+      ...(list.current?.querySelectorAll<HTMLElement>("[data-open-tab-activate]") ?? []),
+    ];
     if (buttons.length === 0) return;
     const current = buttons.indexOf(document.activeElement as HTMLElement);
     let next = current;
@@ -100,7 +157,7 @@ export function OpenTabsStrip({ activeId, onActivate, onClose, tabs }: OpenTabsS
     <div
       ref={list}
       className="open-tabs"
-      role="tablist"
+      role="toolbar"
       aria-label="Éléments ouverts"
       aria-orientation="horizontal"
       data-testid="open-tabs"
@@ -113,7 +170,6 @@ export function OpenTabsStrip({ activeId, onActivate, onClose, tabs }: OpenTabsS
         return (
           <div
             key={tab.id}
-            role="presentation"
             className="open-tab"
             data-active={active || undefined}
             data-testid="open-tab"
@@ -121,15 +177,15 @@ export function OpenTabsStrip({ activeId, onActivate, onClose, tabs }: OpenTabsS
           >
             <button
               type="button"
-              role="tab"
               className="open-tab__activate"
-              aria-selected={active}
-              tabIndex={active || (activeId === null && tab === tabs[0]) ? 0 : -1}
+              aria-current={active ? "page" : undefined}
+              tabIndex={tab.id === keyboardEntryId ? 0 : -1}
               title={label}
+              data-open-tab-activate=""
               data-tab-id={tab.id}
               onClick={() => onActivate(tab.id)}
               onAuxClick={(event) => {
-                if (event.button === 1) onClose(tab.id);
+                if (event.button === 1) requestClose(tab.id);
               }}
             >
               {tab.kind === "graph" ? (
@@ -143,11 +199,9 @@ export function OpenTabsStrip({ activeId, onActivate, onClose, tabs }: OpenTabsS
               type="button"
               className="open-tab__close"
               aria-label={`Fermer l’onglet ${label}`}
-              aria-hidden="true"
-              tabIndex={-1}
               onClick={(event) => {
                 event.stopPropagation();
-                onClose(tab.id);
+                requestClose(tab.id);
               }}
             >
               <AppIcon name="close" size="small" />

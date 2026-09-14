@@ -2,7 +2,8 @@
 
 **Feature Branch**: `codex/013-mcp-pre-v1`
 **Created**: 2026-09-05
-**Status**: Implemented; focused integration validated, delivery gate pending
+**Status**: Implemented and validated locally; PR #175 is green and merged,
+while final `main` CI verification remains pending.
 **Input**: The owner requires usable MCP before V1.
 
 ## Product direction and clarification

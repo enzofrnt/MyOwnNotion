@@ -13,8 +13,9 @@ valide pas rétroactivement les écrans existants.
 **Tests**: Inclus, car les exigences de la feature imposent des tests unitaires,
 de contrat, Playwright et des smoke tests installés sur les trois systèmes.
 
-**Séquence** : prochain travail. Ne pas démarrer 021 / 017 T319 / 022 T040 avant
-ces tâches, sauf correctif bloquant sur `main`. Toolchain : Bun 1.4.0 uniquement.
+**Séquence** : les dépendances 021, 017 T319 et 022 T040 sont maintenant
+intégrées. Le travail desktop restant suit les tâches ouvertes ci-dessous.
+Toolchain : Bun 1.4.2 uniquement.
 
 ## Phase 1: Setup
 
@@ -22,7 +23,7 @@ ces tâches, sauf correctif bloquant sur `main`. Toolchain : Bun 1.4.0 uniquemen
 
 - [X] T001 Documenter l’installation Bun du workspace desktop et le layout `node_modules` requis par Electron Forge dans `docs/development.md` et `apps/desktop/package.json`, sans réintroduire pnpm, npm ni Yarn.
 - [X] T002 Créer le package `@myownnotion/desktop` et ses scripts `dev`, `build`, `package`, `make`, `publish` dans `apps/desktop/package.json`.
-- [X] T003 [P] Épingler Electron, Electron Forge, les makers Windows (Squirrel/WiX), macOS (DMG) et Linux (AppImage, deb, rpm) et leurs types dans `apps/desktop/package.json`, puis régénérer `bun.lock` avec Bun 1.4.0.
+- [X] T003 [P] Épingler Electron, Electron Forge, les makers Windows (Squirrel/WiX), macOS (DMG) et Linux (AppImage, deb, rpm) et leurs types dans `apps/desktop/package.json`, puis régénérer `bun.lock` avec Bun 1.4.2.
 - [X] T004 [P] Créer les configurations TypeScript et Vite séparées du processus principal et du preload dans `apps/desktop/tsconfig.json`, `apps/desktop/vite.main.config.ts` et `apps/desktop/vite.preload.config.ts`.
 - [X] T005 [P] Ajouter les scripts racine filtrés `desktop:dev`, `desktop:build`, `desktop:make` et `desktop:smoke` dans `package.json`.
 - [X] T006 [P] Ajouter les checks de présence, version et artefact desktop dans `scripts/ci/check-desktop.ts` et les référencer dans `scripts/ci/check-toolchain.ts`.
@@ -244,13 +245,13 @@ fichier concret.
 ## Phase 9: Convergence
 
 - [X] T070 CRITICAL Remplacer le bundling Vite desktop par Bun dans `apps/desktop/`, les hooks Forge et `scripts/desktop/dev.ts` selon Constitution VII (contradicts).
-- [X] T071 CRITICAL Valider les arguments IPC et l'identité exacte de la fenêtre/frame, refuser les navigations vers les données serveur et les ressources exécutables distantes dans `apps/desktop/src/{ipc,main,protocol-register,navigation-policy}.ts` selon FR-009 et SC-009 (partial).
-- [X] T072 CRITICAL Utiliser le coffre OS asynchrone, refuser le backend Linux non protégé et isoler les enveloppes par profil dans `apps/desktop/src/native-key-storage.ts`; vérifier les transactions durables de l'adaptateur dans `apps/web/src/services/desktop-key-storage.ts` selon FR-003, FR-006 et FR-007 (partial).
+- [X] T071 CRITICAL Valider les arguments IPC et l'identité exacte de la fenêtre/frame, refuser les navigations vers les données serveur et les ressources exécutables distantes dans `apps/desktop/src/{ipc,main,protocol-register,navigation-policy}.ts` selon FR-009 et SC-009. L'implémentation et ses preuves ciblées sont complètes ; la livraison reste suivie par T076.
+- [X] T072 CRITICAL Utiliser le coffre OS asynchrone, refuser le backend Linux non protégé et isoler les enveloppes par profil dans `apps/desktop/src/native-key-storage.ts`; vérifier les transactions durables de l'adaptateur dans `apps/web/src/services/desktop-key-storage.ts` selon FR-003, FR-006 et FR-007. L'implémentation et ses preuves ciblées sont complètes ; la livraison reste suivie par T076.
 - [ ] T073 Brancher une vérification réelle des mises à jour autorisées, un téléchargement vérifié et une installation avec préservation du coffre/outbox dans `apps/desktop/src/updates.ts`, `ipc.ts` et le panneau Web selon FR-011, FR-012 et SC-006 (partial).
-- [ ] T074 Remplacer les parcours Electron et le smoke installé qui ne vérifient actuellement que l'onboarding ou des fonctions de politique par des scénarios réels de connexion, édition hors ligne, interruption, révocation et mise à jour dans `tests/e2e/desktop-*.spec.ts` et `scripts/desktop/run-installed-smoke.ts` selon FR-015 et SC-001 à SC-006 (partial).
+- [ ] T074 Remplacer les parcours Electron et le smoke installé qui ne vérifient actuellement que l'onboarding ou des fonctions de politique par des scénarios réels de connexion, édition hors ligne, interruption, révocation et mise à jour dans `tests/e2e/desktop-*.spec.ts` et `scripts/desktop/run-installed-smoke.ts` selon FR-015 et SC-001 à SC-006 (partial). Les scénarios ciblés existent, mais la preuve native complète et l'upgrade release réel restent à acquérir.
 - [ ] T075 Vérifier les signatures des artefacts produits, la notarisation, l'architecture et les empreintes publiées; produire les manifests de mise à jour dans `.github/workflows/desktop-release.yml` et `scripts/ci/` selon FR-013, FR-016 et SC-007 (partial).
-- [ ] T076 Exécuter les gates desktop sur PR et main, les rendre bloquants et documenter leurs équivalents locaux dans `.github/workflows/desktop-ci.yml`, `.github/workflows/ci.yml` et `docs/development.md` selon Constitution III/VII et FR-015 (partial).
-- [X] T077 Rendre atomiques et effectives la restauration de fenêtre/page, la gestion du coffre et les erreurs expurgées dans `apps/desktop/src/`; corriger les preuves trop fortes de `validation.md` selon FR-003, FR-008, FR-010 et FR-012 (partial).
+- [ ] T076 Exécuter les gates desktop sur PR et main, les rendre bloquants et documenter leurs équivalents locaux dans `.github/workflows/desktop-ci.yml`, `.github/workflows/ci.yml` et `docs/development.md` selon Constitution III/VII et FR-015 (partial). La configuration est présente et PR #175 est verte, mais son run `main` a échoué sur A82 ; les résultats de la PR corrective et de son `main` restent à produire.
+- [X] T077 Rendre atomiques et effectives la restauration de fenêtre/page, la gestion du coffre et les erreurs expurgées dans `apps/desktop/src/`; corriger les preuves trop fortes de `validation.md` selon FR-003, FR-008, FR-010 et FR-012. L'implémentation et la correction documentaire ciblées sont complètes ; la livraison reste suivie par T076.
 - [X] T078 Reject sessions belonging to revoked devices on every authenticated HTTP request, including ordinary content reads; verify revocation after offline edits without deleting encrypted outbox records. Regression exposed by the real desktop revocation journey; shared server fix supports FR-009/FR-010 of feature 002 and the desktop revocation acceptance scenario.
 
 - [X] T079 Recover memory-only CSRF authorization after a cold offline restart and wake queued content/page synchronization when connectivity returns; prove recovery through the real Electron offline restart journey in `tests/e2e/desktop-offline-restart.spec.ts` without persisting the token.
@@ -265,7 +266,7 @@ fichier concret.
 
 - [X] T087 Keep native vault warnings and diagnostics specific to the desktop bridge, handle rejected key-state IPC without leaking native errors, and restore the existing mobile Web security reference in `apps/web/src/features/security/desktop-{vault-status,diagnostics}.tsx`.
 
-- [ ] T088 Correct native CI fixture setup in `.github/workflows/desktop-ci.yml` and `scripts/ci/prepare-windows-postgres.ts`: use the existing Compose PostgreSQL on Linux and Windows system bsdtar for drive-letter archives; validate both runner architectures without skipping native journeys.
+- [ ] T088 Correct native CI fixture setup in `.github/workflows/desktop-ci.yml` and `scripts/ci/prepare-windows-postgres.ts`: use the existing Compose PostgreSQL on Linux and Windows system bsdtar for drive-letter archives; validate both runner architectures without skipping native journeys. La correction est ciblée, mais sa validation native complète reste ouverte.
 - [X] T089 Preserve a live window throughout profile partition replacement in `apps/desktop/src/main.ts`, avoiding the Windows/Linux last-window quit policy; assert no all-windows-closed event during real onboarding in `tests/e2e/desktop-onboarding.spec.ts`.
 
 - [X] T090 Preserve pending page scroll restoration across presentation-state refreshes in `apps/web/src/features/editor/` and verify real mobile navigation plus cancellation before the first animation frame; exposed by the full browser parity CI.
@@ -284,7 +285,7 @@ fichier concret.
 
 - [X] T097 Replace the endless workspace skeleton after local initialization refusal with a safe, actionable error and retry, retaining local records and withholding content while initialization is unavailable. Exercise a real temporary IndexedDB refusal, retry and intact page contents in the browser (US2 acceptance 3, FR-006/FR-015, SC-004).
 
-- [ ] T098 Preserve native property text through a same-entry projection before input-event delivery; scope controls to entry identity, verify hydration and no cross-entry draft carry, and replay the original WebKit mobile journey without retries or timeout changes before full delivery checks.
+- [X] T098 Preserve native property text through a same-entry projection before input-event delivery; scope controls to entry identity, verify hydration and no cross-entry draft carry, and replay the original WebKit mobile journey without retries or timeout changes before full delivery checks.
 
 - [ ] T099 Prepare the pinned Electron executable before parallel desktop test workers, handle absent native spawn output without masking its status, verify local desktop tests/types and rerun the complete gate plus both Windows native jobs before accepting T096.
 
@@ -303,7 +304,7 @@ retry the original command. Remote validation and root-cause repair remain open.
 
 - [ ] T104 Remove Forge CLI's demonstrated undeclared npm requirement through a pinned Forge core API entry point under Bun. Preserve the five release targets, argument forwarding, makers/signing/pruning and error propagation; verify package and installed smoke on the Windows fixture without Node/npm, focused command tests, renewed complete gates and dependency-image scan.
 
-- [ ] T105 Correct the reproduced Bun 1.4.0 Windows extra-stdio handle ownership defect through the maintained 1.4.2 runtime/image/types pins. Keep the existing cleanup and native assertions without the experimental polling adapter; prove the upstream handle regression, constrained native journeys, complete local/image checks and PR/main CI.
+- [ ] T105 Correct the reproduced historical Bun 1.4.0 Windows extra-stdio handle ownership defect through the maintained 1.4.2 runtime/image/types pins. Keep the existing cleanup and native assertions without the experimental polling adapter; prove the upstream handle regression, constrained native journeys, complete local/image checks and PR/main CI.
 
 - [ ] T106 Remove GHSA-j95f-988m-3j2f from the packaged editor by upgrading the compatible Tiptap family to 3.30.5; verify bounded block/inline Markdown parsing, retained editor identity, existing editing contracts and strict types, then renew every local/image/PR/main gate without an audit waiver.
 

@@ -6,9 +6,9 @@
 
 **Tests**: demandés par FR-031 ; inclus par histoire.
 
-T001–T033, T041 et T042 sont cochées d’après le code et les tests unitaires
-présents dans `main`. T040 (journey Playwright) reste ouverte **après** la
-feature 014.
+T001–T043 sont cochées d’après le code, les tests unitaires et le parcours
+Playwright exécuté sur la matrice complète après la feature 014. T044 conserve
+la livraison finale ouverte jusqu'aux preuves PR et `main` du candidat corrigé.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -39,8 +39,12 @@ feature 014.
 
 ## Phase 3: User Story 2 — Onglets (P2)
 
-- [X] T020 [US2] Composant `OpenTabsStrip` (tablist, fermeture, défilement,
-      flèches, scrollIntoView) dans `apps/web/src/features/workspace/open-tabs-strip.tsx`
+- [X] T020 [US2] Composant `OpenTabsStrip` (toolbar, destinations courantes,
+      fermeture focusable par bouton, raccourci ou clic central avec retour au
+      voisin, point d'entrée clavier si la destination active n'a pas d'onglet,
+      retour au canevas après fermeture du dernier onglet, défilement, flèches
+      limitées aux destinations, scrollIntoView)
+      dans `apps/web/src/features/workspace/open-tabs-strip.tsx`
 - [X] T021 [US2] État `openTabIds` dans `hierarchy-explorer.tsx` : hydratation,
       ajout à l’ouverture (pages, dossiers et graphe), fermeture → voisin/`/notes`,
       purge des items indisponibles, persistance ; l’onglet graphe survit à la
@@ -50,8 +54,9 @@ feature 014.
 
 ## Phase 4: User Story 3 — Vue de dossier (P3)
 
-- [X] T030 [US3] Composant `FolderChildrenList` (dnd-kit sortable, menu
-      Monter/Descendre, état vide avec création) dans
+- [X] T030 [US3] Composant `FolderChildrenList` (liens canoniques natifs,
+      distinction page/dossier/fichier/base, dnd-kit sortable, menu
+      Monter/Descendre et état vide) dans
       `apps/web/src/features/workspace/folder-children-list.tsx`
 - [X] T031 [US3] Brancher la liste dans le canevas dossier de
       `hierarchy-explorer.tsx` sur `handleTreeDrop` / `reorder` / `createItem`
@@ -65,12 +70,34 @@ feature 014.
 
 ## Phase 5: Parcours et polish
 
-- [ ] T040 Spec Playwright `tests/e2e/workspace-tabs-folder.spec.ts` : ouverture
-      → onglets, fermeture, fil d’Ariane tronqué, liste de dossier et
-      réordonnancement reflété dans l’arbre
+- [X] T040 Spec Playwright `tests/e2e/workspace-tabs-folder.spec.ts` : ouverture
+      → onglets sans doublon, historique/rechargement, renommage/emoji/conversion,
+      fermeture sémantique avec Entrée/Espace/⌘W/Ctrl+W et retour de focus, fil
+      d’Ariane tronqué consultable au clavier, liste de dossier sans éditeur et
+      source de base distincte, réordonnancement au clavier, au pointeur et par
+      action tactile reflété dans l’arbre puis sur un second appareil, cibles
+      tactiles de 44 px, audit axe des surfaces modifiées et absence de
+      débordement à 390 et 320 px, avec ouverture réelle du menu d'une ligne
+      profondément imbriquée dans le tiroir mobile ;
+      exécution sur Chromium desktop/mobile, Firefox desktop et WebKit
+      desktop/mobile, avec déclaration du parcours dans `ci/test-impact.json`
+      et régression de son propriétaire CI
 - [X] T041 Lint, format, typecheck, tests unitaires web + client-core
 - [X] T042 Mettre à jour `docs/product/product-canvas.md` (fait dans la spec) et
       vérifier `specs/022-page-tabs-folder-view/spec.md` ↔ implémentation
+- [X] T043 Appliquer le [skill UI partagé](../../.agents/skills/ui-quality/SKILL.md)
+      aux boutons sémantiques, cibles compactes, espacements, arrondis imbriqués,
+      focus, défilement horizontal contenu et viewports 320/390 px ; consigner
+      les preuves de revue dans `validation.md`
+
+## Phase 6: Livraison intégrée
+
+- [ ] T044 Exécuter le gate complet sur le commit candidat propre, vérifier
+      toute la CI de PR et la revue, fusionner normalement, puis vérifier toute
+      la CI `main` et consigner les preuves adressables dans `validation.md`
+      (FR-031, Constitution III/VII). PR #175 et son merge antérieur sont
+      consignés, mais son run `main` a échoué sur A82. La matrice locale du
+      correctif est verte ; sa propre PR puis son run `main` restent à produire.
 
 ## Dependencies
 

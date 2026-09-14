@@ -23,6 +23,7 @@ import { NavigationInlineCreate } from "../navigation/navigation-inline-create.t
 
 export interface FolderChild {
   readonly id: string;
+  readonly href: string;
   readonly name: string;
   readonly kind: ItemIconKind;
   readonly icon?: string | null;
@@ -43,10 +44,11 @@ export interface FolderChildrenListProps {
   readonly onReorder: (request: FolderReorderRequest) => void;
 }
 
-const KIND_LABEL: Record<ItemIconKind, string> = {
+const KIND_LABEL: Record<FolderChild["kind"], string> = {
   page: "Page",
   folder: "Dossier",
   file: "Fichier",
+  database: "Base de données",
 };
 
 function childLabel(child: FolderChild): string {
@@ -196,16 +198,28 @@ function SortableChildRow({
       >
         <AppIcon name="drag" size="small" />
       </button>
-      <button
-        type="button"
+      <a
         className="folder-children__link"
         data-testid="folder-child-link"
-        onClick={onOpen}
+        href={child.href}
+        onClick={(event) => {
+          if (
+            event.button !== 0 ||
+            event.altKey ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.shiftKey
+          ) {
+            return;
+          }
+          event.preventDefault();
+          onOpen();
+        }}
       >
         <ItemIcon kind={child.kind} icon={child.icon ?? null} size="inline" />
         <span className="folder-children__name">{label}</span>
         <span className="folder-children__hint">{childHint(child)}</span>
-      </button>
+      </a>
       <MenuRoot placement="bottom-end">
         <MenuTrigger
           className="folder-children__menu"

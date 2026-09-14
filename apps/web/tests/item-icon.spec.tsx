@@ -23,6 +23,7 @@ describe("item identity icon", () => {
     const page = renderToStaticMarkup(<ItemIcon kind="page" icon={null} />);
     const folder = renderToStaticMarkup(<ItemIcon kind="folder" icon={null} />);
     const file = renderToStaticMarkup(<ItemIcon kind="file" icon={null} />);
+    const database = renderToStaticMarkup(<ItemIcon kind="database" icon={null} />);
 
     expect(page).toContain('data-icon="fileText"');
     expect(page).not.toContain("data-item-kind-badge");
@@ -30,6 +31,8 @@ describe("item identity icon", () => {
     expect(folder).not.toContain("data-item-kind-badge");
     expect(file).toContain('data-icon="file"');
     expect(file).not.toContain("data-item-kind-badge");
+    expect(database).toContain('data-icon="table"');
+    expect(database).not.toContain("data-item-kind-badge");
   });
 
   it("adds the reference badge without changing the item emoji", () => {

@@ -62,11 +62,11 @@ The wrapper's unused `myownnotion-postgres-1` service was briefly started and
 restored to stopped; the user's `myownnotion-dev-postgres-1:5432` remained running
 and untouched. All test data used isolated databases on PostgreSQL 55433.
 
-## Delivery boundary
+## Historical delivery boundary
 
-T012 remains pending: complete `bun run checks:local` on integrated changes,
-then branch push, PR CI, review and merge. No standalone full-gate or release
-claim is made by this feature subtask.
+At the isolated feature checkpoint, T012 was pending and no standalone full-gate
+or release claim was made by this feature subtask. The integrated delivery
+closure below supersedes that historical boundary.
 
 Global `format:check` and `lint:ci` additionally identify one inherited formatting
 error in `apps/api/tests/administrative-recovery.integration.spec.ts:162–182` at
@@ -92,5 +92,17 @@ and 235 distinct tests. Convergence task T014 fixes the missing code-block E2E
 journey declaration in the CI impact inventory. Details and pending audit T050
 and delivery gates are recorded in
 [the shared integration report](../026-linked-databases/integration-validation.md).
-The browser evidence above remains historical feature-branch evidence; T012
-is still pending on the eventual delivery combination.
+The browser evidence above remains historical feature-branch evidence; the
+eventual delivery combination is recorded below.
+
+## Integrated delivery closure — exact SHA `52dfdc926164f392cf812ead302bddb9662ac356`
+
+The complete `bun run checks:local` gate passed on exact SHA
+`52dfdc926164f392cf812ead302bddb9662ac356`. PR #175 for that SHA passed in
+green run `34747879571` and merged normally as
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`. This records the local and PR
+portions of T012 and the integrated evidence for the code-block UI.
+
+Main run `34748994269` is not green yet and is not treated as a successful
+main gate. Root will finalize the remaining main-CI verification. No additional
+feature implementation is pending.

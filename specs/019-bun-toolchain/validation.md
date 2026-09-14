@@ -4,12 +4,17 @@
 
 **Branche**: `codex/019-bun-1-4-toolchain`
 
-**Runtime validé**: Bun `1.4.0` exactement
+**Runtime actif**: Bun `1.4.2` exactement
 
 **Commit exécutable candidat**: `de22b00e244fcc7a16ba651d4476a558fb7caa7d`
 
 Ce journal rassemble les preuves reproductibles de la migration. Les données,
 le schéma PostgreSQL et le protocole de synchronisation restent inchangés.
+
+## Preuves historiques de la migration initiale — Bun 1.4.0
+
+Les sections suivantes conservent les résultats de la migration initiale sous
+Bun 1.4.0 à titre d'historique ; elles ne décrivent plus le pin actif.
 
 ## Outillage et installation
 
@@ -206,7 +211,7 @@ tâche correspondante. Les preuves finales, la porte locale, la PR et la CI sont
 déjà suivies par T015, T026, T038, T043–T050 ; aucune tâche dupliquée n'a été
 ajoutée.
 
-## Porte candidate
+## Porte candidate historique de la migration initiale — Bun 1.4.0
 
 Le commit exécutable candidat est
 `de22b00e244fcc7a16ba651d4476a558fb7caa7d`. Le seul diff préparé après ce
@@ -283,6 +288,34 @@ unmodified exact-commit native/CI and complete delivery gates remain required.
 No owner data or globally installed runtime was modified.
 
 The macOS focused run passes 152 desktop/toolchain/release contract cases with
-two platform-specific skips; strict workspace types pass. The retained pin
-updates change only Bun and its matching types in the dependency lock. Runtime
-images and every full local/PR/main check must be renewed for the new pins.
+two platform-specific skips; strict workspace types pass. This section records
+the historical comparison and the scope of the pin change; the renewed
+candidate and delivery evidence are recorded below.
+
+## Clôture technique de la maintenance Bun 1.4.2 — T051–T052
+
+Les pins actifs du dépôt, des types, des images, de l'installation CI, des
+contrôles et des contrats sont désormais Bun `1.4.2`. Les occurrences Bun
+`1.4.0` conservées plus haut décrivent exclusivement la migration initiale ou
+la régression historique comparée ; elles ne constituent pas une procédure
+active.
+
+La régression Windows des pipes supplémentaires échoue sous Bun
+`1.4.0+34cbb9a40` avec quatre descripteurs étrangers invalidés et réussit sous
+Bun officiel `1.4.2+744846f84`, avec les 96 descripteurs indépendants et les
+neuf messages attendus. Les neuf parcours natifs contraints passent ensuite
+sous Bun 1.4.2, sans l'adaptateur expérimental de notification de fin. Cette
+preuve clôt T051 et T052 et reste reliée à 014 T105.
+
+La PR [#175](https://github.com/enzofrnt/MyOwnNotion/pull/175) a passé ses gates
+sur le SHA intégré final
+`52dfdc926164f392cf812ead302bddb9662ac356`; le run
+[34747879571](https://github.com/enzofrnt/MyOwnNotion/actions/runs/34747879571)
+est vert. Elle a été fusionnée dans `main` au commit
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`.
+
+Le run `main` `34748994269` n'est pas vert à la date de cette validation. Il
+reste donc en attente de renouvellement et ne constitue pas une preuve de
+réussite de la CI `main` ni de publication des images associées. T051 et T052
+sont clôturées par les preuves techniques ci-dessus; T053 reste explicitement
+ouverte jusqu'à la réussite de la CI `main` et à la vérification des images.

@@ -73,11 +73,21 @@ survive projection updates; active caret/style and native runtime are exercised.
 
 ## Phase 7: Cross-cutting validation and delivery
 
-- [ ] T037 Validate exact file format/digest/identity compatibility and image/runtime restores on AMD64 and ARM64, including existing reference backups, in `specs/025-storage-coherence-audit/validation.md` (FR-005/FR-006/FR-013).
-- [ ] T038 Complete real browser/theme/viewport/native parity, performance and all failure evidence; update directly affected shared artifacts and audit limitations in `specs/025-storage-coherence-audit/validation.md` (SC-001–SC-007).
+- [x] T037 Validate exact file format/digest/identity compatibility and image/runtime restores on AMD64 and ARM64, including existing reference backups, in `specs/025-storage-coherence-audit/validation.md` (FR-005/FR-006/FR-013). Integrated delivery evidence recorded on the exact SHA below.
+- [x] T038 Complete real browser/theme/viewport/native parity, performance and all failure evidence; update directly affected shared artifacts and audit limitations in `specs/025-storage-coherence-audit/validation.md` (SC-001–SC-007). Integrated delivery evidence recorded on the exact SHA below.
 - [x] T039 Run Spec Kit convergence against all requirements and acceptance scenarios, append/fix remaining gaps and keep `specs/025-storage-coherence-audit/tasks.md` current (FR-011/FR-013).
-- [ ] T040 Read `docs/development.md`, pass `bun run checks:local` and required image scans on the exact commit, then push and open the feature PR with concrete evidence (FR-013).
-- [ ] T041 Review and pass every PR CI, merge, verify all main CI/images and record commit-addressable delivery in `specs/025-storage-coherence-audit/validation.md` (FR-013).
+- [x] T040 Read `docs/development.md`, pass `bun run checks:local` and required image scans on the exact commit, then push and open the feature PR with concrete evidence (FR-013). Evidence is recorded for the integration SHA and PR #175.
+- [ ] T041 Review and pass every PR CI, merge, verify all main CI/images and
+      record commit-addressable delivery in
+      `specs/025-storage-coherence-audit/validation.md` (FR-013). PR #175 and
+      its merge are recorded, but main run `34748994269` failed on the Firefox
+      overflow regression tracked by A82. Corrected PR #176 run `34761283724`
+      then failed only because its Firefox preview returned one invalid gzip
+      module response tracked by A88. Renewed run `34772342192` passed every
+      browser and native target but its instrumented Vite transport probe
+      exceeded the test's five-second default; the timeout correction and the
+      settings reconciliation race tracked by A89 still require one exact
+      clean gate, renewed PR CI and main image publication.
 
 ## Additional confirmed privacy boundary — required before delivery
 
@@ -106,8 +116,8 @@ US2 fixture construction and operational documentation after the format is fixed
 US3 occupied-target tests while US4 browser reproduction runs. These are dependency
 opportunities, not a requirement to run extra agents or overlap heavy DB suites.
 
-All 91 task lines follow the checklist/ID/path format. Counts: setup 2,
-foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1, active page response convergence 1, historical source-key convergence 1, selective graph coverage 1, page title reflow 1, multipart conflict recovery 1, editor geometry 1, bounded multipart evidence 1, direct bounded reads 1, CI gate topology 1, response lifecycle 1, rollback-safe blob cleanup 1, direct Buffer storage 1, reserved journal lane 1, protected-placeholder reservation 1, protected-payload reservation 1, strict envelope revalidation 1, authenticated V0 provenance 1, versioned portable archive hardening 1, protected history retention 1, exact marker reflection 1, V1 inventory resume 1, canonical SQL representability 1, initialization archive state 1, causal update receipts 1, checkpoint head bounds 1, operational timestamp order 1, checkpoint sequence binding 1, legacy-state isolation 1, placementless reusable database export 1, final audit closure 9, final recovery/browser closure 3. Each story's acceptance
+All 95 task lines follow the checklist/ID/path format. Counts: setup 2,
+foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1, active page response convergence 1, historical source-key convergence 1, selective graph coverage 1, page title reflow 1, multipart conflict recovery 1, editor geometry 1, bounded multipart evidence 1, direct bounded reads 1, CI gate topology 1, response lifecycle 1, rollback-safe blob cleanup 1, direct Buffer storage 1, reserved journal lane 1, protected-placeholder reservation 1, protected-payload reservation 1, strict envelope revalidation 1, authenticated V0 provenance 1, versioned portable archive hardening 1, protected history retention 1, exact marker reflection 1, V1 inventory resume 1, canonical SQL representability 1, initialization archive state 1, causal update receipts 1, checkpoint head bounds 1, operational timestamp order 1, checkpoint sequence binding 1, legacy-state isolation 1, placementless reusable database export 1, final audit closure 9, final recovery/browser closure 3, protected database read closure 1, final workspace coherence closure 2, authenticated historical database publication 1. Each story's acceptance
 criteria precede its implementation and its completion requires recorded proof.
 
 T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferred beyond this audit delivery.
@@ -161,7 +171,7 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
 
 ## Phase 16: Convergence — resumable migration and archive closure
 
-- [x] T071 [US2] Resume authenticated version-1 transition inventories from either a modern or V0 source, bind backup/install/transition/entry identity and digests before continuation, upgrade the inventory atomically to version 2, and supplement only the narrowly identified early file-only metadata gap while the transition is still inventoried or backfilling. Keep V0 provenance limited to marker exceptions and fail closed on every absent or mismatched proof (FR-007/FR-014, SC-003, audit A56).
+- [x] T071 [US2] Resume authenticated version-1 transition inventories from either a modern or V0 source, bind backup/install/transition/entry identity and digests before continuation, upgrade the inventory atomically to version 2, and supplement only the narrowly identified early file-only metadata gap while the transition is still inventoried or backfilling. Keep V0 provenance limited to explicit marker exceptions; T095's digest-bound database publication applies to every authenticated pre-cutover source. Fail closed on every absent or mismatched proof (FR-007/FR-014, SC-003, audit A56).
 - [x] T072 [US2] Reject canonical structured definition/value versions below one and U+0000 in every canonical or page-operation JSON string or object key before any archive byte is emitted or any restore-target mutation begins. Cover direct/streaming production, inspection and apply atomicity while keeping supported V1 archives readable (FR-007/FR-014, SC-002/SC-003, audit A57).
 - [x] T073 [US2] Preserve a legitimate empty `initializing` page-operation state through export, inspection and restore, while refusing checkpoints, updates, frontiers, digests, windows, ambiguities or conversions that contradict that lifecycle state (FR-007/FR-014, SC-003, audit A58).
 - [x] T074 [US2] Authenticate every retained page-operation blob against its declared base frontier and reconstruct its cumulative result frontier, including updates already covered by the current checkpoint and concurrent server history. Refuse causal retreat or an unreconstructable receipt before any archive byte is emitted or any restore-target mutation begins (FR-007/FR-014, SC-002/SC-003, audit A59).
@@ -188,3 +198,61 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
 - [x] T089 [US2] Replace the hand-written backup browser fixture with the exact production V2 canonical serializer, authenticated structured-data digest and derived archive counts in `tests/e2e/backup.spec.ts`; retain strict archive validation and prove both owner-visible rehearsal journeys (FR-007/FR-011/FR-012/FR-013, SC-003/SC-007, audit A74). Candidate evidence: `333ea73`.
 - [x] T090 [US3] Establish the real wrapping/root/data-key hierarchy in `tests/e2e/security-recovery.spec.ts`, send no JSON content type for bodyless operations, align visible readiness assertions and distinguish durable consumed replay from a preparation lost after restart in `apps/api/src/security/recovery-kit-service.ts` and its integration tests (FR-009/FR-011/FR-012/FR-013, SC-005/SC-007, audits A75–A76). Candidate evidence: `333ea73`.
 - [x] T091 [US3] Bound replacement-artifact custody in `apps/api/src/security/recovery-kit-service.ts` and `apps/api/src/app.ts`: serialize preparation, keep one pending artifact, purge it on expiry/replacement/terminal state/consumption/close, repeat status/download reads around concurrent preparation, and erase caller payloads, temporary deployment-key copies and derived wrapping keys in `apps/api/src/security/bootstrap-kit.ts` and `packages/domain/src/security/recovery-artifacts.ts`. Document the one-active-API V1 topology and issuance-time generation metadata in the product, security and deployment artifacts; retain exact local/PR/main delivery gates (FR-009/FR-011/FR-012/FR-013, SC-005/SC-007, audits A77–A80). Candidate evidence: `333ea73`.
+
+## Phase 19: Protected database read closure
+
+- [x] T092 [US1] Fail closed when a protected database definition or entry-value
+      envelope is missing, without reopening a legacy revision snapshot through
+      database routes, projections or complete search. Preserve the explicit
+      unprotected migration path and cover reintroduced plaintext plus missing
+      envelopes in `apps/api/tests/database-projection-loading.contract.spec.ts`
+      (FR-014, SC-007, audit A83). Focused API tests, types and Biome pass;
+      complete delivery remains T041.
+
+## Phase 20: Final workspace coherence closure
+
+- [x] T093 [US4] Distinguish a reusable database source placed in a folder from
+      an ordinary page by joining the local source registry to the hierarchy
+      projection; render the shared table icon, database label and native
+      canonical link, with component and browser regressions (FR-010–FR-013,
+      SC-006/SC-007, audit A84). Bun 1.4.2 focused tests and the five-project
+      feature 022 matrix pass; complete delivery remains T041.
+- [x] T094 [US4] Keep deep navigation actions reachable at 320 px by bounding
+      visual indentation and redundant coarse-pointer controls; use 44 px touch
+      targets and one focus-restoration path for every tab-close gesture, with
+      unit, impact-contract and five-browser evidence (FR-010–FR-013,
+      SC-006/SC-007, audit A85 and A81 follow-up). Complete delivery remains
+      T041.
+
+## Phase 21: Authenticated historical database publication
+
+- [x] T095 [US2] Preserve strict protected database reads while allowing only
+      an authenticated canonical migration to inventory and first-publish a
+      missing definition/value envelope from its digest-bound revision source;
+      require protected envelopes for every later verification boundary and
+      cover route refusal plus complete transition readback in
+      `apps/api/tests/canonical-storage-migration.integration.spec.ts`
+      (FR-007/FR-014, SC-003/SC-007, audit A86). Focused migration/projection
+      tests, workspace types and Biome pass; complete delivery remains T041.
+
+## Phase 22: Deterministic browser-preview transport
+
+- [x] T096 [US4] Remove Vite's in-process response compression from the
+      isolated Playwright preview after Firefox rejected one successful module
+      response as `NS_ERROR_INVALID_CONTENT_ENCODING`; preserve ordinary
+      preview/production serving, forward the existing opt-in server diagnostic
+      output into the Linux browser container, and cover both configuration
+      boundaries plus the original Firefox journey (FR-011/FR-013, SC-007,
+      audit A88). The focused configuration suites and three pinned-Linux
+      Firefox repetitions pass; complete delivery remains T041.
+
+## Phase 23: Retained-workspace navigation coherence
+
+- [x] T097 [US4] Keep the current settings destination visible when the retained
+      hidden workspace asynchronously replaces a trashed active selection;
+      update only the note or graph destination used by Back, preserve settings
+      state, route the graph sentinel through its native callback and prove the
+      late-projection path with routing regressions plus repeated
+      pinned-Linux WebKit coverage of the original trash/restore journey
+      (FR-010–FR-013, SC-007, audit A89). Focused unit and five-repeat WebKit
+      evidence pass; complete delivery remains T041.

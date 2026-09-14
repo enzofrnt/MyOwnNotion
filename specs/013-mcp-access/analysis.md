@@ -22,7 +22,8 @@ then all seven pass after correction. API types pass. These are simulated host
 and filesystem failure boundaries, not a native Windows private-file claim.
 Logs: `/tmp/mon-mcp-private-config-baseline.log`,
 `/tmp/mon-mcp-private-config-fixed.log`, `/tmp/mon-mcp-private-config-types.log`.
-Full integrated gates and PR/main delivery remain T016.
+The exact local gate and PR #175 are recorded, but post-merge `main` run
+`34748994269` is not green; final delivery remains open under T016.
 
 The real official HTTP client suite also passes with the corrected helper:
 19 cases across the two MCP integration/CLI suites, including actual exchange,
@@ -36,7 +37,8 @@ implementation. The only production change is the CLI close/cleanup correction
 in `apps/api/src/mcp/exchange-cli.ts`: failure of `close()` previously prevented
 cleanup, including after a failed flush. Two real-file fault-injection cases
 reproduced retained private credentials; both now pass with all 45 focused tests.
-API types and focused Biome pass. Full integration and delivery remain T016.
+API types and focused Biome pass. Local/PR integration evidence is recorded;
+post-merge `main` delivery remains open under T016.
 See [the reproducible evidence](quickstart.md#mcp-boundary-evidence--t018-2026-09-05).
 
 T018 reduced uncovered MCP branches from 65 to 12 without exclusions, artificial
@@ -72,5 +74,6 @@ permitted entry placements remain usable, and allContent can read/search them
 all. The combined focused selection passes 21 suites and 222 distinct tests,
 including full restore invalidation and audit T050. See
 [the integration report](../026-linked-databases/integration-validation.md).
-The external historical backup-key correction and full delivery gate remain
-pending; T016 is still open.
+The external historical backup-key correction and local/PR evidence are
+recorded in the integrated feature evidence; T016 remains open until the
+post-merge `main` run is green.

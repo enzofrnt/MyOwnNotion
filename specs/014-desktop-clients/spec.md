@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-16
 
-**Status**: Next implementation — start now
+**Status**: Convergence partielle; preuves ciblées acquises, validation de livraison et plusieurs preuves natives encore ouvertes
 
 **Input**: User description: "Planifier la création des applications Electron Windows, macOS et Linux à la suite de la trajectoire prévue, en réutilisant les fondations et le workflow Spec Kit du dépôt. Chaque artefact est natif à sa plateforme et à son architecture ; GitHub Actions construit et publie les trois familles."
 
@@ -22,7 +22,7 @@ livraison de cette feature. Elle transforme le client Web existant en
 applications de bureau distribuables, sans créer une seconde source de vérité
 métier.
 
-La chaîne d'outils exclusive est déjà Bun 1.4.0 (feature 019, fusionnée) :
+La chaîne d'outils exclusive est déjà Bun 1.4.2 (feature 019, fusionnée) :
 `bun ci`, `bun.lock`, scripts et images. Cette feature ne réintroduit ni
 pnpm, ni npm, ni Yarn, ni un runtime Node.js first-party. Electron packagé
 reste l'hôte natif de la fenêtre, pas un second gestionnaire de paquets.

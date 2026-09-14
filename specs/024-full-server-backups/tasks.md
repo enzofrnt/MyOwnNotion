@@ -54,8 +54,14 @@ results; a real isolated rehearsal reports verification without touching live da
 ## Phase 7 — Convergence and delivery
 
 - [x] T022 Update `docs/architecture/backup.md`, `docs/deployment/backups.md`, `docs/development.md` and feature 007 artifacts with full/portable distinction, recovery keys, image tooling and actual commands.
-- [ ] T023 Run real production-image backup/restore checks, Spec Kit convergence and required `bun run checks:local`; record evidence and limits in `specs/024-full-server-backups/validation.md`.
-- [ ] T024 Run current pre-push gates, all PR CI, merge after green checks and verify all main CI; record provenance in `specs/024-full-server-backups/validation.md`.
+- [x] T023 Run real production-image backup/restore checks, Spec Kit convergence and required `bun run checks:local`; record evidence and limits in `specs/024-full-server-backups/validation.md`. Completed on PR 175's exact source SHA with the full local checks green.
+- [ ] T024 Run current pre-push gates and all PR CI, merge after green checks,
+      and verify all main CI; record provenance in
+      `specs/024-full-server-backups/validation.md`. PR run `34747879571`
+      passed and PR 175 merged as
+      `4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`; post-merge main run
+      `34748994269` failed on the Firefox overflow regression tracked by A82,
+      so T024 remains open for the corrected candidate.
 
 ## Dependencies and strategy
 
@@ -86,15 +92,15 @@ does not mark that follow-up implemented or delivered.
 
 ## Phase 9 — Historical backup keys
 
-- [x] T028 Preserve complete-backup recovery across wrapping-key rotation: implement bounded external historical-key configuration and private loading, current-only writes and authenticated historical reads for archives/receipts/activity/rehearsal, wire all runtime and CLI entry points, preserve explicit restore keys and immutable archives, document optional Docker mounting and version/fingerprint custody, remove destructive rotation advice, and verify real A→B rotation/catalogue/scheduling/retry/retention/A restoration with restored root-key access and refusal tests. Record focused checks in `validation.md`; T023/T024/T029/T030 remain integration, runtime-resource and delivery gates.
+- [x] T028 Preserve complete-backup recovery across wrapping-key rotation: implement bounded external historical-key configuration and private loading, current-only writes and authenticated historical reads for archives/receipts/activity/rehearsal, wire all runtime and CLI entry points, preserve explicit restore keys and immutable archives, document optional Docker mounting and version/fingerprint custody, remove destructive rotation advice, and verify real A→B rotation/catalogue/scheduling/retry/retention/A restoration with restored root-key access and refusal tests. Record focused checks in `validation.md`; T023/T029/T030 have local/PR evidence, while T024 remains open for final `main` verification.
 
-- [ ] T029 Bound per-component archive-reader resources in `apps/api/src/backup/full/crypto.ts`: reproduce retained FileHandle close listeners across completed/cancelled reads, use bounded positional I/O without weakening authentication or truncation checks, verify archive and real recovery suites plus the existing performance budget, and record integration evidence (FR-007/FR-015/FR-016, audit A31).
+- [x] T029 Bound per-component archive-reader resources in `apps/api/src/backup/full/crypto.ts`: reproduce retained FileHandle close listeners across completed/cancelled reads, use bounded positional I/O without weakening authentication or truncation checks, verify archive and real recovery suites plus the existing performance budget, and record integration evidence (FR-007/FR-015/FR-016, audit A31). Delivered and covered by the exact PR 175 source, full local checks and PR run recorded in `validation.md`.
 
-- [ ] T030 Run full-image recovery verification without a host Bun installation: parse the backup receipt with the tested image's pinned runtime, reproduce the CI host boundary locally with Bun absent from PATH, and retain full real restore, activation and provenance assertions plus renewed delivery gates.
+- [x] T030 Run full-image recovery verification without a host Bun installation: parse the backup receipt with the tested image's pinned runtime, reproduce the CI host boundary locally with Bun absent from PATH, and retain full real restore, activation and provenance assertions plus renewed delivery gates. Delivered and covered by the exact PR 175 source, full local checks and PR run recorded in `validation.md`.
 
 ## Phase 10: Convergence
 
-- [x] T031 Harden remote retention and retry fairness in `apps/api/src/backup/full/service.ts` and `receipts.ts`: require a receipt marked `verified` plus an exact remote read-back before deleting an expired local artifact, preserve local copies for pending/failed remote protection when provider deletion is idempotent or unavailable, and persist bounded retry metadata so one durable failure cannot starve other receipts across restarts; accept legacy receipts with absent metadata, handle equal-age legacy retry ties, and refuse a published artifact whose size changes before receipt publication. RED/GREEN regressions are covered in `apps/api/tests/full-backup-service.integration.spec.ts`, `apps/api/tests/full-backup-service-branches.spec.ts` and metadata validation per FR-013/FR-014, SC-006. The full integration, runtime-resource and delivery gates remain T023/T024/T029/T030.
+- [x] T031 Harden remote retention and retry fairness in `apps/api/src/backup/full/service.ts` and `receipts.ts`: require a receipt marked `verified` plus an exact remote read-back before deleting an expired local artifact, preserve local copies for pending/failed remote protection when provider deletion is idempotent or unavailable, and persist bounded retry metadata so one durable failure cannot starve other receipts across restarts; accept legacy receipts with absent metadata, handle equal-age legacy retry ties, and refuse a published artifact whose size changes before receipt publication. RED/GREEN regressions are covered in `apps/api/tests/full-backup-service.integration.spec.ts`, `apps/api/tests/full-backup-service-branches.spec.ts` and metadata validation per FR-013/FR-014, SC-006. The implementation and local/PR evidence are recorded; final `main` delivery remains open under T024.
 
 - [x] T032 [US4] Surface the monthly full-restore rehearsal invitation in `apps/web/src/features/backup/full-backup-panel.tsx`, with an explanatory no-backup state and a stable keyboard action at narrow widths; add RED/GREEN coverage in `tests/e2e/full-backup-ui.spec.ts` and preserve the canvas 30–31 traceability in the feature artifacts (FR-018, canvas §30–31).
 
@@ -106,5 +112,6 @@ does not mark that follow-up implemented or delivered.
   `apps/api/src/routes/backups.ts`, `apps/api/tests/backup-routes.spec.ts` and
   `tests/contract/backup-api.spec.ts`; implemented and focused-checked in
   commit `ca2174cd83fa328f8df808d2ccce5a66061c8999`. This closes the HTTP/API
-  contract task only; T023, T024, T029 and T030 remain the production-image,
-  runtime-resource, full integration and delivery gates.
+  contract task only; T023, T029 and T030 have final production-image,
+  runtime-resource and local/PR evidence. T024 remains open until the
+  post-merge `main` result is green.

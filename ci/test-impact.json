@@ -274,7 +274,9 @@
         "prefixes": [
           "apps/web/src/components/",
           "apps/web/src/features/databases/",
-          "apps/web/src/features/search/"
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/search/",
+          "apps/web/src/features/workspace/"
         ],
         "suffixes": []
       }
@@ -1137,6 +1139,18 @@
         "exact": ["apps/web/src/app.tsx", "apps/web/src/global.css"],
         "prefixes": [
           "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/workspace/",
+          "packages/client-core/src/navigation/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/workspace-tabs-folder.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/features/hierarchy/hierarchy-explorer.tsx"],
+        "prefixes": [
           "apps/web/src/features/navigation/",
           "apps/web/src/features/workspace/",
           "packages/client-core/src/navigation/"

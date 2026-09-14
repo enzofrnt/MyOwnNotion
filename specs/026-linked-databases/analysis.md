@@ -10,12 +10,11 @@ Clarification de convergence avant T013 : le défaut de placement racine contred
 ## Convergence finale
 
 FR-001–012 et SC-001–005 disposent de preuves ciblées couvrant les tâches
-d'implémentation et de convergence jusqu'à T017, T019, T021 et T022. T018 et
-T020 restent ouverts pour la reprise des parcours historiques, la stabilité des
-boutons d'entrée et le gate intégré exact. Aucune nouvelle exigence produit
-n'est ajoutée ; la livraison reste conditionnée aux gates locaux, PR et main de
-l'intégration finale. Les limites de purge planifiée et de démarrage hors réseau
-non préparé sont explicites dans [validation.md](validation.md).
+d'implémentation et de convergence jusqu'à T017, T019, T021 et T022. À ce
+checkpoint historique, T018 et T020 restaient ouverts ; leur clôture et la
+livraison intégrée sont consignées plus bas. Les limites de purge planifiée et
+de démarrage hors réseau non préparé restent explicites dans
+[validation.md](validation.md).
 
 
 ## T015 post-implementation consistency review
@@ -25,10 +24,10 @@ adds no property or view kind. The same validator handles legacy source views
 and embedded views. Public command refusal tests protect explicit placements,
 identities, typed values, conflict parents and impact confirmation. Task mapping
 and impact tests verify existing recovery semantics; the bulk relationship
-fixture checks the performance path against individual scoped reads. All 22
-feature task IDs are unique. Aggregate focused coverage passes on d1f2911d,
-while T018/T020 and the final full local, PR and main delivery gates remain
-outstanding.
+fixture checks the performance path against individual scoped reads. All 23
+feature task IDs are unique. Aggregate focused coverage passes on d1f2911d;
+the historical T018/T020 and final-gate status is superseded by the integrated
+delivery closure below.
 
 ## Integrated convergence reopened — 2026-09-08
 
@@ -38,9 +37,9 @@ journal predicate, and a pending checkbox write reverted its visible state.
 T016 and T017 address those runtime gaps under FR-002/003/004/008/010. The
 convergence fixes address the reproduced host-creation, delayed-column and
 released-property defects. Focused browser evidence covers T016, T017 and T019;
-T018 and T020 remain open until the exact integrated gate and the required
-PR/main verification pass. The specs keep their current product behavior; no
-cascade or implicit placement is reintroduced.
+the exact integrated gate and required PR verification later close T018/T020.
+The specs keep their current product behavior; no cascade or implicit placement
+is reintroduced.
 
 ## T023 convergence result — 2026-09-13
 
@@ -51,5 +50,15 @@ revision absence assertions for a missing containment parent. Together they
 prove that invalid or unavailable hosts and parents are rejected without a
 partial database mutation, while explicit placements, source-root
 normalization and entries without placement remain valid. This closes the
-atomicity evidence task without closing the historical UI/corbeille or final
-browser-gate tasks T018/T020.
+atomicity evidence task. The historical UI/corbeille and final browser-gate
+tasks T018/T020 are closed by the integrated delivery evidence below.
+
+## Clôture de cohérence de livraison — 2026-09-13
+
+The exact integrated SHA `52dfdc926164f392cf812ead302bddb9662ac356` has a
+passing complete `bun run checks:local` gate. PR #175 for that SHA passed in
+run `34747879571` and merged normally as
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`. T018 and T020 therefore have
+commit-addressable local/PR evidence. Main run `34748994269` is not green;
+final `main` verification remains open, so the analysis does not infer a
+successful main gate.

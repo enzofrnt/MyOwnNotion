@@ -15,32 +15,36 @@ Research clarified that administrative key import refuses occupied targets and
 that historical MVCC/WAL erasure is not promised by application-level migration.
 
 Current reconciliation extends that historical baseline to 14 functional
-requirements, seven success criteria, 91 ordered tasks and 80 audit findings.
+requirements, seven success criteria, 97 ordered tasks and 89 audit findings.
 The final archive/code-audit corrections and complete coverage evidence are
 recorded at `ca2174cd83fa328f8df808d2ccce5a66061c8999`; the renewed browser and
-recovery lifecycle corrections are recorded at `333ea73`. Exact complete local,
-PR and main delivery gates remain open.
+recovery lifecycle corrections are recorded at `333ea73`. At this historical
+baseline, exact delivery gates remained open; the integrated closure is
+recorded at the end of this analysis.
 
 | Requirement | Tasks |
 | --- | --- |
-| FR-001 | T004, T006, T009–T012, T015–T016 |
+| FR-001 | T004, T006, T009–T012, T015–T016, T046 |
 | FR-002 | T007, T010, T013, T016, T024 |
 | FR-003 | T003, T005, T008, T014 |
-| FR-004 | T005, T011–T012, T014, T021, T049 |
-| FR-005 | T008, T011–T017, T037, T086 |
-| FR-006 | T003–T004, T007–T008, T017–T018, T037 |
-| FR-007 | T004, T022–T028, T087–T089 |
-| FR-008 | T006, T009, T014, T018, T025–T026 |
+| FR-004 | T005, T011–T012, T014, T049, T055, T057, T061–T063 |
+| FR-005 | T008, T011–T013, T015–T017, T037, T055, T057, T061, T063, T086 |
+| FR-006 | T003–T004, T007–T008, T017–T018, T037, T048 |
+| FR-007 | T004, T022–T026, T028, T044, T050, T052, T064–T068, T071–T078, T087–T089, T095 |
+| FR-008 | T006, T009, T014, T018, T025–T026, T048, T050, T052, T055, T057, T061–T063 |
 | FR-009 | T029–T031, T082, T085, T090–T091 |
-| FR-010 | T032–T033 |
-| FR-011 | T001–T002, T028, T036, T039, T079–T091 |
-| FR-012 | T030, T034–T035, T083, T089–T091 |
-| FR-013 | T002, T020, T035, T037–T041, T080, T082, T084–T085, T087, T089–T091 |
-| FR-014 | T042–T045, T064–T079, T081, T083, T086, T088 |
+| FR-010 | T032–T033, T054–T057, T093–T094, T097 |
+| FR-011 | T001–T002, T028, T036, T039, T047, T051–T053, T059–T060, T064–T065, T079–T091, T093–T094, T096–T097 |
+| FR-012 | T030, T034–T035, T046, T051, T053–T054, T056, T060, T083, T089–T091, T093–T094, T097 |
+| FR-013 | T002, T020, T035, T037, T039–T041, T047, T051, T054–T057, T059–T060, T080, T082, T084–T085, T087, T089–T091, T093–T094, T096–T097 |
+| FR-014 | T042–T045, T064–T079, T081, T083, T086, T088, T092, T095 |
 
-SC-001 maps to T010/T019/T027; SC-002 to T019; SC-003 to T022/T027/T089; SC-004
-to T021/T049; SC-005 to T029/T031/T082/T085/T090–T091; SC-006 to T032/T038;
-SC-007 to T036/T039/T079–T091.
+SC-001 maps to T010/T019/T027/T038; SC-002 to
+T019/T038/T048/T072/T074–T078/T086/T088; SC-003 to
+T022/T027/T038/T050/T052/T064–T068/T070–T078/T087–T089/T095; SC-004 to
+T021/T038/T049/T058/T062; SC-005 to T029/T031/T038/T082/T085/T090–T091;
+SC-006 to T032/T038/T093–T094; and SC-007 to
+T036/T038/T064–T065/T069–T070/T079–T097.
 
 Proceed through speckit-implement in dependency order. This result says nothing
 about implementation correctness or completed delivery; those require the tests,
@@ -415,5 +419,118 @@ archive byte is emitted or any restore-target mutation begins. The final focused
 proof passes 168 unit/property/contract
 tests, 41 PostgreSQL/API tests, the separate 10,000-change long-offline case,
 complete workspace type checking and changed-source formatting. Independent
-post-fix reviews found no remaining P0/P1/P2 in these boundaries. Complete local,
-PR and main delivery remains T037/T038/T040/T041.
+post-fix reviews found no remaining P0/P1/P2 in these boundaries. The final
+integrated delivery evidence below closes T037, T038, T040 and T041's local/PR
+portions; the non-green main run remains explicitly assigned to root.
+
+## T092 — protected database reads fail closed
+
+The final data audit reproduced a protected-runtime downgrade: deleting a
+`database.definition` or `database.entry-values` envelope and reintroducing a
+readable legacy revision snapshot allowed the resolver to use that plaintext
+fallback. Complete search carried the same independent fallback.
+
+T092 makes the protected envelope authoritative for database routes, search and
+projection loading. Only a runtime without the protected-content boundary may
+read the legacy representation used by the explicit migration path. The focused
+regression injects readable snapshots, removes each current envelope, then
+expects `protected_read_failed` from HTTP, a degraded search rebuild and a
+projection refusal. Five API contract cases, API types and focused Biome pass;
+T041 retains complete PR/main delivery.
+
+## T093–T094 — final workspace coherence findings
+
+The final UI and code review found two bounded integration defects. A reusable
+database source placed in a folder inherited its generic page presentation, and
+deep hierarchy indentation could clip the only visible action menu at 320 px.
+The feature 022 interaction review also exposed undersized touch targets and two
+focus paths that differed from button closure.
+
+The hierarchy now reads source identities with its local projection refresh,
+labels matching folder children as databases and supplies native canonical
+links. Deep coarse-pointer rows retain their complete menu within the viewport;
+touch close/reorder controls measure at least 44 px, and every close gesture
+restores focus through one helper; a non-tab file destination retains the first
+tab as a keyboard entry point, and closing the final tab focuses the workspace.
+Twenty-three component tests and all five browser
+projects pass on Bun 1.4.2. These tasks close A84–A85 implementation evidence;
+T041 retains the exact PR/main delivery obligation.
+
+## T095 — authenticated historical database publication
+
+The first complete gate on `34938b593c597821806c9ddef4341b68639eb035`
+exposed one safe but blocking consequence of T092: the V0 canonical migration
+used the ordinary protected resolver and could no longer inventory a database
+whose definition/value existed only in its authenticated legacy revision. The
+same state can occur on a modern installation upgrading from the schema before
+database envelopes. One of 4,619 coverage tests failed before any migration
+write survived.
+
+The migration now has a private, provenance-gated reader. It checks the
+envelope first, permits the legacy representation only for an authenticated
+pre-cutover source during inventory and first publication, and binds the
+accepted payload to the transition's captured digest. `requireProtected`
+verification, cutover,
+retirement, routes, search and projections retain the strict T092 behavior. The
+10-case canonical migration suite, 5-case protected projection suite and all 29
+resume/interruption cases pass, including a modern V1 inventory with database
+content, along with workspace types and Biome. T041 retains renewed exact-gate
+and PR/main delivery.
+
+The next clean candidate `644f602219182a30bed1deb56251c2b57d782972`
+passed all 4,617 executed tests but exceeded the unchanged branch budget by one.
+T095 now proves that enabling the authenticated migration fallback still uses
+existing protected definition and entry-value envelopes. This closes A87's
+missing precedence evidence without changing the migration boundary; T041 still
+owns the renewed exact gate and delivery.
+
+## T096 — deterministic browser-preview transport
+
+PR #176 run `34761283724` passed every native, image, security, coverage,
+contract, database and build responsibility, plus Chromium and both WebKit
+profiles. Firefox completed 277 journeys but retried one initial blank page, so
+`--fail-on-flaky-tests` correctly failed the job. Its retained trace showed the
+HTML and entry chunks succeeded before Vite preview returned the 3.4 MiB dynamic
+router module with status 200 and `Content-Encoding: gzip`; Firefox rejected
+that response as `NS_ERROR_INVALID_CONTENT_ENCODING`. No API or application
+exception preceded the blank page, and the Playwright retry passed.
+
+T096 removes that Vite-only compression path from the isolated browser preview
+through an explicit Playwright environment boundary. Ordinary preview and
+production serving retain their existing configuration. The preview contract
+returns the router module byte-for-byte even when the client advertises gzip;
+the Vite configuration suite, test-impact contract and three repetitions of the
+original journey in the pinned Linux Firefox image pass. The existing opt-in
+web-server output flag is also forwarded into that container so an API or
+preview startup refusal remains diagnosable. T041 retains the renewed exact
+local, PR and post-merge delivery obligation.
+
+## T097 — retained-workspace navigation coherence
+
+The renewed local gate exposed one WebKit retry in the branch trash/restore
+journey. The failure trace inspected immediately afterward showed that the
+local trash confirmation disappeared and settings opened before the server
+accepted the mutation. Once the delayed
+projection arrived, the retained hidden hierarchy removed the active tab and
+its replacement selection navigated the whole application from
+`/settings/trash` to `/notes`. The trash row became available, but the owner had
+already been ejected from the operational screen.
+
+The routed application now recognizes replacement navigation emitted while a
+settings destination is current. It keeps that settings route in front and
+updates only its safe workspace return state, including the retained scroll and
+focus destination. A surviving graph tab remains a native graph destination
+rather than being cast to an item identity. The direct routing regressions and
+five consecutive runs of the original trash/restore journey in the pinned Linux
+WebKit image pass without retry. This closes A89 implementation evidence; T041
+retains the renewed exact local, PR and post-merge delivery obligation.
+
+## Integrated delivery closure — 2026-09-13
+
+The exact integration SHA `52dfdc926164f392cf812ead302bddb9662ac356` passed the
+complete `bun run checks:local` gate. PR #175 passed in green run
+`34747879571` and merged normally as
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`. T037, T038 and T040 are therefore
+complete, and T041 has commit-addressable PR/merge evidence. Main run
+`34748994269` is not green and is not treated as a successful main gate; root
+will finalize the remaining main-CI verification.

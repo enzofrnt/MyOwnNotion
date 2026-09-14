@@ -10,7 +10,9 @@ Branche locale `codex/026-linked-databases`, worktree isolé `mon-linked-db`. Au
 - Contrat de chargement : 24 entrées reconstruites en 16–24 ms ; actualisation d'une seule entrée en 3–4 ms. Le test vérifie que seules ses valeurs/noms sont relus, qu'aucun corps de page n'est ouvert par la projection, que l'ordre d'insertion des versions n'influence pas la version courante et qu'une version obligatoire absente ou un nom corrompu empêche de publier une projection complète.
 - Convergence des entrées sans placement : 4 fichiers, 44 tests réussis (`/tmp/mon-linked-db-unplaced-tests.log`) : contrat optionnel, maintien du placement explicite, outbox chiffrée après redémarrage, recherche de la page canonique, export/restauration sans placement et intégration PostgreSQL.
 - Derniers contrôles de chargement et d'interface : 5 fichiers, 24 tests réussis (`/tmp/mon-linked-db-last-focused.log`), avec actualisation d'une entrée supprimée sans réouvrir les noms inchangés. Les suites pagination/vues/accessibilité comptent également 4 fichiers, 17 tests réussis.
-- Contrat de sélection CI : 35 tests réussis ; le nouveau parcours est déclaré dans `ci/test-impact.json`.
+- Contrat de sélection CI au checkpoint de la branche 026 : 35 tests réussis ;
+  le nouveau parcours est déclaré dans `ci/test-impact.json`. L'inventaire
+  intégré courant compte 37 tests après l'ajout de propriétaires ultérieurs.
 - Typecheck du monorepo et build Web de production réussis. Biome et `git diff --check` vérifiés sur les fichiers modifiés.
 
 ## Parcours et revue visuelle
@@ -36,14 +38,14 @@ only when the server selected the same entry ID. Local rows absent from the
 server page are omitted because a partial projection cannot establish their
 global filter/order/page position. The direct regression in
 `apps/web/tests/database-pagination.spec.ts` passes, and the web typecheck and
-focused Biome checks pass. Complete delivery remains owned by the parent gate.
+focused Biome checks pass. At this historical checkpoint, complete delivery
+remained owned by the parent gate; the integrated closure below supersedes it.
 
 La purge planifiée complète reste hors 026 : les tests appliquent l'état canonique purgé et retirent les enveloppes éditoriales de l'ancien hôte pour vérifier l'indépendance réelle. La reprise hors ligne testée garde disponible le shell statique ; elle n'atteste pas un premier démarrage sans réseau avec service worker non préparé.
 
-Les corrections 025 T050/T052 sont présentes dans l'intégration courante. Les
-preuves ciblées de cette branche ne valent toujours pas le gate complet : il
-reste à exécuter `bun run checks:local`, la matrice documentée, la PR et la CI
-main sur le commit final.
+Les corrections 025 T050/T052 sont présentes dans l'intégration courante. À ce
+checkpoint historique, les preuves ciblées de cette branche ne valaient pas
+encore le gate complet ; la livraison intégrée finale est documentée ci-dessous.
 
 ## Intégration sur l'audit courant
 
@@ -242,7 +244,20 @@ database, item, placement, membership, relationship and revision rows, which
 proves the mutation boundary is atomic for this surface. The focused PostgreSQL
 file passes 18/18 tests after the follow-up assertion.
 
-This is focused integration evidence on the source/placement model. T018 and
-T020 remain open for historical UI/trash coverage, button identity and the
-complete integrated browser gate; the full local, PR and main gates are still
-required.
+This is focused integration evidence on the source/placement model. At this
+2026-09-13 checkpoint, T018 and T020 were still open for historical UI/trash
+coverage, button identity and the complete integrated browser gate. The
+subsequent integrated delivery closure below supersedes that interim status.
+
+## Preuve d'intégration locale et PR — SHA exact `52dfdc926164f392cf812ead302bddb9662ac356`
+
+Le gate complet `bun run checks:local` a réussi sur le SHA exact
+`52dfdc926164f392cf812ead302bddb9662ac356`, avec les preuves de couverture,
+de navigateur, d'image/runtime, de sécurité et de Compose requises. Cette
+exécution clôt T018 et T020 ainsi que le gate local.
+
+La PR #175 a utilisé ce même SHA et le run requis `34747879571` est vert. Elle
+a été fusionnée normalement dans
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`. Le run main `34748994269` n'est
+pas encore vert et ne constitue pas une preuve de réussite ; la finalisation
+de la CI main et la vérification de publication restent ouvertes.

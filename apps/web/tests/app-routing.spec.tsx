@@ -9,12 +9,15 @@ import type { HierarchyExplorerProps } from "../src/features/hierarchy/hierarchy
 import type { SecurityApi } from "../src/services/security-api.ts";
 
 const renderedGraphModes: HierarchyExplorerProps["graphMode"][] = [];
+const replacementItemId = generateUuidV7();
 
 function RoutedHierarchy({
   active,
   selectedItemId,
   graphMode,
   onOpenItem,
+  onOpenGraph,
+  onOpenSettings,
   onTrashedItemsChange,
 }: HierarchyExplorerProps) {
   renderedGraphModes.push(graphMode);
@@ -26,6 +29,30 @@ function RoutedHierarchy({
     >
       <button type="button" onClick={() => onOpenItem(generateUuidV7())}>
         Ouvrir une note
+      </button>
+      <button
+        type="button"
+        data-testid="reconcile-hidden-workspace"
+        onClick={() => onOpenItem(null, { replace: true })}
+      >
+        Réconcilier la sélection cachée
+      </button>
+      <button
+        type="button"
+        data-testid="reconcile-hidden-workspace-to-note"
+        onClick={() => onOpenItem(replacementItemId, { replace: true })}
+      >
+        Réconcilier vers une note
+      </button>
+      <button
+        type="button"
+        data-testid="reconcile-hidden-workspace-to-graph"
+        onClick={() => onOpenGraph(null, { replace: true })}
+      >
+        Réconcilier vers le graphe
+      </button>
+      <button type="button" data-testid="open-routing-settings" onClick={onOpenSettings}>
+        Ouvrir les réglages
       </button>
       <button
         type="button"
@@ -240,6 +267,78 @@ describe("application routing", () => {
     expect(
       container.querySelector('[data-testid="workspace-surface"]')?.hasAttribute("hidden"),
     ).toBe(true);
+  });
+
+  it("keeps settings in front while the hidden workspace replaces a removed selection", async () => {
+    await renderAt("/settings/trash");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="reconcile-hidden-workspace"]')
+        ?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
+      "/settings/trash",
+    );
+    expect(container.querySelector('[data-testid="settings-section-trash"]')).not.toBeNull();
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="back-to-workspace"]')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe("/notes");
+  });
+
+  it("replaces a remembered note without closing settings", async () => {
+    await renderAt(`/notes/${generateUuidV7()}`);
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="open-routing-settings"]')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
+      "/settings/security",
+    );
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="reconcile-hidden-workspace-to-note"]')
+        ?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
+      "/settings/security",
+    );
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="back-to-workspace"]')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
+      `/notes/${replacementItemId}`,
+    );
+  });
+
+  it("keeps settings in front when the surviving neighbour is the graph", async () => {
+    await renderAt("/settings/trash");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="reconcile-hidden-workspace-to-graph"]')
+        ?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
+      "/settings/trash",
+    );
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="back-to-workspace"]')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe("/graph");
   });
 
   it("uses the explicit item identity for page details", async () => {

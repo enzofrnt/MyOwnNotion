@@ -6,6 +6,7 @@
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
+  expectNoHorizontalOverflow,
   openSettings,
   openWorkspace,
   selectItem,
@@ -120,4 +121,38 @@ test("settings stay outside the document and returning restores item, focus and 
     return rect.bottom > viewport.top && rect.top < viewport.bottom;
   }, rememberedBlockId);
   expect(rememberedBlockVisible).toBe(true);
+});
+
+test("the narrow settings navigation keeps its own horizontal scroll boundary down to 320px", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWorkspace(page);
+  await openSettings(page);
+
+  const navigation = page.getByRole("navigation", { name: "Sections des réglages" });
+  await expect(navigation).toBeVisible();
+
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await navigation.evaluate((element) => {
+      element.scrollLeft = 0;
+    });
+    await expectNoHorizontalOverflow(page);
+
+    const dimensions = await navigation.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }));
+    expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
+
+    await navigation.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+    });
+    await expect
+      .poll(() => navigation.evaluate((element) => element.scrollLeft))
+      .toBeGreaterThan(0);
+    await expect(page.getByTestId("settings-nav-page-details")).toBeInViewport();
+    await expectNoHorizontalOverflow(page);
+  }
 });

@@ -368,6 +368,15 @@
   border-left-color: color-mix(in srgb, var(--color-border) 78%, transparent);
 }
 
+/* Deep branches keep their hierarchy in the DOM and in the breadcrumb, but
+   repeated visual indentation must stop before it consumes every action in a
+   narrow sidebar. From the fourth nested level onward rows share one guide. */
+.workspace-navigation .tree ul ul ul {
+  margin-left: 0;
+  padding-left: 0;
+  border-left-color: transparent;
+}
+
 .tree-drop-target {
   position: relative;
   min-width: 0;
@@ -1053,8 +1062,15 @@ html[data-tree-grabbing="true"] * {
   }
 
   .workspace-navigation .tree-name {
-    min-width: 6rem;
-    flex-basis: 6rem;
+    min-width: 0;
+    flex-basis: auto;
+  }
+
+  /* The row menu already contains child creation. On deeply nested touch rows,
+     remove the duplicate quick-create control so the attachments and menu
+     targets retain their full 44px hit areas inside the scrolling viewport. */
+  .workspace-navigation .tree ul ul ul .navigation-inline-create {
+    display: none;
   }
 
   .workspace-page-attachments-trigger[data-size="square"],

@@ -99,7 +99,7 @@ avec AppImage, deb et rpm pour chaque Linux
 | IV. Confidentialité et sécurité | Rendu isolé, IPC minimal, clé protégée par l’OS, contenu local chiffré, logs expurgés, signatures et refus fail-closed | PASS |
 | V. Architecture simple | Une couche desktop mince au-dessus du client Web; pas de serveur, DB ou domaine parallèle | PASS |
 | VI. Expérience prévisible | Clavier, focus, états hors ligne, erreurs et mises à jour explicités; les comportements métier restent ceux du Web | PASS |
-| VII. Toolchain reproductible | Bun 1.4.0 reste exclusif pour paquets et scripts; versions Electron/Forge sont lockées; CI utilise des runners natifs et publie seulement après gate complet | PASS |
+| VII. Toolchain reproductible | Bun 1.4.2 reste exclusif pour paquets et scripts; versions Electron/Forge sont lockées; CI utilise des runners natifs et publie seulement après gate complet | PASS |
 
 No design violation or unresolved clarification remains. The remaining risks
 are implementation and release-environment risks, covered by tasks and the
@@ -237,7 +237,7 @@ attache à la GitHub Release du tag.
 | IV | Les secrets et clés sont confinés, les origines sont contrôlées, les erreurs sont expurgées et les artefacts signés | PASS |
 | V | Aucun service ou modèle canonique parallèle n’est introduit | PASS |
 | VI | Les parcours existants sont rejoués dans le desktop et les capacités natives conservent clavier/focus | PASS |
-| VII | `bun.lock`, Bun 1.4.0, les versions Electron/Forge épinglées, les runners natifs et les gates de release sont documentés | PASS |
+| VII | `bun.lock`, Bun 1.4.2, les versions Electron/Forge épinglées, les runners natifs et les gates de release sont documentés | PASS |
 
 ## Complexity Tracking
 

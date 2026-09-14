@@ -26,7 +26,7 @@
 ## Notes
 
 Reviewed 14 functional requirements, seven measurable criteria, four user stories
-and 91 ordered tasks; the audit inventory records 80 findings. Existing product
+and 96 ordered tasks; the audit inventory records 88 findings. Existing product
 encryption policy supplies the material defaults; no product clarification is
 required. This checklist validates requirements, while final implementation and
 delivery gates remain recorded in the feature artifacts.

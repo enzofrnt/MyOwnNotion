@@ -2,7 +2,8 @@
 
 **Feature Branch**: `codex/024-full-server-backups`
 **Created**: 2026-09-05
-**Status**: Implemented; delivery validation in progress
+**Status**: Implemented; production-image, local-gate and PR evidence is
+recorded, with the post-merge `main` run still pending final integration closure.
 **Input**: The owner needs a complete database backup, beyond in-app exports,
 in a directory before version migrations and every night, with the original
 app version recorded and all data recoverable after an update or accidental damage.

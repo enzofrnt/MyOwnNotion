@@ -35,7 +35,7 @@ sur la branche, mais aucune coexistence pnpm/Node n'est livrée sur `main`.
 modifier les commandes qui en dépendent.
 
 - [x] T001 Écrire les contrats en échec pour la version Bun exacte, le lockfile unique, la résolution `ws` intégrée, les métadonnées retirées et les commandes interdites dans `tests/contract/bun-toolchain.spec.ts`
-- [x] T002 Déclarer Bun 1.4.0, les workspaces et l'exécution forcée sous Bun dans `package.json` et `bunfig.toml`
+- [x] T002 Déclarer le pin Bun exact, les workspaces et l'exécution forcée sous Bun dans `package.json` et `bunfig.toml` (pin initial historique 1.4.0, maintenu à 1.4.2 par T051)
 - [x] T003 Réconcilier les dépendances de migration dans `package.json`, `apps/api/package.json` et `apps/web/package.json`, puis générer l'unique `bun.lock`
 - [x] T004 Retirer les artefacts de l'ancienne chaîne dans `pnpm-lock.yaml`, `pnpm-workspace.yaml` et `.npmrc` après vérification de leur remplacement
 
@@ -63,7 +63,7 @@ les scripts partagés ne lancent plus l'ancien runtime ou gestionnaire.
 ## Phase 3: User Story 1 — Préparer et lancer le dépôt avec un seul outil (Priority: P1) 🎯 MVP
 
 **Goal**: Installer, vérifier et lancer les applications depuis un clone propre
-avec Bun 1.4.0 seulement.
+avec le pin actif Bun 1.4.2 seulement.
 
 **Independent Test**: Utiliser un `PATH` sans Node/pnpm, exécuter deux fois
 `bun ci`, comparer `bun.lock`, puis lancer API et Web avec rechargement et proxy
@@ -81,7 +81,7 @@ HTTP/WebSocket.
 - [x] T014 [P] [US1] Conserver Vite uniquement comme serveur de développement sous Bun avec HMR et proxy same-origin HTTP/WebSocket dans `apps/web/package.json` et `apps/web/vite.config.ts`
 - [x] T015 [US1] Exécuter l'installation figée deux fois, les contrôles d'outillage et un smoke des deux serveurs sans Node/pnpm, puis consigner la preuve dans `specs/019-bun-toolchain/validation.md`
 
-**Checkpoint**: Un contributeur n'a besoin que de Bun 1.4.0 pour préparer et
+**Checkpoint**: Un contributeur n'a besoin que de Bun 1.4.2 pour préparer et
 lancer le dépôt ; les outils éventuellement présents sur l'hôte sont sans
 effet.
 
@@ -108,7 +108,7 @@ images amd64/arm64.
 - [x] T020 [US2] Implémenter la compilation séparée et l'URL injectée du worker de recherche dans `apps/web/build.ts`, `apps/web/src/services/search.ts` et `apps/web/vite.config.ts`
 - [x] T021 [US2] Compiler HTML, React, Tailwind, imports dynamiques et Loro Wasm avec Bun dans `apps/web/build.ts`, `apps/web/index.html` et `apps/web/package.json`
 - [x] T022 [US2] Produire le manifeste et le service worker Workbox, puis limiter son enregistrement à la production dans `apps/web/manifest.webmanifest`, `apps/web/src/service-worker.ts`, `apps/web/src/main.tsx` et `apps/web/build.ts`
-- [x] T023 [P] [US2] Migrer l'image API builder/runtime vers Bun 1.4.0 épinglé, non privilégié et sans Node dans `docker/api.Dockerfile` et `docker/base-images.json`
+- [x] T023 [P] [US2] Migrer l'image API builder/runtime vers Bun exactement épinglé, non privilégié et sans Node dans `docker/api.Dockerfile` et `docker/base-images.json` (image initiale historique 1.4.0, maintenue à 1.4.2 par T051)
 - [x] T024 [P] [US2] Migrer uniquement le builder Web vers Bun et conserver le runtime nginx durci dans `docker/web.Dockerfile` et `docker/base-images.json`
 - [x] T025 [US2] Adapter la construction, le smoke runtime, le healthcheck, les signaux et l'inventaire d'images dans `scripts/ci/build-images.ts`, `scripts/ci/smoke-api-image.sh`, `compose.yaml` et `compose.override.yaml`
 - [x] T026 [US2] Exécuter les builds répétés, les contrats d'artefacts, le parcours PWA hors ligne, le WebSocket API et les images natives/multiarchitecture, puis consigner la preuve dans `specs/019-bun-toolchain/validation.md`
@@ -255,7 +255,9 @@ US1 local/dev      US2 production
 
 - Les adaptations prévues se limitent au build Web/PWA, au harnais de trois
   tests WebSocket et au pont upgrade/authentification exigé par le module `ws`
-  intégré à Bun 1.4.0 ; elles ne constituent pas une refonte du produit.
+  intégré à Bun ; le défaut 1.4.0 qui les a initialement motivées est historique
+  et elles restent couvertes sous le pin actif 1.4.2. Elles ne constituent pas
+  une refonte du produit.
 - Les imports `node:*` compatibles sont des API Bun et ne signifient pas qu'un
   processus Node est autorisé.
 - Vite demeure un serveur de développement spécialisé, jamais le compilateur
@@ -265,6 +267,6 @@ US1 local/dev      US2 production
 
 ## Maintenance — propriété des ressources natives Windows
 
-- [ ] T051 Aligner tous les pins runtime/types/images et le quickstart sur Bun 1.4.2 dans `package.json`, `bun.lock`, `.github/`, `docker/`, les scripts de gates et leurs contrats ; conserver les preuves historiques et documenter le lien avec 014 T105.
-- [ ] T052 Ajouter dans `apps/desktop/tests/` une régression Windows réelle des pipes supplémentaires et de la survie des fichiers indépendants, prouver l'échec sous 1.4.0 et la réussite sous 1.4.2, puis vérifier les parcours natifs contraints sans adapter les notifications.
-- [ ] T053 Renouveler `bun run checks:local`, les scans/images, toute la CI de PR et de main, et consigner les preuves exactes dans `specs/019-bun-toolchain/validation.md` avant de fermer cette maintenance.
+- [X] T051 Aligner tous les pins runtime/types/images et le quickstart sur Bun 1.4.2 dans `package.json`, `bun.lock`, `.github/`, `docker/`, les scripts de gates et leurs contrats ; conserver les preuves historiques et documenter le lien avec 014 T105.
+- [X] T052 Ajouter dans `apps/desktop/tests/` une régression Windows réelle des pipes supplémentaires et de la survie des fichiers indépendants, prouver l'échec sous 1.4.0 et la réussite sous 1.4.2, puis vérifier les parcours natifs contraints sans adapter les notifications.
+- [ ] T053 Renouveler `bun run checks:local`, les scans/images, toute la CI de PR et de main, et consigner les preuves exactes dans `specs/019-bun-toolchain/validation.md` avant de fermer cette maintenance. La porte locale et la CI PR de PR #175 sont vertes et le commit est intégré, mais la CI `main` `34748994269` n'est pas encore verte; cette tâche reste ouverte.

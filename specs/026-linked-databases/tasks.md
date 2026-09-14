@@ -39,8 +39,8 @@
 
 - [x] T016 Inclure les créations de base et d'entrée dans la barrière du journal de page avant activation éditoriale dans `apps/web/src/services/local-content.ts` ; couvrir création retardée, hors ligne et conflit conservé, puis ouverture et édition réelles de la page hôte (FR-002/FR-004/FR-008, partial, HIGH).
 - [x] T017 Conserver immédiatement le choix de visibilité d'une colonne pendant sa sauvegarde, bloquer les doubles gestes et restaurer l'état confirmé en cas d'échec ; vérifier la réponse retardée et la persistance sur deux navigateurs dans `database-toolbar.tsx` et ses tests (FR-003/FR-010, partial, MEDIUM).
-- [ ] T018 Aligner les parcours historiques de couverture locale et de corbeille sur les entrées sans placement et la conservation des sources ; vérifier la nouvelle référence visuelle sans erreur après T016, puis relancer le gate complet (FR-005/FR-010/FR-011/FR-012, partial, MEDIUM).
-- [ ] T020 Préserver l'identité des boutons d'entrée pendant les mises à jour de colonnes et de projection ; reproduire le clic perdu sur Firefox, vérifier le relâchement et l'annulation du pointeur, puis repasser les profils navigateur et le gate intégré (FR-005/FR-011, UI-quality).
+- [x] T018 Aligner les parcours historiques de couverture locale et de corbeille sur les entrées sans placement et la conservation des sources ; vérifier la nouvelle référence visuelle sans erreur après T016, puis relancer le gate complet (FR-005/FR-010/FR-011/FR-012, partial, MEDIUM). Preuves intégrées et gate complet documentés dans `validation.md`.
+- [x] T020 Préserver l'identité des boutons d'entrée pendant les mises à jour de colonnes et de projection ; reproduire le clic perdu sur Firefox, vérifier le relâchement et l'annulation du pointeur, puis repasser les profils navigateur et le gate intégré (FR-005/FR-011, UI-quality). Preuves intégrées et gate complet documentés dans `validation.md`.
 - [x] T021 Preserve the focused entry row when a virtualized table finishes restoring an entry beyond the first page. Reproduce descendant-button focus followed by clearing the temporary return target, retain that row as the active grid row, and verify keyboard navigation plus the actual 1,001-entry WebKit journey without weakening focus assertions.
 
 ## Phase 7: Convergence — partial server projection merge
@@ -57,7 +57,7 @@
   `packages/database/tests/database.integration.spec.ts`, delivered in
   commits `ca2174cd83fa328f8df808d2ccce5a66061c8999` and
   `4da2c2f9aece80b109ec15551b78af1cae4b76eb`. Historical UI/corbeille and
-  final browser-gate work remains in T018/T020.
+  final browser-gate work are covered by the completed T018/T020 evidence.
 
 ## Traçabilité des exigences
 

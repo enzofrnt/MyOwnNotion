@@ -805,10 +805,11 @@ At `333ea73`:
 - independent Luna review checked preparation/read races, one-time replay,
   expiry timers, replacement, application disposal and caller/key-buffer
   clearing, then reported no remaining P0/P1/P2 in the mono-process boundary.
-- the final SpecKit analysis/convergence pass maps **14 FR, 7 SC, 91 unique
-  tasks and 80 audit findings** with no duplicate, placeholder, uncovered
-  requirement or new unbuilt work; only T037/T038/T040/T041 remain open for
-  delivery.
+- the then-current, pre-T092 SpecKit analysis/convergence pass mapped **14 FR,
+  7 SC, 91 unique tasks and 80 audit findings** with no duplicate, placeholder,
+  uncovered requirement or new unbuilt work; at that historical checkpoint,
+  T037/T038/T040/T041 remained open for delivery. The current inventory is 97
+  tasks and 89 findings, with only T041 still open.
 
 The process-owned artifact is never persisted. The official V1 deployment
 therefore runs one active API process per installation; a restart loses only the
@@ -824,5 +825,211 @@ the failed full-gate
 `final-pre-v1-checks-local-d71723a6-attempt2-20260913.log` and the corrected
 focused/browser runs `final-recovery-focused-333ea73-20260913.log` and
 `final-recovery-chromium-333ea73-20260913.log`. These focused results close
-T089–T091 implementation evidence only. A new exact clean `checks:local`,
-required image scans, PR CI and post-merge main CI remain T037/T038/T040/T041.
+T089–T091 implementation evidence only. At that historical checkpoint, a new
+exact clean `checks:local`, required image scans, PR CI and post-merge main CI
+were still assigned to T037/T038/T040/T041; the integrated closure below
+supersedes that interim status.
+
+## T092 — protected database envelopes are authoritative
+
+The final read-only audit reproduced a plaintext downgrade after protected
+cutover. With a readable database definition or entry-values payload injected
+back into `revisions.snapshot`, deleting only the corresponding protected
+envelope let the previous resolver reopen the legacy value.
+
+The corrected resolver and complete-search loader choose the legacy repository
+only when no protected-content runtime is configured. With protection active,
+an absent current envelope fails closed; projection loading likewise refuses a
+missing protected value rather than using its stored fallback.
+
+Focused evidence on Bun 1.4.2 and isolated PostgreSQL:
+
+- `apps/api/tests/database-projection-loading.contract.spec.ts`: **5/5**;
+- real database and entry `GET` routes return `500 protected_read_failed`;
+- complete search enters its explicit degraded state for missing definition or
+  entry-value envelopes;
+- projection resolution rejects the same missing protected values;
+- API typecheck, focused Biome and `git diff --check`: pass.
+
+The fixture restores every mutated snapshot and envelope in `finally` blocks.
+No owner database or personal import source is read or changed. Full exact-commit
+delivery remains owned by T041.
+
+## T093–T094 — folder identity and narrow workspace actions
+
+The final branch review reproduced a database source labelled as a page in the
+folder canvas and a deeply nested row whose action menu fell outside a 320 px
+touch viewport. It also found that tab middle-click closure bypassed focus
+restoration, arrow keys bubbled from close controls and compact targets remained
+32 px on touch profiles.
+
+The accepted local projection now publishes database-source identities beside
+the hierarchy. Folder rows render matching sources with the table icon,
+« Base de données » label and a native `/notes/:itemId` link. Navigation CSS
+bounds only visual deep indentation and hides only a redundant quick-create
+shortcut on coarse pointers; the complete menu remains reachable. Touch close
+and reorder targets measure at least 44 px, while button, shortcut and middle
+button closures share the same neighbour-focus helper.
+
+Focused evidence on Bun 1.4.2:
+
+- open tabs, folder children and item icons: **3 files / 23 tests**;
+- impact/inventory contract: **37/37 tests**;
+- feature 022 browser journey: **5/5 projects in 96 s**, including Chromium,
+  Firefox and WebKit desktop plus Chromium and WebKit mobile;
+- real sixth-level menu and touch action at 320 px, 390/320 px tab containment,
+  second-device order,
+  history/reload, rename/emoji/conversion and the scoped axe audit all pass
+  without retry.
+
+These results close T093–T094 implementation evidence. The exact clean local
+gate and PR/main delivery remain owned by T041.
+
+## T095 — authenticated historical database migration boundary
+
+The clean gate on exact candidate
+`34938b593c597821806c9ddef4341b68639eb035` passed its static checks, then
+failed coverage in 1 of 4,619 tests. The existing V0 database migration fixture
+correctly removed `revision.snapshot`, `database.definition` and
+`database.entry-values` envelopes after restoring their readable historical
+snapshots. T092 made its ordinary protected resolver refuse that input during
+inventory, so the transition stopped without committed migration writes. The
+same legacy representation remains possible for a modern installation upgrading
+from the schema before protected database envelopes.
+
+The corrected canonical migration checks protected definitions and values
+first. It reads a legacy revision only while the complete backup authenticates
+the source provenance and only for inventory/first publication; its captured
+digest must remain identical. Strict post-publication verification ignores this
+exception. The fixture now also proves both database and entry routes return
+`500 protected_read_failed` before migration and that an explicit
+`requireProtected` digest cannot use the legacy snapshot. The V1-resume fixture
+now carries a modern database and entry through the same publication and exact
+readback.
+
+Focused evidence on Bun 1.4.2 and isolated PostgreSQL:
+
+- canonical storage migration: **10/10 tests**;
+- protected database routes/search/projection loading: **5/5 tests**;
+- transition resume and interruption matrix: **29/29 tests**;
+- workspace TypeScript, formatter, linter and `git diff --check`: pass.
+
+No personal or owner database was read. The failed full-gate log is
+`closure-checks-local-34938b59-20260913.log` under the external durable log
+directory. A renewed exact clean gate and PR/main delivery remain owned by T041.
+
+The next clean candidate `644f602219182a30bed1deb56251c2b57d782972`
+executed all **4,617 tests successfully** but stopped at the unchanged absolute
+coverage budget: 2,466 uncovered branches for a limit of 2,465. No later local
+gate ran after that failure. The canonical database fixture now compares
+definition and entry digests with the authenticated migration fallback enabled
+and disabled while their protected envelopes remain present. Both pairs must be
+identical, directly proving protected content keeps precedence. The unchanged
+10-case focused migration suite, workspace types, formatter and linter pass;
+renewed exact coverage and delivery remain owned by T041. Durable log:
+`closure-checks-local-644f6022-attempt2-20260913.log`.
+
+## T096 — Firefox preview transport failure
+
+PR #176 run `34761283724` retained the original failure rather than accepting a
+Playwright retry as green. Firefox completed **277 passed / 30 skipped** journeys;
+the initial `preserves native property input across a remote projection before
+input delivery` attempt stayed blank and its retry passed. Artifact
+`10319263540` proves the dynamic router request returned status 200 with gzip,
+then failed as `NS_ERROR_INVALID_CONTENT_ENCODING`; the page reported only the
+resulting dynamic-import error. Every other PR job completed successfully, and
+`quality-gate` failed as designed.
+
+Focused correction evidence on Bun 1.4.2:
+
+- Vite serving configuration and real HTTP transport: **4/4 tests**;
+- CI/test-impact and Bun production-artifact contracts: **43/43 tests**;
+- an actual 3.4 MiB router response requested with gzip is served with identity
+  encoding and compares byte-for-byte with the built file;
+- the original database projection journey: **3/3** repetitions in the pinned
+  Linux Firefox image, without retry.
+
+The identity response is enabled only for the isolated Playwright preview.
+Ordinary preview and production configuration are unchanged. The container
+launcher now forwards the already opt-in server-output flag for startup
+diagnosis. Exact clean local, renewed PR and post-merge delivery remain owned by
+T041; the failed PR run is not treated as delivery evidence.
+
+PR #176 run `34772342192` then passed all five browser profiles without retry,
+including **278 passed / 30 skipped** on Firefox and **278 passed / 30 skipped**
+on desktop WebKit. Its unit/coverage job alone failed because the new real HTTP
+transport test completed in 6.476 seconds under full instrumentation while it
+still inherited Vitest's five-second default. No transport assertion failed.
+The test now has a bounded 20-second timeout; the complete coverage command has
+passed twice afterward with all **4,620 executed tests** green. This is focused
+correction evidence and does not replace the exact complete delivery gate.
+
+## T097 — settings navigation during delayed trash projection
+
+Candidate implementation commit:
+`f3de8fa73e3eec4933c7350b0fbb3e6d2663bd2c`.
+
+The second exact-gate attempt on candidate `8f74d264` passed coverage,
+performance, integration, migration, contracts, Chromium and Firefox before
+desktop WebKit retained one retry in
+`trashes a branch into the 30-day trash and restores it`. The retained trace
+was inspected immediately after the failure and established this order:
+
+1. local trash confirmation disappeared and the settings action was available;
+2. `/settings/trash` rendered its initial empty state while the mutation batch
+   was still awaiting server acceptance;
+3. the accepted change reached the retained hidden hierarchy, which removed the
+   active tab and emitted replacement navigation;
+4. the whole application moved to `/notes`, so the settings trash locator timed
+   out even though its retry passed.
+
+The application now keeps settings foregrounded for replacement navigation from
+the retained workspace and replaces only the safe destination used by Back.
+The graph sentinel remains in survivor order and uses native graph navigation
+instead of an item-ID cast. The browser journey deliberately keeps the original
+immediate settings transition, makes Graph the surviving neighbour and asserts
+`/settings/trash` both before and after the delayed row appears.
+
+Focused evidence on Bun 1.4.2:
+
+- routed application behavior: **18/18 tests**, including direct settings
+  retention, replacement of a remembered note and Back returning to Graph;
+- focused Biome check for the application, routing test and WebKit journey:
+  pass;
+- original trash/restore journey: **5/5** consecutive runs in the pinned Linux
+  WebKit image, one worker, without retry; the graph-neighbour version also
+  passes **5/5** on the exact candidate;
+- complete coverage on the exact candidate tree: **448 passed / 2 skipped test
+  files**, **4,623 passed / 2 skipped tests**, with **91.41% statements / 85.72%
+  branches / 94.42% functions / 92.55% lines**;
+- independent Luna rereview after explicit graph routing: no actionable P0–P3.
+
+The durable gate output is
+`closure-checks-local-8f74d264-attempt2-20260913.log`; the 267-line WebKit
+runner output is retained as
+`closure-webkit-t097-reproduction-8f74d264-20260913.log` under the external
+delivery log directory. The initial focused pass is
+`closure-webkit-t097-6b9c8b42-20260913.log`; the graph-neighbour exact-candidate
+pass is `closure-webkit-t097-f3de8fa7-20260913.log`, and its exact coverage pass
+is `closure-coverage-t097-f3de8fa7-20260913.log`. The transient Playwright trace
+was not retained after the subsequent clean focused run, so these logs preserve
+the reproducible retry and locator failure while the sequence above records the
+immediate trace inspection.
+
+The failed gate remains useful reproduction evidence, not a successful delivery
+run. Exact clean local, renewed PR and post-merge delivery remain owned by T041.
+
+## Integrated delivery closure — exact SHA `52dfdc926164f392cf812ead302bddb9662ac356`
+
+The complete `bun run checks:local` gate passed on the exact integration SHA
+`52dfdc926164f392cf812ead302bddb9662ac356`, including the required format,
+types, tests, browser, image/runtime, security and Compose responsibilities.
+This closes T037, T038 and T040 with the AMD64/ARM64 restore evidence and the
+browser/theme/viewport/native parity evidence on the same commit.
+
+PR #175 ran against that exact SHA; required PR run `34747879571` is green.
+The pull request was merged normally as merge commit
+`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`, closing the PR portion of T041.
+Main run `34748994269` is not green yet and is not presented as a successful
+gate. Root will finalize the remaining main-CI closure and any resulting
+publication verification. No personal Notion source was applied.

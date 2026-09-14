@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-05
 
-**Status**: Implemented; integrated delivery validation in progress
+**Status**: Implemented; integrated delivery recorded; main CI finalization pending
 
 **Input**: Owner requests a substantial code audit and correction of serious
 inconsistencies before importing valuable Notion data. Existing privacy and
@@ -12,7 +12,7 @@ recovery promises must apply to real application flows, including attachments.
 
 ## Product direction and scope
 
-This feature enforces product canvas sections 4, 8–9, 15–20, 28–29, 31–35,
+This feature enforces product canvas sections 4, 8–9, 15–20, 28–35,
 39–44 and constitution principles I, III–VII. It does not change product scope.
 Features 002 (owner security), 005 (files), 006 (sync), 007/024 (recovery),
 009 (structured entries), 014 (desktop) and 017 (workspace UI) are direct audit
@@ -258,54 +258,43 @@ inconsistency: ordinary item/snapshot writes and portable restoration create
 protected envelopes while retaining readable payload columns. This is an
 existing constitution IV / feature 002 promise, not a new product feature.
 
-- **FR-014**: Accepted canonical mutations and portable restoration MUST leave
-  sensitive item presentation, page bodies, relationship metadata and revision
-  payloads only in protected storage after commit. Authorized reads, subsequent
-  snapshots, structured definitions/values, revision restore and synchronization
-  MUST resolve those protected values without overwriting them with placeholders.
-  Historical readable copies MUST be included in the verified 025 transition.
-  Any exact display-name or structured value reserved to represent protected
-  storage MUST be rejected at user-authored write boundaries and MUST never be
-  confused with authored content during history restoration. Authenticated V0
-  sources that predate a reservation MUST remain migratable, while final
-  verification and source retirement MUST require their protected copy. The
-  transition MUST revalidate every authenticated protected envelope at each
-  finish-verification, cutover and final-retirement boundary before advancing.
-  A V0 source exception MUST be authenticated by the complete full-backup
-  identity, receipt, manifest and installation provenance, including evidence
-  that the source predates migration 0006, and a resumable inventory MUST keep
-  that provenance across restarts. Any supported earlier transition inventory
-  MUST authenticate its original backup, installation, transition, entries and
-  digests before resuming, then upgrade atomically to the current inventory
-  format. Its source MAY be modern or V0; V0 provenance MUST authorize only the
-  reserved-marker exceptions. Missing historical metadata MAY be supplemented
-  only for an identified early inventory shape before verification or cutover,
-  and any absent or mismatched proof MUST stop the transition without writes.
+- **FR-014**: Accepted mutations, synchronization, exports and portable
+  restoration MUST leave sensitive item presentation, page bodies, relationship
+  metadata, structured database content and revision payloads only in protected
+  storage after commit. Authorized reads, search, subsequent snapshots, history
+  restoration and synchronization MUST resolve the exact protected values
+  without replacing them with placeholders. Every supported historical source
+  MUST remain migratable after an authenticated complete backup, with resumable
+  verification before cutover and source retirement. Missing or mismatched
+  evidence, protected content or graph consistency MUST stop the operation
+  without partial writes or a readable fallback. Reserved protected-storage
+  representations MUST be refused for new user-authored content; a historical
+  collision is accepted only inside its authenticated pre-cutover migration.
+  Export and restore MUST validate canonical and operational consistency before
+  emitting or applying content, preserve supported older archives, and retain
+  reusable database sources and entries even when no page currently displays
+  them while keeping ordinary active item placement rules intact.
 
-  Portable archives MUST preserve legacy V1 readability while applying the
-  stricter V2 marker and filename rules. All canonical graph content and page
-  operations MUST be validated before any archive byte is emitted or any
-  restore-target mutation begins. Canonical structured versions MUST be
-  positive, and canonical or operational text/JSON that the database cannot
-  represent, including U+0000 in a nested string or object key, MUST be refused
-  at that boundary.
-  Every operational lifecycle state MUST be internally consistent; retained
-  update bytes, declared bases, cumulative results, checkpoint sequences,
-  checkpoint frontiers and causal timestamps MUST agree. The producer MUST
-  stream the complete operational state with strict TAR framing, and V1
-  database restoration MUST be exercised as a real restore path. The
-  protected-history API MUST fail closed when an envelope is missing (500) and
-  distinguish that state from an expired envelope (410). Compaction and legacy
-  branch conversion MUST not fall back to raw snapshots; a legacy branch may
-  proceed only with an explicit client base document and a bounded expiration.
-  Exact protected-marker matching MUST inspect all own keys, including symbol
-  and non-enumerable keys, and accept only the exact one-key marker.
-  Canonical export MUST preserve reusable database source and entry items when
-  they have no hierarchy placement after every display host is purged. The
-  exactly-one hierarchy-placement rule remains mandatory for ordinary active
-  non-file items, while database source/entry identity, kind, membership and
-  view relationships remain validated.
+**Acceptance Scenarios**:
 
-Extend SC-001 sentinel inspection to those canonical fields through real secured
-requests and a portable round trip. The logical-storage and historical WAL scope
-limits above still apply. T042–T045 record reproduction, implementation and proof.
+1. **Given** secured canonical content, **When** it is created, synchronized,
+   snapshotted, exported and restored, **Then** persistent readable fields expose
+   zero recognizable fixture values and every authorized read returns the exact
+   original values.
+2. **Given** a supported historical source, including content that predates a
+   reserved representation, **When** migration is interrupted and resumed,
+   **Then** its authenticated backup and source evidence remain bound to the
+   transition, and missing or altered proof causes zero new writes.
+3. **Given** a supported older archive or an archive with inconsistent graph or
+   operational state, **When** restoration is requested, **Then** valid content
+   is upgraded without loss and invalid content is refused before the target is
+   changed.
+4. **Given** every display of a reusable database has been removed, **When** a
+   canonical export and restore complete, **Then** its source and entry pages
+   retain their identities, membership and views without forcing a hierarchy
+   placement, while ordinary active items still satisfy their placement rule.
+
+SC-001's zero-readable-content inspection applies to these canonical fields
+through real secured requests and a portable round trip. The logical-storage and
+historical-retention limits above still apply. The implementation mechanisms and
+version-specific compatibility rules are defined in the plan.

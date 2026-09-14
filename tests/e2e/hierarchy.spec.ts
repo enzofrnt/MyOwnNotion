@@ -433,13 +433,22 @@ test.describe("hierarchy organization (US1)", () => {
     await createRootItem(page, "folder", root);
     await createChildItem(page, root, "page", child);
 
+    await ensureNavigationVisible(page);
+    await page.getByTestId("open-knowledge-graph").click();
+    await expect(page).toHaveURL(/\/graph$/u);
+    await page.getByLabel(`Fermer l’onglet ${child}`).click();
+    await selectItem(page, root);
+
     await trashItem(page, root);
     await openSettingsSection(page, "trash");
-    await expect(page.getByTestId(`trash-item-${root}`)).toBeVisible();
+    await expect(page).toHaveURL(/\/settings\/trash$/u);
+    await expect(page.getByTestId(`trash-item-${root}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/\/settings\/trash$/u);
     await expect(page.getByTestId(`tree-item-${child}`)).toHaveCount(0);
 
     await page.getByTestId(`trash-item-${root}`).getByRole("button", { name: "Restaurer" }).click();
     await returnToWorkspace(page);
+    await expect(page).toHaveURL(/\/graph$/u);
     // The same 15 seconds `createChildItem` uses, and for the same reason:
     // this waits on a mutation round trip, not on a render. It was left at the
     // 10-second default and flaked in CI once the dual write added a database
