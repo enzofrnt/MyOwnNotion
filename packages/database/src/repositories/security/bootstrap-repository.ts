@@ -1,18 +1,17 @@
 /**
- * Attempt-scoped bootstrap persistence and the atomic promotion (T031, feature 002).
+ * Attempt-scoped bootstrap persistence and the atomic promotion (T031 / T132, feature 002).
  *
  * Two responsibilities, deliberately in one module because they share the
  * invariant that matters:
  *
- *   - persist an attempt, its pending credential material, and its provisional
- *     kit, all scoped to the attempt and none of it constituting ownership;
+ *   - persist an attempt and its pending credential material (passkey and
+ *     password), all scoped to the attempt and none of it constituting ownership;
  *   - run the single serializable transaction that turns `0/0` into `1/1`.
  *
  * The promotion is the only place in the codebase that creates an owner. It
- * creates the owner credential, the owner, the canonical workspace binding, the
- * initial device and key generation, and activates the kit — or it does none of
- * them. There is no partial outcome to observe, because there is no second
- * transaction that could fail after the first committed.
+ * creates the owner credentials (passkey + password), the owner, the canonical
+ * workspace binding, and the initial device and key generation — or it does
+ * none of them. Recovery kits are prepared later from settings.
  */
 
 import {
@@ -20,7 +19,6 @@ import {
   type BootstrapAttempt,
   type BootstrapState,
   countsForBootstrapState,
-  isAttemptStale,
 } from "@myownnotion/domain";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
@@ -33,7 +31,6 @@ import {
   passkeyCredentials,
   passwordCredentialVersions,
   pendingBootstrapCredentials,
-  recoveryEpochs,
   recoveryKits,
 } from "../../schema/security/index.ts";
 import { readCounts, requireInstallation } from "./installation-repository.ts";
@@ -49,6 +46,7 @@ type Executor = Database | Transaction;
 const OPEN_STATES: BootstrapState[] = [
   "started",
   "credential-verified",
+  "password-set",
   "recovery-prepared",
   "download-consumed",
 ];
@@ -111,19 +109,11 @@ export class BootstrapClaimConflictError extends SecurityRepositoryError {
 }
 
 /**
- * Claims the single open attempt.
- *
- * Concurrent claimers race on `bootstrap_attempts_open_unique`; exactly one
- * wins and the rest are told they lost. Returning the existing attempt instead
- * would hand a second browser a capability it never proved it owned.
- */
-/**
  * Claims the single open bootstrap attempt.
  *
- * Reports which attempt it superseded, if any, so the caller can record the
- * interruption. Returning it rather than auditing here keeps the repository
- * free of audit concerns while still making the supersession impossible to
- * miss: the type says it happened.
+ * While ownership is still `0/0`, any incomplete open attempt is abandoned so
+ * a later browser can finish. Conflict only arises when an owner already
+ * exists or a true race leaves another open row after abandon.
  */
 export interface ClaimResult {
   readonly attempt: BootstrapAttempt;
@@ -150,15 +140,11 @@ export async function claimAttempt(
         );
       }
 
-      // An attempt that was claimed and then abandoned holds the only open
-      // slot. Left alone it holds it forever, and the installation can never
-      // be set up without direct database access — a first-run lockout with no
-      // way out for the person who owns the machine. A stale one is abandoned
-      // here so the new claim can proceed; a live one still conflicts, which
-      // is what protects a setup actually in progress in another browser.
+      // Abandon any incomplete open attempt — live or stale — so a second
+      // browser can take over while ownership is still 0/0.
       const open = await findOpenAttempt(tx, { installationId: attempt.installationId });
       let supersededAttemptId: string | null = null;
-      if (open !== null && isAttemptStale(open, now)) {
+      if (open !== null) {
         await persistAttempt(tx, abandonAttempt(open, now));
         supersededAttemptId = open.attemptId;
       }
@@ -203,10 +189,10 @@ export interface PendingCredentialInput {
 }
 
 /**
- * Persists the verified credential against the attempt.
+ * Upserts verified credential material against the attempt by kind.
  *
- * No owner foreign key: this record exists precisely while `ownerCount` is 0,
- * and the schema has no column that could accidentally bind it to an owner.
+ * Passkey and password rows coexist under the same attempt; saving one must
+ * not delete the other.
  */
 export async function saveVerifiedCredential(
   tx: Transaction,
@@ -215,7 +201,12 @@ export async function saveVerifiedCredential(
 ): Promise<void> {
   await tx
     .delete(pendingBootstrapCredentials)
-    .where(eq(pendingBootstrapCredentials.attemptId, attempt.attemptId));
+    .where(
+      and(
+        eq(pendingBootstrapCredentials.attemptId, attempt.attemptId),
+        eq(pendingBootstrapCredentials.credentialKind, credential.credentialKind),
+      ),
+    );
   await tx.insert(pendingBootstrapCredentials).values({
     id: credential.id,
     attemptId: credential.attemptId,
@@ -264,8 +255,7 @@ export interface ProvisionalKitInput {
 
 /**
  * Prepares a provisional kit, rejecting the one it supersedes in the same
- * transaction. Two statements, one commit: a regeneration that left the old
- * kit usable would defeat the one-time delivery entirely.
+ * transaction. Legacy kit-era helper retained for older flows and tests.
  */
 export async function prepareProvisionalKit(
   tx: Transaction,
@@ -297,11 +287,6 @@ export async function prepareProvisionalKit(
 
 /**
  * Reads the provisional kit a download is about.
- *
- * The download token lives here rather than in the client: the attempt and the
- * kit it prepared each carry the same hash, written in one transaction, so a
- * mismatch means the two rows disagree about which preparation is current —
- * which is exactly what a regeneration racing a download would produce.
  */
 export async function findProvisionalKit(
   tx: Transaction,
@@ -315,7 +300,7 @@ export async function findProvisionalKit(
   return row ?? null;
 }
 
-/** Marks the kit's one-time download as consumed. */
+/** Marks the kit's one-time download as consumed. Legacy kit-era helper. */
 export async function recordKitDownloaded(
   tx: Transaction,
   attempt: BootstrapAttempt,
@@ -332,7 +317,8 @@ export async function recordKitDownloaded(
 export interface PromotionInput {
   readonly attempt: BootstrapAttempt;
   readonly ownerId: string;
-  readonly credentialId: string;
+  readonly passkeyCredentialId: string;
+  readonly passwordCredentialId: string;
   readonly workspaceId: string;
   readonly workspaceSchemaVersion: number;
   readonly deviceId: string;
@@ -341,7 +327,6 @@ export interface PromotionInput {
   readonly devicePlatform: string | null;
   readonly dataKeyGenerationId: string;
   readonly wrappedDataKey: string;
-  readonly recoveryEpochId: string;
   readonly now: Date;
 }
 
@@ -356,11 +341,8 @@ export interface PromotionResult {
 /**
  * The atomic promotion: `0/0` in, `1/1` out, in one serializable transaction.
  *
- * Everything commits together — the owner credential promoted from the pending
- * material, the owner, the canonical workspace binding, the first authorized
- * device, the first data-key generation, the recovery epoch, and the kit moving
- * to `active/confirmed`. A failure anywhere rolls all of it back, so no partial
- * owner is ever observable, not even for an instant.
+ * Requires `password-set` with both pending passkey and password rows. Does
+ * not create or confirm a recovery kit — that happens later from settings.
  */
 export async function promoteBootstrap(
   db: Database,
@@ -371,12 +353,10 @@ export async function promoteBootstrap(
     if (attempt === null) {
       throw new SecurityRepositoryError("not_found", "bootstrap attempt no longer exists");
     }
-    if (attempt.state !== "download-consumed") {
-      // The domain refuses this too; the repository refuses it again because a
-      // concurrent request could have moved the attempt since it was read.
+    if (attempt.state !== "password-set") {
       throw new SecurityRepositoryError(
         "conflict",
-        `attempt is ${attempt.state}; promotion requires a consumed download`,
+        `attempt is ${attempt.state}; promotion requires password-set`,
       );
     }
 
@@ -388,18 +368,16 @@ export async function promoteBootstrap(
     const pending = await tx
       .select()
       .from(pendingBootstrapCredentials)
-      .where(eq(pendingBootstrapCredentials.attemptId, attempt.attemptId))
-      .limit(1);
-    const credential = pending[0];
-    if (credential === undefined) {
+      .where(eq(pendingBootstrapCredentials.attemptId, attempt.attemptId));
+    const passkey = pending.find((row) => row.credentialKind === "passkey");
+    const password = pending.find((row) => row.credentialKind === "password");
+    if (passkey === undefined || password === undefined) {
       throw new SecurityRepositoryError(
         "conflict",
-        "no verified credential material is held for this attempt",
+        "passkey and password material must both be held for this attempt",
       );
     }
 
-    // Bind the canonical feature-001 workspace. Created only when bootstrap is
-    // the first thing that ever ran; its ID is never regenerated.
     const existing = await tx
       .select()
       .from(workspaces)
@@ -419,27 +397,24 @@ export async function promoteBootstrap(
       createdAt: input.now,
     });
 
-    // Promote the pending material into its committed credential table.
-    if (credential.credentialKind === "passkey") {
-      await tx.insert(passkeyCredentials).values({
-        id: input.credentialId,
-        ownerId: input.ownerId,
-        credentialId: credential.credentialIdDigest,
-        publicKey: credential.publicKey ?? "",
-        signCount: credential.signCount,
-        state: "active",
-        createdAt: input.now,
-      });
-    } else {
-      await tx.insert(passwordCredentialVersions).values({
-        id: input.credentialId,
-        ownerId: input.ownerId,
-        passwordHash: credential.passwordHash ?? "",
-        hashAlgorithm: credential.hashAlgorithm ?? "",
-        state: "active",
-        createdAt: input.now,
-      });
-    }
+    await tx.insert(passkeyCredentials).values({
+      id: input.passkeyCredentialId,
+      ownerId: input.ownerId,
+      credentialId: passkey.credentialIdDigest,
+      publicKey: passkey.publicKey ?? "",
+      signCount: passkey.signCount,
+      state: "active",
+      createdAt: input.now,
+    });
+
+    await tx.insert(passwordCredentialVersions).values({
+      id: input.passwordCredentialId,
+      ownerId: input.ownerId,
+      passwordHash: password.passwordHash ?? "",
+      hashAlgorithm: password.hashAlgorithm ?? "",
+      state: "active",
+      createdAt: input.now,
+    });
 
     await tx.insert(authorizedDevices).values({
       id: input.deviceId,
@@ -450,19 +425,8 @@ export async function promoteBootstrap(
       clientType: "web",
       state: "active",
       authorizedAt: input.now,
-      // Null until a real activity or synchronization event; the promotion is
-      // neither, and synthesizing them here would claim activity that never
-      // happened.
       lastActivityAt: null,
       lastSyncAt: null,
-    });
-
-    await tx.insert(recoveryEpochs).values({
-      id: input.recoveryEpochId,
-      installationId: attempt.installationId,
-      epoch: 1,
-      state: "active",
-      createdAt: input.now,
     });
 
     await tx.insert(dataKeyGenerations).values({
@@ -475,21 +439,11 @@ export async function promoteBootstrap(
       createdAt: input.now,
     });
 
-    if (attempt.recoveryKitId === null) {
-      throw new SecurityRepositoryError("conflict", "attempt has no recovery kit to confirm");
-    }
-    await tx
-      .update(recoveryKits)
-      .set({ authorizationState: "active", deliveryState: "confirmed", confirmedAt: input.now })
-      .where(eq(recoveryKits.id, attempt.recoveryKitId));
-
     await tx
       .update(bootstrapAttempts)
       .set({ bootstrapState: "confirmed", updatedAt: input.now })
       .where(eq(bootstrapAttempts.id, attempt.attemptId));
 
-    // The pending material has served its purpose; leaving it would keep a
-    // second copy of credential material with no owner scope.
     await tx
       .delete(pendingBootstrapCredentials)
       .where(eq(pendingBootstrapCredentials.attemptId, attempt.attemptId));
@@ -506,8 +460,6 @@ export async function promoteBootstrap(
 
     const after = await readCounts(tx);
     if (after.ownerCount !== 1 || after.workspaceCount !== 1) {
-      // Unreachable through the constraints; refusing beats committing a shape
-      // the design says cannot exist.
       throw new SecurityRepositoryError(
         "internal_error",
         `promotion did not reach 1/1 (observed ${after.ownerCount}/${after.workspaceCount})`,

@@ -205,22 +205,14 @@ rolls back both promotion and owner/workspace creation.
 
 The provisional artifact is generated only after credential verification. It has
 `authorizationState=provisional`, then `deliveryState=prepared`,
-`downloadable`, and `download-consumed`; one download token, one successful
-stream, and a 15-minute absolute download window measured by the injected
-clock. Download consumption is atomic with token invalidation. Lost or expired
-unconfirmed material becomes `authorizationState=rejected` and
-`deliveryState=expired` before it is regenerated; it cannot mark the
-installation ready. `POST /v1/bootstrap/{attemptId}/recovery/regenerate`
-accepts only the valid capability for the same credential-verified attempt,
-only after `rejected/expired`, and creates a fresh provisional delivery without
-reviving the old delivery or creating owner/workspace rows. A concurrent claim gets a safe conflict response. A
-crashed attempt resumes from the persisted safe state or rolls back to
-uninitialized; it never exposes a ready owner without confirmed recovery.
-
-`POST /v1/bootstrap/{attemptId}/recovery/confirm` returns the explicit
+Bootstrap operator steps are exactly passkey then password. Pending
+credentials are attempt-scoped until confirmation. Starting a new attempt while
+counts remain `0/0` abandons any incomplete open attempt so a second browser is
+never locked out. Recovery-kit prepare/download/confirm live in authenticated
+settings after ownership commits and do not gate installation readiness.
+`POST /v1/bootstrap/{attemptId}/confirm` returns the explicit
 `confirmed/ready/1/1` result: `bootstrapState=confirmed`,
-`installationState=ready`, `ownerCount=1`, `workspaceCount=1`,
-`authorizationState=active`, and `deliveryState=confirmed`.
+`installationState=ready`, `ownerCount=1`, and `workspaceCount=1`.
 
 The bootstrap endpoints are deliberately outside session authentication but
 require the bootstrap attempt capability and loopback/trusted-origin policy.

@@ -4,6 +4,7 @@ const PUBLIC_ROUTES = new Set([
   "/v1/installation/status",
   "/v1/bootstrap",
   "/v1/bootstrap/:attemptId/credential",
+  "/v1/bootstrap/:attemptId/password",
   "/v1/bootstrap/:attemptId/recovery/download",
   "/v1/bootstrap/:attemptId/recovery/regenerate",
   "/v1/bootstrap/:attemptId/recovery/confirm",

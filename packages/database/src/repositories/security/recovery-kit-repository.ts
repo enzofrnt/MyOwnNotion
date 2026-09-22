@@ -380,10 +380,9 @@ export async function currentRecoveryEpoch(
       and(eq(recoveryEpochs.installationId, installationId), eq(recoveryEpochs.state, "active")),
     )
     .limit(1);
-  // An installation with no epoch row has never confirmed a kit. Starting at 1
-  // rather than 0 keeps the schema's `epoch >= 1` check satisfied and matches
-  // what the bootstrap writes.
-  return rows[0]?.epoch ?? 1;
+  // No active epoch yet (typical right after bootstrap): callers use
+  // `current === 0 ? 1 : current + 1` so the first settings kit is epoch 1.
+  return rows[0]?.epoch ?? 0;
 }
 
 /**

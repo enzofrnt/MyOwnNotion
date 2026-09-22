@@ -69,41 +69,32 @@ Use this canonical transition table when recording every attempt:
 
 | Attempt state | Scope and committed counts | Allowed transition / result |
 | --- | --- | --- |
-| `started` | Attempt only; no owner/workspace rows; `0/0`; installation `uninitialized` | Start one serialized attempt; credential challenge may run |
-| `credential-verified` | Attempt-scoped verified credential material only; no owner/workspace rows; `0/0` | Valid credential verification; provisional records may be prepared |
-| `recovery-prepared` | Attempt-scoped pending credential, kit, and download capability; no owner/workspace rows; `0/0` | Prepare one provisional kit and one 15-minute opportunity |
-| `download-consumed` | Same attempt-scoped material; no owner/workspace rows; `0/0` | One successful download consumption; offline confirmation is still required |
-| `confirmed` | Atomic promotion commits the sole owner credential and owner, binds the existing feature-001 workspace, activates/confirms the kit, sets installation `ready`, and changes counts to `1/1` | Only successful download consumption plus explicit offline confirmation |
-| `abandoned` | Attempt-scoped records only; no owner/workspace rows; `0/0` | Expired/cancelled attempt that is not eligible for confirmation |
-| `rejected` | Attempt-scoped rejected/expired material only; no owner/workspace rows; `0/0` | Invalid, expired, replayed, or otherwise refused attempt; regeneration remains attempt-scoped |
+| `started` | Attempt only; no owner/workspace rows; `0/0` | Start; abandon any incomplete open attempt |
+| `credential-verified` | Attempt-scoped verified passkey only; `0/0` | Passkey ceremony accepted |
+| `password-set` | Attempt-scoped passkey + password; `0/0` | Acceptable password recorded |
+| `confirmed` | Atomic promotion commits owner, both credentials, workspace binding, first device, data key; installation `ready`; `1/1` | Explicit confirmation after password-set |
+| `abandoned` | Attempt-scoped records only; `0/0` | Superseded, cancelled, or expired |
+| `rejected` | Attempt-scoped refused material only; `0/0` | Invalid or refused attempt |
 
-Do not introduce a combined recovery-confirmation state.
+Do not require recovery-kit download or offline confirmation during bootstrap.
 
 1. Reset the disposable installation to `uninitialized` and provide the valid
    mounted wrapping secret.
 2. Start bootstrap and complete the passkey challenge. Confirm that the
    response contains only the opaque attempt capability and no session cookie.
-3. Complete credential verification. Record the internal transition through
-   `bootstrapState=credential-verified`; expect the response at
-   `bootstrapState=recovery-prepared`,
-   `authorizationState=provisional`, `deliveryState=downloadable`, a recovery
-   artifact reference, and a download expiry exactly 15 minutes after the
-   controlled test clock.
-4. Download once. Replay the download token and confirm it is refused.
-5. Confirm offline storage. The confirmation response must explicitly expose
-   `bootstrapState=confirmed`, `installationState=ready`, `ownerCount=1`,
-   `workspaceCount=1`, `authorizationState=active`, and
-   `deliveryState=confirmed`. This is the only ownership-commit transition.
-6. Repeat concurrently and after restart at each bootstrap checkpoint.
-7. Let a provisional download expire or simulate loss before confirmation;
-   verify the prior artifact reaches `authorizationState=rejected` and
-   `deliveryState=expired`, then call
-   `POST /v1/bootstrap/{attemptId}/recovery/regenerate` with the same valid
-   `X-Bootstrap-Capability`. Verify the new artifact is provisional with a
-   fresh 15-minute window, the prior delivery remains rejected/expired, and
-   owner/workspace counts remain zero until the original confirmation commit.
-8. Remove or corrupt the deployment secret and repeat; expect safe refusal and
-   no partial owner/workspace.
+3. Complete passkey verification. Expect `bootstrapState=credential-verified`
+   and counts still `0/0`.
+4. Set an acceptable password. Expect `bootstrapState=password-set` and counts
+   still `0/0`.
+5. Confirm. The confirmation response must explicitly expose
+   `bootstrapState=confirmed`, `installationState=ready`, `ownerCount=1`, and
+   `workspaceCount=1`. This is the only ownership-commit transition.
+6. From a second browser before confirmation, start bootstrap again; the first
+   incomplete attempt must be abandoned and the second may complete.
+7. After confirmation, bootstrap routes refuse. Recovery-kit prepare/download/
+   confirm remain available from authenticated settings.
+8. Remove or corrupt the deployment secret and repeat setup; expect safe
+   refusal and no partial owner/workspace.
 
 The bootstrap endpoints and capability constraints are defined in
 `contracts/security-api.openapi.yaml`; state transitions are in

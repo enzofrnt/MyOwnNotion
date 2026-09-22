@@ -714,6 +714,18 @@ the exact implementation, test, workflow, or evidence paths above.
 | SC-010 | `spec.md` §Success Criteria; `validation.md` SC-010 | T003, T090, T091, T097, T105, T115 |
 | SC-011 | `spec.md` §Success Criteria; `validation.md` SC-011 | T121, T122, T123, T124, T125, T126, T127, T128, T129 |
 
+## Phase 13: First-run setup revision (passkey → password, no kit gate)
+
+Revision of FR-001/FR-002/FR-004/FR-015/FR-016 and product-canvas §8 / §28.4
+(2026-09-22 clarifications). Ownership commits after passkey + password only;
+incomplete attempts are supersedable; recovery kit stays in settings.
+
+- [X] T136 Update domain bootstrap state machine to `started` → `credential-verified` → `password-set` → `confirmed`; claim abandons any incomplete open attempt; keep legacy kit-era states readable only (`packages/domain/src/security/bootstrap.ts`, `types.ts`) (FR-001, FR-002)
+- [X] T137 Add migration `0018_bootstrap_password_setup.sql` and schema updates: open unique includes `password-set`, confirmation no longer requires kit download, pending credentials unique on `(attempt_id, credential_kind)` (`packages/database/migrations/0018_*.sql`, `schema/security/index.ts`) (FR-001, FR-004)
+- [X] T138 Update bootstrap repository: always supersede incomplete claims; save pending passkey and password separately; promote both credentials without kit activation (`bootstrap-repository.ts`) (FR-001, FR-002, FR-004)
+- [X] T139 Update bootstrap service/routes/contracts: verify passkey without kit; `POST .../password`; confirm from `password-set`; remove kit from bootstrap happy path (`bootstrap-service.ts`, `routes/bootstrap.ts`, `packages/contracts/src/security-api.ts`, OpenAPI) (FR-002, FR-004, FR-015)
+- [X] T140 Rewrite bootstrap UI to passkey then password only; remove forced recovery panel and “another browser” lock copy (`bootstrap-page.tsx`, `fr.ts`, `security-api.ts`) (FR-002, FR-004, SC-002)
+- [X] T141 Update contract, concurrency, e2e, and settings recovery tests for the new flow (`bootstrap.contract.spec.ts`, `bootstrap-concurrency*.spec.ts`, `tests/e2e/bootstrap.spec.ts`, recovery settings coverage) (FR-001, FR-002, FR-015, SC-001, SC-002)
 
 ## Storage audit follow-up — feature 025
 

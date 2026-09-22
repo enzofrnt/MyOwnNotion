@@ -16,6 +16,7 @@
 import { InstallationStatusSchema } from "@myownnotion/contracts";
 import {
   type Database,
+  findActiveKit,
   findInstallation,
   readCounts,
   readInstallationStatus,
@@ -85,11 +86,15 @@ export function registerInstallationRoutes(
       }
 
       const initialized = status.counts.ownerCount === 1;
+      const activeKit = await findActiveKit(deps.db, status.id);
       return reply.status(200).send({
         state: status.state,
-        // Readiness is not "an owner exists": it also requires the recovery
-        // kit to be confirmed and the deployment key to be usable.
-        recoveryReady: status.state === "ready",
+        // Recovery readiness requires an active confirmed kit from settings;
+        // installation `ready` alone (after password bootstrap) is not enough.
+        recoveryReady:
+          activeKit !== null &&
+          activeKit.authorizationState === "active" &&
+          activeKit.deliveryState === "confirmed",
         securityReady: status.state === "ready" && context.deploymentKeyAvailable,
         ownerCount: initialized ? 1 : 0,
         workspaceCount: initialized ? 1 : 0,

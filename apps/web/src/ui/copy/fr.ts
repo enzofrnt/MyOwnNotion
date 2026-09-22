@@ -102,7 +102,7 @@ export const FR_COPY = {
     connection: {
       title: "Connecter cette application",
       description:
-        "Indiquez l’adresse de votre serveur MyOwnNotion pour retrouver vos pages sur cet appareil.",
+        "Indiquez l’adresse de votre serveur MyOwnNotion. L’application n’exécute jamais de code fourni par le serveur.",
       serverUrl: "Adresse du serveur",
       submit: "Continuer",
       missingBridge: "Cette fenêtre n’est pas l’application desktop.",
@@ -161,20 +161,19 @@ export const FR_COPY = {
       unavailableServer: "L’installation ne répond pas. Vérifiez que le serveur est démarré.",
       createTitle: "Créer la passkey du propriétaire",
       createDescription:
-        "Cette installation n’a pas encore de propriétaire. La création de la passkey et l’enregistrement du kit de récupération prennent environ une minute et doivent être terminés sans recharger la page.",
+        "Cette installation n’a pas encore de propriétaire. Créez d’abord une passkey, puis un mot de passe. Terminez sans recharger la page.",
       createAction: "Créer la passkey",
       verifying: "Confirmation de la passkey par votre appareil…",
-      anotherBrowser:
-        "Un autre navigateur configure déjà cette installation. Terminez la configuration dans ce navigateur, puis rechargez cette page.",
       startFailed: "La configuration n’a pas démarré. Rechargez la page et réessayez.",
       passkeyRejected: "La passkey n’a pas été acceptée. Recommencez pour obtenir un nouveau défi.",
       continueFailed: "La configuration ne peut pas continuer. Recommencez.",
-      downloadConsumed:
-        "Ce téléchargement a déjà été utilisé. Générez un nouveau kit pour le télécharger.",
-      downloadFailed: "Le kit n’a pas pu être téléchargé. Générez-en un nouveau et réessayez.",
-      regenerateFailed:
-        "Un nouveau kit n’a pas pu être généré. Rechargez la page pour recommencer.",
-      regenerated: "Un nouveau kit est prêt. Le précédent n’est plus valable.",
+      passwordTitle: "Créer le mot de passe",
+      passwordDescription:
+        "Ce mot de passe sert d’alternative à la passkey. Choisissez au moins 12 caractères ; une phrase de quelques mots convient.",
+      passwordLabel: "Mot de passe",
+      passwordAction: "Confirmer et terminer",
+      passwordTooShort: "Le mot de passe doit contenir au moins 12 caractères.",
+      passwordFailed: "Le mot de passe n’a pas pu être enregistré. Réessayez.",
       completionFailed:
         "La configuration n’a pas pu être terminée. L’installation n’a toujours pas de propriétaire.",
     },

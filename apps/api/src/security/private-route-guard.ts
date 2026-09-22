@@ -130,6 +130,7 @@ export const ROUTE_READINESS: Readonly<Record<string, ReadinessRequirement>> = {
   "/v1/installation/status": "none",
   "/v1/bootstrap": "uninitialized",
   "/v1/bootstrap/:attemptId/credential": "uninitialized",
+  "/v1/bootstrap/:attemptId/password": "uninitialized",
   "/v1/bootstrap/:attemptId/recovery/download": "uninitialized",
   "/v1/bootstrap/:attemptId/recovery/regenerate": "uninitialized",
   "/v1/bootstrap/:attemptId/recovery/confirm": "uninitialized",

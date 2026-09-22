@@ -310,12 +310,22 @@ export class SecurityApi {
     });
   }
 
+  /** Records the password alternative during first-run bootstrap. */
+  async setBootstrapPassword(
+    attemptId: string,
+    password: string,
+  ): Promise<SecurityResult<BootstrapProgressDto>> {
+    return await this.#json<BootstrapProgressDto>(`/v1/bootstrap/${attemptId}/password`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+  }
+
   /**
    * Consumes the one-time download and returns the artifact as a blob.
    *
-   * No request body: the capability is the only thing this client holds. The
-   * blob is returned rather than parsed so the recovery material never exists
-   * as a string in application state.
+   * Settings recovery kits use the authenticated recovery routes; this path
+   * remains for legacy bootstrap kit downloads only.
    */
   async downloadKit(attemptId: string): Promise<SecurityResult<Blob>> {
     const response = await this.#send(`/v1/bootstrap/${attemptId}/recovery/download`, {
@@ -339,13 +349,15 @@ export class SecurityApi {
     );
   }
 
-  /** The explicit offline confirmation that authorizes the atomic promotion. */
-  async confirmStorage(attemptId: string): Promise<SecurityResult<BootstrapConfirmationResultDto>> {
+  /** Confirms bootstrap and commits ownership (passkey + password already set). */
+  async confirmBootstrap(
+    attemptId: string,
+  ): Promise<SecurityResult<BootstrapConfirmationResultDto>> {
     const result = await this.#json<BootstrapConfirmationResultDto>(
       `/v1/bootstrap/${attemptId}/recovery/confirm`,
       {
         method: "POST",
-        body: JSON.stringify({ storedOffline: true, device: this.#deviceIdentity() }),
+        body: JSON.stringify({ device: this.#deviceIdentity() }),
         // The one bootstrap call that accepts a cookie: the server signs the
         // new owner in here, and with `omit` the browser would discard the
         // `Set-Cookie` and send the owner straight to a sign-in screen they

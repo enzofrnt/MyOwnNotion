@@ -1,27 +1,17 @@
 /**
- * First-run owner setup (T033, feature 002).
+ * First-run owner setup (T033 / T140, feature 002).
  *
- * The page an installation shows before it has an owner. It has to be usable
- * by exactly one person, once, under stress — the failure mode that matters is
- * an owner who finishes setup without a recovery kit they can actually reach.
+ * Operator flow: open → create passkey → create password → confirm. Done.
+ * Recovery-kit download stays in settings after the installation is ready.
  *
- * Two properties shape the whole component:
- *
- *   - **Nothing here is resumable across a reload.** The capability lives in
- *     memory only, so a refresh abandons the attempt and starts a new one. The
- *     page says so plainly rather than appearing to resume and then failing at
- *     the last step. Persisting it would mean writing a bootstrap authority
- *     into browser storage, which outlives the attempt by design.
- *   - **`ownerCount` is rendered, not assumed.** It comes from the server on
- *     every step and is displayed, so a regression that created an owner
- *     early is visible on screen rather than only in the database.
+ * Nothing here is resumable across a reload: the capability lives in memory
+ * only, so a refresh abandons the attempt and starts a new one.
  */
 
-import type { BootstrapProgressDto, InstallationStatusDto } from "@myownnotion/contracts";
+import type { InstallationStatusDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { newClientNonce, SecurityApi } from "../../services/security-api.ts";
 import { AsyncState, Button, FR_COPY } from "../../ui/index.ts";
-import { RecoveryKitPanel, saveKitBlob } from "../security/recovery-kit-panel.tsx";
 import { DesktopPasskeyGuidance, useDesktopPlatformPasskey } from "./desktop-passkey-guidance.tsx";
 import {
   createOwnerPasskey,
@@ -30,14 +20,7 @@ import {
   platformAuthenticatorAvailable,
 } from "./passkey-client.ts";
 
-type Stage = "loading" | "idle" | "verifying" | "kit" | "unavailable";
-
-interface KitState {
-  readonly attemptId: string;
-  readonly kitId: string;
-  readonly delivery: "downloadable" | "download-consumed";
-  readonly downloadExpiresAt: string;
-}
+type Stage = "loading" | "idle" | "verifying" | "password" | "unavailable";
 
 const PASSKEY_GUIDANCE: Record<PasskeyFailure, string> = {
   unsupported: FR_COPY.auth.passkey.unsupported,
@@ -46,21 +29,6 @@ const PASSKEY_GUIDANCE: Record<PasskeyFailure, string> = {
   "insecure-context": FR_COPY.auth.passkey.insecureContext,
   failed: FR_COPY.auth.passkey.failed,
 };
-
-/**
- * Reads the delivery state from the progress variant rather than from a
- * separate field, so a `download-consumed` attempt cannot be rendered as still
- * downloadable.
- */
-function toKitState(attemptId: string, progress: BootstrapProgressDto): KitState {
-  return {
-    attemptId,
-    kitId: progress.recoveryKitId,
-    delivery:
-      progress.bootstrapState === "download-consumed" ? "download-consumed" : "downloadable",
-    downloadExpiresAt: progress.downloadExpiresAt,
-  };
-}
 
 export interface BootstrapPageProps {
   /** Injected in tests; defaults to the same-origin client. */
@@ -75,7 +43,8 @@ export function BootstrapPage(props: BootstrapPageProps) {
 
   const [stage, setStage] = useState<Stage>("loading");
   const [status, setStatus] = useState<InstallationStatusDto | null>(null);
-  const [kit, setKit] = useState<KitState | null>(null);
+  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const desktopPlatformPasskey = useDesktopPlatformPasskey();
@@ -98,9 +67,6 @@ export function BootstrapPage(props: BootstrapPageProps) {
         return;
       }
       if (current.ownerCount === 1) {
-        // Someone else finished setup while this page was open. Hand straight
-        // over rather than showing a completion panel for an attempt that was
-        // not this one's.
         props.onReady?.();
         return;
       }
@@ -135,15 +101,7 @@ export function BootstrapPage(props: BootstrapPageProps) {
 
     const started = await api.start(newClientNonce());
     if (!started.ok) {
-      // A claim conflict is the expected outcome of a second browser, not an
-      // error to apologise for. Say what happened and what to do.
-      fail(
-        // `conflict` on the claim route can only mean one thing: another
-        // attempt is already open. Nothing else on this route conflicts.
-        started.problem.code === "conflict"
-          ? FR_COPY.auth.bootstrap.anotherBrowser
-          : FR_COPY.auth.bootstrap.startFailed,
-      );
+      fail(FR_COPY.auth.bootstrap.startFailed);
       await refreshStatus();
       return;
     }
@@ -175,85 +133,45 @@ export function BootstrapPage(props: BootstrapPageProps) {
       return;
     }
 
-    setKit(toKitState(started.value.attemptId, verified.value));
-    setStage("kit");
+    setAttemptId(started.value.attemptId);
+    setStage("password");
     setBusy(false);
   }, [api, fail, refreshStatus]);
 
-  const downloadKit = useCallback(async () => {
-    if (kit === null) {
+  const submitPassword = useCallback(async () => {
+    if (attemptId === null) {
       return;
     }
     setBusy(true);
     setMessage(null);
-    const result = await api.downloadKit(kit.attemptId);
-    if (!result.ok) {
+
+    const passwordResult = await api.setBootstrapPassword(attemptId, password);
+    if (!passwordResult.ok) {
       fail(
-        result.problem.code === "conflict" || result.problem.status === 410
-          ? FR_COPY.auth.bootstrap.downloadConsumed
-          : FR_COPY.auth.bootstrap.downloadFailed,
+        passwordResult.problem.code === "validation_failed"
+          ? FR_COPY.auth.bootstrap.passwordTooShort
+          : FR_COPY.auth.bootstrap.passwordFailed,
       );
       return;
     }
-    // Straight from the response to the disk: never through state.
-    try {
-      const saved = await saveKitBlob(result.value, "myownnotion-recovery.json");
-      if (!saved)
-        setMessage("Enregistrement annulé. Régénérez le kit avant de confirmer sa conservation.");
-    } catch {
-      setMessage(
-        "Le kit n’a pas pu être enregistré. Régénérez-le avant de confirmer sa conservation.",
-      );
-    }
-    setKit({ ...kit, delivery: "download-consumed" });
-    setBusy(false);
-  }, [api, kit, fail]);
 
-  const regenerateKit = useCallback(async () => {
-    if (kit === null) {
-      return;
-    }
-    setBusy(true);
-    setMessage(null);
-    const result = await api.regenerateKit(kit.attemptId);
-    if (!result.ok) {
-      fail(FR_COPY.auth.bootstrap.regenerateFailed);
-      return;
-    }
-    setKit({
-      attemptId: kit.attemptId,
-      kitId: result.value.recoveryKitId,
-      delivery: "downloadable",
-      downloadExpiresAt: result.value.downloadExpiresAt,
-    });
-    setMessage(FR_COPY.auth.bootstrap.regenerated);
-    setBusy(false);
-  }, [api, kit, fail]);
-
-  const confirmStorage = useCallback(async () => {
-    if (kit === null) {
-      return;
-    }
-    setBusy(true);
-    setMessage(null);
-    const result = await api.confirmStorage(kit.attemptId);
-    if (!result.ok) {
+    const confirmed = await api.confirmBootstrap(attemptId);
+    if (!confirmed.ok) {
       fail(FR_COPY.auth.bootstrap.completionFailed);
       await refreshStatus();
       return;
     }
+
     setStatus((previous) =>
       previous === null
         ? previous
         : { ...previous, state: "ready", ownerCount: 1, workspaceCount: 1 },
     );
-    setKit(null);
+    setAttemptId(null);
+    setPassword("");
     setBusy(false);
-    // No completion panel here: the shell swaps to the workspace as soon as an
-    // owner exists, so anything rendered at this point would never be seen.
-    // The owner's confirmation that setup worked is the workspace itself.
     props.onReady?.();
-  }, [api, kit, fail, refreshStatus, props.onReady]);
+  }, [api, attemptId, password, fail, refreshStatus, props.onReady]);
 
   return (
     <main className="bootstrap-page ui-auth-surface" aria-labelledby="bootstrap-heading">
@@ -267,12 +185,7 @@ export function BootstrapPage(props: BootstrapPageProps) {
       </p>
 
       {message === null ? null : (
-        <AsyncState
-          compact
-          kind={busy ? "loading" : stage === "kit" ? "success" : "error"}
-          title={message}
-          testId="bootstrap-message"
-        />
+        <AsyncState compact kind="error" title={message} testId="bootstrap-message" />
       )}
 
       {stage === "loading" ? (
@@ -322,16 +235,37 @@ export function BootstrapPage(props: BootstrapPageProps) {
         />
       ) : null}
 
-      {stage === "kit" && kit !== null ? (
-        <RecoveryKitPanel
-          kitId={kit.kitId}
-          delivery={kit.delivery}
-          downloadExpiresAt={kit.downloadExpiresAt}
-          busy={busy}
-          onDownload={downloadKit}
-          onRegenerate={regenerateKit}
-          onConfirm={confirmStorage}
-        />
+      {stage === "password" ? (
+        <section className="ui-auth-card" aria-labelledby="bootstrap-password-heading">
+          <h2 id="bootstrap-password-heading">{FR_COPY.auth.bootstrap.passwordTitle}</h2>
+          <p>{FR_COPY.auth.bootstrap.passwordDescription}</p>
+          <label className="ui-field" htmlFor="bootstrap-password">
+            <span>{FR_COPY.auth.bootstrap.passwordLabel}</span>
+            <input
+              id="bootstrap-password"
+              type="password"
+              autoComplete="new-password"
+              minLength={12}
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+              }}
+              data-testid="bootstrap-password"
+            />
+          </label>
+          <Button
+            type="button"
+            variant="primary"
+            busy={busy}
+            disabled={password.length < 12}
+            onClick={() => {
+              void submitPassword();
+            }}
+            data-testid="bootstrap-password-submit"
+          >
+            {FR_COPY.auth.bootstrap.passwordAction}
+          </Button>
+        </section>
       ) : null}
     </main>
   );

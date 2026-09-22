@@ -251,13 +251,15 @@ Le propriétaire peut se connecter avec :
 
 Le système doit permettre :
 
-- l'enregistrement initial sécurisé du propriétaire ;
+- l'enregistrement initial sécurisé du propriétaire en trois étapes seulement : ouverture, création de la passkey, création du mot de passe alternatif ;
 - l'ajout et la suppression de passkeys ;
 - la modification du mot de passe ;
 - la révocation d'une session ou de toutes les sessions ;
 - la protection renforcée des opérations sensibles ;
 - la récupération administrative de l'accès ;
 - la détection et la limitation des tentatives d'authentification abusives.
+
+Tant qu'aucun propriétaire n'est confirmé, une tentative de configuration inachevée ne valide pas l'installation. Une autre session navigateur peut reprendre et terminer correctement le parcours ; la première tentative complètement terminée devient le seul propriétaire, et toute tentative précédente incomplète est abandonnée.
 
 Une session propriétaire expire après 30 jours d'inactivité par défaut. Cette durée est configurable entre 1 et 90 jours. Une opération sensible exige par défaut une authentification datant de moins de 15 minutes.
 
@@ -1259,14 +1261,16 @@ Sur une plateforme Web qui ne permet pas une garantie équivalente, l'applicatio
 
 ### 28.4 Kit de récupération
 
-Lors de l'initialisation, l'application doit générer un kit de récupération chiffré permettant au propriétaire autorisé de restaurer l'accès aux clés nécessaires.
+Le premier démarrage établit le propriétaire par passkey puis mot de passe alternatif. Il ne impose pas le téléchargement ni la confirmation offline du kit de récupération : ces actions vivent dans les réglages, après que l'installation est déjà utilisable.
+
+L'application doit pouvoir générer un kit de récupération chiffré permettant au propriétaire autorisé de restaurer l'accès aux clés nécessaires. Sans kit confirmé, l'installation reste utilisable mais la récupération administrative n'est pas prête ; l'interface des réglages doit le dire clairement.
 
 Le kit :
 
 - doit être exportable et conservable hors ligne ;
 - ne doit pas être envoyé automatiquement vers le même stockage que les données chiffrées ;
 - doit être accompagné d'une procédure de conservation et de test ;
-- doit demander une confirmation de sauvegarde avant que l'installation soit considérée comme prête ;
+- doit demander une confirmation de sauvegarde avant que la récupération soit considérée comme prête ;
 - doit pouvoir être remplacé après une authentification renforcée ;
 - doit identifier la version du format et les installations auxquelles il s'applique.
 

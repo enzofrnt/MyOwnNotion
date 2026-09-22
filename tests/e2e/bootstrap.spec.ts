@@ -1,31 +1,18 @@
 /**
- * First-run bootstrap journeys (T028, feature 002).
+ * First-run bootstrap journeys (T028 / T135, feature 002).
  *
- * These are the only journeys that must start from an installation with no
- * owner, so they do not use the shared fixture — that one seeds an owner so
- * content journeys have a workspace to open. Here the `0/0` → `1/1` transition
- * is the subject, and it has to be observed from both sides: what the page
- * shows, and what the database committed.
+ * Operator flow: open → create passkey → create password → confirm. Recovery
+ * kits are settings concerns after readiness.
  *
  * **The ceremony needs a virtual authenticator, which only Chromium exposes
- * through CDP.** The journeys that drive a real passkey therefore skip on
- * Firefox and WebKit. The journeys that do not need a credential — the gate,
- * the counts, the concurrent claim, keyboard reachability, the outage message
- * — run on the whole matrix, because those are exactly the parts where a
- * rendering or focus difference between engines would matter.
+ * through CDP.** Journeys that drive a real passkey therefore skip on Firefox
+ * and WebKit.
  */
 
 import type { CDPSession, Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import { readCommittedCounts, resetSecurityInstallation } from "./reset-installation.ts";
 
-/**
- * Restarting from `0/0` before each journey.
- *
- * The API creates the installation row at startup, so truncating it leaves no
- * row at all until the next request — which is itself a state the status route
- * must answer for, and the first assertion below relies on it.
- */
 test.beforeEach(async () => {
   await resetSecurityInstallation();
 });
@@ -45,6 +32,14 @@ async function attachAuthenticator(page: Page): Promise<CDPSession> {
     },
   });
   return client;
+}
+
+async function completeBootstrap(page: Page): Promise<void> {
+  await page.getByTestId("begin-setup").click();
+  await expect(page.getByTestId("bootstrap-password")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("bootstrap-password").fill("acceptable-passphrase");
+  await page.getByTestId("bootstrap-password-submit").click();
+  await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
 }
 
 async function signOut(page: Page): Promise<void> {
@@ -68,9 +63,6 @@ test.describe("the first-run gate", () => {
   test("an installation with no owner shows setup, not the workspace", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByTestId("begin-setup")).toBeVisible();
-    // The workspace must not be rendered behind it: there is nothing there to
-    // show, and showing it would suggest content exists that the security
-    // layer has not been asked to protect.
     await expect(page.getByTestId("workspace-shell")).toHaveCount(0);
   });
 
@@ -78,8 +70,6 @@ test.describe("the first-run gate", () => {
     await page.goto("/");
     await expect(page.getByTestId("owner-count")).toHaveText("0");
     await expect(page.getByTestId("workspace-count")).toHaveText("0");
-    // And the database agrees. A page that renders 0 while the database holds
-    // an owner is the regression this pair of assertions exists to catch.
     expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
   });
 
@@ -110,36 +100,20 @@ test.describe("the full ceremony", () => {
     );
   });
 
-  test("a fresh install reaches 1/1, and only at the confirmation", async ({ page }) => {
+  test("a fresh install reaches 1/1 after passkey then password", async ({ page }) => {
     await attachAuthenticator(page);
     await page.goto("/");
 
     await page.getByTestId("begin-setup").click();
+    await expect(page.getByTestId("bootstrap-password")).toBeVisible({ timeout: 30_000 });
 
-    // The kit panel is the proof the credential was accepted.
-    await expect(page.getByTestId("recovery-kit-id")).toBeVisible({ timeout: 30_000 });
-
-    // Still nobody owns anything: a credential is not an owner.
     expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
     await expect(page.getByTestId("owner-count")).toHaveText("0");
 
-    const download = page.waitForEvent("download");
-    await page.getByTestId("download-recovery-kit").click();
-    const artifact = await download;
-    expect(artifact.suggestedFilename()).toBe("myownnotion-recovery.json");
+    await page.getByTestId("bootstrap-password").fill("acceptable-passphrase");
+    await page.getByTestId("bootstrap-password-submit").click();
 
-    // Downloading is not confirming either.
-    expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
-
-    await page.getByTestId("acknowledge-offline-storage").check();
-    await page.getByTestId("confirm-offline-storage").click();
-
-    // The workspace itself is the confirmation: the shell swaps to it the
-    // moment an owner exists, which is a stronger assertion than a panel
-    // saying so.
-    await expect(page.getByTestId("workspace-shell")).toBeVisible({
-      timeout: 30_000,
-    });
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
     expect(await readCommittedCounts()).toEqual({ ownerCount: 1, workspaceCount: 1 });
   });
 
@@ -148,14 +122,7 @@ test.describe("the full ceremony", () => {
   }) => {
     await attachAuthenticator(page);
     await page.goto("/");
-    await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("recovery-kit-id")).toBeVisible({ timeout: 30_000 });
-    const download = page.waitForEvent("download");
-    await page.getByTestId("download-recovery-kit").click();
-    await download;
-    await page.getByTestId("acknowledge-offline-storage").check();
-    await page.getByTestId("confirm-offline-storage").click();
-    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+    await completeBootstrap(page);
     const bootstrapDeviceId = await page.evaluate(async () => {
       const response = await fetch("/v1/auth/session", { credentials: "same-origin" });
       return ((await response.json()) as { session: { deviceId: string } }).session.deviceId;
@@ -174,129 +141,40 @@ test.describe("the full ceremony", () => {
     expect(loginDeviceId).toBe(bootstrapDeviceId);
   });
 
-  test("confirmation stays refused until the kit has actually been downloaded", async ({
-    page,
-  }) => {
-    // The failure this guards against is an owner who finishes setup with no
-    // kit they can reach — which is unrecoverable, unlike every other way
-    // setup can go wrong.
-    await attachAuthenticator(page);
-    await page.goto("/");
-    await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("recovery-kit-id")).toBeVisible({ timeout: 30_000 });
-
-    await expect(page.getByTestId("acknowledge-offline-storage")).toBeDisabled();
-    await expect(page.getByTestId("confirm-offline-storage")).toBeDisabled();
-    expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
-  });
-
-  test("acknowledging is a separate act from confirming", async ({ page }) => {
-    await attachAuthenticator(page);
-    await page.goto("/");
-    await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("recovery-kit-id")).toBeVisible({ timeout: 30_000 });
-
-    const download = page.waitForEvent("download");
-    await page.getByTestId("download-recovery-kit").click();
-    await download;
-
-    // Downloaded, but not yet acknowledged: still refused.
-    await expect(page.getByTestId("confirm-offline-storage")).toBeDisabled();
-    await page.getByTestId("acknowledge-offline-storage").check();
-    await expect(page.getByTestId("confirm-offline-storage")).toBeEnabled();
-  });
-
-  test("the download is one-time, and the page says what to do instead", async ({ page }) => {
-    await attachAuthenticator(page);
-    await page.goto("/");
-    await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("recovery-kit-id")).toBeVisible({ timeout: 30_000 });
-
-    const download = page.waitForEvent("download");
-    await page.getByTestId("download-recovery-kit").click();
-    await download;
-
-    await expect(page.getByTestId("download-consumed-note")).toBeVisible();
-    await expect(page.getByTestId("download-recovery-kit")).toBeDisabled();
-    // Regeneration stays available: an owner whose file did not save must have
-    // a way forward that is not "start over".
-    await expect(page.getByTestId("regenerate-recovery-kit")).toBeEnabled();
-  });
-
-  test("a regenerated kit replaces the old one and is downloadable again", async ({ page }) => {
-    await attachAuthenticator(page);
-    await page.goto("/");
-    await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("recovery-kit-id")).toBeVisible({ timeout: 30_000 });
-    const firstKit = await page.getByTestId("recovery-kit-id").textContent();
-
-    const download = page.waitForEvent("download");
-    await page.getByTestId("download-recovery-kit").click();
-    await download;
-
-    await page.getByTestId("regenerate-recovery-kit").click();
-    await expect(page.getByTestId("recovery-kit-id")).not.toHaveText(firstKit ?? "", {
-      timeout: 30_000,
-    });
-    await expect(page.getByTestId("download-recovery-kit")).toBeEnabled();
-    // Regeneration is still not a commitment.
-    expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
-  });
-
   test("an interrupted attempt commits nothing and can be restarted", async ({ page }) => {
     await attachAuthenticator(page);
     await page.goto("/");
     await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("recovery-kit-id")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("bootstrap-password")).toBeVisible({ timeout: 30_000 });
 
-    // A reload is the ordinary interruption: a closed laptop, a refresh, a
-    // crash. The capability lives in memory only, so it is gone.
     await page.reload();
 
     expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
-    // And the page offers the way forward rather than a dead end.
     await expect(page.getByTestId("begin-setup")).toBeVisible({ timeout: 30_000 });
   });
 
   test("once ownership commits, the workspace replaces setup on reload", async ({ page }) => {
     await attachAuthenticator(page);
     await page.goto("/");
-    await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("recovery-kit-id")).toBeVisible({ timeout: 30_000 });
-    const download = page.waitForEvent("download");
-    await page.getByTestId("download-recovery-kit").click();
-    await download;
-    await page.getByTestId("acknowledge-offline-storage").check();
-    await page.getByTestId("confirm-offline-storage").click();
-    await expect(page.getByTestId("workspace-shell")).toBeVisible({
-      timeout: 30_000,
-    });
+    await completeBootstrap(page);
 
     await page.reload();
-    await expect(page.getByTestId("workspace-shell")).toBeVisible({
-      timeout: 30_000,
-    });
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("begin-setup")).toHaveCount(0);
   });
 
-  test("a second browser cannot claim an attempt that is already open", async ({
-    page,
-    context,
-  }) => {
+  test("a second browser can take over an incomplete attempt", async ({ page, context }) => {
     await attachAuthenticator(page);
     await page.goto("/");
     await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("recovery-kit-id")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("bootstrap-password")).toBeVisible({ timeout: 30_000 });
 
     const second = await context.newPage();
+    await attachAuthenticator(second);
     await second.goto("/");
-    await second.getByTestId("begin-setup").click();
+    await completeBootstrap(second);
 
-    // It is told what is happening, not shown a generic error.
-    await expect(second.getByTestId("bootstrap-message")).toContainText("Un autre navigateur", {
-      timeout: 30_000,
-    });
-    expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
+    expect(await readCommittedCounts()).toEqual({ ownerCount: 1, workspaceCount: 1 });
     await second.close();
   });
 });

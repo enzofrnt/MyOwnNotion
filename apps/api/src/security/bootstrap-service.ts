@@ -1,17 +1,14 @@
 /**
- * Bootstrap orchestration (T031, feature 002).
+ * Bootstrap orchestration (T031 / T133, feature 002).
  *
  * Ties the domain state machine, the attempt-scoped repository, WebAuthn
- * verification, rate limiting, and the audit trail into the five operations a
- * first-run browser performs. The service owns the secrets that never reach
- * the database in the clear: the browser-held capability and the one-time
- * download token exist here and are persisted only as digests.
+ * verification, password hashing, rate limiting, and the audit trail into the
+ * operations a first-run browser performs. The service owns the secrets that
+ * never reach the database in the clear: the browser-held capability exists
+ * here and is persisted only as a digest.
  *
- * Everything that decides *whether* a transition is legal lives in the domain.
- * This module decides *what actually happens* — which rows are written, what
- * is audited, and what the browser is told — and it deliberately re-checks the
- * domain's answer inside the transaction, because a concurrent request could
- * have moved the attempt between the read and the write.
+ * Happy path: start → verify passkey → set password → confirm. Recovery kits
+ * are settings concerns after readiness.
  */
 
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
@@ -32,16 +29,18 @@ import {
   type BootstrapAttempt,
   BootstrapCapabilityError,
   BootstrapTransitionError,
-  confirmOfflineStorage,
+  confirmBootstrap,
   consumeDownload,
   countsForBootstrapState,
   prepareRecovery,
   recordCredentialVerified,
+  recordPasswordSet,
   regenerationSupersedes,
   startAttempt,
   verifyAttemptCapability,
 } from "@myownnotion/domain";
 import type { AuditService } from "./audit-service.ts";
+import { hashPassword } from "./password-service.ts";
 import { clearRateLimit, consumeRateLimit } from "./rate-limit-service.ts";
 import type { SecurityConfig } from "./security-config.ts";
 import {
@@ -71,6 +70,9 @@ function newSecret(): string {
   return randomBytes(48).toString("base64url");
 }
 
+/** Pending credential rows need an expiry; password setup uses a long bound. */
+const PENDING_CREDENTIAL_TTL_MS = 24 * 60 * 60 * 1000;
+
 export interface BootstrapServiceDeps {
   readonly db: Database;
   readonly config: SecurityConfig;
@@ -80,12 +82,6 @@ export interface BootstrapServiceDeps {
   readonly workspaceSchemaVersion: number;
   /**
    * Seals the workspace's first data key under its root key.
-   *
-   * Supplied rather than built here so the bootstrap does not need to know how
-   * the key hierarchy is put together — but it must be a *real* wrapped key.
-   * This was random bytes until T059, which meant generation 1 could never be
-   * unwrapped and every protected write after setup depended on a generation
-   * that was not one.
    */
   readonly sealFirstDataKey: () => Promise<string>;
   /** Injected so the whole flow is testable at exact instants. */
@@ -140,11 +136,9 @@ export class BootstrapService {
   }
 
   /**
-   * Claims the single attempt and mints the browser-held capability.
+   * Claims the attempt and mints the browser-held capability.
    *
-   * The capability is returned in the response body and never in a URL, and
-   * only its digest is stored — a leaked table dump must not yield a working
-   * capability.
+   * While ownership is still `0/0`, any incomplete open attempt is abandoned.
    */
   async start(input: { clientNonce: string; correlationId: string }): Promise<StartedBootstrap> {
     await this.#rateLimit("bootstrap.claim", input.clientNonce);
@@ -178,14 +172,8 @@ export class BootstrapService {
     this.#deps.challenges.set(attemptId, challenge);
 
     if (supersededAttemptId !== null) {
-      // Recorded before the new attempt's own event, so the log reads in the
-      // order things happened. An operator investigating a lockout needs to
-      // see that an attempt was taken over, not just that a new one began.
       await this.#deps.audit.record(this.#auditContext(input.correlationId), {
         eventType: "bootstrap.interrupted",
-        // `success` describes the supersession, not the abandoned attempt:
-        // taking over a stale slot is the outcome we wanted. The event type
-        // already says what happened to the old attempt.
         outcome: "success",
         objectKind: "bootstrap-attempt",
         objectId: supersededAttemptId,
@@ -205,13 +193,6 @@ export class BootstrapService {
     };
   }
 
-  /**
-   * Loads the attempt and proves the presented capability belongs to it.
-   *
-   * Both checks together: the attempt ID alone would make the capability
-   * decorative, and the capability alone could be replayed against another
-   * attempt.
-   */
   async #authorize(attemptId: string, capability: string): Promise<BootstrapAttempt> {
     const attempt = await findAttempt(this.#deps.db, attemptId);
     if (attempt === null) {
@@ -226,17 +207,14 @@ export class BootstrapService {
   }
 
   /**
-   * Verifies the passkey ceremony and prepares the one provisional kit.
-   *
-   * Still `0/0` afterwards: the credential is held against the attempt and the
-   * kit is provisional. Nothing here creates an owner.
+   * Verifies the passkey ceremony. Still `0/0` afterwards — no kit, no owner.
    */
   async verifyCredential(input: {
     attemptId: string;
     capability: string;
     response: unknown;
     correlationId: string;
-  }): Promise<{ attempt: BootstrapAttempt; kitId: string }> {
+  }): Promise<{ attempt: BootstrapAttempt }> {
     await this.#rateLimit("bootstrap.credential", input.attemptId);
     const attempt = await this.#authorize(input.attemptId, input.capability);
     const now = this.#deps.now();
@@ -245,8 +223,6 @@ export class BootstrapService {
     if (challenge === undefined) {
       throw new WebAuthnVerificationError();
     }
-    // Single-use: consumed whether or not verification succeeds, so a failed
-    // ceremony cannot be retried against the same challenge.
     this.#deps.challenges.delete(input.attemptId);
 
     let registration: Awaited<ReturnType<typeof verifyRegistration>>;
@@ -270,14 +246,6 @@ export class BootstrapService {
       challengeHash: digest("challenge", challenge.challenge),
       now,
     });
-    // Never leaves the server: it binds the attempt to the kit it prepared.
-    const downloadBinding = newSecret();
-    const kitId = randomUUID();
-    const prepared = prepareRecovery(verified, {
-      recoveryKitId: kitId,
-      downloadTokenHash: digest("download", downloadBinding),
-      now,
-    });
 
     await this.#deps.db.transaction(async (tx) => {
       await saveVerifiedCredential(tx, verified, {
@@ -291,45 +259,58 @@ export class BootstrapService {
         signCount: registration.signCount,
         userVerified: registration.userVerified,
         verifiedAt: now,
-        expiresAt: prepared.downloadExpiresAt ?? now,
+        expiresAt: new Date(now.getTime() + PENDING_CREDENTIAL_TTL_MS),
       });
-      await prepareProvisionalKit(
-        tx,
-        prepared,
-        {
-          kitId,
-          installationId: this.#deps.installationId,
-          sourceLineageId: this.#deps.installationId,
-          recoveryEpoch: 1,
-          artifactDigest: digest("artifact", kitId),
-          downloadTokenHash: digest("download", downloadBinding),
-          downloadExpiresAt: prepared.downloadExpiresAt ?? now,
-          supportedKeyGenerations: [1],
-          createdAt: now,
-        },
-        null,
-      );
       await this.#deps.audit.recordInTransaction(tx, this.#auditContext(input.correlationId), {
         eventType: "bootstrap.credential-verified",
         outcome: "success",
       });
-      await this.#deps.audit.recordInTransaction(tx, this.#auditContext(input.correlationId), {
-        eventType: "bootstrap.kit-created",
-        outcome: "success",
-        objectKind: "recovery-kit",
-        objectId: kitId,
-      });
     });
 
-    return { attempt: prepared, kitId };
+    return { attempt: verified };
   }
 
   /**
-   * Regenerates the kit on the *same* attempt.
-   *
-   * The verified credential and the capability are kept; the superseded kit is
-   * rejected and expired in the same transaction that prepares its
-   * replacement, so there is no window in which two kits are usable.
+   * Records the password alternative and moves the attempt to `password-set`.
+   */
+  async setPassword(input: {
+    attemptId: string;
+    capability: string;
+    password: string;
+    correlationId: string;
+  }): Promise<{ attempt: BootstrapAttempt }> {
+    await this.#rateLimit("bootstrap.credential", input.attemptId);
+    const attempt = await this.#authorize(input.attemptId, input.capability);
+    const now = this.#deps.now();
+
+    const hashed = await hashPassword(input.password);
+    const passwordSet = recordPasswordSet(attempt, { now });
+
+    await this.#deps.db.transaction(async (tx) => {
+      await saveVerifiedCredential(tx, passwordSet, {
+        id: randomUUID(),
+        attemptId: input.attemptId,
+        credentialKind: "password",
+        credentialIdDigest: digest("password-handle", input.attemptId),
+        passwordHash: hashed.encoded,
+        hashAlgorithm: hashed.algorithm,
+        origin: this.#deps.config.publicOrigin.origin,
+        signCount: 0,
+        userVerified: true,
+        verifiedAt: now,
+        expiresAt: new Date(now.getTime() + PENDING_CREDENTIAL_TTL_MS),
+      });
+      await this.#deps.audit.recordInTransaction(tx, this.#auditContext(input.correlationId), {
+        eventType: "auth.password-set",
+        outcome: "success",
+      });
+    });
+
+    return { attempt: passwordSet };
+  }
+
+  /**
+   * Legacy kit regeneration. Unused by the happy-path UI.
    */
   async regenerateKit(input: {
     attemptId: string;
@@ -341,7 +322,6 @@ export class BootstrapService {
     const now = this.#deps.now();
 
     const superseded = regenerationSupersedes(attempt);
-    // Never leaves the server: it binds the attempt to the kit it prepared.
     const downloadBinding = newSecret();
     const kitId = randomUUID();
     const prepared = prepareRecovery(attempt, {
@@ -387,15 +367,7 @@ export class BootstrapService {
   }
 
   /**
-   * Consumes the one-time download.
-   *
-   * The client presents nothing but its capability — the normative contract
-   * gives this route no request body. One-time-ness is enforced entirely
-   * server-side: the domain refuses a second consumption, refuses a closed
-   * window, and refuses an attempt whose stored binding disagrees with the kit
-   * being downloaded. That last one is what a regeneration racing a download
-   * produces, and it is the case a client-held token could not have caught
-   * any better.
+   * Legacy one-time kit download. Unused by the happy-path UI.
    */
   async consumeKitDownload(input: {
     attemptId: string;
@@ -415,7 +387,6 @@ export class BootstrapService {
       if (kit === null) {
         throw new BootstrapTransitionError(attempt.state, "download-consumed", "kit not found");
       }
-      // A null hash on either side fails the comparison rather than skipping it.
       const consumedAttempt = consumeDownload(attempt, {
         downloadTokenHash: kit.downloadTokenHash ?? "",
         now,
@@ -432,11 +403,7 @@ export class BootstrapService {
   }
 
   /**
-   * The explicit offline confirmation and the atomic promotion.
-   *
-   * The domain refuses a confirmation without a consumed download, and the
-   * repository refuses it again inside the transaction — a concurrent request
-   * could have moved the attempt since it was read.
+   * Confirms from `password-set` and runs the atomic promotion.
    */
   async confirmAndPromote(input: {
     attemptId: string;
@@ -450,13 +417,13 @@ export class BootstrapService {
     const attempt = await this.#authorize(input.attemptId, input.capability);
     const now = this.#deps.now();
 
-    // Throws unless the download was consumed and the window is still open.
-    confirmOfflineStorage(attempt, { now });
+    confirmBootstrap(attempt, { now });
 
     const result = await promoteBootstrap(this.#deps.db, {
       attempt,
       ownerId: randomUUID(),
-      credentialId: randomUUID(),
+      passkeyCredentialId: randomUUID(),
+      passwordCredentialId: randomUUID(),
       workspaceId: this.#deps.workspaceId,
       workspaceSchemaVersion: this.#deps.workspaceSchemaVersion,
       deviceId: randomUUID(),
@@ -464,12 +431,7 @@ export class BootstrapService {
       deviceName: input.deviceName,
       devicePlatform: input.devicePlatform,
       dataKeyGenerationId: randomUUID(),
-      // A real data key, sealed under the workspace root key. This used to be
-      // `newSecret()` — random bytes stored where a wrapped key belongs —
-      // which meant generation 1, the generation every subsequent protected
-      // write depends on, could never be unwrapped.
       wrappedDataKey: await this.#deps.sealFirstDataKey(),
-      recoveryEpochId: randomUUID(),
       now,
     });
 
@@ -477,10 +439,6 @@ export class BootstrapService {
       { ...this.#auditContext(input.correlationId), workspaceId: result.workspaceId },
       { eventType: "bootstrap.confirmed", outcome: "success" },
     );
-    // The promotion creates the owner's first device. Recording it here rather
-    // than leaving it implied by `bootstrap.confirmed` is what lets the device
-    // trail be read on its own: every later revocation and reauthorization
-    // refers to a device whose authorization would otherwise appear nowhere.
     await this.#deps.audit.record(
       { ...this.#auditContext(input.correlationId), workspaceId: result.workspaceId },
       {
@@ -497,7 +455,6 @@ export class BootstrapService {
     });
     this.#deps.challenges.delete(input.attemptId);
 
-    // Cross-check the domain's own view before telling the browser it is done.
     const counts = countsForBootstrapState("confirmed");
     if (counts.ownerCount !== result.ownerCount) {
       throw new SecurityRepositoryError(

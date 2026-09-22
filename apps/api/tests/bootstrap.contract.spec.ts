@@ -137,11 +137,11 @@ describe("starting an attempt", () => {
     expect(rows.rows[0]?.capability_hash).not.toContain(capability);
   });
 
-  it("refuses a second concurrent attempt", async () => {
+  it("lets a second attempt supersede the first while still 0/0", async () => {
     await startBootstrap();
     const second = await startBootstrap("another-client-nonce-value-22ch");
-    expect(second.statusCode).toBe(409);
-    expect(second.json().code).toBe("conflict");
+    expect(second.statusCode).toBe(201);
+    expect(second.json().bootstrapState).toBe("started");
   });
 
   it("keeps the installation at 0/0 after starting", async () => {
@@ -313,15 +313,25 @@ describe("problem bodies", () => {
 
 describe("the routes that follow credential verification", () => {
   // A real WebAuthn ceremony cannot be produced without an authenticator, so
-  // these attempts never reach `recovery-prepared`. Their refusal paths are
-  // still worth pinning: each is a route that must not act on an attempt that
-  // has not earned the right, and each must refuse with a safe code rather
-  // than a stack trace.
+  // these attempts never reach `credential-verified`. Their refusal paths are
+  // still worth pinning.
 
   async function startedAttempt() {
     const body = (await startBootstrap()).json();
     return { attemptId: body.attemptId as string, capability: body.capability as string };
   }
+
+  it("refuses a password before a credential is verified", async () => {
+    const { attemptId, capability } = await startedAttempt();
+    const response = await inject({
+      method: "POST",
+      url: `/v1/bootstrap/${attemptId}/password`,
+      headers: { [CAPABILITY_HEADER]: capability },
+      payload: { password: "acceptable-passphrase-here" },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().code).toBe("conflict");
+  });
 
   it("refuses a download before any kit exists", async () => {
     const { attemptId, capability } = await startedAttempt();
@@ -344,16 +354,13 @@ describe("the routes that follow credential verification", () => {
     expect(response.statusCode).toBe(409);
   });
 
-  it("refuses confirmation before the download is consumed", async () => {
-    // The rule the whole flow exists to enforce: no readiness without a kit
-    // the owner actually stored.
+  it("refuses confirmation before password is set", async () => {
     const { attemptId, capability } = await startedAttempt();
     const response = await inject({
       method: "POST",
       url: `/v1/bootstrap/${attemptId}/recovery/confirm`,
       headers: { [CAPABILITY_HEADER]: capability },
       payload: {
-        storedOffline: true,
         device: {
           deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
           name: "Test browser",
@@ -368,33 +375,38 @@ describe("the routes that follow credential verification", () => {
     });
   });
 
-  it("rejects a confirmation body that does not assert offline storage", async () => {
-    // `storedOffline` is `const: true` in the contract: there is no way to
-    // confirm without asserting it.
+  it("rejects a confirmation body without a device claim", async () => {
     const { attemptId, capability } = await startedAttempt();
     const response = await inject({
       method: "POST",
       url: `/v1/bootstrap/${attemptId}/recovery/confirm`,
       headers: { [CAPABILITY_HEADER]: capability },
-      payload: { storedOffline: false },
+      payload: { storedOffline: true },
     });
     expect(response.statusCode).toBe(400);
   });
 
   it("requires the capability on every follow-up route", async () => {
     const { attemptId } = await startedAttempt();
-    for (const path of ["recovery/download", "recovery/regenerate", "recovery/confirm"]) {
+    for (const path of [
+      "password",
+      "recovery/download",
+      "recovery/regenerate",
+      "recovery/confirm",
+    ]) {
       const response = await inject({
         method: "POST",
         url: `/v1/bootstrap/${attemptId}/${path}`,
-        payload: {
-          storedOffline: true,
-          device: {
-            deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
-            name: "Test browser",
-            platform: "Test platform",
-          },
-        },
+        payload:
+          path === "password"
+            ? { password: "acceptable-passphrase-here" }
+            : {
+                device: {
+                  deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
+                  name: "Test browser",
+                  platform: "Test platform",
+                },
+              },
       });
       expect(response.statusCode, path).toBe(403);
     }
@@ -491,19 +503,13 @@ describe("a binding that points at no workspace", () => {
 });
 
 describe("an abandoned attempt does not lock the installation out", () => {
-  // The whole point of the security layer is that the person who owns the
-  // machine can always get back in. An attempt claimed and then abandoned used
-  // to hold the single open slot forever, which meant a closed tab could make
-  // an installation impossible to set up without database access.
-
   const claim = (nonce: string) =>
     inject({ method: "POST", url: "/v1/bootstrap", payload: { clientNonce: nonce.repeat(24) } });
 
-  it("refuses a second claim while the first is still live", async () => {
+  it("lets a second claim supersede a live first attempt", async () => {
     expect((await claim("n")).statusCode).toBe(201);
-    // Someone is mid-setup in another browser: taking it from them would be
-    // worse than making this one wait.
-    expect((await claim("m")).statusCode).toBe(409);
+    const second = await claim("m");
+    expect(second.statusCode).toBe(201);
   });
 
   it("lets a new claim supersede one that has been left alone", async () => {
@@ -518,7 +524,6 @@ describe("an abandoned attempt does not lock the installation out", () => {
 
   it("records the supersession, so a takeover is distinguishable from a first claim", async () => {
     await claim("n");
-    clock.value = new Date(BASE_TIME.getTime() + 16 * 60_000);
     await claim("p");
 
     const events = await harness.built.database.db.execute(
@@ -528,7 +533,6 @@ describe("an abandoned attempt does not lock the installation out", () => {
   });
 
   it("still refuses every claim once ownership is committed", async () => {
-    // Staleness must not become a way back into a closed bootstrap surface.
     await fabricateCommittedOwnership();
     clock.value = new Date(BASE_TIME.getTime() + 60 * 60_000);
     const response = await claim("n");

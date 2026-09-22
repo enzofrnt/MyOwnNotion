@@ -220,22 +220,22 @@ export const bootstrapAttempts = pgTable(
     uniqueIndex("bootstrap_attempts_open_unique")
       .on(table.installationId)
       .where(
-        sql`${table.bootstrapState} IN ('started', 'credential-verified', 'recovery-prepared', 'download-consumed')`,
+        sql`${table.bootstrapState} IN ('started', 'credential-verified', 'password-set', 'recovery-prepared', 'download-consumed')`,
       ),
     index("bootstrap_attempts_state_idx").on(table.installationId, table.bootstrapState),
     check(
       "bootstrap_attempts_state_check",
-      sql`${table.bootstrapState} IN ('started', 'credential-verified', 'recovery-prepared', 'download-consumed', 'confirmed', 'abandoned', 'rejected')`,
+      sql`${table.bootstrapState} IN ('started', 'credential-verified', 'password-set', 'recovery-prepared', 'download-consumed', 'confirmed', 'abandoned', 'rejected')`,
     ),
     // A consumed download must record when, and must have had a window.
     check(
       "bootstrap_attempts_download_check",
       sql`(${table.downloadConsumedAt} IS NULL) OR (${table.downloadExpiresAt} IS NOT NULL AND ${table.downloadTokenHash} IS NOT NULL)`,
     ),
-    // Confirmation is reachable only from a consumed download.
+    // Confirmed means ownership committed; kit download is no longer required.
     check(
       "bootstrap_attempts_confirmation_check",
-      sql`(${table.bootstrapState} <> 'confirmed') OR (${table.downloadConsumedAt} IS NOT NULL AND ${table.recoveryKitId} IS NOT NULL)`,
+      sql`(${table.bootstrapState} <> 'confirmed') OR (${table.challengeHash} IS NOT NULL)`,
     ),
   ],
 );
@@ -266,7 +266,10 @@ export const pendingBootstrapCredentials = pgTable(
     expiresAt: utc("expires_at").notNull(),
   },
   (table) => [
-    uniqueIndex("pending_bootstrap_credentials_attempt_unique").on(table.attemptId),
+    uniqueIndex("pending_bootstrap_credentials_attempt_kind_unique").on(
+      table.attemptId,
+      table.credentialKind,
+    ),
     check(
       "pending_bootstrap_credentials_kind_check",
       sql`${table.credentialKind} IN ('passkey', 'password')`,

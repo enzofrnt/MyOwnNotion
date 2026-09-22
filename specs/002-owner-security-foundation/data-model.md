@@ -114,48 +114,45 @@ attempt-scoped until the final row:
 
 | `bootstrapState` | Durable scope and counts | Transition |
 | --- | --- | --- |
-| `started` | Attempt only; no owner/workspace rows; `0/0` | Start a serialized attempt |
-| `credential-verified` | Pending credential material under the attempt; no owner/workspace rows; `0/0` | Verify the bootstrap credential |
-| `recovery-prepared` | Pending credential, provisional kit, and download capability under the attempt; no owner/workspace rows; `0/0` | Prepare the one 15-minute download opportunity |
-| `download-consumed` | Same attempt-scoped records; no owner/workspace rows; `0/0` | Consume the one successful download |
-| `confirmed` | One atomic transaction promotes the pending credential to the sole owner credential, commits owner/workspace, binds feature-001 workspace, activates/confirms the kit, sets installation `ready`, and changes counts to `1/1` | Require consumed download plus explicit offline confirmation |
-| `abandoned` | Attempt only; no owner/workspace rows; `0/0` | Expire/cancel without confirmation |
-| `rejected` | Attempt only; rejected/expired material; no owner/workspace rows; `0/0` | Refuse, expire, or invalidate; regeneration remains on this attempt |
+| `started` | Attempt only; no owner/workspace rows; `0/0` | Start an attempt; any prior incomplete open attempt is abandoned |
+| `credential-verified` | Pending passkey material under the attempt; no owner/workspace rows; `0/0` | Verify the bootstrap passkey |
+| `password-set` | Pending passkey and password material under the attempt; no owner/workspace rows; `0/0` | Record an acceptable password alternative |
+| `confirmed` | One atomic transaction promotes both pending credentials to the sole owner, binds feature-001 workspace, sets installation `ready`, and changes counts to `1/1` | Explicit confirmation after passkey and password |
+| `abandoned` | Attempt only; no owner/workspace rows; `0/0` | Superseded by a newer claim, cancelled, or expired without confirmation |
+| `rejected` | Attempt only; rejected material; no owner/workspace rows; `0/0` | Refuse or invalidate |
 
-There is no combined recovery-confirmation state. `uninitialized` is the installation
-state before `started`; all pre-confirmation attempts remain `0/0`.
+Historical rows may still mention legacy kit-era states (`recovery-prepared`,
+`download-consumed`); new attempts MUST NOT enter them. Recovery-kit download
+and offline confirmation are settings operations after ownership commits, not
+bootstrap states.
 
 | Field | Rules |
 | --- | --- |
 | `id` | UUIDv7 capability reference |
 | `installation_id` | Singleton target |
-| `bootstrapState` | `started`, `credential-verified`, `recovery-prepared`, `download-consumed`, `confirmed`, `abandoned`, `rejected` |
+| `bootstrapState` | `started`, `credential-verified`, `password-set`, `confirmed`, `abandoned`, `rejected` (legacy kit-era values may exist in older rows) |
 | `client_nonce_hash` | Hash of opaque client nonce |
 | `challenge_hash` | WebAuthn/bootstrap challenge digest |
-| `download_token_hash` | Null until provisional artifact exists; consumed atomically |
-| `download_expires_at` | Credential verification + 15 minutes |
-| `download_consumed_at` | Set by the one successful download |
-| `recovery_kit_id` | Provisional kit reference, null before preparation |
 | `created_at`, `updated_at` | UTC instants |
 
-Transitions are serialized. `confirmed` is permitted only after credential
-verification, successful download, and explicit offline-storage confirmation.
-The linked recovery kit exposes the separate `authorizationState` and
-`deliveryState` axes; `bootstrapState` describes only the attempt workflow.
+Transitions are serialized by abandoning incomplete open attempts on a new
+claim. `confirmed` is permitted only after passkey verification and password
+recording on the same attempt. Recovery kits are out of this table.
 
 ### PendingBootstrapCredentialMaterial
 
-`attempt_id`, blinded credential handle, verified credential type, encrypted or
-hashed provisional public material, challenge binding, and expiration metadata.
-This record never requires a committed `OwnerIdentity` or an owner foreign key;
-its scope is the verified bootstrap attempt. The final confirmation transaction
-locks the attempt and singleton installation, verifies the consumed download
-and offline confirmation, creates the sole `OwnerIdentity`, promotes the
-pending credential into its committed credential table, binds the existing
-feature-001 workspace, activates/confirms the kit, and commits the `1/1` result.
+`attempt_id`, `credential_kind` (`passkey` or `password`), blinded credential
+handle, verified provisional public or hashed material, challenge binding, and
+expiration metadata. One row per kind per attempt. This record never requires a
+committed `OwnerIdentity` or an owner foreign key; its scope is the verified
+bootstrap attempt. The final confirmation transaction locks the attempt and
+singleton installation, creates the sole `OwnerIdentity`, promotes both pending
+credentials into their committed credential tables, binds the existing
+feature-001 workspace identity, creates the first authorized device and data-key
+generation, sets installation `ready`, and changes counts from `0/0` to `1/1`.
 Any failure rolls back promotion and all ownership rows together. Abandonment,
-rejection, expiry, and regeneration invalidate the pending material without
-creating an owner or workspace.
+rejection, and supersession invalidate the pending material without creating an
+owner or workspace.
 
 ## AuthorizedDevice
 
