@@ -20,7 +20,6 @@ import {
   BOOTSTRAP_CAPABILITY_HEADER,
   BootstrapConfirmationResultSchema,
   BootstrapOfflineConfirmationSchema,
-  BootstrapProgressSchema,
   BootstrapStartedSchema,
   BrowserDeviceClaimSchema,
   CSRF_TOKEN_HEADER,
@@ -248,35 +247,37 @@ describe("bootstrap", () => {
   });
 
   it("keeps every pre-confirmation response at 0/0 and uninitialized", () => {
-    for (const name of ["BootstrapStarted", "BootstrapProgress"]) {
-      const properties = effectiveProperties(schema(name));
-      expect(properties["ownerCount"]?.const, name).toBe(0);
-      expect(properties["workspaceCount"]?.const, name).toBe(0);
-      expect(properties["installationState"]?.const, name).toBe("uninitialized");
+    const started = effectiveProperties(schema("BootstrapStarted"));
+    expect(started["ownerCount"]?.const).toBe(0);
+    expect(started["workspaceCount"]?.const).toBe(0);
+    expect(started["installationState"]?.const).toBe("uninitialized");
+
+    for (const variant of schema("BootstrapProgress").oneOf ?? []) {
+      expect(variant.properties?.["ownerCount"]?.const).toBe(0);
+      expect(variant.properties?.["workspaceCount"]?.const).toBe(0);
+      expect(variant.properties?.["installationState"]?.const).toBe("uninitialized");
     }
   });
 
-  it("pairs each bootstrap state with its legal delivery states", () => {
+  it("pairs happy-path bootstrap states without kit axes", () => {
     const variants = schema("BootstrapProgress").oneOf ?? [];
-    expect(variants).toHaveLength(2);
-    const consumed = variants.find(
-      (variant) => variant.properties?.["bootstrapState"]?.const === "download-consumed",
+    expect(variants.length).toBeGreaterThanOrEqual(2);
+    const credentialVerified = variants.find(
+      (variant) => variant.properties?.["bootstrapState"]?.const === "credential-verified",
     );
-    // A consumed download cannot report itself as still downloadable; that
-    // pairing is what makes the one-time download observable.
-    expect(consumed?.properties?.["deliveryState"]?.const).toBe("download-consumed");
+    const passwordSet = variants.find(
+      (variant) => variant.properties?.["bootstrapState"]?.const === "password-set",
+    );
+    expect(credentialVerified).toBeDefined();
+    expect(passwordSet).toBeDefined();
+    expect(credentialVerified?.required).not.toContain("recoveryKitId");
+    expect(passwordSet?.required).not.toContain("recoveryKitId");
   });
 
-  it("requires an explicit offline confirmation", () => {
+  it("requires a device claim for bootstrap confirmation", () => {
     expect(schema("OfflineConfirmation").properties?.["storedOffline"]?.const).toBe(true);
-    expect(schema("BootstrapOfflineConfirmation").required?.sort()).toEqual([
-      "device",
-      "storedOffline",
-    ]);
-    expect(typeboxRequired(BootstrapOfflineConfirmationSchema)).toEqual([
-      "device",
-      "storedOffline",
-    ]);
+    expect(schema("BootstrapOfflineConfirmation").required?.sort()).toEqual(["device"]);
+    expect(typeboxRequired(BootstrapOfflineConfirmationSchema)).toEqual(["device"]);
     expect(typeboxRequired(BrowserDeviceClaimSchema)).toEqual([
       "deviceBindingId",
       "name",
@@ -290,12 +291,11 @@ describe("bootstrap", () => {
     expect(properties["installationState"]?.const).toBe("ready");
     expect(properties["ownerCount"]?.const).toBe(1);
     expect(properties["workspaceCount"]?.const).toBe(1);
-    expect(properties["authorizationState"]?.const).toBe("active");
-    expect(properties["deliveryState"]?.const).toBe("confirmed");
+    expect(properties["authorizationState"]).toBeUndefined();
+    expect(properties["deliveryState"]).toBeUndefined();
 
     const mirrored = typeboxProperties(BootstrapConfirmationResultSchema);
     expect(mirrored["ownerCount"]?.const).toBe(1);
-    expect(mirrored["authorizationState"]?.const).toBe("active");
   });
 
   it("declares the same required fields as the contract", () => {
@@ -305,11 +305,6 @@ describe("bootstrap", () => {
     expect(typeboxRequired(BootstrapConfirmationResultSchema)).toEqual(
       [...(schema("BootstrapConfirmationResult").required ?? [])].sort(),
     );
-    // The union variants share the contract's required set.
-    const progressRequired = [...(schema("BootstrapProgress").required ?? [])].sort();
-    for (const variant of (BootstrapProgressSchema as { anyOf?: unknown[] }).anyOf ?? []) {
-      expect(typeboxRequired(variant)).toEqual(progressRequired);
-    }
   });
 });
 

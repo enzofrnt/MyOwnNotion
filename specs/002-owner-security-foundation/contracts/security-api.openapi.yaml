@@ -107,7 +107,7 @@ paths:
               $ref: '#/components/schemas/BootstrapCredentialVerification'
       responses:
         '200':
-          description: Provisional recovery is ready; no session is issued
+          description: Passkey verified; attempt remains at 0/0 pending password
           content:
             application/json:
               schema:
@@ -115,6 +115,31 @@ paths:
         '409':
           $ref: '#/components/responses/Problem'
         '428':
+          $ref: '#/components/responses/Problem'
+  /v1/bootstrap/{attemptId}/password:
+    post:
+      tags: [Bootstrap]
+      operationId: setBootstrapPassword
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/BootstrapCapability'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootstrapPassword'
+      responses:
+        '200':
+          description: Password recorded; attempt remains at 0/0 pending confirmation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapProgress'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
           $ref: '#/components/responses/Problem'
   /v1/bootstrap/{attemptId}/recovery/download:
     post:
@@ -1181,39 +1206,89 @@ components:
           $ref: '#/components/schemas/WebAuthnAssertion'
       additionalProperties: false
     BootstrapProgress:
-      type: object
-      required: [attemptId, bootstrapState, recoveryKitId, authorizationState, deliveryState, downloadExpiresAt, installationState, ownerCount, workspaceCount]
-      properties:
-        attemptId:
-          $ref: '#/components/schemas/Uuid'
-        bootstrapState:
-          enum: [recovery-prepared, download-consumed]
-        recoveryKitId:
-          $ref: '#/components/schemas/Uuid'
-        authorizationState:
-          const: provisional
-        deliveryState:
-          enum: [prepared, downloadable, download-consumed]
-        downloadExpiresAt:
-          type: string
-          format: date-time
-        installationState:
-          const: uninitialized
-        ownerCount:
-          const: 0
-        workspaceCount:
-          const: 0
       oneOf:
-        - properties:
+        - type: object
+          required: [attemptId, bootstrapState, installationState, ownerCount, workspaceCount]
+          properties:
+            attemptId:
+              $ref: '#/components/schemas/Uuid'
+            bootstrapState:
+              const: credential-verified
+            installationState:
+              const: uninitialized
+            ownerCount:
+              const: 0
+            workspaceCount:
+              const: 0
+          additionalProperties: false
+        - type: object
+          required: [attemptId, bootstrapState, installationState, ownerCount, workspaceCount]
+          properties:
+            attemptId:
+              $ref: '#/components/schemas/Uuid'
+            bootstrapState:
+              const: password-set
+            installationState:
+              const: uninitialized
+            ownerCount:
+              const: 0
+            workspaceCount:
+              const: 0
+          additionalProperties: false
+        - type: object
+          required: [attemptId, bootstrapState, recoveryKitId, authorizationState, deliveryState, downloadExpiresAt, installationState, ownerCount, workspaceCount]
+          properties:
+            attemptId:
+              $ref: '#/components/schemas/Uuid'
             bootstrapState:
               const: recovery-prepared
+            recoveryKitId:
+              $ref: '#/components/schemas/Uuid'
+            authorizationState:
+              const: provisional
             deliveryState:
               enum: [prepared, downloadable]
-        - properties:
+            downloadExpiresAt:
+              type: string
+              format: date-time
+            installationState:
+              const: uninitialized
+            ownerCount:
+              const: 0
+            workspaceCount:
+              const: 0
+          additionalProperties: false
+        - type: object
+          required: [attemptId, bootstrapState, recoveryKitId, authorizationState, deliveryState, downloadExpiresAt, installationState, ownerCount, workspaceCount]
+          properties:
+            attemptId:
+              $ref: '#/components/schemas/Uuid'
             bootstrapState:
               const: download-consumed
+            recoveryKitId:
+              $ref: '#/components/schemas/Uuid'
+            authorizationState:
+              const: provisional
             deliveryState:
               const: download-consumed
+            downloadExpiresAt:
+              type: string
+              format: date-time
+            installationState:
+              const: uninitialized
+            ownerCount:
+              const: 0
+            workspaceCount:
+              const: 0
+          additionalProperties: false
+    BootstrapPassword:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 12
+          maxLength: 1024
       additionalProperties: false
     OfflineConfirmation:
       type: object
@@ -1242,16 +1317,14 @@ components:
       additionalProperties: false
     BootstrapOfflineConfirmation:
       type: object
-      required: [storedOffline, device]
+      required: [device]
       properties:
-        storedOffline:
-          const: true
         device:
           $ref: '#/components/schemas/BrowserDeviceClaim'
       additionalProperties: false
     BootstrapConfirmationResult:
       type: object
-      required: [attemptId, bootstrapState, installationState, ownerCount, workspaceCount, authorizationState, deliveryState]
+      required: [attemptId, bootstrapState, installationState, ownerCount, workspaceCount]
       properties:
         attemptId:
           $ref: '#/components/schemas/Uuid'
@@ -1263,10 +1336,6 @@ components:
           const: 1
         workspaceCount:
           const: 1
-        authorizationState:
-          const: active
-        deliveryState:
-          const: confirmed
       additionalProperties: false
     WebAuthnOptions:
       type: object

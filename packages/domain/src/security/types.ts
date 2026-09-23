@@ -65,6 +65,8 @@ export const INITIALIZED_COUNTS: InstallationCounts = { ownerCount: 1, workspace
 export const BOOTSTRAP_STATES = [
   "started",
   "credential-verified",
+  "password-set",
+  // Legacy kit-era states: readable for older rows; new attempts never enter them.
   "recovery-prepared",
   "download-consumed",
   "confirmed",

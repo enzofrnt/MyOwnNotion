@@ -228,6 +228,7 @@ describe("bootstrap attempts", () => {
     for (const state of [
       "started",
       "credential-verified",
+      "password-set",
       "recovery-prepared",
       "download-consumed",
     ]) {
@@ -249,8 +250,8 @@ describe("bootstrap attempts", () => {
     ).resolves.toBeDefined();
   });
 
-  it("refuses confirmation without a consumed download", async () => {
-    // Offline confirmation is mandatory; there is no shortcut to `confirmed`.
+  it("refuses confirmation without a verified credential challenge", async () => {
+    // Confirmed requires a challenge hash from passkey verification.
     await expect(
       insertAttempt("018f2b7c-0000-7000-8000-000000000103", "confirmed"),
     ).rejects.toSatisfy(violatesConstraint("bootstrap_attempts_confirmation_check"));

@@ -6,16 +6,14 @@ import path from "node:path";
 import { expect, it } from "vitest";
 import { protectFixtureKey } from "../../../scripts/e2e/private-fixture-key.ts";
 import { checkDeploymentKey, loadDeploymentKey } from "../../api/src/security/deployment-key.ts";
+import {
+  resolveWindowsPowerShellExecutable,
+  WINDOWS_ACL_POWERSHELL_TIMEOUT_MS,
+} from "../../api/src/security/windows-key-permissions.ts";
 
 function changeWindowsAcl(filename: string, change: "everyone" | "inheritance"): void {
   const result = spawnSync(
-    path.join(
-      process.env["SystemRoot"] ?? "C:\\Windows",
-      "System32",
-      "WindowsPowerShell",
-      "v1.0",
-      "powershell.exe",
-    ),
+    resolveWindowsPowerShellExecutable(),
     [
       "-NoProfile",
       "-NonInteractive",
@@ -36,7 +34,7 @@ function changeWindowsAcl(filename: string, change: "everyone" | "inheritance"):
       env: { ...process.env, MYOWNNOTION_ACL_PATH: filename, MYOWNNOTION_ACL_CHANGE: change },
       windowsHide: true,
       encoding: "utf8",
-      timeout: 10000,
+      timeout: WINDOWS_ACL_POWERSHELL_TIMEOUT_MS,
     },
   );
   expect(result.error).toBeUndefined();

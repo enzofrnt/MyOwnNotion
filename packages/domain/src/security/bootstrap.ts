@@ -1,5 +1,5 @@
 /**
- * Session-free bootstrap state machine (T029, feature 002).
+ * Session-free bootstrap state machine (T029 / T130, feature 002).
  *
  * Bootstrap is the only path that creates ownership, and it must work before
  * any session can exist — a session requires an owner, and there is no owner
@@ -7,24 +7,24 @@
  * duration of one attempt, not from a cookie.
  *
  * The property everything else hangs on: **every state before `confirmed` is
- * attempt-scoped.** Records exist, credentials are verified, a kit is
- * prepared — and the installation still reports `ownerCount=0` /
+ * attempt-scoped.** Records exist, credentials are verified, a password is
+ * recorded — and the installation still reports `ownerCount=0` /
  * `workspaceCount=0`, because none of it is committed ownership. A single
  * atomic promotion moves `0/0` to `1/1`. There is no instant in between, so a
  * crash, a race, or a refused request can never leave a usable half-owner.
  *
- * Three rules that are easy to get subtly wrong, and are enforced here rather
- * than in the service layer where a caller could forget them:
+ * Happy path (2026-09-22 clarifications):
  *
- *   1. **Confirmation requires a consumed download.** Downloading the recovery
- *      kit is not the same as confirming it was stored offline. Collapsing the
- *      two would let an owner reach `ready` with a kit they never saved.
- *   2. **Regeneration stays on the same attempt.** A new kit reuses the
- *      verified `attemptId` and the browser-held capability; the previous kit
- *      becomes `rejected/expired` and is never revived.
- *   3. **The 15-minute window is enforced on transition, not on read.** A
- *      request that arrives late fails, even if the clock was fine when the
- *      attempt started.
+ *   `started` → `credential-verified` → `password-set` → `confirmed`
+ *
+ * Incomplete attempts never commit ownership. Starting a new claim while still
+ * `0/0` abandons any incomplete open attempt so another browser can finish.
+ * Recovery-kit download and offline confirmation are settings concerns after
+ * readiness; they are not bootstrap steps.
+ *
+ * Legacy kit-era states (`recovery-prepared`, `download-consumed`) remain
+ * readable for older rows and may still be abandoned, but new attempts never
+ * enter them.
  */
 
 import {
@@ -42,6 +42,8 @@ export { BOOTSTRAP_CLAIM_WINDOW_MINUTES, BOOTSTRAP_KIT_WINDOW_MINUTES };
 export const OPEN_BOOTSTRAP_STATES = [
   "started",
   "credential-verified",
+  "password-set",
+  // Legacy kit-era open states: still abandonable, never entered by new flows.
   "recovery-prepared",
   "download-consumed",
 ] as const;
@@ -71,23 +73,16 @@ export function countsForBootstrapState(state: BootstrapState): InstallationCoun
 /**
  * The transition table.
  *
- * Note what is absent: there is no edge from `credential-verified` or
- * `recovery-prepared` straight to `confirmed`. The only route runs through
- * `download-consumed`, which is what makes offline confirmation mandatory
- * rather than advisory.
+ * Happy path: credential verification, then password, then confirmation.
+ * Legacy kit-era edges remain so old rows and tests can still abandon or
+ * regenerate historical attempts; new services must not drive them.
  */
 const TRANSITIONS: Readonly<Record<BootstrapState, readonly BootstrapState[]>> = {
   started: ["credential-verified", "abandoned", "rejected"],
-  "credential-verified": ["recovery-prepared", "abandoned", "rejected"],
-  // The self-loop is regeneration before any download: the owner never
-  // received a usable kit, or the window lapsed, and asks for another.
+  "credential-verified": ["password-set", "abandoned", "rejected", "recovery-prepared"],
+  "password-set": ["confirmed", "abandoned", "rejected"],
+  // Legacy kit-era transitions — kept for readable old rows only.
   "recovery-prepared": ["download-consumed", "recovery-prepared", "abandoned", "rejected"],
-  // `recovery-prepared` is reachable again from here, and only here, for
-  // regeneration. An owner who downloaded the kit and then lost the file
-  // before confirming can otherwise neither confirm (no kit) nor download
-  // again (one-time), and their only escape would be to abandon the attempt
-  // and re-verify their credential. The replacement kit is new; the one it
-  // supersedes becomes `rejected/expired` and is never revived.
   "download-consumed": ["confirmed", "recovery-prepared", "abandoned", "rejected"],
   confirmed: [],
   abandoned: [],
@@ -195,11 +190,36 @@ export function recordCredentialVerified(
 }
 
 /**
+ * Records an acceptable password alternative against the same attempt.
+ *
+ * Still `0/0`: the password hash is pending material until confirmation.
+ */
+export function recordPasswordSet(
+  attempt: BootstrapAttempt,
+  input: { now: Date },
+): BootstrapAttempt {
+  if (!attempt.credentialVerified) {
+    throw new BootstrapTransitionError(
+      attempt.state,
+      "password-set",
+      "no verified credential is held for this attempt",
+    );
+  }
+  assertTransition(attempt, "password-set");
+  return {
+    ...attempt,
+    state: "password-set",
+    updatedAt: input.now,
+  };
+}
+
+/**
  * Prepares the one provisional kit and opens its single 15-minute window.
  *
- * Called again for a regeneration: the same attempt, the same capability, a
- * new kit and a new window. The caller is responsible for rejecting the
- * previous kit, which `regenerationSupersedes` describes.
+ * Legacy kit-era helper. Kept for older rows and tests; the happy path never
+ * calls it. Called again for a regeneration: the same attempt, the same
+ * capability, a new kit and a new window. The caller is responsible for
+ * rejecting the previous kit, which `regenerationSupersedes` describes.
  */
 export function prepareRecovery(
   attempt: BootstrapAttempt,
@@ -250,10 +270,9 @@ export function regenerationSupersedes(attempt: BootstrapAttempt): {
 /**
  * Consumes the one download.
  *
- * Refuses a second consumption and a late one. The window is checked here, on
- * the transition, rather than when the attempt is read: a request that arrives
- * after the window closed must fail even though the attempt looked fine when
- * it started.
+ * Legacy kit-era helper. Refuses a second consumption and a late one. The
+ * window is checked here, on the transition, rather than when the attempt is
+ * read.
  */
 export function consumeDownload(
   attempt: BootstrapAttempt,
@@ -290,22 +309,25 @@ export function consumeDownload(
 }
 
 /**
- * The explicit offline confirmation that authorises the atomic promotion.
+ * Confirms the attempt and authorises the atomic promotion.
  *
- * Requires a consumed download and an open window. Confirming after the window
- * closed would mean the owner is attesting to a kit whose delivery already
- * expired — regeneration is the correct path there.
+ * Happy path: requires `password-set`. Legacy kit-era path from
+ * `download-consumed` still works for older rows that already consumed a kit.
  */
-export function confirmOfflineStorage(
+export function confirmBootstrap(
   attempt: BootstrapAttempt,
   input: { now: Date },
 ): BootstrapAttempt {
   assertTransition(attempt, "confirmed");
+  if (attempt.state === "password-set") {
+    return { ...attempt, state: "confirmed", updatedAt: input.now };
+  }
+  // Legacy: confirmation after a consumed download still requires an open window.
   if (attempt.downloadConsumedAt === null) {
     throw new BootstrapTransitionError(
       attempt.state,
       "confirmed",
-      "confirmation requires a consumed recovery download",
+      "confirmation requires a password or a consumed recovery download",
     );
   }
   if (!isDownloadWindowOpen(attempt, input.now)) {
@@ -319,16 +341,21 @@ export function confirmOfflineStorage(
 }
 
 /**
+ * @deprecated Use {@link confirmBootstrap}. Kept as an alias for legacy callers.
+ */
+export function confirmOfflineStorage(
+  attempt: BootstrapAttempt,
+  input: { now: Date },
+): BootstrapAttempt {
+  return confirmBootstrap(attempt, input);
+}
+
+/**
  * Whether an open attempt has sat long enough that a new claim may take over.
  *
- * Two deadlines, because an attempt has two stages. Once a kit is prepared the
- * download window governs. Before that there is no kit and no download
- * deadline, so the claim window governs — and that earlier stage is precisely
- * where an abandoned attempt used to be immortal, holding the installation's
- * only bootstrap slot with nothing to expire it.
- *
- * A terminal attempt is never stale: it is already finished, and the partial
- * unique index does not count it as open.
+ * With the 2026-09-22 clarifications, any incomplete open attempt is
+ * supersedable regardless of staleness — this helper remains for diagnostics
+ * and claim-window messaging. A terminal attempt is never stale.
  */
 export function isAttemptStale(attempt: BootstrapAttempt, now: Date): boolean {
   if (isTerminalBootstrapState(attempt.state)) {
@@ -354,13 +381,17 @@ export function rejectAttempt(attempt: BootstrapAttempt, now: Date): BootstrapAt
  * Expires an attempt whose window has closed without confirmation.
  *
  * A `confirmed` attempt is never expired by this: confirmation outlives the
- * delivery window, only the delivery does not.
+ * delivery window, only the delivery does not. Attempts on the password happy
+ * path have no download window and are not expired here.
  */
 export function expireAttemptIfDue(attempt: BootstrapAttempt, now: Date): BootstrapAttempt {
-  if (isTerminalBootstrapState(attempt.state) || isDownloadWindowOpen(attempt, now)) {
+  if (isTerminalBootstrapState(attempt.state) || attempt.downloadExpiresAt === null) {
     return attempt;
   }
-  return attempt.downloadExpiresAt === null ? attempt : rejectAttempt(attempt, now);
+  if (isDownloadWindowOpen(attempt, now)) {
+    return attempt;
+  }
+  return rejectAttempt(attempt, now);
 }
 
 function assertTransition(attempt: BootstrapAttempt, to: BootstrapState): void {
@@ -407,21 +438,15 @@ export function verifyAttemptCapability(
 }
 
 /**
- * Whether readiness may be declared.
+ * Whether bootstrap confirmation completed.
  *
- * Deliberately not "the owner exists": readiness also requires the recovery
- * kit to be confirmed. An installation with an owner and no confirmed offline
- * recovery is one lost device away from unrecoverable, which is the outcome
- * the whole bootstrap flow exists to prevent.
+ * Recovery-kit readiness is a separate settings concern after ownership
+ * commits; confirmed bootstrap alone means the installation is ready.
  */
 export function readinessSatisfied(input: {
   bootstrapState: BootstrapState;
-  recoveryAuthorizationState: string;
-  recoveryDeliveryState: string;
+  recoveryAuthorizationState?: string;
+  recoveryDeliveryState?: string;
 }): boolean {
-  return (
-    input.bootstrapState === "confirmed" &&
-    input.recoveryAuthorizationState === "active" &&
-    input.recoveryDeliveryState === "confirmed"
-  );
+  return input.bootstrapState === "confirmed";
 }

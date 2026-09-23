@@ -387,3 +387,24 @@ periods, cookie exception, migration boundaries, release topology, event-time
 semantics, evidence fields, and verification paths needed to implement the
 revised spec. There are no unresolved clarification markers in the feature
 artifacts.
+
+## Decision 18: First-run setup is passkey then password; recovery kit moves to settings (2026-09-22)
+
+**Decision**: Operator-facing bootstrap is exactly open → create passkey → create
+password → confirm. Incomplete attempts never commit ownership. Starting a new
+attempt while counts remain `0/0` abandons any incomplete open attempt, so a
+second browser is never locked out. Recovery-kit prepare/download/confirm live
+exclusively in authenticated settings after the installation is `ready`.
+
+**Rationale**: Forcing kit download during setup blocked operators who switched
+browsers mid-flow and conflated ownership with offline recovery readiness.
+Password must exist at first commit so the owner always has a non-passkey path
+immediately after setup. Recovery remains mandatory as a product capability, but
+not as a gate on installation readiness (product-canvas §8 and §28.4).
+
+**Alternatives considered**: Keep single-browser claim lock (rejected: produces
+the “another browser is configuring” dead-end); keep kit confirmation as
+readiness gate (rejected: product direction moved kit to settings); make
+password optional at bootstrap (rejected: operator asked for passkey then
+password as the complete setup).
+

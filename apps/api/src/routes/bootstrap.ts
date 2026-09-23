@@ -1,20 +1,11 @@
 /**
- * Session-free bootstrap routes (T032, feature 002).
+ * Session-free bootstrap routes (T032 / T133, feature 002).
  *
  * These are the only routes that operate without a session, because there is
  * no owner yet to have one. Authority comes from `X-Bootstrap-Capability`.
  *
- * Three rules the handlers enforce that are easy to lose in a refactor:
- *
- *   - **The capability travels in a header, never in a path or a query.** A
- *     URL lands in server logs, browser history, and `Referer`, all of which
- *     outlive the attempt.
- *   - **Every pre-confirmation response states `ownerCount: 0` explicitly.**
- *     The client renders it, so a regression that created an owner early would
- *     be visible in the response rather than only in the database.
- *   - **The bootstrap surface closes the moment ownership commits.** Once an
- *     owner exists these routes refuse; leaving them open is the most direct
- *     route to a second owner.
+ * Happy path: start → credential → password → confirm. Legacy recovery kit
+ * routes remain registered but are unused by the first-run UI.
  */
 
 import {
@@ -22,6 +13,8 @@ import {
   BootstrapConfirmationResultSchema,
   type BootstrapOfflineConfirmationDto,
   BootstrapOfflineConfirmationSchema,
+  type BootstrapPasswordDto,
+  BootstrapPasswordSchema,
   BootstrapProgressSchema,
   BootstrapStartedSchema,
   BootstrapStartSchema,
@@ -32,18 +25,13 @@ import { Type } from "@sinclair/typebox";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sendSecurityProblem, toSecurityProblem } from "../plugins/errors.ts";
 import type { BootstrapService } from "../security/bootstrap-service.ts";
+import { WeakPasswordError } from "../security/password-service.ts";
 import { checkReadiness } from "../security/private-route-guard.ts";
 import { requestContext, updateRequestContext } from "../security/request-context.ts";
 import { WebAuthnVerificationError } from "../security/webauthn-service.ts";
 
 const AttemptParams = Type.Object({ attemptId: Type.String({ format: "uuid" }) });
 
-/**
- * Reads the capability from its header.
- *
- * Absent is treated exactly like wrong: distinguishing them would tell a caller
- * whether a given attempt exists.
- */
 function capabilityFrom(request: FastifyRequest): string {
   const value = request.headers[BOOTSTRAP_CAPABILITY_HEADER];
   const capability = Array.isArray(value) ? value[0] : value;
@@ -53,13 +41,15 @@ function capabilityFrom(request: FastifyRequest): string {
   return capability;
 }
 
-/** Maps a bootstrap failure to its safe code. */
 function bootstrapProblemCode(error: unknown): string {
   if (error instanceof BootstrapCapabilityError) {
     return "bootstrap_capability_invalid";
   }
   if (error instanceof WebAuthnVerificationError) {
     return "authentication_failed";
+  }
+  if (error instanceof WeakPasswordError) {
+    return "validation_failed";
   }
   if (error instanceof BootstrapTransitionError) {
     return "conflict";
@@ -79,13 +69,6 @@ export interface BootstrapRouteDeps {
   readonly service: BootstrapService;
   /** Kits are streamed once and never colocated with workspace data. */
   readonly renderKit: (kitId: string) => Promise<string>;
-  /**
-   * Signs the new owner in, once ownership has committed.
-   *
-   * Injected rather than reached for directly so this module keeps knowing
-   * nothing about sessions: bootstrap is session-free right up to the moment
-   * it stops being, and that moment is a single call.
-   */
   readonly startSession: (input: {
     reply: FastifyReply;
     ownerId: string;
@@ -95,7 +78,6 @@ export interface BootstrapRouteDeps {
 }
 
 export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRouteDeps): void {
-  /** Rejects the request unless the installation is still uninitialized. */
   const requireUninitialized = (request: FastifyRequest, reply: FastifyReply): boolean => {
     const readiness = checkReadiness(requestContext(request), "uninitialized");
     if (!readiness.ready) {
@@ -143,7 +125,6 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
         });
         return reply.status(201).send({
           attemptId: started.attemptId,
-          // Response body only. Never a URL, never a log line.
           capability: started.capability,
           expiresAt: started.expiresAt.toISOString(),
           challenge: started.challenge,
@@ -173,7 +154,7 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
       const { attemptId } = request.params as { attemptId: string };
       const body = request.body as { credential: unknown };
       try {
-        const { attempt, kitId } = await deps.service.verifyCredential({
+        await deps.service.verifyCredential({
           attemptId,
           capability: capabilityFrom(request),
           response: body.credential,
@@ -181,13 +162,43 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
         });
         return reply.status(200).send({
           attemptId,
-          bootstrapState: "recovery-prepared",
-          recoveryKitId: kitId,
-          authorizationState: "provisional",
-          deliveryState: "downloadable",
-          downloadExpiresAt: (attempt.downloadExpiresAt ?? new Date()).toISOString(),
+          bootstrapState: "credential-verified",
           installationState: "uninitialized",
-          // Still no owner: the credential is held against the attempt.
+          ownerCount: 0,
+          workspaceCount: 0,
+        });
+      } catch (error) {
+        return fail(request, reply, error);
+      }
+    },
+  );
+
+  app.post(
+    "/v1/bootstrap/:attemptId/password",
+    {
+      schema: {
+        params: AttemptParams,
+        body: BootstrapPasswordSchema,
+        response: { 200: BootstrapProgressSchema, 409: SecurityProblemSchema },
+      },
+    },
+    async (request, reply) => {
+      if (!requireUninitialized(request, reply)) {
+        return reply;
+      }
+      const { attemptId } = request.params as { attemptId: string };
+      const body = request.body as BootstrapPasswordDto;
+      try {
+        await deps.service.setPassword({
+          attemptId,
+          capability: capabilityFrom(request),
+          password: body.password,
+          correlationId: requestContext(request).correlationId,
+        });
+        return reply.status(200).send({
+          attemptId,
+          bootstrapState: "password-set",
+          installationState: "uninitialized",
           ownerCount: 0,
           workspaceCount: 0,
         });
@@ -206,29 +217,19 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
       }
       const { attemptId } = request.params as { attemptId: string };
       try {
-        // No request body: the capability is the only thing the client holds.
-        // One-time-ness is a server-side property, not something the caller
-        // proves by presenting a second secret.
         const attempt = await deps.service.consumeKitDownload({
           attemptId,
           capability: capabilityFrom(request),
           correlationId: requestContext(request).correlationId,
         });
         const artifact = await deps.renderKit(attempt.recoveryKitId ?? "");
-        // Streamed as an attachment: the kit is never rendered into a page
-        // where a browser extension or a screenshot could capture it.
-        return (
-          reply
-            .status(200)
-            .header("content-type", "application/json")
-            .header("content-disposition", 'attachment; filename="myownnotion-recovery.json"')
-            .header("cache-control", "no-store")
-            // The contract pins this header: the client learns the download is
-            // spent from the same response that carries the kit, so a retry
-            // after a partial save is a regeneration rather than a second GET.
-            .header("x-recovery-download-consumed", "true")
-            .send(artifact)
-        );
+        return reply
+          .status(200)
+          .header("content-type", "application/json")
+          .header("content-disposition", 'attachment; filename="myownnotion-recovery.json"')
+          .header("cache-control", "no-store")
+          .header("x-recovery-download-consumed", "true")
+          .send(artifact);
       } catch (error) {
         return fail(request, reply, error);
       }
@@ -296,15 +297,6 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
           correlationId: requestContext(request).correlationId,
         });
 
-        // Setup ends signed in. The owner proved possession of their passkey
-        // seconds ago; sending them to a sign-in screen to prove it again is
-        // friction with no security gain, and an owner who has just finished a
-        // careful ceremony reads it as the ceremony having failed.
-        //
-        // Only the cookie is set here. The CSRF token is not added to the
-        // response body because the contract pins that shape exactly — the
-        // client reads it from `GET /v1/auth/session`, which it calls on load
-        // anyway.
         await deps.startSession({
           reply,
           ownerId: promoted.ownerId,
@@ -312,16 +304,12 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
           correlationId: requestContext(request).correlationId,
         });
 
-        // The one response shape that can only exist after the atomic
-        // promotion: every field is a constant the contract pins.
         return reply.status(200).send({
           attemptId,
           bootstrapState: "confirmed",
           installationState: "ready",
           ownerCount: 1,
           workspaceCount: 1,
-          authorizationState: "active",
-          deliveryState: "confirmed",
         });
       } catch (error) {
         return fail(request, reply, error);

@@ -331,11 +331,11 @@ describe("retrying after a fault", () => {
     const attempt = await findAttempt(harness.built.database.db, started.attemptId);
     expect(attempt?.state).toBe("started");
 
-    // Still the live attempt, so a fresh claim is still refused — the slot was
-    // not silently released by the failure.
-    await expect(
-      bootstrap.start({ clientNonce: "m".repeat(24), correlationId: "c2" }),
-    ).rejects.toThrow();
+    // A fresh claim supersedes the incomplete attempt rather than locking out.
+    const second = await bootstrap.start({ clientNonce: "m".repeat(24), correlationId: "c2" });
+    expect(second.attemptId).not.toBe(started.attemptId);
+    const previous = await findAttempt(harness.built.database.db, started.attemptId);
+    expect(previous?.state).toBe("abandoned");
   });
 
   it("a wrong capability after a fault is refused exactly like any other", async () => {

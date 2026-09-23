@@ -7,6 +7,7 @@ export * from "./field.tsx";
 export * from "./live-region.tsx";
 export * from "./menu.tsx";
 export * from "./overlay-scroll-area.tsx";
+export * from "./overlay-scroll-area.tsx";
 export * from "./popover.tsx";
 export * from "./status.tsx";
 export * from "./switch.tsx";

@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { chmodSync } from "node:fs";
-import path from "node:path";
-import { hasPrivateWindowsKeyAcl } from "../../apps/api/src/security/windows-key-permissions.ts";
+import {
+  hasPrivateWindowsKeyAcl,
+  resolveWindowsPowerShellExecutable,
+  WINDOWS_ACL_POWERSHELL_TIMEOUT_MS,
+} from "../../apps/api/src/security/windows-key-permissions.ts";
 
 /** Only the newly generated disposable fixture key is changed. */
 export function protectFixtureKey(filename: string): void {
@@ -10,13 +13,7 @@ export function protectFixtureKey(filename: string): void {
     return;
   }
   const result = spawnSync(
-    path.join(
-      process.env["SystemRoot"] ?? "C:\\Windows",
-      "System32",
-      "WindowsPowerShell",
-      "v1.0",
-      "powershell.exe",
-    ),
+    resolveWindowsPowerShellExecutable(),
     [
       "-NoProfile",
       "-NonInteractive",
@@ -34,11 +31,23 @@ export function protectFixtureKey(filename: string): void {
     {
       encoding: "utf8",
       windowsHide: true,
-      timeout: 10_000,
+      timeout: WINDOWS_ACL_POWERSHELL_TIMEOUT_MS,
       maxBuffer: 65536,
       env: { ...process.env, MYOWNNOTION_ACL_PATH: filename },
     },
   );
-  if (result.error !== undefined || result.status !== 0 || !hasPrivateWindowsKeyAcl(filename))
-    throw new Error("The native journey deployment key could not be restricted to its owner.");
+  if (result.error !== undefined || result.status !== 0 || !hasPrivateWindowsKeyAcl(filename)) {
+    const detail = [
+      result.error?.message,
+      result.status === null ? undefined : `status=${result.status}`,
+      result.stderr?.trim() || undefined,
+    ]
+      .filter((part): part is string => part !== undefined && part.length > 0)
+      .join("; ");
+    throw new Error(
+      detail.length === 0
+        ? "The native journey deployment key could not be restricted to its owner."
+        : `The native journey deployment key could not be restricted to its owner (${detail}).`,
+    );
+  }
 }

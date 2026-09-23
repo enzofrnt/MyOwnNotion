@@ -1,15 +1,20 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const processResult = vi.hoisted(() => vi.fn());
 const fileFault = vi.hoisted(() => ({ operation: "" }));
+const existingPaths = vi.hoisted(() => new Set<string>());
 vi.mock("node:child_process", () => ({ spawnSync: processResult }));
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
   return {
     ...actual,
+    existsSync: (filename: Parameters<typeof actual.existsSync>[0]) => {
+      if (existingPaths.has(String(filename))) return true;
+      return actual.existsSync(filename);
+    },
     accessSync: (...args: Parameters<typeof actual.accessSync>) => {
       if (fileFault.operation === "access") throw new Error("fixture access denied");
       return actual.accessSync(...args);
@@ -25,8 +30,40 @@ import { checkDeploymentKey, loadDeploymentKey } from "../src/security/deploymen
 import {
   hasPrivateWindowsKeyAcl,
   isPrivateWindowsKeyAcl,
+  resolveWindowsPowerShellExecutable,
   WindowsKeyAclVerifier,
 } from "../src/security/windows-key-permissions.ts";
+
+afterEach(() => {
+  existingPaths.clear();
+});
+
+function withWindowsInstallRoots(
+  roots: {
+    readonly ProgramFiles?: string;
+    readonly "ProgramFiles(x86)"?: string;
+    readonly SystemRoot?: string;
+  },
+  run: () => void,
+): void {
+  const keys = ["ProgramFiles", "ProgramFiles(x86)", "SystemRoot"] as const;
+  const previous = new Map<string, string | undefined>();
+  for (const key of keys) {
+    previous.set(key, process.env[key]);
+    const next = roots[key];
+    if (next === undefined) delete process.env[key];
+    else process.env[key] = next;
+  }
+  try {
+    run();
+  } finally {
+    for (const key of keys) {
+      const value = previous.get(key);
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
 
 const valid = {
   currentSid: "S-1-5-21-123",
@@ -172,12 +209,41 @@ describe("Windows deployment key ACL validation", () => {
     processResult.mockReturnValue({ status: 0, stdout: JSON.stringify(valid) });
     expect(hasPrivateWindowsKeyAcl("C:\\fixture\\private key")).toBe(true);
     const call = processResult.mock.calls.at(-1);
+    expect(call?.[0]).toMatch(/powershell\.exe$|pwsh\.exe$/i);
     expect(call?.[1].join(" ")).not.toContain("C:\\fixture\\private key");
     expect(call?.[2]).toMatchObject({
       windowsHide: true,
-      timeout: 10000,
+      timeout: 30_000,
       env: { MYOWNNOTION_ACL_PATH: "C:\\fixture\\private key" },
     });
+  });
+  it("prefers PowerShell 7 when present on Windows", () => {
+    withWindowsInstallRoots({}, () => {
+      const pwsh = path.join("C:\\Program Files", "PowerShell", "7", "pwsh.exe");
+      const x86 = path.join("C:\\Program Files (x86)", "PowerShell", "7", "pwsh.exe");
+      const legacy = path.join(
+        "C:\\Windows",
+        "System32",
+        "WindowsPowerShell",
+        "v1.0",
+        "powershell.exe",
+      );
+      existingPaths.add(pwsh);
+      expect(resolveWindowsPowerShellExecutable()).toBe(pwsh);
+      existingPaths.clear();
+      existingPaths.add(x86);
+      expect(resolveWindowsPowerShellExecutable()).toBe(x86);
+      existingPaths.clear();
+      expect(resolveWindowsPowerShellExecutable()).toBe(legacy);
+    });
+    withWindowsInstallRoots(
+      { ProgramFiles: "D:\\Apps", "ProgramFiles(x86)": "D:\\Apps86", SystemRoot: "D:\\Win" },
+      () => {
+        const customPwsh = path.join("D:\\Apps", "PowerShell", "7", "pwsh.exe");
+        existingPaths.add(customPwsh);
+        expect(resolveWindowsPowerShellExecutable()).toBe(customPwsh);
+      },
+    );
   });
 });
 

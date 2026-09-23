@@ -123,7 +123,7 @@ fichier, ouvrir un lien approuvé et refuser un lien dangereux au clavier.
 
 ### Implementation for User Story 3
 
-- [X] T042 [US3] Implémenter la coordination single-instance, l’activation de la fenêtre et les événements de cycle de vie dans `apps/desktop/src/main.ts` (verrou natif Electron).
+- [X] T042 [US3] Implémenter la coordination single-instance, l’activation de la fenêtre et les événements de cycle de vie dans `apps/desktop/src/main.ts` et `apps/desktop/src/single-instance.ts` (verrou natif Electron).
 - [X] T043 [US3] Implémenter la persistance atomique de `WindowState` avec validation des écrans et moniteurs dans `apps/desktop/src/window-state.ts`.
 - [X] T044 [US3] Implémenter menus, raccourcis, dialogues de fichier et drag-and-drop via capacités typées dans `apps/desktop/src/native-capabilities.ts` et `apps/desktop/src/menu.ts`.
 - [X] T045 [US3] Implémenter la politique d’ouverture externe et le blocage des schémas non sûrs dans `apps/desktop/src/external-links.ts`.

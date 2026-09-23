@@ -254,16 +254,11 @@ export type BootstrapCredentialVerificationDto = Static<
 /**
  * Progress while the attempt is still attempt-scoped.
  *
- * The two variants pair `bootstrapState` with the delivery states it can
- * legally be in, so a `download-consumed` attempt cannot report itself as
- * still `downloadable` — that pairing is what makes the one-time download
- * observable from the outside.
+ * Happy path reports `credential-verified` then `password-set`. Legacy
+ * kit-era variants remain for older clients that still speak recovery states.
  */
 const bootstrapProgressCommon = {
   attemptId: SecurityUuidSchema,
-  recoveryKitId: SecurityUuidSchema,
-  authorizationState: Type.Literal("provisional"),
-  downloadExpiresAt: DateTime,
   installationState: Type.Literal("uninitialized"),
   ownerCount: Type.Literal(0),
   workspaceCount: Type.Literal(0),
@@ -273,8 +268,26 @@ export const BootstrapProgressSchema = Type.Union([
   Type.Object(
     {
       ...bootstrapProgressCommon,
+      bootstrapState: Type.Literal("credential-verified"),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...bootstrapProgressCommon,
+      bootstrapState: Type.Literal("password-set"),
+    },
+    { additionalProperties: false },
+  ),
+  // Legacy kit-era progress shapes (readable; not produced by the happy path).
+  Type.Object(
+    {
+      ...bootstrapProgressCommon,
       bootstrapState: Type.Literal("recovery-prepared"),
+      recoveryKitId: SecurityUuidSchema,
+      authorizationState: Type.Literal("provisional"),
       deliveryState: Type.Union([Type.Literal("prepared"), Type.Literal("downloadable")]),
+      downloadExpiresAt: DateTime,
     },
     { additionalProperties: false },
   ),
@@ -282,32 +295,40 @@ export const BootstrapProgressSchema = Type.Union([
     {
       ...bootstrapProgressCommon,
       bootstrapState: Type.Literal("download-consumed"),
+      recoveryKitId: SecurityUuidSchema,
+      authorizationState: Type.Literal("provisional"),
       deliveryState: Type.Literal("download-consumed"),
+      downloadExpiresAt: DateTime,
     },
     { additionalProperties: false },
   ),
 ]);
 export type BootstrapProgressDto = Static<typeof BootstrapProgressSchema>;
 
-/** Offline confirmation is an explicit act; `true` is the only accepted value. */
+/** Offline confirmation for settings recovery kits; `true` is the only accepted value. */
 export const OfflineConfirmationSchema = Type.Object(
   { storedOffline: Type.Literal(true) },
   { additionalProperties: false },
 );
 export type OfflineConfirmationDto = Static<typeof OfflineConfirmationSchema>;
 
-/** Bootstrap also establishes the first durable browser-device binding. */
+/** Bootstrap confirmation establishes the first durable browser-device binding. */
 export const BootstrapOfflineConfirmationSchema = Type.Object(
-  { storedOffline: Type.Literal(true), device: BrowserDeviceClaimSchema },
+  { device: BrowserDeviceClaimSchema },
   { additionalProperties: false },
 );
 export type BootstrapOfflineConfirmationDto = Static<typeof BootstrapOfflineConfirmationSchema>;
 
+/** Password alternative recorded during first-run bootstrap. */
+export const BootstrapPasswordSchema = Type.Object(
+  { password: Type.String({ minLength: 12, maxLength: 1024 }) },
+  { additionalProperties: false },
+);
+export type BootstrapPasswordDto = Static<typeof BootstrapPasswordSchema>;
+
 /**
  * The single response shape that proves the atomic promotion happened: the
- * attempt is `confirmed`, the installation is `ready`, the counts are `1/1`,
- * and the kit reached `active/confirmed`. Every field is a constant, so this
- * response cannot be produced by a partially completed bootstrap.
+ * attempt is `confirmed`, the installation is `ready`, and the counts are `1/1`.
  */
 export const BootstrapConfirmationResultSchema = Type.Object(
   {
@@ -316,8 +337,6 @@ export const BootstrapConfirmationResultSchema = Type.Object(
     installationState: Type.Literal("ready"),
     ownerCount: Type.Literal(1),
     workspaceCount: Type.Literal(1),
-    authorizationState: Type.Literal("active"),
-    deliveryState: Type.Literal("confirmed"),
   },
   { additionalProperties: false },
 );

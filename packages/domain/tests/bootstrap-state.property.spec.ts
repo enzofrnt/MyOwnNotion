@@ -25,7 +25,7 @@ import {
   type BootstrapState,
   BootstrapTransitionError,
   canTransitionBootstrap,
-  confirmOfflineStorage,
+  confirmBootstrap,
   consumeDownload,
   countsForBootstrapState,
   downloadWindowEnd,
@@ -37,6 +37,7 @@ import {
   prepareRecovery,
   readinessSatisfied,
   recordCredentialVerified,
+  recordPasswordSet,
   regenerationSupersedes,
   rejectAttempt,
   startAttempt,
@@ -119,18 +120,18 @@ describe("transition table", () => {
     }
   });
 
-  it("reaches confirmed only from download-consumed", () => {
-    // Downloading the kit is not the same as confirming it was stored offline.
+  it("reaches confirmed from password-set (happy path) or download-consumed (legacy)", () => {
     const reaching = BOOTSTRAP_STATES.filter((state) =>
       allowedBootstrapTransitions(state).includes("confirmed"),
     );
-    expect(reaching).toEqual(["download-consumed"]);
+    expect(reaching.sort()).toEqual(["download-consumed", "password-set"].sort());
   });
 
   it("offers no shortcut from credential verification to confirmation", () => {
     expect(canTransitionBootstrap("credential-verified", "confirmed")).toBe(false);
     expect(canTransitionBootstrap("recovery-prepared", "confirmed")).toBe(false);
     expect(canTransitionBootstrap("started", "confirmed")).toBe(false);
+    expect(canTransitionBootstrap("password-set", "confirmed")).toBe(true);
   });
 
   it("treats every terminal state as terminal", () => {
@@ -146,12 +147,11 @@ describe("transition table", () => {
     }
   });
 
-  it("never moves backwards, except for regeneration", () => {
+  it("never moves backwards on the happy path, except for legacy kit regeneration", () => {
     const forward: BootstrapState[] = [
       "started",
       "credential-verified",
-      "recovery-prepared",
-      "download-consumed",
+      "password-set",
       "confirmed",
     ];
     fc.assert(
@@ -159,27 +159,15 @@ describe("transition table", () => {
         if (!canTransitionBootstrap(from, to)) {
           return;
         }
-        // The only exception is regeneration, which re-enters
-        // `recovery-prepared`. It rewinds the *delivery* and nothing else: the
-        // verified credential is kept and the superseded kit is rejected
-        // rather than revived. Confirmation is never rewound.
-        const isRegeneration =
-          to === "recovery-prepared" &&
-          (from === "recovery-prepared" || from === "download-consumed");
-        expect(isRegeneration || forward.indexOf(to) > forward.indexOf(from)).toBe(true);
+        expect(forward.indexOf(to) > forward.indexOf(from)).toBe(true);
       }),
       { numRuns: 150 },
     );
   });
 
-  it("allows regeneration after a lost download, so the owner is never stuck", () => {
-    // Without this edge, an owner who downloaded the kit and lost it before
-    // confirming could neither confirm nor re-download.
+  it("keeps legacy kit regeneration edges for old rows", () => {
     expect(canTransitionBootstrap("download-consumed", "recovery-prepared")).toBe(true);
-    // And before any download, when the window simply lapsed.
     expect(canTransitionBootstrap("recovery-prepared", "recovery-prepared")).toBe(true);
-    // Regeneration never rewinds past the delivery: the verified credential
-    // stands, and confirmation is never undone.
     expect(canTransitionBootstrap("confirmed", "recovery-prepared")).toBe(false);
     expect(canTransitionBootstrap("recovery-prepared", "credential-verified")).toBe(false);
     expect(canTransitionBootstrap("download-consumed", "started")).toBe(false);
@@ -192,6 +180,20 @@ describe("credential verification", () => {
     expect(attempt.state).toBe("credential-verified");
     expect(attempt.credentialVerified).toBe(true);
     expect(countsForBootstrapState(attempt.state)).toEqual({ ownerCount: 0, workspaceCount: 0 });
+  });
+
+  it("records a password without creating an owner", () => {
+    const attempt = recordPasswordSet(verified(), { now: at(2) });
+    expect(attempt.state).toBe("password-set");
+    expect(countsForBootstrapState(attempt.state)).toEqual({ ownerCount: 0, workspaceCount: 0 });
+  });
+
+  it("confirms from password-set without a recovery kit", () => {
+    const attempt = confirmBootstrap(recordPasswordSet(verified(), { now: at(2) }), {
+      now: at(3),
+    });
+    expect(attempt.state).toBe("confirmed");
+    expect(countsForBootstrapState(attempt.state)).toEqual({ ownerCount: 1, workspaceCount: 1 });
   });
 
   it("refuses to prepare a kit without a verified credential", () => {
@@ -257,7 +259,7 @@ describe("the one-time 15-minute download", () => {
 
 describe("offline confirmation", () => {
   it("promotes to confirmed and 1/1 only after a consumed download", () => {
-    const confirmed = confirmOfflineStorage(consumed(), { now: at(4) });
+    const confirmed = confirmBootstrap(consumed(), { now: at(4) });
     expect(confirmed.state).toBe("confirmed");
     expect(countsForBootstrapState(confirmed.state)).toEqual({ ownerCount: 1, workspaceCount: 1 });
   });
@@ -265,40 +267,30 @@ describe("offline confirmation", () => {
   it("refuses confirmation without a consumed download", () => {
     // The whole point: an owner must not reach `ready` with a kit they never
     // saved.
-    expect(() => confirmOfflineStorage(prepared(), { now: at(3) })).toThrow(
-      BootstrapTransitionError,
-    );
+    expect(() => confirmBootstrap(prepared(), { now: at(3) })).toThrow(BootstrapTransitionError);
   });
 
   it("refuses confirmation after the window closed", () => {
     const attempt = consumed(at(3));
     expect(() =>
-      confirmOfflineStorage(attempt, { now: at(2 + BOOTSTRAP_KIT_WINDOW_MINUTES + 1) }),
+      confirmBootstrap(attempt, { now: at(2 + BOOTSTRAP_KIT_WINDOW_MINUTES + 1) }),
     ).toThrow(BootstrapTransitionError);
   });
 
-  it("requires the confirmed kit for readiness, not just an owner", () => {
-    // An installation with an owner and no confirmed offline recovery is one
-    // lost device away from unrecoverable.
+  it("treats confirmed bootstrap as readiness without a kit", () => {
     expect(
       readinessSatisfied({
         bootstrapState: "confirmed",
-        recoveryAuthorizationState: "active",
-        recoveryDeliveryState: "confirmed",
       }),
     ).toBe(true);
     expect(
       readinessSatisfied({
-        bootstrapState: "confirmed",
-        recoveryAuthorizationState: "provisional",
-        recoveryDeliveryState: "download-consumed",
+        bootstrapState: "password-set",
       }),
     ).toBe(false);
     expect(
       readinessSatisfied({
         bootstrapState: "download-consumed",
-        recoveryAuthorizationState: "active",
-        recoveryDeliveryState: "confirmed",
       }),
     ).toBe(false);
   });
@@ -383,7 +375,7 @@ describe("capability verification", () => {
     for (const terminal of [
       abandonAttempt(prepared(), at(4)),
       rejectAttempt(prepared(), at(4)),
-      confirmOfflineStorage(consumed(), at(4) && { now: at(4) }),
+      confirmBootstrap(consumed(), at(4) && { now: at(4) }),
     ]) {
       expect(
         () =>
@@ -408,7 +400,7 @@ describe("interruption and expiry", () => {
 
   it("never expires a confirmed attempt", () => {
     // Confirmation outlives the delivery window; only the delivery does not.
-    const confirmed = confirmOfflineStorage(consumed(), { now: at(4) });
+    const confirmed = confirmBootstrap(consumed(), { now: at(4) });
     expect(expireAttemptIfDue(confirmed, at(10_000))).toEqual(confirmed);
   });
 

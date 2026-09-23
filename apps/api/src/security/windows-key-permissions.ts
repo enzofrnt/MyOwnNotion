@@ -1,11 +1,42 @@
 import { spawnSync } from "node:child_process";
-import { type BigIntStats, statSync } from "node:fs";
+import { type BigIntStats, existsSync, statSync } from "node:fs";
 import path from "node:path";
 
 type KeyFileStat = Pick<
   BigIntStats,
   "isFile" | "dev" | "ino" | "ctimeNs" | "mtimeNs" | "birthtimeNs" | "size"
 >;
+
+/**
+ * Prefer PowerShell 7 (`pwsh`) when present. Windows PowerShell 5.1 under
+ * `windows-11-arm` x64 emulation regularly hangs long enough to trip fixture
+ * timeouts; GitHub's runners ship `pwsh` and it finishes ACL work promptly.
+ */
+export function resolveWindowsPowerShellExecutable(): string {
+  const candidates = [
+    path.join(process.env["ProgramFiles"] ?? "C:\\Program Files", "PowerShell", "7", "pwsh.exe"),
+    path.join(
+      process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)",
+      "PowerShell",
+      "7",
+      "pwsh.exe",
+    ),
+    path.join(
+      process.env["SystemRoot"] ?? "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    ),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return candidates[candidates.length - 1] as string;
+}
+
+/** Shared budget for ACL Set/Get under slow ARM runners. */
+export const WINDOWS_ACL_POWERSHELL_TIMEOUT_MS = 30_000;
 
 function fileIdentity(stats: KeyFileStat): string | null {
   if (!stats.isFile()) return null;
@@ -119,13 +150,7 @@ export function isPrivateWindowsKeyAcl(value: unknown): boolean {
 /** Query only the descriptor; key bytes never enter a child process or its output. */
 export function hasPrivateWindowsKeyAcl(filename: string): boolean {
   const result = spawnSync(
-    path.join(
-      process.env["SystemRoot"] ?? "C:\\Windows",
-      "System32",
-      "WindowsPowerShell",
-      "v1.0",
-      "powershell.exe",
-    ),
+    resolveWindowsPowerShellExecutable(),
     [
       "-NoProfile",
       "-NonInteractive",
@@ -145,7 +170,7 @@ export function hasPrivateWindowsKeyAcl(filename: string): boolean {
     {
       encoding: "utf8",
       windowsHide: true,
-      timeout: 10_000,
+      timeout: WINDOWS_ACL_POWERSHELL_TIMEOUT_MS,
       maxBuffer: 65536,
       env: { ...process.env, MYOWNNOTION_ACL_PATH: filename },
     },

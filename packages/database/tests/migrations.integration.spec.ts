@@ -30,6 +30,7 @@ describe("reviewed SQL migrations", () => {
     expect(applied).toContain("0011_page_operation_compaction_indexes");
     expect(applied).toContain("0012_upload_attachment_parent");
     expect(applied).toContain("0013_item_icons");
+    expect(applied).toContain("0018_bootstrap_password_setup");
   });
 
   it("adds a nullable item icon with file and length guards", async () => {
@@ -352,6 +353,7 @@ describe("reviewed SQL migrations", () => {
         "0015_protected_file_storage",
         "0016_linked_databases",
         "0017_mcp_access",
+        "0018_bootstrap_password_setup",
       ]);
       const { rows } = await client.query<{
         format_version: number;
