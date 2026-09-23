@@ -175,7 +175,7 @@ describe("Windows deployment key ACL validation", () => {
     expect(call?.[1].join(" ")).not.toContain("C:\\fixture\\private key");
     expect(call?.[2]).toMatchObject({
       windowsHide: true,
-      timeout: 10000,
+      timeout: 30_000,
       env: { MYOWNNOTION_ACL_PATH: "C:\\fixture\\private key" },
     });
   });
