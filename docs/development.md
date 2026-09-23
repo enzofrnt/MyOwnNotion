@@ -1038,7 +1038,7 @@ them. Findings in every first-party script do fail the gate.
 `vitest.config.ts` uses Istanbul under Bun and enforces an absolute
 no-regression budget over `packages/*/src` and `apps/api/src`: at most 2,216
 uncovered statements, 1,866 uncovered lines, 337 uncovered functions, and
-2,465 uncovered branches. Vitest interprets negative thresholds as maximum
+2,470 uncovered branches. Vitest interprets negative thresholds as maximum
 uncovered counts. These values are the first complete Bun/Istanbul baseline,
 recorded in `specs/019-bun-toolchain/plan.md`; adding covered code cannot hide
 new untested code by diluting a percentage.

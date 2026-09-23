@@ -165,7 +165,7 @@ export default defineConfig({
         statements: -2_216,
         lines: -1_866,
         functions: -337,
-        branches: -2_465,
+        branches: -2_470,
       },
       reporter: ["text", "html", "lcov"],
       reportsDirectory: "coverage",

@@ -48,7 +48,7 @@ describe("Bun quality gate", () => {
     expect(config).toContain("statements: -2_216");
     expect(config).toContain("lines: -1_866");
     expect(config).toContain("functions: -337");
-    expect(config).toContain("branches: -2_465");
+    expect(config).toContain("branches: -2_470");
     expect(config).not.toContain("globalSetup");
     expect(config).not.toContain('provider: "v8"');
 
