@@ -25,6 +25,7 @@ import { checkDeploymentKey, loadDeploymentKey } from "../src/security/deploymen
 import {
   hasPrivateWindowsKeyAcl,
   isPrivateWindowsKeyAcl,
+  resolveWindowsPowerShellExecutable,
   WindowsKeyAclVerifier,
 } from "../src/security/windows-key-permissions.ts";
 
@@ -172,12 +173,18 @@ describe("Windows deployment key ACL validation", () => {
     processResult.mockReturnValue({ status: 0, stdout: JSON.stringify(valid) });
     expect(hasPrivateWindowsKeyAcl("C:\\fixture\\private key")).toBe(true);
     const call = processResult.mock.calls.at(-1);
+    expect(call?.[0]).toMatch(/powershell\.exe$|pwsh\.exe$/i);
     expect(call?.[1].join(" ")).not.toContain("C:\\fixture\\private key");
     expect(call?.[2]).toMatchObject({
       windowsHide: true,
       timeout: 30_000,
       env: { MYOWNNOTION_ACL_PATH: "C:\\fixture\\private key" },
     });
+  });
+  it("prefers PowerShell 7 when present on Windows", () => {
+    const executable = resolveWindowsPowerShellExecutable();
+    expect(executable.length).toBeGreaterThan(0);
+    expect(executable).toMatch(/powershell\.exe$|pwsh\.exe$/i);
   });
 });
 

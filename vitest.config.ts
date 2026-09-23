@@ -78,6 +78,10 @@ export default defineConfig({
           root: "apps/desktop",
           environment: "node",
           include: ["tests/**/*.spec.ts"],
+          // Native ACL helpers spawn PowerShell synchronously; ARM runners need
+          // the same budget as other long desktop suites.
+          testTimeout: 120_000,
+          hookTimeout: 180_000,
         },
       },
       {

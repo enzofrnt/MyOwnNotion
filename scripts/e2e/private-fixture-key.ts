@@ -1,14 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { chmodSync } from "node:fs";
-import path from "node:path";
-import { hasPrivateWindowsKeyAcl } from "../../apps/api/src/security/windows-key-permissions.ts";
-
-/**
- * PowerShell cold-start under Windows on ARM (x64 emulation on
- * `windows-11-arm` runners) regularly exceeds a short 10s budget. Keep the
- * ACL boundary identical; only give the fixture helper time to finish.
- */
-const WINDOWS_ACL_POWERSHELL_TIMEOUT_MS = 30_000;
+import {
+  hasPrivateWindowsKeyAcl,
+  resolveWindowsPowerShellExecutable,
+  WINDOWS_ACL_POWERSHELL_TIMEOUT_MS,
+} from "../../apps/api/src/security/windows-key-permissions.ts";
 
 /** Only the newly generated disposable fixture key is changed. */
 export function protectFixtureKey(filename: string): void {
@@ -17,13 +13,7 @@ export function protectFixtureKey(filename: string): void {
     return;
   }
   const result = spawnSync(
-    path.join(
-      process.env["SystemRoot"] ?? "C:\\Windows",
-      "System32",
-      "WindowsPowerShell",
-      "v1.0",
-      "powershell.exe",
-    ),
+    resolveWindowsPowerShellExecutable(),
     [
       "-NoProfile",
       "-NonInteractive",
