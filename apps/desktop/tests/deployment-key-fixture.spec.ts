@@ -36,7 +36,9 @@ function changeWindowsAcl(filename: string, change: "everyone" | "inheritance"):
       env: { ...process.env, MYOWNNOTION_ACL_PATH: filename, MYOWNNOTION_ACL_CHANGE: change },
       windowsHide: true,
       encoding: "utf8",
-      timeout: 10000,
+      // Keep pace with protectFixtureKey on windows-11-arm (PowerShell under
+      // x64 emulation regularly exceeds a 10s cold-start budget).
+      timeout: 30_000,
     },
   );
   expect(result.error).toBeUndefined();

@@ -3,6 +3,13 @@ import { chmodSync } from "node:fs";
 import path from "node:path";
 import { hasPrivateWindowsKeyAcl } from "../../apps/api/src/security/windows-key-permissions.ts";
 
+/**
+ * PowerShell cold-start under Windows on ARM (x64 emulation on
+ * `windows-11-arm` runners) regularly exceeds a short 10s budget. Keep the
+ * ACL boundary identical; only give the fixture helper time to finish.
+ */
+const WINDOWS_ACL_POWERSHELL_TIMEOUT_MS = 30_000;
+
 /** Only the newly generated disposable fixture key is changed. */
 export function protectFixtureKey(filename: string): void {
   if (process.platform !== "win32") {
@@ -34,11 +41,23 @@ export function protectFixtureKey(filename: string): void {
     {
       encoding: "utf8",
       windowsHide: true,
-      timeout: 10_000,
+      timeout: WINDOWS_ACL_POWERSHELL_TIMEOUT_MS,
       maxBuffer: 65536,
       env: { ...process.env, MYOWNNOTION_ACL_PATH: filename },
     },
   );
-  if (result.error !== undefined || result.status !== 0 || !hasPrivateWindowsKeyAcl(filename))
-    throw new Error("The native journey deployment key could not be restricted to its owner.");
+  if (result.error !== undefined || result.status !== 0 || !hasPrivateWindowsKeyAcl(filename)) {
+    const detail = [
+      result.error?.message,
+      result.status === null ? undefined : `status=${result.status}`,
+      result.stderr?.trim() || undefined,
+    ]
+      .filter((part): part is string => part !== undefined && part.length > 0)
+      .join("; ");
+    throw new Error(
+      detail.length === 0
+        ? "The native journey deployment key could not be restricted to its owner."
+        : `The native journey deployment key could not be restricted to its owner (${detail}).`,
+    );
+  }
 }

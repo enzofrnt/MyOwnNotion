@@ -145,7 +145,9 @@ export function hasPrivateWindowsKeyAcl(filename: string): boolean {
     {
       encoding: "utf8",
       windowsHide: true,
-      timeout: 10_000,
+      // Match the fixture helper: ARM runners under x64 emulation need more
+      // than a cold PowerShell 10s budget before Get-Acl returns.
+      timeout: 30_000,
       maxBuffer: 65536,
       env: { ...process.env, MYOWNNOTION_ACL_PATH: filename },
     },
