@@ -25,7 +25,12 @@
   --editor-table-pad-end: var(--workspace-page-inline-end, var(--ui-space-2));
   /* Distance from reading content start back to the main’s start edge. */
   --editor-table-gutter-start: calc(
-    (100cqi - 100%) / 2 + var(--editor-table-pad-start) / 2 - var(--editor-table-pad-end) / 2
+    (100cqi - 100%) /
+    2 +
+    var(--editor-table-pad-start) /
+    2 -
+    var(--editor-table-pad-end) /
+    2
   );
 
   position: relative;

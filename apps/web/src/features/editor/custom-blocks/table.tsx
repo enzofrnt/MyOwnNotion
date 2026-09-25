@@ -145,7 +145,9 @@ export function editorTableGridTemplate(
   const count = Math.max(1, columnCount);
   return Array.from({ length: count }, (_, index) => {
     const drafted =
-      draft !== null && draft !== undefined && draft.columnIndex === index ? draft.width : undefined;
+      draft !== null && draft !== undefined && draft.columnIndex === index
+        ? draft.width
+        : undefined;
     const width = drafted ?? columns[index]?.width;
     const px =
       typeof width === "number" && Number.isInteger(width)
@@ -457,10 +459,7 @@ export class EditorTableManager {
       candidate === index
         ? {
             id: column.id,
-            width:
-              width === null
-                ? null
-                : clampEditorTableColumnWidth(width),
+            width: width === null ? null : clampEditorTableColumnWidth(width),
           }
         : column,
     );
@@ -526,7 +525,10 @@ export function insertTableCellHardBreak(editor: unknown): boolean {
         };
         readonly tr: {
           deleteSelection(): unknown;
-          replaceSelectionWith(node: unknown, inheritMarks?: boolean): {
+          replaceSelectionWith(
+            node: unknown,
+            inheritMarks?: boolean,
+          ): {
             scrollIntoView(): unknown;
           };
         };
@@ -651,8 +653,7 @@ function ColumnResizeHandle({
   const copy = FR_COPY.editor.richBlocks.table;
   const resizeHover = useTableColumnResizeHover(tableId);
   const widthDraft = useTableColumnWidthDraft(tableId);
-  const highlighted =
-    resizeHover === columnIndex || widthDraft?.columnIndex === columnIndex;
+  const highlighted = resizeHover === columnIndex || widthDraft?.columnIndex === columnIndex;
   const drag = useRef<{
     readonly pointerId: number;
     readonly startX: number;
@@ -1351,11 +1352,7 @@ function TableCellView({
         <RowHandle editor={tableEditor} tableId={tableId} rowIndex={rowIndex} />
       )}
       {tableId !== null && columnIndex !== undefined && (
-        <ColumnResizeHandle
-          editor={tableEditor}
-          tableId={tableId}
-          columnIndex={columnIndex}
-        />
+        <ColumnResizeHandle editor={tableEditor} tableId={tableId} columnIndex={columnIndex} />
       )}
     </div>
   );

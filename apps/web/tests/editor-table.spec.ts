@@ -180,10 +180,17 @@ describe("editorTableGridTemplate", () => {
 
   test("applies a live resize draft without mutating column props", () => {
     expect(
-      editorTableGridTemplate([{ id: uuid(1), width: null }, { id: uuid(2), width: 180 }], 2, {
-        columnIndex: 0,
-        width: 200,
-      }),
+      editorTableGridTemplate(
+        [
+          { id: uuid(1), width: null },
+          { id: uuid(2), width: 180 },
+        ],
+        2,
+        {
+          columnIndex: 0,
+          width: 200,
+        },
+      ),
     ).toBe("200px 180px");
   });
 
@@ -514,7 +521,9 @@ describe("table overflow CSS", () => {
     )?.[0];
     expect(outer).toMatch(/width:\s*100cqi/u);
     expect(outer).toMatch(/padding-inline-start:\s*var\(--editor-table-gutter-start\)/u);
-    expect(outer).toMatch(/margin-inline-start:\s*calc\(-1 \* var\(--editor-table-gutter-start\)\)/u);
+    expect(outer).toMatch(
+      /margin-inline-start:\s*calc\(-1 \* var\(--editor-table-gutter-start\)\)/u,
+    );
     expect(outer).toMatch(/overflow-x:\s*auto/u);
     expect(inner).toMatch(/width:\s*max-content/u);
   });
