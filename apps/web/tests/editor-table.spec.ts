@@ -517,7 +517,7 @@ describe("table overflow CSS", () => {
       /\.page-editor \.bn-block-outer:has\(> \.bn-block > \.node-table\) \{[^}]+\}/u,
     )?.[0];
     const inner = css.match(
-      /\.page-editor \.bn-block:has\(> \.node-table\) \{\n  --editor-table-rail:[^}]+\}/u,
+      /\.page-editor \.bn-block:has\(> \.node-table\) \{\n {2}--editor-table-rail:[^}]+\}/u,
     )?.[0];
     expect(outer).toMatch(/width:\s*100cqi/u);
     expect(outer).toMatch(/padding-inline-start:\s*var\(--editor-table-gutter-start\)/u);
