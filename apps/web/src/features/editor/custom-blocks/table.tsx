@@ -41,8 +41,8 @@ import {
 import { FR_COPY } from "../../../ui/copy/fr.ts";
 import { AppIcon, type AppIconName } from "../../../ui/icons.tsx";
 import {
-  clearTableHoverSoon,
   clearTableColumnResizeHoverSoon,
+  clearTableHoverSoon,
   getTableColumnResizeHover,
   getTableColumnWidthDraft,
   getTableHover,

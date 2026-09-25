@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useLayoutEffect, useRef } from "react";
 import { classNames } from "../class-names.ts";
 import {
   type DottedCanvasViewport,
