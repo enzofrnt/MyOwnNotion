@@ -1720,10 +1720,12 @@ La documentation de démarrage doit partir d'une machine propre et décrire :
 
 ## 39. Processus obligatoire de développement
 
-Les phases de conception, réalisation et revue UI utilisent le
-[skill UI partagé](../../.agents/skills/ui-quality/SKILL.md), référencé dans le
-plan et les tâches de la feature. Les états à couvrir, les critères métier et
-les preuves visuelles restent dans ses artefacts canoniques.
+Les phases de conception, réalisation et revue UI/UX utilisent le
+[skill UI partagé](../../.agents/skills/ui-quality/SKILL.md) et son
+[journal de leçons](../../.agents/skills/ui-quality/lessons.md), référencés dans
+le plan et les tâches de la feature. Les états à couvrir, les critères métier et
+les preuves visuelles restent dans ses artefacts canoniques. Un écart UI/UX
+matériel bloque la convergence Speckit.
 
 Toute modification fonctionnelle suit ce processus :
 

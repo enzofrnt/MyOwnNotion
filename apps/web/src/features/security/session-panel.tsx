@@ -16,7 +16,7 @@ import type { SessionViewDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useState } from "react";
 import type { SecurityApi } from "../../services/security-api.ts";
 import { FR_COPY, formatDateTime } from "../../ui/copy/index.ts";
-import { AsyncState, Button } from "../../ui/primitives/index.ts";
+import { Button } from "../../ui/primitives/index.ts";
 
 export interface SessionPanelProps {
   readonly api: SecurityApi;
@@ -105,78 +105,84 @@ export function SessionPanel(props: SessionPanelProps) {
 
   return (
     <section className="session-panel ui-settings-panel" aria-labelledby="sessions-heading">
-      <h2 id="sessions-heading">{FR_COPY.security.sessions.title}</h2>
+      <header className="security-settings__panel-head">
+        <div>
+          <h2 id="sessions-heading">{FR_COPY.security.sessions.title}</h2>
+          <p className="security-settings__lead">
+            Les navigateurs actuellement connectés à cet espace.
+          </p>
+        </div>
+        <div className="security-settings__panel-actions">
+          <Button
+            size="compact"
+            variant="secondary"
+            onClick={() => {
+              void revokeOthers();
+            }}
+            disabled={busy || active.length <= 1}
+            data-testid="revoke-other-sessions"
+          >
+            {FR_COPY.security.sessions.signOutOthers}
+          </Button>
+        </div>
+      </header>
       {notice === null ? null : (
-        <AsyncState
-          compact
-          className="session-message"
-          kind={notice.kind}
-          title={notice.message}
-          testId="session-message"
-        />
+        <p className="security-settings__note" role="status" data-testid="session-message">
+          {notice.message}
+        </p>
       )}
 
       {loading ? (
-        <AsyncState compact kind="loading" title={FR_COPY.security.sessions.loading} />
+        <p className="security-settings__quiet" role="status">
+          {FR_COPY.security.sessions.loading}
+        </p>
       ) : sessions.length === 0 ? (
-        <AsyncState compact kind="empty" title={FR_COPY.security.sessions.empty} />
+        <p className="security-settings__quiet">{FR_COPY.security.sessions.empty}</p>
       ) : (
-        <ul className="session-list" data-testid="session-list">
+        <ul className="session-list security-settings__rows" data-testid="session-list">
           {sessions.map((session) => {
             const isCurrent = session.sessionId === props.currentSessionId;
             return (
               <li key={session.sessionId} data-testid="session-row">
-                <div>
-                  <strong>
+                <div className="security-settings__row-main">
+                  <span className="security-settings__row-label">
                     {session.authMethod === "passkey"
                       ? FR_COPY.security.sessions.passkey
                       : FR_COPY.security.sessions.password}
-                  </strong>
-                  {isCurrent ? (
-                    <span data-testid="current-session">
-                      {" "}
-                      — {FR_COPY.security.sessions.current}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="session-detail">
-                  {FR_COPY.security.sessions.lastSeen} {when(session.lastSeenAt)} ·{" "}
-                  {FR_COPY.security.sessions.started} {when(session.issuedAt)} ·{" "}
-                  {describeSessionState(session.state)}
+                    {isCurrent ? (
+                      <span className="security-settings__badge" data-testid="current-session">
+                        {FR_COPY.security.sessions.current}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="session-detail security-settings__row-meta">
+                    {FR_COPY.security.sessions.lastSeen} {when(session.lastSeenAt)} ·{" "}
+                    {FR_COPY.security.sessions.started} {when(session.issuedAt)} ·{" "}
+                    {describeSessionState(session.state)}
+                  </span>
                 </div>
                 {session.state === "active" ? (
-                  <Button
-                    size="compact"
-                    variant={isCurrent ? "danger" : "secondary"}
-                    onClick={() => {
-                      void revoke(session.sessionId);
-                    }}
-                    disabled={busy}
-                    data-testid="revoke-session"
-                  >
-                    {isCurrent
-                      ? FR_COPY.security.sessions.signOutHere
-                      : FR_COPY.security.sessions.signOut}
-                  </Button>
+                  <div className="security-settings__row-actions">
+                    <Button
+                      size="compact"
+                      variant={isCurrent ? "danger" : "secondary"}
+                      onClick={() => {
+                        void revoke(session.sessionId);
+                      }}
+                      disabled={busy}
+                      data-testid="revoke-session"
+                    >
+                      {isCurrent
+                        ? FR_COPY.security.sessions.signOutHere
+                        : FR_COPY.security.sessions.signOut}
+                    </Button>
+                  </div>
                 ) : null}
               </li>
             );
           })}
         </ul>
       )}
-
-      <Button
-        variant="secondary"
-        onClick={() => {
-          void revokeOthers();
-        }}
-        // Nothing to do when this is the only session; a control that always
-        // succeeds by doing nothing teaches the owner to distrust it.
-        disabled={busy || active.length <= 1}
-        data-testid="revoke-other-sessions"
-      >
-        {FR_COPY.security.sessions.signOutOthers}
-      </Button>
     </section>
   );
 }

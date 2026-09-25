@@ -75,7 +75,7 @@ describe("the canonical v3 parser", () => {
           rows: [
             {
               id: generateUuidV7(),
-              cells: [{ id: generateUuidV7(), content: [{ text: "Cellule" }] }],
+              cells: [{ id: generateUuidV7(), content: [{ text: "Cellule\nsuite" }] }],
             },
           ],
         },

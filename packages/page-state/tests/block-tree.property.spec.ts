@@ -118,6 +118,74 @@ describe("the movable operational block tree", () => {
     );
   });
 
+  it("converges concurrent moves of the same column without duplicating it", async () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const columnIds = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const;
+    const rowId = generateUuidV7();
+    const cellIds = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const;
+    const origin = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: columnIds.map((id) => ({ id, width: null })),
+            rows: [
+              {
+                id: rowId,
+                cells: cellIds.map((id, index) => ({
+                  id,
+                  content: [{ text: "ABC"[index] ?? "" }],
+                })),
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const checkpoint = await origin.checkpoint();
+    const left = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const right = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+
+    const leftUpdate = left.transact([
+      { type: "move-table-column", tableId, columnId: columnIds[0], beforeColumnId: null },
+    ]);
+    const rightUpdate = right.transact([
+      {
+        type: "move-table-column",
+        tableId,
+        columnId: columnIds[0],
+        beforeColumnId: columnIds[2],
+      },
+    ]);
+    left.importUpdate(rightUpdate.updateBytes);
+    right.importUpdate(leftUpdate.updateBytes);
+
+    const leftTable = left.snapshot().blocks[0];
+    if (leftTable?.type !== "table") throw new Error("table fixture disappeared");
+    expect(canonicalDocumentJsonV3(left.snapshot())).toBe(
+      canonicalDocumentJsonV3(right.snapshot()),
+    );
+    expect(new Set(leftTable.columns.map(({ id }) => id))).toEqual(new Set(columnIds));
+    expect(leftTable.columns).toHaveLength(3);
+    expect(
+      leftTable.columns.map(
+        (column, index) => `${column.id}:${leftTable.rows[0]?.cells[index]?.content[0]?.text}`,
+      ),
+    ).toEqual(expect.arrayContaining(columnIds.map((id, index) => `${id}:${"ABC"[index]}`)));
+
+    // The merged sequence still accepts further edits and re-projects cleanly.
+    left.transact([
+      { type: "move-table-column", tableId, columnId: columnIds[1], beforeColumnId: null },
+    ]);
+    const settled = left.snapshot().blocks[0];
+    if (settled?.type !== "table") throw new Error("table fixture disappeared");
+    expect(settled.columns.at(-1)?.id).toBe(columnIds[1]);
+    expect(settled.rows[0]?.cells.at(-1)?.content[0]?.text).toBe("B");
+  });
+
   it("keeps concurrent column insertions aligned with their stable cells", async () => {
     const pageId = generateUuidV7();
     const tableId = generateUuidV7();
@@ -399,7 +467,10 @@ describe("the movable operational block tree", () => {
       allowsCodeControls: true,
     });
     expect(operationalTextForBlock(doc, codeId).allowsCodeControls).toBe(true);
-    expect(operationalTextForBlock(doc, cellId).allowsMarks).toBe(true);
+    expect(operationalTextForBlock(doc, cellId)).toMatchObject({
+      allowsMarks: true,
+      allowsCodeControls: true,
+    });
     expect(() => operationalTextForBlock(doc, dividerId)).toThrow(/no editable text/u);
     expect(() => transformOperationalBlockType(doc, imageId, "paragraph", undefined)).toThrow(
       /cannot be transformed/u,

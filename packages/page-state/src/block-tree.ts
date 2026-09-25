@@ -369,10 +369,25 @@ function parseTableColumns(value: unknown, path: string): readonly TableColumnV3
   });
 }
 
+/**
+ * A column move is a delete + insert on the mergeable sequence. Two replicas
+ * moving the same column concurrently therefore converge on two entries with
+ * one identity; the first occurrence wins so the projection never fails and
+ * every replica reads the same order.
+ */
+function uniqueTableColumns(columns: readonly TableColumnV3[]): readonly TableColumnV3[] {
+  const seen = new Set<Uuid>();
+  return columns.filter((column) => {
+    if (seen.has(column.id)) return false;
+    seen.add(column.id);
+    return true;
+  });
+}
+
 function tableColumns(node: LoroTreeNode, path: string): readonly TableColumnV3[] {
   const current = node.data.get(TABLE_COLUMNS_KEY);
   if (current instanceof LoroList) {
-    return parseTableColumns(current.toArray(), path);
+    return uniqueTableColumns(parseTableColumns(current.toArray(), path));
   }
   // Transitional read support for checkpoints produced by the initial 017
   // foundation, before columns became a mergeable sequence.
@@ -380,9 +395,25 @@ function tableColumns(node: LoroTreeNode, path: string): readonly TableColumnV3[
   return parseTableColumns(requiredProperty(props, "columns", path), path);
 }
 
+/**
+ * Removes duplicate column entries left by concurrent moves so the indexes of
+ * the parsed columns match the indexes of the mergeable sequence again.
+ */
+function compactTableColumns(list: LoroList<JsonValue>, path: string): void {
+  const raw = parseTableColumns(list.toArray(), path);
+  for (let index = raw.length - 1; index >= 0; index -= 1) {
+    const id = raw[index]?.id;
+    if (raw.findIndex((column) => column.id === id) !== index) list.delete(index, 1);
+  }
+}
+
 function mutableTableColumns(node: LoroTreeNode, path: string): LoroList<JsonValue> {
   const current = node.data.get(TABLE_COLUMNS_KEY);
-  if (current instanceof LoroList) return current as LoroList<JsonValue>;
+  if (current instanceof LoroList) {
+    const list = current as LoroList<JsonValue>;
+    compactTableColumns(list, path);
+    return list;
+  }
   const legacy = tableColumns(node, path);
   const list = node.data.ensureMergeableList(TABLE_COLUMNS_KEY) as LoroList<JsonValue>;
   for (const [index, column] of legacy.entries()) {
@@ -893,6 +924,124 @@ export function deleteOperationalTableColumn(doc: LoroDoc, tableId: Uuid, column
   for (const target of targets) tree.delete(target.id);
 }
 
+function operationalTableRow(tree: LoroTree, tableNode: LoroTreeNode, rowId: Uuid): LoroTreeNode {
+  const row = findOperationalNode(tree, rowId);
+  if (nodeType(row) !== "tableRow" || row.parent()?.id !== tableNode.id) {
+    throw new BlockTreeOperationError(`row ${rowId} is not in table ${nodeIdentity(tableNode)}`);
+  }
+  return row;
+}
+
+/** Reorders one row; `beforeRowId === null` moves it last. */
+export function moveOperationalTableRow(
+  doc: LoroDoc,
+  tableId: Uuid,
+  rowId: Uuid,
+  beforeRowId: Uuid | null,
+): void {
+  const tree = getOperationalBlockTree(doc);
+  const tableNode = operationalTableNode(doc, tableId);
+  const row = operationalTableRow(tree, tableNode, rowId);
+  if (beforeRowId === null) {
+    row.move(tableNode);
+    return;
+  }
+  if (beforeRowId === rowId) {
+    throw new BlockTreeOperationError("a row cannot be placed before itself");
+  }
+  row.moveBefore(operationalTableRow(tree, tableNode, beforeRowId));
+}
+
+/**
+ * Updates one column's pixel width (`null` restores the default track). Bounds
+ * match the domain catalogue (80–1200). The mergeable sequence entry is
+ * replaced in place so concurrent inserts/moves on other columns stay valid.
+ */
+export function setOperationalTableColumnWidth(
+  doc: LoroDoc,
+  tableId: Uuid,
+  columnId: Uuid,
+  width: number | null,
+): void {
+  if (
+    width !== null &&
+    (typeof width !== "number" || !Number.isInteger(width) || width < 80 || width > 1_200)
+  ) {
+    throw new BlockTreeOperationError(
+      "table column width must be null or an integer from 80 to 1200",
+    );
+  }
+  const tableNode = operationalTableNode(doc, tableId);
+  const path = `block ${tableId}`;
+  const list = mutableTableColumns(tableNode, path);
+  const columns = parseTableColumns(list.toArray(), path);
+  const index = columns.findIndex(({ id }) => id === columnId);
+  if (index < 0) throw new BlockTreeOperationError(`column ${columnId} is not in table ${tableId}`);
+  const column = columns[index];
+  if (column === undefined) throw new BlockTreeOperationError(`column ${columnId} is missing`);
+  if (column.width === width) return;
+  list.delete(index, 1);
+  list.insert(index, { id: column.id, width });
+}
+
+/**
+ * Reorders one column; `beforeColumnId === null` moves it last. Cells are
+ * projected by column identity, so the sequence order is the truth; the cell
+ * nodes follow so positional (pre-identity) cells stay aligned too.
+ */
+export function moveOperationalTableColumn(
+  doc: LoroDoc,
+  tableId: Uuid,
+  columnId: Uuid,
+  beforeColumnId: Uuid | null,
+): void {
+  const tableNode = operationalTableNode(doc, tableId);
+  const path = `block ${tableId}`;
+  const list = mutableTableColumns(tableNode, path);
+  const columns = parseTableColumns(list.toArray(), path);
+  const index = columns.findIndex(({ id }) => id === columnId);
+  if (index < 0) throw new BlockTreeOperationError(`column ${columnId} is not in table ${tableId}`);
+  if (beforeColumnId === columnId) {
+    throw new BlockTreeOperationError("a column cannot be placed before itself");
+  }
+  const targetIndex =
+    beforeColumnId === null ? columns.length : columns.findIndex(({ id }) => id === beforeColumnId);
+  if (targetIndex < 0) {
+    throw new BlockTreeOperationError(`column ${beforeColumnId} is not in table ${tableId}`);
+  }
+  const column = columns[index];
+  if (column === undefined) throw new BlockTreeOperationError(`column ${columnId} is missing`);
+  const rows = operationalTableRows(tableNode).map((rowNode) => {
+    const cells = rowNode.children() ?? [];
+    const cellFor = (id: Uuid, position: number): LoroTreeNode | undefined =>
+      cells.find((cell) => cell.data.get(TABLE_CELL_COLUMN_ID_KEY) === id) ?? cells[position];
+    const source = cellFor(columnId, index);
+    if (source === undefined || nodeType(source) !== "tableCell") {
+      throw new BlockTreeOperationError(
+        `row ${nodeIdentity(rowNode)} has no cell for column ${columnId}`,
+      );
+    }
+    const before = beforeColumnId === null ? undefined : cellFor(beforeColumnId, targetIndex);
+    if (beforeColumnId !== null && before === undefined) {
+      throw new BlockTreeOperationError(
+        `row ${nodeIdentity(rowNode)} has no cell for column ${beforeColumnId}`,
+      );
+    }
+    return { rowNode, source, before };
+  });
+
+  list.delete(index, 1);
+  list.insert(targetIndex > index ? targetIndex - 1 : targetIndex, {
+    id: column.id,
+    width: column.width,
+  });
+  for (const { rowNode, source, before } of rows) {
+    source.data.set(TABLE_CELL_COLUMN_ID_KEY, columnId);
+    if (before === undefined) source.move(rowNode);
+    else if (before.id !== source.id) source.moveBefore(before);
+  }
+}
+
 export function operationalBlockSnapshot(doc: LoroDoc, blockId: Uuid): CanonicalBlockV3 {
   let node = findOperationalNode(getOperationalBlockTree(doc), blockId);
   while (nodeType(node) === "tableRow" || nodeType(node) === "tableCell") {
@@ -950,7 +1099,9 @@ export function operationalBlockPlacement(doc: LoroDoc, blockId: Uuid): Operatio
   return placementForNode(tree, findOperationalNode(tree, blockId));
 }
 
-/** Captures one canonical block for history without materialising the whole page. */
+/** Captures one canonical block for history without materialising the whole page.
+ *  Table row/cell identities resolve to their owning table so text edits inside
+ *  cells can be guarded and undone without treating internals as free blocks. */
 export function operationalBlockState(doc: LoroDoc, blockId: Uuid): OperationalBlockState | null {
   const tree = getOperationalBlockTree(doc);
   const matches = findNodesByIdentity(tree, blockId);
@@ -958,9 +1109,15 @@ export function operationalBlockState(doc: LoroDoc, blockId: Uuid): OperationalB
   if (matches.length > 1) {
     throw new BlockTreeOperationError(`block identity ${blockId} is duplicated`);
   }
-  const node = matches[0];
+  let node = matches[0];
   if (node === undefined) return null;
-  assertCanonicalNode(node, "history");
+  while (nodeType(node) === "tableRow" || nodeType(node) === "tableCell") {
+    const parent = node.parent();
+    if (parent === undefined) {
+      throw new BlockTreeOperationError(`internal identity ${blockId} has no canonical ancestor`);
+    }
+    node = parent;
+  }
   return {
     block: materialiseCanonicalNode(node),
     placement: placementForNode(tree, node),
@@ -1100,14 +1257,22 @@ export function operationalTextForBlock(
       allowsCodeControls: true,
     };
   }
+  // Table cells store BlockNote hard breaks as `\n` (Shift+Enter). The same
+  // control-character gate as code blocks must allow that newline through.
+  if (type === "tableCell") {
+    return {
+      text: node.data.ensureMergeableText(CONTENT_KEY),
+      allowsMarks: true,
+      allowsCodeControls: true,
+    };
+  }
   if (
-    type === "tableCell" ||
-    (isKnownBlockTypeV3(type) &&
-      type !== "divider" &&
-      type !== "table" &&
-      type !== "image" &&
-      type !== "fileEmbed" &&
-      type !== "embed")
+    isKnownBlockTypeV3(type) &&
+    type !== "divider" &&
+    type !== "table" &&
+    type !== "image" &&
+    type !== "fileEmbed" &&
+    type !== "embed"
   ) {
     return {
       text: node.data.ensureMergeableText(CONTENT_KEY),

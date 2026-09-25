@@ -1,6 +1,29 @@
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  type Modifier,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  horizontalListSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { type KeyboardEvent, useCallback, useEffect, useRef, type WheelEvent } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { ItemIcon, type ItemIconKind } from "../../ui/item-icon.tsx";
+
+/** Keep the strip on one line: a vertical drag must not lift or sink neighbours. */
+const restrictTabsToHorizontalAxis: Modifier = ({ transform }) => ({
+  ...transform,
+  y: 0,
+});
 
 export function isCloseTabShortcut(event: {
   readonly key: string;
@@ -28,6 +51,8 @@ export interface OpenTabsStripProps {
   readonly onActivate: (itemId: string) => void;
   readonly onClose: (itemId: string) => void;
   readonly onEmptyFocus: () => void;
+  /** Device-local strip order. Omitted when the strip has a single tab. */
+  readonly onReorder?: (activeId: string, overId: string) => void;
 }
 
 function tabLabel(tab: OpenTab): string {
@@ -43,6 +68,83 @@ function findActivationButton(
   );
 }
 
+function SortableOpenTab({
+  tab,
+  active,
+  keyboardEntryId,
+  onActivate,
+  onRequestClose,
+}: {
+  readonly tab: OpenTab;
+  readonly active: boolean;
+  readonly keyboardEntryId: string | null;
+  readonly onActivate: (itemId: string) => void;
+  readonly onRequestClose: (itemId: string) => void;
+}) {
+  const label = tabLabel(tab);
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: tab.id,
+  });
+  // Sorting strategy is horizontal, but pointer deltas still carry a Y that
+  // would shove neighbours up/down. Keep every tab on the strip baseline.
+  const horizontalTransform = transform === null ? null : { ...transform, y: 0 };
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="open-tab"
+      data-active={active || undefined}
+      data-dragging={isDragging || undefined}
+      data-testid="open-tab"
+      data-tab-id={tab.id}
+      style={{ transform: CSS.Transform.toString(horizontalTransform), transition }}
+    >
+      <button
+        ref={setActivatorNodeRef}
+        type="button"
+        className="open-tab__activate"
+        aria-current={active ? "page" : undefined}
+        title={`${label} — glisser pour réordonner`}
+        data-open-tab-activate=""
+        data-tab-id={tab.id}
+        onClick={() => onActivate(tab.id)}
+        onAuxClick={(event) => {
+          if (event.button === 1) onRequestClose(tab.id);
+        }}
+        {...attributes}
+        {...listeners}
+        tabIndex={tab.id === keyboardEntryId ? 0 : -1}
+      >
+        {tab.kind === "graph" ? (
+          <AppIcon name="graph" size="small" />
+        ) : (
+          <ItemIcon kind={tab.kind} icon={tab.icon ?? null} size="tree" />
+        )}
+        <span className="open-tab__label">{label}</span>
+      </button>
+      <button
+        type="button"
+        className="open-tab__close"
+        aria-label={`Fermer l’onglet ${label}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onRequestClose(tab.id);
+        }}
+      >
+        <AppIcon name="close" size="small" />
+      </button>
+    </div>
+  );
+}
+
 /**
  * The strip of opened pages and folders at the top of the canvas (spec 022, US2).
  *
@@ -50,13 +152,15 @@ function findActivationButton(
  * owning it. The list scrolls horizontally instead of wrapping, the active tab
  * is scrolled into view when it changes, and arrow keys move focus between
  * destination buttons. Close buttons remain ordinary, separately focusable
- * controls so keyboard and assistive-technology users can reach them.
+ * controls so keyboard and assistive-technology users can reach them. Dragging
+ * a tab (or Space then arrows) reorders the device-local strip.
  */
 export function OpenTabsStrip({
   activeId,
   onActivate,
   onClose,
   onEmptyFocus,
+  onReorder,
   tabs,
 }: OpenTabsStripProps) {
   const list = useRef<HTMLDivElement | null>(null);
@@ -64,6 +168,10 @@ export function OpenTabsStrip({
   const activeTabIndex = activeId === null ? -1 : tabs.findIndex((tab) => tab.id === activeId);
   const activeTabId = activeTabIndex >= 0 ? activeId : null;
   const keyboardEntryId = activeTabId ?? tabs[0]?.id ?? null;
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const requestClose = useCallback(
     (itemId: string): void => {
@@ -128,6 +236,8 @@ export function OpenTabsStrip({
     ) {
       return;
     }
+    // While a sortable keyboard drag is active, Space/arrows belong to dnd-kit.
+    if (event.target.closest("[data-dragging='true']")) return;
     const buttons = [
       ...(list.current?.querySelectorAll<HTMLElement>("[data-open-tab-activate]") ?? []),
     ];
@@ -151,64 +261,44 @@ export function OpenTabsStrip({
     element.scrollLeft += event.deltaY;
   };
 
+  const onDragEnd = (event: DragEndEvent): void => {
+    const over = event.over;
+    if (over === null || over.id === event.active.id || onReorder === undefined) return;
+    onReorder(String(event.active.id), String(over.id));
+  };
+
   if (tabs.length === 0) return null;
 
   return (
-    <div
-      ref={list}
-      className="open-tabs"
-      role="toolbar"
-      aria-label="Éléments ouverts"
-      aria-orientation="horizontal"
-      data-testid="open-tabs"
-      onKeyDown={onKeyDown}
-      onWheel={onWheel}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[restrictTabsToHorizontalAxis]}
+      onDragEnd={onDragEnd}
     >
-      {tabs.map((tab) => {
-        const active = tab.id === activeId;
-        const label = tabLabel(tab);
-        return (
-          <div
-            key={tab.id}
-            className="open-tab"
-            data-active={active || undefined}
-            data-testid="open-tab"
-            data-tab-id={tab.id}
-          >
-            <button
-              type="button"
-              className="open-tab__activate"
-              aria-current={active ? "page" : undefined}
-              tabIndex={tab.id === keyboardEntryId ? 0 : -1}
-              title={label}
-              data-open-tab-activate=""
-              data-tab-id={tab.id}
-              onClick={() => onActivate(tab.id)}
-              onAuxClick={(event) => {
-                if (event.button === 1) requestClose(tab.id);
-              }}
-            >
-              {tab.kind === "graph" ? (
-                <AppIcon name="graph" size="small" />
-              ) : (
-                <ItemIcon kind={tab.kind} icon={tab.icon ?? null} size="tree" />
-              )}
-              <span className="open-tab__label">{label}</span>
-            </button>
-            <button
-              type="button"
-              className="open-tab__close"
-              aria-label={`Fermer l’onglet ${label}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                requestClose(tab.id);
-              }}
-            >
-              <AppIcon name="close" size="small" />
-            </button>
-          </div>
-        );
-      })}
-    </div>
+      <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
+        <div
+          ref={list}
+          className="open-tabs"
+          role="toolbar"
+          aria-label="Éléments ouverts"
+          aria-orientation="horizontal"
+          data-testid="open-tabs"
+          onKeyDown={onKeyDown}
+          onWheel={onWheel}
+        >
+          {tabs.map((tab) => (
+            <SortableOpenTab
+              key={tab.id}
+              tab={tab}
+              active={tab.id === activeId}
+              keyboardEntryId={keyboardEntryId}
+              onActivate={onActivate}
+              onRequestClose={requestClose}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 }

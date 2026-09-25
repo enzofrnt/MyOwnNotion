@@ -69,7 +69,7 @@ habituel. La limite d'appel est 300 requêtes par minute et par adresse réseau 
 un dépassement est explicite avec 429. Les erreurs temporaires sont signalées sans
 révéler de contenu privé ; les essais d'échange sont également limités.
 
-Dans « Accès des assistants », « Générer le code d’accès » affiche le code
+Dans « Accès des assistants », « Générer le code » affiche le code
 uniquement pour cette visite. « Masquer le code » le retire de l’écran, sans
 révoquer la connexion. Le bouton « Actualiser les accès » recharge l’inventaire
 et le journal. En cas de demande d’identité récente, confirmez votre passkey

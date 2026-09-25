@@ -222,7 +222,7 @@ test.describe("focused workspace shell", () => {
 
     const pageName = uniqueName("Page mobile");
     const drawer = page.getByTestId("workspace-navigation-drawer");
-    const trigger = page.getByTestId("toggle-tree");
+    const trigger = page.getByTestId("toggle-sidebar");
     await expect(drawer).toBeHidden();
     await trigger.click();
     await expect(drawer).toBeVisible();

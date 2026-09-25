@@ -90,7 +90,7 @@ test.describe("accessibility (all viewports/browsers)", () => {
     await title.fill(name);
     await title.press("Enter");
     const row = page.getByTestId(`tree-item-${name}`);
-    const mobileTrigger = page.getByTestId("toggle-tree");
+    const mobileTrigger = page.getByTestId("toggle-sidebar");
     if (await mobileTrigger.isVisible()) {
       // Creation deliberately closes the phone drawer and transfers focus to
       // the blank title. Reopen navigation with the keyboard before continuing

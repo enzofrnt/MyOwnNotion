@@ -13,15 +13,18 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { FR_COPY } from "../../ui/copy/fr.ts";
 import { AppIcon } from "../../ui/icons.tsx";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { Button } from "../../ui/primitives/button.tsx";
 import { useTheme } from "../../ui/theme-provider.tsx";
+import { WORKSPACE_HISTORY_SLOT_ID } from "../workspace/page-header.tsx";
 import { validateBlockDrop } from "./block-drag-drop.ts";
 import { canonicalDocumentToBlockNote, canonicalV3ToLegacyV2 } from "./blocknote-conversion.ts";
 import {
@@ -68,6 +71,7 @@ import {
 import { historyActionFromInputType, useEditorShortcuts } from "./editor-shortcuts.ts";
 import { pageLinkTargetFromHref } from "./page-link-href.ts";
 import { updatePageLinkPresentations } from "./page-link-inline-content.ts";
+import { TableKeymapExtension } from "./table-keymap.ts";
 
 const EDITOR_PROJECTION_QUIET_MS = 120;
 
@@ -156,6 +160,7 @@ export function PageEditor({
       extensions: [
         SyntaxHighlightingExtension({ createHighlighter: createCodeHighlighter }),
         CodeBlockInputExtension,
+        TableKeymapExtension,
       ],
       tabBehavior: "prefer-indent",
       links: {
@@ -622,6 +627,25 @@ export function PageEditor({
     reportError: reportEditorError,
   });
 
+  const [historyHost, setHistoryHost] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (!discoverable) {
+      setHistoryHost(null);
+      return;
+    }
+    const resolve = (): void => {
+      setHistoryHost(globalThis.document.getElementById(WORKSPACE_HISTORY_SLOT_ID));
+    };
+    resolve();
+    // Path chrome and the editor mount in the same commit; one frame covers
+    // the rare case where the portal target is not yet in the tree.
+    if (globalThis.document.getElementById(WORKSPACE_HISTORY_SLOT_ID) === null) {
+      const frame = requestAnimationFrame(resolve);
+      return () => cancelAnimationFrame(frame);
+    }
+    return undefined;
+  }, [discoverable]);
+
   useImperativeHandle(
     handleRef,
     () => ({
@@ -715,36 +739,41 @@ export function PageEditor({
         else redo();
       }}
     >
-      <div
-        className="editor-history-controls"
-        role="toolbar"
-        aria-label={FR_COPY.editor.surface.historyLabel}
-      >
-        <Button
-          type="button"
-          size="square"
-          variant="ghost"
-          data-testid="undo"
-          aria-label={FR_COPY.editor.surface.undo}
-          title={FR_COPY.editor.surface.undoTitle}
-          disabled={!editable || !engine.canUndo}
-          onClick={undo}
-        >
-          <AppIcon name="undo" />
-        </Button>
-        <Button
-          type="button"
-          size="square"
-          variant="ghost"
-          data-testid="redo"
-          aria-label={FR_COPY.editor.surface.redo}
-          title={FR_COPY.editor.surface.redoTitle}
-          disabled={!editable || !engine.canRedo}
-          onClick={redo}
-        >
-          <AppIcon name="redo" />
-        </Button>
-      </div>
+      {discoverable && historyHost !== null
+        ? createPortal(
+            <div
+              className="editor-history-controls"
+              role="toolbar"
+              aria-label={FR_COPY.editor.surface.historyLabel}
+            >
+              <Button
+                type="button"
+                size="square"
+                variant="ghost"
+                data-testid="undo"
+                aria-label={FR_COPY.editor.surface.undo}
+                title={FR_COPY.editor.surface.undoTitle}
+                disabled={!editable || !engine.canUndo}
+                onClick={undo}
+              >
+                <AppIcon name="undo" />
+              </Button>
+              <Button
+                type="button"
+                size="square"
+                variant="ghost"
+                data-testid="redo"
+                aria-label={FR_COPY.editor.surface.redo}
+                title={FR_COPY.editor.surface.redoTitle}
+                disabled={!editable || !engine.canRedo}
+                onClick={redo}
+              >
+                <AppIcon name="redo" />
+              </Button>
+            </div>,
+            historyHost,
+          )
+        : null}
       <BlockNoteView
         editor={viewEditor}
         editable={editable}

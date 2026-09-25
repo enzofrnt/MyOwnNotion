@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { FR_COPY } from "../../../ui/copy/fr.ts";
 import { AppIcon } from "../../../ui/icons.tsx";
 import { Button } from "../../../ui/primitives/button.tsx";
+import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "../../../ui/primitives/menu.tsx";
 import { CODE_LANGUAGES, codeHighlightLanguage } from "../code-highlighting.ts";
 
 interface PlainTextClipboard {
@@ -24,6 +25,37 @@ export async function copyCodeText(
   } catch {
     return false;
   }
+}
+
+function languageLabel(language: string): string {
+  if (language === "" || language === "text") {
+    return FR_COPY.editor.richBlocks.code.plainText;
+  }
+  return CODE_LANGUAGES.find((entry) => entry.value === language)?.label ?? language;
+}
+
+function LanguageOption({
+  selected,
+  children,
+  onSelect,
+}: {
+  readonly selected: boolean;
+  readonly children: string;
+  readonly onSelect: () => void;
+}) {
+  return (
+    <MenuItem
+      className="editor-code-language-option"
+      data-selected={selected || undefined}
+      aria-checked={selected}
+      onClick={onSelect}
+    >
+      <span className="editor-code-language-option__check" aria-hidden="true">
+        {selected ? <AppIcon name="check" size="small" /> : null}
+      </span>
+      <span className="editor-code-language-option__label">{children}</span>
+    </MenuItem>
+  );
 }
 
 export function CodeBlockToolbar({
@@ -67,6 +99,7 @@ export function CodeBlockToolbar({
     timer.current = setTimeout(() => setCopyState("idle"), 3_000);
   };
   const knownLanguage = CODE_LANGUAGES.some((entry) => entry.value === language);
+  const plainSelected = language === "" || language === "text";
   const feedback =
     copyState === "copied"
       ? FR_COPY.editor.richBlocks.code.copied
@@ -77,35 +110,49 @@ export function CodeBlockToolbar({
   return (
     <header className="editor-code-header" contentEditable={false}>
       <div className="editor-code-toolbar">
-        <label className="editor-code-language">
-          <AppIcon name="code" size="small" />
-          <span className="sr-only">{FR_COPY.editor.richBlocks.code.language}</span>
-          <select
-            aria-label={FR_COPY.editor.richBlocks.code.language}
-            value={language}
+        <MenuRoot placement="bottom-start">
+          <MenuTrigger
+            className="editor-code-language"
             disabled={!editable}
-            onChange={(event) => onLanguageChange(event.currentTarget.value)}
+            aria-label={FR_COPY.editor.richBlocks.code.language}
+            data-testid="code-language-trigger"
+            title={languageLabel(language)}
           >
-            <option value="">{FR_COPY.editor.richBlocks.code.plainText}</option>
-            {language === "text" ? (
-              <option value="text">{FR_COPY.editor.richBlocks.code.plainText}</option>
-            ) : null}
+            <AppIcon name="code" size="small" />
+            <span className="editor-code-language__value">{languageLabel(language)}</span>
+            {editable ? <AppIcon name="chevronDown" size="small" /> : null}
+          </MenuTrigger>
+          <MenuContent
+            className="editor-code-language-menu"
+            aria-label={FR_COPY.editor.richBlocks.code.language}
+            data-testid="code-language-menu"
+          >
+            <LanguageOption selected={plainSelected} onSelect={() => onLanguageChange("")}>
+              {FR_COPY.editor.richBlocks.code.plainText}
+            </LanguageOption>
             {language !== "" && language !== "text" && !knownLanguage ? (
-              <option value={language}>{language}</option>
+              <LanguageOption selected onSelect={() => onLanguageChange(language)}>
+                {language}
+              </LanguageOption>
             ) : null}
             {CODE_LANGUAGES.map((entry) => (
-              <option key={entry.value} value={entry.value}>
+              <LanguageOption
+                key={entry.value}
+                selected={language === entry.value}
+                onSelect={() => onLanguageChange(entry.value)}
+              >
                 {entry.label}
-              </option>
+              </LanguageOption>
             ))}
-          </select>
-        </label>
+          </MenuContent>
+        </MenuRoot>
         <Button
           className="editor-code-copy"
           size="compact"
           variant="ghost"
           aria-label={FR_COPY.editor.richBlocks.code.copy}
           aria-busy={copyState === "copying" || undefined}
+          data-testid="code-copy"
           onClick={() => void copy()}
         >
           <AppIcon name="copy" size="small" />
@@ -143,7 +190,7 @@ export const codeBlockSpec = createReactBlockSpec(
           language={block.props.language}
           source={plainContentToString(block.content)}
           editable={editor.isEditable}
-          onLanguageChange={(language) => editor.updateBlock(block.id, { props: { language } })}
+          onLanguageChange={(next) => editor.updateBlock(block.id, { props: { language: next } })}
         />
         <pre className="ui-scrollbar">
           <code ref={contentRef} spellCheck={false} />

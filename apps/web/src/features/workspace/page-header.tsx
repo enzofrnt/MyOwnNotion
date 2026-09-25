@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 
+/** Portal target for the active page editor’s undo/redo toolbar. */
+export const WORKSPACE_HISTORY_SLOT_ID = "workspace-history-slot";
+
 export interface PageBreadcrumb {
   readonly id: string;
   readonly label: string;

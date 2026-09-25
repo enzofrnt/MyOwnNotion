@@ -89,18 +89,22 @@ seule.
 ## 5. Shell desktop
 
 ~~~text
-┌──────────── navigation 240–360 px ────────────┬──────── page ────────┐
-│ workspace / actions                           │ fil d'Ariane         │
-│ recherche                                     │                      │
-│ Favoris / Récents (facultatifs)               │ titre                │
-│ Notes : arbre pages & bases                   │ propriétés           │
+┌──────────── navigation 200–720 px ────────────┬──────── page ────────┐
+│ recherche / graphe                            │ onglets + historique │
+│ Notes : arbre pages & bases                   │ fil d'Ariane sticky  │
+│                                               │ titre                │
 │                                               │ éditeur              │
-│ réglages                                      │ état sync épinglé    │
+│ réglages                                      │ sync : i bas-droit   │
 └───────────────────────────────────────────────┴──────────────────────┘
 ~~~
 
-- sidebar redimensionnable et largeur mémorisée localement ;
-- largeur par défaut 280 px, limites 240–360 px ;
+- sidebar redimensionnable au pixel près et largeur mémorisée localement ;
+- largeur par défaut 280 px, limites 200–720 px, plafonnée pour laisser
+  environ 420 px à la page ouverte ;
+- indentation visuelle de l'arbre sans plafond de profondeur (sous-pages /
+  dossiers décalés à chaque niveau) ;
+- pas de bandeau Favoris / Récents ni de statut sync dans le pied de sidebar
+  (diagnostic via le contrôle `i` de l'éditeur) ;
 - contenu éditorial centré, largeur lisible par défaut et option pleine largeur
   future sans changer le document ;
 - chrome discret : les actions secondaires apparaissent au hover/focus mais

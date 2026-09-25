@@ -90,6 +90,25 @@ export function NavigationInlineCreate({
   }, [open, onOpenChange]);
 
   useEffect(() => {
+    if (!open || variant === "root") return;
+    const row = root.current?.closest(".tree-row");
+    if (!(row instanceof HTMLElement)) return;
+
+    const dismissFromRow = (event: globalThis.PointerEvent): void => {
+      const next = event.relatedTarget;
+      if (next instanceof Node && row.contains(next)) return;
+      onOpenChange(false);
+      // Clicking `+` leaves focus on the toggle; `:focus-within` would keep the
+      // row actions visible after the pointer leaves. Blur so they hide.
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && row.contains(active)) active.blur();
+    };
+
+    row.addEventListener("pointerleave", dismissFromRow);
+    return () => row.removeEventListener("pointerleave", dismissFromRow);
+  }, [open, onOpenChange, variant]);
+
+  useEffect(() => {
     if (!exiting) return;
     const node = surface.current;
     const finish = (): void => setPhase((current) => (current === "closing" ? "closed" : current));

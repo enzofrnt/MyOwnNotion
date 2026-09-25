@@ -1,9 +1,11 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { Button } from "../../ui/primitives/index.ts";
 import {
   ResponsiveSidebar,
   SIDEBAR_MOTION_DURATION_MS,
+  type SidebarMode,
+  sidebarModeForWidth,
 } from "../navigation/responsive-sidebar.tsx";
 
 export interface WorkspaceShellProps {
@@ -18,6 +20,10 @@ export interface WorkspaceShellProps {
   readonly onMobileNavigationOpenChange: (open: boolean) => void;
   readonly onSidebarOpenChange: (open: boolean) => void;
   readonly onSidebarWidthChange: (width: number) => void;
+}
+
+function currentSidebarMode(): SidebarMode {
+  return sidebarModeForWidth(typeof window === "undefined" ? 1280 : window.innerWidth);
 }
 
 export function WorkspaceShell({
@@ -36,6 +42,13 @@ export function WorkspaceShell({
   const openControl = useRef<HTMLButtonElement | null>(null);
   const closeControl = useRef<HTMLButtonElement | null>(null);
   const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mode, setMode] = useState<SidebarMode>(currentSidebarMode);
+
+  useEffect(() => {
+    const update = (): void => setMode(currentSidebarMode());
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   useEffect(
     () => () => {
@@ -43,6 +56,8 @@ export function WorkspaceShell({
     },
     [],
   );
+
+  const navigationVisible = mode === "mobile" ? mobileNavigationOpen : sidebarOpen;
 
   const changeSidebarOpen = (open: boolean): void => {
     onSidebarOpenChange(open);
@@ -53,6 +68,14 @@ export function WorkspaceShell({
     }, SIDEBAR_MOTION_DURATION_MS);
   };
 
+  const openNavigation = (): void => {
+    if (mode === "mobile") {
+      onMobileNavigationOpenChange(true);
+      return;
+    }
+    changeSidebarOpen(true);
+  };
+
   return (
     <div className="workspace-shell" data-sidebar-open={sidebarOpen} data-testid="workspace-shell">
       <a className="workspace-skip-link" href="#workspace-main">
@@ -60,6 +83,7 @@ export function WorkspaceShell({
       </a>
       <ResponsiveSidebar
         closeControlRef={closeControl}
+        openControlRef={openControl}
         mobileOpen={mobileNavigationOpen}
         open={sidebarOpen}
         restoreMobileFocusOnClose={restoreMobileFocusOnClose}
@@ -77,15 +101,15 @@ export function WorkspaceShell({
             ref={openControl}
             className="workspace-sidebar-desktop-trigger"
             data-testid="toggle-sidebar"
-            data-visible={!sidebarOpen || undefined}
+            data-visible={!navigationVisible || undefined}
             size="square"
             variant="ghost"
             aria-label="Afficher la barre latérale"
-            aria-expanded={sidebarOpen}
+            aria-expanded={navigationVisible}
             aria-controls="workspace-navigation"
-            onClick={() => changeSidebarOpen(true)}
+            onClick={openNavigation}
           >
-            <AppIcon name="panelOpen" />
+            <AppIcon name="panelOpen" size="small" />
             <span className="ui-visually-hidden">Afficher la barre latérale</span>
           </Button>
         </div>

@@ -44,7 +44,6 @@ import { DesktopVaultStatus } from "./features/security/desktop-vault-status.tsx
 import { SecuritySettings } from "./features/security/security-settings.tsx";
 import { type SettingsSection, SettingsShell } from "./features/settings/settings-shell.tsx";
 import { WorkspaceManagementSettings } from "./features/settings/workspace-management-settings.tsx";
-import { WorkspaceNavigationSettings } from "./features/settings/workspace-navigation-settings.tsx";
 import { DesktopUpdatePanel } from "./features/update/desktop-update-panel.tsx";
 import {
   type ApplicationDestination,
@@ -92,7 +91,10 @@ function settingsSectionFromDestination(
 ): SettingsSection | null {
   if (destination.kind === "page-settings") return "page-details";
   if (destination.kind !== "settings") return null;
-  return destination.section === "storage-sync" ? "local-data" : destination.section;
+  if (destination.section === "storage-sync") return "local-data";
+  // Favoris / Récents chrome is retired; old /settings/navigation bookmarks land on security.
+  if (destination.section === "navigation") return "security";
+  return destination.section;
 }
 
 function settingsDestination(section: SettingsSection, itemId: Uuid | null): string | null {
@@ -657,8 +659,6 @@ export function App(props: AppProps = {}) {
                 <BackupPanel load={loadPortableBackupStatus} runRehearsal={runBackupRehearsal} />
               </details>
             </>
-          ) : settingsSection === "navigation" ? (
-            <WorkspaceNavigationSettings db={contentService.db} />
           ) : (
             <WorkspaceManagementSettings
               activeItem={activeItem}

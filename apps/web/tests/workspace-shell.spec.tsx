@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { sidebarModeForWidth } from "../src/features/navigation/responsive-sidebar.tsx";
+import { SidebarCollapseButton } from "../src/features/navigation/sidebar-collapse.tsx";
 import { PageHeader } from "../src/features/workspace/page-header.tsx";
 import { activeItemState } from "../src/features/workspace/use-active-item.ts";
 import { WorkspaceShell } from "../src/features/workspace/workspace-shell.tsx";
@@ -43,7 +44,12 @@ describe("workspace shell", () => {
   it("keeps navigation, header and readable main content as distinct landmarks", () => {
     const markup = renderToStaticMarkup(
       <WorkspaceShell
-        navigation={<nav aria-label="Navigation principale">Pages</nav>}
+        navigation={
+          <nav aria-label="Navigation principale">
+            Pages
+            <SidebarCollapseButton />
+          </nav>
+        }
         header={<PageHeader title="Feuille de route" />}
         mobileNavigationOpen={false}
         sidebarOpen
@@ -72,7 +78,12 @@ describe("workspace shell", () => {
   it("keeps the desktop sidebar mounted but inert while it animates closed", () => {
     const markup = renderToStaticMarkup(
       <WorkspaceShell
-        navigation={<nav aria-label="Navigation principale">Pages</nav>}
+        navigation={
+          <nav aria-label="Navigation principale">
+            Pages
+            <SidebarCollapseButton />
+          </nav>
+        }
         header={<PageHeader title="Feuille de route" />}
         mobileNavigationOpen={false}
         sidebarOpen={false}
@@ -209,9 +220,7 @@ describe("workspace shell", () => {
       "utf8",
     );
 
-    expect(workspaceCss).toMatch(
-      /--workspace-page-icon-offset:\s*clamp\(var\(--space-10\),\s*8vh,\s*var\(--space-12\)\)/u,
-    );
+    expect(workspaceCss).toMatch(/--workspace-page-icon-offset:\s*var\(--space-10\)/u);
     expect(workspaceCss).toMatch(/padding:\s*var\(--workspace-page-icon-offset\)/u);
     expect(iconCss).not.toMatch(
       /\.item-emoji-picker\[data-picker-variant="page"\]\[data-empty\]\s*\{[^}]*position:\s*absolute/u,

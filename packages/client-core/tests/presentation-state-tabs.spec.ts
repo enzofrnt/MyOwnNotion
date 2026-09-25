@@ -11,6 +11,7 @@ import {
   normalizeWorkspacePresentationState,
   openTab,
   pruneTabs,
+  reorderTabs,
 } from "@myownnotion/client-core";
 import { describe, expect, it } from "vitest";
 
@@ -51,5 +52,14 @@ describe("open tab ids in the presentation state", () => {
   it("keeps the graph view tab when item identities are pruned", () => {
     expect(pruneTabs([GRAPH_TAB_ID, "a", "b"], new Set(["a"]))).toEqual([GRAPH_TAB_ID, "a"]);
     expect(openTab(["a"], GRAPH_TAB_ID)).toEqual([GRAPH_TAB_ID, "a"]);
+  });
+
+  it("reorders an open tab beside another without churning on no-ops", () => {
+    const strip = ["a", "b", "c"];
+    expect(reorderTabs(strip, "a", "c")).toEqual(["b", "c", "a"]);
+    expect(reorderTabs(strip, "c", "a")).toEqual(["c", "a", "b"]);
+    expect(reorderTabs(strip, "b", "b")).toBe(strip);
+    expect(reorderTabs(strip, "missing", "a")).toBe(strip);
+    expect(reorderTabs(strip, "a", "missing")).toBe(strip);
   });
 });

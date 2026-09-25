@@ -191,6 +191,12 @@ export function paintGraphLayout(
       "data-emphasis",
       highlightedIds === null ? "normal" : highlightedIds.has(nodeId) ? "active" : "dimmed",
     );
+    const hit = group.querySelector<SVGCircleElement>("circle.knowledge-graph-canvas__hit");
+    const halo = group.querySelector<SVGCircleElement>("circle.knowledge-graph-canvas__halo");
+    const dot = group.querySelector<SVGCircleElement>("circle.knowledge-graph-canvas__dot");
+    if (hit !== null) hit.setAttribute("r", String(Math.max(position.radius + 8, 16)));
+    if (halo !== null) halo.setAttribute("r", String(position.radius + 3));
+    if (dot !== null) dot.setAttribute("r", String(position.radius));
     const label = group.querySelector("text");
     if (label === null) continue;
     const labelPinned =

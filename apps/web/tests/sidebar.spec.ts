@@ -83,22 +83,17 @@ describe("recents", () => {
 });
 
 describe("shortcut presentation", () => {
-  const renderSidebar = (overrides: {
-    favouritesVisible?: boolean;
-    favouritesExpanded?: boolean;
-    recentsVisible?: boolean;
-    recentsExpanded?: boolean;
-  }) =>
+  const renderSidebar = () =>
     renderToStaticMarkup(
       createElement(Sidebar, {
         items: [item("Favori", true), item("Récent", false)],
         tree: createElement("div", null, "Arbre"),
         creationControls: createElement("button", { type: "button" }, "Nouveau"),
         shortcutPreferences: {
-          favouritesVisible: overrides.favouritesVisible ?? true,
-          favouritesExpanded: overrides.favouritesExpanded ?? true,
-          recentsVisible: overrides.recentsVisible ?? true,
-          recentsExpanded: overrides.recentsExpanded ?? true,
+          favouritesVisible: true,
+          favouritesExpanded: true,
+          recentsVisible: true,
+          recentsExpanded: true,
         },
         onShortcutExpandedChange: () => undefined,
         onOpen: () => undefined,
@@ -108,17 +103,19 @@ describe("shortcut presentation", () => {
       }),
     );
 
-  it("names the main hierarchy Notes and keeps shortcut sections independent", () => {
-    const markup = renderSidebar({ favouritesExpanded: false, recentsExpanded: true });
+  it("names the main hierarchy Notes and hides Favoris / Récents chrome", () => {
+    const markup = renderSidebar();
     expect(markup).toContain(">Notes<");
     expect(markup).not.toContain("Espace privé");
-    expect(markup).toContain('aria-label="Déplier les favoris"');
-    expect(markup).toContain('data-testid="recents"');
+    expect(markup).not.toContain('id="sidebar-favourites-heading"');
+    expect(markup).not.toContain('id="sidebar-recents-heading"');
     expect(markup).not.toContain('data-testid="favourites"');
+    expect(markup).not.toContain('data-testid="recents"');
+    expect(markup).not.toContain('data-testid="sync-status"');
   });
 
   it("places root creation on the Notes heading instead of a dedicated row", () => {
-    const markup = renderSidebar({});
+    const markup = renderSidebar();
     const notes = markup.indexOf('id="sidebar-tree-heading"');
     const create = markup.indexOf(">Nouveau<");
     const tree = markup.indexOf(">Arbre<");
@@ -127,26 +124,6 @@ describe("shortcut presentation", () => {
     expect(create).toBeLessThan(tree);
     expect(markup).not.toContain("workspace-navigation__create");
     expect(markup).not.toContain("workspace-navigation__database-create");
-  });
-
-  it("does not render a shortcut section disabled in settings", () => {
-    const markup = renderSidebar({ favouritesVisible: false, recentsVisible: true });
-    expect(markup).not.toContain('id="sidebar-favourites-heading"');
-    expect(markup).toContain('id="sidebar-recents-heading"');
-  });
-
-  it("places each compact disclosure immediately before its section label", () => {
-    const markup = renderSidebar({});
-    const favouritesToggle = markup.indexOf('aria-label="Replier les favoris"');
-    const favouritesLabel = markup.indexOf('id="sidebar-favourites-heading"');
-    const recentsToggle = markup.indexOf('aria-label="Replier les récents"');
-    const recentsLabel = markup.indexOf('id="sidebar-recents-heading"');
-
-    expect(favouritesToggle).toBeGreaterThanOrEqual(0);
-    expect(favouritesToggle).toBeLessThan(favouritesLabel);
-    expect(recentsToggle).toBeGreaterThanOrEqual(0);
-    expect(recentsToggle).toBeLessThan(recentsLabel);
-    expect(markup).toContain('data-icon="chevronDown"');
   });
 });
 

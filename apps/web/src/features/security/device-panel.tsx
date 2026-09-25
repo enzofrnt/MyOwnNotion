@@ -20,7 +20,7 @@ import type { DeviceDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useState } from "react";
 import type { SecurityApi } from "../../services/security-api.ts";
 import { FR_COPY, formatDateTime } from "../../ui/copy/index.ts";
-import { AsyncState, Button, ConfirmDialog, Field } from "../../ui/primitives/index.ts";
+import { Button, ConfirmDialog, Field } from "../../ui/primitives/index.ts";
 
 export interface DevicePanelProps {
   readonly api: SecurityApi;
@@ -173,88 +173,94 @@ export function DevicePanel(props: DevicePanelProps) {
 
   return (
     <section className="device-panel ui-settings-panel" aria-labelledby="devices-heading">
-      <h2 id="devices-heading">{FR_COPY.security.devices.title}</h2>
+      <header className="security-settings__panel-head">
+        <div>
+          <h2 id="devices-heading">{FR_COPY.security.devices.title}</h2>
+          <p className="security-settings__lead">
+            Les appareils autorisés à synchroniser cet espace.
+          </p>
+        </div>
+      </header>
       {notice === null ? null : (
-        <AsyncState
-          compact
-          className="device-message"
-          kind={notice.kind}
-          title={notice.message}
-          testId="device-message"
-        />
+        <p className="security-settings__note" role="status" data-testid="device-message">
+          {notice.message}
+        </p>
       )}
 
       {loading ? (
-        <AsyncState compact kind="loading" title={FR_COPY.security.devices.loading} />
+        <p className="security-settings__quiet" role="status">
+          {FR_COPY.security.devices.loading}
+        </p>
       ) : devices.length === 0 ? (
-        <AsyncState compact kind="empty" title={FR_COPY.security.devices.empty} />
+        <p className="security-settings__quiet">{FR_COPY.security.devices.empty}</p>
       ) : (
-        <ul className="device-list" data-testid="device-list">
+        <ul className="device-list security-settings__rows" data-testid="device-list">
           {devices.map((device) => {
             const isCurrent = device.deviceId === props.currentDeviceId;
             const revoked = device.state === "revoked";
             return (
               <li key={device.deviceId} data-testid="device-row">
-                {editing === device.deviceId ? (
-                  <div>
-                    <Field
-                      id={`device-name-${device.deviceId}`}
-                      label={FR_COPY.security.devices.name}
-                      value={draftName}
-                      onChange={(event) => {
-                        setDraftName(event.target.value);
-                      }}
-                      data-testid="device-name-input"
-                    />
-                    <Button
-                      size="compact"
-                      variant="primary"
-                      onClick={() => {
-                        void rename(device.deviceId);
-                      }}
-                      busy={busy}
-                      data-testid="save-device-name"
-                    >
-                      {FR_COPY.security.devices.saveName}
-                    </Button>
-                    <Button
-                      size="compact"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditing(null);
-                      }}
-                      disabled={busy}
-                    >
-                      {FR_COPY.security.devices.cancelRename}
-                    </Button>
-                  </div>
-                ) : (
-                  <div>
-                    <strong>{device.name}</strong>
-                    {isCurrent ? (
-                      <span data-testid="current-device">
-                        {" "}
-                        — {FR_COPY.security.devices.current}
-                      </span>
-                    ) : null}
-                  </div>
-                )}
-
-                <div className="device-detail">
-                  {device.platform} · {describeState(device.state)} ·{" "}
-                  {FR_COPY.security.devices.lastUsed}{" "}
-                  <span data-testid="device-last-activity">
-                    {describeLastUse(device.lastActivityAt)}
-                  </span>{" "}
-                  · {FR_COPY.security.devices.lastSynchronized}{" "}
-                  <span data-testid="device-last-sync">{describeLastUse(device.lastSyncAt)}</span>
+                <div className="security-settings__row-main">
+                  {editing === device.deviceId ? (
+                    <div className="device-rename">
+                      <Field
+                        id={`device-name-${device.deviceId}`}
+                        label={FR_COPY.security.devices.name}
+                        value={draftName}
+                        onChange={(event) => {
+                          setDraftName(event.target.value);
+                        }}
+                        data-testid="device-name-input"
+                      />
+                      <div className="security-settings__row-actions" data-align="start">
+                        <Button
+                          size="compact"
+                          variant="secondary"
+                          onClick={() => {
+                            void rename(device.deviceId);
+                          }}
+                          busy={busy}
+                          data-testid="save-device-name"
+                        >
+                          {FR_COPY.security.devices.saveName}
+                        </Button>
+                        <Button
+                          size="compact"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditing(null);
+                          }}
+                          disabled={busy}
+                        >
+                          {FR_COPY.security.devices.cancelRename}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="security-settings__row-label">
+                      {device.name}
+                      {isCurrent ? (
+                        <span className="security-settings__badge" data-testid="current-device">
+                          {FR_COPY.security.devices.current}
+                        </span>
+                      ) : null}
+                    </span>
+                  )}
+                  <span className="device-detail security-settings__row-meta">
+                    {device.platform} · {describeState(device.state)} ·{" "}
+                    {FR_COPY.security.devices.lastUsed}{" "}
+                    <span data-testid="device-last-activity">
+                      {describeLastUse(device.lastActivityAt)}
+                    </span>{" "}
+                    · {FR_COPY.security.devices.lastSynchronized}{" "}
+                    <span data-testid="device-last-sync">{describeLastUse(device.lastSyncAt)}</span>
+                  </span>
                 </div>
-
                 {revoked ? null : (
-                  <div className="device-actions">
+                  <div className="device-actions security-settings__row-actions">
                     <Button
                       size="compact"
-                      variant="ghost"
+                      variant="secondary"
                       onClick={() => {
                         setEditing(device.deviceId);
                         setDraftName(device.name);
@@ -282,8 +288,6 @@ export function DevicePanel(props: DevicePanelProps) {
                         setPendingRevocation(device);
                       }}
                       disabled={busy}
-                      // Says what it costs before the owner commits, rather than
-                      // letting them meet the requirement as an error.
                       title={FR_COPY.security.devices.revokeTitle}
                       data-testid="revoke-device"
                     >

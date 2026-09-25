@@ -214,6 +214,26 @@ describe("legacy offline branches", () => {
       }),
     });
 
+    const beforeMoves = page.snapshot();
+    const moves = page.transact([
+      { type: "move-table-row", tableId, rowId: secondRowId, beforeRowId: firstRowId },
+      {
+        type: "move-table-column",
+        tableId,
+        columnId: secondColumnId,
+        beforeColumnId: firstColumnId,
+      },
+    ]);
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 3,
+      commands: legacySemanticCommandsFromTransaction({
+        pageId,
+        beforeDocument: beforeMoves,
+        transaction: moves,
+      }),
+    });
+
     const beforeReduction = page.snapshot();
     const reduction = page.transact([
       { type: "delete-table-column", tableId, columnId: firstColumnId },
@@ -221,7 +241,7 @@ describe("legacy offline branches", () => {
     ]);
     branch = await appendLegacySemanticTransaction(branch, {
       transactionId: generateUuidV7(),
-      sequence: 3,
+      sequence: 4,
       commands: legacySemanticCommandsFromTransaction({
         pageId,
         beforeDocument: beforeReduction,
@@ -239,6 +259,8 @@ describe("legacy offline branches", () => {
       "insert-block",
       "insert-table-row",
       "insert-table-column",
+      "move-table-row",
+      "move-table-column",
       "delete-table-column",
       "delete-table-row",
     ]);

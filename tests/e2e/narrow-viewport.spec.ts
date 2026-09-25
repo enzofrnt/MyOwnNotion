@@ -165,7 +165,7 @@ test.describe("at 320 pixels", () => {
     await editor.pressSequentially("/tab");
     const tableMenu = page.getByRole("listbox");
     await tableMenu.getByRole("option", { name: /^Tableau simple/u }).click();
-    await expect(editor.locator(".editor-table-toolbar")).toBeVisible();
+    await expect(editor.locator('[data-testid="editor-table-chrome"]')).toBeAttached();
     await expectNoHorizontalOverflow(page);
   });
 });
@@ -207,7 +207,7 @@ test.describe("the collapsible tree", () => {
     await closeMobileNavigation(page);
     await expect(page.getByTestId("workspace-tree")).toBeHidden();
 
-    await page.getByTestId("toggle-tree").click();
+    await page.getByTestId("toggle-sidebar").click();
     await expect(page.getByTestId("workspace-tree")).toBeVisible();
   });
 
@@ -225,24 +225,24 @@ test.describe("the collapsible tree", () => {
     await page.keyboard.press("Escape");
 
     await expect(page.getByTestId("workspace-tree")).toBeHidden();
-    await expect(page.getByTestId("toggle-tree")).toBeFocused();
+    await expect(page.getByTestId("toggle-sidebar")).toBeFocused();
   });
 
   test("declares whether it is open", async ({ page }) => {
     await page.setViewportSize(NARROW);
     await openWorkspace(page);
-    await expect(page.getByTestId("toggle-tree")).toHaveAttribute("aria-expanded", "false");
-    await page.getByTestId("toggle-tree").click();
-    await expect(page.getByTestId("toggle-tree")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByTestId("toggle-sidebar")).toHaveAttribute("aria-expanded", "false");
+    await page.getByTestId("toggle-sidebar").click();
+    await expect(page.getByTestId("toggle-sidebar")).toHaveAttribute("aria-expanded", "true");
   });
 
   test("stays out of the way on a desktop", async ({ page }) => {
-    // The control exists in the markup at every width; above the breakpoint it
-    // is not shown, because the tree is always in view and a toggle would be
-    // one more thing to explain.
+    // The reopen control exists in the markup at every width; while the rail
+    // is open it stays hidden, because a toggle next to a visible tree would
+    // be one more thing to explain.
     await page.setViewportSize({ width: 1280, height: 800 });
     await openWorkspace(page);
-    await expect(page.getByTestId("toggle-tree")).toBeHidden();
+    await expect(page.getByTestId("toggle-sidebar")).toBeHidden();
     await expect(page.getByTestId("workspace-tree")).toBeVisible();
   });
 });

@@ -16,8 +16,8 @@ import {
   useImperativeHandle,
   useLayoutEffect,
   useRef,
-  useState,
 } from "react";
+import { updateDottedCanvasBackground } from "../../ui/dotted-canvas-background.ts";
 import {
   GRAPH_LABEL_FONT,
   graphPositionMap,
@@ -95,12 +95,12 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
   const forcesRef = useRef(forces);
   const loopRef = useRef(0);
   forcesRef.current = forces;
-  const [layout, setLayout] = useState(() =>
-    createGraphForceRuntime(projection).settle(forces, 36),
-  );
-  const layoutRef = useRef(layout);
-  layoutRef.current = layout;
+  // The live layout lives in a ref only. A React state copy re-applied on
+  // every render would flash the pre-drag positions whenever a parent render
+  // (zoom preference save, selection) races the force tick.
+  const layoutRef = useRef<GraphLayout>(createGraphForceRuntime(projection).settle(forces, 36));
   const container = useRef<HTMLElement>(null);
+  const dottedBg = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const zoomOutput = useRef<HTMLOutputElement>(null);
   const drag = useRef<{
@@ -122,7 +122,10 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
   const skipNodeClick = useRef(false);
   const zoomRef = useRef(initialZoom);
   const panRef = useRef({ x: 0, y: 0 });
-  const viewportRef = useRef({ width: layout.width, height: layout.height });
+  const viewportRef = useRef({
+    width: layoutRef.current.width,
+    height: layoutRef.current.height,
+  });
   const hoveredIdRef = useRef<GraphProjection["nodes"][number]["id"] | null>(null);
   const projectionRef = useRef(projection);
   projectionRef.current = projection;
@@ -134,6 +137,7 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     const target = svg.current;
     if (target === null) return;
     const current = layoutRef.current;
+    const zoom = zoomRef.current;
     paintGraphCamera(
       target,
       zoomOutput.current,
@@ -141,15 +145,23 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       panRef.current.y,
       viewportRef.current.width,
       viewportRef.current.height,
-      zoomRef.current,
+      zoom,
     );
+    if (dottedBg.current !== null) {
+      // World pan → screen translation so dots track the SVG camera.
+      updateDottedCanvasBackground(dottedBg.current, {
+        zoom,
+        translateX: -panRef.current.x * zoom,
+        translateY: -panRef.current.y * zoom,
+      });
+    }
     paintGraphLayout(
       target,
       projectionRef.current,
       graphPositionMap(current),
       selectedIdRef.current,
       hoveredIdRef.current,
-      zoomRef.current,
+      zoom,
     );
   };
   const paintRef = useRef(paint);
@@ -232,8 +244,18 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       const width = Math.max(1, entry.contentRect.width);
       const height = Math.max(1, entry.contentRect.height);
       if (width < 32 || height < 32) return;
-      if (viewportRef.current.width === width && viewportRef.current.height === height) return;
+      const prev = viewportRef.current;
+      if (prev.width === width && prev.height === height) return;
+      // Keep the world point under the viewport centre stable while the stage
+      // resizes (sidebar drag, window chrome). Otherwise pan feels “lost”.
+      const zoom = zoomRef.current;
+      const centerX = panRef.current.x + prev.width / (2 * zoom);
+      const centerY = panRef.current.y + prev.height / (2 * zoom);
       viewportRef.current = { width, height };
+      panRef.current = {
+        x: centerX - width / (2 * zoom),
+        y: centerY - height / (2 * zoom),
+      };
       paintRef.current();
     });
     observer.observe(host);
@@ -247,13 +269,18 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     const nextForcesKey = `${forces.centerForce}:${forces.repelForce}:${forces.linkForce}:${forces.linkDistance}`;
     const forcesChanged = forcesKeyRef.current !== nextForcesKey;
     forcesKeyRef.current = nextForcesKey;
+    if (!topologyChanged && !forcesChanged) {
+      // Parent re-rendered with a new projection object of the same topology —
+      // do not restart the force loop (that flashes the last settled layout).
+      paintRef.current();
+      return;
+    }
     if (topologyChanged) {
       topologyRef.current = nextKey;
       const created = createGraphForceRuntime(projection);
       runtimeRef.current = created;
       const settled = created.settle(forces, 120);
       layoutRef.current = settled;
-      setLayout(settled);
       const host = container.current;
       if (host !== null && host.clientWidth >= 64 && host.clientHeight >= 64) {
         const width = host.clientWidth;
@@ -272,9 +299,7 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     if (!topologyChanged && prefersReducedMotion() && forcesChanged) {
       const frozen = runtimeRef.current;
       if (frozen !== null) {
-        const settled = frozen.settle(forces, 120);
-        layoutRef.current = settled;
-        setLayout(settled);
+        layoutRef.current = frozen.settle(forces, 120);
       }
     }
     if (topologyChanged) {
@@ -505,8 +530,9 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     hoveredIdRef.current = itemId;
     paint();
   };
-  void layout;
-  const positions = graphPositionMap(layoutRef.current);
+  // Positions are owned by `paintGraphLayout` (layoutRef). Emitting them from
+  // React state would flash the last settled layout whenever a parent re-render
+  // races the force tick (zoom preference save, selection, sidebar resize).
 
   return (
     <section
@@ -515,6 +541,12 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       data-testid="knowledge-graph-canvas"
       aria-label="Carte du graphe. Utilisez Tab puis les flèches pour parcourir les éléments."
     >
+      <div
+        ref={dottedBg}
+        className="ui-dotted-canvas-background knowledge-graph-canvas__dots"
+        aria-hidden="true"
+        data-testid="knowledge-graph-dotted-bg"
+      />
       <output ref={zoomOutput} className="ui-visually-hidden" aria-label="Niveau de zoom">
         {Math.round(zoomRef.current * 100)} %
       </output>
@@ -535,27 +567,20 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       >
         <title>Carte interactive du graphe de connaissances</title>
         <g className="knowledge-graph-canvas__edges">
-          {projection.edges.map((edge) => {
-            const source = positions.get(edge.sourceId);
-            const target = positions.get(edge.targetId);
-            if (source === undefined || target === undefined) return null;
-            return (
-              <g
-                key={edge.key}
-                data-graph-edge={edge.key}
-                data-availability={edge.availability}
-                data-emphasis="normal"
-              >
-                <line x1={source.x} y1={source.y} x2={target.x} y2={target.y} />
-              </g>
-            );
-          })}
+          {projection.edges.map((edge) => (
+            <g
+              key={edge.key}
+              data-graph-edge={edge.key}
+              data-availability={edge.availability}
+              data-emphasis="normal"
+            >
+              <line />
+            </g>
+          ))}
         </g>
         <g className="knowledge-graph-canvas__nodes">
           {projection.nodes.map((node) => {
-            const position = positions.get(node.id);
-            if (position === undefined) return null;
-            const radius = position.radius;
+            const radius = 8;
             return (
               // biome-ignore lint/a11y/useSemanticElements: SVG graph nodes cannot contain HTML buttons; keyboard handling preserves button semantics.
               <g
@@ -568,7 +593,6 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
                 data-kind={node.kind}
                 data-lifecycle={node.lifecycle}
                 data-emphasis="normal"
-                transform={`translate(${position.x} ${position.y})`}
                 onPointerDown={(event) => beginNodeDrag(event, node.id)}
                 onClick={(event) => handleNodeClick(event, node.id)}
                 onDoubleClick={() => {
@@ -592,7 +616,7 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
                   className="knowledge-graph-canvas__label"
                   y={radius + 13}
                   fontSize={GRAPH_LABEL_FONT}
-                  opacity={node.id === selectedId || node.id === projection.focusId ? 1 : 0}
+                  opacity={0}
                 >
                   {shortGraphLabel(node.name)}
                 </text>

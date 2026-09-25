@@ -457,7 +457,7 @@ test.describe("hierarchy organization (US1)", () => {
     const restoredRoot = page.getByTestId(`tree-item-${root}`);
     await expect(restoredRoot).toHaveCount(1, { timeout: 15_000 });
     if (!(await restoredRoot.isVisible())) {
-      await page.getByTestId("toggle-tree").click();
+      await page.getByTestId("toggle-sidebar").click();
     }
     await expect(restoredRoot).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId(`tree-item-${root}`)).toHaveAttribute("aria-expanded", "true");
@@ -478,7 +478,7 @@ test.describe("hierarchy organization (US1)", () => {
     // before exercising the tree's keyboard contract and restore focus to the
     // selected row, just as a keyboard user would.
     if (!(await page.getByTestId(`tree-item-${a}`).isVisible())) {
-      await page.getByTestId("toggle-tree").click();
+      await page.getByTestId("toggle-sidebar").click();
       await expect(page.getByTestId(`tree-item-${a}`)).toBeVisible();
       await page.getByTestId(`tree-item-${a}`).focus();
     }

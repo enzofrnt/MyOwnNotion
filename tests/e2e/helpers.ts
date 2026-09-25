@@ -589,7 +589,9 @@ export async function ensureNavigationVisible(page: Page): Promise<void> {
   // visible, which makes Playwright correctly report the wrapper itself as
   // hidden.
   const navigation = page.locator('[role="tree"], [data-testid="empty-state"]').first();
-  const trigger = page.getByTestId("toggle-tree");
+  // Narrow viewports close the rail automatically; reopen via the stage-header
+  // panel control — never via a floating "Navigation" button.
+  const trigger = page.getByTestId("toggle-sidebar");
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await expect
       .poll(async () => (await navigation.isVisible()) || (await trigger.isVisible()), {

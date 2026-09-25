@@ -92,6 +92,24 @@ export type LegacySemanticCommand =
       readonly type: "delete-table-column";
       readonly tableId: Uuid;
       readonly columnId: Uuid;
+    }
+  | {
+      readonly type: "move-table-row";
+      readonly tableId: Uuid;
+      readonly rowId: Uuid;
+      readonly beforeRowId: Uuid | null;
+    }
+  | {
+      readonly type: "move-table-column";
+      readonly tableId: Uuid;
+      readonly columnId: Uuid;
+      readonly beforeColumnId: Uuid | null;
+    }
+  | {
+      readonly type: "set-table-column-width";
+      readonly tableId: Uuid;
+      readonly columnId: Uuid;
+      readonly width: number | null;
     };
 
 export interface LegacySemanticTransaction {
@@ -295,6 +313,9 @@ function proofCommand(command: LegacySemanticCommand, document: BlockDocumentV3)
     case "delete-table-row":
     case "insert-table-column":
     case "delete-table-column":
+    case "move-table-row":
+    case "move-table-column":
+    case "set-table-column-width":
       return command;
     case "replace-text": {
       const text = nodes.get(command.blockId)?.text;
@@ -586,6 +607,27 @@ export function legacySemanticCommandsFromTransaction(input: {
             type: "delete-table-column",
             tableId: change.blockId,
             columnId: change.column.id,
+          };
+        case "table-row-moved":
+          return {
+            type: "move-table-row",
+            tableId: change.blockId,
+            rowId: change.row.id,
+            beforeRowId: change.placementAfter.beforeRowId,
+          };
+        case "table-column-moved":
+          return {
+            type: "move-table-column",
+            tableId: change.blockId,
+            columnId: change.column.id,
+            beforeColumnId: change.placementAfter.beforeColumnId,
+          };
+        case "table-column-width-set":
+          return {
+            type: "set-table-column-width",
+            tableId: change.blockId,
+            columnId: change.columnId,
+            width: change.afterWidth,
           };
         case "schema-changed":
           throw new LegacyOfflineBranchError(
@@ -1088,6 +1130,72 @@ function activeCommand(input: {
         )
       ) {
         return { ambiguity: ambiguity("delete-edit", command.tableId, beforeTable) };
+      }
+      return { command };
+    }
+    case "move-table-row": {
+      const currentTable = tableFromIndex(active, command.tableId);
+      if (currentTable === undefined) {
+        return {
+          ambiguity: ambiguity(
+            "delete-edit",
+            command.tableId,
+            tableFromIndex(proofBefore, command.tableId),
+          ),
+        };
+      }
+      if (!currentTable.rows.some(({ id }) => id === command.rowId)) {
+        return { ambiguity: ambiguity("delete-move", command.tableId) };
+      }
+      return {
+        command: {
+          ...command,
+          beforeRowId:
+            command.beforeRowId !== null &&
+            currentTable.rows.some(({ id }) => id === command.beforeRowId)
+              ? command.beforeRowId
+              : null,
+        },
+      };
+    }
+    case "move-table-column": {
+      const currentTable = tableFromIndex(active, command.tableId);
+      if (currentTable === undefined) {
+        return {
+          ambiguity: ambiguity(
+            "delete-edit",
+            command.tableId,
+            tableFromIndex(proofBefore, command.tableId),
+          ),
+        };
+      }
+      if (!currentTable.columns.some(({ id }) => id === command.columnId)) {
+        return { ambiguity: ambiguity("delete-move", command.tableId) };
+      }
+      return {
+        command: {
+          ...command,
+          beforeColumnId:
+            command.beforeColumnId !== null &&
+            currentTable.columns.some(({ id }) => id === command.beforeColumnId)
+              ? command.beforeColumnId
+              : null,
+        },
+      };
+    }
+    case "set-table-column-width": {
+      const currentTable = tableFromIndex(active, command.tableId);
+      if (currentTable === undefined) {
+        return {
+          ambiguity: ambiguity(
+            "delete-edit",
+            command.tableId,
+            tableFromIndex(proofBefore, command.tableId),
+          ),
+        };
+      }
+      if (!currentTable.columns.some(({ id }) => id === command.columnId)) {
+        return { ambiguity: ambiguity("delete-edit", command.tableId) };
       }
       return { command };
     }

@@ -20,6 +20,7 @@ import {
   pruneTabs,
   readNavigationState,
   rememberScrollAnchor,
+  reorderTabs,
   scrollAnchorFor,
   updateWorkspacePresentationState,
   type WorkspacePresentationState,
@@ -94,7 +95,6 @@ import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
 import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
 import type { SearchBranchOption } from "../search/search-filters.tsx";
 import { useRealtimeSync } from "../sync/use-realtime-sync.ts";
-import { WorkspaceSyncStatus } from "../sync/workspace-sync-status.tsx";
 import { FolderChildrenList, FolderInlineCreate } from "../workspace/folder-children-list.tsx";
 import { type OpenTab, OpenTabsStrip } from "../workspace/open-tabs-strip.tsx";
 import { PageContentSkeleton } from "../workspace/page-content-skeleton.tsx";
@@ -456,6 +456,17 @@ export function HierarchyExplorer({
   // which is workable at ten items and unusable at a hundred.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [expandedAttachments, setExpandedAttachments] = useState<ReadonlySet<string>>(new Set());
+  // An attachments panel belongs to the selected page. Leaving that page with
+  // the panel still open under another selection looks like a stuck drawer.
+  useEffect(() => {
+    setExpandedAttachments((current) => {
+      if (current.size === 0) return current;
+      if (selectedId !== null && current.has(selectedId)) {
+        return current.size === 1 ? current : new Set([selectedId]);
+      }
+      return new Set();
+    });
+  }, [selectedId]);
   // Guards the persistence effect below. Without it that effect can fire before
   // the stored state has been read and write the empty set back, erasing every
   // open branch on the way in.
@@ -514,9 +525,7 @@ export function HierarchyExplorer({
       const target =
         previous?.isConnected === true && previous.getClientRects().length > 0
           ? previous
-          : document.querySelector<HTMLElement>(
-              '[data-testid="toggle-tree"], [data-testid="toggle-sidebar"]',
-            );
+          : document.querySelector<HTMLElement>('[data-testid="toggle-sidebar"]');
       target?.focus();
     });
   }, []);
@@ -2150,7 +2159,6 @@ export function HierarchyExplorer({
           items={items}
           tree={navigationTree}
           creationControls={creationControls}
-          footerStatus={<WorkspaceSyncStatus service={service} />}
           shortcutPreferences={shortcutPreferences}
           onShortcutExpandedChange={(section, expanded) => {
             setShortcutPreferences((current) => ({
@@ -2192,6 +2200,9 @@ export function HierarchyExplorer({
                 }}
                 onClose={closeOpenTab}
                 onEmptyFocus={focusWorkspaceMain}
+                onReorder={(activeTabId, overTabId) => {
+                  setOpenTabIds((current) => reorderTabs(current, activeTabId, overTabId));
+                }}
               />
             ) : undefined
           }

@@ -1,0 +1,457 @@
+/* Table blocks — AFFiNE layout on BlockNote's block tree.
+   See docs/design/affine-table-ui.md ("Architecture MyOwnNotion").
+
+   DOM (BlockNote + Tiptap):
+   .bn-block-outer[data-id] > .bn-block[data-id]
+     ├─ .react-renderer.node-table > .bn-block-content > .editor-table-chrome   (rails + <style>)
+     └─ .bn-block-group                                                        (rows)
+          └─ .bn-block-outer > .bn-block
+               ├─ .react-renderer.node-tableRow                                (hidden marker)
+               └─ .bn-block-group                                              (cells, grid)
+                    └─ .bn-block-outer > .bn-block > .react-renderer.node-tableCell
+                         > .bn-block-content > .editor-table-cell
+
+   Rules: one direct-child `:has(> .node-table)` on the table block only; every
+   other hook is a `.node-*` sibling/descendant selector; no script mutates a
+   ProseMirror node's DOM. */
+
+/* ---- Table block: 2×2 grid = rows | column rail / row rail | (empty) ------ */
+
+/* Full-main scrollport: at scrollLeft 0 the table lines up with the reading
+   text (padding-inline-start). While scrolling, cells stay visible over the
+   left/right canvas instead of vanishing under it. */
+.page-editor .bn-block-outer:has(> .bn-block > .node-table) {
+  --editor-table-pad-start: var(--workspace-page-inline-start, var(--ui-space-6));
+  --editor-table-pad-end: var(--workspace-page-inline-end, var(--ui-space-2));
+  /* Distance from reading content start back to the main’s start edge. */
+  --editor-table-gutter-start: calc(
+    (100cqi - 100%) / 2 + var(--editor-table-pad-start) / 2 - var(--editor-table-pad-end) / 2
+  );
+
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 100cqi;
+  max-width: 100cqi;
+  margin-inline-start: calc(-1 * var(--editor-table-gutter-start));
+  padding-inline-start: var(--editor-table-gutter-start);
+  padding-inline-end: var(--editor-table-pad-end);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  background: var(--ui-color-canvas, var(--color-canvas));
+  scrollbar-width: thin;
+}
+
+.page-editor .bn-block:has(> .node-table) {
+  --editor-table-rail: 16px;
+  --editor-table-gap: 2px;
+  --editor-table-inset: 10px;
+  display: grid;
+  grid-template-columns: max-content var(--editor-table-rail);
+  grid-template-rows: auto var(--editor-table-rail);
+  gap: var(--editor-table-gap);
+  width: max-content;
+  margin-block: var(--ui-space-2);
+  /* Top inset only — room for the ⋯ column handle. No inline-start inset so
+     the grid’s left border lines up with paragraph text. */
+  padding: var(--editor-table-inset) 0 0;
+}
+
+.page-editor .node-table,
+.page-editor .node-table > .bn-block-content,
+.page-editor .editor-table-chrome {
+  display: contents;
+}
+
+.page-editor .node-table ~ .bn-block-group {
+  grid-area: 1 / 1;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--ui-color-border);
+  border-left: 1px solid var(--ui-color-border);
+  background: transparent;
+}
+
+.page-editor .node-table.ProseMirror-selectednode ~ .bn-block-group {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+/* BlockNote nests groups with an indent + guide line; a table is not an
+   outline level. */
+.page-editor .bn-block-group .node-table ~ .bn-block-group > .bn-block-outer::before,
+.page-editor .bn-block-group .node-tableRow ~ .bn-block-group > .bn-block-outer::before {
+  content: none;
+  display: none;
+}
+
+/* ---- Rows: hidden marker + cell grid ------------------------------------- */
+
+.page-editor .node-tableRow,
+.page-editor .node-tableRow > .bn-block-content {
+  height: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+}
+
+.editor-table-row-marker {
+  display: none;
+}
+
+.page-editor .node-tableRow ~ .bn-block-group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 120px; /* AFFiNE DefaultColumnWidth; the table <style> sets the real tracks */
+  margin: 0;
+  padding: 0;
+}
+
+.page-editor .node-tableRow ~ .bn-block-group > .bn-block-outer {
+  min-width: 0;
+}
+
+.page-editor .node-tableRow ~ .bn-block-group > .bn-block-outer > .bn-block {
+  height: auto;
+  min-height: 100%;
+}
+
+/* ---- Cells --------------------------------------------------------------- */
+
+.page-editor .node-tableCell,
+.page-editor .node-tableCell > .bn-block-content {
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 2.4375rem;
+  padding: 0;
+}
+
+.editor-table-cell {
+  position: relative;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 2.4375rem; /* AFFiNE DefaultRowHeight 39px */
+  border-right: 1px solid var(--ui-color-border);
+  border-bottom: 1px solid var(--ui-color-border);
+}
+
+.editor-table-cell__content {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.4375rem;
+  padding: 0.5rem 0.75rem;
+  overflow-wrap: anywhere;
+  /* Preserve Shift+Enter hard breaks as visible line breaks. */
+  white-space: pre-wrap;
+  outline: 0;
+}
+
+.editor-table-cell:focus-within {
+  background: var(--ui-color-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--ui-color-focus);
+}
+
+/* ---- Column resize (AFFiNE `.column-resize` on the right edge) ------------ */
+
+.editor-table-resize {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  z-index: 2;
+  width: 5px;
+  height: calc(100% + 2px);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+  transition: background-color 0.12s ease;
+}
+
+/* Full-height column edge: every row's handle lights up together. */
+.editor-table-resize[data-highlight],
+.editor-table-resize:focus-visible {
+  background: var(--ui-color-accent);
+}
+
+.editor-table-resize:focus-visible {
+  outline: 0;
+}
+
+.editor-table-chrome[data-resizing],
+.editor-table-chrome[data-resizing] * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+/* ---- ⋯ handles (AFFiNE columnOptions / rowOptions) ----------------------- */
+
+.editor-table-handle-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.editor-table-handle-slot[data-axis="column"] {
+  width: 100%;
+  height: 0;
+}
+
+.editor-table-handle-slot[data-axis="row"] {
+  width: 0;
+  height: 100%;
+}
+
+.editor-table-handle {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 28px;
+  height: 16px;
+  padding: 0;
+  color: var(--ui-color-text-muted);
+  /* Idle/revealed: bare dots only. The pill chrome appears on hover/open. */
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  opacity: 0;
+  cursor: grab;
+  pointer-events: auto;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.editor-table-handle[data-axis="row"] {
+  flex-direction: column;
+  width: 16px;
+  height: 28px;
+}
+
+.editor-table-handle i {
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.editor-table-handle[data-active],
+.editor-table-handle:hover,
+.editor-table-handle:focus-visible {
+  opacity: 1;
+}
+
+/* Pill chrome only when the pointer is on the handle, the menu is open, or a drag is active. */
+.editor-table-handle:hover,
+.editor-table-handle:focus-visible,
+.editor-table-handle[aria-expanded="true"],
+.editor-table-handle[data-dragging] {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-active);
+}
+
+.editor-table-handle:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+.editor-table-handle[data-dragging] {
+  opacity: 1;
+  color: var(--ui-color-accent);
+  cursor: grabbing;
+  touch-action: none;
+}
+
+/* ---- Drag preview + drop indicator (top layer, pointer-transparent) ------ */
+
+.editor-table-drag {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.editor-table-drag:not(:popover-open) {
+  display: none;
+}
+
+.editor-table-drag__ghost,
+.editor-table-drag__indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.editor-table-drag__ghost {
+  background: var(--ui-color-accent-soft);
+  border: 1px solid var(--ui-color-accent);
+  border-radius: var(--ui-radius-xs);
+  opacity: 0.85;
+}
+
+.editor-table-drag__indicator {
+  background: var(--ui-color-accent);
+  border-radius: 1px;
+}
+
+/* ---- + rails (AFFiNE AddButton) ------------------------------------------ */
+
+.editor-table-rail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  color: var(--ui-color-text-muted);
+  /* Quiet strip while the table is hovered; the strong fill is only on :hover. */
+  background: var(--ui-color-surface-sunken);
+  border: 0;
+  border-radius: var(--ui-radius-xs);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.editor-table-rail--column {
+  grid-area: 1 / 2;
+  width: var(--editor-table-rail);
+  height: 100%;
+}
+
+.editor-table-rail--row {
+  grid-area: 2 / 1;
+  width: 100%;
+  height: var(--editor-table-rail);
+}
+
+.page-editor .bn-block:has(> .node-table):hover .editor-table-rail,
+.editor-table-rail:focus-visible {
+  opacity: 1;
+}
+
+/* Strong hover only when the pointer is on the rail itself — never tied to
+   last-row / last-column cell hover. */
+.editor-table-rail:hover:not(:disabled) {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+
+.editor-table-rail:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+.editor-table-rail:disabled {
+  color: var(--ui-color-text-disabled);
+  cursor: default;
+}
+
+/* ---- Menus (native popover, top layer, no portal) ------------------------ */
+
+.editor-table-menu {
+  position: fixed;
+  inset: auto;
+  min-width: 14rem;
+  margin: 0;
+  padding: var(--ui-space-1);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  box-shadow: var(--ui-shadow-menu);
+  font-size: var(--ui-text-sm);
+  /* The handle slot is pointer-transparent; the menu must not inherit that. */
+  pointer-events: auto;
+}
+
+.editor-table-menu:not(:popover-open) {
+  display: none;
+}
+
+.editor-table-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  width: 100%;
+  min-height: var(--ui-target-compact);
+  padding: 0 var(--ui-space-2);
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.editor-table-menu__item:hover:not(:disabled),
+.editor-table-menu__item:focus-visible {
+  background: var(--ui-color-surface-hover);
+  outline: 0;
+}
+
+.editor-table-menu__item:disabled {
+  color: var(--ui-color-text-disabled);
+  cursor: default;
+}
+
+.editor-table-menu__item[data-tone="danger"]:not(:disabled) {
+  color: var(--ui-color-danger);
+}
+
+.editor-table-menu__separator {
+  height: 1px;
+  margin: var(--ui-space-1) 0;
+  background: var(--ui-color-border);
+  border: 0;
+}
+
+/* ---- Touch --------------------------------------------------------------- */
+
+@media (pointer: coarse) {
+  .page-editor .bn-block:has(> .node-table) {
+    --editor-table-rail: 1.75rem;
+  }
+
+  .editor-table-rail,
+  .editor-table-handle {
+    opacity: 1;
+  }
+
+  .editor-table-handle {
+    touch-action: none;
+  }
+
+  .editor-table-handle::after {
+    content: "";
+    position: absolute;
+    inset: -0.875rem;
+  }
+}
