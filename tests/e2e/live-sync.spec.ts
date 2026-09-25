@@ -19,6 +19,7 @@ import {
   CURRENT_PROTOCOL_HEADERS,
   createRootItem,
   ensureNavigationVisible,
+  openNoteInformation,
   openSecondDevice,
   openWorkspace,
   renameItem,
@@ -36,16 +37,15 @@ test.describe("live synchronization (US1)", () => {
     try {
       await openWorkspace(page);
       await openWorkspace(second.page);
-      // Workspace diagnostics live in the navigation footer. On phones the
-      // drawer is closed by default, so expose it before asserting the label.
-      await ensureNavigationVisible(second.page);
+      await createRootItem(second.page, "page", uniqueName("LiveStatus"));
+      await openNoteInformation(second.page);
       // The indicator exists and says something. Not asserted as "live": a
       // first connection that is still opening would fail a test about
       // synchronization for a reason that is not about synchronization.
       await expect(second.page.getByTestId("live-connection-state")).toBeVisible({
         timeout: 15_000,
       });
-      // The drawer remains untouched afterwards, preserving the live-update
+      // The watching device remains untouched afterwards, preserving the live-update
       // property this journey exists to prove.
 
       const created = uniqueName("LiveFolder");

@@ -94,6 +94,7 @@ import {
 import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
 import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
 import type { SearchBranchOption } from "../search/search-filters.tsx";
+import { useChangeStream } from "../sync/use-change-stream.ts";
 import { useRealtimeSync } from "../sync/use-realtime-sync.ts";
 import { FolderChildrenList, FolderInlineCreate } from "../workspace/folder-children-list.tsx";
 import { type OpenTab, OpenTabsStrip } from "../workspace/open-tabs-strip.tsx";
@@ -341,6 +342,7 @@ export function HierarchyExplorer({
     return content;
   }, [pageOperationCsrfToken]);
   useRealtimeSync(service);
+  const changeStream = useChangeStream(service);
   const databaseViews = useMemo(() => new DatabaseViewService(service), [service]);
   const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
   const activeRef = useRef(active);
@@ -2140,6 +2142,7 @@ export function HierarchyExplorer({
 
   return (
     <WorkspaceShell
+      changeStream={changeStream}
       contentMode={
         graphMode !== null
           ? "graph"

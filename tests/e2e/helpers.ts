@@ -300,6 +300,7 @@ export async function triggerAndSampleMountedCssTransition(
 
 interface E2ELocalContentService {
   synchronize(): Promise<string>;
+  getSnapshot(): { readonly syncState: string };
   getItem(itemId: string): Promise<{
     readonly currentRevisionId: string;
     readonly kind: string;
@@ -851,13 +852,25 @@ export async function waitForDatabaseDefinitionSaved(page: Page): Promise<void> 
 }
 
 export async function waitForSynchronized(page: Page): Promise<void> {
-  // The compact workspace status is derived from the aggregate durable queue:
-  // `synced` is impossible while a workspace mutation, page operation, legacy
-  // branch, or conflict is pending. Detailed queue rows live in settings and
-  // must not be mounted below every document just to provide a test hook.
-  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced", {
-    timeout: 20_000,
-  });
+  // The E2E-only service hook observes the aggregate durable queue without
+  // opening another screen or depending on which kind of item is active.
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(
+          () => window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.().getSnapshot().syncState ?? null,
+        ),
+      { timeout: 20_000 },
+    )
+    .toBe("synced");
+}
+
+/** Reveals connection details in the existing information control of an open note. */
+export async function openNoteInformation(page: Page): Promise<void> {
+  const control = page.getByTestId("editor-sync-control");
+  await expect(control).toBeVisible({ timeout: 30_000 });
+  await control.locator("summary").click();
+  await expect(page.getByTestId("live-connection-state")).toBeVisible({ timeout: 15_000 });
 }
 
 /**

@@ -23,6 +23,10 @@ async function prepareReference(page: Page, theme: "light" | "dark"): Promise<vo
     window.localStorage.setItem("myownnotion.theme", preference);
   }, theme);
   await openWorkspace(page);
+  const sidebar = page.getByTestId("sidebar");
+  await expect(sidebar.getByTestId("sync-status")).toHaveCount(0);
+  await expect(sidebar.getByText("Favoris", { exact: true })).toHaveCount(0);
+  await expect(sidebar.getByText("Récents", { exact: true })).toHaveCount(0);
   await createRootItem(page, "folder", "Projets");
   await createChildItem(page, "Projets", "page", "Feuille de route");
   await selectItem(page, "Feuille de route");
@@ -34,9 +38,13 @@ async function prepareReference(page: Page, theme: "light" | "dark"): Promise<vo
   // the screenshot never races activation.
   await expect(page.getByTestId("operational-editor")).toBeVisible({ timeout: 30_000 });
   await waitForSynchronized(page);
+  const syncControl = page.getByTestId("editor-sync-control");
+  await syncControl.locator("summary").click();
   await expect(page.getByTestId("live-connection-state")).toHaveAttribute("data-state", "live", {
     timeout: 15_000,
   });
+  await expect(page.getByTestId("live-connection-state")).toBeVisible();
+  await syncControl.locator("summary").click();
   await expect(
     page.getByTestId("workspace-page-header").getByTestId("active-item-title"),
   ).toHaveCount(0);
@@ -49,7 +57,6 @@ async function prepareReference(page: Page, theme: "light" | "dark"): Promise<vo
   expect(hiddenLabelBox).not.toBeNull();
   expect(hiddenLabelBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
   expect(hiddenLabelBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
-  const syncControl = page.getByTestId("editor-sync-control");
   await expect(syncControl).toHaveAttribute("data-placement", "viewport-bottom");
   const syncBox = await syncControl.boundingBox();
   expect(syncBox).not.toBeNull();

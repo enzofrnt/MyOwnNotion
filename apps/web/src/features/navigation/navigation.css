@@ -153,6 +153,10 @@
   background: var(--ui-color-sidebar);
 }
 
+.workspace-sidebar-drawer > .ui-overlay__dismiss {
+  z-index: 1;
+}
+
 .workspace-navigation {
   --tree-row-min-height: 1.875rem;
   --tree-action-size: 1.5rem;

@@ -113,15 +113,22 @@ for (const [theme, section] of [
       "Chromium mobile owns deterministic touch-width pixels.",
     );
     await prepareVisualSurface(page, theme, MOBILE);
-    await openSettingsSection(page, section);
-    await expect(page.getByTestId(`settings-section-${section}`)).toBeVisible();
     if (section === "security") {
+      await openSettingsSection(page, section);
+      await expect(page.getByTestId("settings-section-security")).toBeVisible();
       await expect(page.getByTestId("security-settings")).toBeVisible({ timeout: 15_000 });
       await expect(page.getByText("Chargement des passkeys…")).toHaveCount(0, {
         timeout: 15_000,
       });
     } else {
-      await expect(page.getByTestId("navigation-settings")).toBeVisible();
+      await ensureNavigationVisible(page);
+      await expect(page.getByTestId("workspace-navigation-drawer")).toBeVisible();
+      await expect(page.getByTestId("sidebar").getByText("Favoris", { exact: true })).toHaveCount(
+        0,
+      );
+      await expect(page.getByTestId("sidebar").getByText("Récents", { exact: true })).toHaveCount(
+        0,
+      );
     }
     await settlePixels(page);
 

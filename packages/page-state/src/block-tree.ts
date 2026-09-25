@@ -896,6 +896,21 @@ export function insertOperationalTableColumn(
   assertUniqueOperationalIdentities(tree);
 }
 
+function cellForTableColumn(
+  cells: readonly LoroTreeNode[],
+  columnId: Uuid,
+  position: number,
+): LoroTreeNode | undefined {
+  const identified = cells.find((cell) => cell.data.get(TABLE_CELL_COLUMN_ID_KEY) === columnId);
+  if (identified !== undefined) return identified;
+  // A positional fallback is valid only for old cells with no column identity.
+  // If a concurrent edit removed a cell, the next column's cell must not be
+  // mistaken for it and moved or deleted in its place.
+  const positional = cells[position];
+  const recorded = positional?.data.get(TABLE_CELL_COLUMN_ID_KEY);
+  return recorded === undefined || recorded === "" ? positional : undefined;
+}
+
 export function deleteOperationalTableColumn(doc: LoroDoc, tableId: Uuid, columnId: Uuid): void {
   const tree = getOperationalBlockTree(doc);
   assertUniqueOperationalIdentities(tree);
@@ -911,8 +926,7 @@ export function deleteOperationalTableColumn(doc: LoroDoc, tableId: Uuid, column
   const targets: LoroTreeNode[] = [];
   for (const rowNode of operationalTableRows(tableNode)) {
     const cells = rowNode.children() ?? [];
-    const target =
-      cells.find((cell) => cell.data.get(TABLE_CELL_COLUMN_ID_KEY) === columnId) ?? cells[index];
+    const target = cellForTableColumn(cells, columnId, index);
     if (target === undefined || nodeType(target) !== "tableCell") {
       throw new BlockTreeOperationError(
         `row ${nodeIdentity(rowNode)} has no cell for column ${columnId}`,
@@ -977,8 +991,7 @@ export function setOperationalTableColumnWidth(
   const columns = parseTableColumns(list.toArray(), path);
   const index = columns.findIndex(({ id }) => id === columnId);
   if (index < 0) throw new BlockTreeOperationError(`column ${columnId} is not in table ${tableId}`);
-  const column = columns[index];
-  if (column === undefined) throw new BlockTreeOperationError(`column ${columnId} is missing`);
+  const column = columns[index] as TableColumnV3;
   if (column.width === width) return;
   list.delete(index, 1);
   list.insert(index, { id: column.id, width });
@@ -1009,19 +1022,17 @@ export function moveOperationalTableColumn(
   if (targetIndex < 0) {
     throw new BlockTreeOperationError(`column ${beforeColumnId} is not in table ${tableId}`);
   }
-  const column = columns[index];
-  if (column === undefined) throw new BlockTreeOperationError(`column ${columnId} is missing`);
+  const column = columns[index] as TableColumnV3;
   const rows = operationalTableRows(tableNode).map((rowNode) => {
     const cells = rowNode.children() ?? [];
-    const cellFor = (id: Uuid, position: number): LoroTreeNode | undefined =>
-      cells.find((cell) => cell.data.get(TABLE_CELL_COLUMN_ID_KEY) === id) ?? cells[position];
-    const source = cellFor(columnId, index);
+    const source = cellForTableColumn(cells, columnId, index);
     if (source === undefined || nodeType(source) !== "tableCell") {
       throw new BlockTreeOperationError(
         `row ${nodeIdentity(rowNode)} has no cell for column ${columnId}`,
       );
     }
-    const before = beforeColumnId === null ? undefined : cellFor(beforeColumnId, targetIndex);
+    const before =
+      beforeColumnId === null ? undefined : cellForTableColumn(cells, beforeColumnId, targetIndex);
     if (beforeColumnId !== null && before === undefined) {
       throw new BlockTreeOperationError(
         `row ${nodeIdentity(rowNode)} has no cell for column ${beforeColumnId}`,

@@ -13,7 +13,13 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { ensureNavigationVisible, openSettings } from "./helpers.ts";
+import {
+  createRootItem,
+  ensureNavigationVisible,
+  openNoteInformation,
+  openSettings,
+  uniqueName,
+} from "./helpers.ts";
 import { seedPassword } from "./password-fixture.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import { resetSecurityInstallation, seedCommittedOwner } from "./reset-installation.ts";
@@ -198,6 +204,11 @@ test.describe("signing in", () => {
       const secondLoginB = await currentSession(secondPage);
       expect(secondLoginB.deviceId).toBe(firstLoginB.deviceId);
       expect((await currentSession(page)).deviceId).toBe(profileA.deviceId);
+
+      await createRootItem(page, "page", uniqueName("ActiveDevice"));
+      await openNoteInformation(page);
+      await createRootItem(secondPage, "page", uniqueName("RevokedDevice"));
+      await openNoteInformation(secondPage);
 
       await page.evaluate(
         async ({ deviceId, csrfToken }) => {

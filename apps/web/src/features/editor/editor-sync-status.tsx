@@ -14,7 +14,9 @@ import type {
   PageSyncState,
 } from "@myownnotion/client-core";
 import { useEffect, useState } from "react";
+import type { LocalContentService } from "../../services/local-content.ts";
 import { AppIcon } from "../../ui/icons.tsx";
+import { WorkspaceSyncStatus } from "../sync/workspace-sync-status.tsx";
 import { LocalCommitRecovery } from "./local-commit-recovery.tsx";
 
 export const BLOCKED_REASON_COPY: Record<PageSyncState["blockedReason"] & string, string> = {
@@ -56,10 +58,12 @@ export function editorSyncLabel(sync: PageSyncState): string {
 export type EditorDurableSession = PageEditingSession | LegacyPageEditingSession;
 
 export function EditorSyncStatus({
+  service,
   session,
   editorSettled = true,
   discoverable = true,
 }: {
+  readonly service?: LocalContentService;
   readonly session: EditorDurableSession;
   /** False while visible browser input has not reached durable page storage yet. */
   readonly editorSettled?: boolean;
@@ -118,7 +122,8 @@ export function EditorSyncStatus({
           </span>
         </summary>
         <div className="editor-sync-status__details">
-          <p>{label}</p>
+          <p>Cette note : {label}</p>
+          {service === undefined ? null : <WorkspaceSyncStatus service={service} />}
           {sync.blockedReason !== undefined ? (
             <p data-testid="editor-sync-blocked-reason">
               {BLOCKED_REASON_COPY[sync.blockedReason]}

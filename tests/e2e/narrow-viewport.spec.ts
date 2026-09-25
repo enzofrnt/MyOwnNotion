@@ -20,6 +20,7 @@ import {
   expectNoHorizontalOverflow,
   openAttachmentDetails,
   openItemActions,
+  openNoteInformation,
   openPageAttachments,
   openSettingsSection,
   openWorkspace,
@@ -328,6 +329,8 @@ test.describe("live synchronization on a phone (feature 006)", () => {
   test("the connection state does not widen the page", async ({ page }) => {
     await page.setViewportSize(NARROW);
     await openNarrowWorkspace(page);
+    await createRootItem(page, "page", uniqueName("NarrowSync"));
+    await openNoteInformation(page);
     await expect(page.getByTestId("live-connection-state")).toBeVisible({ timeout: 15_000 });
     // The sentence is long — "keeping your changes on this device until the
     // connection returns" — which is exactly the kind of text that pushes a

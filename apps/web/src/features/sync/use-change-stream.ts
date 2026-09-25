@@ -27,7 +27,7 @@
  * that has to stay in step with the first (T019).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { createContext, useEffect, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 
 /**
@@ -63,6 +63,9 @@ export interface ChangeStreamStatus {
   /** What the server said, when it refused — shown verbatim to the owner. */
   readonly refusal: string | null;
 }
+
+/** The workspace owns the one live change feed even when no note is open. */
+export const WorkspaceChangeStreamContext = createContext<ChangeStreamStatus | null>(null);
 
 /**
  * Asks the server *why* the stream will not open.

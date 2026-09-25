@@ -150,6 +150,9 @@ du plan et des tests concernés.
 
 ### Session 2026-08-27
 
+Les décisions de cette session concernant l'affichage des sections Favoris et
+Récents sont remplacées par la décision de convergence du 2026-09-26 ci-dessous.
+
 - Q: Favoris et Récents doivent-ils rester affichés en permanence ? → R: Non.
   Chaque section peut être repliée depuis la barre latérale et masquée ou
   réaffichée depuis les réglages ; ces choix de présentation restent locaux à
@@ -307,6 +310,15 @@ du plan et des tests concernés.
   projection, une synchronisation ou un commit différé ne doit jamais la faire
   réapparaître après que du texte normal a été saisi.
 
+### Session 2026-09-26 — navigation épurée
+
+- Q: Les sections Favoris et Récents retirées de l'interface doivent-elles être
+  remises ? → R: Non. Leur retrait est volontaire ; les données sous-jacentes
+  sont conservées, mais ces raccourcis ne sont pas affichés dans la navigation.
+- Q: Où lire l'état global de connexion et de synchronisation ? → R: Dans le
+  détail du petit bouton d'information au bord inférieur droit d'une note
+  ouverte, sans nouveau statut permanent dans la barre latérale.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Entrer dans un espace de travail focalisé (Priority: P1)
@@ -320,9 +332,9 @@ panneaux techniques et de boutons permanents.
 création et contenu se disputent la même colonne, même un éditeur riche reste
 difficile à utiliser.
 
-**Independent Test**: Depuis un workspace contenant une hiérarchie, des
-favoris et des éléments récents, ouvrir, créer, renommer, déplacer et retrouver
-une page sur ordinateur puis sur un écran de 320 pixels.
+**Independent Test**: Depuis un workspace contenant une hiérarchie, ouvrir,
+créer, renommer, déplacer et retrouver une page sur ordinateur puis sur un écran
+de 320 pixels, sans réintroduire les raccourcis retirés.
 
 **Acceptance Scenarios**:
 
@@ -347,10 +359,9 @@ une page sur ordinateur puis sur un écran de 320 pixels.
    sauvegarde, appareil, file de mutations ou diagnostic détaillé n'est rendu
    sous ce contenu ; son accès dédié restaure la même page et la même position
    au retour.
-7. **Given** les sections Favoris et Récents, **When** le propriétaire les
-   replie ou change leur visibilité dans les réglages, **Then** chacune répond
-   indépendamment, le choix revient sur cet appareil et la hiérarchie Notes ne
-   change pas.
+7. **Given** une navigation ouverte, **When** le propriétaire parcourt la
+   hiérarchie Notes, **Then** les sections Favoris et Récents retirées ne sont
+   pas réintroduites et les données correspondantes restent intactes.
 8. **Given** une branche comprenant plusieurs niveaux, **When** le propriétaire
    vise l'espace avant une ligne, son centre ou l'espace après elle, **Then** le
    repère indique respectivement avant, à l'intérieur ou après et le résultat
@@ -362,10 +373,9 @@ une page sur ordinateur puis sur un écran de 320 pixels.
     synchronisation change, **Then** le bouton d'information reste au bord
     inférieur visible sans déplacer le titre, les blocs ni la position de
     lecture.
-11. **Given** les sections Favoris et Récents visibles, **When** le propriétaire
-    les parcourt, **Then** chacune présente le même chevron immédiatement à
-    gauche de son libellé et les réglages utilisent des interrupteurs visuels
-    indiquant clairement leur état activé ou désactivé.
+11. **Given** une note ouverte, **When** le propriétaire ouvre le bouton
+    d'information au bord inférieur droit, **Then** il trouve les détails de
+    connexion et de synchronisation sans statut ajouté à la barre latérale.
 12. **Given** une page ouverte dans l'arborescence qui perd son dernier enfant,
     **When** le déplacement est confirmé, **Then** elle redevient une ligne
     feuille sans chevron ni message vide sous elle, et sa sélection reste
@@ -723,9 +733,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **FR-006**: Le propriétaire MUST pouvoir réordonner et déplacer une branche
   par glisser-déposer ainsi que par une alternative clavier explicite, avec une
   destination visible et sans cycle possible.
-- **FR-007**: Recherche, favoris, éléments récents, réglages, sauvegardes et état
-  de synchronisation MUST rester accessibles depuis la navigation sans
-  concurrencer visuellement la hiérarchie principale.
+- **FR-007**: Recherche, réglages et sauvegardes MUST rester accessibles depuis
+  la navigation sans concurrencer visuellement la hiérarchie principale. Les
+  détails de connexion et de synchronisation MUST être accessibles depuis le
+  bouton d'information d'une note ouverte.
 - **FR-072**: Le contenu principal du workspace MUST être réservé aux pages,
   dossiers et vues de connaissance livrées. Réglages, sécurité, appareils,
   stockage, sauvegardes, corbeille administrative et diagnostics détaillés MUST
@@ -746,10 +757,9 @@ en charge, une fois sans pointeur puis une fois au toucher.
   active et éditable, sa branche MUST être révélée et, pour `/page`, le lien
   MUST rester présent lorsque le propriétaire revient à la page source ou la
   recharge.
-- **FR-076**: La hiérarchie principale MUST porter le libellé « Notes ».
-  Favoris et Récents MUST posséder chacun un contrôle de repli distinct des
-  contrôles de branche, une préférence de visibilité dans les réglages et un
-  état de présentation restauré localement sans modifier les données métier.
+- **FR-076**: La hiérarchie principale MUST porter le libellé « Notes ». Les
+  sections Favoris et Récents MUST rester absentes de la barre latérale sans
+  supprimer les données métier correspondantes.
 - **FR-077**: La relation parent-enfant et l'état d'une branche vide MUST être
   visuellement rattachés à leur niveau. Un dépôt au pointeur MUST distinguer
   avant, à l'intérieur et après par des repères différents, et le placement
@@ -805,11 +815,9 @@ en charge, une fois sans pointeur puis une fois au toucher.
   Retirer une référence interne MUST ne jamais supprimer, déplacer ou renommer
   sa page cible. Remplacer une cible interne MUST conserver une identité
   canonique plutôt qu'un titre copié.
-- **FR-081**: Favoris et Récents MUST placer un chevron compact immédiatement
-  avant le libellé contrôlé. Les branches MUST employer le même symbole selon
-  la règle d'emplacement stable de FR-086. Les préférences de visibilité MUST
-  se présenter comme des interrupteurs dont les états activé et désactivé
-  restent explicites au pointeur et au clavier.
+- **FR-081**: Les branches MUST employer le chevron selon la règle
+  d'emplacement stable de FR-086. Les sections Favoris et Récents retirées
+  MUST ne pas réapparaître à la suite d'une correction de tests ou de statut.
 - **FR-082**: Une page sans enfant MUST être rendue comme une feuille, y compris
   si elle était ouverte avant le déplacement de son dernier enfant, et ne MUST
   afficher aucun état vide sous sa ligne. La sélection courante MUST être
@@ -1281,17 +1289,16 @@ en charge, une fois sans pointeur puis une fois au toucher.
   référence réussissent pour une page et un bookmark Web au pointeur, au clic
   droit et au clavier ; le titre d'une référence interne reste celui de sa
   cible et aucune page cible n'est modifiée après retrait.
-- **SC-026**: Masquer, afficher, replier et déplier indépendamment Favoris et
-  Récents survit à un rechargement sur l'appareil dans cent pour cent des cas,
-  sans modifier le nombre de favoris ni l'ordre de la hiérarchie Notes.
+- **SC-026**: Après rechargement, aucune section Favoris ou Récents n'est
+  affichée dans la barre latérale ; le nombre de favoris et l'ordre de la
+  hiérarchie Notes restent inchangés.
 - **SC-027**: Sur une page courte ou longue, dix changements successifs d'état
   de synchronisation déplacent le titre, les blocs et la position de lecture de
   moins d'un pixel et laissent le détail atteignable sans rejoindre la fin du
   document.
-- **SC-028**: Sur les profils desktop et mobile, Favoris et Récents exposent
-  chacun exactement un chevron avant leur libellé et cent changements de
-  visibilité par interrupteur conservent la préférence attendue après
-  rechargement.
+- **SC-028**: Sur les profils desktop et mobile, les détails de connexion et
+  de synchronisation sont atteignables dans le bouton d'information de la note
+  ouverte, sans indicateur de synchronisation dans la barre latérale.
 - **SC-029**: Après cent déplacements retirant le dernier enfant d'une page,
   aucune ligne vide, aucun chevron résiduel et aucune barre d'accent latérale
   n'apparaissent ; les zones avant, intérieur et après restent identifiables

@@ -16,6 +16,7 @@ import {
   ensureNavigationVisible,
   openAttachmentDetails,
   openItemActions,
+  openNoteInformation,
   openPageAttachments,
   openRootCreation,
   openRootDatabaseCreation,
@@ -58,8 +59,9 @@ test.describe("accessibility (all viewports/browsers)", () => {
       await expect(page.getByRole("menuitem", { name: label })).toBeVisible();
     }
 
-    // Status messaging uses live regions.
-    await expect(page.getByTestId("sync-status")).toHaveAttribute("aria-live", "polite");
+    // The page information control announces its own save state.
+    await createRootItem(page, "page", uniqueName("A11yStatus"));
+    await expect(page.getByTestId("editor-sync-status")).toHaveAttribute("aria-live", "polite");
   });
 
   test("interactive elements expose visible focus", async ({ page }) => {
@@ -350,7 +352,8 @@ test.describe("synchronization accessibility (feature 006)", () => {
 
   test("the connection state is announced politely, not as an alert", async ({ page }) => {
     await openWorkspace(page);
-    await ensureNavigationVisible(page);
+    await createRootItem(page, "page", uniqueName("A11yConnection"));
+    await openNoteInformation(page);
     const state = page.getByTestId("live-connection-state");
     await expect(state).toBeVisible({ timeout: 15_000 });
     // `status` while things are ordinary. The two states that need acting on —

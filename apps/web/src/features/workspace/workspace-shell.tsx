@@ -7,8 +7,13 @@ import {
   type SidebarMode,
   sidebarModeForWidth,
 } from "../navigation/responsive-sidebar.tsx";
+import {
+  type ChangeStreamStatus,
+  WorkspaceChangeStreamContext,
+} from "../sync/use-change-stream.ts";
 
 export interface WorkspaceShellProps {
+  readonly changeStream?: ChangeStreamStatus | null;
   readonly children: ReactNode;
   readonly header: ReactNode;
   readonly contentMode?: "bounded" | "page" | "graph";
@@ -27,6 +32,7 @@ function currentSidebarMode(): SidebarMode {
 }
 
 export function WorkspaceShell({
+  changeStream = null,
   children,
   contentMode = "bounded",
   header,
@@ -120,7 +126,9 @@ export function WorkspaceShell({
           tabIndex={-1}
           data-testid="workspace-main"
         >
-          <div className="workspace-reading-column">{children}</div>
+          <WorkspaceChangeStreamContext.Provider value={changeStream}>
+            <div className="workspace-reading-column">{children}</div>
+          </WorkspaceChangeStreamContext.Provider>
         </main>
       </div>
     </div>
