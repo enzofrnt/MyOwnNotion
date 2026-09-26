@@ -1,4 +1,4 @@
-import { useCallback, useRef, type ForwardedRef, type RefCallback } from "react";
+import { type ForwardedRef, type RefCallback, useCallback, useRef } from "react";
 
 /** Keep aria-modal on the active dialog when Ariakit hides a parent dialog. */
 export function useModalAriaRef(
