@@ -2632,7 +2632,7 @@ export function HierarchyExplorer({
                         }
                         onCaptureScrollAnchor={onCaptureScrollAnchor}
                         onOpenPage={openPageLink}
-                        discoverable={sessionIsActive}
+                        discoverable={sessionIsActive && active}
                       />
                       <PageDatabases
                         active={sessionIsActive}
