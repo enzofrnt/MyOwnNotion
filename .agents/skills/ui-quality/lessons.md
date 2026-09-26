@@ -243,3 +243,15 @@ validation explicite du propriétaire (correction vue ensemble).
   restent cohérents même si le pointeur quitte la hit-area (pointer capture).
 - Preuve : `setTableColumnWidthDraft` puis `resizeColumn` au finish ;
   `set-table-column-width` côté page-state.
+
+### L-018 — Le tiroir mobile possède son propre état d’ouverture
+- Statut : validée
+- Surface : `ResponsiveSidebar`, arbre de navigation et passage bureau → 320 px
+- Anti-pattern : masquer l’arbre du tiroir avec l’état de la barre latérale de
+  bureau, ou tester un ancien rail encore visible pendant le redimensionnement.
+- Règle : la visibilité de l’arbre suit aussi l’ouverture du tiroir mobile ;
+  stabiliser l’écoute du redimensionnement et attendre le mode mobile avant
+  d’agir sur l’arbre. Une ligne très profonde garde son menu contextuel au
+  clavier sans réafficher un bouton compacté hors du tiroir.
+- Preuve : `tests/e2e/workspace-tabs-folder.spec.ts`, répété sur Chromium et
+  WebKit mobiles à 320 px ; `specs/022-page-tabs-folder-view/validation.md`.

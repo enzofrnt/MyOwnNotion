@@ -593,6 +593,19 @@ export async function ensureNavigationVisible(page: Page): Promise<void> {
   // Narrow viewports close the rail automatically; reopen via the stage-header
   // panel control — never via a floating "Navigation" button.
   const trigger = page.getByTestId("toggle-sidebar");
+  if (await page.evaluate(() => window.innerWidth < 768)) {
+    const slot = page.locator(".workspace-sidebar-slot");
+    // A resize can leave the old desktop rail visible for one render. Wait for
+    // the mobile drawer before treating the tree as an actionable surface.
+    await expect(slot).toHaveAttribute("data-mode", "mobile");
+    if ((await slot.getAttribute("data-open")) !== "true") {
+      await trigger.click();
+    }
+    await expect(slot).toHaveAttribute("data-open", "true");
+    await expect(page.getByTestId("workspace-navigation-drawer")).toBeVisible();
+    await expect(navigation).toBeVisible();
+    return;
+  }
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await expect
       .poll(async () => (await navigation.isVisible()) || (await trigger.isVisible()), {

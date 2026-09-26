@@ -2068,7 +2068,7 @@ export function HierarchyExplorer({
     <div
       id="workspace-tree"
       className="workspace-tree"
-      data-open={sidebarOpen}
+      data-open={sidebarOpen || mobileNavigationOpen}
       data-testid="workspace-tree"
     >
       {loadState === "loading" ? (

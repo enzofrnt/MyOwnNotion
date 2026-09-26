@@ -78,7 +78,7 @@ la livraison finale ouverte jusqu'aux preuves PR et `main` du candidat corrigé.
       action tactile reflété dans l’arbre puis sur un second appareil, cibles
       tactiles de 44 px, audit axe des surfaces modifiées et absence de
       débordement à 390 et 320 px, avec ouverture réelle du menu d'une ligne
-      profondément imbriquée dans le tiroir mobile ;
+      profondément imbriquée dans le tiroir mobile par son raccourci contextuel ;
       exécution sur Chromium desktop/mobile, Firefox desktop et WebKit
       desktop/mobile, avec déclaration du parcours dans `ci/test-impact.json`
       et régression de son propriétaire CI

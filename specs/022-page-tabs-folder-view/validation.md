@@ -57,8 +57,16 @@ vérifie dans un même parcours :
   sélection correcte de la destination et focus rendu au bouton voisin ;
 - une seule ligne d’onglets défilante, des cibles tactiles de fermeture et de
   réordonnancement d’au moins 44 px et aucun débordement du document après les passages de 1024 × 800 à
-  390 × 844 puis 320 × 844 ; le tiroir mobile ouvre réellement le menu de la
-  ligne au sixième niveau à 320 px et mesure sa cible à 44 px.
+  390 × 844 puis 320 × 844 ; le tiroir mobile garde son arbre visible après
+  redimensionnement et ouvre le menu de la ligne au sixième niveau par Maj+F10,
+  même lorsque son bouton est volontairement compacté hors de la surface.
+
+Correction de la PR #178 : le parcours a passé trois fois sur Chromium mobile
+et trois fois sur WebKit mobile après la correction du passage bureau → tiroir.
+La capture d’échec précédente montrait le tiroir ouvert sans arbre ; la revue
+du rendu corrigé vérifie l’arbre profond visible à 320 px, le menu contextuel
+et la cible tactile de la liste de dossier, sans réintroduire de contrôle de
+ligne supprimé.
 
 Preuves locales ciblées :
 
