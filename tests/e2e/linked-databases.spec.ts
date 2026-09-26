@@ -164,6 +164,10 @@ test("embeds one source in ordinary pages with independent views and shared cano
   await page.getByLabel("Base existante", { exact: true }).selectOption({ label: sourceName });
   await page.getByRole("button", { name: "Insérer cette base", exact: true }).click();
   await expect(page.locator("[data-entry-trigger]").filter({ hasText: entryName })).toBeVisible();
+  // The entry can render from the local projection before the embedding's
+  // definition replacement is acknowledged. A late projection refresh can
+  // replace the toolbar during the next pointer gesture and swallow its click.
+  await waitForDatabaseDefinitionSaved(page);
   for (const [button, surface] of [
     ["Nouvelle vue Kanban", ".database-board"],
     ["Nouvelle vue calendrier", ".database-calendar"],
