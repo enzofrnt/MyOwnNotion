@@ -16,6 +16,7 @@ import { forwardRef } from "react";
 import { classNames } from "../class-names.ts";
 import { FR_COPY } from "../copy/index.ts";
 import { AppIcon } from "../icons.tsx";
+import { useModalAriaRef } from "./modal-aria.ts";
 
 export type DialogRootProps = AriakitDialogProviderProps;
 
@@ -59,10 +60,11 @@ export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(func
   },
   ref,
 ) {
+  const modalRef = useModalAriaRef(ref, modal);
   return (
     <AriakitDialog
       {...props}
-      ref={ref}
+      ref={modalRef}
       autoFocusOnHide={autoFocusOnHide}
       autoFocusOnShow={autoFocusOnShow}
       className={classNames("ui-dialog", className)}
@@ -71,6 +73,7 @@ export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(func
       hideOnEscape={hideOnEscape}
       modal={modal}
       portal={portal}
+      aria-modal={modal || undefined}
     />
   );
 });
