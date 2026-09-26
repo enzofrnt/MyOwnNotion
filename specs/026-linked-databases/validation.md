@@ -237,6 +237,20 @@ la fenêtre à cause de l’arrondi de WebKit. Le retour centre désormais le bo
 dans les deux conteneurs défilants ; l’assertion exige toujours sa présence
 intégrale dans le viewport.
 
+Le gate complet a ensuite montré une contention entre profils navigateur que
+les répétitions isolées ne reproduisaient pas : après les 1 001 écritures
+canoniques de la fixture, la projection d’un appareil neuf continuait à lire le
+flux paginé quand la limite ordinaire de 15 s pour l’arbre expirait. Seul ce
+scénario accepte désormais jusqu’à 60 s pour l’initialisation de la navigation
+et 300 s pour sa fixture complète. Le délai ordinaire reste à 15 s, et les
+assertions de pagination, focus et visibilité restent inchangées. Trois
+répétitions WebKit desktop et trois WebKit mobile passent avec cette limite.
+La migration de cinq conflits historiques dispose du même délai de navigation
+borné ; ses cinq états convertis et ses documents canoniques restent vérifiés.
+Après un lien direct vers une entrée, le test attend toujours l’état global
+`synced` avant de couper le réseau ; cette attente dédiée peut aller jusqu’à
+60 s pour laisser reprendre un batch interrompu par la navigation.
+
 ## T023 — Atomic host/parent/placement validation — 2026-09-13
 
 The integrated implementation commit

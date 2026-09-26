@@ -201,7 +201,9 @@ test("embeds one source in ordinary pages with independent views and shared cano
   await expect(page.locator(".entry-panel")).toBeVisible();
   await page.locator(".entry-panel").getByRole("button", { name: "Fermer l'entrée" }).click();
   await expect(page.getByTestId("active-item-title")).toHaveValue(first);
-  await waitForSynchronized(page);
+  // Direct navigation can abort an in-flight batch. The reloaded service must
+  // still drain that durable queue before this journey goes offline.
+  await waitForSynchronized(page, { timeoutMs: 60_000 });
   // Keep the static app shell available while the API is unreachable, matching
   // the established database reload journeys; local durability is the subject.
   await context.route("**/v1/**", (route) => route.abort("connectionrefused"));
@@ -246,7 +248,7 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   request,
 }, testInfo) => {
   // 1001 protected canonical writes are fixture work; UI waits remain bounded.
-  test.setTimeout(240_000);
+  test.setTimeout(300_000);
   page.setDefaultTimeout(15_000);
   const hostName = uniqueName("Large linked source page");
   const host = await createUnopenedPage(request, hostName);
@@ -294,7 +296,10 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   }
   const seedMs = Date.now() - seedStarted;
   const openStarted = Date.now();
-  await openWorkspace(page);
+  // A fresh device replays the fixture's paginated change feed before its
+  // navigation tree is ready; the standard 15 s boot bound still applies to
+  // ordinary workspace journeys.
+  await openWorkspace(page, { navigationTimeoutMs: 60_000 });
   await ensureNavigationVisible(page);
   await expect(page.getByRole("treeitem")).toHaveCount(1);
   await selectItem(page, hostName);

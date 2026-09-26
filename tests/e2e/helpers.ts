@@ -438,7 +438,10 @@ export async function createBusinessRelationship(
   return relationshipId;
 }
 
-export async function openWorkspace(page: Page): Promise<void> {
+export async function openWorkspace(
+  page: Page,
+  options: { navigationTimeoutMs?: number } = {},
+): Promise<void> {
   // A caller that has just reloaded is already on the workspace URL. Sending a
   // second navigation immediately afterwards is redundant for users and trips
   // a WebKit internal navigation race, especially while API routes are
@@ -500,7 +503,7 @@ export async function openWorkspace(page: Page): Promise<void> {
     // services such as search are forbidden from holding this readiness boundary
     // open; a timeout here therefore reports a real boot failure.
     await expect(page.locator('[role="tree"], [data-testid="empty-state"]').first()).toBeAttached({
-      timeout: 15_000,
+      timeout: options.navigationTimeoutMs ?? 15_000,
     });
   } finally {
     if (!atWorkspaceRoute) page.off("requestfailed", recordTransientNetworkChange);
@@ -871,7 +874,10 @@ export async function waitForDatabaseDefinitionSaved(page: Page): Promise<void> 
   await waitForSynchronized(page);
 }
 
-export async function waitForSynchronized(page: Page): Promise<void> {
+export async function waitForSynchronized(
+  page: Page,
+  options: { timeoutMs?: number } = {},
+): Promise<void> {
   // The E2E-only service hook observes the aggregate durable queue without
   // opening another screen or depending on which kind of item is active.
   await expect
@@ -880,7 +886,7 @@ export async function waitForSynchronized(page: Page): Promise<void> {
         await page.evaluate(
           () => window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.().getSnapshot().syncState ?? null,
         ),
-      { timeout: 20_000 },
+      { timeout: options.timeoutMs ?? 20_000 },
     )
     .toBe("synced");
 }
