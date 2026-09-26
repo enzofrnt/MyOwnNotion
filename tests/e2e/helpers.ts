@@ -590,6 +590,10 @@ export async function ensureNavigationVisible(page: Page): Promise<void> {
   // visible, which makes Playwright correctly report the wrapper itself as
   // hidden.
   const navigation = page.locator('[role="tree"], [data-testid="empty-state"]').first();
+  // The shell and its toggle can paint before the local hierarchy is ready,
+  // especially after an offline reload. Opening the drawer during that boot
+  // transition can be undone when the tree mounts.
+  await expect(navigation).toBeAttached({ timeout: 15_000 });
   // Narrow viewports close the rail automatically; reopen via the stage-header
   // panel control — never via a floating "Navigation" button.
   const trigger = page.getByTestId("toggle-sidebar");
