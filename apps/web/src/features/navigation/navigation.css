@@ -1156,11 +1156,12 @@ html[data-tree-grabbing="true"] * {
     display: none;
   }
 
-  .workspace-page-attachments-trigger[data-size="square"],
-  .navigation-inline-create,
-  .navigation-item-menu,
-  .navigation-inline-create .ui-button[data-size="square"],
-  .navigation-item-menu__trigger[data-size="square"] {
+  .workspace-navigation .workspace-page-attachments-trigger[data-size="square"],
+  .workspace-navigation .navigation-inline-create,
+  .workspace-navigation .navigation-item-menu,
+  .workspace-navigation .navigation-item-actions > .ui-button[data-size="square"],
+  .workspace-navigation .navigation-inline-create .ui-button[data-size="square"],
+  .workspace-navigation .navigation-item-menu__trigger[data-size="square"] {
     width: var(--ui-target);
     height: var(--ui-target);
     min-width: var(--ui-target);
@@ -1172,15 +1173,17 @@ html[data-tree-grabbing="true"] * {
     height: var(--ui-target);
   }
 
-  .navigation-inline-create__surface {
+  .workspace-navigation .navigation-inline-create__surface {
     width: var(--ui-target);
     height: var(--ui-target);
     padding: 0;
     gap: 0;
   }
 
-  .navigation-inline-create[data-open="true"],
-  .navigation-inline-create[data-open="true"] .navigation-inline-create__surface {
+  .workspace-navigation .navigation-inline-create[data-open="true"],
+  .workspace-navigation
+    .navigation-inline-create[data-open="true"]
+    .navigation-inline-create__surface {
     width: calc(3 * var(--ui-target) + 2 * var(--space-1));
     height: var(--ui-target);
     flex-basis: calc(3 * var(--ui-target) + 2 * var(--space-1));
@@ -1188,16 +1191,19 @@ html[data-tree-grabbing="true"] * {
     gap: var(--space-1);
   }
 
-  .navigation-inline-create[data-open="true"] .ui-button[data-size="square"],
-  .navigation-inline-create[data-closing="true"] .ui-button[data-size="square"] {
+  .workspace-navigation .navigation-inline-create[data-open="true"] .ui-button[data-size="square"],
+  .workspace-navigation
+    .navigation-inline-create[data-closing="true"]
+    .ui-button[data-size="square"] {
     width: var(--ui-target);
     min-width: var(--ui-target);
     min-height: var(--ui-target);
     flex-basis: var(--ui-target);
   }
 
-  .navigation-inline-create[data-open="true"][data-closing="true"],
-  .navigation-inline-create[data-open="true"][data-closing="true"]
+  .workspace-navigation .navigation-inline-create[data-open="true"][data-closing="true"],
+  .workspace-navigation
+    .navigation-inline-create[data-open="true"][data-closing="true"]
     .navigation-inline-create__surface {
     width: var(--ui-target);
     height: var(--ui-target);

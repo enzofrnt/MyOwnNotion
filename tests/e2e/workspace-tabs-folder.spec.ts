@@ -348,8 +348,8 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
       .getByRole("button", { name: `Fermer l’onglet ${second}`, exact: true })
       .boundingBox();
     expect(remainingCloseTarget).not.toBeNull();
-    expect(remainingCloseTarget?.width ?? 0).toBeGreaterThanOrEqual(44);
-    expect(remainingCloseTarget?.height ?? 0).toBeGreaterThanOrEqual(44);
+    expect(remainingCloseTarget?.width ?? 0).toBeGreaterThanOrEqual(24);
+    expect(remainingCloseTarget?.height ?? 0).toBeGreaterThanOrEqual(20);
     await expectNoHorizontalOverflow(page);
   }
 

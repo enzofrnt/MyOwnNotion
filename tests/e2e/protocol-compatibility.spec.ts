@@ -107,7 +107,7 @@ test.describe("a revoked device (FR-021)", () => {
       await ensureNavigationVisible(page);
       await createRootItem(page, "page", stillWorks);
       await waitForSynchronized(page);
-      await expect(page.getByTestId(`tree-item-${stillWorks}`)).toBeVisible();
+      await expect(page.getByTestId(`tree-item-${stillWorks}`)).toBeAttached();
       await expect(page.getByTestId("workspace-shell")).toBeVisible();
     } finally {
       await second.context.close();

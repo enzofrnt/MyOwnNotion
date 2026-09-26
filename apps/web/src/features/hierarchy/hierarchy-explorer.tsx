@@ -518,18 +518,20 @@ export function HierarchyExplorer({
   }, [mobileNavigationOpen]);
 
   const closeSearch = useCallback(() => {
+    const previous = searchReturnFocus.current;
+    // Ariakit restores focus after the dialog closes. Give it the current
+    // trigger before unmounting, including when a resize replaced the opener.
+    if (
+      window.innerWidth < 768 ||
+      previous?.isConnected !== true ||
+      previous.getClientRects().length === 0 ||
+      previous.closest(".workspace-sidebar-drawer") !== null
+    ) {
+      searchReturnFocus.current = document.querySelector<HTMLElement>(
+        '[data-testid="toggle-sidebar"]',
+      );
+    }
     setSearchOpen(false);
-    queueMicrotask(() => {
-      const previous = searchReturnFocus.current;
-      // A resize can replace the desktop sidebar with the mobile trigger while
-      // search is open. In that case the original control is detached, so
-      // returning focus to it would silently leave focus on the document body.
-      const target =
-        previous?.isConnected === true && previous.getClientRects().length > 0
-          ? previous
-          : document.querySelector<HTMLElement>('[data-testid="toggle-sidebar"]');
-      target?.focus();
-    });
   }, []);
 
   const openItem = useCallback(
@@ -1567,6 +1569,10 @@ export function HierarchyExplorer({
         setProblem(result.error);
         throw new Error(result.error.title);
       }
+      // The item was created as a database. Classify it before selecting it
+      // so the ordinary page editor cannot mount a loading skeleton above the
+      // database form and then shift that form when classification finishes.
+      structuredKindByItemId.current.set(request.id as Uuid, "database");
       setDatabaseFormParent(undefined);
       selectItemById(request.id as Uuid);
       setMobileNavigationOpen(false);
@@ -2241,6 +2247,7 @@ export function HierarchyExplorer({
           search={search}
           branches={searchBranches}
           itemIcons={searchItemIcons}
+          finalFocus={searchReturnFocus}
           onOpen={(itemId) => openItem(itemId)}
           onClose={closeSearch}
         />

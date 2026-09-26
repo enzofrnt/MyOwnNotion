@@ -795,9 +795,12 @@ export async function selectItem(page: Page, name: string): Promise<void> {
   // Folders expand on a short click and only become the destination on
   // double-click (FR-019). Pages, files and databases still open on click.
   if (kind === "folder") {
-    await nameSlot.dblclick();
+    // Touch rows keep their action buttons over the right edge of the title.
+    // Activate the visible text at its leading edge instead of the padded
+    // reservation underneath those controls.
+    await nameSlot.dblclick({ position: { x: 4, y: 12 } });
   } else {
-    await nameSlot.click();
+    await nameSlot.click({ position: { x: 4, y: 12 } });
   }
   await expect(row).toHaveAttribute("aria-selected", "true", {
     timeout: 15_000,

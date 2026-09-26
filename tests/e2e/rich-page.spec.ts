@@ -114,8 +114,9 @@ test.describe("rich page composition", () => {
     await expect(editor.locator('[data-testid="editor-table-chrome"]')).toBeAttached();
     const tableCells = editor.locator(".editor-table-cell");
     await expect(tableCells).toHaveCount(6);
-    await tableCells.last().click();
-    await tableCells.last().press("Tab");
+    const lastCellEditor = tableCells.last().getByRole("textbox", { name: "Cellule du tableau" });
+    await lastCellEditor.click();
+    await lastCellEditor.press("Tab");
     await expect(tableCells).toHaveCount(9);
 
     // Reload only once every transaction is durable and accepted: the

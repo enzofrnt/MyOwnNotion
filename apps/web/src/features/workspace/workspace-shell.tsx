@@ -66,10 +66,18 @@ export function WorkspaceShell({
   const navigationVisible = mode === "mobile" ? mobileNavigationOpen : sidebarOpen;
 
   const changeSidebarOpen = (open: boolean): void => {
+    const focusOrigin = document.activeElement;
+    const focusStartedOnControl =
+      focusOrigin === openControl.current || focusOrigin === closeControl.current;
     onSidebarOpenChange(open);
     if (focusTimer.current !== null) clearTimeout(focusTimer.current);
+    if (!focusStartedOnControl) return;
     focusTimer.current = setTimeout(() => {
       focusTimer.current = null;
+      // A later keyboard action may have moved focus into the document while
+      // the rail animates. Do not pull it back to the toggle after that action.
+      if (document.activeElement !== focusOrigin && document.activeElement !== document.body)
+        return;
       (open ? closeControl : openControl).current?.focus();
     }, SIDEBAR_MOTION_DURATION_MS);
   };

@@ -489,9 +489,18 @@ interface TableCursorApi extends TableEditorApi {
  * Moves the caret to the previous/next cell. Returns false when the caret is
  * not inside a table cell so BlockNote's own Tab behaviour applies.
  */
-export function moveTableCellByTab(editor: unknown, backwards: boolean): boolean {
+export function moveTableCellByTab(
+  editor: unknown,
+  backwards: boolean,
+  focusedCellId?: string,
+): boolean {
   const api = editor as TableCursorApi;
-  const cursorBlock = api.getTextCursorPosition().block;
+  // Firefox can focus a nested cell content node without updating BlockNote's
+  // text cursor. The keyboard listener supplies the focused block id from the
+  // node view, which is still checked against the current document below.
+  const cursorBlock =
+    focusedCellId === undefined ? api.getTextCursorPosition().block : api.getBlock(focusedCellId);
+  if (cursorBlock === undefined) return false;
   if (cursorBlock.type !== "tableCell") return false;
   const row = api.getParentBlock(cursorBlock.id);
   const table = row?.type === "tableRow" ? api.getParentBlock(row.id) : undefined;

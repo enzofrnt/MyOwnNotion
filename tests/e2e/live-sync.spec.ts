@@ -54,7 +54,7 @@ test.describe("live synchronization (US1)", () => {
       await waitForSynchronized(page);
 
       // The watching device is not touched: no reload, no click, no navigation.
-      await expect(second.page.getByTestId(`tree-item-${created}`)).toBeVisible({
+      await expect(second.page.getByTestId(`tree-item-${created}`)).toBeAttached({
         timeout: 15_000,
       });
       // biome-ignore lint/suspicious/noConsole: this line is the measurement

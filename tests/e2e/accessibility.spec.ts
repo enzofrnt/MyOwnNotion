@@ -270,7 +270,10 @@ test.describe("the file surfaces (feature 005)", () => {
         (violation: { impact?: string | null | undefined }) =>
           violation.impact === "critical" || violation.impact === "serious",
       )
-      .map((violation: { id: string; help: string }) => `${violation.id}: ${violation.help}`);
+      .map(
+        (violation) =>
+          `${violation.id}: ${violation.help} (${violation.nodes.map((node) => `${JSON.stringify(node.target)}: ${node.html}`).join("; ")})`,
+      );
   }
 
   async function pageWithAttachment(

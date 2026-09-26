@@ -191,8 +191,8 @@ test.describe("hierarchy organization (US1)", () => {
 
     const surface = row.locator(".navigation-inline-create__surface");
     const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-    const expectedSurfaceWidth = coarsePointer ? 140 : 92;
-    const expectedSurfaceHeight = coarsePointer ? 44 : 32;
+    const expectedSurfaceWidth = coarsePointer ? 140 : 72;
+    const expectedSurfaceHeight = coarsePointer ? 44 : 26;
     await expect
       .poll(async () => Math.round((await surface.boundingBox())?.width ?? 0))
       .toBe(expectedSurfaceWidth);
@@ -228,7 +228,7 @@ test.describe("hierarchy organization (US1)", () => {
         (surfaceBox?.x ?? 0) + (surfaceBox?.width ?? 0) + 0.5,
       );
     }
-    const expectedGutter = coarsePointer ? 4 : 2;
+    const expectedGutter = coarsePointer ? 4 : 3;
     expect(
       Math.abs(
         (controlBoxes[1]?.x ?? 0) - ((controlBoxes[0]?.x ?? 0) + (controlBoxes[0]?.width ?? 0)),

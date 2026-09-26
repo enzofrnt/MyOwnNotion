@@ -43,7 +43,6 @@ export const DrawerContent = forwardRef<HTMLDivElement, DrawerContentProps>(func
       hideOnEscape={hideOnEscape}
       modal={modal}
       portal={portal}
-      aria-modal={modal || undefined}
     />
   );
 });

@@ -35,6 +35,7 @@ import {
 } from "./blocknote-schema.ts";
 import { CodeBlockInputExtension } from "./code-block-input.ts";
 import { createCodeHighlighter } from "./code-highlighting.ts";
+import { moveTableCellByTab } from "./custom-blocks/table.tsx";
 import {
   commandsFromBlockNoteChanges,
   EditorChangeBatcher,
@@ -275,6 +276,30 @@ export function PageEditor({
     },
     [onSettlementChange, session, writeEditorSettlementState],
   );
+
+  useEffect(() => {
+    const host = editorHostRef.current;
+    if (host === null || !editable) return;
+    // BlockNote's table cells are nested node views. Firefox sends Tab from
+    // their own focusable content node, which can bypass React's outer capture
+    // handler. A native capture listener on the editor host runs before either
+    // the browser's focus traversal or BlockNote's indent shortcut.
+    const handleTableTab = (event: KeyboardEvent): void => {
+      if (event.key !== "Tab") return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.matches(".ProseMirror") && !target.closest(".editor-table-cell__content")) {
+        return;
+      }
+      if (!window.getSelection()?.anchorNode?.parentElement?.closest(".editor-table-cell")) return;
+      const focusedCellId = target.closest<HTMLElement>(".bn-block[data-id]")?.dataset["id"];
+      if (!moveTableCellByTab(editor, event.shiftKey, focusedCellId)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    host.addEventListener("keydown", handleTableTab, true);
+    return () => host.removeEventListener("keydown", handleTableTab, true);
+  }, [editable, editor]);
 
   const markEditorSettled = useCallback(() => {
     if (inFlight.current > 0 || localBurstDrainInFlight.current) return;

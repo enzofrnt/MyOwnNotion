@@ -191,14 +191,14 @@ test.describe("focused workspace shell", () => {
     const resizer = page.getByTestId("sidebar-resizer");
     await resizer.focus();
     await resizer.press("End");
-    await expect(resizer).toHaveAttribute("aria-valuenow", "360");
+    await expect(resizer).toHaveAttribute("aria-valuenow", "720");
     await waitForSynchronized(page);
 
     await expect
       .poll(async () => await storedPresentationState(page))
       .toMatchObject({
         sidebarOpen: true,
-        sidebarWidth: 360,
+        sidebarWidth: 720,
         expandedItemIds: expect.arrayContaining([projectsId as string]),
         lastVisitedItemId: selectedItemId,
       });
@@ -211,7 +211,7 @@ test.describe("focused workspace shell", () => {
       "aria-expanded",
       "true",
     );
-    await expect(page.getByTestId("sidebar-resizer")).toHaveAttribute("aria-valuenow", "360");
+    await expect(page.getByTestId("sidebar-resizer")).toHaveAttribute("aria-valuenow", "720");
   });
 
   test("uses a modal touch drawer and returns focus when it closes", async ({ page }) => {

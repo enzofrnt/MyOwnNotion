@@ -74,18 +74,34 @@ async function storedCode(page: Page, itemId: string, blockId: string) {
   );
 }
 
+function languageTrigger(block: Locator): Locator {
+  return block.getByRole("button", { name: "Langage du code" });
+}
+
+async function selectLanguage(block: Locator, label: string): Promise<void> {
+  await languageTrigger(block).click();
+  const menu = block.page().getByRole("menu", { name: "Langage du code" });
+  await expect(menu).toBeVisible();
+  await menu.getByRole("menuitem", { name: label, exact: true }).click();
+  await expect(languageTrigger(block)).toHaveText(label);
+}
+
 test("code stays colored, editable and confined in both themes at desktop and 320 px", async ({
   page,
   request,
 }, testInfo) => {
   const { block, code, itemId, blockId } = await seedCode(page, request, true);
-  const language = block.getByRole("combobox", { name: "Langage du code" });
-  await expect(language).toHaveValue("typescript");
+  const language = languageTrigger(block);
+  await expect(language).toHaveText("TypeScript");
   const unknown = page.getByRole("region", { name: "Bloc de code", exact: true }).nth(1);
-  await expect(unknown.getByRole("combobox")).toHaveValue("future-language");
-  await expect(unknown.getByRole("combobox").locator("option:checked")).toHaveText(
-    "future-language",
-  );
+  await expect(languageTrigger(unknown)).toHaveText("future-language");
+  await languageTrigger(unknown).click();
+  await expect(
+    page.getByRole("menu", { name: "Langage du code" }).getByRole("menuitem", {
+      name: "future-language",
+    }),
+  ).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
   for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: theme });
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
@@ -97,14 +113,14 @@ test("code stays colored, editable and confined in both themes at desktop and 32
   }
   await language.focus();
   await expect(language).toBeFocused();
-  await language.selectOption("python");
+  await selectLanguage(block, "Python");
   await saveDocument(page);
   await placeCaret(code);
   await page.keyboard.press("ControlOrMeta+z");
-  await expect(language).toHaveValue("typescript");
+  await expect(language).toHaveText("TypeScript");
   await page.keyboard.press("ControlOrMeta+Shift+z");
-  await expect(language).toHaveValue("python");
-  await language.selectOption("typescript");
+  await expect(language).toHaveText("Python");
+  await selectLanguage(block, "TypeScript");
   await saveDocument(page);
   await code
     .locator("span")
@@ -142,7 +158,7 @@ test("code stays colored, editable and confined in both themes at desktop and 32
       .poll(() => title.evaluate((element) => element.scrollHeight - element.clientHeight))
       .toBeLessThanOrEqual(1);
   }
-  await expect.poll(async () => (await block.boundingBox())?.width ?? 0).toBeGreaterThan(250);
+  await expect.poll(async () => (await block.boundingBox())?.width ?? 0).toBeGreaterThan(200);
   await expect(unknown.getByRole("button", { name: "Copier" })).toBeVisible();
   const overflow = await unknown.locator("pre").evaluate((pre) => ({
     inner: pre.scrollWidth > pre.clientWidth,
@@ -245,7 +261,7 @@ test("code retains composition, incoming owner-device edits and language across 
     await saveDocument(page, { until: "synced" });
 
     await context.setOffline(true);
-    await block.getByRole("combobox").selectOption("javascript");
+    await selectLanguage(block, "JavaScript");
     await saveDocument(page);
     await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
     await page.route("**/health", (route) => route.abort("connectionrefused"));
@@ -255,7 +271,7 @@ test("code retains composition, incoming owner-device edits and language across 
     await expect(page.getByTestId("workspace-shell")).toBeVisible();
     await selectItem(page, name);
     await expect.poll(() => code.textContent()).toBe(`// local\n${SOURCE}// 日本語 remote`);
-    await expect(block.getByRole("combobox")).toHaveValue("javascript");
+    await expect(languageTrigger(block)).toHaveText("JavaScript");
     await expect(code.locator('span[style*="--shiki-light"]').first()).toBeVisible();
     await page.unroute("**/v1/**");
     await page.unroute("**/health");

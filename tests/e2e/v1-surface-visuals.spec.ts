@@ -90,6 +90,7 @@ test("matches the dark empty-database surface", async ({ page }, testInfo) => {
   await expect(form).toBeHidden({ timeout: 15_000 });
   await expect(page.getByTestId("active-item-title")).toHaveValue("Suivi visuel");
   await waitForDatabaseDefinitionSaved(page);
+  await expect(page.locator(".database-page")).toBeVisible();
   await expect(page.getByTestId("block-editor").locator(".ProseMirror")).toBeVisible();
   await expect(page.getByText("Item does not exist", { exact: true })).toHaveCount(0);
   await settlePixels(page);

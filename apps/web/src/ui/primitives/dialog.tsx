@@ -71,7 +71,6 @@ export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(func
       hideOnEscape={hideOnEscape}
       modal={modal}
       portal={portal}
-      aria-modal={modal || undefined}
     />
   );
 });
