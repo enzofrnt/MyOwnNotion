@@ -61,6 +61,7 @@ test.describe("accessibility (all viewports/browsers)", () => {
 
     // The page information control announces its own save state.
     await createRootItem(page, "page", uniqueName("A11yStatus"));
+    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("editor-sync-status")).toHaveAttribute("aria-live", "polite");
   });
 

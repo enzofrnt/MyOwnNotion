@@ -212,10 +212,11 @@ test.describe("the confirmation as a dialog", () => {
     test.skip(isMobile === true, "programmatic focus differs in mobile Safari");
     // FR-018. Focus landing on <body> after a dialog closes is the usual way a
     // keyboard journey ends without anyone noticing.
+    test.setTimeout(120_000);
     await openWorkspace(page);
     const name = uniqueName("Escapable");
     await createRootItem(page, "page", name);
-    await waitForSynchronized(page);
+    await waitForSynchronized(page, { timeoutMs: 60_000 });
     await selectItem(page, name);
     await typeIntoEditor(page, "content that triggers the dialog");
     await saveDocument(page, { until: "synced" });

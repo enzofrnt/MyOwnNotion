@@ -689,7 +689,12 @@ export async function clickItemAction(
   await page.getByTestId(actionTestId).click();
 }
 
-export async function renameItem(page: Page, itemName: string, nextName: string): Promise<void> {
+export async function renameItem(
+  page: Page,
+  itemName: string,
+  nextName: string,
+  options: { responseTimeoutMs?: number } = {},
+): Promise<void> {
   const submitted = page.waitForResponse(
     (response) => {
       if (!response.url().endsWith("/v1/mutations/batch")) return false;
@@ -710,7 +715,7 @@ export async function renameItem(page: Page, itemName: string, nextName: string)
         return false;
       }
     },
-    { timeout: 20_000 },
+    { timeout: options.responseTimeoutMs ?? 20_000 },
   );
   page.once("dialog", (dialog) => void dialog.accept(nextName));
   await clickItemAction(page, itemName, `rename-${itemName}`);
