@@ -198,11 +198,6 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   await expectTreeOrder(page, second, first);
   await waitForSynchronized(page);
 
-  if (isMobile === true) {
-    await page.setViewportSize({ width: 1024, height: 800 });
-    await expect(folderCanvas).toBeVisible();
-  }
-
   // The sortable handle exposes the dnd-kit keyboard sensor on every profile.
   // Space lifts/drops the child and ArrowUp selects the same "before" intent.
   const firstHandle = folderCanvas.getByRole("button", { name: `Déplacer ${first}`, exact: true });

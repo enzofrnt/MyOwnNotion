@@ -68,6 +68,11 @@ du rendu corrigé vérifie l’arbre profond visible à 320 px, le menu contextu
 et la cible tactile de la liste de dossier, sans réintroduire de contrôle de
 ligne supprimé.
 
+La vérification du capteur clavier reste à 320 px après l’action tactile : un
+retour intermédiaire à 1024 px annulait parfois le glisser déjà démarré pendant
+le changement de disposition. Le parcours corrigé passe dix répétitions sous
+WebKit mobile et cinq sous Chromium mobile, sans relance de test.
+
 Preuves locales ciblées :
 
 | Contrôle | Résultat |
