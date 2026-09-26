@@ -659,6 +659,7 @@ function parseContentV3(
   value: JsonValue | undefined,
   path: string,
   context: V3ValidationContext,
+  options: { readonly allowLineBreaks?: boolean } = {},
 ): readonly InlineV3[] {
   if (!Array.isArray(value)) {
     addProblem(context, path, "must be an array");
@@ -672,7 +673,13 @@ function parseContentV3(
       continue;
     }
     const text = rawInline["text"];
-    if (!validateStringV3(text, `${inlinePath}.text`, context, { maxBytes: MAX_INLINE_BYTES_V3 })) {
+    if (
+      !validateStringV3(text, `${inlinePath}.text`, context, {
+        maxBytes: MAX_INLINE_BYTES_V3,
+        // Table cells (and similar) keep Shift+Enter hard breaks as `\n`.
+        code: options.allowLineBreaks === true,
+      })
+    ) {
       continue;
     }
     for (const key of Object.keys(rawInline)) {
@@ -751,7 +758,9 @@ function parseTableCellV3(
   }
   const id = parseIdentityV3(value["id"], `${path}.id`, context);
   if (id === null) return null;
-  const content = parseContentV3(value["content"], `${path}.content`, context);
+  const content = parseContentV3(value["content"], `${path}.content`, context, {
+    allowLineBreaks: true,
+  });
   const children = parseChildrenV3(value["children"], `${path}.children`, depth, context, true);
   return children === undefined ? { id, content } : { id, content, children };
 }

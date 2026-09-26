@@ -25,6 +25,8 @@ import {
   insertOperationalTableRow,
   materialiseOperationalDocument,
   moveOperationalBlock,
+  moveOperationalTableColumn,
+  moveOperationalTableRow,
   type OperationalBlockState,
   operationalBlockPlacement,
   operationalBlockProperty,
@@ -33,6 +35,7 @@ import {
   operationalCanonicalBlockId,
   operationalTextForBlock,
   setOperationalBlockProperty,
+  setOperationalTableColumnWidth,
   type TransformableBlockType,
   transformOperationalBlockType,
 } from "./block-tree.ts";
@@ -127,6 +130,27 @@ export type PageCommand =
       readonly type: "delete-table-column";
       readonly tableId: Uuid;
       readonly columnId: Uuid;
+    }
+  | {
+      readonly type: "move-table-row";
+      readonly tableId: Uuid;
+      readonly rowId: Uuid;
+      /** `null` places the row last. */
+      readonly beforeRowId: Uuid | null;
+    }
+  | {
+      readonly type: "move-table-column";
+      readonly tableId: Uuid;
+      readonly columnId: Uuid;
+      /** `null` places the column last. */
+      readonly beforeColumnId: Uuid | null;
+    }
+  | {
+      readonly type: "set-table-column-width";
+      readonly tableId: Uuid;
+      readonly columnId: Uuid;
+      /** `null` restores the default track width. */
+      readonly width: number | null;
     };
 
 export type PageSemanticChange =
@@ -239,6 +263,36 @@ export type PageSemanticChange =
         readonly cell: TableCellV3;
       }[];
       readonly beforeColumnId: Uuid | null;
+      readonly blockBefore: TableBlockV3;
+      readonly blockAfter: TableBlockV3;
+    }
+  | {
+      readonly type: "table-row-moved";
+      readonly blockId: Uuid;
+      readonly affectedBlockIds: readonly Uuid[];
+      readonly row: TableRowV3;
+      readonly placementBefore: { readonly beforeRowId: Uuid | null };
+      readonly placementAfter: { readonly beforeRowId: Uuid | null };
+      readonly blockBefore: TableBlockV3;
+      readonly blockAfter: TableBlockV3;
+    }
+  | {
+      readonly type: "table-column-moved";
+      readonly blockId: Uuid;
+      readonly affectedBlockIds: readonly Uuid[];
+      readonly column: TableColumnV3;
+      readonly placementBefore: { readonly beforeColumnId: Uuid | null };
+      readonly placementAfter: { readonly beforeColumnId: Uuid | null };
+      readonly blockBefore: TableBlockV3;
+      readonly blockAfter: TableBlockV3;
+    }
+  | {
+      readonly type: "table-column-width-set";
+      readonly blockId: Uuid;
+      readonly affectedBlockIds: readonly Uuid[];
+      readonly columnId: Uuid;
+      readonly beforeWidth: number | null;
+      readonly afterWidth: number | null;
       readonly blockBefore: TableBlockV3;
       readonly blockAfter: TableBlockV3;
     }
@@ -531,6 +585,77 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
         blockAfter: tableSnapshot(doc, command.tableId),
       };
     }
+    case "move-table-row": {
+      const blockBefore = tableSnapshot(doc, command.tableId);
+      const rowIndex = blockBefore.rows.findIndex(({ id }) => id === command.rowId);
+      const row = blockBefore.rows[rowIndex];
+      if (row === undefined)
+        throw new TypeError(`row ${command.rowId} is not in ${command.tableId}`);
+      const placementBefore = { beforeRowId: blockBefore.rows[rowIndex + 1]?.id ?? null };
+      moveOperationalTableRow(doc, command.tableId, command.rowId, command.beforeRowId);
+      const blockAfter = tableSnapshot(doc, command.tableId);
+      const afterIndex = blockAfter.rows.findIndex(({ id }) => id === command.rowId);
+      return {
+        type: "table-row-moved",
+        blockId: command.tableId,
+        affectedBlockIds: tableRowIdentities(row),
+        row,
+        placementBefore,
+        placementAfter: { beforeRowId: blockAfter.rows[afterIndex + 1]?.id ?? null },
+        blockBefore,
+        blockAfter,
+      };
+    }
+    case "move-table-column": {
+      const blockBefore = tableSnapshot(doc, command.tableId);
+      const columnIndex = blockBefore.columns.findIndex(({ id }) => id === command.columnId);
+      const column = blockBefore.columns[columnIndex];
+      if (column === undefined) {
+        throw new TypeError(`column ${command.columnId} is not in ${command.tableId}`);
+      }
+      const cells = blockBefore.rows.map((row) => {
+        const cell = row.cells[columnIndex];
+        if (cell === undefined) {
+          throw new TypeError(`column ${command.columnId} has no cell in row ${row.id}`);
+        }
+        return { rowId: row.id, cell };
+      });
+      const placementBefore = {
+        beforeColumnId: blockBefore.columns[columnIndex + 1]?.id ?? null,
+      };
+      moveOperationalTableColumn(doc, command.tableId, command.columnId, command.beforeColumnId);
+      const blockAfter = tableSnapshot(doc, command.tableId);
+      const afterIndex = blockAfter.columns.findIndex(({ id }) => id === command.columnId);
+      return {
+        type: "table-column-moved",
+        blockId: command.tableId,
+        affectedBlockIds: tableColumnIdentities(column, cells),
+        column,
+        placementBefore,
+        placementAfter: { beforeColumnId: blockAfter.columns[afterIndex + 1]?.id ?? null },
+        blockBefore,
+        blockAfter,
+      };
+    }
+    case "set-table-column-width": {
+      const blockBefore = tableSnapshot(doc, command.tableId);
+      const column = blockBefore.columns.find(({ id }) => id === command.columnId);
+      if (column === undefined) {
+        throw new TypeError(`column ${command.columnId} is not in ${command.tableId}`);
+      }
+      setOperationalTableColumnWidth(doc, command.tableId, command.columnId, command.width);
+      const blockAfter = tableSnapshot(doc, command.tableId);
+      return {
+        type: "table-column-width-set",
+        blockId: command.tableId,
+        affectedBlockIds: [command.tableId],
+        columnId: command.columnId,
+        beforeWidth: column.width,
+        afterWidth: command.width,
+        blockBefore,
+        blockAfter,
+      };
+    }
   }
 }
 
@@ -670,7 +795,9 @@ export class OperationalPageDocument {
           command.type === "insert-table-row" ||
           command.type === "delete-table-row" ||
           command.type === "insert-table-column" ||
-          command.type === "delete-table-column",
+          command.type === "delete-table-column" ||
+          command.type === "move-table-row" ||
+          command.type === "move-table-column",
       );
       if (hasStructuralCommand) {
         assertOperationalBlockTree(working);
@@ -678,6 +805,7 @@ export class OperationalPageDocument {
         const changedBlockIds = new Set<Uuid>();
         for (const command of commands) {
           if ("blockId" in command) changedBlockIds.add(command.blockId);
+          if ("tableId" in command) changedBlockIds.add(command.tableId);
         }
         for (const blockId of changedBlockIds) assertOperationalBlock(working, blockId);
       }

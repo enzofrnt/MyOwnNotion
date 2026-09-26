@@ -304,9 +304,17 @@
 
 .ui-menu,
 .ui-popover {
+  /* Radius + overflow must live on the same box. Scrolling on the square
+     positioner clips through the rounded corners (square “ears”). */
   min-width: 12rem;
   max-width: min(22rem, calc(100vw - 2 * var(--ui-space-3)));
+  /* Ariakit computes the room beside the trigger on the positioner. Keep the
+     scrollable menu within that room so its last actions remain tappable. */
+  max-height: min(calc(100dvh - 2 * var(--ui-space-3)), var(--popover-available-height, 100dvh));
   padding: var(--ui-space-1);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   color: var(--ui-color-text);
   background: var(--ui-color-surface-raised);
   border: 1px solid var(--ui-color-border);
@@ -319,8 +327,6 @@
 .ui-popover__positioner {
   max-width: calc(100dvw - 2 * var(--ui-space-3));
   max-height: calc(100dvh - 2 * var(--ui-space-3));
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
 .ui-popover {

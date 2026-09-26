@@ -304,6 +304,7 @@ export function EditorView({
         discoverable={discoverable}
       />
       <EditorSyncStatus
+        service={service}
         session={state.session}
         editorSettled={editorSettled}
         discoverable={discoverable}

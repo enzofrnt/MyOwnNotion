@@ -171,6 +171,18 @@ function inverseFor(command: PageCommand, change: PageSemanticChange | undefined
         beforeColumnId: deleted.beforeColumnId,
       };
     }
+    case "move-table-row": {
+      const moved = semanticChange(change, "table-row-moved");
+      return { ...command, beforeRowId: moved.placementBefore.beforeRowId };
+    }
+    case "move-table-column": {
+      const moved = semanticChange(change, "table-column-moved");
+      return { ...command, beforeColumnId: moved.placementBefore.beforeColumnId };
+    }
+    case "set-table-column-width": {
+      const resized = semanticChange(change, "table-column-width-set");
+      return { ...command, width: resized.beforeWidth };
+    }
   }
 }
 
@@ -190,7 +202,10 @@ function commandBlockId(command: PageCommand): Uuid {
     command.type === "insert-table-row" ||
     command.type === "delete-table-row" ||
     command.type === "insert-table-column" ||
-    command.type === "delete-table-column"
+    command.type === "delete-table-column" ||
+    command.type === "move-table-row" ||
+    command.type === "move-table-column" ||
+    command.type === "set-table-column-width"
   ) {
     return command.tableId;
   }
@@ -222,6 +237,9 @@ function historyGuards(
       case "delete-table-row":
       case "insert-table-column":
       case "delete-table-column":
+      case "move-table-row":
+      case "move-table-column":
+      case "set-table-column-width":
         requirement.content = true;
         break;
     }

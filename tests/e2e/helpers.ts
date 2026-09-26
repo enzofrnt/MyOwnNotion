@@ -300,6 +300,7 @@ export async function triggerAndSampleMountedCssTransition(
 
 interface E2ELocalContentService {
   synchronize(): Promise<string>;
+  getSnapshot(): { readonly syncState: string };
   getItem(itemId: string): Promise<{
     readonly currentRevisionId: string;
     readonly kind: string;
@@ -589,7 +590,22 @@ export async function ensureNavigationVisible(page: Page): Promise<void> {
   // visible, which makes Playwright correctly report the wrapper itself as
   // hidden.
   const navigation = page.locator('[role="tree"], [data-testid="empty-state"]').first();
-  const trigger = page.getByTestId("toggle-tree");
+  // Narrow viewports close the rail automatically; reopen via the stage-header
+  // panel control — never via a floating "Navigation" button.
+  const trigger = page.getByTestId("toggle-sidebar");
+  if (await page.evaluate(() => window.innerWidth < 768)) {
+    const slot = page.locator(".workspace-sidebar-slot");
+    // A resize can leave the old desktop rail visible for one render. Wait for
+    // the mobile drawer before treating the tree as an actionable surface.
+    await expect(slot).toHaveAttribute("data-mode", "mobile");
+    if ((await slot.getAttribute("data-open")) !== "true") {
+      await trigger.click();
+    }
+    await expect(slot).toHaveAttribute("data-open", "true");
+    await expect(page.getByTestId("workspace-navigation-drawer")).toBeVisible();
+    await expect(navigation).toBeVisible();
+    return;
+  }
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await expect
       .poll(async () => (await navigation.isVisible()) || (await trigger.isVisible()), {
@@ -792,9 +808,12 @@ export async function selectItem(page: Page, name: string): Promise<void> {
   // Folders expand on a short click and only become the destination on
   // double-click (FR-019). Pages, files and databases still open on click.
   if (kind === "folder") {
-    await nameSlot.dblclick();
+    // Touch rows keep their action buttons over the right edge of the title.
+    // Activate the visible text at its leading edge instead of the padded
+    // reservation underneath those controls.
+    await nameSlot.dblclick({ position: { x: 4, y: 12 } });
   } else {
-    await nameSlot.click();
+    await nameSlot.click({ position: { x: 4, y: 12 } });
   }
   await expect(row).toHaveAttribute("aria-selected", "true", {
     timeout: 15_000,
@@ -849,13 +868,25 @@ export async function waitForDatabaseDefinitionSaved(page: Page): Promise<void> 
 }
 
 export async function waitForSynchronized(page: Page): Promise<void> {
-  // The compact workspace status is derived from the aggregate durable queue:
-  // `synced` is impossible while a workspace mutation, page operation, legacy
-  // branch, or conflict is pending. Detailed queue rows live in settings and
-  // must not be mounted below every document just to provide a test hook.
-  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced", {
-    timeout: 20_000,
-  });
+  // The E2E-only service hook observes the aggregate durable queue without
+  // opening another screen or depending on which kind of item is active.
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(
+          () => window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.().getSnapshot().syncState ?? null,
+        ),
+      { timeout: 20_000 },
+    )
+    .toBe("synced");
+}
+
+/** Reveals connection details in the existing information control of an open note. */
+export async function openNoteInformation(page: Page): Promise<void> {
+  const control = page.getByTestId("editor-sync-control");
+  await expect(control).toBeVisible({ timeout: 30_000 });
+  await control.locator("summary").click();
+  await expect(page.getByTestId("live-connection-state")).toBeVisible({ timeout: 15_000 });
 }
 
 /**

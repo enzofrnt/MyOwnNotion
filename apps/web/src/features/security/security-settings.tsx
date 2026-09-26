@@ -19,7 +19,7 @@ import type {
   SecurityApi,
 } from "../../services/security-api.ts";
 import { FR_COPY } from "../../ui/copy/index.ts";
-import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
+import { Button, Field } from "../../ui/primitives/index.ts";
 import { DevicePanel } from "./device-panel.tsx";
 import { KeyRotationPanel } from "./key-rotation-panel.tsx";
 import { McpAccessPanel } from "./mcp-access-panel.tsx";
@@ -300,110 +300,170 @@ export function SecuritySettings(props: SecuritySettingsProps) {
       aria-labelledby="security-heading"
       data-testid="security-settings"
     >
-      <h2 id="security-heading">{FR_COPY.security.title}</h2>
+      <h2 id="security-heading" className="ui-visually-hidden">
+        {FR_COPY.security.title}
+      </h2>
+
+      <nav className="security-settings__toc" aria-label="Sommaire de la sécurité">
+        <a href="#passkeys-heading">Connexion</a>
+        <a href="#sessions-heading">Sessions</a>
+        <a href="#devices-heading">Appareils</a>
+        <a href="#mcp-heading">Assistants</a>
+        <a href="#recovery-readiness-heading">Récupération</a>
+      </nav>
 
       {notice === null ? null : (
-        <AsyncState compact kind={notice.kind} title={notice.message} testId="security-message" />
-      )}
-
-      <section className="ui-settings-panel" aria-labelledby="passkeys-heading">
-        <h2 id="passkeys-heading">{FR_COPY.security.passkeys.title}</h2>
-        {loading ? (
-          <AsyncState compact kind="loading" title={FR_COPY.security.passkeys.loading} />
-        ) : (
-          <ul data-testid="passkey-list">
-            {activePasskeys.map((passkey) => (
-              <li key={passkey.credentialId} data-testid="passkey-row">
-                <span>{passkey.label}</span>
-                <Button
-                  size="compact"
-                  variant="ghost"
-                  onClick={() => {
-                    void removePasskey(passkey.credentialId);
-                  }}
-                  disabled={busy}
-                  data-testid="remove-passkey"
-                >
-                  {FR_COPY.security.passkeys.remove}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {activePasskeys.length === 1 ? (
-          <p className="security-note" data-testid="last-passkey-note">
-            {FR_COPY.security.passkeys.onlyOne}
-          </p>
-        ) : null}
-      </section>
-
-      <section className="ui-settings-panel" aria-labelledby="password-heading">
-        <h2 id="password-heading">{FR_COPY.security.password.title}</h2>
-        <p>{FR_COPY.security.password.description}</p>
-        <p className="security-warning" data-testid="no-reset-warning">
-          {FR_COPY.security.password.warning}
+        <p
+          className="security-settings__note"
+          data-kind={notice.kind}
+          role={notice.kind === "error" ? "alert" : "status"}
+          data-testid="security-message"
+        >
+          {notice.message}
         </p>
-        <form onSubmit={savePassword}>
-          <Field
-            type="password"
-            autoComplete="new-password"
-            minLength={12}
-            label={FR_COPY.security.password.label}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            disabled={busy}
-            data-testid="new-password-input"
-          />
-          <Button type="submit" variant="primary" busy={busy} data-testid="save-password">
-            {FR_COPY.security.password.save}
-          </Button>
-        </form>
-      </section>
+      )}
 
-      <SessionPanel
-        api={props.api}
-        currentSessionId={props.currentSessionId}
-        onSignedOut={props.onSignedOut}
-      />
+      <div className="security-group">
+        <p className="security-group__eyebrow">Connexion</p>
 
-      <DevicePanel api={props.api} currentDeviceId={props.currentDeviceId ?? null} />
+        <section className="ui-settings-panel" aria-labelledby="passkeys-heading">
+          <header className="security-settings__panel-head">
+            <div>
+              <h2 id="passkeys-heading">{FR_COPY.security.passkeys.title}</h2>
+              <p className="security-settings__lead">
+                Les clés enregistrées sur vos appareils pour ouvrir cet espace.
+              </p>
+            </div>
+          </header>
+          {loading ? (
+            <p className="security-settings__quiet" role="status">
+              {FR_COPY.security.passkeys.loading}
+            </p>
+          ) : activePasskeys.length === 0 ? (
+            <p className="security-settings__quiet" data-testid="passkey-empty">
+              Aucune passkey active.
+            </p>
+          ) : (
+            <ul className="security-settings__rows" data-testid="passkey-list">
+              {activePasskeys.map((passkey) => (
+                <li key={passkey.credentialId} data-testid="passkey-row">
+                  <div className="security-settings__row-main">
+                    <span className="security-settings__row-label">{passkey.label}</span>
+                  </div>
+                  <div className="security-settings__row-actions">
+                    <Button
+                      size="compact"
+                      variant="secondary"
+                      onClick={() => {
+                        void removePasskey(passkey.credentialId);
+                      }}
+                      disabled={busy}
+                      data-testid="remove-passkey"
+                    >
+                      {FR_COPY.security.passkeys.remove}
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {activePasskeys.length === 1 ? (
+            <p className="security-settings__note" data-testid="last-passkey-note">
+              {FR_COPY.security.passkeys.onlyOne}
+            </p>
+          ) : null}
+        </section>
 
-      <McpAccessPanel api={props.api} onReauthenticated={props.onReauthenticated} />
+        <section className="ui-settings-panel" aria-labelledby="password-heading">
+          <header className="security-settings__panel-head">
+            <div>
+              <h2 id="password-heading">{FR_COPY.security.password.title}</h2>
+              <p className="security-settings__lead">{FR_COPY.security.password.description}</p>
+            </div>
+          </header>
+          <form onSubmit={savePassword} className="security-settings__inline-form">
+            <Field
+              type="password"
+              autoComplete="new-password"
+              minLength={12}
+              label={FR_COPY.security.password.label}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              disabled={busy}
+              data-testid="new-password-input"
+            />
+            <Button
+              type="submit"
+              size="compact"
+              variant="secondary"
+              busy={busy}
+              data-testid="save-password"
+            >
+              {FR_COPY.security.password.save}
+            </Button>
+          </form>
+          <p className="security-settings__note" data-testid="no-reset-warning">
+            {FR_COPY.security.password.warning}
+          </p>
+        </section>
+      </div>
 
-      <RecoveryReadinessPanel
-        status={recovery}
-        busy={busy}
-        loading={loading}
-        onPrepareReplacement={prepareReplacement}
-        onRevoke={revokeRecovery}
-      />
+      <div className="security-group">
+        <p className="security-group__eyebrow">Sessions et appareils</p>
 
-      {replacement === null ? null : (
-        <RecoveryReplacementPanel
-          key={replacement.kitId}
-          kit={replacement}
-          delivery={
-            replacementConsumedKitId === replacement.kitId
-              ? ("download-consumed" satisfies RecoveryReplacementDelivery)
-              : "downloadable"
-          }
-          downloadSaved={replacementSavedKitId === replacement.kitId}
+        <SessionPanel
+          api={props.api}
+          currentSessionId={props.currentSessionId}
+          onSignedOut={props.onSignedOut}
+        />
+
+        <DevicePanel api={props.api} currentDeviceId={props.currentDeviceId ?? null} />
+      </div>
+
+      <div className="security-group">
+        <p className="security-group__eyebrow">Assistants</p>
+
+        <McpAccessPanel api={props.api} onReauthenticated={props.onReauthenticated} />
+      </div>
+
+      <div className="security-group">
+        <p className="security-group__eyebrow">Récupération</p>
+
+        <RecoveryReadinessPanel
+          status={recovery}
           busy={busy}
-          {...(replacementNotice === null
-            ? {}
-            : { message: { kind: replacementNotice.kind, text: replacementNotice.message } })}
-          onDownload={downloadReplacement}
-          onConfirm={confirmReplacement}
+          loading={loading}
+          onPrepareReplacement={prepareReplacement}
+          onRevoke={revokeRecovery}
         />
-      )}
 
-      {rotation !== null && (
-        <KeyRotationPanel
-          policies={rotation.policies}
-          running={rotation.running}
-          writesAllowed={rotation.writesAllowed}
-        />
-      )}
+        {replacement === null ? null : (
+          <RecoveryReplacementPanel
+            key={replacement.kitId}
+            kit={replacement}
+            delivery={
+              replacementConsumedKitId === replacement.kitId
+                ? ("download-consumed" satisfies RecoveryReplacementDelivery)
+                : "downloadable"
+            }
+            downloadSaved={replacementSavedKitId === replacement.kitId}
+            busy={busy}
+            {...(replacementNotice === null
+              ? {}
+              : { message: { kind: replacementNotice.kind, text: replacementNotice.message } })}
+            onDownload={downloadReplacement}
+            onConfirm={confirmReplacement}
+          />
+        )}
+
+        {rotation !== null && (
+          <KeyRotationPanel
+            policies={rotation.policies}
+            running={rotation.running}
+            writesAllowed={rotation.writesAllowed}
+          />
+        )}
+      </div>
     </section>
   );
 }

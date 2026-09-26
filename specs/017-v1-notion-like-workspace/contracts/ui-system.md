@@ -89,18 +89,23 @@ seule.
 ## 5. Shell desktop
 
 ~~~text
-┌──────────── navigation 240–360 px ────────────┬──────── page ────────┐
-│ workspace / actions                           │ fil d'Ariane         │
-│ recherche                                     │                      │
-│ Favoris / Récents (facultatifs)               │ titre                │
-│ Notes : arbre pages & bases                   │ propriétés           │
+┌──────────── navigation 200–720 px ────────────┬──────── page ────────┐
+│ recherche / graphe                            │ onglets + historique │
+│ Notes : arbre pages & bases                   │ fil d'Ariane sticky  │
+│                                               │ titre                │
 │                                               │ éditeur              │
-│ réglages                                      │ état sync épinglé    │
+│ réglages                                      │ sync : i bas-droit   │
 └───────────────────────────────────────────────┴──────────────────────┘
 ~~~
 
-- sidebar redimensionnable et largeur mémorisée localement ;
-- largeur par défaut 280 px, limites 240–360 px ;
+- sidebar redimensionnable au pixel près et largeur mémorisée localement ;
+- largeur par défaut 280 px, limites 200–720 px, plafonnée pour laisser
+  environ 420 px à la page ouverte ;
+- indentation visuelle de l'arbre sans plafond de profondeur (sous-pages /
+  dossiers décalés à chaque niveau) ;
+- pas de bandeau Favoris / Récents ni de statut sync dans le pied de sidebar ;
+  le contrôle `i` de la page détaille son état et celui de la synchronisation
+  globale ;
 - contenu éditorial centré, largeur lisible par défaut et option pleine largeur
   future sans changer le document ;
 - chrome discret : les actions secondaires apparaissent au hover/focus mais
@@ -113,17 +118,16 @@ Le shell occupe la hauteur visible et ne délègue pas son scroll au document
 racine. Le chrome supérieur et la barre latérale restent en place ; le contenu
 principal défile sous son en-tête et la seule partie scrollable de la
 navigation desktop est sa liste centrale, entre l'identité du workspace et le
-pied Réglages/statut. Lorsque la barre est masquée, sa commande de réouverture
+pied Réglages. Lorsque la barre est masquée, sa commande de réouverture
 est ancrée dans la ligne supérieure du chrome du contenu.
 
 L'arbre conserve sélection, focus et branches ouvertes. Le DnD montre parent,
 position et action refusée ; l'équivalent clavier permet déplacer avant/après
 ou dans une page.
 
-Les sections `Favoris` et `Récents` ont chacune un contrôle discret de
-repli/dépli indépendant. Leur visibilité est réglable dans la destination
-Réglages et ces choix de présentation restent locaux à l'appareil. La
-hiérarchie principale s'appelle `Notes`. Ses descendants sont rapprochés du
+Les sections `Favoris` et `Récents` retirées ne sont pas rendues dans la
+navigation. Les données correspondantes restent intactes. La hiérarchie
+principale s'appelle `Notes`. Ses descendants sont rapprochés du
 bord gauche tout en conservant une indentation et un guide visuel assez nets
 pour rendre le parent immédiatement identifiable. Ce guide reste centré sur
 l'emoji du parent à chaque niveau. Les lignes laissent 2 px entre elles, comme
@@ -318,7 +322,7 @@ en masse sans expliquer le changement n'est pas une validation.
   distincts et compréhensibles ;
 - aucun panneau de configuration ou diagnostic détaillé n'est rendu sous le
   document courant ; les destinations dédiées restaurent le contexte au retour ;
-- Favoris/Récents sont configurables localement et Notes présente une
+- Favoris/Récents restent absents de la barre latérale et Notes présente une
   hiérarchie lisible avec trois cibles de déplacement explicites ;
 - le statut de page reste épinglé en bas sans modifier la géométrie du document ;
 - les liens internes et externes offrent le même cycle ouvrir/modifier/retirer,

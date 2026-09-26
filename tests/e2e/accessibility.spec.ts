@@ -16,6 +16,7 @@ import {
   ensureNavigationVisible,
   openAttachmentDetails,
   openItemActions,
+  openNoteInformation,
   openPageAttachments,
   openRootCreation,
   openRootDatabaseCreation,
@@ -58,8 +59,9 @@ test.describe("accessibility (all viewports/browsers)", () => {
       await expect(page.getByRole("menuitem", { name: label })).toBeVisible();
     }
 
-    // Status messaging uses live regions.
-    await expect(page.getByTestId("sync-status")).toHaveAttribute("aria-live", "polite");
+    // The page information control announces its own save state.
+    await createRootItem(page, "page", uniqueName("A11yStatus"));
+    await expect(page.getByTestId("editor-sync-status")).toHaveAttribute("aria-live", "polite");
   });
 
   test("interactive elements expose visible focus", async ({ page }) => {
@@ -90,7 +92,7 @@ test.describe("accessibility (all viewports/browsers)", () => {
     await title.fill(name);
     await title.press("Enter");
     const row = page.getByTestId(`tree-item-${name}`);
-    const mobileTrigger = page.getByTestId("toggle-tree");
+    const mobileTrigger = page.getByTestId("toggle-sidebar");
     if (await mobileTrigger.isVisible()) {
       // Creation deliberately closes the phone drawer and transfers focus to
       // the blank title. Reopen navigation with the keyboard before continuing
@@ -268,7 +270,10 @@ test.describe("the file surfaces (feature 005)", () => {
         (violation: { impact?: string | null | undefined }) =>
           violation.impact === "critical" || violation.impact === "serious",
       )
-      .map((violation: { id: string; help: string }) => `${violation.id}: ${violation.help}`);
+      .map(
+        (violation) =>
+          `${violation.id}: ${violation.help} (${violation.nodes.map((node) => `${JSON.stringify(node.target)}: ${node.html}`).join("; ")})`,
+      );
   }
 
   async function pageWithAttachment(
@@ -350,7 +355,8 @@ test.describe("synchronization accessibility (feature 006)", () => {
 
   test("the connection state is announced politely, not as an alert", async ({ page }) => {
     await openWorkspace(page);
-    await ensureNavigationVisible(page);
+    await createRootItem(page, "page", uniqueName("A11yConnection"));
+    await openNoteInformation(page);
     const state = page.getByTestId("live-connection-state");
     await expect(state).toBeVisible({ timeout: 15_000 });
     // `status` while things are ordinary. The two states that need acting on —

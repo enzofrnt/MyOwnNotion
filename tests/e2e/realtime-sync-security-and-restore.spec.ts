@@ -8,6 +8,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   editorChangeSequence,
+  openNoteInformation,
   openSecondDevice,
   openSettings,
   openWorkspace,
@@ -73,6 +74,10 @@ test("revoking a device closes all of its live page sockets immediately", async 
   const second = await openSecondDevice(browser, baseURL, deviceName);
   try {
     await Promise.all([openWorkspace(page), openWorkspace(second.page)]);
+    await createRootItem(page, "page", uniqueName("RevokerConnection"));
+    await openNoteInformation(page);
+    await createRootItem(second.page, "page", uniqueName("RevokedConnection"));
+    await openNoteInformation(second.page);
     await expect(page.getByTestId("live-connection-state")).toHaveAttribute("data-state", "live");
     await expect(second.page.getByTestId("live-connection-state")).toHaveAttribute(
       "data-state",
@@ -107,6 +112,8 @@ test("the same-origin proxy reconnects the page socket after a network interrupt
     if (socket.url().endsWith("/v1/page-sync/socket")) pageSockets += 1;
   });
   await openWorkspace(page);
+  await createRootItem(page, "page", uniqueName("ReconnectingPage"));
+  await openNoteInformation(page);
   await expect(page.getByTestId("live-connection-state")).toHaveAttribute("data-state", "live");
   await expect.poll(() => pageSockets).toBeGreaterThanOrEqual(1);
 

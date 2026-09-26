@@ -20,6 +20,7 @@ import {
   pruneTabs,
   readNavigationState,
   rememberScrollAnchor,
+  reorderTabs,
   scrollAnchorFor,
   updateWorkspacePresentationState,
   type WorkspacePresentationState,
@@ -93,8 +94,8 @@ import {
 import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
 import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
 import type { SearchBranchOption } from "../search/search-filters.tsx";
+import { useChangeStream } from "../sync/use-change-stream.ts";
 import { useRealtimeSync } from "../sync/use-realtime-sync.ts";
-import { WorkspaceSyncStatus } from "../sync/workspace-sync-status.tsx";
 import { FolderChildrenList, FolderInlineCreate } from "../workspace/folder-children-list.tsx";
 import { type OpenTab, OpenTabsStrip } from "../workspace/open-tabs-strip.tsx";
 import { PageContentSkeleton } from "../workspace/page-content-skeleton.tsx";
@@ -341,6 +342,7 @@ export function HierarchyExplorer({
     return content;
   }, [pageOperationCsrfToken]);
   useRealtimeSync(service);
+  const changeStream = useChangeStream(service);
   const databaseViews = useMemo(() => new DatabaseViewService(service), [service]);
   const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
   const activeRef = useRef(active);
@@ -456,6 +458,17 @@ export function HierarchyExplorer({
   // which is workable at ten items and unusable at a hundred.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [expandedAttachments, setExpandedAttachments] = useState<ReadonlySet<string>>(new Set());
+  // An attachments panel belongs to the selected page. Leaving that page with
+  // the panel still open under another selection looks like a stuck drawer.
+  useEffect(() => {
+    setExpandedAttachments((current) => {
+      if (current.size === 0) return current;
+      if (selectedId !== null && current.has(selectedId)) {
+        return current.size === 1 ? current : new Set([selectedId]);
+      }
+      return new Set();
+    });
+  }, [selectedId]);
   // Guards the persistence effect below. Without it that effect can fire before
   // the stored state has been read and write the empty set back, erasing every
   // open branch on the way in.
@@ -505,20 +518,20 @@ export function HierarchyExplorer({
   }, [mobileNavigationOpen]);
 
   const closeSearch = useCallback(() => {
+    const previous = searchReturnFocus.current;
+    // Ariakit restores focus after the dialog closes. Give it the current
+    // trigger before unmounting, including when a resize replaced the opener.
+    if (
+      window.innerWidth < 768 ||
+      previous?.isConnected !== true ||
+      previous.getClientRects().length === 0 ||
+      previous.closest(".workspace-sidebar-drawer") !== null
+    ) {
+      searchReturnFocus.current = document.querySelector<HTMLElement>(
+        '[data-testid="toggle-sidebar"]',
+      );
+    }
     setSearchOpen(false);
-    queueMicrotask(() => {
-      const previous = searchReturnFocus.current;
-      // A resize can replace the desktop sidebar with the mobile trigger while
-      // search is open. In that case the original control is detached, so
-      // returning focus to it would silently leave focus on the document body.
-      const target =
-        previous?.isConnected === true && previous.getClientRects().length > 0
-          ? previous
-          : document.querySelector<HTMLElement>(
-              '[data-testid="toggle-tree"], [data-testid="toggle-sidebar"]',
-            );
-      target?.focus();
-    });
   }, []);
 
   const openItem = useCallback(
@@ -1556,6 +1569,10 @@ export function HierarchyExplorer({
         setProblem(result.error);
         throw new Error(result.error.title);
       }
+      // The item was created as a database. Classify it before selecting it
+      // so the ordinary page editor cannot mount a loading skeleton above the
+      // database form and then shift that form when classification finishes.
+      structuredKindByItemId.current.set(request.id as Uuid, "database");
       setDatabaseFormParent(undefined);
       selectItemById(request.id as Uuid);
       setMobileNavigationOpen(false);
@@ -2051,7 +2068,7 @@ export function HierarchyExplorer({
     <div
       id="workspace-tree"
       className="workspace-tree"
-      data-open={sidebarOpen}
+      data-open={sidebarOpen || mobileNavigationOpen}
       data-testid="workspace-tree"
     >
       {loadState === "loading" ? (
@@ -2131,6 +2148,7 @@ export function HierarchyExplorer({
 
   return (
     <WorkspaceShell
+      changeStream={changeStream}
       contentMode={
         graphMode !== null
           ? "graph"
@@ -2150,7 +2168,6 @@ export function HierarchyExplorer({
           items={items}
           tree={navigationTree}
           creationControls={creationControls}
-          footerStatus={<WorkspaceSyncStatus service={service} />}
           shortcutPreferences={shortcutPreferences}
           onShortcutExpandedChange={(section, expanded) => {
             setShortcutPreferences((current) => ({
@@ -2192,6 +2209,9 @@ export function HierarchyExplorer({
                 }}
                 onClose={closeOpenTab}
                 onEmptyFocus={focusWorkspaceMain}
+                onReorder={(activeTabId, overTabId) => {
+                  setOpenTabIds((current) => reorderTabs(current, activeTabId, overTabId));
+                }}
               />
             ) : undefined
           }
@@ -2227,6 +2247,7 @@ export function HierarchyExplorer({
           search={search}
           branches={searchBranches}
           itemIcons={searchItemIcons}
+          finalFocus={searchReturnFocus}
           onOpen={(itemId) => openItem(itemId)}
           onClose={closeSearch}
         />
@@ -2611,7 +2632,7 @@ export function HierarchyExplorer({
                         }
                         onCaptureScrollAnchor={onCaptureScrollAnchor}
                         onOpenPage={openPageLink}
-                        discoverable={sessionIsActive}
+                        discoverable={sessionIsActive && active}
                       />
                       <PageDatabases
                         active={sessionIsActive}

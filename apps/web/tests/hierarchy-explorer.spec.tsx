@@ -173,7 +173,9 @@ describe("hierarchy item identity geometry", () => {
     expect(css).toMatch(
       /\.navigation-inline-create\[data-open="true"\]\s*\{[^}]*width:\s*var\(--inline-create-open-width\)/u,
     );
-    expect(css).toMatch(/\.workspace-navigation \.tree\s*\{[^}]*--tree-row-gap:\s*2px/u);
+    // Density tightened to 1px in the sidebar atelier (L-004); the prototype's
+    // 2px was the starting point, not the contract.
+    expect(css).toMatch(/\.workspace-navigation \.tree\s*\{[^}]*--tree-row-gap:\s*1px/u);
     expect(css).toMatch(
       /\.workspace-navigation \.tree\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u,
     );
@@ -194,7 +196,7 @@ describe("hierarchy item identity geometry", () => {
       /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*box-shadow:\s*none/u,
     );
     expect(css).toMatch(
-      /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*background:\s*var\(--ui-color-surface-hover\)/u,
+      /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*background:\s*var\(--ui-color-surface-raised\)/u,
     );
     expect(css).toMatch(
       /\.navigation-inline-create\[data-open="true"\]\[data-closing="true"\]\s*\{[^}]*width:\s*var\(--inline-create-slot\)/u,
@@ -211,6 +213,9 @@ describe("hierarchy item identity geometry", () => {
     expect(css).toMatch(
       /\.navigation-item-actions:has\(\.navigation-inline-create\[data-open="true"\]\)[^{]*\.workspace-page-attachments-trigger/u,
     );
+    expect(css).toMatch(/container-name:\s*tree-item/u);
+    expect(css).toMatch(/@container tree-item \(max-width:\s*11rem\)/u);
+    expect(css).toMatch(/@container tree-item \(max-width:\s*7\.5rem\)/u);
     expect(css).not.toMatch(
       /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*border-color:\s*var\(--color-border\)/u,
     );

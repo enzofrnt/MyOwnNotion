@@ -53,7 +53,13 @@ test.describe("offline continuity (US6)", () => {
     await expect(page.getByTestId("workspace-shell")).toBeVisible();
     // Loaded hierarchy remains readable from the durable projection.
     await ensureNavigationRowVisible(page, loaded);
-    await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "offline");
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.().getSnapshot().syncState ?? null,
+        ),
+      )
+      .toBe("offline");
 
     // 3. Mutations offline: create and rename with durable pending entries.
     const offlineItem = uniqueName("CreatedOffline");

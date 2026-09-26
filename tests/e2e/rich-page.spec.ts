@@ -111,11 +111,12 @@ test.describe("rich page composition", () => {
     const tableMenu = page.getByRole("listbox");
     await tableMenu.getByRole("option", { name: /^Tableau simple/u }).click();
     await expect(tableMenu).toBeHidden();
-    await expect(editor.locator(".editor-table-toolbar")).toBeVisible();
+    await expect(editor.locator('[data-testid="editor-table-chrome"]')).toBeAttached();
     const tableCells = editor.locator(".editor-table-cell");
     await expect(tableCells).toHaveCount(6);
-    await tableCells.last().click();
-    await tableCells.last().press("Tab");
+    const lastCellEditor = tableCells.last().getByRole("textbox", { name: "Cellule du tableau" });
+    await lastCellEditor.click();
+    await lastCellEditor.press("Tab");
     await expect(tableCells).toHaveCount(9);
 
     // Reload only once every transaction is durable and accepted: the
@@ -141,7 +142,7 @@ test.describe("rich page composition", () => {
     await expect(reloaded.locator('[data-content-type="toggleListItem"]')).toContainText(
       "Section repliée",
     );
-    await expect(reloaded.locator(".editor-table-toolbar")).toBeVisible();
+    await expect(reloaded.locator('[data-testid="editor-table-chrome"]')).toBeAttached();
     await expect(reloaded.locator(".editor-table-cell")).toHaveCount(9);
 
     // The durable document holds what the screen shows (FR-025).

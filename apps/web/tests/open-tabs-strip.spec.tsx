@@ -53,7 +53,7 @@ describe("open tabs strip", () => {
     ]);
     expect(buttons[1]?.getAttribute("aria-current")).toBe("page");
     expect(buttons[0]?.hasAttribute("aria-current")).toBe(false);
-    expect(buttons[1]?.title).toBe("Feuille de route");
+    expect(buttons[1]?.title).toBe("Feuille de route — glisser pour réordonner");
 
     await act(async () => {
       buttons[0]?.click();
@@ -385,5 +385,26 @@ describe("open tabs strip", () => {
       );
     });
     expect(container.querySelector('[role="toolbar"]')).toBeNull();
+  });
+
+  it("exposes sortable activators so the strip can be reordered by drag", async () => {
+    const onReorder = vi.fn();
+    await act(async () => {
+      root.render(
+        <OpenTabsStrip
+          tabs={tabs}
+          activeId="a"
+          onActivate={vi.fn()}
+          onClose={vi.fn()}
+          onEmptyFocus={ignoreEmptyFocus}
+          onReorder={onReorder}
+        />,
+      );
+    });
+    const activators = [...container.querySelectorAll<HTMLElement>("[data-open-tab-activate]")];
+    expect(activators).toHaveLength(3);
+    // dnd-kit marks the activator for keyboard and pointer sensors.
+    expect(activators.every((button) => button.hasAttribute("aria-roledescription"))).toBe(true);
+    expect(container.querySelectorAll('[data-testid="open-tab"]')).toHaveLength(3);
   });
 });

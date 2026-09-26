@@ -767,3 +767,13 @@ métier dans la 017. La validation formelle de release reste ensuite bloquée pa
 la feature 021.
 
 - [ ] T319 [US6] Après livraison de `specs/014-desktop-clients`, intégrer les destinations graphe 010 au shell, aux thèmes clair/sombre, aux largeurs desktop/mobile, au clavier, au catalogue français et aux références visuelles V1 ; exécuter les journeys croisés workspace–page–backlinks–graphe, mettre à jour `specs/017-v1-notion-like-workspace/validation.md`, puis relancer la convergence et le gate final per product canvas §6.1/§22, SC-003 à SC-006, SC-010 et Definition of Done
+
+## Phase 24: Correction de la CI de la PR 178 et maintien de la navigation épurée
+
+Les tâches historiques T257, T261 et T269 décrivent une présentation remplacée
+par la décision du 2026-09-26. Elles restent cochées comme historique de
+travail ; elles n'autorisent pas à réintroduire leurs sections.
+
+- [X] T320 [US1] Adapter les parcours de synchronisation et de connexion à l'état réel du service et au bouton d'information de la note ; confirmer par tests composant et E2E l'absence de statut de barre latérale per FR-007, FR-076, SC-028 et skill UI quality.
+- [X] T321 [US5] Couvrir les déplacements et changements de largeur de table avec et sans colonnes héritées, y compris cibles manquantes pendant la reprise hors ligne, sans masquer une perte de données per FR-026 et Definition of Done.
+- [ ] T322 [US1] Vérifier l'interface sur les profils desktop/mobile, clair/sombre selon [UI quality](../../.agents/skills/ui-quality/SKILL.md) et son [journal de leçons](../../.agents/skills/ui-quality/lessons.md), lancer le gate `checks:local` complet, puis observer les contrôles de la PR et de main après fusion per Definition of Done.

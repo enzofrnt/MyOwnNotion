@@ -1,12 +1,19 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { Button } from "../../ui/primitives/index.ts";
 import {
   ResponsiveSidebar,
   SIDEBAR_MOTION_DURATION_MS,
+  type SidebarMode,
+  sidebarModeForWidth,
 } from "../navigation/responsive-sidebar.tsx";
+import {
+  type ChangeStreamStatus,
+  WorkspaceChangeStreamContext,
+} from "../sync/use-change-stream.ts";
 
 export interface WorkspaceShellProps {
+  readonly changeStream?: ChangeStreamStatus | null;
   readonly children: ReactNode;
   readonly header: ReactNode;
   readonly contentMode?: "bounded" | "page" | "graph";
@@ -20,7 +27,12 @@ export interface WorkspaceShellProps {
   readonly onSidebarWidthChange: (width: number) => void;
 }
 
+function currentSidebarMode(): SidebarMode {
+  return sidebarModeForWidth(typeof window === "undefined" ? 1280 : window.innerWidth);
+}
+
 export function WorkspaceShell({
+  changeStream = null,
   children,
   contentMode = "bounded",
   header,
@@ -36,6 +48,13 @@ export function WorkspaceShell({
   const openControl = useRef<HTMLButtonElement | null>(null);
   const closeControl = useRef<HTMLButtonElement | null>(null);
   const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mode, setMode] = useState<SidebarMode>(currentSidebarMode);
+
+  useEffect(() => {
+    const update = (): void => setMode(currentSidebarMode());
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   useEffect(
     () => () => {
@@ -44,13 +63,34 @@ export function WorkspaceShell({
     [],
   );
 
-  const changeSidebarOpen = (open: boolean): void => {
-    onSidebarOpenChange(open);
-    if (focusTimer.current !== null) clearTimeout(focusTimer.current);
-    focusTimer.current = setTimeout(() => {
-      focusTimer.current = null;
-      (open ? closeControl : openControl).current?.focus();
-    }, SIDEBAR_MOTION_DURATION_MS);
+  const navigationVisible = mode === "mobile" ? mobileNavigationOpen : sidebarOpen;
+
+  const changeSidebarOpen = useCallback(
+    (open: boolean): void => {
+      const focusOrigin = document.activeElement;
+      const focusStartedOnControl =
+        focusOrigin === openControl.current || focusOrigin === closeControl.current;
+      onSidebarOpenChange(open);
+      if (focusTimer.current !== null) clearTimeout(focusTimer.current);
+      if (!focusStartedOnControl) return;
+      focusTimer.current = setTimeout(() => {
+        focusTimer.current = null;
+        // A later keyboard action may have moved focus into the document while
+        // the rail animates. Do not pull it back to the toggle after that action.
+        if (document.activeElement !== focusOrigin && document.activeElement !== document.body)
+          return;
+        (open ? closeControl : openControl).current?.focus();
+      }, SIDEBAR_MOTION_DURATION_MS);
+    },
+    [onSidebarOpenChange],
+  );
+
+  const openNavigation = (): void => {
+    if (mode === "mobile") {
+      onMobileNavigationOpenChange(true);
+      return;
+    }
+    changeSidebarOpen(true);
   };
 
   return (
@@ -60,6 +100,7 @@ export function WorkspaceShell({
       </a>
       <ResponsiveSidebar
         closeControlRef={closeControl}
+        openControlRef={openControl}
         mobileOpen={mobileNavigationOpen}
         open={sidebarOpen}
         restoreMobileFocusOnClose={restoreMobileFocusOnClose}
@@ -77,15 +118,15 @@ export function WorkspaceShell({
             ref={openControl}
             className="workspace-sidebar-desktop-trigger"
             data-testid="toggle-sidebar"
-            data-visible={!sidebarOpen || undefined}
+            data-visible={!navigationVisible || undefined}
             size="square"
             variant="ghost"
             aria-label="Afficher la barre latérale"
-            aria-expanded={sidebarOpen}
+            aria-expanded={navigationVisible}
             aria-controls="workspace-navigation"
-            onClick={() => changeSidebarOpen(true)}
+            onClick={openNavigation}
           >
-            <AppIcon name="panelOpen" />
+            <AppIcon name="panelOpen" size="small" />
             <span className="ui-visually-hidden">Afficher la barre latérale</span>
           </Button>
         </div>
@@ -96,7 +137,9 @@ export function WorkspaceShell({
           tabIndex={-1}
           data-testid="workspace-main"
         >
-          <div className="workspace-reading-column">{children}</div>
+          <WorkspaceChangeStreamContext.Provider value={changeStream}>
+            <div className="workspace-reading-column">{children}</div>
+          </WorkspaceChangeStreamContext.Provider>
         </main>
       </div>
     </div>

@@ -214,6 +214,26 @@ describe("legacy offline branches", () => {
       }),
     });
 
+    const beforeMoves = page.snapshot();
+    const moves = page.transact([
+      { type: "move-table-row", tableId, rowId: secondRowId, beforeRowId: firstRowId },
+      {
+        type: "move-table-column",
+        tableId,
+        columnId: secondColumnId,
+        beforeColumnId: firstColumnId,
+      },
+    ]);
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 3,
+      commands: legacySemanticCommandsFromTransaction({
+        pageId,
+        beforeDocument: beforeMoves,
+        transaction: moves,
+      }),
+    });
+
     const beforeReduction = page.snapshot();
     const reduction = page.transact([
       { type: "delete-table-column", tableId, columnId: firstColumnId },
@@ -221,7 +241,7 @@ describe("legacy offline branches", () => {
     ]);
     branch = await appendLegacySemanticTransaction(branch, {
       transactionId: generateUuidV7(),
-      sequence: 3,
+      sequence: 4,
       commands: legacySemanticCommandsFromTransaction({
         pageId,
         beforeDocument: beforeReduction,
@@ -239,6 +259,8 @@ describe("legacy offline branches", () => {
       "insert-block",
       "insert-table-row",
       "insert-table-column",
+      "move-table-row",
+      "move-table-column",
       "delete-table-column",
       "delete-table-row",
     ]);
@@ -248,6 +270,194 @@ describe("legacy offline branches", () => {
     expect(canonicalDocumentJsonV3((await activePage.project()).document)).toBe(
       canonicalDocumentJsonV3(page.snapshot()),
     );
+  });
+
+  it("rebases offline table moves and width changes onto a divergent active table", async () => {
+    const pageId = generateUuidV7();
+    const paragraphId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const columns = [generateUuidV7(), generateUuidV7()] as const;
+    const rows = [generateUuidV7(), generateUuidV7()] as const;
+    const cells = [
+      [generateUuidV7(), generateUuidV7()],
+      [generateUuidV7(), generateUuidV7()],
+    ] as const;
+    const table: TableBlockV3 = {
+      type: "table",
+      id: tableId,
+      columns: columns.map((id) => ({ id, width: null })),
+      rows: rows.map((id, row) => ({
+        id,
+        cells: columns.map((_, column) => ({
+          id: cells[row]?.[column] as Uuid,
+          content: [{ text: `${row}:${column}` }],
+        })),
+      })),
+    };
+    const baseDocument = legacyParagraph(paragraphId, "Base");
+    const branch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        { type: "insert-block", block: table, parentBlockId: null, beforeBlockId: null },
+        { type: "move-table-row", tableId, rowId: rows[1], beforeRowId: rows[0] },
+        {
+          type: "move-table-column",
+          tableId,
+          columnId: columns[1],
+          beforeColumnId: columns[0],
+        },
+        { type: "set-table-column-width", tableId, columnId: columns[0], width: 220 },
+      ],
+    });
+    const activePage = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          ...migrateDocumentV2ToV3(baseDocument).blocks,
+          {
+            ...table,
+            rows: table.rows.map((row, index) =>
+              index === 0
+                ? {
+                    ...row,
+                    cells: row.cells.map((cell, cellIndex) =>
+                      cellIndex === 0 ? { ...cell, content: [{ text: "Remote" }] } : cell,
+                    ),
+                  }
+                : row,
+            ),
+          },
+        ],
+      },
+    });
+
+    const conversion = await convertLegacyOfflineBranch({ branch, activePage });
+    expect(conversion.ambiguities.map(({ kind }) => kind)).toContain("schema");
+    expect(conversion.commands.map(({ type }) => type)).toEqual([
+      "move-table-row",
+      "move-table-column",
+      "set-table-column-width",
+    ]);
+    const result = activePage.snapshot().blocks.find((block) => block.id === tableId);
+    if (result?.type !== "table") throw new Error("active table disappeared");
+    expect(result.rows.map(({ id }) => id)).toEqual([rows[1], rows[0]]);
+    expect(result.columns.map(({ id }) => id)).toEqual([columns[1], columns[0]]);
+    expect(result.columns[1]?.width).toBe(220);
+    expect(result.rows[1]?.cells[1]?.content[0]?.text).toBe("Remote");
+  });
+
+  it("keeps offline table commands recoverable when a concurrent table loses their targets", async () => {
+    const pageId = generateUuidV7();
+    const paragraphId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const columns = [generateUuidV7(), generateUuidV7()] as const;
+    const rows = [generateUuidV7(), generateUuidV7()] as const;
+    const table: TableBlockV3 = {
+      type: "table",
+      id: tableId,
+      columns: columns.map((id) => ({ id, width: null })),
+      rows: rows.map((id) => ({
+        id,
+        cells: columns.map(() => ({ id: generateUuidV7(), content: [{ text: "Local" }] })),
+      })),
+    };
+    const baseDocument = legacyParagraph(paragraphId, "Base");
+    const firstRow = table.rows[0];
+    const secondRow = table.rows[1];
+    const firstColumn = table.columns[0];
+    const secondColumn = table.columns[1];
+    const firstCell = firstRow?.cells[0];
+    const secondCell = secondRow?.cells[1];
+    if (!firstRow || !secondRow || !firstColumn || !secondColumn || !firstCell || !secondCell) {
+      throw new Error("Expected a two-by-two test table");
+    }
+    const branch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        { type: "insert-block", block: table, parentBlockId: null, beforeBlockId: null },
+        { type: "move-table-row", tableId, rowId: rows[1], beforeRowId: rows[0] },
+        {
+          type: "move-table-column",
+          tableId,
+          columnId: columns[1],
+          beforeColumnId: columns[0],
+        },
+        { type: "set-table-column-width", tableId, columnId: columns[1], width: 180 },
+      ],
+    });
+    const base = migrateDocumentV2ToV3(baseDocument).blocks;
+
+    const missingSources = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          ...base,
+          {
+            ...table,
+            columns: [firstColumn],
+            rows: [
+              {
+                ...firstRow,
+                cells: [firstCell],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const missingSourceResult = await convertLegacyOfflineBranch({
+      branch,
+      activePage: missingSources,
+    });
+    expect(missingSourceResult.commands).toEqual([]);
+    expect(missingSourceResult.ambiguities.map(({ kind }) => kind)).toEqual(
+      expect.arrayContaining(["schema", "delete-move", "delete-edit"]),
+    );
+
+    const missingTable = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [...base, { type: "paragraph", id: tableId, content: [{ text: "Remote" }] }],
+      },
+    });
+    const missingTableResult = await convertLegacyOfflineBranch({
+      branch,
+      activePage: missingTable,
+    });
+    expect(missingTableResult.commands).toEqual([]);
+    expect(missingTableResult.ambiguities.map(({ kind }) => kind)).toContain("delete-edit");
+
+    const missingAnchors = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          ...base,
+          {
+            ...table,
+            columns: [secondColumn],
+            rows: [
+              {
+                ...secondRow,
+                cells: [secondCell],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const missingAnchorResult = await convertLegacyOfflineBranch({
+      branch,
+      activePage: missingAnchors,
+    });
+    expect(missingAnchorResult.commands.map(({ type }) => type)).toEqual([
+      "move-table-row",
+      "move-table-column",
+      "set-table-column-width",
+    ]);
+    expect(missingAnchorResult.commands[0]).toMatchObject({ beforeRowId: null });
+    expect(missingAnchorResult.commands[1]).toMatchObject({ beforeColumnId: null });
   });
 
   it("replays the semantic journal and rejects a local projection that is not its result", async () => {

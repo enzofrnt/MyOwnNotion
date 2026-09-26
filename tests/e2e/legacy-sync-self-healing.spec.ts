@@ -6,6 +6,7 @@ import {
   createRootItem,
   ensureNavigationVisible,
   openWorkspace,
+  selectItem,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -132,9 +133,7 @@ test("five retained page conflicts self-heal while persistent storage remains a 
             recoveries: (await service.legacyConflictRecovery.list()).map(
               ({ reasonCode, status }) => `${status}:${reasonCode ?? "none"}`,
             ),
-            state: document
-              .querySelector('[data-testid="sync-status"]')
-              ?.getAttribute("data-state"),
+            state: service.getSnapshot().syncState,
           };
         }),
       {
@@ -152,6 +151,10 @@ test("five retained page conflicts self-heal while persistent storage remains a 
       state: "synced",
     });
   await ensureNavigationVisible(page);
+  const lastPage = pages.at(-1);
+  if (lastPage === undefined) throw new Error("missing retained page");
+  await selectItem(page, lastPage.name);
+  await page.getByTestId("editor-sync-control").locator("summary").click();
   await expect(page.getByTestId("storage-persistence-advisory")).toBeVisible();
   await expect(page.getByTestId("sync-status")).not.toContainText(/conflit/iu);
 

@@ -3,7 +3,16 @@ import { expect } from "@playwright/test";
 import { FR_COPY } from "../../apps/web/src/ui/copy/fr.ts";
 import { type DesktopElectronSession, launchDesktopElectron } from "./desktop-electron.ts";
 import { observeNativeCommand } from "./desktop-process-evidence.ts";
-import { openWorkspace } from "./helpers.ts";
+import { openNoteInformation, openWorkspace } from "./helpers.ts";
+
+/** Observe the aggregate queue through the note's information control in production builds. */
+export async function waitForDesktopSynchronized(page: Page): Promise<void> {
+  await openNoteInformation(page);
+  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced", {
+    timeout: 30_000,
+  });
+  await page.getByTestId("editor-sync-control").locator("summary").click();
+}
 
 export async function openDesktopWorkspace(
   baseURL: string,

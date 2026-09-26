@@ -117,12 +117,14 @@ export function SearchDialog({
   search,
   branches = [],
   itemIcons = new Map(),
+  finalFocus,
   onOpen,
   onClose,
 }: {
   readonly search: WorkspaceSearchService;
   readonly branches?: readonly SearchBranchOption[];
   readonly itemIcons?: ReadonlyMap<string, string | null>;
+  readonly finalFocus: React.RefObject<HTMLElement | null>;
   readonly onOpen: (itemId: Uuid) => void;
   readonly onClose: () => void;
 }) {
@@ -230,7 +232,13 @@ export function SearchDialog({
         if (!openState) onClose();
       }}
     >
-      <DialogContent ref={dialog} className="search-dialog" size="large" initialFocus={input}>
+      <DialogContent
+        ref={dialog}
+        className="search-dialog"
+        size="large"
+        initialFocus={input}
+        finalFocus={finalFocus}
+      >
         <header className="search-dialog__header">
           <DialogHeading id="workspace-search-title">{FR_COPY.search.title}</DialogHeading>
           <DialogDismiss aria-label={FR_COPY.search.close} />

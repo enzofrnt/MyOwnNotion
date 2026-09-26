@@ -198,7 +198,7 @@ test.describe("workspace search refinement (US3)", () => {
     await expect(dialog).toBeHidden();
     // The desktop search control was replaced when the layout crossed the
     // mobile breakpoint, so focus returns to the visible navigation trigger.
-    await expect(page.getByTestId("toggle-tree")).toBeFocused();
+    await expect(page.getByTestId("toggle-sidebar")).toBeFocused();
   });
 
   test("loads an opaque next page without losing the selected result", async ({ page }) => {

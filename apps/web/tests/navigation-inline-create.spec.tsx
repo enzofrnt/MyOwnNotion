@@ -156,6 +156,43 @@ describe("inline child creation", () => {
     outside.remove();
   });
 
+  it("closes when the pointer leaves the tree row", async () => {
+    const onOpenChange = vi.fn();
+    await act(async () => {
+      root.render(
+        <div className="tree-row">
+          <NavigationInlineCreate
+            itemName="Projet"
+            open
+            onOpenChange={onOpenChange}
+            onCreatePage={() => undefined}
+            onCreateFolder={() => undefined}
+          />
+        </div>,
+      );
+    });
+
+    const row = container.querySelector(".tree-row");
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="toggle-inline-create-Projet"]',
+    );
+    expect(row).not.toBeNull();
+    toggle?.focus();
+    expect(document.activeElement).toBe(toggle);
+
+    await act(async () => {
+      row?.dispatchEvent(
+        new PointerEvent("pointerleave", {
+          bubbles: false,
+          relatedTarget: document.body,
+        }),
+      );
+    });
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(document.activeElement).not.toBe(toggle);
+  });
+
   it("reuses the same rotating control for root page and folder creation", async () => {
     await act(async () => {
       root.render(
