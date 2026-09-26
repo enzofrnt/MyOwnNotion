@@ -229,6 +229,14 @@ saturation des verrous PostgreSQL pendant un essai concurrent a été identifié
 et les suites ont été séparées sur deux serveurs de test ; aucun seuil produit
 n'a été relâché. Le gate intégré et toutes les CI restent requis.
 
+Sur un passage WebKit desktop ultérieur, le bouton final gardait bien le focus
+et la table était déjà au bas de ses 49 169 px, mais le canevas parent laissait
+ce bouton à `y=977` pour un viewport de 720 px. Un premier essai avec
+`scrollIntoView({ block: "nearest" })` pouvait encore laisser 0,47 px hors de
+la fenêtre à cause de l’arrondi de WebKit. Le retour centre désormais le bouton
+dans les deux conteneurs défilants ; l’assertion exige toujours sa présence
+intégrale dans le viewport.
+
 ## T023 — Atomic host/parent/placement validation — 2026-09-13
 
 The integrated implementation commit

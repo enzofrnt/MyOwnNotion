@@ -180,3 +180,11 @@ visible rows receive their real heights. With the containing-block defect gone,
 use the virtualizer's measured-index scroll reconciliation while a return target
 exists, so late measurements preserve its visibility without extending the
 application's focus-restoration deadline or interfering with ordinary scrolling.
+
+A later WebKit desktop replay exposed a second scroll boundary: the virtual
+table is already at its final row, but the workspace canvas itself can still
+place that focused row below the viewport. During the existing bounded return
+focus pass, center the trigger in both nested scroll containers. WebKit rounds
+`nearest` to a subpixel position that can leave the control's bottom edge just
+outside the viewport. Keep the 1,001-entry viewport assertion and the rule
+that a later user focus move ends restoration.
