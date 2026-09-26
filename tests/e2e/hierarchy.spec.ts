@@ -115,16 +115,13 @@ test.describe("hierarchy organization (US1)", () => {
     expect(sourceBox).not.toBeNull();
     expect(targetBox).not.toBeNull();
 
-    await page.mouse.move(
-      (sourceBox?.x ?? 0) + (sourceBox?.width ?? 0) / 2,
-      (sourceBox?.y ?? 0) + (sourceBox?.height ?? 0) / 2,
-    );
+    // On touch-sized rows the action buttons occupy the right side of the
+    // name slot. Start on its leading edge, where the drag surface is exposed.
+    const dragX = (sourceBox?.x ?? 0) + 4;
+    const dragY = (sourceBox?.y ?? 0) + (sourceBox?.height ?? 0) / 2;
+    await page.mouse.move(dragX, dragY);
     await page.mouse.down();
-    await page.mouse.move(
-      (sourceBox?.x ?? 0) + (sourceBox?.width ?? 0) / 2,
-      (sourceBox?.y ?? 0) + (sourceBox?.height ?? 0) / 2 - 8,
-      { steps: 2 },
-    );
+    await page.mouse.move(dragX, dragY - 8, { steps: 2 });
     const phantom = page.getByTestId("tree-drag-phantom");
     await expect(phantom).toBeVisible();
     await expect(phantom).toContainText(second);

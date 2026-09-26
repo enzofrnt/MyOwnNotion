@@ -50,12 +50,26 @@ test("keeps entry activation and cancellation intact while another device update
       const box = await trigger.boundingBox();
       if (original === null || box === null) throw new Error("Missing visible entry trigger");
       const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-      const pointerStillHitsTrigger = () =>
-        trigger.evaluate(
-          (element, point) => element.contains(document.elementFromPoint(point.x, point.y)),
-          point,
-        );
-      expect(await pointerStillHitsTrigger()).toBe(true);
+      const pointerHitState = () =>
+        trigger.evaluate((element, point) => {
+          const rect = element.getBoundingClientRect();
+          const hit = document.elementFromPoint(point.x, point.y);
+          const scroller = element.closest(".workspace-main");
+          return {
+            hitsTrigger: element.contains(hit),
+            scrollTop: scroller?.scrollTop,
+            scrollHeight: scroller?.scrollHeight,
+            clientHeight: scroller?.clientHeight,
+            trigger: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+            hit: hit?.outerHTML.slice(0, 160),
+            status: document.querySelector(".database-view-status")?.textContent,
+            statusHeight: document.querySelector(".database-view-status")?.getBoundingClientRect()
+              .height,
+            pageHeight: document.querySelector(".database-page")?.getBoundingClientRect().height,
+          };
+        }, point);
+      const beforeHit = await pointerHitState();
+      expect(beforeHit.hitsTrigger).toBe(true);
       await page.mouse.move(point.x, point.y);
       await page.mouse.down();
       // A second physical click would share Firefox’s virtual mouse with the
@@ -72,7 +86,8 @@ test("keeps entry activation and cancellation intact while another device update
       expect(await trigger.evaluate((element, previous) => element === previous, original)).toBe(
         true,
       );
-      expect(await pointerStillHitsTrigger()).toBe(true);
+      const afterHit = await pointerHitState();
+      expect(afterHit.hitsTrigger, JSON.stringify({ beforeHit, afterHit, point })).toBe(true);
       await expect(page.locator(".entry-panel")).toHaveCount(0);
       if (cancel) {
         await page.mouse.move(1, 1);

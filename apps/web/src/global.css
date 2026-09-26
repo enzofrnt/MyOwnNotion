@@ -481,7 +481,10 @@ select {
 }
 
 .database-view-status {
-  min-height: 2rem;
+  /* Keep the result card's space while a remote definition refresh briefly
+     swaps its status. Otherwise WebKit adjusts the page scroll under a held
+     pointer and moves an entry action away before mouseup. */
+  min-height: 4rem;
   margin-top: 0.75rem;
   color: var(--muted);
 }
