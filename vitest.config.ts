@@ -13,6 +13,10 @@ export default defineConfig({
     // Vitest's process-fork pool depends on Node's child-process runtime.
     // Worker threads keep the complete suite inside the exact Bun process.
     pool: "threads",
+    // Coverage runs the database and browser-adjacent projects together. An
+    // unbounded worker count can starve their short tests and long convergence
+    // fixture on a busy host; four workers keep every assertion in the gate.
+    maxWorkers: 4,
     projects: [
       {
         test: {
