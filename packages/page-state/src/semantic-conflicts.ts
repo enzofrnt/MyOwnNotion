@@ -151,6 +151,9 @@ function blockAfter(change: PageSemanticChange): CanonicalBlockV3 | undefined {
     case "table-row-deleted":
     case "table-column-inserted":
     case "table-column-deleted":
+    case "table-row-moved":
+    case "table-column-moved":
+    case "table-column-width-set":
     case "schema-changed":
       return change.blockAfter;
     case "block-deleted":

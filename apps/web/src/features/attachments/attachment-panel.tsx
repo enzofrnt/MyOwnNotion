@@ -26,6 +26,10 @@ import { FilePreview } from "../files/file-preview.tsx";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 import { ReplaceFileContent } from "./replace-file-content.tsx";
 
+function attachmentPopoverContainer(): HTMLElement {
+  return document.querySelector<HTMLElement>(".workspace-sidebar-drawer") ?? document.body;
+}
+
 export type { AttachmentRow };
 
 function attachmentMediaType(row: AttachmentRow): string {
@@ -87,7 +91,7 @@ export function CompactAttachmentList({
                 className="workspace-attachment-file__details-panel"
                 aria-label={`Détails de ${row.item.name}`}
                 data-testid={`attachment-details-${row.item.name}`}
-                portal={false}
+                portalElement={attachmentPopoverContainer}
               >
                 <span data-testid={`attachment-type-${row.item.name}`}>
                   {attachmentMediaType(row)}

@@ -481,21 +481,17 @@ La barre latérale gauche doit permettre :
 - d'ouvrir et fermer les branches ;
 - de créer une page ou un dossier au bon emplacement ;
 - de déplacer les éléments ;
-- d'accéder aux favoris ;
-- d'afficher les éléments récents ;
 - de rechercher ;
 - d'accéder aux réglages ;
-- de voir l'état de connexion et de synchronisation.
 
 Elle peut afficher au même niveau des pages, dossiers et fichiers autonomes.
 
-La hiérarchie principale porte le libellé « Notes ». Les raccourcis Favoris et
-Récents ne font pas partie de cette hiérarchie : chacun peut être replié ou
-déplié indépendamment depuis la barre latérale, avec un contrôle de section qui
-ne se confond pas avec le dépliage d'une page ou d'un dossier. Les réglages de
-présentation permettent également de masquer ou réafficher chacune de ces deux
-sections. Ces choix sont propres à la présentation de l'appareil et ne
-modifient ni les favoris, ni l'historique récent, ni le contenu canonique.
+La hiérarchie principale porte le libellé « Notes ». Les sections de raccourcis
+Favoris et Récents ainsi que le statut de synchronisation ne sont pas affichés
+dans la barre latérale. Les données de favoris et l'historique récent peuvent
+rester disponibles sans imposer ces sections dans l'interface. Sur une note,
+les détails de connexion et de synchronisation sont accessibles depuis son
+bouton d'information discret au bord inférieur droit.
 
 Conformément à 11.2, une page expose **deux dépliages distincts** : ses enfants
 dans la hiérarchie, comme un dossier, et un bouton discret pour ses pièces
@@ -1720,10 +1716,12 @@ La documentation de démarrage doit partir d'une machine propre et décrire :
 
 ## 39. Processus obligatoire de développement
 
-Les phases de conception, réalisation et revue UI utilisent le
-[skill UI partagé](../../.agents/skills/ui-quality/SKILL.md), référencé dans le
-plan et les tâches de la feature. Les états à couvrir, les critères métier et
-les preuves visuelles restent dans ses artefacts canoniques.
+Les phases de conception, réalisation et revue UI/UX utilisent le
+[skill UI partagé](../../.agents/skills/ui-quality/SKILL.md) et son
+[journal de leçons](../../.agents/skills/ui-quality/lessons.md), référencés dans
+le plan et les tâches de la feature. Les états à couvrir, les critères métier et
+les preuves visuelles restent dans ses artefacts canoniques. Un écart UI/UX
+matériel bloque la convergence Speckit.
 
 Toute modification fonctionnelle suit ce processus :
 

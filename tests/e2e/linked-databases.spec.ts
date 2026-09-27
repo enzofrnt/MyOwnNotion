@@ -50,12 +50,26 @@ test("keeps entry activation and cancellation intact while another device update
       const box = await trigger.boundingBox();
       if (original === null || box === null) throw new Error("Missing visible entry trigger");
       const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-      const pointerStillHitsTrigger = () =>
-        trigger.evaluate(
-          (element, point) => element.contains(document.elementFromPoint(point.x, point.y)),
-          point,
-        );
-      expect(await pointerStillHitsTrigger()).toBe(true);
+      const pointerHitState = () =>
+        trigger.evaluate((element, point) => {
+          const rect = element.getBoundingClientRect();
+          const hit = document.elementFromPoint(point.x, point.y);
+          const scroller = element.closest(".workspace-main");
+          return {
+            hitsTrigger: element.contains(hit),
+            scrollTop: scroller?.scrollTop,
+            scrollHeight: scroller?.scrollHeight,
+            clientHeight: scroller?.clientHeight,
+            trigger: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+            hit: hit?.outerHTML.slice(0, 160),
+            status: document.querySelector(".database-view-status")?.textContent,
+            statusHeight: document.querySelector(".database-view-status")?.getBoundingClientRect()
+              .height,
+            pageHeight: document.querySelector(".database-page")?.getBoundingClientRect().height,
+          };
+        }, point);
+      const beforeHit = await pointerHitState();
+      expect(beforeHit.hitsTrigger).toBe(true);
       await page.mouse.move(point.x, point.y);
       await page.mouse.down();
       // A second physical click would share Firefox’s virtual mouse with the
@@ -72,7 +86,8 @@ test("keeps entry activation and cancellation intact while another device update
       expect(await trigger.evaluate((element, previous) => element === previous, original)).toBe(
         true,
       );
-      expect(await pointerStillHitsTrigger()).toBe(true);
+      const afterHit = await pointerHitState();
+      expect(afterHit.hitsTrigger, JSON.stringify({ beforeHit, afterHit, point })).toBe(true);
       await expect(page.locator(".entry-panel")).toHaveCount(0);
       if (cancel) {
         await page.mouse.move(1, 1);
@@ -149,6 +164,10 @@ test("embeds one source in ordinary pages with independent views and shared cano
   await page.getByLabel("Base existante", { exact: true }).selectOption({ label: sourceName });
   await page.getByRole("button", { name: "Insérer cette base", exact: true }).click();
   await expect(page.locator("[data-entry-trigger]").filter({ hasText: entryName })).toBeVisible();
+  // The entry can render from the local projection before the embedding's
+  // definition replacement is acknowledged. A late projection refresh can
+  // replace the toolbar during the next pointer gesture and swallow its click.
+  await waitForDatabaseDefinitionSaved(page);
   for (const [button, surface] of [
     ["Nouvelle vue Kanban", ".database-board"],
     ["Nouvelle vue calendrier", ".database-calendar"],
@@ -186,7 +205,9 @@ test("embeds one source in ordinary pages with independent views and shared cano
   await expect(page.locator(".entry-panel")).toBeVisible();
   await page.locator(".entry-panel").getByRole("button", { name: "Fermer l'entrée" }).click();
   await expect(page.getByTestId("active-item-title")).toHaveValue(first);
-  await waitForSynchronized(page);
+  // Direct navigation can abort an in-flight batch. The reloaded service must
+  // still drain that durable queue before this journey goes offline.
+  await waitForSynchronized(page, { timeoutMs: 60_000 });
   // Keep the static app shell available while the API is unreachable, matching
   // the established database reload journeys; local durability is the subject.
   await context.route("**/v1/**", (route) => route.abort("connectionrefused"));
@@ -231,7 +252,7 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   request,
 }, testInfo) => {
   // 1001 protected canonical writes are fixture work; UI waits remain bounded.
-  test.setTimeout(240_000);
+  test.setTimeout(300_000);
   page.setDefaultTimeout(15_000);
   const hostName = uniqueName("Large linked source page");
   const host = await createUnopenedPage(request, hostName);
@@ -279,7 +300,10 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   }
   const seedMs = Date.now() - seedStarted;
   const openStarted = Date.now();
-  await openWorkspace(page);
+  // A fresh device replays the fixture's paginated change feed before its
+  // navigation tree is ready; the standard 15 s boot bound still applies to
+  // ordinary workspace journeys.
+  await openWorkspace(page, { navigationTimeoutMs: 60_000 });
   await ensureNavigationVisible(page);
   await expect(page.getByRole("treeitem")).toHaveCount(1);
   await selectItem(page, hostName);

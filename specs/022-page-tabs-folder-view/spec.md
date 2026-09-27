@@ -310,6 +310,9 @@ second appareil montrent le même ordre.
   synchronisé ni compté comme contenu canonique.
 - **FR-018**: La bande d’onglets MUST suivre les composants communs de
   l’interface et rester utilisable sur écran étroit.
+- **FR-018a**: Le propriétaire MUST pouvoir réordonner les onglets ouverts par
+  glisser-déposer (et équivalent clavier) ; l’ordre reste une préférence de
+  présentation de l’appareil (FR-017) et MUST NOT être synchronisé.
 - **FR-019**: Dans l’arborescence, un clic simple sur un dossier MUST le
   déplier s’il était replié et le replier s’il était déplié, sans changer la
   destination ni ajouter d’onglet. Un double-clic MUST ouvrir le dossier par
@@ -414,10 +417,11 @@ second appareil montrent le même ordre.
 ## Out of Scope
 
 - Synchronisation des onglets entre appareils ou entre fenêtres.
-- Groupes, épinglage, réorganisation par glisser des onglets, raccourcis de
-  cycle entre onglets au-delà des contrôles de base.
+- Groupes, épinglage, raccourcis de cycle entre onglets au-delà des contrôles
+  de base (flèches, fermeture, réordonnancement local par glisser).
 - Déplacement d’un enfant vers un autre parent, imbrication ou création de
   sous-dossiers depuis la vue de dossier.
 - Contenu éditorial, description ou propriétés pour un dossier.
 - Présentations alternatives de la liste d’un dossier (grille, galerie,
   aperçus).
+- Glisser-déposer d’un onglet vers l’arborescence.

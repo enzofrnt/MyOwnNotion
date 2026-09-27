@@ -10,9 +10,11 @@ import {
   clampSidebarWidth,
   DEFAULT_SIDEBAR_WIDTH,
   DEFAULT_WORKSPACE_PRESENTATION_STATE,
+  effectiveSidebarWidth,
   MAX_REMEMBERED_SCROLL_POSITIONS,
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
+  maxSidebarWidthForViewport,
   type NavigationState,
   normalizeWorkspacePresentationState,
   openLocalDatabase,
@@ -142,6 +144,11 @@ describe("workspace presentation normalization", () => {
     expect(clampSidebarWidth(MIN_SIDEBAR_WIDTH - 100)).toBe(MIN_SIDEBAR_WIDTH);
     expect(clampSidebarWidth(MAX_SIDEBAR_WIDTH + 100)).toBe(MAX_SIDEBAR_WIDTH);
     expect(clampSidebarWidth(279.6)).toBe(280);
+    expect(maxSidebarWidthForViewport(1280)).toBe(MAX_SIDEBAR_WIDTH);
+    expect(maxSidebarWidthForViewport(700)).toBe(280);
+    expect(maxSidebarWidthForViewport(600)).toBe(MIN_SIDEBAR_WIDTH);
+    expect(effectiveSidebarWidth(MAX_SIDEBAR_WIDTH, 600)).toBe(MIN_SIDEBAR_WIDTH);
+    expect(effectiveSidebarWidth(300, 1280)).toBe(300);
   });
 
   it("normalizes current fields and trims both position histories", () => {

@@ -7,6 +7,9 @@
 @import "./features/workspace/workspace.css";
 @import "./features/settings/settings.css";
 @import "./features/backup/backup.css";
+@import "./ui/dotted-canvas-background.css";
+@import "./features/settings/settings-security.css";
+@import "./features/editor/editor-table.css";
 
 * {
   box-sizing: border-box;
@@ -478,7 +481,10 @@ select {
 }
 
 .database-view-status {
-  min-height: 2rem;
+  /* Keep the result card's space while a remote definition refresh briefly
+     swaps its status. Otherwise WebKit adjusts the page scroll under a held
+     pointer and moves an entry action away before mouseup. */
+  min-height: 4rem;
   margin-top: 0.75rem;
   color: var(--muted);
 }
@@ -1265,6 +1271,36 @@ textarea {
   height: 100%;
 }
 
+/* Quiet stage copy — never the orange/red Status banner (atelier UI). */
+.knowledge-graph__placeholder {
+  grid-area: 1 / 1;
+  z-index: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--ui-space-2, 0.5rem);
+  padding: var(--ui-space-6, 1.5rem);
+  color: var(--ui-color-text-muted, var(--color-text-muted));
+  font-size: var(--ui-text-sm, var(--text-sm));
+  line-height: 1.45;
+  text-align: center;
+  pointer-events: none;
+}
+
+.knowledge-graph__placeholder p {
+  margin: 0;
+  max-width: 22rem;
+}
+
+.knowledge-graph__placeholder p[data-muted] {
+  color: color-mix(in srgb, var(--ui-color-text-muted, var(--color-text-muted)) 78%, transparent);
+  font-size: var(--ui-text-xs, var(--text-xs));
+}
+
+.knowledge-graph__placeholder .ui-button {
+  pointer-events: auto;
+}
+
 .knowledge-graph-canvas {
   grid-area: 1 / 1;
 }
@@ -1300,49 +1336,88 @@ textarea {
 
 .knowledge-graph__hud {
   position: absolute;
-  top: var(--ui-space-3, 0.75rem);
-  right: var(--ui-space-3, 0.75rem);
+  top: var(--ui-space-2, 0.5rem);
+  right: var(--ui-space-2, 0.5rem);
   z-index: 2;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: flex-end;
-  gap: var(--ui-space-2, 0.5rem);
-  max-width: min(100% - 1.5rem, 28rem);
+  gap: 0.125rem;
 }
 
-.knowledge-graph__filter-count {
-  display: inline-flex;
-  min-width: 1.25rem;
-  justify-content: center;
-  padding-inline: 0.3rem;
-  border-radius: 999px;
-  background: var(--ui-color-accent, var(--accent));
-  color: var(--ui-color-accent-contrast, #fff);
-  font-size: 0.75rem;
-}
+.knowledge-graph__chrome-btn.ui-button,
+.knowledge-graph__chrome-btn.ui-popover__trigger {
+  --graph-chrome: 1.5rem;
 
-.knowledge-graph__status {
-  position: absolute;
-  top: var(--ui-space-3, 0.75rem);
-  left: var(--ui-space-3, 0.75rem);
-  z-index: 2;
-}
-
-.knowledge-graph__status-toggle {
-  min-width: 2.25rem;
-  min-height: 2.25rem;
+  position: relative;
+  width: var(--graph-chrome);
+  min-width: var(--graph-chrome);
+  min-height: var(--graph-chrome);
   padding: 0;
+  color: var(--ui-color-text-muted, var(--color-text-muted));
 }
 
-.knowledge-graph__status-toggle[data-tone="warn"] {
+.knowledge-graph__chrome-btn.ui-button:hover,
+.knowledge-graph__chrome-btn.ui-button[aria-expanded="true"],
+.knowledge-graph__chrome-btn.ui-popover__trigger:hover,
+.knowledge-graph__chrome-btn.ui-popover__trigger[aria-expanded="true"] {
+  color: var(--ui-color-text, var(--color-text));
+}
+
+.knowledge-graph__chrome-btn .ui-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.knowledge-graph__chrome-btn[data-tone="warn"] {
   color: var(--ui-color-warning, var(--warn));
 }
 
+.knowledge-graph__filters-toggle.ui-button {
+  position: relative;
+}
+
+.knowledge-graph__filter-count {
+  position: absolute;
+  top: -0.15rem;
+  right: -0.15rem;
+  display: inline-flex;
+  min-width: 0.85rem;
+  height: 0.85rem;
+  padding-inline: 0.15rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--ui-color-accent, var(--accent));
+  color: var(--ui-color-accent-contrast, #fff);
+  font-size: 0.5625rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+/* Fixed width: the panel is anchored at its end edge, so any content-driven
+   width change (a value going from "0.5" to "0.55", a wrapping notice) moved
+   the whole panel — and the slider track — under the pointer mid-drag. */
 .knowledge-graph__status-panel {
   display: grid;
   gap: var(--ui-space-2, 0.5rem);
-  max-width: min(22rem, calc(100vw - 2rem));
+  width: min(20rem, calc(100vw - 2rem));
+  max-width: none;
   padding: var(--ui-space-3, 0.75rem);
+}
+
+.knowledge-graph__panel-note {
+  display: grid;
+  gap: var(--ui-space-2, 0.5rem);
+  margin: 0;
+  color: var(--ui-color-text-muted, var(--color-text-muted));
+  font-size: var(--ui-text-xs, var(--text-xs));
+  line-height: 1.4;
+}
+
+.knowledge-graph__panel-note p {
+  margin: 0;
 }
 
 .knowledge-graph-forces {
@@ -1386,6 +1461,8 @@ textarea {
 
 .knowledge-graph-forces__value {
   grid-column: 2;
+  min-width: 4ch;
+  text-align: right;
   font-variant-numeric: tabular-nums;
   font-size: 0.8125rem;
   opacity: 0.8;
@@ -1535,7 +1612,14 @@ textarea {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--graph-bg, var(--ui-color-surface-sunken, var(--surface)));
+  background: var(--graph-bg, var(--ui-color-canvas, var(--color-canvas)));
+}
+
+.knowledge-graph-canvas__dots {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
 }
 
 :root[data-theme="dark"] .knowledge-graph-canvas {
@@ -1560,6 +1644,7 @@ textarea {
 }
 
 .knowledge-graph__view-controls span {
+  min-width: 4.5ch;
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   color: var(--ui-color-text-muted, var(--muted));
@@ -1567,12 +1652,15 @@ textarea {
 }
 
 .knowledge-graph-canvas svg {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
   min-height: 12rem;
   cursor: grab;
   touch-action: none;
+  background: transparent;
 }
 
 .knowledge-graph-canvas svg[data-dragging="pan"],
@@ -1752,8 +1840,7 @@ textarea {
 }
 
 @media (max-width: 48rem) {
-  .knowledge-graph__hud,
-  .knowledge-graph__status {
+  .knowledge-graph__hud {
     max-width: calc(100% - 1.5rem);
   }
 
@@ -1883,8 +1970,7 @@ textarea {
   color: var(--ui-color-text-muted);
 }
 
-.login-page,
-.security-settings {
+.login-page {
   max-width: 42rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
@@ -1893,81 +1979,34 @@ textarea {
   gap: 1rem;
 }
 
+/* The security document is styled by settings.css + settings-security.css
+   only (scoped on `.settings-content[data-section="security"]`). Do not add
+   `.security-settings` rules here: two owners produced conflicting layouts. */
+
 /* Reserves its line whether or not a message is present, so an announcement
    does not shift the control under the pointer or the focus ring. */
-.login-message,
-.security-message,
-.session-message {
+.login-message {
   min-height: 1.5rem;
   margin: 0;
 }
 
-.login-message:not(:empty),
-.security-message:not(:empty),
-.session-message:not(:empty) {
+.login-message:not(:empty) {
   padding: 0.5rem 0.75rem;
   border-left: 3px solid currentColor;
 }
 
-.login-page form,
-.security-settings form {
+.login-page form {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   align-items: flex-start;
 }
 
-.login-page input[type="password"],
-.security-settings input[type="password"] {
+.login-page input[type="password"] {
   width: 100%;
   max-width: 24rem;
   min-height: 2.75rem;
   padding: 0 0.75rem;
-}
-
-.security-warning {
-  padding: 0.75rem;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-}
-
-.session-list,
-.security-settings ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.session-list li,
-.security-settings li {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.75rem;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-}
-
-.session-detail {
-  font-size: 0.85rem;
-  opacity: 0.8;
-  overflow-wrap: anywhere;
-}
-
-/* Security controls carry deliberately explicit French labels. Linux Firefox
-   renders some of them wider than macOS, so every button must be allowed to
-   wrap inside its card; otherwise an off-screen recovery action widens the
-   whole settings document even while the visible content looks correct. */
-.security-settings .ui-button {
-  max-width: 100%;
-  white-space: normal;
-}
-
-.security-settings .ui-button__label {
-  overflow-wrap: anywhere;
 }
 
 .recovery-replacement-panel,
@@ -2057,9 +2096,7 @@ textarea {
 
 /* Every control stays reachable by thumb: these screens are used under
    stress, often on a phone. */
-.login-page button,
-.security-settings button,
-.session-panel button {
+.login-page button {
   min-height: 2.75rem;
   padding: 0 1rem;
 }
@@ -2087,30 +2124,41 @@ textarea {
 }
 
 .editor-history-controls {
-  --editor-history-target: var(--ui-target-compact);
+  --editor-history-target: 1.375rem;
   display: flex;
   box-sizing: border-box;
   width: max-content;
   max-width: 100%;
   min-height: var(--editor-history-target);
-  justify-content: flex-end;
-  gap: var(--ui-space-1);
-  /* Sit on the same row as the Page/Folder caption under the title. */
-  margin: calc(-1 * var(--editor-history-target)) 0 0 auto;
-  padding-inline: var(--ui-space-1) var(--workspace-page-inline-end, var(--ui-space-2));
-  /* The empty leading space of a full-width toolbar must not eat clicks on
-     notices or title actions that share this vertical band. */
-  pointer-events: none;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
 }
 
-.workspace-page-editor:has(.ui-status[data-kind="conflict"]) .editor-history-controls {
-  margin-top: 0;
+.workspace-page-header .editor-history-controls {
+  height: 100%;
+}
+
+.workspace-page-header .editor-history-controls .ui-button,
+.workspace-page-title__history .editor-history-controls .ui-button {
+  width: var(--editor-history-target);
+  min-width: var(--editor-history-target);
+  min-height: var(--editor-history-target);
+  padding: 0;
+}
+
+.workspace-page-header .editor-history-controls .ui-icon,
+.workspace-page-title__history .editor-history-controls .ui-icon {
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 .editor-sync-status {
   position: fixed;
-  right: var(--ui-space-4);
-  bottom: var(--ui-space-4);
+  right: var(--ui-space-3);
+  bottom: var(--ui-space-3);
   z-index: var(--ui-layer-menu);
   display: flex;
   margin: 0;
@@ -2124,16 +2172,20 @@ textarea {
   position: relative;
 }
 
+/* Icon-only affordance — no card, shadow, or hover chrome. */
 .editor-sync-status summary {
-  display: flex;
-  min-height: var(--ui-target-compact);
-  padding: var(--ui-space-1) var(--ui-space-2);
-  align-items: center;
-  gap: var(--ui-space-1);
-  background: color-mix(in srgb, var(--ui-color-surface-raised) 92%, transparent);
-  border: 1px solid var(--ui-color-border);
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-height: 0;
+  padding: 0;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  border: 0;
   border-radius: var(--ui-radius-sm);
-  box-shadow: var(--ui-shadow-menu);
+  box-shadow: none;
+  opacity: 0.42;
   cursor: pointer;
   list-style: none;
 }
@@ -2145,8 +2197,15 @@ textarea {
 .editor-sync-status summary:hover,
 .editor-sync-status summary:focus-visible {
   color: var(--ui-color-text);
-  background: var(--ui-color-surface-hover);
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.85;
   outline: none;
+}
+
+.editor-sync-status summary:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 2px;
 }
 
 .editor-sync-status__label strong {
@@ -2179,9 +2238,7 @@ textarea {
   box-shadow: var(--ui-shadow-menu);
 }
 
-.editor-sync-status details[open] .editor-sync-status__details,
-.editor-sync-status details:hover .editor-sync-status__details,
-.editor-sync-status details:focus-within .editor-sync-status__details {
+.editor-sync-status details[open] .editor-sync-status__details {
   display: grid;
 }
 
@@ -2193,24 +2250,29 @@ textarea {
   color: var(--ui-color-danger);
 }
 
+.editor-sync-status[data-requires-action="true"] summary {
+  opacity: 0.9;
+}
+
 @media (pointer: fine) {
-  .editor-history-controls {
-    opacity: 0.45;
+  .workspace-page-header .editor-history-controls,
+  .workspace-page-title__history .editor-history-controls {
+    opacity: 0.55;
     transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
   }
 
-  .workspace-page-canvas:hover .editor-history-controls,
-  .page-editor:hover .editor-history-controls,
-  .editor-history-controls:focus-within {
+  .workspace-page-header:hover .editor-history-controls,
+  .workspace-page-header .editor-history-controls:focus-within,
+  .workspace-page-title__path:hover .editor-history-controls,
+  .workspace-page-title__history .editor-history-controls:focus-within {
     opacity: 1;
   }
 }
 
 .editor-history-controls .ui-button {
-  width: var(--ui-target-compact);
-  min-width: var(--ui-target-compact);
-  min-height: var(--ui-target-compact);
-  pointer-events: auto;
+  width: var(--editor-history-target);
+  min-width: var(--editor-history-target);
+  min-height: var(--editor-history-target);
 }
 
 /* BlockNote Community supplies the editing interactions; these variables make
@@ -2267,6 +2329,8 @@ textarea {
   min-height: 18rem;
   padding: var(--ui-space-2) var(--workspace-page-inline-end, var(--ui-space-2)) var(--ui-space-12)
     var(--workspace-page-inline-start, var(--ui-space-6));
+  /* Clip by default so long lines do not widen the page; unlock when a table
+     needs to break out over the canvas (see editor-table.css). */
   overflow-x: clip;
   color: var(--ui-color-text);
   background: transparent;
@@ -2276,6 +2340,10 @@ textarea {
   font-size: 1rem;
   line-height: var(--ui-leading-relaxed);
   caret-color: var(--ui-color-text);
+}
+
+.page-editor .bn-editor.editor-surface:has(.node-table) {
+  overflow-x: visible;
 }
 
 .page-editor .bn-editor.editor-surface:focus-visible {
@@ -2456,6 +2524,8 @@ code,
 
 .page-editor .bn-side-menu {
   gap: 1px;
+  /* Keep handles above the reading surface; never paint under the sidebar. */
+  z-index: 2;
 }
 
 .page-editor .bn-side-menu .bn-ak-button {
@@ -2776,28 +2846,93 @@ code,
   border-bottom: 1px solid var(--ui-color-border);
 }
 
-.editor-code-language {
-  display: flex;
+.editor-code-language.ui-button,
+.editor-code-language.ui-button[data-size="square"] {
+  display: inline-flex;
+  width: auto;
+  max-width: min(12rem, 100%);
+  height: var(--ui-target-compact);
+  min-width: 0;
+  min-height: var(--ui-target-compact);
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--ui-space-1);
+  padding: 0 var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  font-size: var(--ui-text-xs);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.editor-code-language.ui-button:hover:not(:disabled),
+.editor-code-language.ui-button[aria-expanded="true"] {
+  color: var(--ui-color-text);
+  background: color-mix(in srgb, var(--ui-color-text) 6%, transparent);
+}
+
+.editor-code-language.ui-button:disabled {
+  color: var(--ui-color-text-muted);
+  opacity: 1;
+  cursor: default;
+}
+
+.editor-code-language__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-code-language-menu.ui-menu {
+  min-width: 9.5rem;
+  max-width: min(14rem, calc(100vw - 2rem));
+  max-height: min(16rem, 45vh);
+  padding: 0.2rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-code-language-option.ui-menu__item {
+  min-height: 1.625rem;
+  gap: var(--ui-space-1);
+  padding: 0.15rem 0.4rem;
+  font-size: var(--ui-text-xs);
+  line-height: 1.2;
+}
+
+.editor-code-language-option.ui-menu__item .ui-menu__item-label {
+  display: inline-flex;
+  min-width: 0;
   align-items: center;
   gap: var(--ui-space-1);
+}
+
+.editor-code-language-option__check {
+  display: inline-flex;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 0.75rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-color-accent, var(--color-accent));
+}
+
+.editor-code-language-option__check .ui-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.editor-code-language-option__label {
   min-width: 0;
-  color: var(--ui-color-text-muted);
 }
 
-.editor-code-language > svg {
-  flex-shrink: 0;
-  margin-left: var(--ui-space-2);
-}
-
-.editor-code-language select {
-  min-width: 0;
-  max-width: 100%;
-  cursor: pointer;
-  text-overflow: ellipsis;
-}
-
-.editor-code-language select:disabled {
-  cursor: default;
+.editor-code-language-option[data-selected] .editor-code-language-option__label {
+  font-weight: 600;
 }
 
 .editor-code-copy {
@@ -2826,8 +2961,8 @@ code,
 }
 
 .editor-code-toolbar select,
-.editor-code-toolbar button,
-.editor-table-toolbar button {
+.editor-code-toolbar button {
+  flex: 0 0 auto;
   min-height: var(--ui-target-compact);
   padding-inline: var(--ui-space-2);
   color: var(--ui-color-text-muted);
@@ -2836,17 +2971,16 @@ code,
   border-radius: var(--ui-radius-sm);
   font: inherit;
   font-size: var(--ui-text-xs);
+  white-space: nowrap;
 }
 
 .editor-code-toolbar select:hover,
-.editor-code-toolbar button:hover,
-.editor-table-toolbar button:hover:not(:disabled) {
+.editor-code-toolbar button:hover {
   color: var(--ui-color-text);
   background: var(--ui-color-surface-hover);
 }
 
 .editor-code-toolbar :focus-visible,
-.editor-table-toolbar button:focus-visible,
 .editor-image-block input:focus-visible,
 .editor-file-block input:focus-visible,
 .editor-file-block a:focus-visible,
@@ -2855,65 +2989,7 @@ code,
   outline-offset: 1px;
 }
 
-.page-editor .bn-block:has(> .bn-block-content[data-content-type="table"]) {
-  max-width: 100%;
-  overflow-x: auto;
-  border: 1px solid var(--ui-color-border);
-  border-radius: var(--ui-radius-md);
-  scrollbar-width: thin;
-}
-
-.editor-table-toolbar {
-  position: sticky;
-  left: 0;
-  display: flex;
-  width: max-content;
-  min-width: 100%;
-  min-height: var(--ui-target-compact);
-  align-items: center;
-  gap: var(--ui-space-1);
-  padding: var(--ui-space-1) var(--ui-space-2);
-  color: var(--ui-color-text-muted);
-  background: var(--ui-color-surface-sunken);
-  border-bottom: 1px solid var(--ui-color-border);
-  font-size: var(--ui-text-xs);
-  white-space: nowrap;
-}
-
-.editor-table-toolbar > span {
-  margin-right: auto;
-  padding-inline: var(--ui-space-1);
-}
-
-.editor-table-toolbar button:disabled {
-  color: var(--ui-color-text-disabled);
-}
-
-.page-editor .bn-block:has(> .bn-block-content[data-content-type="tableRow"]) > .bn-block-group {
-  display: grid;
-  grid-auto-columns: minmax(10rem, 1fr);
-  grid-auto-flow: column;
-  width: max-content;
-  min-width: 100%;
-  padding-inline-start: 0;
-}
-
-.editor-table-row-marker {
-  display: none;
-}
-
-.editor-table-cell {
-  min-width: 10rem;
-  min-height: var(--ui-target);
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border-right: 1px solid var(--ui-color-border);
-  border-bottom: 1px solid var(--ui-color-border);
-}
-
-.editor-table-cell:focus-within {
-  background: var(--ui-color-accent-soft);
-  box-shadow: inset 0 0 0 1px var(--ui-color-focus);
-}
+/* Tables: see features/editor/editor-table.css (imported at the top). */
 
 .editor-image-block,
 .editor-file-block,
@@ -3191,14 +3267,18 @@ code,
 
 @media (pointer: coarse) {
   .editor-history-controls {
-    --editor-history-target: var(--ui-target);
+    --editor-history-target: var(--ui-target-compact);
   }
 
-  .editor-history-controls .ui-button,
+  /* Keep path chrome dense; only page-body editor controls grow for touch. */
+  .workspace-page-header .editor-history-controls,
+  .workspace-page-title__history .editor-history-controls {
+    --editor-history-target: 1.5rem;
+  }
+
   .page-editor .bn-ak-button,
   .editor-code-toolbar select,
   .editor-code-toolbar button,
-  .editor-table-toolbar button,
   .editor-callout-controls input,
   .editor-callout-controls select {
     min-width: var(--ui-target);

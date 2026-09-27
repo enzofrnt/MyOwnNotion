@@ -332,6 +332,11 @@ export function DatabasePage({
       // owner has moved to another connected control.
       if (trigger != null) {
         if (activeElement !== trigger) trigger.focus();
+        // The table has its own scroll container inside the workspace canvas.
+        // WebKit can focus a virtual row while leaving the outer canvas scrolled
+        // below the viewport. Center the returned trigger in both ancestors so
+        // subpixel scroll rounding does not leave its bottom edge clipped.
+        trigger.scrollIntoView({ block: "center", inline: "nearest" });
         lastFocusedTrigger = trigger;
       }
       attempts += 1;

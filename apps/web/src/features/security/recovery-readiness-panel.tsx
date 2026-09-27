@@ -22,7 +22,7 @@
 import { useState } from "react";
 import type { RecoveryStatusView } from "../../services/security-api.ts";
 import { FR_COPY, formatDate } from "../../ui/copy/index.ts";
-import { AsyncState, Button } from "../../ui/primitives/index.ts";
+import { Button } from "../../ui/primitives/index.ts";
 
 export interface RecoveryReadinessPanelProps {
   readonly status: RecoveryStatusView | null;
@@ -75,22 +75,35 @@ export function RecoveryReadinessPanel(props: RecoveryReadinessPanelProps) {
       className="recovery-readiness-panel ui-settings-panel"
       aria-labelledby="recovery-readiness-heading"
     >
-      <h2 id="recovery-readiness-heading">{FR_COPY.security.recovery.title}</h2>
-
-      <AsyncState
-        className={`recovery-readiness-panel__state is-${loading ? "loading" : readiness.ready ? "ready" : "not-ready"}`}
-        compact
-        kind={loading ? "loading" : readiness.ready ? "success" : "error"}
-        title={loading ? FR_COPY.security.recovery.loading : readiness.message}
-        testId="recovery-readiness"
-      />
-
-      <p className="recovery-readiness-panel__key" data-testid="recovery-key-requirement">
-        <strong>{FR_COPY.security.recovery.keyRequirement}</strong>
-      </p>
+      <header className="security-settings__panel-head">
+        <div>
+          <h2 id="recovery-readiness-heading">{FR_COPY.security.recovery.title}</h2>
+          <p
+            className={`security-settings__lead recovery-readiness-panel__state is-${loading ? "loading" : readiness.ready ? "ready" : "not-ready"}`}
+            role="status"
+            data-testid="recovery-readiness"
+          >
+            {loading ? FR_COPY.security.recovery.loading : readiness.message}
+          </p>
+        </div>
+        <div className="security-settings__panel-actions">
+          <Button
+            size="compact"
+            variant="secondary"
+            disabled={loading}
+            onClick={() => {
+              void props.onPrepareReplacement();
+            }}
+            busy={props.busy}
+            data-testid="prepare-recovery-replacement"
+          >
+            {FR_COPY.security.recovery.generate}
+          </Button>
+        </div>
+      </header>
 
       {props.status?.active !== null && props.status !== null && (
-        <dl className="recovery-readiness-panel__facts">
+        <dl className="recovery-readiness-panel__facts security-settings__facts">
           <div>
             <dt>{FR_COPY.security.recovery.kit}</dt>
             <dd data-testid="recovery-kit-id">{props.status.active?.kitId}</dd>
@@ -106,19 +119,14 @@ export function RecoveryReadinessPanel(props: RecoveryReadinessPanelProps) {
         </dl>
       )}
 
-      <Button
-        variant="secondary"
-        disabled={loading}
-        onClick={() => {
-          void props.onPrepareReplacement();
-        }}
-        busy={props.busy}
-        data-testid="prepare-recovery-replacement"
+      <p
+        className="recovery-readiness-panel__key security-settings__note"
+        data-testid="recovery-key-requirement"
       >
-        {FR_COPY.security.recovery.generate}
-      </Button>
+        {FR_COPY.security.recovery.keyRequirement}
+      </p>
 
-      <p className="recovery-readiness-panel__note">
+      <p className="recovery-readiness-panel__note security-settings__note">
         {/* Said before they start, not after. An owner who thinks generating a
             kit invalidates the old one immediately will hesitate to do it at
             all — which leaves them on a kit they may have lost. */}
@@ -129,6 +137,7 @@ export function RecoveryReadinessPanel(props: RecoveryReadinessPanelProps) {
         <div className="recovery-revoke">
           {!revokeRequested ? (
             <Button
+              size="compact"
               variant="danger"
               busy={props.busy}
               onClick={() => setRevokeRequested(true)}
@@ -138,9 +147,12 @@ export function RecoveryReadinessPanel(props: RecoveryReadinessPanelProps) {
             </Button>
           ) : (
             <fieldset className="recovery-revoke-confirm" aria-label="Révocation">
-              <p>{FR_COPY.security.recovery.replacement.revokePrompt}</p>
+              <p className="security-settings__note">
+                {FR_COPY.security.recovery.replacement.revokePrompt}
+              </p>
               <div className="recovery-revoke-actions">
                 <Button
+                  size="compact"
                   variant="danger"
                   busy={props.busy}
                   onClick={() => {
@@ -151,7 +163,8 @@ export function RecoveryReadinessPanel(props: RecoveryReadinessPanelProps) {
                   {FR_COPY.security.recovery.replacement.revokeConfirm}
                 </Button>
                 <Button
-                  variant="secondary"
+                  size="compact"
+                  variant="ghost"
                   disabled={props.busy}
                   onClick={() => setRevokeRequested(false)}
                   data-testid="cancel-revoke-recovery-kit"

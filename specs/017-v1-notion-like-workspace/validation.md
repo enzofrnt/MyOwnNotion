@@ -1145,6 +1145,36 @@ d'une autre commande de la navigation (FR-090, SC-042, US1/AC22).
 | Journeys ciblés | `PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts -- --project=chromium-desktop --project=chromium-mobile --project=firefox-desktop tests/e2e/hierarchy.spec.ts -g "reorders siblings by dragging"` | 3/3 profils passés ; curseur `grab`, fantôme nommé, curseur `grabbing` au-dessus de Rechercher, puis dépôt |
 | WebKit hôte | même journey `--project=webkit-desktop` | indisponible sur cet hôte WSL (bibliothèques GTK/WebKit manquantes) ; la CI conserve WebKit |
 
+## PR 178 — synchronisation et navigation épurée, 2026-09-26
+
+La décision du propriétaire conserve le retrait des raccourcis Favoris/Récents
+et du statut de synchronisation dans la barre latérale. Le statut global est
+désormais détaillé uniquement dans le bouton `i` de la note, avec une distinction
+visible entre « Cette note » et « Espace ». L'écoute des changements distants
+reste montée avec le workspace, même lorsqu'aucune note n'est ouverte : le
+composant visuel ne porte plus cette responsabilité.
+
+Revue visuelle selon [UI quality](../../.agents/skills/ui-quality/SKILL.md) et
+son [journal de leçons](../../.agents/skills/ui-quality/lessons.md) : captures
+locales inspectées en largeur 1280 px, clair et sombre, ainsi qu'à 320 px en
+clair avec le détail `i` ouvert. Le panneau reste dans le coin inférieur droit,
+les deux portées de statut sont lisibles, et la note ne se décale pas. Les
+références versionnées de `workspace-shell-visual.spec.ts` et
+`v1-surface-visuals.spec.ts` ont été régénérées et inspectées sur macOS et
+Linux : elles montrent la navigation sans les trois éléments retirés, y compris
+dans le tiroir mobile. La fermeture de ce tiroir et les actions des pièces
+jointes ont été vérifiées au pointeur ; leurs menus restent cliquables dans la
+surface qui les contient.
+
+| Couche | Vérification | Résultat |
+| --- | --- | --- |
+| Couverture | `bun run test:coverage` | Passe avec les nouveaux cas de tables et de reprise hors ligne ; nouvelle exécution incluse dans le gate final après les derniers ajustements UI. |
+| Parcours ciblés | `test:e2e:local` sur connexion, temps réel, accessibilité, largeur étroite et références visuelles | Propagation entre appareils et fermeture mobile corrigées ; les actions de pièce jointe passent sur desktop et à 320 px ; captures Darwin et Linux régénérées. |
+| Revue de l'information de note | Captures temporaires sur Chromium, panneau ouvert | Lisible en clair/sombre à 1280 px et en clair à 320 px ; aucun statut permanent dans la barre latérale. |
+
+Le gate `checks:local`, la CI de PR et celle de `main` sont encore à confirmer
+avant la clôture de T322.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de

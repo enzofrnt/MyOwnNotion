@@ -622,6 +622,19 @@ puis chaque feature visible. Les anciens sélecteurs CSS sont supprimés
 seulement après couverture visuelle des deux thèmes, largeurs et zooms ; aucune
 deuxième bibliothèque de composants générale n'est introduite.
 
+La décision de convergence du 2026-09-26 remplace l'affichage des raccourcis
+Favoris/Récents décrit dans les paragraphes historiques ci-dessous. Elle garde
+leurs données sans restaurer leurs sections dans la barre latérale. Le statut
+global de connexion et de synchronisation est rendu seulement dans le détail
+du bouton d'information de la note ouverte. L'abonnement aux changements
+distants appartient au workspace monté en permanence, indépendamment de cette
+surface d'affichage. Les parcours E2E qui attendent une
+file globale observent le service de test ; ceux qui vérifient l'annonce visible
+ouvrent ce bouton. Les preuves suivent
+[UI quality](../../.agents/skills/ui-quality/SKILL.md) et son
+[journal de leçons](../../.agents/skills/ui-quality/lessons.md), avec les états
+desktop/mobile, clair/sombre et l'absence de débordement.
+
 La tranche de convergence UI étend le record de présentation local avec la
 visibilité et le repli indépendants de `Favoris` et `Récents`; les anciennes
 lignes sont complétées par normalisation. Le tree dnd-kit encode désormais

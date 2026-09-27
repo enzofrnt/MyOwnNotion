@@ -281,6 +281,106 @@ describe("local operational undo", () => {
     });
   });
 
+  it("undoes and redoes row and column moves by restoring the previous placement", () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const columnIds = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const;
+    const rowIds = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const;
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: columnIds.map((id) => ({ id, width: null })),
+            rows: rowIds.map((id, rowIndex) => ({
+              id,
+              cells: columnIds.map((_, columnIndex) => ({
+                id: generateUuidV7(),
+                content: [{ text: `${"ABC"[columnIndex]}${rowIndex + 1}` }],
+              })),
+            })),
+          },
+        ],
+      },
+    });
+    const history = new PageUndoManager(page);
+    const order = (): { columns: readonly Uuid[]; rows: readonly Uuid[]; firstRow: string[] } => {
+      const table = page.snapshot().blocks[0];
+      if (table?.type !== "table") throw new Error("table fixture disappeared");
+      return {
+        columns: table.columns.map(({ id }) => id),
+        rows: table.rows.map(({ id }) => id),
+        firstRow: table.rows[0]?.cells.map((cell) => cell.content[0]?.text ?? "") ?? [],
+      };
+    };
+    const initial = order();
+
+    history.execute([
+      { type: "move-table-row", tableId, rowId: rowIds[0], beforeRowId: null },
+      { type: "move-table-column", tableId, columnId: columnIds[2], beforeColumnId: columnIds[0] },
+    ]);
+    expect(order()).toEqual({
+      columns: [columnIds[2], columnIds[0], columnIds[1]],
+      rows: [rowIds[1], rowIds[2], rowIds[0]],
+      firstRow: ["C2", "A2", "B2"],
+    });
+
+    history.undo();
+    expect(order()).toEqual(initial);
+
+    history.redo();
+    expect(order()).toEqual({
+      columns: [columnIds[2], columnIds[0], columnIds[1]],
+      rows: [rowIds[1], rowIds[2], rowIds[0]],
+      firstRow: ["C2", "A2", "B2"],
+    });
+  });
+
+  it("undoes and redoes a table cell text edit by stable cell identity", () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const cellId = generateUuidV7();
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: [{ id: generateUuidV7(), width: null }],
+            rows: [
+              {
+                id: generateUuidV7(),
+                cells: [{ id: cellId, content: [{ text: "Cellule" }] }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const history = new PageUndoManager(page);
+
+    history.execute([{ type: "replace-text", blockId: cellId, from: 7, to: 7, text: " modifiée" }]);
+    const afterEdit = page.snapshot().blocks[0];
+    expect(afterEdit?.type === "table" ? afterEdit.rows[0]?.cells[0]?.content : []).toEqual([
+      { text: "Cellule modifiée" },
+    ]);
+
+    history.undo();
+    const afterUndo = page.snapshot().blocks[0];
+    expect(afterUndo?.type === "table" ? afterUndo.rows[0]?.cells[0]?.content : []).toEqual([
+      { text: "Cellule" },
+    ]);
+
+    history.redo();
+    const afterRedo = page.snapshot().blocks[0];
+    expect(afterRedo?.type === "table" ? afterRedo.rows[0]?.cells[0]?.content : []).toEqual([
+      { text: "Cellule modifiée" },
+    ]);
+  });
+
   it("reports an explicit failure when a remote deletion removed the local undo target", async () => {
     const pageId = generateUuidV7();
     const blockId = generateUuidV7();

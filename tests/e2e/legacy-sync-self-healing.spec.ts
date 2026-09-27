@@ -6,6 +6,7 @@ import {
   createRootItem,
   ensureNavigationVisible,
   openWorkspace,
+  selectItem,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -19,7 +20,7 @@ test("five retained page conflicts self-heal while persistent storage remains a 
   // migrations and then verifies each canonical server document. Its
   // state-based recovery assertion needs a larger budget than Playwright's
   // generic 60-second journey cap on constrained Firefox runners.
-  test.setTimeout(150_000);
+  test.setTimeout(210_000);
 
   await context.addInitScript(() => {
     // Playwright's Linux WebKit mobile profile omits StorageManager entirely.
@@ -120,7 +121,10 @@ test("five retained page conflicts self-heal while persistent storage remains a 
 
   await context.setOffline(false);
   await page.reload();
-  await openWorkspace(page);
+  // Five retained conflicts are migrated before the local hierarchy is ready.
+  // Keep ordinary workspace boots at 15 s; this bounded migration can need
+  // longer in a full browser matrix while its recovery assertions stay strict.
+  await openWorkspace(page, { navigationTimeoutMs: 60_000 });
   await expect
     .poll(
       async () =>
@@ -132,9 +136,7 @@ test("five retained page conflicts self-heal while persistent storage remains a 
             recoveries: (await service.legacyConflictRecovery.list()).map(
               ({ reasonCode, status }) => `${status}:${reasonCode ?? "none"}`,
             ),
-            state: document
-              .querySelector('[data-testid="sync-status"]')
-              ?.getAttribute("data-state"),
+            state: service.getSnapshot().syncState,
           };
         }),
       {
@@ -152,6 +154,10 @@ test("five retained page conflicts self-heal while persistent storage remains a 
       state: "synced",
     });
   await ensureNavigationVisible(page);
+  const lastPage = pages.at(-1);
+  if (lastPage === undefined) throw new Error("missing retained page");
+  await selectItem(page, lastPage.name);
+  await page.getByTestId("editor-sync-control").locator("summary").click();
   await expect(page.getByTestId("storage-persistence-advisory")).toBeVisible();
   await expect(page.getByTestId("sync-status")).not.toContainText(/conflit/iu);
 

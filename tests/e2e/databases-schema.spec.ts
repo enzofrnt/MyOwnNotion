@@ -1,9 +1,9 @@
 /**
  * The complete first structured-page journey (feature 009, US1).
  *
- * The global Playwright budget is one minute, which is substantially stricter
- * than SC-001's five-minute owner journey. Keeping the assertion too makes the
- * product requirement visible if the shared runner budget changes later.
+ * This journey has a two-minute Playwright budget, still below SC-001's
+ * five-minute owner journey. Its own elapsed-time assertion keeps that product
+ * requirement visible if the shared runner budget changes later.
  */
 import { expect, test } from "./fixtures.ts";
 import {
@@ -25,6 +25,7 @@ import {
 test("creates a typed database whose entry and relations keep canonical page identities", async ({
   page,
 }) => {
+  test.setTimeout(120_000);
   const startedAt = Date.now();
   await openWorkspace(page);
 
@@ -90,7 +91,9 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 
   await selectItem(page, targetName);
-  await renameItem(page, targetName, renamedTarget);
+  // Eight prior schema writes can delay this batch in a full browser matrix;
+  // still require the exact rename mutation to be accepted by the server.
+  await renameItem(page, targetName, renamedTarget, { responseTimeoutMs: 45_000 });
   await expect(page.getByTestId(`tree-item-${renamedTarget}`)).toBeVisible({ timeout: 15_000 });
   await selectItem(page, renamedTarget);
   await moveSelectedItemInto(page, folderName);

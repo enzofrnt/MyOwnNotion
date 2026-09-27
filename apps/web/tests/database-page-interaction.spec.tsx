@@ -336,6 +336,15 @@ describe("database page interaction durability", () => {
   });
 
   it("reloads subsequent pages before restoring the canonical entry trigger", async () => {
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(
+      Element.prototype,
+      "scrollIntoView",
+    );
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
     vi.stubGlobal(
       "requestAnimationFrame",
       vi.fn(() => 1),
@@ -397,7 +406,12 @@ describe("database page interaction durability", () => {
         "2 entrées chargées",
       );
       expect(document.activeElement?.getAttribute("data-entry-trigger")).toBe(target);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", inline: "nearest" });
+      expect(scrollIntoView.mock.instances[0]).toBe(document.activeElement);
     } finally {
+      if (originalScrollIntoView === undefined)
+        Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+      else Object.defineProperty(Element.prototype, "scrollIntoView", originalScrollIntoView);
       vi.unstubAllGlobals();
     }
   });

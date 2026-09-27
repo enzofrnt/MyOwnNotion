@@ -2,6 +2,7 @@ import type { Uuid } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 import type { EditorBlock, EditorBlocksChanged } from "../src/features/editor/blocknote-schema.ts";
 import {
+  columnMoves,
   commandsFromBlockNoteChanges,
   minimalTextReplacement,
 } from "../src/features/editor/editor-adapter.ts";
@@ -358,6 +359,134 @@ describe("BlockNote changes → page commands", () => {
     expect(commandsFromBlockNoteChanges({ changes, document: [current] })).toEqual([
       { type: "delete-table-column", tableId: TABLE, columnId: COLUMN_B },
     ]);
+  });
+
+  it("translates a column width drag into set-table-column-width", () => {
+    const previous = table(
+      [
+        { id: COLUMN_A, width: null },
+        { id: COLUMN_B, width: 180 },
+      ],
+      [tableRow(ROW_A, [tableCell(CELL_A1, "A1"), tableCell(CELL_A2, "B1")])],
+    );
+    const current = table(
+      [
+        { id: COLUMN_A, width: null },
+        { id: COLUMN_B, width: 240 },
+      ],
+      [tableRow(ROW_A, [tableCell(CELL_A1, "A1"), tableCell(CELL_A2, "B1")])],
+    );
+    const changes = [
+      { type: "update", block: current, prevBlock: previous, source: { type: "local" } },
+    ] as EditorBlocksChanged;
+
+    expect(commandsFromBlockNoteChanges({ changes, document: [current] })).toEqual([
+      {
+        type: "set-table-column-width",
+        tableId: TABLE,
+        columnId: COLUMN_B,
+        width: 240,
+      },
+    ]);
+  });
+
+  it("translates a column drag into one move-table-column, cells following by identity", () => {
+    const COLUMN_C = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2067" as Uuid;
+    const CELL_A3 = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2068" as Uuid;
+    const previous = table(
+      [
+        { id: COLUMN_A, width: null },
+        { id: COLUMN_B, width: 180 },
+        { id: COLUMN_C, width: null },
+      ],
+      [
+        tableRow(ROW_A, [
+          tableCell(CELL_A1, "A1"),
+          tableCell(CELL_A2, "B1"),
+          tableCell(CELL_A3, "C1"),
+        ]),
+      ],
+    );
+    const current = table(
+      [
+        { id: COLUMN_B, width: 180 },
+        { id: COLUMN_C, width: null },
+        { id: COLUMN_A, width: null },
+      ],
+      [
+        tableRow(ROW_A, [
+          tableCell(CELL_A2, "B1"),
+          tableCell(CELL_A3, "C1"),
+          tableCell(CELL_A1, "A1"),
+        ]),
+      ],
+    );
+    const changes = [
+      { type: "update", block: current, prevBlock: previous, source: { type: "local" } },
+      {
+        type: "move",
+        block: tableCell(CELL_A1, "A1"),
+        prevBlock: tableCell(CELL_A1, "A1"),
+        prevParent: current.children[0],
+        currentParent: current.children[0],
+        source: { type: "local" },
+      },
+    ] as EditorBlocksChanged;
+
+    expect(commandsFromBlockNoteChanges({ changes, document: [current] })).toEqual([
+      { type: "move-table-column", tableId: TABLE, columnId: COLUMN_A, beforeColumnId: null },
+    ]);
+  });
+
+  it("emits the minimal move sequence for a column permutation", () => {
+    expect(columnMoves([FIRST, SECOND, THIRD], [THIRD, FIRST, SECOND])).toEqual([
+      { id: THIRD, beforeId: FIRST },
+    ]);
+    expect(columnMoves([FIRST, SECOND, THIRD], [SECOND, THIRD, FIRST])).toEqual([
+      { id: FIRST, beforeId: null },
+    ]);
+    expect(columnMoves([FIRST, SECOND, THIRD], [FIRST, SECOND, THIRD])).toEqual([]);
+    expect(columnMoves([FIRST, SECOND, THIRD], [THIRD, SECOND, FIRST])).toHaveLength(2);
+  });
+
+  it("translates a row drag inside its table into one move-table-row", () => {
+    const rowA = tableRow(ROW_A, [tableCell(CELL_A1, "A1")]);
+    const rowB = tableRow(ROW_B, [tableCell(CELL_B1, "A2")]);
+    const current = table([{ id: COLUMN_A, width: null }], [rowB, rowA]);
+    const changes = [
+      {
+        type: "move",
+        block: rowA,
+        prevBlock: rowA,
+        prevParent: current,
+        currentParent: current,
+        source: { type: "local" },
+      },
+    ] as EditorBlocksChanged;
+
+    expect(commandsFromBlockNoteChanges({ changes, document: [current] })).toEqual([
+      { type: "move-table-row", tableId: TABLE, rowId: ROW_A, beforeRowId: null },
+    ]);
+  });
+
+  it("refuses to move a row outside its table", () => {
+    const rowA = tableRow(ROW_A, [tableCell(CELL_A1, "A1")]);
+    const rowB = tableRow(ROW_B, [tableCell(CELL_B1, "A2")]);
+    const current = table([{ id: COLUMN_A, width: null }], [rowB]);
+    const changes = [
+      {
+        type: "move",
+        block: rowA,
+        prevBlock: rowA,
+        prevParent: current,
+        currentParent: undefined,
+        source: { type: "local" },
+      },
+    ] as EditorBlocksChanged;
+
+    expect(() => commandsFromBlockNoteChanges({ changes, document: [current, rowA] })).toThrow(
+      /dans son tableau/,
+    );
   });
 });
 

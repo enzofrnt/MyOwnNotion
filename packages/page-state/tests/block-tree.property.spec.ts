@@ -12,6 +12,7 @@ import {
   BlockTreeOperationError,
   configureRichText,
   deleteOperationalBlock,
+  deleteOperationalTableColumn,
   findOperationalNode,
   getOperationalBlockTree,
   initialiseOperationalBlockTree,
@@ -19,6 +20,8 @@ import {
   isTransformableBlockType,
   materialiseOperationalDocument,
   moveOperationalBlock,
+  moveOperationalTableColumn,
+  moveOperationalTableRow,
   OperationalPageDocument,
   operationalBlockPlacement,
   operationalBlockProperty,
@@ -26,6 +29,7 @@ import {
   operationalTextForBlock,
   PageCommandError,
   setOperationalBlockProperty,
+  setOperationalTableColumnWidth,
   transformOperationalBlockType,
 } from "../src/index.ts";
 
@@ -41,6 +45,169 @@ function operational(document: BlockDocumentV3): LoroDoc {
 }
 
 describe("the movable operational block tree", () => {
+  it("preserves table cells through reorder and width changes at both supported limits", () => {
+    const tableId = generateUuidV7();
+    const columns = [generateUuidV7(), generateUuidV7()] as const;
+    const rows = [generateUuidV7(), generateUuidV7()] as const;
+    const cells = [
+      [generateUuidV7(), generateUuidV7()],
+      [generateUuidV7(), generateUuidV7()],
+    ] as const;
+    const doc = operational({
+      blocks: [
+        {
+          type: "table",
+          id: tableId,
+          columns: columns.map((id) => ({ id, width: null })),
+          rows: rows.map((id, row) => ({
+            id,
+            cells: columns.map((_, column) => ({
+              id: cells[row]?.[column] as Uuid,
+              content: [{ text: `${row}:${column}` }],
+            })),
+          })),
+        },
+      ],
+    });
+
+    moveOperationalTableRow(doc, tableId, rows[0], null);
+    moveOperationalTableColumn(doc, tableId, columns[1], columns[0]);
+    setOperationalTableColumnWidth(doc, tableId, columns[0], 80);
+    setOperationalTableColumnWidth(doc, tableId, columns[1], 1_200);
+    setOperationalTableColumnWidth(doc, tableId, columns[1], 1_200);
+    setOperationalTableColumnWidth(doc, tableId, columns[1], null);
+
+    const table = materialiseOperationalDocument(doc).blocks[0];
+    if (table?.type !== "table") throw new Error("table fixture disappeared");
+    expect(table.columns).toEqual([
+      { id: columns[1], width: null },
+      { id: columns[0], width: 80 },
+    ]);
+    expect(table.rows.map(({ id }) => id)).toEqual([rows[1], rows[0]]);
+    expect(table.rows.map((row) => row.cells.map((cell) => cell.content[0]?.text))).toEqual([
+      ["1:1", "1:0"],
+      ["0:1", "0:0"],
+    ]);
+  });
+
+  it("rejects table moves across identities and invalid widths without changing the document", () => {
+    const firstTableId = generateUuidV7();
+    const secondTableId = generateUuidV7();
+    const columns = [generateUuidV7(), generateUuidV7()] as const;
+    const rows = [generateUuidV7(), generateUuidV7()] as const;
+    const foreignRowId = generateUuidV7();
+    const makeRow = (id: Uuid) => ({
+      id,
+      cells: columns.map(() => ({ id: generateUuidV7(), content: [{ text: "cell" }] })),
+    });
+    const doc = operational({
+      blocks: [
+        {
+          type: "table",
+          id: firstTableId,
+          columns: columns.map((id) => ({ id, width: null })),
+          rows: rows.map(makeRow),
+        },
+        {
+          type: "table",
+          id: secondTableId,
+          columns: columns.map(() => ({ id: generateUuidV7(), width: null })),
+          rows: [makeRow(foreignRowId)],
+        },
+      ],
+    });
+    const before = canonicalDocumentJsonV3(materialiseOperationalDocument(doc));
+    const unknown = generateUuidV7();
+
+    expect(() => moveOperationalTableRow(doc, firstTableId, foreignRowId, null)).toThrow(
+      /not in table/u,
+    );
+    expect(() => moveOperationalTableRow(doc, firstTableId, rows[0], foreignRowId)).toThrow(
+      /not in table/u,
+    );
+    expect(() => moveOperationalTableRow(doc, firstTableId, rows[0], rows[0])).toThrow(
+      /before itself/u,
+    );
+    expect(() => moveOperationalTableColumn(doc, firstTableId, unknown, null)).toThrow(
+      /not in table/u,
+    );
+    expect(() => moveOperationalTableColumn(doc, firstTableId, columns[0], unknown)).toThrow(
+      /not in table/u,
+    );
+    expect(() => moveOperationalTableColumn(doc, firstTableId, columns[0], columns[0])).toThrow(
+      /before itself/u,
+    );
+    expect(() => setOperationalTableColumnWidth(doc, firstTableId, unknown, 120)).toThrow(
+      /not in table/u,
+    );
+    for (const width of [79, 1_201, 80.5, Number.NaN, "120" as unknown as number]) {
+      expect(() => setOperationalTableColumnWidth(doc, firstTableId, columns[0], width)).toThrow(
+        /80 to 1200/u,
+      );
+    }
+    expect(canonicalDocumentJsonV3(materialiseOperationalDocument(doc))).toBe(before);
+  });
+
+  it("uses positional legacy cells but refuses to substitute another column after a cell is lost", () => {
+    const tableId = generateUuidV7();
+    const columns = [generateUuidV7(), generateUuidV7()] as const;
+    const rowId = generateUuidV7();
+    const cells = [generateUuidV7(), generateUuidV7()] as const;
+    const makeDoc = () =>
+      operational({
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: columns.map((id) => ({ id, width: null })),
+            rows: [
+              {
+                id: rowId,
+                cells: cells.map((id, index) => ({
+                  id,
+                  content: [{ text: index === 0 ? "A" : "B" }],
+                })),
+              },
+            ],
+          },
+        ],
+      });
+
+    const legacy = makeDoc();
+    findOperationalNode(getOperationalBlockTree(legacy), cells[0]).data.set("columnId", "");
+    moveOperationalTableColumn(legacy, tableId, columns[0], null);
+    const moved = materialiseOperationalDocument(legacy).blocks[0];
+    if (moved?.type !== "table") throw new Error("table fixture disappeared");
+    expect(moved.rows[0]?.cells.map((cell) => cell.content[0]?.text)).toEqual(["B", "A"]);
+
+    const legacyDeletion = makeDoc();
+    findOperationalNode(getOperationalBlockTree(legacyDeletion), cells[0]).data.set("columnId", "");
+    deleteOperationalTableColumn(legacyDeletion, tableId, columns[0]);
+    const reduced = materialiseOperationalDocument(legacyDeletion).blocks[0];
+    if (reduced?.type !== "table") throw new Error("table fixture disappeared");
+    expect(reduced.rows[0]?.cells[0]?.content[0]?.text).toBe("B");
+
+    for (const command of ["move-source", "move-anchor", "delete-source"] as const) {
+      const incomplete = makeDoc();
+      const tree = getOperationalBlockTree(incomplete);
+      const lostCell = command === "move-anchor" ? cells[1] : cells[0];
+      tree.delete(findOperationalNode(tree, lostCell).id);
+      if (command === "move-source") {
+        expect(() => moveOperationalTableColumn(incomplete, tableId, columns[0], null)).toThrow(
+          /no cell for column/u,
+        );
+      } else if (command === "move-anchor") {
+        expect(() =>
+          moveOperationalTableColumn(incomplete, tableId, columns[0], columns[1]),
+        ).toThrow(/no cell for column/u);
+      } else {
+        expect(() => deleteOperationalTableColumn(incomplete, tableId, columns[0])).toThrow(
+          /has 1 cells for 2 columns/u,
+        );
+      }
+    }
+  });
+
   it("converges concurrent insertions at the same position with every identity intact", async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -116,6 +283,74 @@ describe("the movable operational block tree", () => {
     expect(new Set((await left.project()).document.blocks.map(({ id }) => id))).toEqual(
       new Set(ids),
     );
+  });
+
+  it("converges concurrent moves of the same column without duplicating it", async () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const columnIds = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const;
+    const rowId = generateUuidV7();
+    const cellIds = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const;
+    const origin = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: columnIds.map((id) => ({ id, width: null })),
+            rows: [
+              {
+                id: rowId,
+                cells: cellIds.map((id, index) => ({
+                  id,
+                  content: [{ text: "ABC"[index] ?? "" }],
+                })),
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const checkpoint = await origin.checkpoint();
+    const left = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const right = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+
+    const leftUpdate = left.transact([
+      { type: "move-table-column", tableId, columnId: columnIds[0], beforeColumnId: null },
+    ]);
+    const rightUpdate = right.transact([
+      {
+        type: "move-table-column",
+        tableId,
+        columnId: columnIds[0],
+        beforeColumnId: columnIds[2],
+      },
+    ]);
+    left.importUpdate(rightUpdate.updateBytes);
+    right.importUpdate(leftUpdate.updateBytes);
+
+    const leftTable = left.snapshot().blocks[0];
+    if (leftTable?.type !== "table") throw new Error("table fixture disappeared");
+    expect(canonicalDocumentJsonV3(left.snapshot())).toBe(
+      canonicalDocumentJsonV3(right.snapshot()),
+    );
+    expect(new Set(leftTable.columns.map(({ id }) => id))).toEqual(new Set(columnIds));
+    expect(leftTable.columns).toHaveLength(3);
+    expect(
+      leftTable.columns.map(
+        (column, index) => `${column.id}:${leftTable.rows[0]?.cells[index]?.content[0]?.text}`,
+      ),
+    ).toEqual(expect.arrayContaining(columnIds.map((id, index) => `${id}:${"ABC"[index]}`)));
+
+    // The merged sequence still accepts further edits and re-projects cleanly.
+    left.transact([
+      { type: "move-table-column", tableId, columnId: columnIds[1], beforeColumnId: null },
+    ]);
+    const settled = left.snapshot().blocks[0];
+    if (settled?.type !== "table") throw new Error("table fixture disappeared");
+    expect(settled.columns.at(-1)?.id).toBe(columnIds[1]);
+    expect(settled.rows[0]?.cells.at(-1)?.content[0]?.text).toBe("B");
   });
 
   it("keeps concurrent column insertions aligned with their stable cells", async () => {
@@ -399,7 +634,10 @@ describe("the movable operational block tree", () => {
       allowsCodeControls: true,
     });
     expect(operationalTextForBlock(doc, codeId).allowsCodeControls).toBe(true);
-    expect(operationalTextForBlock(doc, cellId).allowsMarks).toBe(true);
+    expect(operationalTextForBlock(doc, cellId)).toMatchObject({
+      allowsMarks: true,
+      allowsCodeControls: true,
+    });
     expect(() => operationalTextForBlock(doc, dividerId)).toThrow(/no editable text/u);
     expect(() => transformOperationalBlockType(doc, imageId, "paragraph", undefined)).toThrow(
       /cannot be transformed/u,

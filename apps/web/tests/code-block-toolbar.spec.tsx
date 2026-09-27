@@ -27,6 +27,7 @@ describe("code block toolbar", () => {
     source = 'const title = "café 漢字 <b>";\n',
     language = "typescript",
     editable = true,
+    onLanguageChange = vi.fn(),
   ) {
     await act(async () => {
       root.render(
@@ -34,22 +35,46 @@ describe("code block toolbar", () => {
           source={source}
           language={language}
           editable={editable}
-          onLanguageChange={vi.fn()}
+          onLanguageChange={onLanguageChange}
         />,
       );
     });
+    return onLanguageChange;
   }
 
   it("preserves unknown language metadata and allows copying read-only content", async () => {
     const writeText = vi.fn(async () => undefined);
     vi.stubGlobal("navigator", { clipboard: { writeText } });
     await render("source", "future-language", false);
-    const select = container.querySelector("select");
-    expect(select?.value).toBe("future-language");
-    expect(select?.selectedOptions[0]?.textContent).toBe("future-language");
-    expect(select?.disabled).toBe(true);
-    await act(async () => container.querySelector("button")?.click());
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="code-language-trigger"]',
+    );
+    expect(trigger?.textContent).toContain("future-language");
+    expect(trigger?.disabled).toBe(true);
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-testid="code-copy"]')?.click(),
+    );
     expect(writeText).toHaveBeenCalledWith("source");
+  });
+
+  it("picks a language from the styled menu instead of a native select", async () => {
+    const onLanguageChange = await render("source", "javascript", true);
+    expect(container.querySelector("select")).toBeNull();
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="code-language-trigger"]',
+    );
+    expect(trigger?.textContent).toContain("JavaScript");
+    await act(async () => {
+      trigger?.click();
+    });
+    const option = [...document.querySelectorAll<HTMLElement>(".editor-code-language-option")].find(
+      (entry) => entry.textContent?.includes("TypeScript"),
+    );
+    expect(option).toBeTruthy();
+    await act(async () => {
+      option?.click();
+    });
+    expect(onLanguageChange).toHaveBeenCalledWith("typescript");
   });
 
   it("shows copy success/refusal locally, keeps one stable button and allows retry", async () => {
@@ -59,18 +84,18 @@ describe("code block toolbar", () => {
       .mockResolvedValue(undefined);
     vi.stubGlobal("navigator", { clipboard: { writeText } });
     await render();
-    const button = container.querySelector("button");
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="code-copy"]');
     await act(async () => button?.click());
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
       "Impossible de copier le code.",
     );
-    expect(container.querySelector("button")).toBe(button);
+    expect(container.querySelector('[data-testid="code-copy"]')).toBe(button);
     await act(async () => button?.click());
     expect(container.querySelector('[role="status"]')?.textContent).toBe("Code copié.");
     expect(writeText).toHaveBeenLastCalledWith('const title = "café 漢字 <b>";\n');
     await act(async () => vi.advanceTimersByTime(3_000));
     expect(container.querySelector('[role="status"]')?.textContent).toBe("");
-    expect(container.querySelector("button")).toBe(button);
+    expect(container.querySelector('[data-testid="code-copy"]')).toBe(button);
   });
 
   it("suppresses repeated pending copies and obsolete feedback after a source change", async () => {
@@ -83,9 +108,10 @@ describe("code block toolbar", () => {
     );
     vi.stubGlobal("navigator", { clipboard: { writeText } });
     await render("old source");
+    const button = () => container.querySelector<HTMLButtonElement>('[data-testid="code-copy"]');
     await act(async () => {
-      container.querySelector("button")?.click();
-      container.querySelector("button")?.click();
+      button()?.click();
+      button()?.click();
     });
     expect(writeText).toHaveBeenCalledTimes(1);
     await render("new source");

@@ -9,10 +9,8 @@ import {
   createRootItem,
   ensureNavigationVisible,
   moveSelectedItemInto,
-  openSettingsSection,
   openWorkspace,
   renameItem,
-  returnToWorkspace,
   selectItem,
   triggerAndSampleCssTransition,
   typeIntoEditor,
@@ -193,14 +191,14 @@ test.describe("focused workspace shell", () => {
     const resizer = page.getByTestId("sidebar-resizer");
     await resizer.focus();
     await resizer.press("End");
-    await expect(resizer).toHaveAttribute("aria-valuenow", "360");
+    await expect(resizer).toHaveAttribute("aria-valuenow", "720");
     await waitForSynchronized(page);
 
     await expect
       .poll(async () => await storedPresentationState(page))
       .toMatchObject({
         sidebarOpen: true,
-        sidebarWidth: 360,
+        sidebarWidth: 720,
         expandedItemIds: expect.arrayContaining([projectsId as string]),
         lastVisitedItemId: selectedItemId,
       });
@@ -213,7 +211,7 @@ test.describe("focused workspace shell", () => {
       "aria-expanded",
       "true",
     );
-    await expect(page.getByTestId("sidebar-resizer")).toHaveAttribute("aria-valuenow", "360");
+    await expect(page.getByTestId("sidebar-resizer")).toHaveAttribute("aria-valuenow", "720");
   });
 
   test("uses a modal touch drawer and returns focus when it closes", async ({ page }) => {
@@ -222,7 +220,7 @@ test.describe("focused workspace shell", () => {
 
     const pageName = uniqueName("Page mobile");
     const drawer = page.getByTestId("workspace-navigation-drawer");
-    const trigger = page.getByTestId("toggle-tree");
+    const trigger = page.getByTestId("toggle-sidebar");
     await expect(drawer).toBeHidden();
     await trigger.click();
     await expect(drawer).toBeVisible();
@@ -245,53 +243,25 @@ test.describe("focused workspace shell", () => {
     expect(horizontalOverflow).toBeLessThanOrEqual(1);
   });
 
-  test("restores local shortcut visibility and collapse preferences after reload", async ({
-    page,
-  }) => {
+  test("keeps retired shortcut sections absent after reload", async ({ page }) => {
     await openWorkspace(page);
     await ensureNavigationVisible(page);
     await expect(page.getByRole("heading", { level: 3, name: "Notes" })).toBeVisible();
-
-    await page.getByRole("button", { name: "Replier les favoris" }).click();
-    await page.getByRole("button", { name: "Replier les récents" }).click();
-    await expect(page.getByRole("button", { name: "Déplier les favoris" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Déplier les récents" })).toBeVisible();
-
-    await openSettingsSection(page, "navigation");
-    const favourites = page.getByRole("switch", { name: /favoris/iu });
-    await expect(favourites).toHaveAttribute("aria-checked", "true");
-    await favourites.click();
-    await expect(favourites).toHaveAttribute("aria-checked", "false");
-    await returnToWorkspace(page);
-    await ensureNavigationVisible(page);
-
-    await expect(page.getByRole("heading", { level: 3, name: "Favoris" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { level: 3, name: "Récents" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Déplier les récents" })).toBeVisible();
-    await expect
-      .poll(async () => await storedPresentationState(page))
-      .toMatchObject({
-        favouritesVisible: false,
-        favouritesExpanded: false,
-        recentsVisible: true,
-        recentsExpanded: false,
-      });
+    const name = uniqueName("SansRaccourcis");
+    await createRootItem(page, "page", name);
+    await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached();
+    const sidebar = page.getByTestId("sidebar");
+    await expect(sidebar.getByRole("heading", { name: "Favoris" })).toHaveCount(0);
+    await expect(sidebar.getByRole("heading", { name: "Récents" })).toHaveCount(0);
+    await expect(sidebar.getByTestId("sync-status")).toHaveCount(0);
 
     await page.reload();
     await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 15_000 });
     await ensureNavigationVisible(page);
-    await expect(page.getByRole("heading", { level: 3, name: "Favoris" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Déplier les récents" })).toBeVisible();
-
-    await openSettingsSection(page, "navigation");
-    const restoredFavourites = page.getByRole("switch", { name: /favoris/iu });
-    await expect(restoredFavourites).toHaveAttribute("aria-checked", "false");
-    await restoredFavourites.click();
-    await expect(restoredFavourites).toHaveAttribute("aria-checked", "true");
-    await returnToWorkspace(page);
-    await ensureNavigationVisible(page);
-    await expect(page.getByRole("heading", { level: 3, name: "Favoris" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Déplier les favoris" })).toBeVisible();
+    await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached();
+    await expect(sidebar.getByRole("heading", { name: "Favoris" })).toHaveCount(0);
+    await expect(sidebar.getByRole("heading", { name: "Récents" })).toHaveCount(0);
+    await expect(sidebar.getByTestId("sync-status")).toHaveCount(0);
   });
 
   test("edits the page title in the document without remounting the editor", async ({ page }) => {

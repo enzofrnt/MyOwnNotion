@@ -64,6 +64,12 @@
   padding: 0;
 }
 
+/* Wide tables break out of the reading column onto this inline size. */
+.workspace-main[data-content-mode="page"] {
+  container: workspace-main / inline-size;
+  overflow-x: clip;
+}
+
 .workspace-main[data-content-mode="page"] .workspace-reading-column,
 .workspace-main[data-content-mode="graph"] .workspace-reading-column {
   display: flex;
@@ -94,8 +100,9 @@
 
 .workspace-page-header[data-compact="true"] {
   --workspace-header-content-width: 100%;
+  --workspace-chrome-height: 1.875rem;
 
-  min-height: 2.75rem;
+  min-height: var(--workspace-chrome-height);
   padding: 0;
   border-bottom-color: var(--color-border);
 }
@@ -115,6 +122,20 @@
   min-height: 2.25rem;
 }
 
+.workspace-page-title__history {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0;
+  margin-inline-end: var(--space-1);
+  padding-inline-end: var(--space-2);
+  border-right: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+}
+
+.workspace-page-title__history:empty {
+  display: none;
+}
+
 .workspace-page-header__tabs {
   display: flex;
   min-width: 0;
@@ -126,7 +147,7 @@
 /* Open tabs strip (spec 022, US2) */
 
 .open-tabs {
-  --open-tab-width: 10rem;
+  --open-tab-width: 8rem;
 
   display: flex;
   width: 100%;
@@ -157,8 +178,8 @@
   min-width: var(--open-tab-width);
   max-width: var(--open-tab-width);
   align-items: center;
-  min-height: 2.75rem;
-  padding-inline-end: var(--space-1);
+  min-height: var(--workspace-chrome-height, 1.875rem);
+  padding-inline-end: 2px;
   color: var(--color-text-muted);
   border-right: 1px solid var(--color-border);
   border-radius: 0;
@@ -170,6 +191,15 @@
   background: var(--color-surface-subtle);
 }
 
+.open-tab[data-dragging] {
+  z-index: 2;
+  opacity: 0.88;
+  background: var(--color-surface-raised, var(--ui-color-surface-raised));
+  cursor: grabbing;
+  /* Stay inside the strip height so neighbours only slide sideways. */
+  align-self: stretch;
+}
+
 .open-tab[data-active] {
   color: var(--color-text);
   background: var(--ui-color-surface-active);
@@ -178,19 +208,24 @@
 .open-tab__activate {
   display: flex;
   min-width: 0;
-  min-height: 2.75rem;
+  min-height: var(--workspace-chrome-height, 1.875rem);
   flex: 1 1 auto;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0 var(--space-3);
+  gap: 0.3rem;
+  padding: 0 var(--space-2);
   color: inherit;
   background: transparent;
   border: 0;
   border-radius: 0;
   font: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  line-height: 1.2;
   text-align: start;
-  cursor: pointer;
+  cursor: grab;
+}
+
+.open-tab[data-dragging] .open-tab__activate {
+  cursor: grabbing;
 }
 
 .open-tab__activate:focus-visible {
@@ -206,8 +241,8 @@
 
 .open-tab__close {
   display: inline-flex;
-  width: var(--ui-target-compact);
-  height: var(--ui-target-compact);
+  width: 1.25rem;
+  height: 1.25rem;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -217,6 +252,11 @@
   border-radius: var(--radius-sm);
   opacity: 1;
   cursor: pointer;
+}
+
+.open-tab__close .ui-icon {
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 .open-tab__close:hover {
@@ -551,7 +591,11 @@
 }
 
 .workspace-page-canvas {
-  --workspace-page-inline-start: var(--ui-space-6);
+  /* BlockNote’s +. / drag handle sit to the left of each block (~2 compact
+     targets). Inline start must leave that gutter or workspace-stage’s
+     overflow:hidden clips the side menu under the sidebar. */
+  --workspace-page-side-menu-gutter: calc(2 * var(--ui-target-compact) + var(--ui-space-2));
+  --workspace-page-inline-start: max(var(--ui-space-6), var(--workspace-page-side-menu-gutter));
   --workspace-page-inline-end: var(--ui-space-2);
   --workspace-reading-width: var(--ui-reading-width);
 
@@ -574,14 +618,22 @@
 }
 
 .workspace-page-title__path {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-sticky);
   display: flex;
   align-self: stretch;
   min-width: 0;
+  min-height: 1.75rem;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   margin: 0;
   padding: var(--space-1) var(--space-4);
+  /* Stays put while the title and page body scroll underneath. */
+  background: color-mix(in srgb, var(--color-canvas) 92%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
+  backdrop-filter: blur(12px);
 }
 
 .workspace-page-title__body,
@@ -596,7 +648,7 @@
 }
 
 .workspace-page-title__body {
-  --workspace-page-icon-offset: clamp(var(--space-10), 8vh, var(--space-12));
+  --workspace-page-icon-offset: var(--space-10);
 
   position: relative;
   display: flex;
@@ -620,7 +672,7 @@
   border: 0;
   outline: 0;
   font: inherit;
-  font-size: clamp(2.25rem, 5vw, 3rem);
+  font-size: 2.5rem;
   font-weight: 720;
   line-height: 1.12;
   letter-spacing: -0.035em;
@@ -743,7 +795,7 @@
 
 .workspace-skeleton--title {
   width: min(22rem, 70%);
-  height: clamp(2.25rem, 5vw, 3rem);
+  height: 2.5rem;
   margin: 0;
   border-radius: var(--radius-md);
 }
@@ -808,18 +860,25 @@
     padding: 0;
   }
 
+  /* Compact chrome stays the same height as desktop — do not inflate the tabs
+     strip or reserve space for the removed floating "Navigation" button. */
   .workspace-page-header {
     min-height: 6.75rem;
-    padding: var(--space-3) var(--space-4) var(--space-3) 4.25rem;
+    padding: var(--space-3) var(--space-4);
   }
 
   .workspace-page-header[data-compact="true"] {
-    min-height: 3rem;
-    padding: var(--space-2) var(--space-4) var(--space-2) 4.25rem;
+    min-height: var(--workspace-chrome-height, 1.875rem);
+    padding: 0;
+  }
+
+  .workspace-shell[data-sidebar-open="false"] .workspace-page-header[data-compact="true"],
+  .workspace-shell:not([data-sidebar-open="true"]) .workspace-page-header[data-compact="true"] {
+    padding-left: calc(var(--ui-target-compact) + var(--space-3));
   }
 
   .workspace-page-canvas {
-    --workspace-page-inline-start: var(--ui-space-3);
+    --workspace-page-inline-start: max(var(--ui-space-3), var(--workspace-page-side-menu-gutter));
     --workspace-page-inline-end: var(--ui-space-3);
 
     padding-top: 0;
@@ -830,9 +889,13 @@
   }
 
   .workspace-page-title__body {
-    --workspace-page-icon-offset: var(--space-8);
+    --workspace-page-icon-offset: var(--space-6);
 
     padding-top: var(--workspace-page-icon-offset);
+  }
+
+  .workspace-page-title textarea {
+    font-size: 2rem;
   }
 
   .folder-children {
@@ -854,13 +917,8 @@
     margin-inline-start: 0;
   }
 
-  .open-tab__close {
-    width: var(--ui-target);
-    height: var(--ui-target);
-  }
-
   .open-tabs {
-    --open-tab-width: 9rem;
+    --open-tab-width: 7.5rem;
   }
 
   .workspace-page-title__graph-label {
@@ -880,7 +938,7 @@
 
 @media (min-width: 48rem) {
   .workspace-shell[data-sidebar-open="false"] .workspace-page-header {
-    padding-left: calc(var(--space-12) + var(--space-2));
+    padding-left: calc(var(--ui-target-compact) + var(--space-3));
   }
 }
 
@@ -890,13 +948,12 @@
   }
 }
 
-/* Compact chrome: the header row is the tab strip, edge to edge, on every
-   viewport. Declared last so it wins over the generic and narrow-viewport
-   row rules above without relying on specificity. */
+/* Compact chrome: history | tabs edge to edge. Declared last so it wins over
+   the generic and narrow-viewport row rules above without relying on specificity. */
 .workspace-page-header[data-compact="true"] .workspace-page-header__path-row {
-  min-height: 2.75rem;
+  min-height: var(--workspace-chrome-height, 1.875rem);
   flex-direction: row;
-  align-items: center;
+  align-items: stretch;
   gap: 0;
 }
 

@@ -229,6 +229,28 @@ saturation des verrous PostgreSQL pendant un essai concurrent a été identifié
 et les suites ont été séparées sur deux serveurs de test ; aucun seuil produit
 n'a été relâché. Le gate intégré et toutes les CI restent requis.
 
+Sur un passage WebKit desktop ultérieur, le bouton final gardait bien le focus
+et la table était déjà au bas de ses 49 169 px, mais le canevas parent laissait
+ce bouton à `y=977` pour un viewport de 720 px. Un premier essai avec
+`scrollIntoView({ block: "nearest" })` pouvait encore laisser 0,47 px hors de
+la fenêtre à cause de l’arrondi de WebKit. Le retour centre désormais le bouton
+dans les deux conteneurs défilants ; l’assertion exige toujours sa présence
+intégrale dans le viewport.
+
+Le gate complet a ensuite montré une contention entre profils navigateur que
+les répétitions isolées ne reproduisaient pas : après les 1 001 écritures
+canoniques de la fixture, la projection d’un appareil neuf continuait à lire le
+flux paginé quand la limite ordinaire de 15 s pour l’arbre expirait. Seul ce
+scénario accepte désormais jusqu’à 60 s pour l’initialisation de la navigation
+et 300 s pour sa fixture complète. Le délai ordinaire reste à 15 s, et les
+assertions de pagination, focus et visibilité restent inchangées. Trois
+répétitions WebKit desktop et trois WebKit mobile passent avec cette limite.
+La migration de cinq conflits historiques dispose du même délai de navigation
+borné ; ses cinq états convertis et ses documents canoniques restent vérifiés.
+Après un lien direct vers une entrée, le test attend toujours l’état global
+`synced` avant de couper le réseau ; cette attente dédiée peut aller jusqu’à
+60 s pour laisser reprendre un batch interrompu par la navigation.
+
 ## T023 — Atomic host/parent/placement validation — 2026-09-13
 
 The integrated implementation commit

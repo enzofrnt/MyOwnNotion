@@ -1,11 +1,11 @@
-/** Compact workspace-level synchronization summary retained in the sidebar. */
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+/** Workspace-level synchronization summary shown in the page information panel. */
+import { useCallback, useContext, useEffect, useState, useSyncExternalStore } from "react";
 import type { LocalContentService, LocalContentSnapshot } from "../../services/local-content.ts";
 import { storageDiagnostics } from "../../services/storage-manager.ts";
 import { FR_COPY } from "../../ui/copy/index.ts";
 import { Status, type StatusKind } from "../../ui/primitives/status.tsx";
 import { ConnectionState } from "./connection-state.tsx";
-import { useChangeStream } from "./use-change-stream.ts";
+import { useChangeStream, WorkspaceChangeStreamContext } from "./use-change-stream.ts";
 
 const LABELS: Readonly<Record<LocalContentSnapshot["syncState"], string>> = {
   offline: FR_COPY.synchronization.offline,
@@ -92,7 +92,9 @@ export function WorkspaceSyncStatus({ service }: { readonly service: LocalConten
     () => service.realtimePageSync.state,
   );
   const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
-  const stream = useChangeStream(service);
+  const workspaceStream = useContext(WorkspaceChangeStreamContext);
+  const standaloneStream = useChangeStream(workspaceStream === null ? service : null);
+  const stream = workspaceStream ?? standaloneStream;
 
   useEffect(() => {
     void storageDiagnostics().then((diagnostics) => {
@@ -136,9 +138,9 @@ export function WorkspaceSyncStatus({ service }: { readonly service: LocalConten
         data-testid="sync-status"
         title={
           <>
-            <span className="workspace-status__full">{detailedLabel}</span>
+            <span className="workspace-status__full">Espace : {detailedLabel}</span>
             <span className="workspace-status__compact" aria-hidden="true">
-              {compactLabel}
+              Espace : {compactLabel}
             </span>
           </>
         }

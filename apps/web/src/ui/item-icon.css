@@ -33,6 +33,18 @@
   font-size: 4.75rem;
 }
 
+@media (max-width: 47.999rem) {
+  .item-icon[data-item-icon-size="page"] {
+    width: 3.5rem;
+    height: 3.5rem;
+    flex-basis: 3.5rem;
+  }
+
+  .item-icon[data-item-icon-size="page"] .item-icon__emoji {
+    font-size: 3.25rem;
+  }
+}
+
 .item-icon__kind-badge {
   position: absolute;
   right: -0.06rem;

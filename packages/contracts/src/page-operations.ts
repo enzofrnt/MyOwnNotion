@@ -235,6 +235,33 @@ export const LegacySemanticCommandSchema = Type.Union([
     },
     { additionalProperties: false },
   ),
+  Type.Object(
+    {
+      type: Type.Literal("move-table-row"),
+      tableId: PageOperationUuidSchema,
+      rowId: PageOperationUuidSchema,
+      beforeRowId: Type.Union([PageOperationUuidSchema, Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("move-table-column"),
+      tableId: PageOperationUuidSchema,
+      columnId: PageOperationUuidSchema,
+      beforeColumnId: Type.Union([PageOperationUuidSchema, Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("set-table-column-width"),
+      tableId: PageOperationUuidSchema,
+      columnId: PageOperationUuidSchema,
+      width: Type.Union([Type.Integer({ minimum: 80, maximum: 1_200 }), Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
   // Keep the minimal block command last. Fastify's Ajv removes additional
   // properties while evaluating unions; placed earlier, this shape would
   // strip a replace-text command down to {type, blockId} before its own branch

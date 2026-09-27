@@ -395,6 +395,54 @@ function nestedEditorIds(block: EditorBlock): string[] {
   return [block.id, ...block.children.flatMap((child) => nestedEditorIds(child as EditorBlock))];
 }
 
+/** Indexes of one longest increasing subsequence of `values`. */
+function longestIncreasingIndexes(values: readonly number[]): Set<number> {
+  const tailIndexes: number[] = [];
+  const previous = new Array<number>(values.length).fill(-1);
+  for (const [index, value] of values.entries()) {
+    let low = 0;
+    let high = tailIndexes.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      const tail = tailIndexes[middle] as number;
+      if ((values[tail] as number) < value) low = middle + 1;
+      else high = middle;
+    }
+    if (low > 0) previous[index] = tailIndexes[low - 1] as number;
+    tailIndexes[low] = index;
+  }
+  const kept = new Set<number>();
+  for (let cursor = tailIndexes.at(-1) ?? -1; cursor !== -1; cursor = previous[cursor] as number) {
+    kept.add(cursor);
+  }
+  return kept;
+}
+
+/**
+ * Minimal sequence of single-column moves turning `before` into `after`.
+ * Columns on a longest common increasing run stay put; a one-column drag
+ * therefore yields exactly one command. Each `beforeId` is valid at the time
+ * its command is applied because moved columns are placed in final order.
+ */
+export function columnMoves(
+  before: readonly Uuid[],
+  after: readonly Uuid[],
+): readonly { readonly id: Uuid; readonly beforeId: Uuid | null }[] {
+  const afterIndex = new Map(after.map((id, index) => [id, index]));
+  const positions = before.map((id) => afterIndex.get(id) ?? -1);
+  const keptBeforeIndexes = longestIncreasingIndexes(positions);
+  const kept = new Set(before.filter((_, index) => keptBeforeIndexes.has(index)));
+  const moves: { id: Uuid; beforeId: Uuid | null }[] = [];
+  for (const [index, id] of after.entries()) {
+    if (kept.has(id)) continue;
+    // Anchor on the next column that never moves: everything placed earlier
+    // in `after` already sits before it, later moved columns queue behind.
+    const anchor = after.slice(index + 1).find((candidate) => kept.has(candidate)) ?? null;
+    moves.push({ id, beforeId: anchor });
+  }
+  return moves;
+}
+
 function tableColumnCommands(
   beforeBlock: EditorBlock,
   afterBlock: EditorBlock,
@@ -407,21 +455,36 @@ function tableColumnCommands(
   const added = after.columns.filter(({ id }) => !beforeIds.has(id));
   const commonBefore = before.columns.filter(({ id }) => afterIds.has(id)).map(({ id }) => id);
   const commonAfter = after.columns.filter(({ id }) => beforeIds.has(id)).map(({ id }) => id);
-  if (commonBefore.some((id, index) => id !== commonAfter[index])) {
-    throw new TypeError("la réorganisation des colonnes n’est pas encore une opération sûre");
-  }
+  const commands: PageCommand[] = [];
   for (const column of after.columns) {
     const oldColumn = before.columns.find(({ id }) => id === column.id);
     if (oldColumn !== undefined && oldColumn.width !== column.width) {
-      throw new TypeError("le redimensionnement des colonnes n’est pas encore une opération sûre");
+      commands.push({
+        type: "set-table-column-width",
+        tableId: after.id,
+        columnId: column.id,
+        width: column.width,
+      });
     }
   }
 
-  const commands: PageCommand[] = removed.map((column) => ({
-    type: "delete-table-column",
-    tableId: after.id,
-    columnId: column.id,
-  }));
+  commands.push(
+    ...removed.map((column) => ({
+      type: "delete-table-column" as const,
+      tableId: after.id,
+      columnId: column.id,
+    })),
+  );
+  // Surviving columns are reordered before the new ones are inserted, so the
+  // `beforeColumnId` of every insertion refers to a column already in place.
+  for (const move of columnMoves(commonBefore, commonAfter)) {
+    commands.push({
+      type: "move-table-column",
+      tableId: after.id,
+      columnId: move.id,
+      beforeColumnId: move.beforeId,
+    });
+  }
   // Right-to-left insertion keeps every `beforeColumnId` resolvable when one
   // editor gesture introduces more than one adjacent column.
   for (const column of [...added].reverse()) {
@@ -522,6 +585,27 @@ export function commandsFromBlockNoteChanges(input: {
     }
     commands.push({ type: "delete-table-row", tableId, rowId: change.block.id });
     for (const blockId of nestedEditorIds(change.block)) handledInternalIds.add(blockId);
+  }
+
+  const rowMoves = input.changes.some((change) => change.type === "move")
+    ? stableMoveChanges(input.changes, input.document).filter(
+        (change) => change.block.type === "tableRow" && !hasChangedAncestor(change, insertedIds),
+      )
+    : [];
+  for (const change of rowMoves) {
+    const placement = layout.get(change.block.id);
+    if (placement === undefined || !isUuid(change.block.id)) continue;
+    const tableId = placement.parentBlockId;
+    const previousTableId = change.prevParent?.id;
+    if (tableId === null || tableId !== previousTableId) {
+      throw new TypeError(`la ligne ${change.block.id} ne peut être déplacée que dans son tableau`);
+    }
+    commands.push({
+      type: "move-table-row",
+      tableId,
+      rowId: change.block.id,
+      beforeRowId: placement.beforeBlockId,
+    });
   }
 
   const inserts = input.changes

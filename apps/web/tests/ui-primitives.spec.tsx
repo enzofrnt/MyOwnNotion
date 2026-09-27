@@ -163,6 +163,21 @@ describe("shared UI primitive contracts", () => {
     expect(css).toContain("--ui-focus-ring");
   });
 
+  it("clips menu scroll to the rounded surface, not the square positioner", () => {
+    const css = readFileSync(
+      new URL("../src/ui/primitives/primitives.css", import.meta.url),
+      "utf8",
+    );
+    const menu = css.match(/\.ui-menu,\s*\n\.ui-popover \{[^}]+\}/u)?.[0];
+    const positioner = css.match(
+      /\.ui-menu__positioner,\s*\n\.ui-popover__positioner \{[^}]+\}/u,
+    )?.[0];
+    expect(menu).toMatch(/border-radius:\s*var\(--ui-radius-lg\)/u);
+    expect(menu).toMatch(/overflow-y:\s*auto/u);
+    expect(positioner).toBeDefined();
+    expect(positioner).not.toMatch(/overflow-y:\s*auto/u);
+  });
+
   it("keeps destructive action text legible throughout its hover transition", () => {
     const css = readFileSync(
       new URL("../src/ui/primitives/primitives.css", import.meta.url),

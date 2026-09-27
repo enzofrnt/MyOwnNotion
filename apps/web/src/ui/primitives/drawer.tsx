@@ -1,6 +1,7 @@
 import { Dialog as AriakitDialog, type DialogProps as AriakitDialogProps } from "@ariakit/react";
 import { forwardRef } from "react";
 import { classNames } from "../class-names.ts";
+import { useModalAriaRef } from "./modal-aria.ts";
 
 export {
   DialogDescription as DrawerDescription,
@@ -31,10 +32,11 @@ export const DrawerContent = forwardRef<HTMLDivElement, DrawerContentProps>(func
   },
   ref,
 ) {
+  const modalRef = useModalAriaRef(ref, modal);
   return (
     <AriakitDialog
       {...props}
-      ref={ref}
+      ref={modalRef}
       autoFocusOnHide={autoFocusOnHide}
       autoFocusOnShow={autoFocusOnShow}
       className={classNames("ui-drawer", className)}

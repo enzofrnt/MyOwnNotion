@@ -4,13 +4,7 @@ import type { GraphCoverage, GraphScope } from "@myownnotion/graph";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 import { AppIcon } from "../../ui/icons.tsx";
-import {
-  AsyncState,
-  Button,
-  PopoverContent,
-  PopoverRoot,
-  PopoverTrigger,
-} from "../../ui/primitives/index.ts";
+import { Button, PopoverContent, PopoverRoot, PopoverTrigger } from "../../ui/primitives/index.ts";
 import { GraphCanvas, type GraphCanvasHandle } from "./graph-canvas.tsx";
 import {
   createDefaultGraphControlState,
@@ -181,20 +175,27 @@ export function KnowledgeGraphView({
     <section className="knowledge-graph" data-testid="knowledge-graph">
       <div className="knowledge-graph__stage">
         {graph.projection === null && graph.status === "loading" ? (
-          <AsyncState kind="loading" title="Construction du graphe local…" />
+          <div
+            className="knowledge-graph__placeholder"
+            role="status"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <p>Construction du graphe local…</p>
+          </div>
         ) : graph.projection === null ? (
-          <AsyncState
-            kind="error"
-            title="Le graphe est indisponible sur cet appareil."
-            description="La dernière projection sûre n’est pas disponible localement."
-            action={<Button onClick={graph.retry}>Recalculer</Button>}
-          />
+          <div className="knowledge-graph__placeholder" role="status">
+            <p>Le graphe est indisponible sur cet appareil.</p>
+            <p data-muted="">La dernière projection sûre n’est pas disponible localement.</p>
+            <Button size="compact" variant="ghost" onClick={graph.retry}>
+              Recalculer
+            </Button>
+          </div>
         ) : graph.projection.nodes.length === 0 ? (
-          <AsyncState
-            kind="empty"
-            title={GRAPH_COPY.empty}
-            description="Affichez les éléments isolés ou réinitialisez les filtres."
-          />
+          <div className="knowledge-graph__placeholder" role="status">
+            <p>{GRAPH_COPY.empty}</p>
+            <p data-muted="">Affichez les éléments isolés ou réinitialisez les filtres.</p>
+          </div>
         ) : (
           <GraphCanvas
             ref={canvasRef}
@@ -215,26 +216,10 @@ export function KnowledgeGraphView({
         )}
 
         <div className="knowledge-graph__hud">
-          <Button
-            size="compact"
-            variant={controlsOpen ? "primary" : "ghost"}
-            aria-expanded={controlsOpen}
-            aria-controls="knowledge-graph-filters"
-            data-testid="graph-filters-toggle"
-            onClick={() => setControlsOpen((open) => !open)}
-          >
-            <AppIcon name="settings" /> Filtres
-            {activeFilterCount > 0 ? (
-              <span className="knowledge-graph__filter-count">{activeFilterCount}</span>
-            ) : null}
-          </Button>
-        </div>
-
-        {graph.projection === null ? null : (
-          <div className="knowledge-graph__status">
-            <PopoverRoot placement="bottom-start">
+          {graph.projection === null ? null : (
+            <PopoverRoot placement="bottom-end">
               <PopoverTrigger
-                className="knowledge-graph__status-toggle"
+                className="knowledge-graph__chrome-btn"
                 data-size="square"
                 data-testid="graph-status-toggle"
                 data-tone={
@@ -252,7 +237,7 @@ export function KnowledgeGraphView({
                       : "Informations du graphe, vue partielle"
                 }
               >
-                <AppIcon name="info" />
+                <AppIcon name="info" size="small" />
               </PopoverTrigger>
               <PopoverContent className="knowledge-graph__status-panel" aria-label="État du graphe">
                 <div className="knowledge-graph__view-controls">
@@ -275,19 +260,17 @@ export function KnowledgeGraphView({
                   onSynchronize={() => void service.synchronize()}
                 />
                 {graph.status === "rebuilding" ? (
-                  <AsyncState
-                    compact
-                    kind="loading"
-                    title="Reconstruction en cours — la dernière vue sûre reste affichée."
-                  />
+                  <p className="knowledge-graph__panel-note" role="status">
+                    Reconstruction en cours — la dernière vue sûre reste affichée.
+                  </p>
                 ) : null}
                 {graph.status === "stale" ? (
-                  <AsyncState
-                    compact
-                    kind="error"
-                    title="La dernière vue sûre est conservée, mais elle peut être obsolète."
-                    action={<Button onClick={graph.retry}>Recalculer</Button>}
-                  />
+                  <div className="knowledge-graph__panel-note" role="status">
+                    <p>La dernière vue sûre est conservée, mais elle peut être obsolète.</p>
+                    <Button size="compact" variant="ghost" onClick={graph.retry}>
+                      Recalculer
+                    </Button>
+                  </div>
                 ) : null}
                 {graph.projection.truncation.truncated ? (
                   <p className="knowledge-graph__limit" role="status">
@@ -298,8 +281,25 @@ export function KnowledgeGraphView({
                 ) : null}
               </PopoverContent>
             </PopoverRoot>
-          </div>
-        )}
+          )}
+          <Button
+            size="square"
+            variant={controlsOpen ? "primary" : "ghost"}
+            className="knowledge-graph__chrome-btn knowledge-graph__filters-toggle"
+            aria-expanded={controlsOpen}
+            aria-controls="knowledge-graph-filters"
+            aria-label={activeFilterCount > 0 ? `Filtres, ${activeFilterCount} actifs` : "Filtres"}
+            data-testid="graph-filters-toggle"
+            onClick={() => setControlsOpen((open) => !open)}
+          >
+            <AppIcon name="filter" size="small" />
+            {activeFilterCount > 0 ? (
+              <span className="knowledge-graph__filter-count" aria-hidden="true">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </Button>
+        </div>
 
         {controlsOpen ? (
           <aside

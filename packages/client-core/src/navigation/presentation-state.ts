@@ -11,8 +11,10 @@ import type { LocalDatabase } from "../local-store/schema.ts";
 
 export const WORKSPACE_PRESENTATION_KEY = "navigation-state";
 export const DEFAULT_SIDEBAR_WIDTH = 280;
-export const MIN_SIDEBAR_WIDTH = 240;
-export const MAX_SIDEBAR_WIDTH = 360;
+export const MIN_SIDEBAR_WIDTH = 200;
+export const MAX_SIDEBAR_WIDTH = 720;
+/** Ideal minimum width left for the open page when resizing the sidebar. */
+export const MIN_MAIN_CONTENT_WIDTH = 420;
 /** Sentinel tab id for the knowledge-graph view (not a canonical item). */
 export const GRAPH_TAB_ID = "graph";
 
@@ -127,7 +129,23 @@ function normalizeAnchors(value: unknown): Array<readonly [string, PageScrollAnc
 
 export function clampSidebarWidth(width: number): number {
   if (!Number.isFinite(width)) return DEFAULT_SIDEBAR_WIDTH;
+  // Integer CSS pixels — continuous drag, no step grid between min and max.
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(width)));
+}
+
+/**
+ * Absolute max is {@link MAX_SIDEBAR_WIDTH}. On a narrow viewport the sidebar
+ * also stops so the open page keeps about {@link MIN_MAIN_CONTENT_WIDTH}.
+ */
+export function maxSidebarWidthForViewport(viewportWidth: number): number {
+  if (!Number.isFinite(viewportWidth) || viewportWidth <= 0) return MAX_SIDEBAR_WIDTH;
+  const room = Math.floor(viewportWidth - MIN_MAIN_CONTENT_WIDTH);
+  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, room));
+}
+
+/** Width used for layout: preferred width, capped for the current viewport. */
+export function effectiveSidebarWidth(preferredWidth: number, viewportWidth: number): number {
+  return Math.min(clampSidebarWidth(preferredWidth), maxSidebarWidthForViewport(viewportWidth));
 }
 
 /** Normalizes legacy and untrusted IndexedDB values into the current shape. */
@@ -323,4 +341,23 @@ export function pruneTabs(
 ): readonly string[] {
   const kept = ids.filter((id) => isGraphTabId(id) || openable.has(id));
   return kept.length === ids.length ? ids : kept;
+}
+
+/**
+ * Moves an open tab next to another. Device-local strip order only — not a
+ * hierarchy placement. Returns the same array when the move is a no-op.
+ */
+export function reorderTabs(
+  ids: readonly string[],
+  activeId: string,
+  overId: string,
+): readonly string[] {
+  const from = ids.indexOf(activeId);
+  const to = ids.indexOf(overId);
+  if (from < 0 || to < 0 || from === to) return ids;
+  const next = [...ids];
+  const [moved] = next.splice(from, 1);
+  if (moved === undefined) return ids;
+  next.splice(to, 0, moved);
+  return next;
 }

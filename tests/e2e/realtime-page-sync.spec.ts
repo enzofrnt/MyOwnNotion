@@ -6,6 +6,7 @@ import {
   createRootItem,
   editorApplyCount,
   editorChangeSequence,
+  openNoteInformation,
   openSecondDevice,
   openWorkspace,
   selectItem,
@@ -121,6 +122,8 @@ test("connected devices exchange text, marks and block order without reload or r
     await selectItem(second.page, pageName);
     await waitForEditorSettled(second.page);
     await expect(second.page.getByTestId("block-editor")).toContainText("second bloc temps réel");
+    await openNoteInformation(page);
+    await openNoteInformation(second.page);
     await expect(page.getByTestId("live-connection-state")).toHaveAttribute("data-state", "live");
     await expect(second.page.getByTestId("live-connection-state")).toHaveAttribute(
       "data-state",

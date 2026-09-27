@@ -283,7 +283,13 @@ test.describe("structured offline convergence (US5)", () => {
       await addTextProperty(second.page, offlineProperty, { online: false });
       await openWorkspaceDiagnostics(second.page);
       await expect(pendingCommand(second.page, "database.definition.replace")).toHaveCount(1);
-      await expect(second.page.getByTestId("sync-status")).toHaveAttribute("data-state", "offline");
+      await expect
+        .poll(() =>
+          second.page.evaluate(
+            () => window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.().getSnapshot().syncState ?? null,
+          ),
+        )
+        .toBe("offline");
       await returnToWorkspace(second.page);
       await updateTextCell(second.page, entryName, "Notes", "local compatible note");
       await openWorkspaceDiagnostics(second.page);

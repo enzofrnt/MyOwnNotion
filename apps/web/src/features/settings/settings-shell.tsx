@@ -2,13 +2,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 import { AppIcon, type AppIconName } from "../../ui/icons.tsx";
 import { Button } from "../../ui/primitives/index.ts";
 
-export type SettingsSection =
-  | "security"
-  | "navigation"
-  | "backups"
-  | "local-data"
-  | "trash"
-  | "page-details";
+export type SettingsSection = "security" | "backups" | "local-data" | "trash" | "page-details";
 
 interface SettingsSectionDefinition {
   readonly id: SettingsSection;
@@ -23,12 +17,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
     label: "Sécurité et appareils",
     description: "Accès, sessions, appareils et récupération",
     icon: "lock",
-  },
-  {
-    id: "navigation",
-    label: "Navigation",
-    description: "Sections visibles dans la barre latérale de cet appareil",
-    icon: "panel",
   },
   {
     id: "backups",
@@ -98,17 +86,15 @@ export function SettingsShell({
         <header className="settings-sidebar__header">
           <Button
             className="settings-back"
+            size="compact"
             variant="ghost"
             data-testid="back-to-workspace"
             onClick={onBack}
           >
             <AppIcon name="arrowLeft" size="small" />
-            Retour à l’espace de travail
+            Espace de travail
           </Button>
-          <div>
-            <span className="settings-eyebrow">MyOwnNotion</span>
-            <p className="settings-sidebar__title">Réglages</p>
-          </div>
+          <p className="settings-sidebar__title">Réglages</p>
         </header>
 
         <nav className="settings-navigation" aria-label="Sections des réglages">
@@ -143,7 +129,11 @@ export function SettingsShell({
           </h1>
           <p>{active.description}</p>
         </header>
-        <div className="settings-content" data-testid={`settings-section-${activeSection}`}>
+        <div
+          className="settings-content"
+          data-section={activeSection}
+          data-testid={`settings-section-${activeSection}`}
+        >
           {children}
         </div>
       </main>

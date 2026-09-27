@@ -146,10 +146,12 @@ it("reports a failed inventory distinctly and retries without clearing the draft
   api.listMcpConnections.mockResolvedValueOnce(failure("service_unavailable"));
   await render();
   await prepare();
-  expect(button("Générer le code d’accès").disabled).toBe(true);
+  expect(button("Générer le code").disabled).toBe(true);
+
   expect(container.textContent).not.toContain("Aucun assistant autorisé.");
   await click(button("Actualiser les accès"));
-  expect(button("Générer le code d’accès").disabled).toBe(false);
+  expect(button("Générer le code").disabled).toBe(false);
+
   expect(field("Nom de la connexion").value).toBe("Assistant");
 });
 

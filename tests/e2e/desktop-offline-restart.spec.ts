@@ -3,7 +3,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { type DesktopElectronSession, launchDesktopElectron } from "./desktop-electron.ts";
 import { applyDesktopJourneySkip } from "./desktop-skip.ts";
-import { openDesktopWorkspace, setDesktopOffline } from "./desktop-workspace.ts";
+import {
+  openDesktopWorkspace,
+  setDesktopOffline,
+  waitForDesktopSynchronized,
+} from "./desktop-workspace.ts";
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
@@ -13,7 +17,6 @@ import {
   returnToWorkspace,
   selectItem,
   typeIntoEditor,
-  waitForSynchronized,
 } from "./helpers.ts";
 
 applyDesktopJourneySkip();
@@ -49,7 +52,7 @@ test("recovers a durable offline creation after process death and reconciles it 
   let killed = false;
   try {
     await createRootItem(page, "page", "Desktop online page");
-    await waitForSynchronized(page);
+    await waitForDesktopSynchronized(page);
     await setDesktopOffline(session, true);
     await selectItem(page, "Desktop online page");
     await typeIntoEditor(page, "Text written while the server is unreachable");
@@ -81,7 +84,7 @@ test("recovers a durable offline creation after process death and reconciles it 
         restarted.window.getByTestId("block-editor").locator(".ProseMirror"),
       ).toContainText("Text written while the server is unreachable");
       await setDesktopOffline(restarted, false);
-      await waitForSynchronized(restarted.window);
+      await waitForDesktopSynchronized(restarted.window);
       await restarted.window.reload();
       await openWorkspace(restarted.window);
       await ensureNavigationRowVisible(restarted.window, "Desktop offline creation");

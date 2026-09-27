@@ -115,16 +115,13 @@ test.describe("hierarchy organization (US1)", () => {
     expect(sourceBox).not.toBeNull();
     expect(targetBox).not.toBeNull();
 
-    await page.mouse.move(
-      (sourceBox?.x ?? 0) + (sourceBox?.width ?? 0) / 2,
-      (sourceBox?.y ?? 0) + (sourceBox?.height ?? 0) / 2,
-    );
+    // On touch-sized rows the action buttons occupy the right side of the
+    // name slot. Start on its leading edge, where the drag surface is exposed.
+    const dragX = (sourceBox?.x ?? 0) + 4;
+    const dragY = (sourceBox?.y ?? 0) + (sourceBox?.height ?? 0) / 2;
+    await page.mouse.move(dragX, dragY);
     await page.mouse.down();
-    await page.mouse.move(
-      (sourceBox?.x ?? 0) + (sourceBox?.width ?? 0) / 2,
-      (sourceBox?.y ?? 0) + (sourceBox?.height ?? 0) / 2 - 8,
-      { steps: 2 },
-    );
+    await page.mouse.move(dragX, dragY - 8, { steps: 2 });
     const phantom = page.getByTestId("tree-drag-phantom");
     await expect(phantom).toBeVisible();
     await expect(phantom).toContainText(second);
@@ -191,8 +188,8 @@ test.describe("hierarchy organization (US1)", () => {
 
     const surface = row.locator(".navigation-inline-create__surface");
     const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-    const expectedSurfaceWidth = coarsePointer ? 140 : 92;
-    const expectedSurfaceHeight = coarsePointer ? 44 : 32;
+    const expectedSurfaceWidth = coarsePointer ? 140 : 72;
+    const expectedSurfaceHeight = coarsePointer ? 44 : 26;
     await expect
       .poll(async () => Math.round((await surface.boundingBox())?.width ?? 0))
       .toBe(expectedSurfaceWidth);
@@ -228,7 +225,7 @@ test.describe("hierarchy organization (US1)", () => {
         (surfaceBox?.x ?? 0) + (surfaceBox?.width ?? 0) + 0.5,
       );
     }
-    const expectedGutter = coarsePointer ? 4 : 2;
+    const expectedGutter = coarsePointer ? 4 : 3;
     expect(
       Math.abs(
         (controlBoxes[1]?.x ?? 0) - ((controlBoxes[0]?.x ?? 0) + (controlBoxes[0]?.width ?? 0)),
@@ -457,7 +454,7 @@ test.describe("hierarchy organization (US1)", () => {
     const restoredRoot = page.getByTestId(`tree-item-${root}`);
     await expect(restoredRoot).toHaveCount(1, { timeout: 15_000 });
     if (!(await restoredRoot.isVisible())) {
-      await page.getByTestId("toggle-tree").click();
+      await page.getByTestId("toggle-sidebar").click();
     }
     await expect(restoredRoot).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId(`tree-item-${root}`)).toHaveAttribute("aria-expanded", "true");
@@ -478,7 +475,7 @@ test.describe("hierarchy organization (US1)", () => {
     // before exercising the tree's keyboard contract and restore focus to the
     // selected row, just as a keyboard user would.
     if (!(await page.getByTestId(`tree-item-${a}`).isVisible())) {
-      await page.getByTestId("toggle-tree").click();
+      await page.getByTestId("toggle-sidebar").click();
       await expect(page.getByTestId(`tree-item-${a}`)).toBeVisible();
       await page.getByTestId(`tree-item-${a}`).focus();
     }

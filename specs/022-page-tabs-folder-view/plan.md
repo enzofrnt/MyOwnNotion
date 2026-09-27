@@ -172,10 +172,11 @@ shell existant.
   ligne « Monter / Descendre » appelle `reorder(node, ±1)` existant.
 - État vide : `Status kind="info"` dans la liste ; le contrôle de création du
   titre reste branché sur `createItem(kind, folderId)`.
-- Sur pointeur grossier, les poignées et fermetures utilisent la cible tactile
-  de 44 px. L’indentation visuelle est plafonnée au-delà du troisième niveau
-  pour conserver les actions essentielles à 320 px ; le menu de ligne garde
-  les créations quand le raccourci « + » profond est masqué.
+- Sur pointeur grossier, les poignées et fermetures visibles utilisent la cible
+  tactile de 44 px. À 320 px, une ligne très profonde compacte son chrome ;
+  le menu reste accessible par l’action contextuelle de la ligne et au clavier
+  avec Maj+F10, sans réafficher un bouton hors du tiroir. Le menu garde les
+  créations quand le raccourci « + » profond est masqué.
 - Aucun `EditorView` n’est monté pour un dossier (déjà le cas).
 
 ## Complexity Tracking

@@ -13,15 +13,18 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { FR_COPY } from "../../ui/copy/fr.ts";
 import { AppIcon } from "../../ui/icons.tsx";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { Button } from "../../ui/primitives/button.tsx";
 import { useTheme } from "../../ui/theme-provider.tsx";
+import { WORKSPACE_HISTORY_SLOT_ID } from "../workspace/page-header.tsx";
 import { validateBlockDrop } from "./block-drag-drop.ts";
 import { canonicalDocumentToBlockNote, canonicalV3ToLegacyV2 } from "./blocknote-conversion.ts";
 import {
@@ -32,6 +35,7 @@ import {
 } from "./blocknote-schema.ts";
 import { CodeBlockInputExtension } from "./code-block-input.ts";
 import { createCodeHighlighter } from "./code-highlighting.ts";
+import { moveTableCellByTab } from "./custom-blocks/table.tsx";
 import {
   commandsFromBlockNoteChanges,
   EditorChangeBatcher,
@@ -68,6 +72,7 @@ import {
 import { historyActionFromInputType, useEditorShortcuts } from "./editor-shortcuts.ts";
 import { pageLinkTargetFromHref } from "./page-link-href.ts";
 import { updatePageLinkPresentations } from "./page-link-inline-content.ts";
+import { TableKeymapExtension } from "./table-keymap.ts";
 
 const EDITOR_PROJECTION_QUIET_MS = 120;
 
@@ -156,6 +161,7 @@ export function PageEditor({
       extensions: [
         SyntaxHighlightingExtension({ createHighlighter: createCodeHighlighter }),
         CodeBlockInputExtension,
+        TableKeymapExtension,
       ],
       tabBehavior: "prefer-indent",
       links: {
@@ -270,6 +276,30 @@ export function PageEditor({
     },
     [onSettlementChange, session, writeEditorSettlementState],
   );
+
+  useEffect(() => {
+    const host = editorHostRef.current;
+    if (host === null || !editable) return;
+    // BlockNote's table cells are nested node views. Firefox sends Tab from
+    // their own focusable content node, which can bypass React's outer capture
+    // handler. A native capture listener on the editor host runs before either
+    // the browser's focus traversal or BlockNote's indent shortcut.
+    const handleTableTab = (event: KeyboardEvent): void => {
+      if (event.key !== "Tab") return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.matches(".ProseMirror") && !target.closest(".editor-table-cell__content")) {
+        return;
+      }
+      if (!window.getSelection()?.anchorNode?.parentElement?.closest(".editor-table-cell")) return;
+      const focusedCellId = target.closest<HTMLElement>(".bn-block[data-id]")?.dataset["id"];
+      if (!moveTableCellByTab(editor, event.shiftKey, focusedCellId)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    host.addEventListener("keydown", handleTableTab, true);
+    return () => host.removeEventListener("keydown", handleTableTab, true);
+  }, [editable, editor]);
 
   const markEditorSettled = useCallback(() => {
     if (inFlight.current > 0 || localBurstDrainInFlight.current) return;
@@ -622,6 +652,25 @@ export function PageEditor({
     reportError: reportEditorError,
   });
 
+  const [historyHost, setHistoryHost] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (!discoverable) {
+      setHistoryHost(null);
+      return;
+    }
+    const resolve = (): void => {
+      setHistoryHost(globalThis.document.getElementById(WORKSPACE_HISTORY_SLOT_ID));
+    };
+    resolve();
+    // Path chrome and the editor mount in the same commit; one frame covers
+    // the rare case where the portal target is not yet in the tree.
+    if (globalThis.document.getElementById(WORKSPACE_HISTORY_SLOT_ID) === null) {
+      const frame = requestAnimationFrame(resolve);
+      return () => cancelAnimationFrame(frame);
+    }
+    return undefined;
+  }, [discoverable]);
+
   useImperativeHandle(
     handleRef,
     () => ({
@@ -715,36 +764,41 @@ export function PageEditor({
         else redo();
       }}
     >
-      <div
-        className="editor-history-controls"
-        role="toolbar"
-        aria-label={FR_COPY.editor.surface.historyLabel}
-      >
-        <Button
-          type="button"
-          size="square"
-          variant="ghost"
-          data-testid="undo"
-          aria-label={FR_COPY.editor.surface.undo}
-          title={FR_COPY.editor.surface.undoTitle}
-          disabled={!editable || !engine.canUndo}
-          onClick={undo}
-        >
-          <AppIcon name="undo" />
-        </Button>
-        <Button
-          type="button"
-          size="square"
-          variant="ghost"
-          data-testid="redo"
-          aria-label={FR_COPY.editor.surface.redo}
-          title={FR_COPY.editor.surface.redoTitle}
-          disabled={!editable || !engine.canRedo}
-          onClick={redo}
-        >
-          <AppIcon name="redo" />
-        </Button>
-      </div>
+      {discoverable && historyHost !== null
+        ? createPortal(
+            <div
+              className="editor-history-controls"
+              role="toolbar"
+              aria-label={FR_COPY.editor.surface.historyLabel}
+            >
+              <Button
+                type="button"
+                size="square"
+                variant="ghost"
+                data-testid="undo"
+                aria-label={FR_COPY.editor.surface.undo}
+                title={FR_COPY.editor.surface.undoTitle}
+                disabled={!editable || !engine.canUndo}
+                onClick={undo}
+              >
+                <AppIcon name="undo" />
+              </Button>
+              <Button
+                type="button"
+                size="square"
+                variant="ghost"
+                data-testid="redo"
+                aria-label={FR_COPY.editor.surface.redo}
+                title={FR_COPY.editor.surface.redoTitle}
+                disabled={!editable || !engine.canRedo}
+                onClick={redo}
+              >
+                <AppIcon name="redo" />
+              </Button>
+            </div>,
+            historyHost,
+          )
+        : null}
       <BlockNoteView
         editor={viewEditor}
         editable={editable}

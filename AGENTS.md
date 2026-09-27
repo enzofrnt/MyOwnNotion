@@ -42,10 +42,13 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
 ## Working conventions
 
 - Read the constitution and the active feature artifacts before editing code.
-- For UI planning, implementation and review, load the
-  [UI quality skill](.agents/skills/ui-quality/SKILL.md). Reference it in the
-  feature plan and UI tasks; keep specific states, acceptance criteria and
-  visual evidence in the feature artifacts.
+- For UI/UX planning, implementation and review, load the
+  [UI quality skill](.agents/skills/ui-quality/SKILL.md) and its
+  [lessons journal](.agents/skills/ui-quality/lessons.md). Reference both in
+  the feature plan and UI tasks; keep specific states, acceptance criteria and
+  visual evidence in the feature artifacts. Speckit `plan` / `tasks` /
+  `implement` / `converge` phases that touch the interface MUST follow the
+  skill's Speckit gates; a material UI/UX gap blocks convergence.
 - Read `docs/product/product-canvas.md` before specifying or planning a feature,
   and record the relevant canvas sections in that feature's artifacts.
 - Keep product requirements technology-agnostic in `spec.md`; put technical choices in `plan.md`.

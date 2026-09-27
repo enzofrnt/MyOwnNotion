@@ -411,15 +411,17 @@ test.describe("what a branch says when it has nothing to show", () => {
   });
 });
 
-test.describe("shortcuts to what matters", () => {
-  test("a page marked as a favourite appears in the favourites list", async ({ page }) => {
+test.describe("navigation actions without shortcut sections", () => {
+  test("a page can be marked as a favourite without adding a sidebar shortcut", async ({
+    page,
+  }) => {
     const name = uniqueName("Starred");
     await openWorkspace(page);
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
     await ensureNavigationVisible(page);
 
-    await expect(page.getByTestId("favourites-empty")).toBeVisible();
+    await expect(page.getByTestId("favourites")).toHaveCount(0);
     await openItemActions(page, name);
     await expect(page.getByTestId(`favourite-action-${name}`)).toHaveAttribute(
       "aria-checked",
@@ -427,9 +429,7 @@ test.describe("shortcuts to what matters", () => {
     );
     await page.getByTestId(`favourite-action-${name}`).click();
 
-    await expect(page.getByTestId(`favourites-${name}`)).toBeVisible({ timeout: 30_000 });
-    // Marked, and saying so: a control whose checked state is only a glyph
-    // leaves a screen-reader user unable to tell whether it worked.
+    // The action still reports its state to assistive technology.
     await openItemActions(page, name);
     await expect(page.getByTestId(`favourite-action-${name}`)).toHaveAttribute(
       "aria-checked",
@@ -437,19 +437,30 @@ test.describe("shortcuts to what matters", () => {
     );
   });
 
-  test("unmarking removes it again", async ({ page }) => {
+  test("unmarking clears the favourite action", async ({ page }) => {
     const name = uniqueName("Unstarred");
     await openWorkspace(page);
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
 
     await clickItemAction(page, name, `favourite-action-${name}`);
-    await expect(page.getByTestId(`favourites-${name}`)).toBeVisible({ timeout: 30_000 });
+    await openItemActions(page, name);
+    await expect(page.getByTestId(`favourite-action-${name}`)).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await page.keyboard.press("Escape");
     await clickItemAction(page, name, `favourite-action-${name}`);
-    await expect(page.getByTestId(`favourites-${name}`)).toHaveCount(0, { timeout: 30_000 });
+    await openItemActions(page, name);
+    await expect(page.getByTestId(`favourite-action-${name}`)).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
   });
 
-  test("a newly changed page is at the top of the recents", async ({ page }) => {
+  test("recent pages remain reachable through the tree without a recents section", async ({
+    page,
+  }) => {
     const older = uniqueName("Older");
     const newer = uniqueName("Newer");
     await openWorkspace(page);
@@ -458,8 +469,11 @@ test.describe("shortcuts to what matters", () => {
     await waitForSynchronized(page);
     await ensureNavigationVisible(page);
 
-    const recents = page.getByTestId("recents").getByRole("button");
-    await expect(recents.first()).toHaveText(newer);
+    await expect(page.getByTestId("recents")).toHaveCount(0);
+    await selectItem(page, older);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(older);
+    await selectItem(page, newer);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(newer);
   });
 
   test("settings are reachable from the sidebar", async ({ page }) => {
@@ -469,6 +483,6 @@ test.describe("shortcuts to what matters", () => {
     // FR-012 lists settings among the places the sidebar must reach; landing
     // somewhere that is not the settings screen would satisfy the letter of it
     // and none of the point.
-    await expect(page.getByTestId("back-to-workspace")).toHaveText(/retour à l’espace de travail/i);
+    await expect(page.getByTestId("back-to-workspace")).toHaveText("Espace de travail");
   });
 });

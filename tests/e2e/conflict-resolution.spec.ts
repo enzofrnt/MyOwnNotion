@@ -80,7 +80,9 @@ test.describe("a device that is merely behind (FR-011)", () => {
 
       await setDeviceOffline(second.page, false);
       await second.page.reload();
-      await expect(second.page.getByTestId("workspace-shell")).toBeVisible();
+      // The shell can paint before its tree has loaded after reconnection.
+      // Wait for the workspace readiness boundary before opening the drawer.
+      await openWorkspace(second.page);
       await selectItem(second.page, name);
 
       // The assertion that matters: nothing to resolve. A false conflict here

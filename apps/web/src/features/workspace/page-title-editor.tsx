@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { ItemEmojiPicker } from "../../ui/emoji-picker.tsx";
 import { AppIcon } from "../../ui/icons.tsx";
 import { itemKindIconName } from "../../ui/item-icon.tsx";
+import { WORKSPACE_HISTORY_SLOT_ID } from "./page-header.tsx";
 
 const UNTITLED_PAGE = "Sans titre";
 const TITLE_COMMIT_DELAY_MS = 450;
@@ -227,9 +228,14 @@ export function PageTitleEditor({
   }, [commit]);
 
   return (
-    <div className="workspace-page-title" data-kind={kind}>
+    <>
       {breadcrumbs === undefined && pathActions === undefined ? null : (
         <div className="workspace-page-title__path">
+          <div
+            id={WORKSPACE_HISTORY_SLOT_ID}
+            className="workspace-page-title__history"
+            data-testid="workspace-history-slot"
+          />
           <div className="workspace-page-title__path-crumbs">{breadcrumbs}</div>
           {pathActions === undefined ? null : (
             <div className="workspace-page-title__path-actions" data-testid="page-context-actions">
@@ -238,78 +244,80 @@ export function PageTitleEditor({
           )}
         </div>
       )}
-      <div className="workspace-page-title__body">
-        {onIconChange === undefined ? null : (
-          <ItemEmojiPicker
-            kind={kind}
-            label={title || UNTITLED_PAGE}
-            value={icon ?? null}
-            variant="page"
-            onChange={onIconChange}
-          />
-        )}
-        <textarea
-          ref={textarea}
-          rows={1}
-          // Keep the browser's live value authoritative while the owner types.
-          // A controlled textarea lets an unrelated concurrent render project
-          // the previous React state back into the DOM between WebKit's native
-          // replacement and its input event. `defaultValue` initializes each
-          // route-bound editor; acknowledged remote changes are projected
-          // explicitly by the title effect above.
-          defaultValue={startingDraft}
-          aria-label={kind === "folder" ? "Nom du dossier" : "Titre de la page"}
-          aria-invalid={failed || undefined}
-          aria-busy={busy || undefined}
-          data-testid={discoverable ? "active-item-title" : undefined}
-          placeholder={UNTITLED_PAGE}
-          spellCheck
-          onFocus={() => {
-            focused.current = true;
-            onDraftStateChangeRef.current?.(latestDraft.current, true);
-          }}
-          // `input` is the browser event produced by typing, paste and
-          // Playwright's fill primitive. Reading it directly avoids WebKit's
-          // synthetic change-value tracking window while a newly-created page
-          // finishes replacing its loading surface.
-          onInput={(event) => {
-            const next = event.currentTarget.value;
-            latestDraft.current = next;
-            setDraft(next);
-            onDraftStateChangeRef.current?.(next, true);
-            scheduleCommit(next);
-          }}
-          onBlur={(event) => {
-            focused.current = false;
-            void commit(event.currentTarget.value).catch(() => undefined);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              event.currentTarget.blur();
-              onMoveToContent?.();
-            }
-            if (event.key === "Escape") {
-              event.preventDefault();
-              const restored = title || UNTITLED_PAGE;
-              latestDraft.current = restored;
-              event.currentTarget.value = restored;
-              setDraft(restored);
-              onDraftStateChangeRef.current?.(restored, false);
-              event.currentTarget.blur();
-            }
-          }}
-        />
-        <div className="workspace-page-title__meta">
-          <span className="workspace-page-title__kind" data-testid="active-item-kind">
-            <AppIcon name={itemKindIconName(kind)} size="small" />
-            {KIND_CAPTION[kind]}
-          </span>
-          {kindActions === undefined ? null : (
-            <div className="workspace-page-title__kind-actions">{kindActions}</div>
+      <div className="workspace-page-title" data-kind={kind}>
+        <div className="workspace-page-title__body">
+          {onIconChange === undefined ? null : (
+            <ItemEmojiPicker
+              kind={kind}
+              label={title || UNTITLED_PAGE}
+              value={icon ?? null}
+              variant="page"
+              onChange={onIconChange}
+            />
           )}
+          <textarea
+            ref={textarea}
+            rows={1}
+            // Keep the browser's live value authoritative while the owner types.
+            // A controlled textarea lets an unrelated concurrent render project
+            // the previous React state back into the DOM between WebKit's native
+            // replacement and its input event. `defaultValue` initializes each
+            // route-bound editor; acknowledged remote changes are projected
+            // explicitly by the title effect above.
+            defaultValue={startingDraft}
+            aria-label={kind === "folder" ? "Nom du dossier" : "Titre de la page"}
+            aria-invalid={failed || undefined}
+            aria-busy={busy || undefined}
+            data-testid={discoverable ? "active-item-title" : undefined}
+            placeholder={UNTITLED_PAGE}
+            spellCheck
+            onFocus={() => {
+              focused.current = true;
+              onDraftStateChangeRef.current?.(latestDraft.current, true);
+            }}
+            // `input` is the browser event produced by typing, paste and
+            // Playwright's fill primitive. Reading it directly avoids WebKit's
+            // synthetic change-value tracking window while a newly-created page
+            // finishes replacing its loading surface.
+            onInput={(event) => {
+              const next = event.currentTarget.value;
+              latestDraft.current = next;
+              setDraft(next);
+              onDraftStateChangeRef.current?.(next, true);
+              scheduleCommit(next);
+            }}
+            onBlur={(event) => {
+              focused.current = false;
+              void commit(event.currentTarget.value).catch(() => undefined);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                event.currentTarget.blur();
+                onMoveToContent?.();
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                const restored = title || UNTITLED_PAGE;
+                latestDraft.current = restored;
+                event.currentTarget.value = restored;
+                setDraft(restored);
+                onDraftStateChangeRef.current?.(restored, false);
+                event.currentTarget.blur();
+              }
+            }}
+          />
+          <div className="workspace-page-title__meta">
+            <span className="workspace-page-title__kind" data-testid="active-item-kind">
+              <AppIcon name={itemKindIconName(kind)} size="small" />
+              {KIND_CAPTION[kind]}
+            </span>
+            {kindActions === undefined ? null : (
+              <div className="workspace-page-title__kind-actions">{kindActions}</div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

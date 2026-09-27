@@ -194,6 +194,37 @@ describe("operational page transactions", () => {
     ]);
   });
 
+  it("accepts Shift+Enter newlines inside table cell text", async () => {
+    const pageId = generateUuidV7();
+    const cellId = generateUuidV7();
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: generateUuidV7(),
+            columns: [{ id: generateUuidV7(), width: null }],
+            rows: [
+              {
+                id: generateUuidV7(),
+                cells: [{ id: cellId, content: [{ text: "ligne" }] }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(() =>
+      page.transact([{ type: "replace-text", blockId: cellId, from: 5, to: 5, text: "\nsuite" }]),
+    ).not.toThrow();
+    const table = (await page.project()).document.blocks[0];
+    expect(table?.type === "table" ? table.rows[0]?.cells[0]?.content : []).toEqual([
+      { text: "ligne\nsuite" },
+    ]);
+  });
+
   it("inserts and deletes stable table rows and columns as structural operations", async () => {
     const pageId = generateUuidV7();
     const tableId = generateUuidV7();
@@ -280,5 +311,120 @@ describe("operational page transactions", () => {
         },
       ],
     });
+  });
+
+  it("moves table rows and columns while every cell keeps its identity and content", () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const columns = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const;
+    const rows = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const;
+    const cellId = (row: number, column: number): Uuid =>
+      `0190${row}${column}00-0000-7000-8000-000000000000` as Uuid;
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: columns.map((id, index) => ({ id, width: index === 1 ? 200 : null })),
+            rows: rows.map((id, rowIndex) => ({
+              id,
+              cells: columns.map((_, columnIndex) => ({
+                id: cellId(rowIndex, columnIndex),
+                content: [{ text: `${"ABC"[columnIndex]}${rowIndex + 1}` }],
+              })),
+            })),
+          },
+        ],
+      },
+    });
+
+    const moved = page.transact([
+      { type: "move-table-row", tableId, rowId: rows[2], beforeRowId: rows[0] },
+      { type: "move-table-column", tableId, columnId: columns[0], beforeColumnId: null },
+    ]);
+    expect(moved.semanticChanges).toMatchObject([
+      {
+        type: "table-row-moved",
+        blockId: tableId,
+        placementBefore: { beforeRowId: null },
+        placementAfter: { beforeRowId: rows[0] },
+      },
+      {
+        type: "table-column-moved",
+        blockId: tableId,
+        column: { id: columns[0], width: null },
+        placementBefore: { beforeColumnId: columns[1] },
+        placementAfter: { beforeColumnId: null },
+      },
+    ]);
+
+    const table = page.snapshot().blocks[0];
+    if (table?.type !== "table") throw new Error("table fixture disappeared");
+    expect(table.columns).toEqual([
+      { id: columns[1], width: 200 },
+      { id: columns[2], width: null },
+      { id: columns[0], width: null },
+    ]);
+    expect(table.rows.map(({ id }) => id)).toEqual([rows[2], rows[0], rows[1]]);
+    expect(table.rows.map((row) => row.cells.map((cell) => cell.content[0]?.text))).toEqual([
+      ["B3", "C3", "A3"],
+      ["B1", "C1", "A1"],
+      ["B2", "C2", "A2"],
+    ]);
+    expect(table.rows[0]?.cells.map(({ id }) => id)).toEqual([
+      cellId(2, 1),
+      cellId(2, 2),
+      cellId(2, 0),
+    ]);
+
+    expect(() =>
+      page.transact([{ type: "move-table-row", tableId, rowId: rows[0], beforeRowId: rows[0] }]),
+    ).toThrow(PageCommandError);
+    expect(() =>
+      page.transact([
+        { type: "move-table-column", tableId, columnId: generateUuidV7(), beforeColumnId: null },
+      ]),
+    ).toThrow(PageCommandError);
+  });
+
+  it("sets a table column width", async () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const columnId = generateUuidV7();
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: [{ id: columnId, width: null }],
+            rows: [
+              {
+                id: generateUuidV7(),
+                cells: [{ id: generateUuidV7(), content: [{ text: "A" }] }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = page.transact([
+      { type: "set-table-column-width", tableId, columnId, width: 240 },
+    ]);
+    expect(result.semanticChanges).toMatchObject([
+      {
+        type: "table-column-width-set",
+        blockId: tableId,
+        columnId,
+        beforeWidth: null,
+        afterWidth: 240,
+      },
+    ]);
+    const table = (await page.project()).document.blocks[0];
+    expect(table?.type === "table" ? table.columns : []).toEqual([{ id: columnId, width: 240 }]);
   });
 });

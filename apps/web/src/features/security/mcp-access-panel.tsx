@@ -309,14 +309,24 @@ export function McpAccessPanel({ api, onReauthenticated }: McpAccessPanelProps) 
       aria-labelledby="mcp-heading"
       data-testid="mcp-panel"
     >
-      <div className="mcp-heading">
+      <div className="mcp-heading security-settings__panel-head">
         <div>
           <h2 id="mcp-heading">Accès des assistants</h2>
-          <p>Reliez un assistant compatible MCP à un périmètre que vous choisissez.</p>
+          <p className="security-settings__lead">
+            Reliez un assistant compatible MCP à un périmètre que vous choisissez.
+          </p>
         </div>
-        <Button size="compact" busy={loading} disabled={busy} onClick={() => void refresh()}>
-          Actualiser les accès
-        </Button>
+        <div className="security-settings__panel-actions">
+          <Button
+            size="compact"
+            variant="secondary"
+            busy={loading}
+            disabled={busy}
+            onClick={() => void refresh()}
+          >
+            Actualiser les accès
+          </Button>
+        </div>
       </div>
       {notice && (
         <AsyncState compact kind={notice.kind} title={notice.message} testId="mcp-message" />
@@ -506,12 +516,13 @@ export function McpAccessPanel({ api, onReauthenticated }: McpAccessPanelProps) 
         </p>
         <Button
           type="submit"
-          variant="primary"
+          size="compact"
+          variant="secondary"
           busy={busy}
           disabled={loading || loadError}
           data-testid="mcp-authorize"
         >
-          Générer le code d’accès
+          Générer le code
         </Button>
       </form>
       {grant && (
@@ -530,8 +541,10 @@ export function McpAccessPanel({ api, onReauthenticated }: McpAccessPanelProps) 
             onFocus={(event) => event.target.select()}
           />
           <div className="mcp-actions">
-            <Button onClick={() => void copyCode()}>Copier le code</Button>
-            <Button variant="ghost" onClick={hideCode}>
+            <Button size="compact" variant="secondary" onClick={() => void copyCode()}>
+              Copier le code
+            </Button>
+            <Button size="compact" variant="ghost" onClick={hideCode}>
               Masquer le code
             </Button>
           </div>
