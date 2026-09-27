@@ -10,6 +10,7 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "./fixtures.ts";
 import {
+  closeMobileNavigation,
   convertItem,
   createRootItem,
   ensureNavigationRowVisible,
@@ -444,6 +445,16 @@ test.describe("structured database view accessibility (feature 009)", () => {
     );
     await waitForSynchronized(page);
     await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+    await expect(panel).toBeHidden();
+    // The entry projection can still refresh after its durable write is
+    // acknowledged. Reloading proves the values survived and lets the view
+    // toolbar mount against that settled source before the pointer journey.
+    await page.reload();
+    await closeMobileNavigation(page);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+    await expect(entryTrigger).toBeVisible();
+    await expect(page.locator(".database-grid").getByText("To do", { exact: true })).toBeVisible();
+    await waitForSynchronized(page);
 
     const createView = async (buttonName: string, tabName: RegExp): Promise<void> => {
       await page.getByRole("button", { name: buttonName }).click();
