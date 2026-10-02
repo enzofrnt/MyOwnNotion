@@ -13,16 +13,13 @@ export function DiagnosticsPanel({
   return (
     <section
       className="settings-local-data"
-      aria-labelledby="local-data-heading"
+      aria-label="Données locales"
       data-testid="diagnostics-panel"
     >
-      <div>
-        <h2 id="local-data-heading">Cet appareil</h2>
-        <p className="muted">
-          Ces informations détaillent le stockage local et les changements qui attendent le serveur.
-          Elles restent séparées de vos notes.
-        </p>
-      </div>
+      <p className="muted">
+        Ces informations détaillent le stockage local et les changements qui attendent le serveur.
+        Elles restent séparées de vos notes.
+      </p>
       {problem === null ? null : (
         <section className="panel" aria-labelledby="operational-problem-heading">
           <h2 id="operational-problem-heading">Dernier incident</h2>

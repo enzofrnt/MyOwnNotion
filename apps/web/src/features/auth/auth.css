@@ -28,9 +28,9 @@
 }
 
 .login-page {
-  max-width: 42rem;
+  max-width: 28rem;
   margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: clamp(var(--ui-space-8), 10vh, 6rem) var(--ui-space-4) var(--ui-space-12);
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -55,22 +55,41 @@
 .login-page form {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--ui-space-4);
   align-items: flex-start;
 }
 
-.login-page input[type="password"] {
+.login-page .ui-field {
   width: 100%;
-  max-width: 24rem;
-  min-height: 2.75rem;
-  padding: 0 0.75rem;
 }
 
 /* Every control stays reachable by thumb: these screens are used under
    stress, often on a phone. */
-.login-page button {
-  min-height: 2.75rem;
-  padding: 0 1rem;
+.ui-auth-surface > h1 {
+  margin: 0;
+  font-size: var(--ui-text-2xl);
+  font-weight: 650;
+  line-height: var(--ui-leading-tight);
+}
+
+.ui-auth-surface .ui-auth-card {
+  padding: var(--ui-space-5) 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.ui-auth-surface .ui-auth-card > h2 {
+  margin: 0;
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+}
+
+.ui-auth-surface .ui-auth-card > p {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+  line-height: var(--ui-leading-normal);
 }
 
 .login-page button.link,
@@ -85,14 +104,9 @@
 .desktop-connection-page {
   display: grid;
   gap: var(--ui-space-4);
-  max-width: 32rem;
-  margin: var(--ui-space-8) auto;
-}
-
-.desktop-connection-page h1 {
-  font-size: var(--ui-text-xl);
-  font-weight: 650;
-  line-height: var(--ui-leading-tight);
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: clamp(var(--ui-space-8), 10vh, 6rem) var(--ui-space-4) var(--ui-space-12);
 }
 
 .desktop-connection-page > p {

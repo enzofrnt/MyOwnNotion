@@ -123,6 +123,7 @@
   width: 100%;
   grid-template-columns: 1.5rem minmax(0, 1fr);
   gap: 0.25rem;
+  white-space: normal;
 }
 
 .search-result__icon {
@@ -145,11 +146,24 @@
 }
 
 .search-result__heading {
+  min-width: 0;
+  align-items: flex-start;
   justify-content: space-between;
 }
 
 .search-result__title {
+  flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.search-result__kind {
+  flex: none;
+}
+
+.search-result__path,
+.search-result__snippet,
+.search-result__property {
   overflow-wrap: anywhere;
 }
 

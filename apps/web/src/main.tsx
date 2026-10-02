@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./global.css";
 import { ThemeProvider } from "./ui/theme-provider.tsx";
 import { UiLab } from "./ui/ui-lab.tsx";
+import { UiLabAuthPreview } from "./ui/ui-lab-auth.tsx";
 
 declare const __MYOWNNOTION_E2E__: boolean;
 
@@ -22,7 +23,15 @@ function render(content: ReactNode): void {
 }
 
 if (window.location.pathname === "/__ui-lab") {
-  render(<UiLab />);
+  const query = new URLSearchParams(window.location.search);
+  const surface = query.get("surface");
+  render(
+    surface === "login" || surface === "setup" || surface === "connection" ? (
+      <UiLabAuthPreview surface={surface} />
+    ) : (
+      <UiLab compositionView={query.get("view") === "board" ? "board" : "table"} />
+    ),
+  );
 } else {
   // The deterministic UI lab must stay independent from API and CRDT startup.
   // The normal workspace remains a separate chunk and is loaded only here.

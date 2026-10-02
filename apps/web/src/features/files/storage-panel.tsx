@@ -55,7 +55,7 @@ export function StoragePanel({ service }: { readonly service: LocalContentServic
   const limit = measurement.limitBytes;
   return (
     <section
-      className="ui-settings-panel"
+      className="ui-settings-panel storage-panel"
       aria-label={FR_COPY.files.storage.label}
       data-testid="storage-panel"
     >
@@ -83,9 +83,9 @@ export function StoragePanel({ service }: { readonly service: LocalContentServic
       ) : null}
 
       <h3>{FR_COPY.files.storage.breakdown}</h3>
-      <ul className="tree" data-testid="storage-breakdown">
+      <ul className="storage-panel__breakdown" data-testid="storage-breakdown">
         {measurement.breakdown.map((entry) => (
-          <li key={entry.label} className="tree-row">
+          <li key={entry.label}>
             <span className="tree-name">{entry.label}</span>
             <span className="muted">{entry.bytes > 0 ? formatByteLength(entry.bytes) : "—"}</span>
           </li>
@@ -98,7 +98,7 @@ export function StoragePanel({ service }: { readonly service: LocalContentServic
         </label>
         <select
           id="storage-limit"
-          className="ui-select"
+          className="ui-native-select"
           data-testid="storage-limit"
           value={limit === null ? "unlimited" : String(limit)}
           disabled={busy}

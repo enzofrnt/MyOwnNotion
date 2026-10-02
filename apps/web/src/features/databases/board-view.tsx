@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { AppIcon } from "../../ui/icons.tsx";
 import { AsyncState, Button } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
@@ -204,55 +205,62 @@ function BoardCards({
               <StableActionButton
                 type="button"
                 className="link database-card__title"
+                variant="ghost"
                 data-entry-trigger={row.entryId}
                 onActivate={(trigger) => onOpenEntry(row.entryId as Uuid, trigger)}
               >
                 {row.title}
               </StableActionButton>
-              <label>
-                <span className="visually-hidden">
-                  {DATABASE_COPY.board.moveToAnother(row.title)}
-                </span>
-                <select
-                  aria-label={DATABASE_COPY.board.moveToAnother(row.title)}
-                  value={column.id}
-                  disabled={onUpdateEntry === undefined}
-                  onChange={(event) =>
-                    void onMove(row.entryId as Uuid, event.target.value as Uuid | "missing")
-                  }
-                >
-                  {columns.map((target) => (
-                    <option key={target.id} value={target.id}>
-                      {target.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="database-card__move-actions">
-                <Button
-                  type="button"
-                  size="compact"
-                  variant="ghost"
-                  aria-label={DATABASE_COPY.board.movePrevious(row.title)}
-                  disabled={columns[0]?.id === column.id || onUpdateEntry === undefined}
-                  onClick={() => moveAdjacent(row, -1)}
-                  onKeyDown={suppressNativeButtonActivation}
-                  onKeyUp={(event) => moveAdjacentFromKeyboard(event, row, -1)}
-                >
-                  {DATABASE_COPY.board.previous}
-                </Button>
-                <Button
-                  type="button"
-                  size="compact"
-                  variant="ghost"
-                  aria-label={DATABASE_COPY.board.moveNext(row.title)}
-                  disabled={columns.at(-1)?.id === column.id || onUpdateEntry === undefined}
-                  onClick={() => moveAdjacent(row, 1)}
-                  onKeyDown={suppressNativeButtonActivation}
-                  onKeyUp={(event) => moveAdjacentFromKeyboard(event, row, 1)}
-                >
-                  {DATABASE_COPY.board.next}
-                </Button>
+              <div className="database-card__controls">
+                <label>
+                  <span className="visually-hidden">
+                    {DATABASE_COPY.board.moveToAnother(row.title)}
+                  </span>
+                  <select
+                    className="ui-native-select"
+                    data-size="compact"
+                    aria-label={DATABASE_COPY.board.moveToAnother(row.title)}
+                    value={column.id}
+                    disabled={onUpdateEntry === undefined}
+                    onChange={(event) =>
+                      void onMove(row.entryId as Uuid, event.target.value as Uuid | "missing")
+                    }
+                  >
+                    {columns.map((target) => (
+                      <option key={target.id} value={target.id}>
+                        {target.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="database-card__move-actions">
+                  <Button
+                    type="button"
+                    size="compact"
+                    variant="ghost"
+                    aria-label={DATABASE_COPY.board.movePrevious(row.title)}
+                    title={DATABASE_COPY.board.previous}
+                    disabled={columns[0]?.id === column.id || onUpdateEntry === undefined}
+                    onClick={() => moveAdjacent(row, -1)}
+                    onKeyDown={suppressNativeButtonActivation}
+                    onKeyUp={(event) => moveAdjacentFromKeyboard(event, row, -1)}
+                  >
+                    <AppIcon name="arrowLeft" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="compact"
+                    variant="ghost"
+                    aria-label={DATABASE_COPY.board.moveNext(row.title)}
+                    title={DATABASE_COPY.board.next}
+                    disabled={columns.at(-1)?.id === column.id || onUpdateEntry === undefined}
+                    onClick={() => moveAdjacent(row, 1)}
+                    onKeyDown={suppressNativeButtonActivation}
+                    onKeyUp={(event) => moveAdjacentFromKeyboard(event, row, 1)}
+                  >
+                    <AppIcon name="arrowRight" />
+                  </Button>
+                </div>
               </div>
               {row.syncState === "synced" ? null : (
                 <span className={`database-sync database-sync--${row.syncState}`}>
@@ -342,6 +350,8 @@ export function BoardView({
       <label className="database-view-setting">
         {DATABASE_COPY.board.groupingProperty}
         <select
+          className="ui-native-select"
+          data-size="compact"
           value={axis.id}
           onChange={(event) => {
             const next = axes.find(({ id }) => id === event.target.value);

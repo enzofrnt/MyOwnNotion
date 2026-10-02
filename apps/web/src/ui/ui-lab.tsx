@@ -21,6 +21,7 @@ import {
   DrawerRoot,
   DrawerTrigger,
   Field,
+  LinkButton,
   LiveRegion,
   MenuContent,
   MenuItem,
@@ -44,6 +45,7 @@ export type UiLabOverlay = "none" | "menu" | "popover" | "dialog" | "drawer";
 export interface UiLabProps {
   readonly now?: Date;
   readonly overlay?: UiLabOverlay;
+  readonly compositionView?: "table" | "board";
 }
 
 const CONTENT_COLORS = [
@@ -83,7 +85,11 @@ const STATUS_KINDS: readonly StatusKind[] = [
   "info",
 ];
 
-export function UiLab({ now = new Date("2026-08-20T12:34:00.000Z"), overlay }: UiLabProps) {
+export function UiLab({
+  now = new Date("2026-08-20T12:34:00.000Z"),
+  overlay,
+  compositionView = "table",
+}: UiLabProps) {
   const [selectedColor, setSelectedColor] = useState<(typeof CONTENT_COLORS)[number]>("blue");
   return (
     <main className="ui-lab" data-testid="ui-lab">
@@ -94,6 +100,18 @@ export function UiLab({ now = new Date("2026-08-20T12:34:00.000Z"), overlay }: U
           Une surface stable pour contrôler les thèmes, les états et les interactions partagées.
         </p>
       </header>
+
+      <section className="ui-lab__section" aria-labelledby="ui-lab-auth">
+        <h2 id="ui-lab-auth">Connexion et installation</h2>
+        <p className="ui-lab__hint">
+          Les écrans réels sur des exemples locaux, sans données utilisateur.
+        </p>
+        <div className="ui-lab__row">
+          <LinkButton href="/__ui-lab?surface=login">Connexion</LinkButton>
+          <LinkButton href="/__ui-lab?surface=setup">Première installation</LinkButton>
+          <LinkButton href="/__ui-lab?surface=connection">Adresse du serveur</LinkButton>
+        </div>
+      </section>
 
       <section className="ui-lab__section" aria-labelledby="ui-lab-colors">
         <h2 id="ui-lab-colors">Couleurs de contenu</h2>
@@ -256,7 +274,7 @@ export function UiLab({ now = new Date("2026-08-20T12:34:00.000Z"), overlay }: U
         </div>
       </section>
 
-      <UiLabCompositions />
+      <UiLabCompositions initialView={compositionView} />
       <LiveRegion>Laboratoire prêt</LiveRegion>
     </main>
   );

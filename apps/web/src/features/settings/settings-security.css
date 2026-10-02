@@ -275,14 +275,9 @@
   min-width: 0;
 }
 
-.settings-content[data-section="security"] .security-settings__inline-form .ui-button {
-  min-height: var(--ui-target-compact, 2rem);
-}
-
 .settings-content[data-section="security"] .security-settings input[type="password"] {
   width: 100%;
   max-width: none;
-  min-height: var(--ui-target-compact, 2rem);
 }
 
 .settings-content[data-section="security"]
@@ -460,78 +455,24 @@
   color: var(--ui-color-success);
 }
 
-/* One quiet action chrome for the whole security document. */
-
+/* Composition owns density, never the shared variant paint. */
 .settings-content[data-section="security"] .ui-button,
 .security-settings .ui-button {
-  max-width: none;
-  min-height: 1.75rem;
-  padding: 0.2rem 0.6rem;
-  color: var(--ui-color-text);
-  background: var(--ui-color-surface);
-  border: 1px solid color-mix(in srgb, var(--ui-color-border) 85%, transparent);
-  border-radius: var(--ui-radius-md);
-  font-size: var(--ui-text-xs);
-  font-weight: 500;
-  line-height: 1.2;
-  white-space: nowrap;
+  max-width: 100%;
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1) var(--ui-space-3);
+  white-space: normal;
 }
 
 .settings-content[data-section="security"] .ui-button__label,
 .security-settings .ui-button__label {
-  overflow-wrap: normal;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
-.settings-content[data-section="security"] .ui-button:hover:not(:disabled),
-.security-settings .ui-button:hover:not(:disabled) {
-  background: var(--ui-color-surface-hover);
-  border-color: var(--ui-color-border);
-}
-
-.settings-content[data-section="security"] .ui-button[data-variant="ghost"],
-.security-settings .ui-button[data-variant="ghost"] {
-  color: var(--ui-color-text-muted);
-  background: transparent;
-  border-color: transparent;
-}
-
-.settings-content[data-section="security"] .ui-button[data-variant="ghost"]:hover:not(:disabled),
-.security-settings .ui-button[data-variant="ghost"]:hover:not(:disabled) {
-  color: var(--ui-color-text);
-  background: color-mix(in srgb, var(--ui-color-text) 6%, transparent);
-  border-color: transparent;
-}
-
-.settings-content[data-section="security"] .ui-button[data-variant="primary"],
-.settings-content[data-section="security"] .ui-button[data-variant="secondary"],
-.security-settings .ui-button[data-variant="primary"],
-.security-settings .ui-button[data-variant="secondary"] {
-  color: var(--ui-color-text);
-  background: var(--ui-color-surface);
-  border-color: color-mix(in srgb, var(--ui-color-border) 85%, transparent);
-}
-
-.settings-content[data-section="security"] .ui-button[data-variant="primary"]:hover:not(:disabled),
-.settings-content[data-section="security"]
-  .ui-button[data-variant="secondary"]:hover:not(:disabled),
-.security-settings .ui-button[data-variant="primary"]:hover:not(:disabled),
-.security-settings .ui-button[data-variant="secondary"]:hover:not(:disabled) {
-  color: var(--ui-color-text);
-  background: var(--ui-color-surface-hover);
-  border-color: var(--ui-color-border);
-}
-
-.settings-content[data-section="security"] .ui-button[data-variant="danger"],
-.security-settings .ui-button[data-variant="danger"] {
-  color: var(--ui-color-danger);
-  background: transparent;
-  border-color: transparent;
-}
-
-.settings-content[data-section="security"] .ui-button[data-variant="danger"]:hover:not(:disabled),
-.security-settings .ui-button[data-variant="danger"]:hover:not(:disabled) {
-  color: var(--ui-color-danger);
-  background: color-mix(in srgb, var(--ui-color-danger) 10%, transparent);
-  border-color: transparent;
+@media (pointer: coarse) {
+  .settings-content[data-section="security"] .ui-button,
+  .security-settings .ui-button {
+    min-height: var(--ui-target);
+  }
 }

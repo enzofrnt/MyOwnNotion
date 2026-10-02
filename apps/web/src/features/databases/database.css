@@ -2545,8 +2545,12 @@
 }
 
 .database-card__title {
-  justify-self: start;
+  justify-self: stretch;
+  justify-content: flex-start;
+  min-height: var(--ui-target-compact);
   max-width: 100%;
+  padding: 0;
+  border: 0;
   white-space: normal;
   text-align: left;
   font-weight: 650;
@@ -2722,7 +2726,40 @@
 
 .database-card__move-actions {
   display: flex;
+  flex: none;
   gap: 0.25rem;
+}
+
+.database-card__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  min-width: 0;
+}
+
+.database-card__controls > label {
+  flex: 1;
+  min-width: 0;
+}
+
+.database-card__controls select {
+  width: 100%;
+  min-width: 0;
+}
+
+.database-card__move-actions .ui-button {
+  flex: none;
+  width: var(--ui-target-compact);
+}
+
+@media (pointer: coarse) {
+  .database-card__title {
+    min-height: var(--ui-target);
+  }
+
+  .database-card__move-actions .ui-button {
+    width: var(--ui-target);
+  }
 }
 
 .database-calendar__move-actions {

@@ -11,3 +11,30 @@
   border-radius: 4px;
   background: var(--ui-color-surface);
 }
+
+.storage-panel__breakdown {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.storage-panel__breakdown > li {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) 0;
+  border-bottom: 1px solid var(--ui-color-border);
+  font-size: var(--ui-text-sm);
+}
+
+.storage-panel__breakdown > li > :first-child {
+  overflow-wrap: anywhere;
+}
+
+.storage-panel__breakdown > li > :last-child {
+  font-variant-numeric: tabular-nums;
+}

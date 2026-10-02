@@ -66,6 +66,8 @@ export function SearchFilters({
       <label className="search-filters__branch">
         {FR_COPY.search.branch}
         <select
+          className="ui-native-select"
+          data-size="compact"
           value={branchRootItemId ?? ""}
           onChange={(event) =>
             onBranchChange(event.target.value === "" ? null : (event.target.value as Uuid))

@@ -21,6 +21,20 @@
   color: var(--ui-color-text-muted);
 }
 
+.ui-lab__preview-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-4);
+  border-bottom: 1px solid var(--ui-color-border);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+
+.ui-lab__preview-navigation a {
+  color: var(--ui-color-text);
+}
+
 .ui-lab__eyebrow {
   color: var(--ui-color-accent);
   font-size: var(--ui-text-xs);

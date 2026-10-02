@@ -21,6 +21,12 @@ des exemples en mémoire ; elles ne passent pas par l’API ni le stockage du pr
 La prop `overlay` explicite fige une surface pour les captures ; sans cette prop,
 les déclencheurs sont interactifs. Les actions de l’inventaire « Actions » montrent
 les variantes ; les compositions et overlays permettent d’essayer les interactions.
+`/__ui-lab?view=board` démarre la composition en Kanban, avec les mêmes lignes
+en mémoire ; le changement de format reste disponible dans ses onglets.
+Les liens « Connexion et installation » ouvrent les vrais écrans de connexion,
+première installation et adresse du serveur. Leurs actions s’arrêtent dans
+l’exemple local avant une requête ou une cérémonie passkey. L’aperçu d’adresse
+du serveur est réservé au navigateur, afin de préserver le profil desktop.
 Sous les couleurs de contenu, le sélecteur de démonstration utilise les mêmes
 tokens : fond `-soft`, contour et point central en couleur de contenu, nom et
 choix explicites. Il ne définit pas une nouvelle palette ni une API globale.
@@ -94,7 +100,7 @@ Importer depuis `ui/primitives/index.ts` ; lire les types du composant avant usa
 | Icône seule | `Button size="square"` avec `aria-label` et aide `title` ; `AppIcon` est décoratif par défaut |
 | Saisie simple | `Field` (`input`), `label`, `description`, `error`, taille compacte, props natives ; `inputClassName` pour une adaptation locale |
 | Booléen | `Switch`, `checked`, `onCheckedChange`, nom accessible ; le composant rend un bouton |
-| Sélection / texte multiligne | Éléments natifs `.ui-native-select` / `.ui-native-textarea`, label associé, `aria-describedby`, `aria-invalid`, `disabled`, `data-size="compact"` si nécessaire |
+| Sélection / texte multiligne | Éléments natifs `.ui-native-select` / `.ui-native-textarea`, label associé, `aria-describedby`, `aria-invalid`, `disabled`, `data-size="compact"` si nécessaire ; `.ui-select` est un alias historique du même select |
 | Menu | `MenuRoot`, `MenuTrigger`, `MenuContent`, `MenuItem`, `MenuLabel`, `MenuSeparator` ; `bare` seulement pour un déclencheur déjà composé |
 | Popover | `PopoverRoot`, `PopoverTrigger`, `PopoverContent`, heading/description/dismiss |
 | Modal / tiroir | `DialogRoot` / `DrawerRoot`, trigger/content/heading/description/dismiss ; `ConfirmDialog` pour une confirmation destructive |
@@ -184,12 +190,28 @@ restent en place ; les nouveaux espacements communs utilisent l’échelle.
   fines et actions contextuelles. Une vue intégrée garde la largeur du texte.
   La table et le kanban possèdent leurs scrollports ; ne pas donner
   `overflow: visible` au scrollport du kanban en voulant libérer le tableau.
+  Sur une carte Kanban, le titre est une action ghost alignée au texte. Le select
+  compact et les flèches de déplacement partagent une ligne ; les flèches gardent
+  un nom accessible décrivant la destination et une aide au survol. Les cibles
+  de 32 px passent à 44 px avec un pointeur tactile.
 - **Navigation** : outils `workspace-navigation__search/__graph`, rangées d’arbre
   et `navigation.css`. Icône + libellé à gauche, fond discret ; icônes de ligne
   révélées puis chrome seulement au survol du contrôle (L-001…008/L-013).
 - **Réglages** : `settings-content` et document Sécurité dans
   `settings-security.css`. Rangée `__row-main` avec libellé/aide puis
   `__row-actions`. Un document de sections, sans transformer chaque ligne en carte.
+  Les `.panel` historiques et `.ui-settings-panel` sont aplaties uniquement
+  dans `.settings-content` : ne pas recopier cet override ailleurs. Les contrôles
+  gardent la peinture de leur variante ; les adaptations Sécurité règlent la
+  géométrie et le retour à la ligne des libellés. Les détails de page séparent
+  identité/relations et historique par un `gap` de section.
+- **Connexion** : `auth.css`, `.ui-auth-surface` et `.ui-auth-card` ; largeur
+  de formulaire 28 rem, gouttières de 16 px et sections transparentes. Le bootstrap
+  conserve une largeur supérieure pour ses instructions. Employer `Field` et
+  les variantes de boutons sans override général de leur peinture.
+- **Recherche** : `search.css`, titre flexible avec `min-width: 0`, type non
+  compressible et chemins qui reviennent à la ligne. Les libellés longs restent
+  lisibles à 320 px sans repousser le type ni élargir le document.
 - **Éditeur tiers** : `editor.css`, `editor-table.css` et
   [guide des tableaux](affine-table-ui.md). Hover/drag hors du DOM ProseMirror ;
   géométries/`!important` des node views sont des exceptions expliquées (L-012…017).
@@ -218,3 +240,4 @@ une nouvelle entrée uniquement après validation explicite du propriétaire.
 Les gates de [développement](../development.md) restent requis avant push.
 
 Historique de cette standardisation : [031 et ses preuves](../../specs/031-css-system/verification.md).
+Revue des surfaces en contexte et limites : [032](../../specs/032-ui-uniformity/verification.md).

@@ -72,8 +72,8 @@
 }
 .mcp-panel input[type="checkbox"]:focus-visible,
 .mcp-audit summary:focus-visible {
-  outline: 2px solid var(--ui-color-focus);
-  outline-offset: 3px;
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: 1px;
 }
 .mcp-branches {
   max-height: 15rem;

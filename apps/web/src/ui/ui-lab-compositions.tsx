@@ -93,9 +93,13 @@ const initialPage: DatabaseViewPage = {
   staleCursorRecovered: false,
 };
 
-export function UiLabCompositions() {
+export function UiLabCompositions({
+  initialView = "table",
+}: {
+  readonly initialView?: "table" | "board";
+}) {
   const [title, setTitle] = useState("Projets de recherche");
-  const [view, setView] = useState<"table" | "board">("table");
+  const [view, setView] = useState<"table" | "board">(initialView);
   const [tableView, setTableView] = useState(table);
   const [boardView, setBoardView] = useState(board);
   const [page, setPage] = useState(initialPage);
