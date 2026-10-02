@@ -6,7 +6,7 @@
   height: 1.25rem;
   flex: 0 0 1.25rem;
   place-items: center;
-  color: var(--color-text-muted);
+  color: var(--ui-color-text-muted);
   line-height: 1;
 }
 
@@ -54,8 +54,8 @@
   width: 0.625rem;
   height: 0.625rem;
   place-items: center;
-  color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-canvas) 94%, transparent);
+  color: var(--ui-color-text-muted);
+  background: color-mix(in srgb, var(--ui-color-canvas) 94%, transparent);
   border-radius: 0.12rem;
   opacity: 1;
   pointer-events: none;
@@ -76,9 +76,9 @@
   width: 0.75rem;
   height: 0.75rem;
   place-items: center;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border-radius: var(--radius-pill);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border-radius: var(--ui-radius-round);
 }
 
 .item-icon[data-item-reference] .item-icon__reference-badge {
@@ -93,14 +93,14 @@
 
 .emoji-picker-popover,
 .emoji-picker-dialog {
-  width: min(22rem, calc(100vw - 2 * var(--space-3)));
-  padding: var(--space-2);
+  width: min(22rem, calc(100vw - 2 * var(--ui-space-3)));
+  padding: var(--ui-space-2);
 }
 
 .emoji-picker-panel {
   display: grid;
   min-width: 0;
-  gap: var(--space-2);
+  gap: var(--ui-space-2);
 }
 
 .emoji-picker-panel__mart,
@@ -126,7 +126,7 @@
 
 .item-emoji-picker[data-picker-variant="page"][data-empty] {
   position: absolute;
-  bottom: calc(100% + var(--space-1));
+  bottom: calc(100% + var(--ui-space-1));
   left: 0;
   opacity: 0;
   pointer-events: none;
@@ -160,9 +160,9 @@
   width: 1.5rem;
   min-width: 1.5rem;
   min-height: 1.5rem;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border-radius: var(--radius-pill);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border-radius: var(--ui-radius-round);
   opacity: 0;
   pointer-events: none;
 }
@@ -182,17 +182,17 @@
 .item-emoji-picker__empty {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  gap: var(--ui-space-1);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
 }
 
 .workspace-page-title__body .item-emoji-picker__empty {
-  color: var(--color-text);
+  color: var(--ui-color-text);
 }
 
 .emoji-picker-dialog .ui-overlay__dismiss {
   position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
+  top: var(--ui-space-2);
+  right: var(--ui-space-2);
 }

@@ -43,7 +43,7 @@
   padding-inline-end: var(--editor-table-pad-end);
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  background: var(--ui-color-canvas, var(--color-canvas));
+  background: var(--ui-color-canvas);
   scrollbar-width: thin;
 }
 
@@ -498,7 +498,7 @@
   overflow: hidden;
   pointer-events: none;
   color: var(--ui-color-text);
-  background: var(--ui-color-canvas, var(--color-canvas));
+  background: var(--ui-color-canvas);
   border-radius: var(--ui-radius-md);
   box-shadow: var(--ui-shadow-menu);
   opacity: 0.92;

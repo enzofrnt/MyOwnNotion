@@ -220,7 +220,7 @@ describe("workspace shell", () => {
       "utf8",
     );
 
-    expect(workspaceCss).toMatch(/--workspace-page-icon-offset:\s*var\(--space-10\)/u);
+    expect(workspaceCss).toMatch(/--workspace-page-icon-offset:\s*var\(--ui-space-10\)/u);
     expect(workspaceCss).toMatch(/padding:\s*var\(--workspace-page-icon-offset\)/u);
     expect(workspaceCss).toMatch(/\.workspace-page-title__heading\s*\{[^}]*display:\s*flex/u);
     expect(iconCss).toMatch(
@@ -257,7 +257,7 @@ describe("workspace shell", () => {
     expect(css).toMatch(/\.folder-children__handle\s*\{[^}]*margin-inline-start:\s*-1\.25rem/u);
     expect(css).toMatch(/\.folder-children__row\s*\{[^}]*gap:\s*0/u);
     expect(css).toMatch(
-      /\.folder-children__link\s*\{[^}]*gap:\s*var\(--space-2\)[^}]*padding:\s*0 var\(--space-2\)/u,
+      /\.folder-children__link\s*\{[^}]*gap:\s*var\(--ui-space-2\)[^}]*padding:\s*0 var\(--ui-space-2\)/u,
     );
     expect(css).toMatch(/\.workspace-page-title__kind-actions\s*\{/u);
     expect(css).toMatch(

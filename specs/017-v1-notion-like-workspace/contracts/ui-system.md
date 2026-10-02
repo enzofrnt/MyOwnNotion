@@ -1,5 +1,19 @@
 # Contract: Système d'interface V1
 
+## Guide d’implémentation actuel
+
+Le [guide partagé](../../../docs/design/ui-system.md) et `/__ui-lab` décrivent
+les propriétaires CSS et composants réellement exportés. Les tokens `--ui-*`
+sont canoniques pour le nouveau CSS ; les aliases publics ci-dessous restent
+compatibles. La liste de primitives de ce contrat exprime la cible V1 ; elle
+ne doit pas être interprétée comme une liste d’exports déjà disponibles.
+La standardisation 031 conserve cette cible et documente ses preuves et limites.
+La clarification du canevas 43.6 précise les états communs : placeholders neutres
+adaptés au contenu, informations en texte principal, focus clavier discret sans
+halo et suppression en texte/contour rouges sur fond neutre. Les options de
+propriétés conservent leur propre palette. La géométrie d’attente appartient à
+la surface qui charge, avec maintien du contenu lors d’un rafraîchissement.
+
 ## 1. Objectif
 
 La V1 doit former un espace de travail cohérent, dense et calme, proche des

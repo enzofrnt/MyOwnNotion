@@ -1,0 +1,25 @@
+{
+  "cards": [
+    {
+      "title": 226.40625,
+      "whiteSpace": "normal",
+      "width": 249.203125
+    },
+    {
+      "title": 217.4609375,
+      "whiteSpace": "normal",
+      "width": 249.203125
+    }
+  ],
+  "doc": 320,
+  "scroll": [
+    {
+      "client": 254,
+      "overflow": "auto",
+      "position": "relative",
+      "scroll": 1124
+    }
+  ],
+  "theme": "dark",
+  "width": 320
+}

@@ -14,6 +14,10 @@ interface follow the skill's Speckit gates. These conventions complement the
 canonical specification and existing primitives; they do not attest that
 unchanged screens have passed a new review.
 
+Start with the [UI system guide](design/ui-system.md) for the current CSS loading
+order, owners, token contract and exported primitives. `/__ui-lab` provides real
+page/database/navigation/settings compositions with synthetic in-memory data.
+
 | Concern | Tool | Where it is pinned |
 | --- | --- | --- |
 | Runtime, package manager and bundler | Bun 1.4.2 exactly | `packageManager` and `engines.bun` in `package.json` |

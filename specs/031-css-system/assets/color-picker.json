@@ -1,0 +1,426 @@
+[
+  {
+    "choices": [
+      {
+        "bg": "rgb(48, 48, 45)",
+        "border": "rgb(185, 181, 173)",
+        "dot": "rgb(185, 181, 173)",
+        "height": 44,
+        "name": "Gris",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(73, 54, 45)",
+        "border": "rgb(210, 165, 143)",
+        "dot": "rgb(210, 165, 143)",
+        "height": 44,
+        "name": "Marron",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(75, 51, 34)",
+        "border": "rgb(255, 177, 115)",
+        "dot": "rgb(255, 177, 115)",
+        "height": 44,
+        "name": "Orange",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(67, 59, 32)",
+        "border": "rgb(231, 204, 112)",
+        "dot": "rgb(231, 204, 112)",
+        "height": 44,
+        "name": "Jaune",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(38, 62, 48)",
+        "border": "rgb(139, 214, 170)",
+        "dot": "rgb(139, 214, 170)",
+        "height": 44,
+        "name": "Vert",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(39, 58, 80)",
+        "border": "rgb(156, 197, 250)",
+        "dot": "rgb(156, 197, 250)",
+        "height": 44,
+        "name": "Bleu",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(60, 48, 75)",
+        "border": "rgb(197, 164, 234)",
+        "dot": "rgb(197, 164, 234)",
+        "height": 44,
+        "name": "Violet",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(73, 48, 64)",
+        "border": "rgb(235, 165, 202)",
+        "dot": "rgb(235, 165, 202)",
+        "height": 44,
+        "name": "Rose",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(74, 45, 42)",
+        "border": "rgb(243, 164, 158)",
+        "dot": "rgb(243, 164, 158)",
+        "height": 44,
+        "name": "Rouge",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "true",
+        "width": 44
+      }
+    ],
+    "doc": 1280,
+    "theme": "dark",
+    "width": 1280
+  },
+  {
+    "choices": [
+      {
+        "bg": "rgb(48, 48, 45)",
+        "border": "rgb(185, 181, 173)",
+        "dot": "rgb(185, 181, 173)",
+        "height": 44,
+        "name": "Gris",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(73, 54, 45)",
+        "border": "rgb(210, 165, 143)",
+        "dot": "rgb(210, 165, 143)",
+        "height": 44,
+        "name": "Marron",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(75, 51, 34)",
+        "border": "rgb(255, 177, 115)",
+        "dot": "rgb(255, 177, 115)",
+        "height": 44,
+        "name": "Orange",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(67, 59, 32)",
+        "border": "rgb(231, 204, 112)",
+        "dot": "rgb(231, 204, 112)",
+        "height": 44,
+        "name": "Jaune",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(38, 62, 48)",
+        "border": "rgb(139, 214, 170)",
+        "dot": "rgb(139, 214, 170)",
+        "height": 44,
+        "name": "Vert",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(39, 58, 80)",
+        "border": "rgb(156, 197, 250)",
+        "dot": "rgb(156, 197, 250)",
+        "height": 44,
+        "name": "Bleu",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(60, 48, 75)",
+        "border": "rgb(197, 164, 234)",
+        "dot": "rgb(197, 164, 234)",
+        "height": 44,
+        "name": "Violet",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(73, 48, 64)",
+        "border": "rgb(235, 165, 202)",
+        "dot": "rgb(235, 165, 202)",
+        "height": 44,
+        "name": "Rose",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(74, 45, 42)",
+        "border": "rgb(243, 164, 158)",
+        "dot": "rgb(243, 164, 158)",
+        "height": 44,
+        "name": "Rouge",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "true",
+        "width": 44
+      }
+    ],
+    "doc": 320,
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "choices": [
+      {
+        "bg": "rgb(235, 233, 229)",
+        "border": "rgb(95, 91, 85)",
+        "dot": "rgb(95, 91, 85)",
+        "height": 44,
+        "name": "Gris",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(238, 229, 223)",
+        "border": "rgb(121, 85, 72)",
+        "dot": "rgb(121, 85, 72)",
+        "height": 44,
+        "name": "Marron",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(255, 234, 216)",
+        "border": "rgb(165, 72, 8)",
+        "dot": "rgb(165, 72, 8)",
+        "height": 44,
+        "name": "Orange",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(255, 243, 191)",
+        "border": "rgb(118, 93, 0)",
+        "dot": "rgb(118, 93, 0)",
+        "height": 44,
+        "name": "Jaune",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(221, 243, 229)",
+        "border": "rgb(39, 103, 73)",
+        "dot": "rgb(39, 103, 73)",
+        "height": 44,
+        "name": "Vert",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(226, 237, 251)",
+        "border": "rgb(36, 94, 168)",
+        "dot": "rgb(36, 94, 168)",
+        "height": 44,
+        "name": "Bleu",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "true",
+        "width": 44
+      },
+      {
+        "bg": "rgb(238, 229, 248)",
+        "border": "rgb(113, 72, 160)",
+        "dot": "rgb(113, 72, 160)",
+        "height": 44,
+        "name": "Violet",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(248, 227, 239)",
+        "border": "rgb(156, 63, 114)",
+        "dot": "rgb(156, 63, 114)",
+        "height": 44,
+        "name": "Rose",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(250, 229, 227)",
+        "border": "rgb(173, 48, 41)",
+        "dot": "rgb(173, 48, 41)",
+        "height": 44,
+        "name": "Rouge",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      }
+    ],
+    "doc": 320,
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "choices": [
+      {
+        "bg": "rgb(235, 233, 229)",
+        "border": "rgb(95, 91, 85)",
+        "dot": "rgb(95, 91, 85)",
+        "height": 44,
+        "name": "Gris",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(238, 229, 223)",
+        "border": "rgb(121, 85, 72)",
+        "dot": "rgb(121, 85, 72)",
+        "height": 44,
+        "name": "Marron",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(255, 234, 216)",
+        "border": "rgb(165, 72, 8)",
+        "dot": "rgb(165, 72, 8)",
+        "height": 44,
+        "name": "Orange",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(255, 243, 191)",
+        "border": "rgb(118, 93, 0)",
+        "dot": "rgb(118, 93, 0)",
+        "height": 44,
+        "name": "Jaune",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(221, 243, 229)",
+        "border": "rgb(39, 103, 73)",
+        "dot": "rgb(39, 103, 73)",
+        "height": 44,
+        "name": "Vert",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(226, 237, 251)",
+        "border": "rgb(36, 94, 168)",
+        "dot": "rgb(36, 94, 168)",
+        "height": 44,
+        "name": "Bleu",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "true",
+        "width": 44
+      },
+      {
+        "bg": "rgb(238, 229, 248)",
+        "border": "rgb(113, 72, 160)",
+        "dot": "rgb(113, 72, 160)",
+        "height": 44,
+        "name": "Violet",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(248, 227, 239)",
+        "border": "rgb(156, 63, 114)",
+        "dot": "rgb(156, 63, 114)",
+        "height": 44,
+        "name": "Rose",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      },
+      {
+        "bg": "rgb(250, 229, 227)",
+        "border": "rgb(173, 48, 41)",
+        "dot": "rgb(173, 48, 41)",
+        "height": 44,
+        "name": "Rouge",
+        "offsetX": 0,
+        "offsetY": 0,
+        "selected": "false",
+        "width": 44
+      }
+    ],
+    "doc": 1280,
+    "theme": "light",
+    "width": 1280
+  }
+]

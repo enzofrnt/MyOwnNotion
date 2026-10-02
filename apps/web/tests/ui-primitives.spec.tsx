@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AppIcon } from "../src/ui/icons.tsx";
 import {
+  AsyncState,
   Button,
   ConfirmDialog,
   DialogContent,
@@ -190,9 +191,30 @@ describe("shared UI primitive contracts", () => {
 
     // Animating both foreground and background between different contrast
     // pairs creates an unreadable midpoint even when both endpoints pass.
-    expect(normal).toContain("color: var(--ui-color-text-inverse)");
-    expect(normal).toContain("background: var(--ui-color-danger)");
-    expect(hover).toContain("color: var(--ui-color-text-inverse)");
-    expect(hover).toContain("background: var(--ui-color-danger-hover)");
+    expect(normal).toContain("color: var(--ui-color-danger)");
+    expect(normal).toContain("background: transparent");
+    expect(hover).toContain("color: var(--ui-color-danger)");
+    expect(hover).toContain("background: var(--ui-color-surface-hover)");
+  });
+
+  it("reserves a loading shape while retaining a named busy status", () => {
+    const loading = renderToStaticMarkup(
+      <AsyncState
+        kind="loading"
+        loadingLayout="table"
+        loadingRows={3}
+        description="Ouverture des projets"
+      />,
+    );
+    expect(loading).toContain('aria-busy="true"');
+    expect(loading).toContain('role="status"');
+    expect(loading).toContain("Ouverture des projets");
+    expect(loading).toContain('data-layout="table" aria-hidden="true"');
+    expect(loading.match(/class="ui-skeleton__row"/g)).toHaveLength(3);
+    const compact = renderToStaticMarkup(<AsyncState kind="loading" compact />);
+    expect(compact.match(/class="ui-skeleton__line"/g)).toHaveLength(1);
+    const empty = renderToStaticMarkup(<AsyncState kind="empty" description="Aucun projet" />);
+    expect(empty).not.toContain('class="ui-skeleton"');
+    expect(empty).not.toContain('aria-busy="true"');
   });
 });

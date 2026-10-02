@@ -1,0 +1,326 @@
+/* Compatibility for historical native controls. New surfaces use primitives or explicit ui-native-* classes.
+ * :where keeps specificity unchanged while excluding owned controls and third-party chrome. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+button:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+) {
+  background: var(--ui-color-surface);
+  color: var(--ui-color-text);
+  border: 1px solid var(--ui-color-border);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+button:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+):hover {
+  border-color: var(--ui-color-accent);
+}
+
+button:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+):focus-visible,
+input:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+):focus-visible,
+select:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+):focus-visible,
+[role="treeitem"]:focus-visible {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+input:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+)[type="text"] {
+  background: var(--ui-color-surface);
+  color: var(--ui-color-text);
+  border: 1px solid var(--ui-color-border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+select:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+) {
+  max-width: 100%;
+  background: var(--ui-color-surface);
+  color: var(--ui-color-text);
+  border: 1px solid var(--ui-color-border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  opacity: 0;
+  border: 0;
+}
+
+.ambiguity-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.panel {
+  border: 1px solid var(--ui-color-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-top: 1rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.field-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.muted {
+  color: var(--ui-color-text-muted);
+  font-size: 0.8rem;
+}
+
+/* Links, which had no style at all until feature 005 added the first one.
+   An unstyled anchor takes the browser's default dark blue, which on this dark
+   surface fails the contrast threshold outright — caught by the axe audit over
+   the file surfaces rather than by looking, because it looks merely dull rather
+   than unreadable. */
+a:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+) {
+  color: var(--ui-color-accent);
+  text-underline-offset: 0.2em;
+}
+
+a:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+):hover,
+a:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+):focus-visible {
+  color: var(--ui-color-accent-hover);
+}
+
+textarea:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+) {
+  width: 100%;
+  min-height: 6rem;
+  background: var(--ui-color-surface);
+  color: var(--ui-color-text);
+  border: 1px solid var(--ui-color-border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}
+
+/* A file input sizes itself from the native button's label, whose width comes
+   from the system font — 347px on the Linux runners against a 320px viewport,
+   and comfortably narrower on macOS. That difference is why this overflowed
+   only in CI. Constraining it costs nothing: the control is still operable,
+   and the page stops scrolling sideways (FR-021). */
+input:where(
+  :not(
+    .ui-button,
+    .ui-switch,
+    .ui-menu__item,
+    .ui-field__control,
+    .ui-native-select,
+    .ui-native-textarea,
+    [class^="bn-"],
+    [class*=" bn-"],
+    .bn-toolbar *,
+    .bn-menu *,
+    .bn-suggestion-menu *
+  )
+)[type="file"] {
+  max-width: 100%;
+}
+
+/* The row holding it wraps for the same reason: a label and a file input side
+   by side do not fit at 320px in every font. */
+.field-row {
+  flex-wrap: wrap;
+}

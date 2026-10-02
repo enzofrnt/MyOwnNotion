@@ -1,0 +1,250 @@
+{
+  "before": {
+    "files": [
+      {
+        "path": "apps/web/src/global.css",
+        "lines": 4043,
+        "rules": 568
+      },
+      {
+        "path": "apps/web/src/features/editor/editor-table.css",
+        "lines": 582,
+        "rules": 64
+      },
+      {
+        "path": "apps/web/src/features/backup/backup.css",
+        "lines": 31,
+        "rules": 5
+      },
+      {
+        "path": "apps/web/src/features/files/attachment-usages.css",
+        "lines": 7,
+        "rules": 1
+      },
+      {
+        "path": "apps/web/src/features/navigation/navigation.css",
+        "lines": 1496,
+        "rules": 173
+      },
+      {
+        "path": "apps/web/src/features/workspace/workspace.css",
+        "lines": 2873,
+        "rules": 367
+      },
+      {
+        "path": "apps/web/src/features/security/mcp-access-panel.css",
+        "lines": 179,
+        "rules": 31
+      },
+      {
+        "path": "apps/web/src/features/settings/settings.css",
+        "lines": 677,
+        "rules": 97
+      },
+      {
+        "path": "apps/web/src/features/settings/settings-security.css",
+        "lines": 127,
+        "rules": 17
+      },
+      {
+        "path": "apps/web/src/ui/item-icon.css",
+        "lines": 198,
+        "rules": 28
+      },
+      {
+        "path": "apps/web/src/ui/tokens.css",
+        "lines": 354,
+        "rules": 5
+      },
+      {
+        "path": "apps/web/src/ui/ui-lab.css",
+        "lines": 136,
+        "rules": 24
+      },
+      {
+        "path": "apps/web/src/ui/dotted-canvas-background.css",
+        "lines": 39,
+        "rules": 3
+      },
+      {
+        "path": "apps/web/src/ui/primitives/primitives.css",
+        "lines": 705,
+        "rules": 103
+      }
+    ],
+    "undefinedVariables": [
+      "--color-focus-ring",
+      "--color-surface-hover",
+      "--graph-force-fill",
+      "--outline-depth",
+      "--popover-available-height",
+      "--shadow-md",
+      "--shiki-dark",
+      "--shiki-dark-font-style",
+      "--shiki-dark-font-weight",
+      "--shiki-dark-text-decoration",
+      "--shiki-light",
+      "--shiki-light-font-style",
+      "--shiki-light-font-weight",
+      "--shiki-light-text-decoration",
+      "--text-md",
+      "--tree-join-radius-duration",
+      "--ui-color-accent-contrast",
+      "--workspace-sidebar-width"
+    ]
+  },
+  "after": {
+    "files": [
+      {
+        "path": "apps/web/src/global.css",
+        "lines": 27,
+        "rules": 0
+      },
+      {
+        "path": "apps/web/src/features/editor/editor.css",
+        "lines": 1371,
+        "rules": 178
+      },
+      {
+        "path": "apps/web/src/features/editor/editor-table.css",
+        "lines": 582,
+        "rules": 64
+      },
+      {
+        "path": "apps/web/src/features/backup/backup.css",
+        "lines": 31,
+        "rules": 5
+      },
+      {
+        "path": "apps/web/src/features/files/files.css",
+        "lines": 13,
+        "rules": 1
+      },
+      {
+        "path": "apps/web/src/features/files/attachment-usages.css",
+        "lines": 7,
+        "rules": 1
+      },
+      {
+        "path": "apps/web/src/features/save-state/save-state.css",
+        "lines": 42,
+        "rules": 6
+      },
+      {
+        "path": "apps/web/src/features/search/search.css",
+        "lines": 195,
+        "rules": 32
+      },
+      {
+        "path": "apps/web/src/features/navigation/convert.css",
+        "lines": 21,
+        "rules": 3
+      },
+      {
+        "path": "apps/web/src/features/navigation/navigation.css",
+        "lines": 1500,
+        "rules": 173
+      },
+      {
+        "path": "apps/web/src/features/navigation/tree.css",
+        "lines": 121,
+        "rules": 18
+      },
+      {
+        "path": "apps/web/src/features/workspace/workspace.css",
+        "lines": 1192,
+        "rules": 160
+      },
+      {
+        "path": "apps/web/src/features/knowledge-graph/knowledge-graph.css",
+        "lines": 617,
+        "rules": 82
+      },
+      {
+        "path": "apps/web/src/features/auth/auth.css",
+        "lines": 100,
+        "rules": 14
+      },
+      {
+        "path": "apps/web/src/features/security/mcp-access-panel.css",
+        "lines": 179,
+        "rules": 31
+      },
+      {
+        "path": "apps/web/src/features/security/security.css",
+        "lines": 140,
+        "rules": 22
+      },
+      {
+        "path": "apps/web/src/features/databases/database.css",
+        "lines": 2844,
+        "rules": 387
+      },
+      {
+        "path": "apps/web/src/features/settings/settings.css",
+        "lines": 262,
+        "rules": 40
+      },
+      {
+        "path": "apps/web/src/features/settings/settings-security.css",
+        "lines": 537,
+        "rules": 74
+      },
+      {
+        "path": "apps/web/src/features/reconciliation/reconciliation.css",
+        "lines": 66,
+        "rules": 9
+      },
+      {
+        "path": "apps/web/src/ui/item-icon.css",
+        "lines": 198,
+        "rules": 28
+      },
+      {
+        "path": "apps/web/src/ui/tokens.css",
+        "lines": 366,
+        "rules": 5
+      },
+      {
+        "path": "apps/web/src/ui/ui-lab.css",
+        "lines": 202,
+        "rules": 35
+      },
+      {
+        "path": "apps/web/src/ui/compatibility.css",
+        "lines": 326,
+        "rules": 19
+      },
+      {
+        "path": "apps/web/src/ui/dotted-canvas-background.css",
+        "lines": 27,
+        "rules": 3
+      },
+      {
+        "path": "apps/web/src/ui/base.css",
+        "lines": 37,
+        "rules": 5
+      },
+      {
+        "path": "apps/web/src/ui/primitives/primitives.css",
+        "lines": 803,
+        "rules": 119
+      }
+    ],
+    "undefinedVariables": [
+      "--graph-force-fill",
+      "--outline-depth",
+      "--popover-available-height",
+      "--shiki-dark",
+      "--shiki-dark-font-style",
+      "--shiki-dark-font-weight",
+      "--shiki-dark-text-decoration",
+      "--shiki-light",
+      "--shiki-light-font-style",
+      "--shiki-light-font-weight",
+      "--shiki-light-text-decoration",
+      "--tree-join-radius-duration",
+      "--workspace-sidebar-width"
+    ]
+  }
+}

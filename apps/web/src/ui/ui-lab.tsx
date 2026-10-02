@@ -37,6 +37,7 @@ import {
   Status,
   type StatusKind,
 } from "./primitives/index.ts";
+import { UiLabCompositions } from "./ui-lab-compositions.tsx";
 
 export type UiLabOverlay = "none" | "menu" | "popover" | "dialog" | "drawer";
 
@@ -57,6 +58,18 @@ const CONTENT_COLORS = [
   "red",
 ] as const;
 
+const CONTENT_COLOR_NAMES: Record<(typeof CONTENT_COLORS)[number], string> = {
+  gray: "Gris",
+  brown: "Marron",
+  orange: "Orange",
+  yellow: "Jaune",
+  green: "Vert",
+  blue: "Bleu",
+  purple: "Violet",
+  pink: "Rose",
+  red: "Rouge",
+};
+
 const STATUS_KINDS: readonly StatusKind[] = [
   "loading",
   "empty",
@@ -70,10 +83,8 @@ const STATUS_KINDS: readonly StatusKind[] = [
   "info",
 ];
 
-export function UiLab({
-  now = new Date("2026-08-20T12:34:00.000Z"),
-  overlay = "none",
-}: UiLabProps) {
+export function UiLab({ now = new Date("2026-08-20T12:34:00.000Z"), overlay }: UiLabProps) {
+  const [selectedColor, setSelectedColor] = useState<(typeof CONTENT_COLORS)[number]>("blue");
   return (
     <main className="ui-lab" data-testid="ui-lab">
       <header className="ui-lab__header">
@@ -94,6 +105,35 @@ export function UiLab({
             </div>
           ))}
         </div>
+        <fieldset className="ui-lab__color-picker" aria-label="Choisir une couleur de contenu">
+          <legend className="ui-lab__composition-title">Choisir une couleur</legend>
+          <div className="ui-lab__row">
+            {CONTENT_COLORS.map((color) => (
+              <Button
+                className="ui-lab__color-choice"
+                size="square"
+                key={color}
+                aria-label={CONTENT_COLOR_NAMES[color]}
+                title={CONTENT_COLOR_NAMES[color]}
+                aria-pressed={selectedColor === color}
+                onClick={() => setSelectedColor(color)}
+                style={{
+                  color: `var(--ui-content-${color})`,
+                  backgroundColor: `var(--ui-content-${color}-soft)`,
+                  borderColor: `var(--ui-content-${color})`,
+                }}
+              >
+                <span className="ui-lab__color-dot" aria-hidden="true" />
+                {selectedColor === color ? (
+                  <AppIcon name="check" className="ui-lab__color-check" />
+                ) : null}
+              </Button>
+            ))}
+          </div>
+        </fieldset>
+        <p className="ui-lab__color-selection" role="status">
+          Couleur sélectionnée : {CONTENT_COLOR_NAMES[selectedColor]}
+        </p>
       </section>
 
       <section className="ui-lab__section" aria-labelledby="ui-lab-actions">
@@ -136,7 +176,7 @@ export function UiLab({
         <div className="ui-lab__grid">
           {STATUS_KINDS.map((kind) => (
             <Status kind={kind} key={kind}>
-              État présenté avec un texte, une icône et une couleur.
+              Une information sobre, dans le thème de la page.
             </Status>
           ))}
         </div>
@@ -167,7 +207,7 @@ export function UiLab({
       <section className="ui-lab__section" aria-labelledby="ui-lab-overlays">
         <h2 id="ui-lab-overlays">Surfaces contextuelles</h2>
         <div className="ui-lab__row">
-          <MenuRoot open={overlay === "menu"}>
+          <MenuRoot {...(overlay === undefined ? {} : { open: overlay === "menu" })}>
             <MenuTrigger aria-label={FR_COPY.actions.more}>
               <AppIcon name="more" />
             </MenuTrigger>
@@ -180,7 +220,7 @@ export function UiLab({
             </MenuContent>
           </MenuRoot>
 
-          <PopoverRoot open={overlay === "popover"}>
+          <PopoverRoot {...(overlay === undefined ? {} : { open: overlay === "popover" })}>
             <PopoverTrigger>Informations</PopoverTrigger>
             <PopoverContent alwaysVisible={overlay === "popover"} portal={false}>
               <PopoverHeading>Informations de la page</PopoverHeading>
@@ -191,7 +231,7 @@ export function UiLab({
             </PopoverContent>
           </PopoverRoot>
 
-          <DialogRoot open={overlay === "dialog"}>
+          <DialogRoot {...(overlay === undefined ? {} : { open: overlay === "dialog" })}>
             <DialogTrigger>Confirmation</DialogTrigger>
             <DialogContent alwaysVisible={overlay === "dialog"} portal={false}>
               <DialogHeading>Placer « Carnet de recherche » dans la corbeille ?</DialogHeading>
@@ -203,7 +243,7 @@ export function UiLab({
             </DialogContent>
           </DialogRoot>
 
-          <DrawerRoot open={overlay === "drawer"}>
+          <DrawerRoot {...(overlay === undefined ? {} : { open: overlay === "drawer" })}>
             <DrawerTrigger>Navigation mobile</DrawerTrigger>
             <DrawerContent alwaysVisible={overlay === "drawer"} portal={false}>
               <DrawerHeading>Espace de travail</DrawerHeading>
@@ -216,7 +256,10 @@ export function UiLab({
         </div>
       </section>
 
+      <UiLabCompositions />
       <LiveRegion>Laboratoire prêt</LiveRegion>
     </main>
   );
 }
+
+import { useState } from "react";

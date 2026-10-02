@@ -2067,6 +2067,12 @@ La V1 doit fournir une interface française cohérente et préparer l'externalis
 ### 43.6 Qualité visuelle et ergonomique
 
 - Les surfaces V1 utilisent un langage commun pour la typographie, les espacements, les couleurs, les états, les menus, les boutons, les champs, les dialogues et les notifications.
+- Les chargements réservent les repères du contenu avec des placeholders
+  neutres ; les informations et états vides restent sobres en texte principal.
+  Le focus clavier est lisible et discret, sans halo coloré. Les confirmations
+  destructives utilisent texte et contour rouges sur fond neutre, et les menus
+  réservent cet accent à l’interaction. La palette des propriétés reste distincte
+  des couleurs d’accent des commandes.
 - Les actions courantes apparaissent dans leur contexte ; les informations techniques et diagnostics secondaires ne concurrencent pas le contenu principal.
 - Le workspace ne rend pas les panneaux de configuration ou d'exploitation à
   la suite du document courant. Il garde seulement les états compacts utiles à

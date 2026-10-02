@@ -1,11 +1,7 @@
 /* AFFiNE-style dotted plane — theme tokens, reusable on any canvas host. */
 
 .ui-dotted-canvas-background {
-  --ui-dotted-canvas-dot: color-mix(
-    in srgb,
-    var(--ui-color-border, var(--color-border)) 72%,
-    transparent
-  );
+  --ui-dotted-canvas-dot: color-mix(in srgb, var(--ui-color-border) 72%, transparent);
   --ui-dotted-canvas-gap: 20px;
 
   box-sizing: border-box;
@@ -13,7 +9,7 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
-  background-color: var(--ui-color-canvas, var(--color-canvas));
+  background-color: var(--ui-color-canvas);
   background-image: radial-gradient(var(--ui-dotted-canvas-dot) 1px, transparent 1px);
   background-position: 0 0;
   background-size: var(--ui-dotted-canvas-gap) var(--ui-dotted-canvas-gap);
@@ -22,18 +18,10 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .ui-dotted-canvas-background {
-    --ui-dotted-canvas-dot: color-mix(
-      in srgb,
-      var(--ui-color-border, var(--color-border)) 55%,
-      transparent
-    );
+    --ui-dotted-canvas-dot: color-mix(in srgb, var(--ui-color-border) 55%, transparent);
   }
 }
 
 html[data-theme="dark"] .ui-dotted-canvas-background {
-  --ui-dotted-canvas-dot: color-mix(
-    in srgb,
-    var(--ui-color-border, var(--color-border)) 55%,
-    transparent
-  );
+  --ui-dotted-canvas-dot: color-mix(in srgb, var(--ui-color-border) 55%, transparent);
 }

@@ -1,0 +1,195 @@
+/* Owner: features/search/search.css. See docs/design/ui-system.md before extending. */
+.search-trigger {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.search-trigger kbd {
+  color: var(--ui-color-text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.search-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  padding: min(12vh, 6rem) 1rem 1rem;
+  background: var(--ui-color-search-overlay);
+}
+
+.search-dialog {
+  width: min(42rem, 100%);
+  max-height: min(42rem, calc(100vh - 2rem));
+  overflow: auto;
+  border: 1px solid var(--ui-color-border);
+  border-radius: 10px;
+  background: var(--ui-color-canvas);
+  box-shadow: var(--ui-shadow-search);
+  padding: 1rem;
+}
+
+.search-dialog__header,
+.search-form,
+.search-result__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.search-dialog__header {
+  justify-content: space-between;
+}
+
+.search-dialog__header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.search-form {
+  margin-top: 1rem;
+}
+
+.search-form input {
+  min-width: 0;
+  flex: 1;
+}
+
+.search-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.search-filters fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0.35rem 0.6rem 0.5rem;
+  border: 1px solid var(--ui-color-border);
+  border-radius: 6px;
+}
+
+.search-filters legend,
+.search-filters__branch {
+  color: var(--ui-color-text-muted);
+  font-size: 0.8rem;
+}
+
+.search-filters__kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.search-filters__kinds label,
+.search-filters__branch {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.search-filters__branch {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.search-dialog__content {
+  margin-top: 1rem;
+}
+
+.search-results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.search-result__button {
+  width: 100%;
+  text-align: left;
+}
+
+.search-result__button > .ui-button__label {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  gap: 0.25rem;
+}
+
+.search-result__icon {
+  grid-row: 1 / -1;
+  align-self: start;
+  margin-top: 0.125rem;
+}
+
+.search-result__button > .ui-button__label > :not(.search-result__icon) {
+  grid-column: 2;
+}
+
+.search-result__button[aria-current="true"] {
+  border-color: var(--ui-color-accent);
+}
+
+.search-results__more {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.search-result__heading {
+  justify-content: space-between;
+}
+
+.search-result__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.search-result__kind,
+.search-result__path,
+.search-result__snippet,
+.search-result__property {
+  color: var(--ui-color-text-muted);
+  font-size: 0.8rem;
+}
+
+.search-result__snippet {
+  color: var(--ui-color-text);
+}
+
+@media (max-width: 640px) {
+  .search-backdrop {
+    padding: 0;
+  }
+
+  .search-dialog {
+    width: 100%;
+    max-height: 100vh;
+    min-height: 100vh;
+    border-radius: 0;
+  }
+
+  .search-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .search-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .search-filters > button,
+  .search-filters__branch,
+  .search-filters__branch select {
+    width: 100%;
+  }
+}

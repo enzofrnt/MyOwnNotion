@@ -49,6 +49,8 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
   visual evidence in the feature artifacts. Speckit `plan` / `tasks` /
   `implement` / `converge` phases that touch the interface MUST follow the
   skill's Speckit gates; a material UI/UX gap blocks convergence.
+  Use [the UI system guide](docs/design/ui-system.md) for current CSS owners,
+  exported primitives and real composition examples in `/__ui-lab`.
 - Read `docs/product/product-canvas.md` before specifying or planning a feature,
   and record the relevant canvas sections in that feature's artifacts.
 - Keep product requirements technology-agnostic in `spec.md`; put technical choices in `plan.md`.

@@ -1,5 +1,414 @@
-/* Loaded after settings.css / global.css so document-style security rows and
-   the shared quiet button chrome beat the generic card and banner rules. */
+/* Security document composition, including responsive states. This file owns these refinements. */
+/* —— Sécurité et appareils: a readable document, not a stack of loud cards —— */
+
+.settings-content[data-section="security"] {
+  gap: var(--ui-space-8);
+  max-width: 40rem;
+}
+
+/* Server line: one quiet meta row above everything. */
+.settings-content[data-section="security"] .connection-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  line-height: 1.4;
+}
+
+.settings-content[data-section="security"] .connection-status > p {
+  margin: 0;
+}
+
+.settings-content[data-section="security"] .connection-status code {
+  font-size: inherit;
+  color: var(--ui-color-text);
+}
+
+.settings-content[data-section="security"] .connection-status .ui-async-state {
+  flex: 1 1 100%;
+}
+
+.settings-content[data-section="security"] .security-settings {
+  display: grid;
+  gap: var(--ui-space-8);
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Sommaire */
+.security-settings__toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-1) var(--ui-space-3);
+  margin: calc(-1 * var(--ui-space-3)) 0 0;
+  font-size: var(--ui-text-xs);
+}
+
+.security-settings__toc a {
+  color: var(--ui-color-text-muted);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.security-settings__toc a:hover,
+.security-settings__toc a:focus-visible {
+  color: var(--ui-color-text);
+  border-bottom-color: currentColor;
+  outline: none;
+}
+
+/* Groupes thématiques */
+.security-group {
+  display: grid;
+  gap: var(--ui-space-5);
+}
+
+.security-group__eyebrow {
+  margin: 0;
+  padding-bottom: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-color-border) 55%, transparent);
+}
+
+/* Panneaux : plus de cartes, une section de document */
+.settings-content[data-section="security"] .ui-settings-panel,
+.settings-content[data-section="security"] .recovery-replacement-panel {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+
+.settings-content[data-section="security"] .ui-settings-panel > h2 {
+  margin: 0;
+}
+
+/* En-tête de panneau : titre + lead à gauche, action principale à droite */
+.security-settings__panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-space-3) var(--ui-space-4);
+  margin: 0;
+}
+
+.security-settings__panel-head > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.security-settings__panel-head h2,
+.settings-content[data-section="security"] .ui-settings-panel > h2 {
+  margin: 0;
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.security-settings__panel-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--ui-space-1);
+  padding-top: 0.1rem;
+}
+
+.security-settings__lead,
+.security-settings__quiet,
+.security-settings__note,
+.security-note,
+.security-warning,
+.settings-content[data-section="security"] .mcp-panel p,
+.settings-content[data-section="security"] .mcp-panel small,
+.settings-content[data-section="security"] .key-rotation-panel__where {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+  line-height: 1.45;
+}
+
+.security-settings__quiet {
+  font-size: var(--ui-text-xs);
+}
+
+/* Lignes : label + méta à gauche, actions à droite, séparateur hairline */
+.settings-content[data-section="security"] .security-settings__rows,
+.settings-content[data-section="security"] .session-list,
+.settings-content[data-section="security"] .device-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-content[data-section="security"] .security-settings__rows > li,
+.settings-content[data-section="security"] .ui-settings-panel > ul > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3) var(--ui-space-4);
+  margin: 0;
+  padding: var(--ui-space-2) 0;
+  min-height: 2.5rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-color-border) 40%, transparent);
+  border-radius: 0;
+}
+
+.settings-content[data-section="security"] .security-settings__rows > li:last-child {
+  border-bottom: 0;
+}
+
+/* Rotation des clés : une ligne de document par politique, sans carte */
+.settings-content[data-section="security"] .key-rotation-panel__policies {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-content[data-section="security"] .key-rotation-panel__policies > li {
+  display: grid;
+  gap: 0.15rem;
+  padding: var(--ui-space-3) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-color-border) 40%, transparent);
+}
+
+.settings-content[data-section="security"] .key-rotation-panel__policies > li:last-child {
+  border-bottom: 0;
+}
+
+.settings-content[data-section="security"] .key-rotation-panel__policies h3 {
+  margin: 0;
+  font-size: var(--ui-text-sm);
+  font-weight: 500;
+}
+
+.settings-content[data-section="security"] .key-rotation-panel__policies p {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  line-height: 1.4;
+}
+
+.security-settings__row-main {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 0.15rem;
+}
+
+.security-settings__row-label {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  overflow-wrap: anywhere;
+  color: var(--ui-color-text);
+  font-size: var(--ui-text-sm);
+  font-weight: 500;
+}
+
+.security-settings__row-meta,
+.settings-content[data-section="security"] .session-detail,
+.settings-content[data-section="security"] .device-detail {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.security-settings__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-color-text) 8%, transparent);
+  color: var(--ui-color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.3rem;
+  white-space: nowrap;
+}
+
+.security-settings__row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--ui-space-1);
+}
+
+.security-settings__row-actions[data-align="start"] {
+  justify-content: flex-start;
+}
+
+.settings-content[data-section="security"] .device-rename {
+  display: grid;
+  gap: var(--ui-space-2);
+  width: min(100%, 22rem);
+}
+
+/* Formulaires : champ + bouton sur une ligne quand possible */
+.settings-content[data-section="security"] .security-settings__inline-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--ui-space-2);
+  width: min(100%, 30rem);
+}
+
+.settings-content[data-section="security"] .security-settings__inline-form .ui-field {
+  min-width: 0;
+}
+
+.settings-content[data-section="security"] .security-settings__inline-form .ui-button {
+  min-height: var(--ui-target-compact, 2rem);
+}
+
+.settings-content[data-section="security"] .security-settings input[type="password"] {
+  width: 100%;
+  max-width: none;
+  min-height: var(--ui-target-compact, 2rem);
+}
+
+.settings-content[data-section="security"]
+  .security-settings
+  form:not(.security-settings__inline-form) {
+  display: grid;
+  gap: var(--ui-space-3);
+  align-items: start;
+  width: min(100%, 22rem);
+}
+
+.settings-content[data-section="security"]
+  .security-settings
+  form:not(.security-settings__inline-form)
+  .ui-button {
+  justify-self: start;
+}
+
+/* Faits (kit, dates) : ligne clé/valeur compacte */
+.security-settings__facts,
+.settings-content[data-section="security"] .recovery-readiness-panel__facts,
+.settings-content[data-section="security"] .recovery-replacement-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2) var(--ui-space-6);
+  margin: 0;
+  font-size: var(--ui-text-sm);
+}
+
+.security-settings__facts > div,
+.settings-content[data-section="security"] .recovery-readiness-panel__facts > div,
+.settings-content[data-section="security"] .recovery-replacement-facts > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.security-settings__facts dt,
+.settings-content[data-section="security"] .recovery-readiness-panel__facts dt,
+.settings-content[data-section="security"] .recovery-replacement-facts dt {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+
+.security-settings__facts dd,
+.settings-content[data-section="security"] .recovery-readiness-panel__facts dd,
+.settings-content[data-section="security"] .recovery-replacement-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-content[data-section="security"] .recovery-revoke-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.settings-content[data-section="security"] .recovery-readiness-panel > .ui-button,
+.settings-content[data-section="security"] .recovery-revoke > .ui-button {
+  justify-self: start;
+}
+
+/* États asynchrones restants (MCP, rotation) : texte calme, pas de bannière */
+.settings-content[data-section="security"] .ui-async-state,
+.settings-content[data-section="security"] .ui-async-state .ui-status {
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  font-size: var(--ui-text-sm);
+}
+
+.settings-content[data-section="security"] .ui-async-state .ui-status {
+  padding: var(--ui-space-1) 0 var(--ui-space-1) var(--ui-space-3);
+  border-left: 2px solid color-mix(in srgb, var(--ui-color-border) 70%, transparent);
+}
+
+.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="loading"],
+.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="syncing"],
+.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="pending"],
+.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="info"],
+.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="empty"],
+.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="unavailable"],
+.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="offline"],
+.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="success"] {
+  color: var(--ui-color-text-muted);
+  border-left-color: color-mix(in srgb, var(--ui-color-text-muted) 40%, transparent);
+}
+
+.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="error"],
+.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="conflict"] {
+  border-left-color: var(--ui-color-danger);
+}
+
+.settings-content[data-section="security"] .ui-async-state .ui-icon {
+  display: none;
+}
+
+.settings-content[data-section="security"] .ui-async-state .ui-status__title {
+  font-weight: 500;
+}
+
+@media (max-width: 40rem) {
+  .security-settings__panel-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-content[data-section="security"] .security-settings__rows > li,
+  .settings-content[data-section="security"] .ui-settings-panel > ul > li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .security-settings__row-actions {
+    justify-content: flex-start;
+  }
+
+  .settings-content[data-section="security"] .security-settings__inline-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-content[data-section="security"] .security-settings__inline-form .ui-button {
+    justify-self: start;
+  }
+}
 
 .settings-content[data-section="security"] .ui-settings-panel,
 .settings-content[data-section="security"] .recovery-replacement-panel {
@@ -21,11 +430,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3) var(--space-4);
-  padding: var(--space-2) 0;
+  gap: var(--ui-space-3) var(--ui-space-4);
+  padding: var(--ui-space-2) 0;
   background: transparent;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-color-border) 40%, transparent);
   border-radius: 0;
 }
 
@@ -52,16 +461,17 @@
 }
 
 /* One quiet action chrome for the whole security document. */
+
 .settings-content[data-section="security"] .ui-button,
 .security-settings .ui-button {
   max-width: none;
   min-height: 1.75rem;
   padding: 0.2rem 0.6rem;
-  color: var(--color-text);
-  background: var(--color-surface, var(--ui-color-surface));
-  border: 1px solid color-mix(in srgb, var(--color-border) 85%, transparent);
-  border-radius: var(--radius-md, var(--ui-radius-md));
-  font-size: var(--text-xs);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border: 1px solid color-mix(in srgb, var(--ui-color-border) 85%, transparent);
+  border-radius: var(--ui-radius-md);
+  font-size: var(--ui-text-xs);
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
@@ -75,21 +485,21 @@
 
 .settings-content[data-section="security"] .ui-button:hover:not(:disabled),
 .security-settings .ui-button:hover:not(:disabled) {
-  background: var(--color-surface-hover, var(--ui-color-surface-hover));
-  border-color: var(--color-border);
+  background: var(--ui-color-surface-hover);
+  border-color: var(--ui-color-border);
 }
 
 .settings-content[data-section="security"] .ui-button[data-variant="ghost"],
 .security-settings .ui-button[data-variant="ghost"] {
-  color: var(--color-text-muted);
+  color: var(--ui-color-text-muted);
   background: transparent;
   border-color: transparent;
 }
 
 .settings-content[data-section="security"] .ui-button[data-variant="ghost"]:hover:not(:disabled),
 .security-settings .ui-button[data-variant="ghost"]:hover:not(:disabled) {
-  color: var(--color-text);
-  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  color: var(--ui-color-text);
+  background: color-mix(in srgb, var(--ui-color-text) 6%, transparent);
   border-color: transparent;
 }
 
@@ -97,9 +507,9 @@
 .settings-content[data-section="security"] .ui-button[data-variant="secondary"],
 .security-settings .ui-button[data-variant="primary"],
 .security-settings .ui-button[data-variant="secondary"] {
-  color: var(--color-text);
-  background: var(--color-surface, var(--ui-color-surface));
-  border-color: color-mix(in srgb, var(--color-border) 85%, transparent);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border-color: color-mix(in srgb, var(--ui-color-border) 85%, transparent);
 }
 
 .settings-content[data-section="security"] .ui-button[data-variant="primary"]:hover:not(:disabled),
@@ -107,9 +517,9 @@
   .ui-button[data-variant="secondary"]:hover:not(:disabled),
 .security-settings .ui-button[data-variant="primary"]:hover:not(:disabled),
 .security-settings .ui-button[data-variant="secondary"]:hover:not(:disabled) {
-  color: var(--color-text);
-  background: var(--color-surface-hover, var(--ui-color-surface-hover));
-  border-color: var(--color-border);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+  border-color: var(--ui-color-border);
 }
 
 .settings-content[data-section="security"] .ui-button[data-variant="danger"],
