@@ -8,9 +8,12 @@
  */
 
 export * from "./block.ts";
+export * from "./block-properties.ts";
+export * from "./block-text.ts";
 export * from "./canonical-json.ts";
 export * from "./document.ts";
 export * from "./export-markdown.ts";
 export * from "./legacy.ts";
 export * from "./migrate-v3.ts";
+export * from "./read-stored-v3.ts";
 export * from "./validate.ts";

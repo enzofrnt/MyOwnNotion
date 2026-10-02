@@ -3,7 +3,6 @@ import type {
   DatabaseDto,
   DatabaseEntryDto,
   ReplaceDefinitionRequestDto,
-  ReplaceEntryValuesRequestDto,
 } from "@myownnotion/contracts";
 import {
   type DatabaseDefinition,
@@ -21,6 +20,7 @@ import type { LocalContentService } from "../../services/local-content.ts";
 import { AsyncState, Button } from "../../ui/primitives/index.ts";
 import { DatabasePage, type DefinitionConfirmation } from "./database-page.tsx";
 import type { DatabaseCellUpdate } from "./table-view.tsx";
+import { updateDatabaseCell } from "./update-database-cell.ts";
 import type { RelationOption } from "./value-editor.tsx";
 
 interface Source {
@@ -129,37 +129,11 @@ function EmbeddedDatabase({
       }),
     [views, source.row.itemId],
   );
-  const updateEntry = async (entryId: Uuid, update: DatabaseCellUpdate): Promise<void> => {
-    const item = await service.getItem(entryId);
-    if (item === null) throw new Error("Cette entrée n'est pas disponible sur cet appareil.");
-    if (update.kind === "title") {
-      const result = await service.mutate("item.rename", { itemId: entryId, name: update.title }, [
-        item.currentRevisionId,
-      ]);
-      if (!result.ok) throw new Error(result.error.title);
-      return;
-    }
-    const entry = await service.getDatabaseEntry(entryId);
-    if (entry === null) throw new Error("Les valeurs de cette entrée ne sont pas disponibles.");
-    const values = { ...entry.values.values };
-    const relations = {
-      ...(await service.getDatabaseEntryRelationTargets(source.row.itemId, entryId)),
-    };
-    if (update.relationTargets !== undefined) {
-      relations[update.propertyId] = update.relationTargets;
-      delete values[update.propertyId];
-    } else {
-      delete relations[update.propertyId];
-      if (update.value === undefined) delete values[update.propertyId];
-      else values[update.propertyId] = update.value;
-    }
-    const result = await service.replaceDatabaseEntryValues(source.row.itemId, entryId, {
-      baseRevisionId: item.currentRevisionId,
-      values,
-      relationTargets: relations,
-    } as unknown as ReplaceEntryValuesRequestDto);
-    if (!result.ok) throw new Error(result.error.title);
-  };
+  const updateEntry = (entryId: Uuid, update: DatabaseCellUpdate): Promise<void> =>
+    updateDatabaseCell(service, source.row.itemId, entryId, update, {
+      missingItemMessage: "Cette entrée n'est pas disponible sur cet appareil.",
+      missingEntryMessage: "Les valeurs de cette entrée ne sont pas disponibles.",
+    });
   if (definition === null) return null;
   return (
     <section

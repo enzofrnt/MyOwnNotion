@@ -1,3 +1,4 @@
+import { copyBytes } from "@myownnotion/domain";
 /**
  * Protected persistence boundary for operational page bytes (T137, US5).
  *
@@ -37,12 +38,6 @@ export interface OperationalUpdateEnvelopeIds {
   readonly updateEnvelopeId: Uuid;
   readonly baseFrontierEnvelopeId: Uuid;
   readonly resultFrontierEnvelopeId: Uuid;
-}
-
-function copyBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
-  const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
-  copy.set(bytes);
-  return copy;
 }
 
 function encodeFrontier(frontier: ProtectedOperationalFrontier): Uint8Array<ArrayBuffer> {
@@ -193,4 +188,8 @@ export class PageOperationCrypto {
     );
     return identities;
   }
+}
+
+export function decodePageOperationBytes(value: string): Uint8Array<ArrayBuffer> {
+  return copyBytes(Buffer.from(value, "base64url"));
 }

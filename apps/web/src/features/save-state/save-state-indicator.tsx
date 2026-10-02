@@ -1,3 +1,4 @@
+import { useOutboxRows } from "./use-outbox-rows.ts";
 /**
  * Whether the owner's words are safe (T039, T040, T043, US2, FR-007 to FR-011).
  *
@@ -19,7 +20,7 @@
  * cannot act on is barely better than silence.
  */
 
-import type { OutboxMutationRow, SaveState } from "@myownnotion/client-core";
+import type { SaveState } from "@myownnotion/client-core";
 import { deriveSaveState, rowsForItem } from "@myownnotion/client-core";
 import { useEffect, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
@@ -50,18 +51,8 @@ export function SaveStateIndicator({
   readonly service: LocalContentService;
   readonly itemId: string;
 }) {
-  const [rows, setRows] = useState<OutboxMutationRow[]>([]);
+  const rows = useOutboxRows(service);
   const [online, setOnline] = useState(() => navigator.onLine);
-
-  useEffect(() => {
-    const refresh = async () => {
-      setRows(await service.outbox.all());
-    };
-    void refresh();
-    return service.subscribe(() => {
-      void refresh();
-    });
-  }, [service]);
 
   useEffect(() => {
     const goOnline = () => setOnline(true);

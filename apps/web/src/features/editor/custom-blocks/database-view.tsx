@@ -15,6 +15,7 @@ import type { LocalContentService } from "../../../services/local-content.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../../databases/database-page.tsx";
 import { definitionViewsPreservingPresentation } from "../../databases/definition-view-merge.ts";
 import type { DatabaseCellUpdate } from "../../databases/table-view.tsx";
+import { updateDatabaseCell } from "../../databases/update-database-cell.ts";
 
 interface LoadedView {
   readonly container: LocalDatabaseRow;
@@ -263,36 +264,10 @@ export function DatabaseViewSurface({
       entries: entries.map((entry) => entry.values),
     });
   };
-  const updateEntry = async (entryId: Uuid, update: DatabaseCellUpdate): Promise<void> => {
-    const item = await service.getItem(entryId);
-    if (item === null) throw new Error("Entrée indisponible");
-    if (update.kind === "title") {
-      const result = await service.mutate("item.rename", { itemId: entryId, name: update.title }, [
-        item.currentRevisionId,
-      ]);
-      if (!result.ok) throw new Error(result.error.title);
-      return;
-    }
-    const entry = await service.getDatabaseEntry(entryId);
-    const values = { ...(entry?.values.values ?? {}) };
-    const relations = {
-      ...(await service.getDatabaseEntryRelationTargets(loaded.source.itemId, entryId)),
-    };
-    if (update.relationTargets !== undefined) {
-      relations[update.propertyId] = update.relationTargets;
-      delete values[update.propertyId];
-    } else {
-      delete relations[update.propertyId];
-      if (update.value === undefined) delete values[update.propertyId];
-      else values[update.propertyId] = update.value;
-    }
-    const result = await service.replaceDatabaseEntryValues(loaded.source.itemId, entryId, {
-      baseRevisionId: item.currentRevisionId,
-      values: values as never,
-      relationTargets: relations as never,
+  const updateEntry = (entryId: Uuid, update: DatabaseCellUpdate): Promise<void> =>
+    updateDatabaseCell(service, loaded.source.itemId, entryId, update, {
+      missingItemMessage: "Entrée indisponible",
     });
-    if (!result.ok) throw new Error(result.error.title);
-  };
   return (
     <div
       className="editor-database-view-block"

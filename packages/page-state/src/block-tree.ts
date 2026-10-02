@@ -22,6 +22,7 @@ import {
 import type { LoroDoc, LoroMap, LoroText, LoroTree, LoroTreeNode } from "loro-crdt";
 import { LoroList } from "loro-crdt";
 import { initialiseRichText, projectRichText } from "./rich-text.ts";
+import { tableRowIdentities as rowIdentities, tableCellIdentities } from "./table-identities.ts";
 
 const BLOCK_TREE_ROOT = "blocks";
 const PROPS_KEY = "props";
@@ -262,13 +263,13 @@ function createCanonicalNode(
       const rowNode = node.createNode();
       setNodeHeader(rowNode, row.id, "tableRow");
       for (const [cellIndex, cell] of row.cells.entries()) {
-        const cellNode = rowNode.createNode();
-        setNodeHeader(cellNode, cell.id, "tableCell");
-        cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, block.columns[cellIndex]?.id ?? "");
-        initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
-        for (const child of cell.children ?? []) {
-          createCanonicalNode(tree, cellNode, undefined, child);
-        }
+        createCanonicalTableCell(
+          tree,
+          rowNode,
+          undefined,
+          block.columns[cellIndex]?.id ?? "",
+          cell,
+        );
       }
     }
     return node;
@@ -770,16 +771,6 @@ function assertNewIdentities(doc: LoroDoc, identities: readonly Uuid[]): void {
   }
 }
 
-function rowIdentities(row: TableRowV3): Uuid[] {
-  return [
-    row.id,
-    ...row.cells.flatMap((cell) => [
-      cell.id,
-      ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
-    ]),
-  ];
-}
-
 export function insertOperationalTableRow(
   doc: LoroDoc,
   tableId: Uuid,
@@ -807,11 +798,7 @@ export function insertOperationalTableRow(
   const rowNode = tableNode.createNode(index);
   setNodeHeader(rowNode, row.id, "tableRow");
   for (const [cellIndex, cell] of row.cells.entries()) {
-    const cellNode = rowNode.createNode(cellIndex);
-    setNodeHeader(cellNode, cell.id, "tableCell");
-    cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, columns[cellIndex]?.id ?? "");
-    initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
-    for (const child of cell.children ?? []) createCanonicalNode(tree, cellNode, undefined, child);
+    createCanonicalTableCell(tree, rowNode, cellIndex, columns[cellIndex]?.id ?? "", cell);
   }
   assertUniqueOperationalIdentities(tree);
 }
@@ -860,10 +847,7 @@ export function insertOperationalTableColumn(
     }
     return { rowNode, cell };
   });
-  const identities = cells.flatMap(({ cell }) => [
-    cell.id,
-    ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
-  ]);
+  const identities = cells.flatMap(({ cell }) => tableCellIdentities(cell));
   assertNewIdentities(doc, identities);
 
   const index =
@@ -899,11 +883,7 @@ export function insertOperationalTableColumn(
     width: column.width,
   });
   for (const { rowNode, cell } of rowsWithCells) {
-    const cellNode = rowNode.createNode(index);
-    setNodeHeader(cellNode, cell.id, "tableCell");
-    cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, column.id);
-    initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
-    for (const child of cell.children ?? []) createCanonicalNode(tree, cellNode, undefined, child);
+    createCanonicalTableCell(tree, rowNode, index, column.id, cell);
   }
   assertUniqueOperationalIdentities(tree);
 }
@@ -1312,4 +1292,18 @@ export function operationalTextForBlock(
 
 export function assertOperationalBlockTree(doc: LoroDoc): void {
   materialiseOperationalDocument(doc);
+}
+
+function createCanonicalTableCell(
+  tree: LoroTree,
+  rowNode: LoroTreeNode,
+  index: number | undefined,
+  columnId: string,
+  cell: TableCellV3,
+): void {
+  const cellNode = rowNode.createNode(index);
+  setNodeHeader(cellNode, cell.id, "tableCell");
+  cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, columnId);
+  initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
+  for (const child of cell.children ?? []) createCanonicalNode(tree, cellNode, undefined, child);
 }

@@ -1,3 +1,4 @@
+import type { LegacySyncRecoveryRow } from "../local-store/schema.ts";
 /**
  * Atomic installation of operational checkpoints and legacy-branch handover.
  *
@@ -208,33 +209,14 @@ export async function installConvertedLegacyPageCheckpoint(
           ) {
             throw new ConcurrentLegacyPageConversionError();
           }
-          const recovery = recoveries.find(
-            (candidate) =>
-              candidate.status === "converting" && candidate.branchId === branch.branchId,
+          await finishLegacyRecoveryConversion(
+            log,
+            pageId,
+            branch.branchId,
+            recoveries,
+            response.lastConsolidatedRevisionId as Uuid | null,
+            now,
           );
-          if (recovery === undefined) return;
-          const source = await log.db.conflicts.get(recovery.mutationId);
-          const canonicalRevisionId = response.lastConsolidatedRevisionId as Uuid | null;
-          if (source !== undefined && canonicalRevisionId !== null) {
-            const localRevisionIds = new Set(source.localRevisionIds);
-            for (const localRevisionId of localRevisionIds) {
-              await log.db.revisionHeaders.update(localRevisionId, {
-                local: 0,
-                canonicalRevisionId,
-              });
-            }
-            const item = await log.db.items.get(pageId);
-            if (item !== undefined && localRevisionIds.has(item.currentRevisionId)) {
-              await log.db.items.update(pageId, { currentRevisionId: canonicalRevisionId });
-            }
-          }
-          await log.db.legacySyncRecoveries.put({
-            ...recovery,
-            status: "converted",
-            reasonCode: null,
-            updatedAt: now.toISOString(),
-          });
-          await log.db.conflicts.delete(recovery.mutationId);
         },
       );
       return existingState;
@@ -293,34 +275,14 @@ export async function installConvertedLegacyPageCheckpoint(
         }
         await log.db.legacyOfflineBranches.put(sealedBranch);
         hooks.at?.("after-branch-write");
-        const recovery = recoveries.find(
-          (candidate) =>
-            candidate.status === "converting" && candidate.branchId === branch.branchId,
+        await finishLegacyRecoveryConversion(
+          log,
+          pageId,
+          branch.branchId,
+          recoveries,
+          response.lastConsolidatedRevisionId as Uuid | null,
+          now,
         );
-        if (recovery !== undefined) {
-          const source = await log.db.conflicts.get(recovery.mutationId);
-          const canonicalRevisionId = response.lastConsolidatedRevisionId as Uuid | null;
-          if (source !== undefined && canonicalRevisionId !== null) {
-            const localRevisionIds = new Set(source.localRevisionIds);
-            for (const localRevisionId of localRevisionIds) {
-              await log.db.revisionHeaders.update(localRevisionId, {
-                local: 0,
-                canonicalRevisionId,
-              });
-            }
-            const item = await log.db.items.get(pageId);
-            if (item !== undefined && localRevisionIds.has(item.currentRevisionId)) {
-              await log.db.items.update(pageId, { currentRevisionId: canonicalRevisionId });
-            }
-          }
-          await log.db.legacySyncRecoveries.put({
-            ...recovery,
-            status: "converted",
-            reasonCode: null,
-            updatedAt: now.toISOString(),
-          });
-          await log.db.conflicts.delete(recovery.mutationId);
-        }
         hooks.at?.("after-recovery-write");
       },
     );
@@ -329,4 +291,35 @@ export async function installConvertedLegacyPageCheckpoint(
     if (existingState === null) throw new ConcurrentPageCheckpointError();
     return existingState;
   });
+}
+
+/** Called only inside the caller's conversion transaction after its concurrency proofs. */
+async function finishLegacyRecoveryConversion(
+  log: EncryptedPageOperationLog,
+  pageId: Uuid,
+  branchId: Uuid,
+  recoveries: readonly LegacySyncRecoveryRow[],
+  canonicalRevisionId: Uuid | null,
+  now: Date,
+): Promise<void> {
+  const recovery = recoveries.find(
+    (candidate) => candidate.status === "converting" && candidate.branchId === branchId,
+  );
+  if (recovery === undefined) return;
+  const source = await log.db.conflicts.get(recovery.mutationId);
+  if (source !== undefined && canonicalRevisionId !== null) {
+    const localRevisionIds = new Set(source.localRevisionIds);
+    for (const localRevisionId of localRevisionIds)
+      await log.db.revisionHeaders.update(localRevisionId, { local: 0, canonicalRevisionId });
+    const item = await log.db.items.get(pageId);
+    if (item !== undefined && localRevisionIds.has(item.currentRevisionId))
+      await log.db.items.update(pageId, { currentRevisionId: canonicalRevisionId });
+  }
+  await log.db.legacySyncRecoveries.put({
+    ...recovery,
+    status: "converted",
+    reasonCode: null,
+    updatedAt: now.toISOString(),
+  });
+  await log.db.conflicts.delete(recovery.mutationId);
 }

@@ -1,5 +1,5 @@
 import type { CanonicalBlockV3, InlineV3, MarkV3, TableBlockV3, Uuid } from "@myownnotion/domain";
-import { isUuid, normaliseInlineV3 } from "@myownnotion/domain";
+import { isUuid, markKeyV3, normaliseInlineV3 } from "@myownnotion/domain";
 import type { PageCommand } from "@myownnotion/page-state";
 import { stableMoveChanges } from "./block-drag-drop.ts";
 import { blockNoteBlockToCanonical, blockNoteInlineToCanonical } from "./blocknote-conversion.ts";
@@ -59,22 +59,6 @@ function inlineOf(block: EditorBlock): readonly InlineV3[] {
   const canonical = blockNoteBlockToCanonical(block);
   if (canonical.type === "code" || !("content" in canonical)) return [];
   return canonical.content;
-}
-
-function markKey(mark: MarkV3): string {
-  switch (mark.type) {
-    case "link":
-      return `link:${mark.href}`;
-    case "pageLink":
-      return `pageLink:${mark.targetItemId}`;
-    case "textColor":
-    case "backgroundColor":
-      return `${mark.type}:${mark.color}`;
-    case "unknown":
-      return `unknown:${JSON.stringify(mark.raw)}`;
-    default:
-      return mark.type;
-  }
 }
 
 interface MarkSpan {
@@ -1036,4 +1020,8 @@ export class EditorChangeBatcher {
       }
     }
   }
+}
+
+function markKey(mark: MarkV3): string {
+  return markKeyV3(mark, JSON.stringify);
 }

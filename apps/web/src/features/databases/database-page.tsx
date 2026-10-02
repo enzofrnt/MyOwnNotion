@@ -25,7 +25,6 @@ import {
   PopoverHeading,
   PopoverRoot,
   PopoverTrigger,
-  Switch,
 } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { defaultItemTitle } from "../workspace/default-item-title.ts";
@@ -47,6 +46,7 @@ import {
   propertyFromDraft,
   validatePropertyDraft,
 } from "./property-editor.tsx";
+import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
 import { SortGroupEditor } from "./sort-group-editor.tsx";
 import { type DatabaseCellUpdate, TableView } from "./table-view.tsx";
 import { TaskConfiguration } from "./task-configuration.tsx";
@@ -500,7 +500,8 @@ export function DatabasePage({
       };
     });
     const placed = presentations.find((item) => item.propertyId === property.id);
-    const stored = placed === undefined ? property : { ...property, positionKey: placed.positionKey };
+    const stored =
+      placed === undefined ? property : { ...property, positionKey: placed.positionKey };
     const candidate: DatabaseDefinition = {
       ...definition,
       properties: [...definition.properties, stored],
@@ -806,15 +807,10 @@ export function DatabasePage({
                           {DATABASE_COPY.property.typeLabels[column.property.type]}
                         </span>
                       </span>
-                      <Switch
-                        checked={column.visible}
-                        disabled={column.property.type === "title"}
-                        aria-label={
-                          column.property.type === "title"
-                            ? `${column.property.name}, toujours visible`
-                            : `Afficher ${column.property.name} dans cette vue`
-                        }
-                        onCheckedChange={(visible) => setColumnVisible(column.property.id, visible)}
+                      <PropertyVisibilitySwitch
+                        property={column.property}
+                        visible={column.visible}
+                        onToggle={setColumnVisible}
                       />
                     </li>
                   ))}
@@ -923,6 +919,7 @@ export function DatabasePage({
       ) : null}
 
       <div className="database-entry-create">
+        {/* biome-ignore lint/a11y/useSemanticElements: Action choices are a labelled button group, not form controls. */}
         <div className="database-entry-kind" role="group" aria-label="Type du nouvel élément">
           <Button
             type="button"

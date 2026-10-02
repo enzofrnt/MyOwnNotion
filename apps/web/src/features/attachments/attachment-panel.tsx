@@ -1,3 +1,4 @@
+import { AttachmentUsages } from "../files/attachment-usages.tsx";
 /**
  * Discreet per-page attachment panel (T060, US2).
  *
@@ -115,22 +116,11 @@ export function CompactAttachmentList({
                     : FR_COPY.files.attachments.notSynchronized}
                 </span>
                 <span data-testid={`attachment-usages-${row.item.name}`}>
-                  {row.usages.length === 0
-                    ? FR_COPY.files.attachments.usedNowhereElse
-                    : row.usages.map((usage, index) => (
-                        <span key={`${usage.usedByItemId}-${usage.blockId ?? index}`}>
-                          {index > 0 ? ", " : null}
-                          <Button
-                            type="button"
-                            size="compact"
-                            variant="ghost"
-                            data-testid={`attachment-usage-${usage.usedByName}`}
-                            onClick={() => onOpenUsage(usage.usedByItemId)}
-                          >
-                            {usage.usedByName}
-                          </Button>
-                        </span>
-                      ))}
+                  {row.usages.length === 0 ? (
+                    FR_COPY.files.attachments.usedNowhereElse
+                  ) : (
+                    <AttachmentUsages usages={row.usages} onOpenUsage={onOpenUsage} />
+                  )}
                 </span>
                 <span className="workspace-attachment-file__actions">{actions(row)}</span>
               </PopoverContent>

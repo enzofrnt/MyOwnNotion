@@ -1,3 +1,4 @@
+import type { LocalMutationInput } from "../outbox/apply-local-mutation.ts";
 /**
  * Turning an owner's decision into a revision with two parents (T026, FR-016).
  *
@@ -51,8 +52,9 @@ export async function resolveConflictLocally(
   input: ResolveConflictInput,
   now: () => Date = () => new Date(),
 ): Promise<ResolveConflictOutcome> {
-  const applied = await applyLocalMutation(
+  return applyAndRetireConflict(
     db,
+    codec,
     {
       mutationId: input.mutationId,
       commandType: "document.resolve-conflict",
@@ -69,20 +71,9 @@ export async function resolveConflictLocally(
       // against a head the owner never saw.
       baseRevisionIds: [input.localRevisionId, input.remoteRevisionId],
     },
+    input.conflictMutationId,
     now,
-    codec,
   );
-  if (!applied.ok) {
-    // The conflict record is deliberately left alone. A resolution that could
-    // not be written locally has resolved nothing, and clearing the record here
-    // would discard the owner's only route back to both versions.
-    return { ok: false, code: applied.error.code, title: applied.error.title };
-  }
-
-  // Only now. See the module comment: this order is what makes a crash
-  // mid-resolution recoverable rather than destructive.
-  await new Outbox(db, codec).resolveConflict(input.conflictMutationId);
-  return { ok: true, revisionIds: [...applied.value.localRevisionIds] };
 }
 
 export interface ResolveDatabaseDefinitionConflictInput {
@@ -105,8 +96,9 @@ export async function resolveDatabaseDefinitionConflictLocally(
     input.localRevisionId,
     input.remoteRevisionId,
   ];
-  const applied = await applyLocalMutation(
+  return applyAndRetireConflict(
     db,
+    codec,
     {
       mutationId: input.mutationId,
       commandType: "database.definition.resolve-conflict",
@@ -120,14 +112,9 @@ export async function resolveDatabaseDefinitionConflictLocally(
       },
       baseRevisionIds: [...resolvedRevisionIds],
     },
+    input.conflictMutationId,
     now,
-    codec,
   );
-  if (!applied.ok) {
-    return { ok: false, code: applied.error.code, title: applied.error.title };
-  }
-  await new Outbox(db, codec).resolveConflict(input.conflictMutationId);
-  return { ok: true, revisionIds: [...applied.value.localRevisionIds] };
 }
 
 export interface ResolveDatabaseEntryConflictInput {
@@ -151,8 +138,9 @@ export async function resolveDatabaseEntryConflictLocally(
     input.localRevisionId,
     input.remoteRevisionId,
   ];
-  const applied = await applyLocalMutation(
+  return applyAndRetireConflict(
     db,
+    codec,
     {
       mutationId: input.mutationId,
       commandType: "database.entry.values.resolve-conflict",
@@ -165,12 +153,21 @@ export async function resolveDatabaseEntryConflictLocally(
       },
       baseRevisionIds: [...resolvedRevisionIds],
     },
+    input.conflictMutationId,
     now,
-    codec,
   );
-  if (!applied.ok) {
-    return { ok: false, code: applied.error.code, title: applied.error.title };
-  }
-  await new Outbox(db, codec).resolveConflict(input.conflictMutationId);
+}
+
+/** Retire recovery only after the resolution is durably enqueued. */
+async function applyAndRetireConflict(
+  db: LocalDatabase,
+  codec: LocalRecordCodec,
+  submission: LocalMutationInput,
+  conflictMutationId: Uuid,
+  now: () => Date,
+): Promise<ResolveConflictOutcome> {
+  const applied = await applyLocalMutation(db, submission, now, codec);
+  if (!applied.ok) return { ok: false, code: applied.error.code, title: applied.error.title };
+  await new Outbox(db, codec).resolveConflict(conflictMutationId);
   return { ok: true, revisionIds: [...applied.value.localRevisionIds] };
 }

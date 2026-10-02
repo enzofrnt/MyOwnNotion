@@ -71,6 +71,7 @@ import { DatabasePage, type DefinitionConfirmation } from "../databases/database
 import { type EntryDrafts, EntryPanel } from "../databases/entry-panel.tsx";
 import { PageDatabases } from "../databases/page-databases.tsx";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
+import { updatedCellProperties } from "../databases/update-database-cell.ts";
 import { initializeEditorFileTransfers } from "../editor/editor-file-state.tsx";
 import type { CreateSubpageRequest } from "../editor/editor-menus/slash-menu.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
@@ -98,11 +99,11 @@ import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
 import type { SearchBranchOption } from "../search/search-filters.tsx";
 import { useChangeStream } from "../sync/use-change-stream.ts";
 import { useRealtimeSync } from "../sync/use-realtime-sync.ts";
+import { defaultItemTitle } from "../workspace/default-item-title.ts";
 import { FolderChildrenList, FolderInlineCreate } from "../workspace/folder-children-list.tsx";
 import { OpenTabsStrip, openTabsForItems } from "../workspace/open-tabs-strip.tsx";
 import { PageContentSkeleton } from "../workspace/page-content-skeleton.tsx";
 import { PageHeader } from "../workspace/page-header.tsx";
-import { defaultItemTitle } from "../workspace/default-item-title.ts";
 import { PageTitleEditor } from "../workspace/page-title-editor.tsx";
 import { PathBreadcrumbs } from "../workspace/path-breadcrumbs.tsx";
 import { useActiveItem } from "../workspace/use-active-item.ts";
@@ -961,6 +962,18 @@ export function HierarchyExplorer({
         setStructuredSelectionLoading(true);
       }
     }
+    const restoreRemotelyOpenedEntry = (itemId: Uuid): boolean => {
+      const remoteEntry = remotelyOpenedEntry.current;
+      if (remoteEntry?.entry.entryId !== itemId) return false;
+      setSelectedDatabase(null);
+      setDatabaseEntries([]);
+      setSelectedEntry(remoteEntry.entry);
+      setEntryDefinition(remoteEntry.definition);
+      structuredKindByItemId.current.set(itemId, "entry");
+      structuredSelectionItemId.current = itemId;
+      setStructuredSelectionLoading(false);
+      return true;
+    };
     void (async () => {
       const kind =
         selectedItem.kind === "database" || selectedItem.kind === "database_view"
@@ -969,17 +982,7 @@ export function HierarchyExplorer({
       if (selectionChanged()) return;
       structuredKindByItemId.current.set(selectedItem.id, kind);
       if (kind === "page") {
-        const remoteEntry = remotelyOpenedEntry.current;
-        if (remoteEntry?.entry.entryId === selectedItem.id) {
-          setSelectedDatabase(null);
-          setDatabaseEntries([]);
-          setSelectedEntry(remoteEntry.entry);
-          setEntryDefinition(remoteEntry.definition);
-          structuredKindByItemId.current.set(selectedItem.id, "entry");
-          structuredSelectionItemId.current = selectedItem.id;
-          setStructuredSelectionLoading(false);
-          return;
-        }
+        if (restoreRemotelyOpenedEntry(selectedItem.id)) return;
         clearStructuredSelection();
         structuredSelectionItemId.current = selectedItem.id;
         setStructuredSelectionLoading(false);
@@ -1046,17 +1049,7 @@ export function HierarchyExplorer({
         // probe `/v1/databases/:pageId`. That old discriminator produced one
         // expected 404 on every tree refresh and amplified sync failures into
         // dozens of meaningless requests.
-        const remoteEntry = remotelyOpenedEntry.current;
-        if (remoteEntry?.entry.entryId === selectedItem.id) {
-          setSelectedDatabase(null);
-          setDatabaseEntries([]);
-          setSelectedEntry(remoteEntry.entry);
-          setEntryDefinition(remoteEntry.definition);
-          structuredKindByItemId.current.set(selectedItem.id, "entry");
-          structuredSelectionItemId.current = selectedItem.id;
-          setStructuredSelectionLoading(false);
-          return;
-        }
+        if (restoreRemotelyOpenedEntry(selectedItem.id)) return;
         structuredKindByItemId.current.set(selectedItem.id, "page");
         clearStructuredSelection();
         structuredSelectionItemId.current = selectedItem.id;
@@ -1216,20 +1209,9 @@ export function HierarchyExplorer({
         if (currentEntry === null || currentEntry.databaseId !== databaseId) {
           throw new Error(DATABASE_COPY.hierarchy.valuesNotAvailable);
         }
-        const values = { ...currentEntry.values.values };
-        const relationTargets = { ...currentRelations };
-        if (update.relationTargets !== undefined) {
-          relationTargets[update.propertyId] = update.relationTargets;
-          delete values[update.propertyId];
-        } else {
-          delete relationTargets[update.propertyId];
-          if (update.value === undefined) delete values[update.propertyId];
-          else values[update.propertyId] = update.value;
-        }
         const result = await service.replaceDatabaseEntryValues(databaseId, entryId, {
           baseRevisionId: currentItem.currentRevisionId,
-          values,
-          relationTargets,
+          ...updatedCellProperties(currentEntry.values.values, currentRelations, update),
         } as unknown as ReplaceEntryValuesRequestDto);
         if (result.ok) {
           await refresh();

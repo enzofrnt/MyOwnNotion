@@ -39,7 +39,7 @@ function MyOwnNotionFormattingToolbar({
   useEffect(() => {
     if (isTextSelection(currentSelection)) preservedSelection.current = currentSelection;
   }, [currentSelection, preservedSelection]);
-  const cursorBlockType = (() => {
+  const cursorBlockType = ((): string | null => {
     try {
       return editor.getTextCursorPosition().block.type;
     } catch {

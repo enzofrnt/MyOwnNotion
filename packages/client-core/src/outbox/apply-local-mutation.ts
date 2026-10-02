@@ -15,6 +15,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { type LocalDatabase, type OutboxMutationRow, parentKeyOf } from "../local-store/schema.ts";
+import { isQuotaError } from "../local-store/storage-errors.ts";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 import { applyCommandToProjection, prepareProjectionWrite } from "./apply-to-projection.ts";
 import { remapPayloadRevisionReferences } from "./outbox.ts";
@@ -177,15 +178,6 @@ export class LocalValidationError extends Error {
     this.name = "LocalValidationError";
     this.code = code;
   }
-}
-
-function isQuotaError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    ((error as { name?: string }).name === "QuotaExceededError" ||
-      (error as { inner?: { name?: string } }).inner?.name === "QuotaExceededError")
-  );
 }
 
 export { parentKeyOf };

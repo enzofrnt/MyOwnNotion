@@ -49,33 +49,7 @@ export async function rebuildEmbedUsages(
     return;
   }
   const found = embeddedFiles(read.result.document);
-  if (found.length === 0) {
-    return;
-  }
-
-  // Only embeds that point at something this workspace actually holds as a
-  // file. A document may name an id that was never a file, or was purged; a row
-  // for it would be a usage the owner can never reach, listed in a confirmation
-  // as though it meant something.
-  const known = await knownFileIds(
-    tx,
-    found.map((usage) => usage.fileItemId),
-  );
-  const rows = found
-    .filter((usage) => known.has(usage.fileItemId))
-    .map((usage) => ({
-      fileItemId: usage.fileItemId,
-      usedByItemId: pageItemId,
-      usageKind: "embed" as const,
-      blockId: usage.blockId,
-    }));
-  if (rows.length > 0) {
-    // The same file embedded twice in one page is two rows with different block
-    // ids, so the unique index does not collapse them. `onConflictDoNothing`
-    // covers the one case that would: the same block id twice, which a
-    // malformed document could carry.
-    await tx.insert(fileUsages).values(rows).onConflictDoNothing();
-  }
+  await persistEmbedUsages(tx, pageItemId, found);
 }
 
 /** Rebuilds embed usages from an already validated canonical v3 projection. */
@@ -88,20 +62,7 @@ export async function rebuildEmbedUsagesV3(
     .delete(fileUsages)
     .where(and(eq(fileUsages.usedByItemId, pageItemId), eq(fileUsages.usageKind, "embed")));
   const found = embeddedFilesV3(document);
-  if (found.length === 0) return;
-  const known = await knownFileIds(
-    tx,
-    found.map(({ fileItemId }) => fileItemId),
-  );
-  const rows = found
-    .filter(({ fileItemId }) => known.has(fileItemId))
-    .map(({ fileItemId, blockId }) => ({
-      fileItemId,
-      usedByItemId: pageItemId,
-      usageKind: "embed" as const,
-      blockId,
-    }));
-  if (rows.length > 0) await tx.insert(fileUsages).values(rows).onConflictDoNothing();
+  await persistEmbedUsages(tx, pageItemId, found);
 }
 
 /** Records a placement as a usage, for attachments and hierarchy placements. */
@@ -212,4 +173,35 @@ export async function removePlacementUsage(
         eq(fileUsages.usageKind, input.kind),
       ),
     );
+}
+
+async function persistEmbedUsages(
+  tx: Transaction,
+  pageItemId: Uuid,
+  found: readonly FileUsage[],
+): Promise<void> {
+  if (found.length === 0) return;
+  // Only embeds that point at something this workspace actually holds as a
+  // file. A document may name an id that was never a file, or was purged; a row
+  // for it would be a usage the owner can never reach, listed in a confirmation
+  // as though it meant something.
+  const known = await knownFileIds(
+    tx,
+    found.map((usage) => usage.fileItemId),
+  );
+  const rows = found
+    .filter((usage) => known.has(usage.fileItemId))
+    .map((usage) => ({
+      fileItemId: usage.fileItemId,
+      usedByItemId: pageItemId,
+      usageKind: "embed" as const,
+      blockId: usage.blockId,
+    }));
+  if (rows.length > 0) {
+    // The same file embedded twice in one page is two rows with different block
+    // ids, so the unique index does not collapse them. `onConflictDoNothing`
+    // covers the one case that would: the same block id twice, which a
+    // malformed document could carry.
+    await tx.insert(fileUsages).values(rows).onConflictDoNothing();
+  }
 }

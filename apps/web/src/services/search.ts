@@ -11,6 +11,7 @@ import {
   type SearchCandidate,
   type SearchDocument,
   type SearchMatchedField,
+  safeSearchSnippet,
   tokenizeSearchText,
   type Uuid,
 } from "@myownnotion/domain";
@@ -28,7 +29,6 @@ export function searchWorkerUrl(): URL {
 import type { ContentApi } from "./content-api.ts";
 import type { LocalContentService, LocalProjectionChange } from "./local-content.ts";
 
-const SNIPPET_LIMIT = 320;
 const SEARCH_WORKER_REQUEST_TIMEOUT_MS = 10_000;
 
 export interface SearchWorkerClient {
@@ -109,24 +109,8 @@ class BrowserSearchWorkerClient implements SearchWorkerClient {
   }
 }
 
-function safeSnippet(bodyText: string, matchedTerms: readonly string[]): string | null {
-  if (bodyText.length === 0) {
-    return null;
-  }
-  const comparable = normaliseSearchText(bodyText);
-  const firstMatch = matchedTerms.reduce((best, term) => {
-    const position = comparable.indexOf(term);
-    return position < 0 || (best >= 0 && best <= position) ? best : position;
-  }, -1);
-  const start = Math.max(0, firstMatch < 0 ? 0 : firstMatch - 100);
-  const value = bodyText
-    .slice(start, start + SNIPPET_LIMIT)
-    .replace(/[\p{Cc}\p{Cf}]+/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim();
-  return value.length === 0
-    ? null
-    : `${start > 0 ? "…" : ""}${value}${start + SNIPPET_LIMIT < bodyText.length ? "…" : ""}`;
+function safeSnippet(bodyText: string, terms: readonly string[]): string | null {
+  return safeSearchSnippet(bodyText, terms, normaliseSearchText(bodyText));
 }
 
 function primaryField(candidate: SearchCandidate): SearchMatchedField {

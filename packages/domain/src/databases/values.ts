@@ -237,3 +237,23 @@ export function isPropertyValueCompatible(
   }
   return property.type !== "title" && property.type !== "relation" && value.kind === property.type;
 }
+
+/** Normalize only structured values; relation endpoint availability belongs to adapters. */
+export function normalizeEntryValueMap(
+  properties: ReadonlyMap<Uuid, DatabaseProperty>,
+  input: Readonly<Record<string, unknown>>,
+): DomainResult<Readonly<Record<Uuid, NonRelationPropertyValue>>> {
+  const values: Record<string, NonRelationPropertyValue> = {};
+  for (const [propertyId, rawValue] of Object.entries(input)) {
+    const property = properties.get(propertyId as Uuid);
+    if (property === undefined || property.type === "title" || property.type === "relation")
+      return err("validation.invalid-payload", "Structured value property is unavailable");
+    const normalized = normalizePropertyValue(property, rawValue);
+    if (!normalized.ok || normalized.value === undefined)
+      return normalized.ok
+        ? err("validation.invalid-payload", "Structured value is absent")
+        : normalized;
+    values[propertyId] = normalized.value;
+  }
+  return ok(values);
+}

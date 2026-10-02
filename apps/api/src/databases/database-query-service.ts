@@ -1,6 +1,7 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import type { DatabaseQueryDto, DatabaseQueryPageDto } from "@myownnotion/contracts";
+import { presentDatabaseQuery } from "@myownnotion/contracts";
 import {
   type Database,
   databaseIdsForEntries,
@@ -19,11 +20,11 @@ import {
   databaseQueryDefinition,
   evaluateDatabaseView,
   type FilterCriterion,
-  type NonRelationPropertyValue,
   prepareDatabaseFilterOperand,
   type SafeErrorCode,
   type Uuid,
 } from "@myownnotion/domain";
+import { sameSecretValue } from "@myownnotion/domain/security";
 import {
   resolveDatabaseDefinition,
   resolveDatabaseProjectionEntries,
@@ -352,24 +353,6 @@ function indexedCandidates(
   return usable.reduce((current, candidate) => intersect(current, candidate), all);
 }
 
-function groupLabel(definition: DatabaseDefinition, propertyId: Uuid, groupId: string): string {
-  if (groupId === "missing") return "Sans valeur";
-  if (groupId === "checked") return "Coché";
-  if (groupId === "unchecked") return "Non coché";
-  const property = definition.properties.find(({ id }) => id === propertyId);
-  if (property?.type !== "status" && property?.type !== "select") return groupId;
-  return property.config.options.find(({ id }) => id === groupId)?.label ?? "Option indisponible";
-}
-
-type QueryRowValue = DatabaseQueryPageDto["rows"][number]["values"][string];
-
-function responseValue(value: NonRelationPropertyValue): QueryRowValue {
-  if (value.kind === "multi-select") {
-    return { kind: "multi-select", optionIds: [...value.optionIds] };
-  }
-  return { ...value } as QueryRowValue;
-}
-
 function unsignedCursor(payload: Omit<CursorPayload, "signature">): string {
   return [
     payload.version,
@@ -380,12 +363,6 @@ function unsignedCursor(payload: Omit<CursorPayload, "signature">): string {
     payload.offset,
     payload.afterEntryId,
   ].join(".");
-}
-
-function sameSecretValue(left: string, right: string): boolean {
-  const leftBytes = Buffer.from(left);
-  const rightBytes = Buffer.from(right);
-  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
 }
 
 export class DatabaseQueryService {
@@ -456,25 +433,7 @@ export class DatabaseQueryService {
       let sourceCursor = this.#active?.sourceCursor ?? 0;
       for (const change of pending) {
         const affected = await this.#deps.loadAffected(change.itemIds, sources);
-        for (const databaseId of affected.removedDatabaseIds) {
-          sources.delete(databaseId);
-          indexes.delete(databaseId);
-        }
-        for (const source of affected.sources) {
-          const previousSource = sources.get(source.databaseId);
-          sources.set(source.databaseId, source);
-          indexes.set(
-            source.databaseId,
-            previousSource === undefined
-              ? buildIndexes(source)
-              : updateIndexes(
-                  previousSource,
-                  source,
-                  indexes.get(source.databaseId) ?? buildIndexes(previousSource),
-                  new Set(change.itemIds),
-                ),
-          );
-        }
+        applyAffectedSources(sources, indexes, affected, change.itemIds);
         sourceCursor = Math.max(sourceCursor, change.sourceVersion);
       }
       const nextGeneration = (this.#active?.generation ?? 0) + 1;
@@ -520,25 +479,7 @@ export class DatabaseQueryService {
         const affected = await this.#deps.loadAffected(uniqueItemIds, active.sources);
         const sources = new Map(active.sources);
         const indexes = new Map(active.indexes);
-        for (const databaseId of affected.removedDatabaseIds) {
-          sources.delete(databaseId);
-          indexes.delete(databaseId);
-        }
-        for (const source of affected.sources) {
-          const previousSource = sources.get(source.databaseId);
-          sources.set(source.databaseId, source);
-          indexes.set(
-            source.databaseId,
-            previousSource === undefined
-              ? buildIndexes(source)
-              : updateIndexes(
-                  previousSource,
-                  source,
-                  indexes.get(source.databaseId) ?? buildIndexes(previousSource),
-                  new Set(uniqueItemIds),
-                ),
-          );
-        }
+        applyAffectedSources(sources, indexes, affected, uniqueItemIds);
         const indexedCount = [...sources.values()].reduce(
           (count, source) => count + source.entries.length,
           0,
@@ -675,13 +616,6 @@ export class DatabaseQueryService {
             rows,
           );
     const pageRows = rows.slice(offset, offset + limit);
-    const visiblePropertyIds = new Set(
-      view.properties.filter(({ visible }) => visible).map(({ propertyId }) => propertyId),
-    );
-    const entryGroups = new Map<Uuid, string>();
-    for (const group of evaluated.value.groups) {
-      for (const entryId of group.entryIds) entryGroups.set(entryId, group.id);
-    }
     const nextOffset = offset + pageRows.length;
     const last = pageRows.at(-1);
     return {
@@ -692,30 +626,13 @@ export class DatabaseQueryService {
       coverage: "complete",
       availableCount: source.entries.length,
       expectedCount: source.entries.length,
-      rows: pageRows.map((entry) => ({
-        entryId: entry.entryId,
-        revisionId: entry.revisionId,
-        title: entry.title,
-        values: Object.fromEntries(
-          Object.entries(entry.values)
-            .filter(([propertyId]) => visiblePropertyIds.has(propertyId as Uuid))
-            .map(([propertyId, value]) => [propertyId, responseValue(value)]),
-        ),
-        relationTargets: Object.fromEntries(
-          Object.entries(entry.relationTargets)
-            .filter(([propertyId]) => visiblePropertyIds.has(propertyId as Uuid))
-            .map(([propertyId, targetIds]) => [propertyId, [...targetIds]]),
-        ),
-        groupId: entryGroups.get(entry.entryId) ?? null,
-      })),
-      groups:
-        view.group === null
-          ? []
-          : evaluated.value.groups.map((group) => ({
-              id: group.id,
-              label: groupLabel(source.definition, view.group?.propertyId as Uuid, group.id),
-              count: group.entryIds.length,
-            })),
+      ...presentDatabaseQuery({
+        definition: source.definition,
+        view,
+        entries: pageRows,
+        groups: evaluated.value.groups,
+        includeGroups: true,
+      }),
       nextCursor:
         nextOffset < evaluated.value.totalCount && last !== undefined
           ? this.#encodeCursor({
@@ -827,4 +744,31 @@ export function createDatabaseQueryService(input: {
       return { sources, removedDatabaseIds };
     },
   });
+}
+
+function applyAffectedSources(
+  sources: Map<Uuid, StructuredProjectionSource>,
+  indexes: Map<Uuid, PropertyIndexes>,
+  affected: StructuredProjectionChanges,
+  changedItemIds: readonly Uuid[],
+): void {
+  for (const databaseId of affected.removedDatabaseIds) {
+    sources.delete(databaseId);
+    indexes.delete(databaseId);
+  }
+  for (const source of affected.sources) {
+    const previous = sources.get(source.databaseId);
+    sources.set(source.databaseId, source);
+    indexes.set(
+      source.databaseId,
+      previous === undefined
+        ? buildIndexes(source)
+        : updateIndexes(
+            previous,
+            source,
+            indexes.get(source.databaseId) ?? buildIndexes(previous),
+            new Set(changedItemIds),
+          ),
+    );
+  }
 }

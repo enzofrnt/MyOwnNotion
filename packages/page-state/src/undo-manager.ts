@@ -1,5 +1,9 @@
 import type { CanonicalBlockV3, JsonObject, JsonValue, Uuid } from "@myownnotion/domain";
-import { BLOCK_FIELD_ORDER_V3, canonicalDocumentJsonV3 } from "@myownnotion/domain";
+import {
+  BLOCK_FIELD_ORDER_V3,
+  canonicalBlockProperties,
+  canonicalDocumentJsonV3,
+} from "@myownnotion/domain";
 import type { TransformableBlockType } from "./block-tree.ts";
 import type {
   OperationalPageDocument,
@@ -40,13 +44,10 @@ export class PageUndoError extends Error {
 function propertiesFor(block: CanonicalBlockV3): JsonObject | undefined {
   switch (block.type) {
     case "heading":
-      return { level: block.level };
     case "checkbox":
-      return { checked: block.checked };
     case "code":
-      return { language: block.language };
     case "callout":
-      return { icon: block.icon, tone: block.tone };
+      return canonicalBlockProperties(block);
     default:
       return undefined;
   }
@@ -339,37 +340,33 @@ export class PageUndoManager {
   }
 
   undo(): PageTransactionResult | null {
-    const entry = this.#undo.pop();
-    if (entry === undefined) return null;
-    try {
-      assertHistoryGuards(this.#document, entry.afterGuards, "undo");
-      const result = this.#document.transact(entry.inverse);
-      this.#redo.push(entry);
-      return result;
-    } catch (error) {
-      this.#undo.push(entry);
-      throw new PageUndoError(
-        error instanceof Error
-          ? `undo could not be applied after newer changes: ${error.message}`
-          : "undo could not be applied after newer changes",
-      );
-    }
+    return this.#applyHistory("undo");
   }
 
   redo(): PageTransactionResult | null {
-    const entry = this.#redo.pop();
+    return this.#applyHistory("redo");
+  }
+
+  #applyHistory(direction: "undo" | "redo"): PageTransactionResult | null {
+    const source = direction === "undo" ? this.#undo : this.#redo;
+    const target = direction === "undo" ? this.#redo : this.#undo;
+    const entry = source.pop();
     if (entry === undefined) return null;
     try {
-      assertHistoryGuards(this.#document, entry.beforeGuards, "redo");
-      const result = this.#document.transact(entry.forward);
-      this.#undo.push(entry);
+      assertHistoryGuards(
+        this.#document,
+        direction === "undo" ? entry.afterGuards : entry.beforeGuards,
+        direction,
+      );
+      const result = this.#document.transact(direction === "undo" ? entry.inverse : entry.forward);
+      target.push(entry);
       return result;
     } catch (error) {
-      this.#redo.push(entry);
+      source.push(entry);
       throw new PageUndoError(
         error instanceof Error
-          ? `redo could not be applied after newer changes: ${error.message}`
-          : "redo could not be applied after newer changes",
+          ? `${direction} could not be applied after newer changes: ${error.message}`
+          : `${direction} could not be applied after newer changes`,
       );
     }
   }

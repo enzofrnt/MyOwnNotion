@@ -1,3 +1,4 @@
+import type { PageDocument } from "@myownnotion/domain";
 /**
  * Central mutation execution (T073/T074/T075 backbone).
  *
@@ -421,59 +422,11 @@ async function executeReplacePageDocument(
   if (!plan.ok) {
     return plan as DomainResult<CommandExecution>;
   }
-  const revisionId = generateUuidV7();
-  await tx
-    .insert(pageDocuments)
-    .values({
-      pageId: plan.value.item.id,
-      format: plan.value.document.format,
-      formatVersion: plan.value.document.formatVersion,
-      body: plan.value.document.body,
-    })
-    .onConflictDoUpdate({
-      target: pageDocuments.pageId,
-      set: {
-        format: plan.value.document.format,
-        formatVersion: plan.value.document.formatVersion,
-        body: plan.value.document.body,
-      },
-    });
-  // Both indexes derived from this document are rebuilt here, inside the same
-  // transaction that writes it. They answer different questions — which pages
-  // this one links to, and which files it embeds — and share one reason for
-  // being here rather than after the commit: an index written in a second
-  // transaction has a window in which it disagrees with the page it describes.
-  const reconciled = await reconcilePageLinks(tx, {
-    workspaceId: context.workspaceId,
-    sourceItemId: plan.value.item.id,
-    revisionId,
-    targetItemIds: plan.value.pageLinkTargetIds,
-  });
-  if (!reconciled.ok) {
-    return reconciled as DomainResult<CommandExecution>;
-  }
-  // For file usages that window is the dangerous one: the deletion
-  // confirmation shown during it says "nothing uses this" about a file the
-  // page still shows (FR-004).
-  await rebuildEmbedUsages(tx, plan.value.item.id, plan.value.document.body);
-  await tx
-    .update(items)
-    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
-    .where(eq(items.id, plan.value.item.id));
-  const snapshot = await buildItemSnapshot(tx, plan.value.item.id);
-  await insertRevision(tx, {
-    id: revisionId,
+  return persistPageDocumentRevision(tx, context, {
     itemId: plan.value.item.id,
-    mutationId: context.mutationId,
+    document: plan.value.document,
+    pageLinkTargetIds: plan.value.pageLinkTargetIds,
     parentRevisionIds: [plan.value.parentRevisionId],
-    snapshot,
-    acceptedAt: context.acceptedAt,
-  });
-  await supersedeRevision(tx, plan.value.parentRevisionId, context.acceptedAt);
-  return ok({
-    revisionIds: [revisionId],
-    changedItemIds: [plan.value.item.id],
-    primaryItemId: plan.value.item.id,
   });
 }
 
@@ -481,12 +434,9 @@ async function executeReplacePageDocument(
  * Commits an owner's conflict resolution as a revision with two parents
  * (feature 006, FR-016).
  *
- * Almost the same body as `executeReplacePageDocument`, and deliberately not
- * factored together with it. The two differ in what they do to history — one
- * parent versus two, and which revisions start their retention clock — and that
- * is precisely the part a shared helper would hide behind a flag. A reader
- * asking "does resolving destroy either version?" can answer it from this
- * function alone.
+ * Validations remain specific to conflict resolution. Both reviewed parents
+ * are explicitly passed to the common document commit, which retains their
+ * headers and starts both retention clocks in the same transaction.
  */
 async function executeResolveConflict(
   tx: Transaction,
@@ -498,61 +448,11 @@ async function executeResolveConflict(
   if (!plan.ok) {
     return plan as DomainResult<CommandExecution>;
   }
-  const revisionId = generateUuidV7();
-  await tx
-    .insert(pageDocuments)
-    .values({
-      pageId: plan.value.item.id,
-      format: plan.value.document.format,
-      formatVersion: plan.value.document.formatVersion,
-      body: plan.value.document.body,
-    })
-    .onConflictDoUpdate({
-      target: pageDocuments.pageId,
-      set: {
-        format: plan.value.document.format,
-        formatVersion: plan.value.document.formatVersion,
-        body: plan.value.document.body,
-      },
-    });
-  const reconciled = await reconcilePageLinks(tx, {
-    workspaceId: context.workspaceId,
-    sourceItemId: plan.value.item.id,
-    revisionId,
-    targetItemIds: plan.value.pageLinkTargetIds,
-  });
-  if (!reconciled.ok) {
-    return reconciled as DomainResult<CommandExecution>;
-  }
-  await rebuildEmbedUsages(tx, plan.value.item.id, plan.value.document.body);
-  await tx
-    .update(items)
-    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
-    .where(eq(items.id, plan.value.item.id));
-  const snapshot = await buildItemSnapshot(tx, plan.value.item.id);
-  // Both parents. This single line is what makes FR-016 structural: the two
-  // versions the owner chose between remain reachable as ancestors of the
-  // resolution, so "the originals are kept" is a fact about the graph rather
-  // than a promise about a retention job.
-  await insertRevision(tx, {
-    id: revisionId,
+  return persistPageDocumentRevision(tx, context, {
     itemId: plan.value.item.id,
-    mutationId: context.mutationId,
+    document: plan.value.document,
+    pageLinkTargetIds: plan.value.pageLinkTargetIds,
     parentRevisionIds: plan.value.parentRevisionIds,
-    snapshot,
-    acceptedAt: context.acceptedAt,
-  });
-  // Both clocks start, not just the head's. A superseded snapshot is retained
-  // for its window and then pruned; the *headers and parent edges are never
-  // deleted*, so the lineage survives the pruning and the resolution keeps
-  // reading as a place where two lines of work rejoined.
-  for (const parentRevisionId of plan.value.parentRevisionIds) {
-    await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
-  }
-  return ok({
-    revisionIds: [revisionId],
-    changedItemIds: [plan.value.item.id],
-    primaryItemId: plan.value.item.id,
   });
 }
 
@@ -977,17 +877,7 @@ export async function submitMutation(
       const existing = await readMutationRecord(tx, input.mutationId);
       if (existing !== undefined) {
         return {
-          result: replayResult({
-            id: existing.id as Uuid,
-            workspaceId: existing.workspaceId as Uuid,
-            commandType: existing.commandType,
-            status: existing.status as "accepted" | "rejected",
-            submittedAt: existing.submittedAt.toISOString(),
-            acceptedAt: existing.acceptedAt?.toISOString() ?? null,
-            resultRevisionIds: existing.resultRevisionIds as Uuid[],
-            failureCode: existing.failureCode,
-            competingRevisionIds: existing.competingRevisionIds as Uuid[],
-          }),
+          result: mutationReplayResult(existing),
         };
       }
 
@@ -1087,17 +977,7 @@ export async function submitMutation(
       const record = replay[0];
       if (record !== undefined) {
         return {
-          result: replayResult({
-            id: record.id as Uuid,
-            workspaceId: record.workspaceId as Uuid,
-            commandType: record.commandType,
-            status: record.status as "accepted" | "rejected",
-            submittedAt: record.submittedAt.toISOString(),
-            acceptedAt: record.acceptedAt?.toISOString() ?? null,
-            resultRevisionIds: record.resultRevisionIds as Uuid[],
-            failureCode: record.failureCode,
-            competingRevisionIds: record.competingRevisionIds as Uuid[],
-          }),
+          result: mutationReplayResult(record),
         };
       }
     }
@@ -1120,4 +1000,84 @@ function isUniqueViolationOnMutations(error: unknown): boolean {
   }
   const candidate = error as { code?: unknown; constraint?: unknown };
   return candidate.code === "23505" && candidate.constraint === "mutations_pkey";
+}
+
+async function persistPageDocumentRevision(
+  tx: Transaction,
+  context: MutationContext,
+  input: {
+    readonly itemId: Uuid;
+    readonly document: PageDocument;
+    readonly pageLinkTargetIds: readonly Uuid[];
+    readonly parentRevisionIds: readonly Uuid[];
+  },
+): Promise<DomainResult<CommandExecution>> {
+  const revisionId = generateUuidV7();
+  await tx
+    .insert(pageDocuments)
+    .values({
+      pageId: input.itemId,
+      format: input.document.format,
+      formatVersion: input.document.formatVersion,
+      body: input.document.body,
+    })
+    .onConflictDoUpdate({
+      target: pageDocuments.pageId,
+      set: {
+        format: input.document.format,
+        formatVersion: input.document.formatVersion,
+        body: input.document.body,
+      },
+    });
+  const reconciled = await reconcilePageLinks(tx, {
+    workspaceId: context.workspaceId,
+    sourceItemId: input.itemId,
+    revisionId,
+    targetItemIds: input.pageLinkTargetIds,
+  });
+  if (!reconciled.ok) {
+    return reconciled as DomainResult<CommandExecution>;
+  }
+  await rebuildEmbedUsages(tx, input.itemId, input.document.body);
+  await tx
+    .update(items)
+    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
+    .where(eq(items.id, input.itemId));
+  const snapshot = await buildItemSnapshot(tx, input.itemId);
+  // Every supplied parent remains an ancestor. Conflict resolution supplies
+  // both reviewed versions, making preservation structural (006 FR-016).
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: input.itemId,
+    mutationId: context.mutationId,
+    parentRevisionIds: input.parentRevisionIds,
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  // Start retention for all superseded snapshots; headers and parent edges
+  // survive pruning, including both lineages of a conflict resolution.
+  for (const parentRevisionId of input.parentRevisionIds) {
+    await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
+  }
+  return ok({
+    revisionIds: [revisionId],
+    changedItemIds: [input.itemId],
+    primaryItemId: input.itemId,
+  });
+}
+
+function mutationReplayResult(
+  row: NonNullable<Awaited<ReturnType<typeof readMutationRecord>>>,
+): ReturnType<typeof replayResult> {
+  return replayResult({
+    id: row.id as Uuid,
+    workspaceId: row.workspaceId as Uuid,
+    commandType: row.commandType,
+    status: row.status as "accepted" | "rejected",
+    submittedAt: row.submittedAt.toISOString(),
+    acceptedAt: row.acceptedAt?.toISOString() ?? null,
+    resultRevisionIds: row.resultRevisionIds as Uuid[],
+    failureCode: row.failureCode,
+    competingRevisionIds: row.competingRevisionIds as Uuid[],
+  });
 }

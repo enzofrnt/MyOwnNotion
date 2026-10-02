@@ -38,12 +38,12 @@ import {
   PopoverContent,
   PopoverRoot,
   PopoverTrigger,
-  Switch,
 } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
 import { isChoiceProperty, OptionValueMenu, PropertyOptionsEditor } from "./option-appearance.tsx";
+import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
 import {
   type RelationOption,
   type ValueDraft,
@@ -620,6 +620,7 @@ export function TableView({
     virtualizer.scrollToIndex(renameIndex, { align: "auto" });
     onRenameStarted?.();
   }, [onRenameStarted, renameEntryId, renameIndex, virtualizer, visible]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: New rows mount the rename input; refocus after their projection arrives.
   useLayoutEffect(() => {
     if (namingEntryId == null) return;
     const input = scrollRef.current?.querySelector<HTMLInputElement>(
@@ -634,7 +635,7 @@ export function TableView({
     const input = scrollRef.current?.querySelector<HTMLInputElement>(
       `[data-title-edit="${titleEdit.id}"]`,
     );
-    if (input === null || document.activeElement === input) return;
+    if (input == null || document.activeElement === input) return;
     input.focus();
     if (titleEdit.seed === null) input.select();
     if (typeof input.scrollIntoView === "function") {
@@ -1023,17 +1024,10 @@ export function TableView({
                                   <span className="database-column-label__name">
                                     {column.property.name}
                                   </span>
-                                  <Switch
-                                    checked={column.visible}
-                                    disabled={column.property.type === "title"}
-                                    aria-label={
-                                      column.property.type === "title"
-                                        ? `${column.property.name}, toujours visible`
-                                        : `Afficher ${column.property.name} dans cette vue`
-                                    }
-                                    onCheckedChange={(visible) =>
-                                      onToggleColumn(column.property.id, visible)
-                                    }
+                                  <PropertyVisibilitySwitch
+                                    property={column.property}
+                                    visible={column.visible}
+                                    onToggle={onToggleColumn}
                                   />
                                 </li>
                               ))}
@@ -1044,6 +1038,7 @@ export function TableView({
                     </div>
                   </th>
                 )}
+                {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: Empty filler cells are not focusable and carry no column semantics. */}
                 <th className="database-table-filler" aria-hidden="true" />
               </tr>
             ))}

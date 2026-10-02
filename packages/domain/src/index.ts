@@ -6,6 +6,7 @@
  */
 
 export * from "./backup/index.ts";
+export * from "./binary.ts";
 export * from "./content/content-items.ts";
 export * from "./content/conversion.ts";
 export * from "./content/file-placements.ts";
@@ -43,3 +44,5 @@ export * from "./security/session-policy.ts";
 export * from "./security/types.ts";
 export * from "./security/wrapping-key-rotation.ts";
 export * from "./sync/index.ts";
+export * from "./validation/canonical-json.ts";
+export * from "./validation/json.ts";

@@ -1,3 +1,4 @@
+import { sameSecretValue as constantTimeEquals } from "@myownnotion/domain/security";
 /**
  * Bootstrap orchestration (T031 / T133, feature 002).
  *
@@ -11,7 +12,7 @@
  * are settings concerns after readiness.
  */
 
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   BootstrapClaimConflictError,
   claimAttempt,
@@ -57,12 +58,6 @@ import {
  */
 function digest(kind: string, value: string): string {
   return createHash("sha256").update(`mn.bootstrap.${kind}.v1`).update(value).digest("base64url");
-}
-
-function constantTimeEquals(left: string, right: string): boolean {
-  const a = Buffer.from(left);
-  const b = Buffer.from(right);
-  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 /** 48 bytes: comfortably above the contract's 32-character minimum. */

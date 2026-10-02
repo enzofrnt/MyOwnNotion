@@ -13,10 +13,10 @@
  *
  * Output artifact: `static-security.sarif` (SARIF 2.1.0), always written.
  */
-import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { trackedFiles as readTrackedFiles } from "./tracked-files.ts";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const artifactPath = path.join(repoRoot, "static-security.sarif");
@@ -109,12 +109,7 @@ interface Finding {
 }
 
 function trackedFiles(): string[] {
-  const output = execFileSync("git", ["ls-files", "-z"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  return output.split("\0").filter((entry) => entry.length > 0);
+  return readTrackedFiles(repoRoot, { maxBuffer: 64 * 1024 * 1024 });
 }
 
 const findings: Finding[] = [];

@@ -60,16 +60,16 @@ describe("separate source and presentation definitions", () => {
     });
   });
 
-  it("requires a linked-view item to show exactly one view", () => {
+  it("allows a full-page linked container to host multiple independent views", () => {
     expect(
       validateDatabasePresentation(presentation([tableView(sourceId)]), "database_view").ok,
     ).toBe(true);
     expect(
       validateDatabasePresentation(
-        presentation([tableView(sourceId), tableView(sourceId)]),
+        presentation([tableView(sourceId), tableView(otherSourceId)]),
         "database_view",
       ).ok,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("locks the only owner view, then changes just the selected view", () => {

@@ -1,3 +1,4 @@
+import { sessionCookieAttributes as configuredSessionCookieAttributes } from "./security-config.ts";
 /**
  * Session cookie issuance and acceptance (T045, feature 002).
  *
@@ -68,13 +69,8 @@ export function sessionCookieAttributes(
   maxAgeSeconds: number,
 ): CookieAttributes {
   return {
+    ...configuredSessionCookieAttributes(config),
     name: sessionCookieName(config.cookieMode),
-    // Never `Secure` in loopback mode: the browser would refuse to send it
-    // over plain HTTP and the exception would silently do nothing.
-    secure: config.cookieMode === "production",
-    httpOnly: true,
-    sameSite: "Strict",
-    path: "/",
     maxAgeSeconds,
   };
 }

@@ -355,13 +355,21 @@ describe("page title editor", () => {
     const title = container.querySelector('[data-testid="active-item-title"]');
     expect(kind?.textContent).toContain("Page");
     expect(kind?.querySelector('[data-icon="fileText"]')).not.toBeNull();
-    expect(title?.nextElementSibling?.querySelector('[data-testid="active-item-kind"]')).toBe(kind);
+    expect(
+      title
+        ?.closest(".workspace-page-title__body")
+        ?.lastElementChild?.querySelector('[data-testid="active-item-kind"]'),
+    ).toBe(kind);
   });
 
   it("hides page text lines on the kind caption until the body holds content", async () => {
     await act(async () => {
       root.render(
-        <PageTitleEditor holdsContent={false} title="Sans titre" onCommit={async () => undefined} />,
+        <PageTitleEditor
+          holdsContent={false}
+          title="Sans titre"
+          onCommit={async () => undefined}
+        />,
       );
     });
     const kind = container.querySelector('[data-testid="active-item-kind"]');

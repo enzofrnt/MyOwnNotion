@@ -445,15 +445,7 @@ export async function readCurrentDatabaseDefinition(
   const record = await readDatabaseRecord(executor, databaseId);
   let snapshot: Readonly<Record<string, unknown>> | null;
   if (record?.definitionRevisionId) {
-    const [row] = await executor
-      .select({ snapshot: revisions.snapshot })
-      .from(revisions)
-      .where(eq(revisions.id, record.definitionRevisionId))
-      .limit(1);
-    snapshot =
-      (row?.snapshot as Readonly<Record<string, unknown>> | null) ??
-      (await resolve?.(record.definitionRevisionId)) ??
-      null;
+    snapshot = await revisionSnapshot(executor, record.definitionRevisionId, resolve);
   } else {
     snapshot = await currentSnapshot(executor, databaseId, resolve);
   }
@@ -471,15 +463,7 @@ export async function readCurrentDatabaseEntryValues(
 ): Promise<EntryValues | null> {
   const record = await readDatabaseEntryRecord(executor, entryId, databaseId);
   if (record === null) return null;
-  const [row] = await executor
-    .select({ snapshot: revisions.snapshot })
-    .from(revisions)
-    .where(eq(revisions.id, record.valueRevisionId))
-    .limit(1);
-  const snapshot =
-    (row?.snapshot as Readonly<Record<string, unknown>> | null) ??
-    (await resolve?.(record.valueRevisionId)) ??
-    null;
+  const snapshot = await revisionSnapshot(executor, record.valueRevisionId, resolve);
   const values = snapshot?.["databaseEntryValues"];
   return typeof values === "object" && values !== null ? (values as EntryValues) : null;
 }

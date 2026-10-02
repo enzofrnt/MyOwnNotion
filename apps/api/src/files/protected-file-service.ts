@@ -26,6 +26,7 @@ import type { KeyHierarchy } from "../security/key-hierarchy.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { FileByteRange } from "./file-range.ts";
 import { pinnedFileRead } from "./pinned-file-read.ts";
+import { protectedChunkManifestEntry } from "./protected-chunk-manifest.ts";
 
 export interface ProtectedStoredContent {
   readonly contentId: Uuid;
@@ -221,13 +222,7 @@ export class ProtectedFileService {
       recordVersion: 1,
       byteLength,
       sha256: Buffer.from(sha256).toString("hex"),
-      chunks: chunks.map((chunk) => ({
-        index: chunk.chunkIndex,
-        byteLength: chunk.byteLength,
-        storageKey: chunk.storageKey,
-        keyGeneration: chunk.keyGeneration,
-        recordVersion: chunk.recordVersion,
-      })),
+      chunks: chunks.map(protectedChunkManifestEntry),
     };
     const protectedValues = {
       storageFormat: "encrypted-chunks-v1" as const,

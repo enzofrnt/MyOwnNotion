@@ -2,7 +2,7 @@ import { usePopoverContext } from "@ariakit/react";
 import type { DatabaseProperty, DatabaseView, Uuid } from "@myownnotion/domain";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { AppIcon, type AppIconName } from "../../ui/icons.tsx";
-import { PopoverContent, PopoverRoot, PopoverTrigger, Switch } from "../../ui/primitives/index.ts";
+import { PopoverContent, PopoverRoot, PopoverTrigger } from "../../ui/primitives/index.ts";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { FilterEditor } from "./filter-editor.tsx";
 import {
@@ -10,6 +10,7 @@ import {
   PropertyEditor,
   validatePropertyDraft,
 } from "./property-editor.tsx";
+import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
 import { SortGroupEditor } from "./sort-group-editor.tsx";
 import { viewColumns } from "./view-columns.ts";
 import { VIEW_ICON_CHOICES, ViewMark, viewIconChoice } from "./view-icon.tsx";
@@ -232,7 +233,9 @@ function ViewIconPicker({
  * opened directly from the view menu when the owner asks for them.
  */
 function motionDurationMs(): number {
-  const raw = getComputedStyle(document.documentElement).getPropertyValue("--ui-duration-normal").trim();
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue("--ui-duration-normal")
+    .trim();
   const value = Number.parseFloat(raw);
   if (!Number.isFinite(value)) return 180;
   return raw.endsWith("ms") ? value : value * 1000;
@@ -613,15 +616,10 @@ export function ViewSettingsPanel({
                     {DATABASE_COPY.property.typeLabels[column.property.type]}
                   </span>
                 </span>
-                <Switch
-                  checked={column.visible}
-                  disabled={column.property.type === "title"}
-                  aria-label={
-                    column.property.type === "title"
-                      ? `${column.property.name}, toujours visible`
-                      : `Afficher ${column.property.name} dans cette vue`
-                  }
-                  onCheckedChange={(visible) => onToggleProperty(column.property.id, visible)}
+                <PropertyVisibilitySwitch
+                  property={column.property}
+                  visible={column.visible}
+                  onToggle={onToggleProperty}
                 />
               </li>
             ))}

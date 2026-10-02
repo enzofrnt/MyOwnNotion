@@ -10,7 +10,7 @@ import type {
   TableRowV3,
   Uuid,
 } from "@myownnotion/domain";
-import { collectDocumentIdsV3 } from "@myownnotion/domain";
+import { copyBytes as cloneBytes, collectDocumentIdsV3 } from "@myownnotion/domain";
 import { LoroDoc, type Side, VersionVector } from "loro-crdt";
 import {
   assertOperationalBlock,
@@ -54,6 +54,7 @@ import {
   resolveRelativeTextPosition,
   setRichTextMark,
 } from "./rich-text.ts";
+import { tableCellIdentities, tableRowIdentities } from "./table-identities.ts";
 import {
   encodeOperationalFrontiers,
   OPERATIONAL_FORMAT,
@@ -370,27 +371,11 @@ function tableSnapshot(doc: LoroDoc, tableId: Uuid): TableBlockV3 {
   return block;
 }
 
-function tableRowIdentities(row: TableRowV3): Uuid[] {
-  return [
-    row.id,
-    ...row.cells.flatMap((cell) => [
-      cell.id,
-      ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
-    ]),
-  ];
-}
-
 function tableColumnIdentities(
   column: TableColumnV3,
   cells: readonly { readonly rowId: Uuid; readonly cell: TableCellV3 }[],
 ): Uuid[] {
-  return [
-    column.id,
-    ...cells.flatMap(({ cell }) => [
-      cell.id,
-      ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
-    ]),
-  ];
+  return [column.id, ...cells.flatMap(({ cell }) => tableCellIdentities(cell))];
 }
 
 function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
@@ -540,13 +525,11 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
       if (column === undefined) {
         throw new TypeError(`inserted column ${command.column.id} is missing`);
       }
-      const cells = blockAfter.rows.map((row) => {
-        const cell = row.cells[columnIndex];
-        if (cell === undefined) {
-          throw new TypeError(`inserted column ${command.column.id} has no cell in row ${row.id}`);
-        }
-        return { rowId: row.id, cell };
-      });
+      const cells = collectTableColumnCells(
+        blockAfter.rows,
+        columnIndex,
+        `inserted column ${command.column.id}`,
+      );
       return {
         type: "table-column-inserted",
         blockId: command.tableId,
@@ -565,13 +548,11 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
       if (column === undefined) {
         throw new TypeError(`column ${command.columnId} is not in ${command.tableId}`);
       }
-      const cells = blockBefore.rows.map((row) => {
-        const cell = row.cells[columnIndex];
-        if (cell === undefined) {
-          throw new TypeError(`column ${command.columnId} has no cell in row ${row.id}`);
-        }
-        return { rowId: row.id, cell };
-      });
+      const cells = collectTableColumnCells(
+        blockBefore.rows,
+        columnIndex,
+        `column ${command.columnId}`,
+      );
       const beforeColumnId = blockBefore.columns[columnIndex + 1]?.id ?? null;
       deleteOperationalTableColumn(doc, command.tableId, command.columnId);
       return {
@@ -613,13 +594,11 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
       if (column === undefined) {
         throw new TypeError(`column ${command.columnId} is not in ${command.tableId}`);
       }
-      const cells = blockBefore.rows.map((row) => {
-        const cell = row.cells[columnIndex];
-        if (cell === undefined) {
-          throw new TypeError(`column ${command.columnId} has no cell in row ${row.id}`);
-        }
-        return { rowId: row.id, cell };
-      });
+      const cells = collectTableColumnCells(
+        blockBefore.rows,
+        columnIndex,
+        `column ${command.columnId}`,
+      );
       const placementBefore = {
         beforeColumnId: blockBefore.columns[columnIndex + 1]?.id ?? null,
       };
@@ -657,12 +636,6 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
       };
     }
   }
-}
-
-function cloneBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
-  const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
-  copy.set(bytes);
-  return copy;
 }
 
 export class OperationalPageDocument {
@@ -925,4 +898,16 @@ export class OperationalPageDocument {
   ): { readonly offset: number; readonly side: Side } | undefined {
     return resolveRelativeTextPosition(this.#doc, encodedCursor);
   }
+}
+
+function collectTableColumnCells(
+  rows: readonly TableRowV3[],
+  columnIndex: number,
+  label: string,
+): { readonly rowId: Uuid; readonly cell: TableCellV3 }[] {
+  return rows.map((row) => {
+    const cell = row.cells[columnIndex];
+    if (cell === undefined) throw new TypeError(`${label} has no cell in row ${row.id}`);
+    return { rowId: row.id, cell };
+  });
 }

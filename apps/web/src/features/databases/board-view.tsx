@@ -24,7 +24,7 @@ type BoardAxisProperty = OptionProperty & { readonly type: "status" | "select" }
 export interface BoardColumn {
   readonly id: Uuid | "missing";
   readonly label: string;
-  readonly tone?: string;
+  readonly tone?: string | undefined;
   readonly rows: readonly DatabaseViewRow[];
 }
 

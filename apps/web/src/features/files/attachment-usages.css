@@ -1,0 +1,7 @@
+/* A usage name stays readable inside its attachment panel at narrow widths. */
+.attachment-usage-link {
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+}

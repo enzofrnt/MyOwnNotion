@@ -21,6 +21,7 @@ import type {
   SealedConflictRecordRow,
   SealedOutboxMutationRow,
 } from "../security/local-record-codec.ts";
+import { openStoredConflict } from "../security/open-stored-conflict.ts";
 import { withProjectionWrite } from "./projection-write-coordinator.ts";
 
 export function remapPayloadRevisionReferences(
@@ -71,13 +72,7 @@ export class Outbox {
   }
 
   async #openConflict(stored: unknown): Promise<ConflictRecordRow> {
-    if (typeof stored === "object" && stored !== null && "payload" in stored) {
-      return stored as ConflictRecordRow;
-    }
-    if (this.#codec === undefined) {
-      throw new Error("A local record codec is required to open sealed conflicts");
-    }
-    return await this.#codec.openConflict(stored as SealedConflictRecordRow);
+    return await openStoredConflict(stored, this.#codec);
   }
 
   async #storeConflict(

@@ -21,7 +21,7 @@ import {
   INTERNAL_PAGE_LINK_RELATION_TYPE,
   keyAfterAll,
   type MutationCommand,
-  normalizePropertyValue,
+  normalizeEntryValueMap,
   normalizeRelationTargets,
   ownedSourceIdFromItemId,
   type Placement,
@@ -175,24 +175,11 @@ async function normalizeStructuredCommandValues(
   >,
 ): Promise<{ readonly values: EntryValues; readonly relationTargets: RelationTargets }> {
   const properties = new Map(definition.properties.map((property) => [property.id, property]));
-  const values: Record<string, EntryValues["values"][Uuid]> = {};
-  for (const [propertyId, rawValue] of Object.entries(command.values)) {
-    const property = properties.get(propertyId as Uuid);
-    if (property === undefined || property.type === "title" || property.type === "relation") {
-      throw new LocalValidationError(
-        "validation.invalid-payload",
-        "Structured value property is unavailable",
-      );
-    }
-    const normalized = normalizePropertyValue(property, rawValue);
-    if (!normalized.ok || normalized.value === undefined) {
-      throw new LocalValidationError(
-        "validation.invalid-payload",
-        normalized.ok ? "Structured value is absent" : normalized.error.title,
-      );
-    }
-    values[propertyId] = normalized.value;
-  }
+  const normalizedValues = normalizeEntryValueMap(properties, command.values);
+  if (!normalizedValues.ok)
+    throw new LocalValidationError("validation.invalid-payload", normalizedValues.error.title);
+  const values = normalizedValues.value;
+
   const relationTargets: Record<string, readonly Uuid[]> = {};
   for (const [propertyId, rawTargets] of Object.entries(command.relationTargets)) {
     const property = properties.get(propertyId as Uuid);
@@ -984,11 +971,12 @@ export async function applyCommandToProjection(
       await db.databases.add(prepared.database);
       return [revisionId];
     }
-    case "database.source.create": {
+    case "database.source.create":
+    case "database.source.delete": {
       if (
         prepared.database === undefined ||
-        prepared.databaseSource === undefined ||
-        prepared.revisionId === undefined
+        prepared.revisionId === undefined ||
+        (command.type === "database.source.create" && prepared.databaseSource === undefined)
       ) {
         throw new LocalValidationError("database.not-found", "The source write was not prepared");
       }
@@ -1002,24 +990,9 @@ export async function applyCommandToProjection(
       );
       if (prepared.item !== undefined) await db.items.put(prepared.item);
       await db.databases.put(prepared.database);
-      await db.databaseSources.put(prepared.databaseSource);
-      return [revisionId];
-    }
-    case "database.source.delete": {
-      if (prepared.database === undefined || prepared.revisionId === undefined) {
-        throw new LocalValidationError("database.not-found", "The source write was not prepared");
-      }
-      const revisionId = await writeLocalRevision(
-        db,
-        command.ownerItemId,
-        [command.baseRevisionId],
-        now,
-        prepared.revisionId,
-        mutationId,
-      );
-      if (prepared.item !== undefined) await db.items.put(prepared.item);
-      await db.databases.put(prepared.database);
-      if (prepared.deletedSourceId !== undefined)
+      if (command.type === "database.source.create" && prepared.databaseSource !== undefined)
+        await db.databaseSources.put(prepared.databaseSource);
+      else if (command.type === "database.source.delete" && prepared.deletedSourceId !== undefined)
         await db.databaseSources.delete(prepared.deletedSourceId);
       return [revisionId];
     }
@@ -1333,43 +1306,21 @@ export async function applyCommandToProjection(
       return [revisionId];
     }
 
-    case "page.document.replace": {
-      const item = await db.items.get(command.itemId);
-      if (item === undefined || item.kind !== "page") {
-        throw new LocalValidationError("item.not-found", "Page is not available locally");
-      }
-      if (prepared.item === undefined || prepared.revisionId === undefined) {
-        throw new LocalValidationError("item.not-found", "The write was not prepared");
-      }
-      const revisionId = await writeLocalRevision(
-        db,
-        command.itemId,
-        [item.currentRevisionId],
-        now,
-        prepared.revisionId,
-        mutationId,
-      );
-      await db.items.put(prepared.item);
-      await reconcileLocalPageLinks(db, command.itemId, command.pageLinkTargetIds ?? []);
-      return [revisionId];
-    }
-
+    case "page.document.replace":
     case "document.resolve-conflict": {
       const item = await db.items.get(command.itemId);
-      if (item === undefined || item.kind !== "page") {
+      if (item === undefined || item.kind !== "page")
         throw new LocalValidationError("item.not-found", "Page is not available locally");
-      }
-      if (prepared.item === undefined || prepared.revisionId === undefined) {
+      if (prepared.item === undefined || prepared.revisionId === undefined)
         throw new LocalValidationError("item.not-found", "The write was not prepared");
-      }
-      // Both parents locally too, so the projection tells the same story about
-      // this revision as the server will. A local revision with one parent would
-      // make the device's own history disagree with the workspace's about the
-      // one entry an owner is most likely to go looking for.
+      const parents =
+        command.type === "document.resolve-conflict"
+          ? [...command.resolvedRevisionIds]
+          : [item.currentRevisionId];
       const revisionId = await writeLocalRevision(
         db,
         command.itemId,
-        [...command.resolvedRevisionIds],
+        parents,
         now,
         prepared.revisionId,
         mutationId,
@@ -1378,7 +1329,6 @@ export async function applyCommandToProjection(
       await reconcileLocalPageLinks(db, command.itemId, command.pageLinkTargetIds ?? []);
       return [revisionId];
     }
-
     case "placement.move": {
       const placement = await db.placements.get(command.placementId);
       if (placement === undefined) {

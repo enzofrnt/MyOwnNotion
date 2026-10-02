@@ -1,3 +1,4 @@
+import { useOutboxRows } from "./use-outbox-rows.ts";
 /**
  * What a refused write means, in the three parts FR-010 requires (T041, US2).
  *
@@ -17,9 +18,8 @@
  * "nothing is blocked" is furniture, and furniture is not read when it changes.
  */
 
-import type { OutboxMutationRow, SaveState } from "@myownnotion/client-core";
+import type { SaveState } from "@myownnotion/client-core";
 import { deriveSaveState, rowsForItem } from "@myownnotion/client-core";
-import { useEffect, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
 
@@ -30,17 +30,7 @@ export function BlockedNotice({
   readonly service: LocalContentService;
   readonly itemId: string;
 }) {
-  const [rows, setRows] = useState<OutboxMutationRow[]>([]);
-
-  useEffect(() => {
-    const refresh = async () => {
-      setRows(await service.outbox.all());
-    };
-    void refresh();
-    return service.subscribe(() => {
-      void refresh();
-    });
-  }, [service]);
+  const rows = useOutboxRows(service);
 
   const state: SaveState = deriveSaveState(rowsForItem(rows, itemId), navigator.onLine);
   if (state.kind !== "blocked") {

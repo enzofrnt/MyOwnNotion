@@ -1,6 +1,7 @@
 import {
   createInitialDatabaseDefinition,
   type DatabaseDefinition,
+  type DatabaseImpactConfirmation,
   type DatabaseMutationCommand,
   type DatabasePresentationDefinition,
   type DatabaseSourceDefinition,
@@ -11,7 +12,7 @@ import {
   err,
   generateUuidV7,
   keyAfterAll,
-  normalizePropertyValue,
+  normalizeEntryValueMap,
   normalizeRelationTargets,
   ok,
   ownedSourceIdFromItemId,
@@ -163,20 +164,9 @@ async function validateStructuredValues(
   const properties = new Map(
     input.definition.properties.map((property) => [property.id, property]),
   );
-  const values: Record<string, EntryValues["values"][Uuid]> = {};
-  for (const [propertyId, rawValue] of Object.entries(input.values)) {
-    const property = properties.get(propertyId as Uuid);
-    if (property === undefined || property.type === "title" || property.type === "relation") {
-      return err("validation.invalid-payload", "Structured value property is unavailable");
-    }
-    const normalized = normalizePropertyValue(property, rawValue);
-    if (!normalized.ok || normalized.value === undefined) {
-      return normalized.ok
-        ? err("validation.invalid-payload", "Structured value is absent")
-        : (normalized as DomainResult<never>);
-    }
-    values[propertyId] = normalized.value;
-  }
+  const normalizedValues = normalizeEntryValueMap(properties, input.values);
+  if (!normalizedValues.ok) return normalizedValues;
+  const values = normalizedValues.value;
 
   const relations: Record<string, readonly Uuid[]> = {};
   for (const [propertyId, rawTargets] of Object.entries(input.relationTargets)) {
@@ -584,94 +574,21 @@ async function executeReplaceDefinition(
       competingRevisionIds: [record.definitionRevisionId ?? item.currentRevisionId],
     });
   }
-  const candidate = validateDatabaseDefinition(command.definition);
-  if (!candidate.ok || candidate.value.databaseId !== command.databaseId) {
-    return err("validation.invalid-payload", "Database definition is invalid");
-  }
-  for (const embedding of candidate.value.embeddings ?? []) {
-    const previous = currentDefinition.embeddings?.find((value) => value.id === embedding.id);
-    if (embedding.state === "retired" || previous?.hostPageId === embedding.hostPageId) continue;
-    const host = await getItem(tx, embedding.hostPageId);
-    if (host === null || host.kind !== "page" || host.lifecycle !== "active")
-      return err("item.not-active", "Database display needs an active page");
-  }
-  if (currentDefinition.embeddings !== undefined && candidate.value.embeddings === undefined)
-    return err("validation.invalid-payload", "This client must preserve linked database displays");
-  const entryRecords = await listDatabaseEntryRecords(tx, command.databaseId);
-  const entryValues: EntryValues[] = [];
-  for (const entry of entryRecords) {
-    const values = await readCurrentDatabaseEntryValues(
-      tx,
-      entry.entryId,
-      snapshotResolver(tx, context),
-      command.databaseId,
-    );
-    if (values !== null) entryValues.push(values);
-  }
-  const impact = await previewDefinitionImpact({
-    baseRevisionId: command.baseRevisionId,
-    current: currentDefinition,
-    candidate: candidate.value,
-    entries: entryValues,
-  });
-  if (impact.destructive && command.impactConfirmation === undefined) {
-    return err("database.impact-confirmation-required", "Database change requires confirmation");
-  }
-  if (
-    impact.destructive &&
-    command.impactConfirmation !== undefined &&
-    command.impactConfirmation.digest !== impact.impactDigest
-  ) {
-    return err("database.impact-stale", "Database impact changed before commit");
-  }
-
-  const parts = await replacementSourceAndPresentation(tx, context, record, candidate.value);
-  if (!parts.ok) return parts;
-
-  const revisionId = generateUuidV7();
-  const advanced = await advanceDatabaseDefinitionVersion(tx, {
-    databaseId: command.databaseId,
-    sourceId: record.sourceId,
-    definitionRevisionId: revisionId,
-    expectedVersion: record.definitionVersion,
-    acceptedAt: context.acceptedAt,
-  });
-  if (!advanced) return err("mutation.conflict", "Database definition version changed");
-  if (
-    !(await advanceDatabasePresentationVersion(tx, {
-      containerItemId: command.databaseId,
-      presentationRevisionId: revisionId,
-      expectedVersion: parts.value.presentationVersion,
-      acceptedAt: context.acceptedAt,
-    }))
-  )
-    return err("mutation.conflict", "Database presentation version changed");
-  // A source revision never recopies private editorial content from its former
-  // host. Its journal owns only the live independent resource definition.
-  const snapshot = {
-    databaseDefinition: candidate.value,
-    databaseDefinitionVersion: record.definitionVersion + 1,
-    databaseSource: parts.value.source,
-    databasePresentation: parts.value.presentation,
-  };
-  await insertRevision(tx, {
-    id: revisionId,
-    itemId: command.databaseId,
-    mutationId: context.mutationId,
-    parentRevisionIds: [record.definitionRevisionId ?? item.currentRevisionId],
-    snapshot,
-    acceptedAt: context.acceptedAt,
-  });
-  await supersedeRevision(
+  const prepared = await prepareDefinitionChange(
     tx,
-    record.definitionRevisionId ?? item.currentRevisionId,
-    context.acceptedAt,
+    context,
+    record,
+    currentDefinition,
+    command.databaseId,
+    command.definition,
+    command.baseRevisionId,
+    command.impactConfirmation,
+    "Database impact changed before commit",
   );
-  return ok({
-    revisionIds: [revisionId],
-    changedItemIds: [command.databaseId],
-    primaryItemId: command.databaseId,
-  });
+  if (!prepared.ok) return prepared;
+  return commitDefinitionChange(tx, context, record, command.databaseId, prepared.value, [
+    record.definitionRevisionId ?? item.currentRevisionId,
+  ]);
 }
 
 async function executeResolveDefinitionConflict(
@@ -696,92 +613,26 @@ async function executeResolveDefinitionConflict(
       competingRevisionIds: [record.definitionRevisionId ?? item.currentRevisionId],
     });
   }
-  const candidate = validateDatabaseDefinition(command.definition);
-  if (!candidate.ok || candidate.value.databaseId !== command.databaseId) {
-    return err("validation.invalid-payload", "Database definition is invalid");
-  }
-  for (const embedding of candidate.value.embeddings ?? []) {
-    const previous = currentDefinition.embeddings?.find((value) => value.id === embedding.id);
-    if (embedding.state === "retired" || previous?.hostPageId === embedding.hostPageId) continue;
-    const host = await getItem(tx, embedding.hostPageId);
-    if (host === null || host.kind !== "page" || host.lifecycle !== "active")
-      return err("item.not-active", "Database display needs an active page");
-  }
-  if (currentDefinition.embeddings !== undefined && candidate.value.embeddings === undefined)
-    return err("validation.invalid-payload", "This client must preserve linked database displays");
-  const entryRecords = await listDatabaseEntryRecords(tx, command.databaseId);
-  const entryValues: EntryValues[] = [];
-  for (const entry of entryRecords) {
-    const values = await readCurrentDatabaseEntryValues(
-      tx,
-      entry.entryId,
-      snapshotResolver(tx, context),
-      command.databaseId,
-    );
-    if (values !== null) entryValues.push(values);
-  }
-  const impact = await previewDefinitionImpact({
-    baseRevisionId: record.definitionRevisionId ?? item.currentRevisionId,
-    current: currentDefinition,
-    candidate: candidate.value,
-    entries: entryValues,
-  });
-  if (impact.destructive && command.impactConfirmation === undefined) {
-    return err("database.impact-confirmation-required", "Database change requires confirmation");
-  }
-  if (
-    impact.destructive &&
-    command.impactConfirmation !== undefined &&
-    command.impactConfirmation.digest !== impact.impactDigest
-  ) {
-    return err("database.impact-stale", "Database impact changed before resolution");
-  }
-
-  const parts = await replacementSourceAndPresentation(tx, context, record, candidate.value);
-  if (!parts.ok) return parts;
-
-  const revisionId = generateUuidV7();
-  const advanced = await advanceDatabaseDefinitionVersion(tx, {
-    databaseId: command.databaseId,
-    sourceId: record.sourceId,
-    definitionRevisionId: revisionId,
-    expectedVersion: record.definitionVersion,
-    acceptedAt: context.acceptedAt,
-  });
-  if (!advanced) return err("mutation.conflict", "Database definition version changed");
-  if (
-    !(await advanceDatabasePresentationVersion(tx, {
-      containerItemId: command.databaseId,
-      presentationRevisionId: revisionId,
-      expectedVersion: parts.value.presentationVersion,
-      acceptedAt: context.acceptedAt,
-    }))
-  )
-    return err("mutation.conflict", "Database presentation version changed");
-  // A source revision never recopies private editorial content from its former
-  // host. Its journal owns only the live independent resource definition.
-  const snapshot = {
-    databaseDefinition: candidate.value,
-    databaseDefinitionVersion: record.definitionVersion + 1,
-    databaseSource: parts.value.source,
-    databasePresentation: parts.value.presentation,
-  };
-  await insertRevision(tx, {
-    id: revisionId,
-    itemId: command.databaseId,
-    mutationId: context.mutationId,
-    parentRevisionIds: [...command.resolvedRevisionIds],
-    snapshot,
-    acceptedAt: context.acceptedAt,
-  });
-  for (const parentRevisionId of command.resolvedRevisionIds) {
-    await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
-  }
-  return ok({
-    revisionIds: [revisionId],
-    changedItemIds: [command.databaseId],
-    primaryItemId: command.databaseId,
-  });
+  const prepared = await prepareDefinitionChange(
+    tx,
+    context,
+    record,
+    currentDefinition,
+    command.databaseId,
+    command.definition,
+    record.definitionRevisionId ?? item.currentRevisionId,
+    command.impactConfirmation,
+    "Database impact changed before resolution",
+  );
+  if (!prepared.ok) return prepared;
+  return commitDefinitionChange(
+    tx,
+    context,
+    record,
+    command.databaseId,
+    prepared.value,
+    command.resolvedRevisionIds,
+  );
 }
 
 async function executeCreateEntry(
@@ -976,66 +827,20 @@ async function executeReplaceEntryValues(
   });
   if (!structured.ok) return structured as DomainResult<DatabaseCommandExecution>;
 
-  const revisionId = generateUuidV7();
-  const advanced =
-    entry === null
-      ? await nextDatabaseEntryValueVersion(tx, command.entryId)
-      : await advanceDatabaseEntryValueVersion(tx, {
-          entryId: command.entryId,
-          databaseId: command.databaseId,
-          valueRevisionId: revisionId,
-          expectedVersion: entry.valueVersion,
-          acceptedAt: context.acceptedAt,
-        });
-  if (advanced === null) return err("mutation.conflict", "Database entry version changed");
-  await tx
-    .update(items)
-    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
-    .where(eq(items.id, command.entryId));
-  const entryValues: EntryValues = {
-    format: "myownnotion.database-entry-values+json",
-    formatVersion: 1,
+  return commitEntryValues(tx, context, entry, {
     databaseId: command.databaseId,
     entryId: command.entryId,
-    values: structured.value.values,
-    preserved: priorValues?.preserved ?? [],
-  };
-  const snapshot = await buildItemSnapshot(tx, command.entryId);
-  snapshot["databaseEntryValues"] = entryValues;
-  snapshot["databaseEntryValueVersion"] = advanced;
-  snapshot["databaseRelationTargets"] = structured.value.relations;
-  await insertRevision(tx, {
-    id: revisionId,
-    itemId: command.entryId,
-    mutationId: context.mutationId,
-    parentRevisionIds: [item.currentRevisionId],
-    snapshot,
-    acceptedAt: context.acceptedAt,
-  });
-  if (entry === null) {
-    await insertDatabaseEntryRecord(tx, {
-      entryId: command.entryId,
+    entryValues: {
+      format: "myownnotion.database-entry-values+json",
+      formatVersion: 1,
       databaseId: command.databaseId,
-      sourceId: ownerSource.sourceId,
-      workspaceId: context.workspaceId,
-      addedRevisionId: revisionId,
-      valueRevisionId: revisionId,
-      valueVersion: advanced,
-      acceptedAt: context.acceptedAt,
-    });
-  }
-  await replaceDatabaseRelationships(tx, {
-    workspaceId: context.workspaceId,
-    databaseId: command.databaseId,
-    entryId: command.entryId,
-    revisionId,
+      entryId: command.entryId,
+      values: structured.value.values,
+      preserved: priorValues?.preserved ?? [],
+    },
     relationTargets: structured.value.relations,
-  });
-  await supersedeRevision(tx, item.currentRevisionId, context.acceptedAt);
-  return ok({
-    revisionIds: [revisionId],
-    changedItemIds: [command.entryId],
-    primaryItemId: command.entryId,
+    parentRevisionIds: [item.currentRevisionId],
+    newMembershipSourceId: ownerSource.sourceId,
   });
 }
 
@@ -1131,46 +936,13 @@ async function executeResolveEntryValuesConflict(
   });
   if (!structured.ok) return structured as DomainResult<DatabaseCommandExecution>;
 
-  const revisionId = generateUuidV7();
-  const advanced = await advanceDatabaseEntryValueVersion(tx, {
-    entryId: command.entryId,
-    databaseId: command.databaseId,
-    valueRevisionId: revisionId,
-    expectedVersion: entry.valueVersion,
-    acceptedAt: context.acceptedAt,
-  });
-  if (advanced === null) return err("mutation.conflict", "Database entry version changed");
-  await tx
-    .update(items)
-    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
-    .where(eq(items.id, command.entryId));
-  const entryValues: EntryValues = { ...priorValues, values: structured.value.values };
-  const snapshot = await buildItemSnapshot(tx, command.entryId);
-  snapshot["databaseEntryValues"] = entryValues;
-  snapshot["databaseEntryValueVersion"] = advanced;
-  snapshot["databaseRelationTargets"] = structured.value.relations;
-  await insertRevision(tx, {
-    id: revisionId,
-    itemId: command.entryId,
-    mutationId: context.mutationId,
-    parentRevisionIds: [...parentRevisionIds],
-    snapshot,
-    acceptedAt: context.acceptedAt,
-  });
-  await replaceDatabaseRelationships(tx, {
-    workspaceId: context.workspaceId,
+  return commitEntryValues(tx, context, entry, {
     databaseId: command.databaseId,
     entryId: command.entryId,
-    revisionId,
+    entryValues: { ...priorValues, values: structured.value.values },
     relationTargets: structured.value.relations,
-  });
-  for (const parentRevisionId of parentRevisionIds) {
-    await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
-  }
-  return ok({
-    revisionIds: [revisionId],
-    changedItemIds: [command.entryId],
-    primaryItemId: command.entryId,
+    parentRevisionIds: parentRevisionIds,
+    newMembershipSourceId: null,
   });
 }
 
@@ -1267,35 +1039,20 @@ async function executeCreateOwnedSource(
     workspaceId: context.workspaceId,
     acceptedAt: context.acceptedAt,
   });
-  if (
-    !(await advanceDatabasePresentationVersion(tx, {
-      containerItemId: command.ownerItemId,
-      presentationRevisionId: revisionId,
-      expectedVersion: presentationRecord.presentationVersion,
-      acceptedAt: context.acceptedAt,
-    }))
-  )
-    return err("mutation.conflict", "Database presentation version changed");
-  const snapshot = {
-    databaseDefinition: validatedDefinition.value,
-    databaseDefinitionVersion: 1,
-    databaseSource: validatedSource.value,
-    databasePresentation: validatedPresentation.value,
-  };
-  await insertRevision(tx, {
-    id: revisionId,
-    itemId: command.ownerItemId,
-    mutationId: context.mutationId,
-    parentRevisionIds: [command.baseRevisionId],
-    snapshot,
-    acceptedAt: context.acceptedAt,
-  });
-  await supersedeRevision(tx, command.baseRevisionId, context.acceptedAt);
-  return ok({
-    revisionIds: [revisionId],
-    changedItemIds: [command.ownerItemId],
-    primaryItemId: command.ownerItemId,
-  });
+  return commitDatabasePresentationRevision(
+    tx,
+    context,
+    command.ownerItemId,
+    revisionId,
+    presentationRecord.presentationVersion,
+    [command.baseRevisionId],
+    async () => ({
+      databaseDefinition: validatedDefinition.value,
+      databaseDefinitionVersion: 1,
+      databaseSource: validatedSource.value,
+      databasePresentation: validatedPresentation.value,
+    }),
+  );
 }
 
 async function executeDeleteOwnedSource(
@@ -1345,31 +1102,19 @@ async function executeDeleteOwnedSource(
   if (!validatedPresentation.ok)
     return validatedPresentation as DomainResult<DatabaseCommandExecution>;
   const revisionId = generateUuidV7();
-  if (
-    !(await advanceDatabasePresentationVersion(tx, {
-      containerItemId: command.ownerItemId,
-      presentationRevisionId: revisionId,
-      expectedVersion: presentationRecord.presentationVersion,
-      acceptedAt: context.acceptedAt,
-    }))
-  )
-    return err("mutation.conflict", "Database presentation version changed");
-  const snapshot = await buildItemSnapshot(tx, command.ownerItemId);
-  snapshot["databasePresentation"] = validatedPresentation.value;
-  await insertRevision(tx, {
-    id: revisionId,
-    itemId: command.ownerItemId,
-    mutationId: context.mutationId,
-    parentRevisionIds: [command.baseRevisionId],
-    snapshot,
-    acceptedAt: context.acceptedAt,
-  });
-  await supersedeRevision(tx, command.baseRevisionId, context.acceptedAt);
-  return ok({
-    revisionIds: [revisionId],
-    changedItemIds: [command.ownerItemId],
-    primaryItemId: command.ownerItemId,
-  });
+  return commitDatabasePresentationRevision(
+    tx,
+    context,
+    command.ownerItemId,
+    revisionId,
+    presentationRecord.presentationVersion,
+    [command.baseRevisionId],
+    async () => {
+      const snapshot = await buildItemSnapshot(tx, command.ownerItemId);
+      snapshot["databasePresentation"] = validatedPresentation.value;
+      return snapshot;
+    },
+  );
 }
 
 export async function executeDatabaseCommand(
@@ -1399,4 +1144,226 @@ export async function executeDatabaseCommand(
     case "database.entry.values.resolve-conflict":
       return executeResolveEntryValuesConflict(tx, context, command);
   }
+}
+
+type DatabaseRecord = NonNullable<Awaited<ReturnType<typeof readDatabaseRecord>>>;
+type PreparedDefinitionChange = {
+  readonly definition: DatabaseDefinition;
+  readonly parts: Extract<
+    Awaited<ReturnType<typeof replacementSourceAndPresentation>>,
+    { ok: true }
+  >["value"];
+};
+async function prepareDefinitionChange(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  record: DatabaseRecord,
+  currentDefinition: DatabaseDefinition,
+  databaseId: Uuid,
+  definitionInput: DatabaseDefinition,
+  baseRevisionId: Uuid,
+  impactConfirmation: DatabaseImpactConfirmation | undefined,
+  impactMessage: string,
+): Promise<DomainResult<PreparedDefinitionChange>> {
+  const candidate = validateDatabaseDefinition(definitionInput);
+  if (!candidate.ok || candidate.value.databaseId !== databaseId) {
+    return err("validation.invalid-payload", "Database definition is invalid");
+  }
+  for (const embedding of candidate.value.embeddings ?? []) {
+    const previous = currentDefinition.embeddings?.find((value) => value.id === embedding.id);
+    if (embedding.state === "retired" || previous?.hostPageId === embedding.hostPageId) continue;
+    const host = await getItem(tx, embedding.hostPageId);
+    if (host === null || host.kind !== "page" || host.lifecycle !== "active")
+      return err("item.not-active", "Database display needs an active page");
+  }
+  if (currentDefinition.embeddings !== undefined && candidate.value.embeddings === undefined)
+    return err("validation.invalid-payload", "This client must preserve linked database displays");
+  const entryRecords = await listDatabaseEntryRecords(tx, databaseId);
+  const entryValues: EntryValues[] = [];
+  for (const entry of entryRecords) {
+    const values = await readCurrentDatabaseEntryValues(
+      tx,
+      entry.entryId,
+      snapshotResolver(tx, context),
+      databaseId,
+    );
+    if (values !== null) entryValues.push(values);
+  }
+  const impact = await previewDefinitionImpact({
+    baseRevisionId: baseRevisionId,
+    current: currentDefinition,
+    candidate: candidate.value,
+    entries: entryValues,
+  });
+  if (impact.destructive && impactConfirmation === undefined) {
+    return err("database.impact-confirmation-required", "Database change requires confirmation");
+  }
+  if (
+    impact.destructive &&
+    impactConfirmation !== undefined &&
+    impactConfirmation.digest !== impact.impactDigest
+  ) {
+    return err("database.impact-stale", impactMessage);
+  }
+
+  const parts = await replacementSourceAndPresentation(tx, context, record, candidate.value);
+  if (!parts.ok) return parts;
+
+  return ok({ definition: candidate.value, parts: parts.value });
+}
+async function commitDefinitionChange(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  record: DatabaseRecord,
+  databaseId: Uuid,
+  prepared: PreparedDefinitionChange,
+  parentRevisionIds: readonly Uuid[],
+): Promise<DomainResult<DatabaseCommandExecution>> {
+  const revisionId = generateUuidV7();
+  const advanced = await advanceDatabaseDefinitionVersion(tx, {
+    databaseId: databaseId,
+    sourceId: record.sourceId,
+    definitionRevisionId: revisionId,
+    expectedVersion: record.definitionVersion,
+    acceptedAt: context.acceptedAt,
+  });
+  if (!advanced) return err("mutation.conflict", "Database definition version changed");
+  if (
+    !(await advanceDatabasePresentationVersion(tx, {
+      containerItemId: databaseId,
+      presentationRevisionId: revisionId,
+      expectedVersion: prepared.parts.presentationVersion,
+      acceptedAt: context.acceptedAt,
+    }))
+  )
+    return err("mutation.conflict", "Database presentation version changed");
+  // A source revision never recopies private editorial content from its former
+  // host. Its journal owns only the live independent resource definition.
+  const snapshot = {
+    databaseDefinition: prepared.definition,
+    databaseDefinitionVersion: record.definitionVersion + 1,
+    databaseSource: prepared.parts.source,
+    databasePresentation: prepared.parts.presentation,
+  };
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: databaseId,
+    mutationId: context.mutationId,
+    parentRevisionIds: [...parentRevisionIds],
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  for (const parentRevisionId of parentRevisionIds)
+    await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
+  return ok({
+    revisionIds: [revisionId],
+    changedItemIds: [databaseId],
+    primaryItemId: databaseId,
+  });
+}
+
+async function commitEntryValues(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  entry: Awaited<ReturnType<typeof readDatabaseEntryRecord>>,
+  input: {
+    readonly databaseId: Uuid;
+    readonly entryId: Uuid;
+    readonly entryValues: EntryValues;
+    readonly relationTargets: RelationTargets;
+    readonly parentRevisionIds: readonly Uuid[];
+    readonly newMembershipSourceId: Uuid | null;
+  },
+): Promise<DomainResult<DatabaseCommandExecution>> {
+  const revisionId = generateUuidV7();
+  const advanced =
+    entry === null
+      ? await nextDatabaseEntryValueVersion(tx, input.entryId)
+      : await advanceDatabaseEntryValueVersion(tx, {
+          entryId: input.entryId,
+          databaseId: input.databaseId,
+          valueRevisionId: revisionId,
+          expectedVersion: entry.valueVersion,
+          acceptedAt: context.acceptedAt,
+        });
+  if (advanced === null) return err("mutation.conflict", "Database entry version changed");
+  await tx
+    .update(items)
+    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
+    .where(eq(items.id, input.entryId));
+  const entryValues = input.entryValues;
+  const snapshot = await buildItemSnapshot(tx, input.entryId);
+  snapshot["databaseEntryValues"] = entryValues;
+  snapshot["databaseEntryValueVersion"] = advanced;
+  snapshot["databaseRelationTargets"] = input.relationTargets;
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: input.entryId,
+    mutationId: context.mutationId,
+    parentRevisionIds: [...input.parentRevisionIds],
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  if (entry === null) {
+    await insertDatabaseEntryRecord(tx, {
+      entryId: input.entryId,
+      databaseId: input.databaseId,
+      sourceId: input.newMembershipSourceId as Uuid,
+      workspaceId: context.workspaceId,
+      addedRevisionId: revisionId,
+      valueRevisionId: revisionId,
+      valueVersion: advanced,
+      acceptedAt: context.acceptedAt,
+    });
+  }
+  await replaceDatabaseRelationships(tx, {
+    workspaceId: context.workspaceId,
+    databaseId: input.databaseId,
+    entryId: input.entryId,
+    revisionId,
+    relationTargets: input.relationTargets,
+  });
+  for (const parentRevisionId of input.parentRevisionIds)
+    await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
+  return ok({
+    revisionIds: [revisionId],
+    changedItemIds: [input.entryId],
+    primaryItemId: input.entryId,
+  });
+}
+
+async function commitDatabasePresentationRevision(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  ownerItemId: Uuid,
+  revisionId: Uuid,
+  expectedVersion: number,
+  parentRevisionIds: readonly Uuid[],
+  snapshotFactory: () => Promise<Record<string, unknown>>,
+): Promise<DomainResult<DatabaseCommandExecution>> {
+  if (
+    !(await advanceDatabasePresentationVersion(tx, {
+      containerItemId: ownerItemId,
+      presentationRevisionId: revisionId,
+      expectedVersion: expectedVersion,
+      acceptedAt: context.acceptedAt,
+    }))
+  )
+    return err("mutation.conflict", "Database presentation version changed");
+  const snapshot = await snapshotFactory();
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: ownerItemId,
+    mutationId: context.mutationId,
+    parentRevisionIds: [...parentRevisionIds],
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  for (const parentRevisionId of parentRevisionIds)
+    await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
+  return ok({
+    revisionIds: [revisionId],
+    changedItemIds: [ownerItemId],
+    primaryItemId: ownerItemId,
+  });
 }

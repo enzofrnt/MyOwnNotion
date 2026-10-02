@@ -1,3 +1,5 @@
+import { copyBytes as cloneBytes } from "@myownnotion/domain";
+import { encodeBase64Url as encodePageOperationBytes } from "../binary.ts";
 /**
  * Encrypted persistence boundary for convergent page state.
  *
@@ -193,18 +195,6 @@ interface SerializedLegacyBranchPayload {
   readonly routing: Omit<LegacyOfflineBranchRecord, "branch" | "requiredFileIds">;
   readonly branch: LegacyOfflineBranch;
   readonly requiredFileIds: readonly Uuid[];
-}
-
-function cloneBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
-  const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
-  copy.set(bytes);
-  return copy;
-}
-
-export function encodePageOperationBytes(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
 }
 
 export function decodePageOperationBytes(value: string): Uint8Array<ArrayBuffer> {
@@ -1094,3 +1084,5 @@ export class EncryptedPageOperationLog {
 export function copyPageOperationBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
   return cloneBytes(bytes);
 }
+
+export { encodeBase64Url as encodePageOperationBytes } from "../binary.ts";

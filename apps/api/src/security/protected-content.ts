@@ -265,14 +265,8 @@ export class ProtectedContent {
     executor: Database | Transaction,
     itemIds: readonly string[],
   ): Promise<ReadonlyMap<string, string>> {
-    const values = await this.#readMany<string | ItemPresentation>(
-      executor,
-      PROTECTED_ENTITY_TYPES.itemName,
-      itemIds,
-    );
-    return new Map(
-      [...values].map(([itemId, value]) => [itemId, normalizeItemPresentation(value).name]),
-    );
+    const values = await this.readItemPresentations(executor, itemIds);
+    return new Map([...values].map(([itemId, value]) => [itemId, value.name]));
   }
 
   /** Seals a page's document body. */

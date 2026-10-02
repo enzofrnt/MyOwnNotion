@@ -19,6 +19,7 @@ import {
 import { and, eq, lt } from "drizzle-orm";
 import { shareFullFileMutation } from "../backup/full/locks.ts";
 import { pinnedFileRead } from "./pinned-file-read.ts";
+import { protectedChunkManifestEntry } from "./protected-chunk-manifest.ts";
 import { queueProtectedFileGarbage } from "./protected-file-cleanup.ts";
 import {
   type ProtectedFileService,
@@ -219,13 +220,7 @@ export class ProtectedUploadService {
       ...state,
       recordVersion: nextVersion,
       byteLength: receivedLength,
-      chunks: chunks.map((chunk) => ({
-        index: chunk.chunkIndex,
-        byteLength: chunk.byteLength,
-        storageKey: chunk.storageKey,
-        keyGeneration: chunk.keyGeneration,
-        recordVersion: chunk.recordVersion,
-      })),
+      chunks: chunks.map(protectedChunkManifestEntry),
     });
     await tx
       .update(schema.uploads)

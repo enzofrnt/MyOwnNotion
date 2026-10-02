@@ -98,6 +98,7 @@ describe("page-operation local schema v10", () => {
       "conflicts",
       "databaseEntries",
       "databaseEntryPairs",
+      "databaseSources",
       "databases",
       "items",
       "legacyOfflineBranches",

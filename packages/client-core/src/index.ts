@@ -1,3 +1,4 @@
+export * from "./binary.ts";
 export * from "./coordination/cross-context-coordinator.ts";
 export * from "./databases/index.ts";
 export * from "./files/pending-file-transfer-store.ts";

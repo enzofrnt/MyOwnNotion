@@ -5,7 +5,7 @@ import {
   canonicalDocumentJsonV3,
   childrenOfV3,
   documentDigestV3,
-  hasInlineContentV3,
+  canonicalBlockText as inlineText,
   type JsonObject,
   type JsonValue,
   type MarkV3,
@@ -167,13 +167,6 @@ interface IndexedNode {
   readonly text: string | undefined;
   readonly parentBlockId: Uuid | null;
   readonly beforeBlockId: Uuid | null;
-}
-
-function inlineText(block: CanonicalBlockV3): string | undefined {
-  if (block.type === "unknown") return undefined;
-  if (hasInlineContentV3(block)) return block.content.map(({ text }) => text).join("");
-  if (block.type === "code") return block.text;
-  return undefined;
 }
 
 function indexDocument(document: BlockDocumentV3): Map<Uuid, IndexedNode> {

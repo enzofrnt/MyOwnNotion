@@ -10,6 +10,7 @@
 @import "./ui/dotted-canvas-background.css";
 @import "./features/settings/settings-security.css";
 @import "./features/editor/editor-table.css";
+@import "./features/files/attachment-usages.css";
 
 * {
   box-sizing: border-box;

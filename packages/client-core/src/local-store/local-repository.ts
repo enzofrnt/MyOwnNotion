@@ -240,18 +240,10 @@ export class LocalRepository {
     const retainedItemIds = new Set(
       input.items.filter(({ lifecycle }) => lifecycle !== "purged").map(({ id }) => id),
     );
-    const databaseRows = await Promise.all(
-      (input.databases ?? [])
-        .filter(({ itemId }) => retainedItemIds.has(itemId))
-        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
-    );
-    const databaseEntryRows = await Promise.all(
-      (input.databaseEntries ?? [])
-        .filter(
-          ({ entryItemId, databaseId }) =>
-            retainedItemIds.has(entryItemId) && retainedItemIds.has(databaseId),
-        )
-        .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
+    const { databaseRows, databaseEntryRows } = await this.#prepareDatabaseProjection(
+      input.databases ?? [],
+      input.databaseEntries ?? [],
+      (itemId) => retainedItemIds.has(itemId),
     );
     await this.db.transaction(
       "rw",
@@ -284,14 +276,7 @@ export class LocalRepository {
         if (relationshipRows.length > 0) {
           await this.db.relationships.bulkPut(relationshipRows);
         }
-        const storedDatabases = splitDatabaseRows(databaseRows);
-        if (storedDatabases.containers.length > 0)
-          await this.db.databases.bulkPut(storedDatabases.containers);
-        if (storedDatabases.sources.length > 0)
-          await this.db.databaseSources.bulkPut(storedDatabases.sources);
-        if (databaseEntryRows.length > 0) {
-          await this.db.databaseEntryPairs.bulkPut(databaseEntryRows);
-        }
+        await this.#writeDatabaseProjection(databaseRows, databaseEntryRows);
         await this.db.meta.bulkPut([
           { key: META_KEYS.workspaceId, value: input.workspaceId },
           { key: META_KEYS.schemaVersion, value: input.schemaVersion },
@@ -314,18 +299,10 @@ export class LocalRepository {
     const purgedItemIds = new Set(
       input.items.filter(({ lifecycle }) => lifecycle === "purged").map(({ id }) => id),
     );
-    const databaseRows = await Promise.all(
-      (input.databases ?? [])
-        .filter(({ itemId }) => !purgedItemIds.has(itemId))
-        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
-    );
-    const databaseEntryRows = await Promise.all(
-      (input.databaseEntries ?? [])
-        .filter(
-          ({ entryItemId, databaseId }) =>
-            !purgedItemIds.has(entryItemId) && !purgedItemIds.has(databaseId),
-        )
-        .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
+    const { databaseRows, databaseEntryRows } = await this.#prepareDatabaseProjection(
+      input.databases ?? [],
+      input.databaseEntries ?? [],
+      (itemId) => !purgedItemIds.has(itemId),
     );
     const changedItemIds = new Set(input.items.map(({ id }) => id));
     await this.db.transaction(
@@ -369,17 +346,38 @@ export class LocalRepository {
         if (relevantRelationships.length > 0) {
           await this.db.relationships.bulkPut(relevantRelationships);
         }
-        const storedDatabases = splitDatabaseRows(databaseRows);
-        if (storedDatabases.containers.length > 0)
-          await this.db.databases.bulkPut(storedDatabases.containers);
-        if (storedDatabases.sources.length > 0)
-          await this.db.databaseSources.bulkPut(storedDatabases.sources);
-        if (databaseEntryRows.length > 0) {
-          await this.db.databaseEntryPairs.bulkPut(databaseEntryRows);
-        }
+        await this.#writeDatabaseProjection(databaseRows, databaseEntryRows);
         await this.db.meta.put({ key: META_KEYS.lastChangeCursor, value: input.cursor });
       },
     );
+  }
+
+  async #prepareDatabaseProjection(
+    databases: readonly DatabaseProjectionDto[],
+    entries: readonly DatabaseEntryProjectionDto[],
+    keep: (itemId: string) => boolean,
+  ) {
+    const databaseRows = await Promise.all(
+      databases
+        .filter(({ itemId }) => keep(itemId))
+        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
+    );
+    const databaseEntryRows = await Promise.all(
+      entries
+        .filter(({ entryItemId, databaseId }) => keep(entryItemId) && keep(databaseId))
+        .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
+    );
+    return { databaseRows, databaseEntryRows };
+  }
+
+  async #writeDatabaseProjection(
+    databaseRows: readonly SealedLocalDatabaseRow[],
+    databaseEntryRows: readonly Awaited<ReturnType<LocalRecordCodec["sealDatabaseEntry"]>>[],
+  ): Promise<void> {
+    const stored = splitDatabaseRows(databaseRows);
+    if (stored.containers.length > 0) await this.db.databases.bulkPut(stored.containers);
+    if (stored.sources.length > 0) await this.db.databaseSources.bulkPut(stored.sources);
+    if (databaseEntryRows.length > 0) await this.db.databaseEntryPairs.bulkPut(databaseEntryRows);
   }
 
   async getItems(itemIds: readonly Uuid[]): Promise<ProjectedItem[]> {
