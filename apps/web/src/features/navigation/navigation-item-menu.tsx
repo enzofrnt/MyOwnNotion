@@ -18,7 +18,7 @@ export interface NavigationItemMenuProps {
   readonly conversion?: (returnFocus: RefObject<HTMLButtonElement | null>) => ReactNode;
   readonly onCreatePage: () => void;
   readonly onCreateFolder: () => void;
-  readonly onCreateDatabase: () => void;
+  readonly onCreateDatabase?: (() => void) | undefined;
   readonly onImportFile?: ((file: File) => void) | undefined;
   readonly onRename: () => void;
   readonly onChangeIcon?: (() => void) | undefined;
@@ -82,10 +82,15 @@ export function NavigationItemMenu({
                 <AppIcon name="folder" size="small" />
                 Nouveau dossier à l’intérieur
               </MenuItem>
-              <MenuItem data-testid={`new-database-inside-${itemName}`} onClick={onCreateDatabase}>
-                <AppIcon name="table" size="small" />
-                Nouvelle base à l’intérieur
-              </MenuItem>
+              {onCreateDatabase === undefined ? null : (
+                <MenuItem
+                  data-testid={`new-database-inside-${itemName}`}
+                  onClick={onCreateDatabase}
+                >
+                  <AppIcon name="layersAdd" size="small" />
+                  Nouvelle base à l’intérieur
+                </MenuItem>
+              )}
               {onImportFile === undefined ? null : (
                 <MenuItem
                   data-testid={`new-file-inside-${itemName}`}

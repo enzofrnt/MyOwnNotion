@@ -11,9 +11,11 @@ import {
   createRootItem,
   ensureNavigationVisible,
   moveSelectedItemInto,
-  openRootDatabaseCreation,
+  createRootDatabase,
+  openSettingsSection,
   openWorkspace,
   renameItem,
+  returnToWorkspace,
   saveEntryProperties,
   selectItem,
   trashItem,
@@ -38,10 +40,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await createRootItem(page, "folder", folderName);
   await createRootItem(page, "page", targetName);
 
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
+  await createRootDatabase(page, databaseName);
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeAttached({ timeout: 15_000 });
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
   await waitForSynchronized(page);
@@ -114,17 +113,14 @@ test("creates a typed database whose entry and relations keep canonical page ide
   expect(Date.now() - startedAt).toBeLessThan(300_000);
 });
 
-test("trashes only the host and reuses its source with the same entry pages", async ({ page }) => {
+test("trashes and restores the owner with the same direct entry pages", async ({ page }) => {
   await openWorkspace(page);
 
   const databaseName = uniqueName("Trash preview");
   const entryNames = [uniqueName("First entry"), uniqueName("Second entry")];
 
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
+  await createRootDatabase(page, databaseName);
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 
   for (const entryName of entryNames) {
@@ -137,17 +133,20 @@ test("trashes only the host and reuses its source with the same entry pages", as
 
   await trashItem(page, databaseName, { confirm: false });
   const confirmation = page.getByTestId("trash-confirmation");
-  await expect(confirmation).toContainText(`« ${databaseName} » sera placé dans la corbeille`);
-  await expect(confirmation).not.toContainText("entrées actives");
+  await expect(confirmation).toContainText("1 source de données");
+  await expect(confirmation).toContainText("pourra affecter les vues qui les utilisent ailleurs");
   await confirmation.getByTestId("cancel-trash").click();
   await expect(confirmation).toBeHidden();
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible();
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
   await trashItem(page, databaseName);
-  await createRootItem(page, "page", uniqueName("Reused source"));
-  await page.getByRole("button", { name: "Ajouter une base", exact: true }).click();
-  await page.getByLabel("Base existante", { exact: true }).selectOption({ label: databaseName });
-  await page.getByRole("button", { name: "Insérer cette base", exact: true }).click();
+  await openSettingsSection(page, "trash");
+  await page
+    .getByTestId(`trash-item-${databaseName}`)
+    .getByRole("button", { name: "Restaurer" })
+    .click();
+  await returnToWorkspace(page);
+  await selectItem(page, databaseName);
   await expect(page.locator("[data-entry-trigger]")).toHaveCount(2);
   expect(
     await page

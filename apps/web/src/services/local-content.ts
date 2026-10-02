@@ -1564,11 +1564,21 @@ export class LocalContentService {
     return this.databases.getEntry(entryId);
   }
 
-  async previewTrashImpact(
-    _itemId: Uuid,
-  ): Promise<{ readonly isDatabase: boolean; readonly activeEntryCount: number }> {
+  async previewTrashImpact(itemId: Uuid): Promise<{
+    readonly isDatabase: boolean;
+    readonly activeEntryCount: number;
+    readonly ownedSourceCount: number;
+  }> {
     await this.#unlock();
-    return { isDatabase: false, activeEntryCount: 0 };
+    const item = await this.getItem(itemId);
+    if (item?.kind !== "database")
+      return { isDatabase: false, activeEntryCount: 0, ownedSourceCount: 0 };
+    const entries = await this.databases.listEntries(itemId);
+    return {
+      isDatabase: true,
+      activeEntryCount: entries.length,
+      ownedSourceCount: await this.databases.countOwnedSources(itemId),
+    };
   }
 
   async getDatabaseEntryRelations(databaseId: Uuid, entryIds: readonly Uuid[]) {

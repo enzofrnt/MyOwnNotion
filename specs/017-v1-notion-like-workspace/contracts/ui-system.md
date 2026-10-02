@@ -203,7 +203,11 @@ espacement équivalent. Le DnD n'est jamais l'unique méthode.
 - corps de page sans « carte » lourde autour de chaque paragraphe ;
 - ligne active et poignée visibles sans déplacer le texte ;
 - slash menu et barres flottantes alignés au viewport et non coupés par les
-  conteneurs de scroll ;
+  conteneurs de scroll ; les raccourcis du menu d'insertion restent du texte
+  discret, sans relief ni pastille enfoncée ;
+- quatre niveaux de titre insérables, du plus grand au plus petit ;
+- avec plus d'un titre, un sommaire fixe au bord droit : traits au repos,
+  liste lisible au survol ou au focus, titre courant distingué ;
 - sélection multi-blocs perceptible dans les deux thèmes ;
 - placeholders différents pour titre, paragraphe vide et bloc inconnu ;
 - préparation de page rendue par un squelette éditorial neutre, jamais par une
@@ -224,9 +228,12 @@ du grand titre, proche de l'emoji, un libellé discret « Page » ou « Dossier 
 est précédé de la petite icône de type. Dans l'arbre, ce composant et le
 chevron de branche partagent exactement la même boîte ; le chevron remplace
 l'icône au survol ou au focus sans déplacer le texte. Dans le canevas d'une
-page, l'emoji est placé au-dessus du titre et ouvre un sélecteur Unicode
-compact, disponible hors ligne et refermable avec Échap. Le canevas d'un
-dossier réutilise ce même éditeur d'identité pour son emoji et son titre, sans
+page, d'un dossier ou d'une base, l'emoji choisi se place sur la même ligne,
+immédiatement devant le grand titre, et décale ce titre vers la droite. Sans
+emoji, le titre reste à sa place : la commande d'ajout n'occupe pas cet
+emplacement. L'emoji ouvre un sélecteur Unicode compact, disponible hors ligne
+et refermable avec Échap. Le canevas d'un dossier réutilise ce même éditeur
+d'identité pour son emoji et son titre, sans
 document éditorial. Le chrome supérieur d'un dossier reste aussi compact que
 celui d'une page : fil d'Ariane seulement, sans identité dupliquée.
 

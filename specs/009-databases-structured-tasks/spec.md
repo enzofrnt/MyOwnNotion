@@ -7,6 +7,13 @@
 **Status**: Implémentée et validée localement ; pull request #125 ouverte et
 correction du démarrage CI validée
 
+**Évolution 029 (2026-09-27)** : la [nouvelle spécification](../029-database-pages-views/spec.md)
+remplace les règles de propriété et de cycle de vie des sources, de placement des
+entrées et d'insertion des vues décrites ici ou par la 026. Les scénarios et
+critères historiques ci-dessous documentent la livraison 009 ; ils ne sont plus
+normatifs pour ces règles après la refonte. Les propriétés typées, les cinq
+formats de vue et les tâches structurées restent dans le périmètre de la 029.
+
 **Input**: User description: "Poursuivre la trajectoire produit avec la feature
 009 : propriétés typées, relations, filtres, tris, vues table, Kanban, galerie,
 liste et calendrier, ainsi que des tâches structurées proches de Notion."
@@ -298,8 +305,10 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
 - **FR-006**: Chaque base MUST posséder exactement une propriété titre
   obligatoire, non supprimable, utilisée pour identifier ses entrées.
 - **FR-007**: Le propriétaire MUST pouvoir ajouter, nommer, réordonner,
-  configurer et supprimer des propriétés texte, nombre, date, statut,
-  sélection, sélection multiple, case à cocher et relation.
+  configurer et supprimer des propriétés texte, nombre, date, sélection
+  multiple, case à cocher et relation. Une sélection multiple est la propriété
+  à états définis : chaque option a un libellé, un ordre et une couleur choisie
+  dans une palette fixe.
 - **FR-008**: Chaque propriété MUST posséder une identité stable indépendante
   de son nom et de sa position afin que les vues et valeurs survivent à un
   renommage ou réordonnancement.

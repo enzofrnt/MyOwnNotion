@@ -262,11 +262,11 @@ describe("Notion source preview", () => {
     const plan = planNotionImport(await readImportSource(root));
     expect(plan.databases).toHaveLength(3);
     const shared = plan.databases.find((source) => source.memberIds.length === 1);
-    expect(shared?.definition.embeddings).toHaveLength(2);
-    const names = shared?.definition.embeddings?.map((display) =>
-      display.views[0]?.properties.map(
+    expect(shared?.linkedDisplays).toHaveLength(1);
+    const names = [shared?.definition.views[0], shared?.linkedDisplays[0]?.view].map((view) =>
+      view?.properties.map(
         (entry) =>
-          shared.definition.properties.find((property) => property.id === entry.propertyId)?.name,
+          shared?.definition.properties.find((property) => property.id === entry.propertyId)?.name,
       ),
     );
     expect(names?.[0]?.slice(0, 2)).toEqual(["Owner", "Status"]);
@@ -407,7 +407,7 @@ Infinity: .inf
 ---
 # Standalone
 
-#### Deep heading
+##### Deep heading
 
 Before **prefix [[Peer#heading|label]] suffix**.
 

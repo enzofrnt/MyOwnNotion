@@ -38,17 +38,61 @@ function item(id: Uuid, overrides: Partial<ProjectedItem> = {}): ProjectedItem {
 describe("navigationIdentityKey", () => {
   it("ignores page body and revision changes that should not rebuild the tree", () => {
     const id = generateUuidV7();
-    const first = item(id);
+    const first = item(id, {
+      pageDocument: {
+        format: "myownnotion.document+json",
+        formatVersion: 3,
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: generateUuidV7(),
+              content: [{ type: "text", text: "hello" }],
+            },
+          ],
+        },
+      },
+    });
     const typed = item(id, {
       currentRevisionId: generateUuidV7(),
       pageDocument: {
         format: "myownnotion.document+json",
         formatVersion: 3,
-        body: { blocks: [{ type: "paragraph", content: "hello" }] },
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: generateUuidV7(),
+              content: [{ type: "text", text: "hello world" }],
+            },
+          ],
+        },
       },
       placements: first.placements,
     });
     expect(navigationIdentityKey(first)).toBe(navigationIdentityKey(typed));
+  });
+
+  it("changes when a page gains or loses editorial content", () => {
+    const id = generateUuidV7();
+    const empty = item(id);
+    const filled = item(id, {
+      pageDocument: {
+        format: "myownnotion.document+json",
+        formatVersion: 3,
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: generateUuidV7(),
+              content: [{ type: "text", text: "hello" }],
+            },
+          ],
+        },
+      },
+      placements: empty.placements,
+    });
+    expect(navigationIdentityKey(empty)).not.toBe(navigationIdentityKey(filled));
   });
 
   it("changes when the owner renames, moves or stars an item", () => {
@@ -83,20 +127,65 @@ describe("replaceProjectedItem", () => {
     ).toEqual([]);
   });
 
-  it("does not report a catalog change for a body-only upsert", () => {
+  it("does not report a catalog change for a body-only upsert that stays filled", () => {
     const id = generateUuidV7();
-    const current = item(id);
+    const current = item(id, {
+      pageDocument: {
+        format: "myownnotion.document+json",
+        formatVersion: 3,
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: generateUuidV7(),
+              content: [{ type: "text", text: "earlier" }],
+            },
+          ],
+        },
+      },
+    });
     const typed = item(id, {
       currentRevisionId: generateUuidV7(),
       pageDocument: {
         format: "myownnotion.document+json",
         formatVersion: 3,
-        body: { text: "later" },
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: generateUuidV7(),
+              content: [{ type: "text", text: "later" }],
+            },
+          ],
+        },
       },
       placements: current.placements,
     });
     const result = replaceProjectedItem([current], [], id, typed);
     expect(result.catalogChanged).toBe(false);
+  });
+
+  it("reports a catalog change when editorial emptiness flips", () => {
+    const id = generateUuidV7();
+    const current = item(id);
+    const typed = item(id, {
+      pageDocument: {
+        format: "myownnotion.document+json",
+        formatVersion: 3,
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: generateUuidV7(),
+              content: [{ type: "text", text: "hello" }],
+            },
+          ],
+        },
+      },
+      placements: current.placements,
+    });
+    const result = replaceProjectedItem([current], [], id, typed);
+    expect(result.catalogChanged).toBe(true);
   });
 
   it("moves a trashed item into the trash catalog", () => {

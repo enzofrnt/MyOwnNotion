@@ -151,26 +151,28 @@ describe("database page interaction durability", () => {
     );
     act(() => root.render(renderPage(initialDatabase)));
 
-    act(() => container.querySelector<HTMLButtonElement>(".database-page__header button")?.click());
-    const name = container.querySelector<HTMLInputElement>('[name="property-name"]');
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Ajouter une propriété"]')?.click(),
+    );
+    const name = document.querySelector<HTMLInputElement>('[name="property-name"]');
     expect(name).not.toBeNull();
     act(() => {
       if (name === null) return;
       input(name, "Status");
     });
 
-    const type = container.querySelector<HTMLSelectElement>('[name="property-type"]');
+    const type = document.querySelector<HTMLSelectElement>('[name="property-type"]');
     expect(type).not.toBeNull();
     act(() => {
       if (type === null) return;
-      type.value = "status";
+      type.value = "select";
       type.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
-    const options = container.querySelector<HTMLInputElement>(
-      '.property-editor input[placeholder="Prévu, En cours, Terminé"]',
+    const options = document.querySelector<HTMLInputElement>(
+      '.property-editor input[name^="option-label-"]',
     );
-    const save = container.querySelector<HTMLButtonElement>(
+    const save = document.querySelector<HTMLButtonElement>(
       '.property-editor button[type="submit"]',
     );
     expect(options).not.toBeNull();
@@ -183,7 +185,7 @@ describe("database page interaction durability", () => {
     // WebKit viewports; submission then created a status with zero options.
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
       options,
-      "To do, Done",
+      "To do",
     );
     act(() =>
       root.render(
@@ -193,7 +195,7 @@ describe("database page interaction durability", () => {
         }),
       ),
     );
-    expect(options.value).toBe("To do, Done");
+    expect(options.value).toBe("To do");
 
     await act(async () => {
       save.click();
@@ -203,9 +205,9 @@ describe("database page interaction durability", () => {
     expect(onReplaceDefinition).toHaveBeenCalledTimes(1);
     const submitted = onReplaceDefinition.mock.calls[0]?.[0] as DatabaseDefinition;
     const status = submitted.properties.find((property) => property.name === "Status");
-    expect(status?.type).toBe("status");
+    expect(status?.type).toBe("select");
     expect(status?.config).toMatchObject({
-      options: [{ label: "To do" }, { label: "Done" }],
+      options: [{ label: "To do", tone: "gray" }, { label: "En cours" }, { label: "Terminé" }],
     });
   });
 
@@ -402,9 +404,7 @@ describe("database page interaction durability", () => {
       );
       expect(query).toHaveBeenCalledTimes(2);
       expect(query).toHaveBeenLastCalledWith(viewId, "local.second");
-      expect(container.querySelector(".database-pagination")?.textContent).toContain(
-        "2 entrées chargées",
-      );
+      expect(container.textContent).toContain("Last");
       expect(document.activeElement?.getAttribute("data-entry-trigger")).toBe(target);
       expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", inline: "nearest" });
       expect(scrollIntoView.mock.instances[0]).toBe(document.activeElement);
@@ -416,54 +416,46 @@ describe("database page interaction durability", () => {
     }
   });
 
-  it("keeps a new entry title through a concurrent projection render", async () => {
-    const onCreateEntry = vi.fn().mockResolvedValue(undefined);
+  it("creates a page from the kind button and ignores a second click while that write is in flight", async () => {
+    let resolveCreate: (() => void) | undefined;
+    const onCreateEntry = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
     const initialDatabase = database();
-    const renderPage = (value: DatabaseDto) => (
-      <MemoryRouter initialEntries={[`/notes/${value.databaseId}`]}>
-        <DatabasePage
-          database={value}
-          entries={[]}
-          onReplaceDefinition={vi.fn()}
-          onCreateEntry={onCreateEntry}
-          onOpenEntry={vi.fn()}
-        />
-      </MemoryRouter>
-    );
-    act(() => root.render(renderPage(initialDatabase)));
-
-    const title = container.querySelector<HTMLInputElement>(".database-entry-create input");
-    const submit = container.querySelector<HTMLButtonElement>(
-      '.database-entry-create button[type="submit"]',
-    );
-    expect(title).not.toBeNull();
-    expect(submit).not.toBeNull();
-    if (title === null || submit === null) return;
-
-    // Model WebKit painting the final input just before a synchronization
-    // projection rerenders the parent. React has not observed an input event,
-    // so a controlled field would repaint the old empty value here.
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
-      title,
-      "Offline roadmap",
-    );
     act(() =>
       root.render(
-        renderPage({
-          ...initialDatabase,
-          definitionRevisionId: generateUuidV7(),
-        }),
+        <MemoryRouter initialEntries={[`/notes/${initialDatabase.databaseId}`]}>
+          <DatabasePage
+            database={initialDatabase}
+            entries={[]}
+            onReplaceDefinition={vi.fn()}
+            onCreateEntry={onCreateEntry}
+            onOpenEntry={vi.fn()}
+          />
+        </MemoryRouter>,
       ),
     );
-    expect(title.value).toBe("Offline roadmap");
+
+    const createPage = container.querySelector<HTMLButtonElement>(
+      '.database-entry-create button[aria-label="Nouvelle page"]',
+    );
+    expect(createPage).not.toBeNull();
+    if (createPage === null) return;
 
     await act(async () => {
-      submit.click();
+      createPage.click();
+      createPage.click();
       await Promise.resolve();
     });
-
     expect(onCreateEntry).toHaveBeenCalledOnce();
-    expect(onCreateEntry).toHaveBeenCalledWith("Offline roadmap");
-    expect(title.value).toBe("");
+    expect(onCreateEntry).toHaveBeenCalledWith("Nouvelle page");
+
+    await act(async () => {
+      resolveCreate?.();
+      await Promise.resolve();
+    });
   });
 });

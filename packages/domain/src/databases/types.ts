@@ -3,6 +3,23 @@ import type { Uuid } from "../ids/uuid.ts";
 export const DATABASE_DEFINITION_FORMAT = "myownnotion.database-definition+json" as const;
 export const DATABASE_ENTRY_VALUES_FORMAT = "myownnotion.database-entry-values+json" as const;
 export const DATABASE_FORMAT_VERSION = 1 as const;
+/** Feature 029 separates the owned source from each container's saved views. */
+export const DATABASE_SOURCE_FORMAT = "myownnotion.database-source+json" as const;
+export const DATABASE_PRESENTATION_FORMAT = "myownnotion.database-presentation+json" as const;
+
+/** Stable bridge for pre-029 commands that did not supply a separate source ID. */
+export function ownedSourceIdFromItemId(ownerItemId: Uuid): Uuid {
+  const lastDigit = ownerItemId.at(-1);
+  if (lastDigit === undefined) throw new TypeError("Owner identity is empty");
+  return `${ownerItemId.slice(0, -1)}${(Number.parseInt(lastDigit, 16) ^ 1).toString(16)}` as Uuid;
+}
+
+/** A stable placement when an older entry-create caller omitted one. */
+export function databaseEntryPlacementId(entryId: Uuid): Uuid {
+  const lastDigit = entryId.at(-1);
+  if (lastDigit === undefined) throw new TypeError("Entry identity is empty");
+  return `${entryId.slice(0, -1)}${(Number.parseInt(lastDigit, 16) ^ 2).toString(16)}` as Uuid;
+}
 
 export const DATABASE_PROPERTY_TYPES = [
   "title",
@@ -158,6 +175,8 @@ export interface GroupCriterion {
 interface DatabaseViewBase {
   readonly id: Uuid;
   readonly name: string;
+  /** Chosen mark. Absent or null keeps the icon of the view format. */
+  readonly icon?: string | null;
   readonly positionKey: string;
   readonly state: DatabaseObjectState;
   readonly properties: readonly ViewPropertyPresentation[];
@@ -203,6 +222,27 @@ export type DatabaseView =
         readonly initialMode: "month";
       };
     });
+
+/** A saved view always names its source, even when that source is owned elsewhere. */
+export type SourcedDatabaseView = DatabaseView & { readonly sourceId: Uuid };
+
+export interface DatabaseSourceDefinition {
+  readonly format: typeof DATABASE_SOURCE_FORMAT;
+  readonly formatVersion: typeof DATABASE_FORMAT_VERSION;
+  readonly sourceId: Uuid;
+  readonly ownerItemId: Uuid;
+  readonly name: string;
+  readonly properties: readonly DatabaseProperty[];
+  readonly taskRoles: TaskRoleMapping | null;
+}
+
+export interface DatabasePresentationDefinition {
+  readonly format: typeof DATABASE_PRESENTATION_FORMAT;
+  readonly formatVersion: typeof DATABASE_FORMAT_VERSION;
+  /** A database owner or a linked-view item; never the source identity. */
+  readonly containerItemId: Uuid;
+  readonly views: readonly SourcedDatabaseView[];
+}
 
 export interface TaskRoleMapping {
   readonly statusPropertyId: Uuid;

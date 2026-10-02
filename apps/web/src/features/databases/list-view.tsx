@@ -4,7 +4,7 @@ import type { DatabaseViewPage } from "../../services/databases.ts";
 import { AsyncState } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
-import { displayDatabaseValue } from "./database-value.ts";
+import { PropertyValue } from "./option-appearance.tsx";
 
 export function ListView({
   properties,
@@ -73,7 +73,9 @@ export function ListView({
                   {secondary.map((property) => (
                     <div key={property.id}>
                       <dt>{property.name}</dt>
-                      <dd>{displayDatabaseValue(row, property)}</dd>
+                      <dd>
+                        <PropertyValue property={property} row={row} />
+                      </dd>
                     </div>
                   ))}
                 </dl>

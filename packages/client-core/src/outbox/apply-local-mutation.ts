@@ -103,7 +103,8 @@ export async function applyLocalMutation(
           db.outbox,
           db.meta,
           db.databases,
-          db.databaseEntries,
+          db.databaseSources,
+          db.databaseEntryPairs,
           db.pageOperationStates,
           db.pageOperationUpdates,
           db.pageAmbiguities,
@@ -165,6 +166,8 @@ export class LocalValidationError extends Error {
     | "database.entry-not-found"
     | "database.membership-conflict"
     | "database.page-required"
+    | "database.source-unavailable"
+    | "database.view-source-locked"
     | "database.projection-unavailable"
     | "database.impact-confirmation-required"
     | "database.impact-stale"

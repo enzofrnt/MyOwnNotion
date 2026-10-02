@@ -69,7 +69,6 @@ import {
   executeDatabaseCommand,
   executeDatabaseRestore,
   executeDatabaseTrash,
-  hasStructuredPageRole,
 } from "./database-commands.ts";
 import { runMutation } from "./run-mutation.ts";
 
@@ -737,9 +736,6 @@ export async function executeCommand(
     case "item.offline":
       return executeOfflineIntent(tx, context, command);
     case "item.convert": {
-      if (command.targetKind === "folder" && (await hasStructuredPageRole(tx, command.itemId))) {
-        return err("database.page-required", "A database host or entry must remain a page");
-      }
       const result = await executeConvertItem(tx, {
         command,
         mutationId: context.mutationId,
@@ -882,8 +878,12 @@ export async function executeCommand(
     case "revision.restore":
       return executeRestoreRevision(tx, context, command);
     case "database.create":
+    case "database.source.create":
+    case "database.source.delete":
+    case "database_view.create":
     case "database.definition.replace":
     case "database.definition.resolve-conflict":
+    case "database.presentation.replace":
     case "database.entry.create":
     case "database.entry.values.replace":
     case "database.entry.values.resolve-conflict":

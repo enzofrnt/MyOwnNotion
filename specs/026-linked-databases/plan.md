@@ -1,5 +1,11 @@
 # Implementation Plan: Bases réutilisables intégrées
 
+**Évolution 029 (2026-09-27)** : ce plan décrit l'architecture livrée par la
+026. La [spécification 029](../029-database-pages-views/spec.md) remplace la
+source sans propriétaire hiérarchique, les emplacements historiques et les
+entrées sans placement ; un nouveau plan précédera l'implémentation de la
+refonte. Les décisions techniques ci-dessous restent des constats historiques.
+
 **Branch**: `codex/026-linked-databases` | **Date**: 2026-09-05 | **Spec**: [spec.md](spec.md)
 
 ## Summary

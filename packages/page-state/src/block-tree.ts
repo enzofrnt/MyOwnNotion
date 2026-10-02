@@ -45,6 +45,7 @@ export type TransformableBlockType = Extract<
   | "divider"
   | "toggle"
   | "callout"
+  | "databaseView"
 >;
 
 export interface OperationalBlockPlacement {
@@ -596,6 +597,17 @@ function materialiseCanonicalNode(node: LoroTreeNode): CanonicalBlockV3 {
         provider: requiredProperty(props, "provider", `block ${id}`),
         sourceUrl: requiredProperty(props, "sourceUrl", `block ${id}`),
         caption: requiredProperty(props, "caption", `block ${id}`),
+        ...extra,
+      };
+      break;
+    case "databaseView":
+      if (children.length > 0)
+        throw new BlockTreeOperationError(`database view ${id} has children`);
+      candidate = {
+        type,
+        id,
+        containerItemId: requiredProperty(props, "containerItemId", `block ${id}`),
+        viewId: requiredProperty(props, "viewId", `block ${id}`),
         ...extra,
       };
       break;
@@ -1204,6 +1216,7 @@ const TRANSFORMABLE_BLOCK_TYPES: ReadonlySet<KnownBlockTypeV3> = new Set([
   "divider",
   "toggle",
   "callout",
+  "databaseView",
 ]);
 
 export function isTransformableBlockType(value: unknown): value is TransformableBlockType {
@@ -1240,8 +1253,11 @@ export function transformOperationalBlockType(
   if ((node.children()?.length ?? 0) > 0 && !mayHaveChildrenV3(blockType)) {
     throw new BlockTreeOperationError(`${blockType} cannot retain the children of ${blockId}`);
   }
-  if (blockType === "divider" && node.data.ensureMergeableText(CONTENT_KEY).toString() !== "") {
-    throw new BlockTreeOperationError("a divider can only replace an empty text block");
+  if (
+    (blockType === "divider" || blockType === "databaseView") &&
+    node.data.ensureMergeableText(CONTENT_KEY).toString() !== ""
+  ) {
+    throw new BlockTreeOperationError(`${blockType} can only replace an empty text block`);
   }
   node.data.ensureMergeableText(CONTENT_KEY);
   node.data.set("type", blockType);

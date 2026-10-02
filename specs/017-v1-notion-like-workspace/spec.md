@@ -791,10 +791,15 @@ en charge, une fois sans pointeur puis une fois au toucher.
   formatage proche de la sélection sans masquer le texte ni déplacer la page.
 - **FR-016**: L'éditeur MUST prendre en charge gras, italique, souligné, barré,
   code en ligne, lien externe, lien interne, couleur de texte et surlignage.
-- **FR-017**: L'éditeur MUST prendre en charge au minimum paragraphes, trois
+- **FR-017**: L'éditeur MUST prendre en charge au minimum paragraphes, quatre
   niveaux de titres, listes à puces et numérotées, tâches, citations, code,
   séparateurs, sections repliables, encadrés, tableaux simples, images,
   fichiers et contenus intégrés autorisés.
+- **FR-100**: Dès qu'une page contient plus d'un titre, un sommaire MUST
+  apparaître au bord droit de l'écran : des traits discrets au repos, et au
+  survol ou au focus la liste des titres, indentée selon leur niveau, pour
+  naviguer vers le titre choisi. Le titre en cours de lecture MUST être
+  distingué. Moins de deux titres MUST masquer ce sommaire.
 - **FR-018**: Le propriétaire MUST pouvoir sélectionner un ou plusieurs blocs
   contigus puis les déplacer, dupliquer ou supprimer comme une seule opération
   annulable.
@@ -931,8 +936,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
   mêmes règles de validation que pour une page. La modification MUST utiliser
   les mutations d'item existantes et se refléter immédiatement dans toutes les
   représentations de cet item. Le chrome supérieur MUST rester compact, sans
-  second titre ni libellé de type. Le canevas d'une page ou d'un dossier MUST
-  afficher, juste au-dessus du grand titre et proche de l'emoji, un libellé
+  second titre ni libellé de type. Sur une page, un dossier ou une base, l'emoji
+  choisi MUST se placer immédiatement devant le grand titre et le décaler vers
+  la droite ; le retirer MUST rendre au titre sa place initiale. Le canevas
+  d'une page ou d'un dossier MUST afficher, proche de ce titre, un libellé
   discret « Page » ou « Dossier » précédé de la petite icône de type.
 - **FR-095**: Sur écran large, l’en-tête de la barre latérale MUST exposer une
   commande pour la masquer entièrement. Le contenu principal MUST récupérer

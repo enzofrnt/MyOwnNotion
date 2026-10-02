@@ -456,12 +456,12 @@ test("/page creates one linked subpage under the current page", async ({ page })
   if (sourceBlockId === null) throw new Error("Le bloc source doit avoir une identité stable.");
   const menu = page.getByRole("listbox");
   await expect(menu).toBeVisible();
-  await menu.getByRole("option", { name: /^Sous-page/u }).click();
+  await menu.getByRole("option", { name: /^Page\b/u }).click();
 
   const childTitle = page.getByTestId("active-item-title");
   await expect(childTitle).toBeFocused({ timeout: 15_000 });
   await expect(childTitle).toHaveValue("");
-  const childName = uniqueName("Sous-page créée");
+  const childName = uniqueName("Page créée");
   await childTitle.fill(childName);
   await childTitle.press("Enter");
   await ensureNavigationVisible(page);

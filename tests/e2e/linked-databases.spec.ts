@@ -5,14 +5,12 @@ import {
   CURRENT_PROTOCOL_HEADERS,
   closeMobileNavigation,
   createDatabaseEntry,
-  createRootItem,
   createUnopenedPage,
   ensureNavigationVisible,
-  expectNoHorizontalOverflow,
+  createRootDatabase,
   openSecondDevice,
   openWorkspace,
   selectItem,
-  typeIntoEditor,
   uniqueName,
   waitForDatabaseDefinitionSaved,
   waitForSynchronized,
@@ -25,12 +23,9 @@ test("keeps entry activation and cancellation intact while another device update
 }) => {
   test.slow();
   await openWorkspace(page);
-  const hostName = uniqueName("Stable entry host");
+  const hostName = uniqueName("Stable database owner");
   const entryName = uniqueName("Stable entry");
-  await createRootItem(page, "page", hostName);
-  await page.getByRole("button", { name: "Ajouter une base", exact: true }).click();
-  await page.getByLabel("Nouvelle base", { exact: true }).fill(uniqueName("Stable source"));
-  await page.getByRole("button", { name: "Créer et insérer", exact: true }).click();
+  await createRootDatabase(page, hostName);
   await expect(page.locator(".database-grid")).toBeVisible();
   await createDatabaseEntry(page, entryName);
   await waitForSynchronized(page);
@@ -74,12 +69,10 @@ test("keeps entry activation and cancellation intact while another device update
       await page.mouse.down();
       // A second physical click would share Firefox’s virtual mouse with the
       // held pointer. Activate the other device semantically instead.
-      await second.page
-        .getByRole("button", { name: "Augmenter la largeur de Titre", exact: true })
-        .evaluate((element) => (element as HTMLButtonElement).click());
+      await second.page.getByRole("button", { name: /Largeur de Titre/ }).press("ArrowRight");
       await waitForDatabaseDefinitionSaved(second.page);
       await expect(
-        page.getByRole("group", { name: `Largeur de Titre : ${width} pixels`, exact: true }),
+        page.getByRole("button", { name: `Largeur de Titre : ${width} pixels`, exact: true }),
       ).toBeVisible();
       await expect(page.locator(".database-pagination")).toBeVisible();
       expect(await original.evaluate((element) => element.isConnected)).toBe(true);
@@ -120,133 +113,6 @@ test("keeps entry activation and cancellation intact while another device update
   }
 });
 
-test("embeds one source in ordinary pages with independent views and shared canonical entries", async ({
-  page,
-  context,
-}, testInfo) => {
-  test.slow();
-  await openWorkspace(page);
-  const first = uniqueName("Planning page");
-  const second = uniqueName("Projects page");
-  const sourceName = uniqueName("Shared projects");
-  const entryName = uniqueName("Canonical entry");
-  await createRootItem(page, "page", first);
-  await typeIntoEditor(page, "Editorial text beside the shared database");
-  await page.getByRole("button", { name: "Ajouter une base", exact: true }).click();
-  await page.getByLabel("Nouvelle base", { exact: true }).fill(sourceName);
-  await page.getByRole("button", { name: "Créer et insérer", exact: true }).click();
-  await expect(page.locator(".database-embedding")).toHaveCount(1);
-  await expect(page.locator(".database-grid")).toBeVisible();
-  for (const [name, type] of [
-    ["Status", "status"],
-    ["Due", "date"],
-  ]) {
-    await page.getByRole("button", { name: "Ajouter une propriété" }).click();
-    const editor = page.getByRole("form", { name: "Éditeur de propriété" });
-    await editor.getByLabel("Nom", { exact: true }).fill(name ?? "");
-    await editor.getByLabel("Type", { exact: true }).selectOption(type ?? "text");
-    if (type === "status")
-      await editor.getByLabel("Options séparées par des virgules").fill("Planned, Done");
-    await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
-    await expect(
-      page.locator(".database-schema").getByText(name ?? "", { exact: true }),
-    ).toBeVisible();
-    await waitForDatabaseDefinitionSaved(page);
-  }
-  await createDatabaseEntry(page, entryName);
-  await waitForSynchronized(page);
-  const identity = await page
-    .locator("[data-entry-trigger]")
-    .first()
-    .getAttribute("data-entry-trigger");
-  await createRootItem(page, "page", second);
-  await page.getByRole("button", { name: "Ajouter une base", exact: true }).click();
-  await page.getByLabel("Base existante", { exact: true }).selectOption({ label: sourceName });
-  await page.getByRole("button", { name: "Insérer cette base", exact: true }).click();
-  await expect(page.locator("[data-entry-trigger]").filter({ hasText: entryName })).toBeVisible();
-  // The entry can render from the local projection before the embedding's
-  // definition replacement is acknowledged. A late projection refresh can
-  // replace the toolbar during the next pointer gesture and swallow its click.
-  await waitForDatabaseDefinitionSaved(page);
-  for (const [button, surface] of [
-    ["Nouvelle vue Kanban", ".database-board"],
-    ["Nouvelle vue calendrier", ".database-calendar"],
-    ["Nouvelle vue galerie", ".database-gallery-scroll"],
-    ["Nouvelle vue liste", ".database-list"],
-  ]) {
-    await page.getByRole("button", { name: button ?? "", exact: true }).click();
-    await expect(page.locator(surface ?? "")).toBeVisible();
-    await waitForDatabaseDefinitionSaved(page);
-  }
-  await page.locator("[data-entry-trigger]").filter({ hasText: entryName }).first().click();
-  await expect(page.locator(".entry-panel")).toBeVisible();
-  await typeIntoEditor(page, "Edited through the linked source");
-  await page.locator(".entry-panel").getByRole("button", { name: "Fermer l'entrée" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(second);
-  await expect(page.locator(".database-list")).toBeVisible();
-  await page
-    .locator(".database-embedding")
-    .evaluate((element) => element.scrollIntoView({ block: "start" }));
-  await page.screenshot({ path: testInfo.outputPath("linked-source-light.png") });
-  await selectItem(page, first);
-  await expect(page.locator(".database-grid")).toBeVisible();
-  await expect(page.locator(".database-view-tabs").getByRole("tab")).toHaveCount(1);
-  await expect(page.getByTestId("block-editor")).toContainText(
-    "Editorial text beside the shared database",
-  );
-  const shared = page.locator("[data-entry-trigger]").filter({ hasText: entryName }).first();
-  await expect(shared).toHaveAttribute("data-entry-trigger", identity ?? "");
-  await shared.click();
-  await expect(page.getByTestId("block-editor")).toContainText("Edited through the linked source");
-  await page.locator(".entry-panel").getByRole("button", { name: "Fermer l'entrée" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(first);
-  // Canonical entry navigation also works without a display-origin hint.
-  await page.goto(`/notes/${identity}`);
-  await expect(page.locator(".entry-panel")).toBeVisible();
-  await page.locator(".entry-panel").getByRole("button", { name: "Fermer l'entrée" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(first);
-  // Direct navigation can abort an in-flight batch. The reloaded service must
-  // still drain that durable queue before this journey goes offline.
-  await waitForSynchronized(page, { timeoutMs: 60_000 });
-  // Keep the static app shell available while the API is unreachable, matching
-  // the established database reload journeys; local durability is the subject.
-  await context.route("**/v1/**", (route) => route.abort("connectionrefused"));
-  await context.route("**/health", (route) => route.abort("connectionrefused"));
-  await page.getByRole("button", { name: "Retirer de cette page", exact: true }).click();
-  await expect(page.locator(".database-embedding")).toHaveCount(0);
-  await page.reload();
-  await selectItem(page, first);
-  await page.getByRole("button", { name: "Ajouter une base", exact: true }).click();
-  await page.getByLabel("Base existante", { exact: true }).selectOption({ label: sourceName });
-  await page.getByRole("button", { name: "Insérer cette base", exact: true }).click();
-  await expect(page.locator("[data-entry-trigger]").filter({ hasText: entryName })).toBeVisible();
-  await context.unroute("**/v1/**");
-  await context.unroute("**/health");
-  await waitForSynchronized(page);
-  await page.emulateMedia({ colorScheme: "dark" });
-  await page.evaluate(() => window.localStorage.setItem("myownnotion.theme", "dark"));
-  await page.reload();
-  await selectItem(page, first);
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page.locator(".database-embedding")).toHaveCount(1);
-  await page
-    .locator(".database-embedding")
-    .evaluate((element) => element.scrollIntoView({ block: "start" }));
-  await page.screenshot({ path: testInfo.outputPath("linked-source-dark.png") });
-  await page.setViewportSize({ width: 320, height: 780 });
-  await page.reload();
-  await selectItem(page, first);
-  await closeMobileNavigation(page);
-  await expect(page.locator(".database-embedding")).toHaveCount(1);
-  await expectNoHorizontalOverflow(page);
-  await page
-    .locator(".database-embedding")
-    .evaluate((element) => element.scrollIntoView({ block: "start" }));
-  await page.screenshot({ path: testInfo.outputPath("linked-source-narrow.png") });
-  await page.locator(".database-pagination").scrollIntoViewIfNeeded();
-  await page.screenshot({ path: testInfo.outputPath("linked-source-narrow-entries.png") });
-});
-
 test("loads beyond 1000 canonical entries using a visible cursor action", async ({
   page,
   request,
@@ -266,7 +132,7 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
       titlePropertyId: generateUuidV7(),
       initialViewId: generateUuidV7(),
       initialViewName: "Complete title order",
-      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a0" },
+      placement: { id: generateUuidV7(), parentItemId: host.itemId, positionKey: "a0" },
     },
   });
   expect(created.status(), await created.text()).toBe(201);
@@ -305,8 +171,9 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   // ordinary workspace journeys.
   await openWorkspace(page, { navigationTimeoutMs: 60_000 });
   await ensureNavigationVisible(page);
-  await expect(page.getByRole("treeitem")).toHaveCount(1);
-  await selectItem(page, hostName);
+  await page.getByRole("button", { name: `Déplier ${hostName}` }).click();
+  await expect(page.getByRole("treeitem")).toHaveCount(2);
+  await selectItem(page, "Large reusable source");
   const loaded = page.locator(".database-pagination");
   await expect(loaded).toContainText("100 entrées chargées", { timeout: 30_000 });
   const firstPageMs = Date.now() - openStarted;

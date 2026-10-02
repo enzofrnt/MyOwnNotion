@@ -100,6 +100,7 @@ export function registerChangeRoutes(app: FastifyInstance, context: AppContext):
           tx,
           databaseRecords,
           context.protectedContent,
+          items.filter((item) => item.kind === "database_view").map((item) => item.id),
         );
         const databaseEntries = await resolveDatabaseEntryProjections(
           tx,

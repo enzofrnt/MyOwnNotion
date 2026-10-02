@@ -31,8 +31,33 @@ describe("item identity icon", () => {
     expect(folder).not.toContain("data-item-kind-badge");
     expect(file).toContain('data-icon="file"');
     expect(file).not.toContain("data-item-kind-badge");
-    expect(database).toContain('data-icon="table"');
+    expect(database).toContain('data-icon="layers"');
     expect(database).not.toContain("data-item-kind-badge");
+  });
+
+  it("hides page text lines in the tree glyph until the body holds content", () => {
+    const empty = renderToStaticMarkup(
+      <TreeItemIdentitySlot
+        item={{ kind: "page", icon: null, name: "Brouillon", holdsContent: false }}
+        branch={false}
+        expanded={false}
+        onToggle={() => undefined}
+      />,
+    );
+    const filled = renderToStaticMarkup(
+      <TreeItemIdentitySlot
+        item={{ kind: "page", icon: null, name: "Notes", holdsContent: true }}
+        branch={false}
+        expanded={false}
+        onToggle={() => undefined}
+      />,
+    );
+
+    expect(empty).toContain('data-icon="file"');
+    expect(empty).not.toContain('data-icon="fileText"');
+    expect(empty).toContain('data-holds-content="false"');
+    expect(filled).toContain('data-icon="fileText"');
+    expect(filled).toContain('data-holds-content="true"');
   });
 
   it("adds the reference badge without changing the item emoji", () => {

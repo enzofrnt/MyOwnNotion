@@ -11,6 +11,7 @@ import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases
 import { AsyncState, Button } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { OptionPill } from "./option-appearance.tsx";
 import type { DatabaseCellUpdate } from "./table-view.tsx";
 
 type BoardViewDefinition = Extract<DatabaseView, { type: "board" }>;
@@ -23,6 +24,7 @@ type BoardAxisProperty = OptionProperty & { readonly type: "status" | "select" }
 export interface BoardColumn {
   readonly id: Uuid | "missing";
   readonly label: string;
+  readonly tone?: string;
   readonly rows: readonly DatabaseViewRow[];
 }
 
@@ -63,6 +65,7 @@ export function boardColumns(
     ...orderedIds.map((id) => ({
       id,
       label: byId.get(id)?.label ?? DATABASE_COPY.common.unavailableOption,
+      tone: byId.get(id)?.tone,
       rows: rows.filter((row) => boardAxisValue(row, property) === id),
     })),
     {
@@ -384,7 +387,12 @@ export function BoardView({
               >
                 <header>
                   <h3 id={headingId}>
-                    {column.label} · {column.rows.length}
+                    {column.tone === undefined ? (
+                      column.label
+                    ) : (
+                      <OptionPill label={column.label} tone={column.tone} />
+                    )}
+                    <span> · {column.rows.length}</span>
                   </h3>
                   {column.id === "missing" ? null : (
                     <Button

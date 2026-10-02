@@ -7,6 +7,7 @@ import {
 import { type FormEvent, type KeyboardEvent, useLayoutEffect, useRef, useState } from "react";
 import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { columnPresentations, viewColumns } from "./view-columns.ts";
 
 function activeViews(definition: DatabaseDefinition): DatabaseView[] {
   return definition.views
@@ -213,11 +214,13 @@ export function DatabaseToolbar({
   activeViewId,
   onSelectView,
   onChange,
+  singleView = false,
 }: {
   readonly definition: DatabaseDefinition;
   readonly activeViewId: Uuid;
   readonly onSelectView: (viewId: Uuid) => void;
   readonly onChange: (definition: DatabaseDefinition) => void | Promise<void>;
+  readonly singleView?: boolean;
 }) {
   const [savingView, setSavingView] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -287,30 +290,86 @@ export function DatabaseToolbar({
       })),
     });
   };
-  const presentations = [...active.properties].sort(
-    (left, right) =>
-      left.positionKey.localeCompare(right.positionKey) ||
-      left.propertyId.localeCompare(right.propertyId),
-  );
   const moveProperty = (propertyId: Uuid, direction: -1 | 1): void => {
-    const index = presentations.findIndex((presentation) => presentation.propertyId === propertyId);
+    const columns = [...viewColumns(definition.properties, active.properties)];
+    const index = columns.findIndex((column) => column.property.id === propertyId);
     const target = index + direction;
-    const currentPresentation = presentations[index];
-    const targetPresentation = presentations[target];
-    if (currentPresentation === undefined || targetPresentation === undefined) return;
+    const moved = columns[index];
+    const neighbor = columns[target];
+    if (moved === undefined || neighbor === undefined) return;
+    columns[index] = neighbor;
+    columns[target] = moved;
+    const keys = columns
+      .map((column) => {
+        const previous = active.properties.find((item) => item.propertyId === column.property.id);
+        return previous?.positionKey ?? column.property.positionKey;
+      })
+      .sort((left, right) => left.localeCompare(right));
     void persist(
       replaceSavedView(definition, {
         ...active,
-        properties: active.properties.map((presentation) =>
-          presentation.propertyId === currentPresentation.propertyId
-            ? { ...presentation, positionKey: targetPresentation.positionKey }
-            : presentation.propertyId === targetPresentation.propertyId
-              ? { ...presentation, positionKey: currentPresentation.positionKey }
-              : presentation,
-        ),
+        properties: columns.map((column, position) => {
+          const previous = active.properties.find((item) => item.propertyId === column.property.id);
+          const positionKey = keys[position] ?? column.property.positionKey;
+          return {
+            propertyId: column.property.id,
+            visible: column.property.type === "title" ? true : column.visible,
+            positionKey,
+            ...(previous?.width === undefined ? {} : { width: previous.width }),
+          };
+        }),
       }),
     );
   };
+
+  if (singleView) {
+    return (
+      <section className="database-toolbar" aria-label="Format de la vue intégrée">
+        {saveError ? (
+          <AsyncState compact kind="error" description={DATABASE_COPY.toolbar.saveFailed} />
+        ) : null}
+        <label>
+          Format
+          <select
+            aria-label="Format de la vue intégrée"
+            value={active.type}
+            disabled={savingView}
+            onChange={(event) => {
+              const type = event.target.value as DatabaseView["type"];
+              const generated = createSavedView(definition, active, type, active.name);
+              const converted = activeViews(generated).at(-1);
+              if (converted === undefined || converted.id === active.id) return;
+              void persist({
+                ...definition,
+                views: [
+                  {
+                    ...converted,
+                    id: active.id,
+                    name: active.name,
+                    positionKey: active.positionKey,
+                  },
+                ],
+              });
+            }}
+          >
+            <option value="table">Tableau</option>
+            <option value="board" disabled={!hasBoardAxis}>
+              Kanban
+            </option>
+            <option value="gallery">Galerie</option>
+            <option value="list">Liste</option>
+            <option value="calendar" disabled={!hasCalendarDate}>
+              Calendrier
+            </option>
+          </select>
+        </label>
+        {hasBoardAxis ? null : <p className="muted">{DATABASE_COPY.toolbar.boardNeedsProperty}</p>}
+        {hasCalendarDate ? null : (
+          <p className="muted">{DATABASE_COPY.toolbar.calendarNeedsProperty}</p>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="database-toolbar" aria-label={DATABASE_COPY.toolbar.savedViews}>
@@ -452,23 +511,26 @@ export function DatabaseToolbar({
       />
       <details className="database-columns">
         <summary>{DATABASE_COPY.toolbar.visibleProperties}</summary>
-        {presentations.map((presentation, index) => {
-          const property = definition.properties.find(({ id }) => id === presentation.propertyId);
-          return property === undefined ? null : (
-            <div key={presentation.propertyId} className="database-column-control">
+        {viewColumns(definition.properties, active.properties).map((column, index, columns) => {
+          const property = column.property;
+          return (
+            <div key={property.id} className="database-column-control">
               <VisibilityControl
                 key={`${active.id}:${property.id}`}
                 name={property.name}
-                visible={presentation.visible}
+                visible={column.visible}
                 disabled={savingView || property.type === "title"}
                 onChange={(visible) =>
                   persist(
                     replaceSavedView(definition, {
                       ...active,
-                      properties: active.properties.map((candidate) =>
-                        candidate.propertyId === presentation.propertyId
-                          ? { ...candidate, visible }
-                          : candidate,
+                      properties: columnPresentations(
+                        active.properties,
+                        columns.map((candidate) =>
+                          candidate.property.id === property.id
+                            ? { ...candidate, visible }
+                            : candidate,
+                        ),
                       ),
                     }),
                   )
@@ -489,7 +551,7 @@ export function DatabaseToolbar({
                 size="square"
                 variant="ghost"
                 aria-label={DATABASE_COPY.toolbar.moveColumnLater(property.name)}
-                disabled={savingView || index === presentations.length - 1}
+                disabled={savingView || index === columns.length - 1}
                 onClick={() => moveProperty(property.id, 1)}
               >
                 →

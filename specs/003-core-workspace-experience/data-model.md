@@ -60,7 +60,7 @@ whatever it carries.
 | `type` | Extra fields | Children | Requirement |
 |--------|--------------|----------|-------------|
 | `paragraph` | `content: Inline[]` | no | FR-001 |
-| `heading` | `content: Inline[]`, `level: 1 \| 2 \| 3` | no | FR-001 (at least three levels) |
+| `heading` | `content: Inline[]`, `level: 1 \| 2 \| 3 \| 4` | no | FR-001 (at least three levels) |
 | `bulletedListItem` | `content: Inline[]` | **yes** | FR-001 |
 | `numberedListItem` | `content: Inline[]` | **yes** | FR-001 |
 | `checkbox` | `content: Inline[]`, `checked: boolean` | **yes** | FR-001 |

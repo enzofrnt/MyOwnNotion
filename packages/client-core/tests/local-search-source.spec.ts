@@ -25,7 +25,7 @@ let databases: LocalDatabaseRepository;
 function item(input: {
   id: Uuid;
   name: string;
-  kind?: "page" | "folder" | "file";
+  kind?: "page" | "folder" | "file" | "database";
   parentItemId?: Uuid | null;
   body?: Record<string, unknown>;
   placements?: readonly {
@@ -375,8 +375,8 @@ describe("LocalSearchSource", () => {
       },
     };
     await repository.applyServerItems([
-      item({ id: databaseId, name: "Tasks" }),
-      item({ id: entryId, name: "Ship task search" }),
+      item({ id: databaseId, name: "Tasks", kind: "database" }),
+      item({ id: entryId, name: "Ship task search", parentItemId: databaseId }),
     ]);
     await databases.putDatabase({ itemId: databaseId, definitionVersion: 1, definition });
     await databases.putEntry({
@@ -410,7 +410,7 @@ describe("LocalSearchSource", () => {
       { propertyId: priorityPropertyId, text: "High", taskRole: "priority" },
     ]);
 
-    await db.databaseEntries.update(entryId, { availability: "offloaded" });
+    await db.databaseEntryPairs.update(`${databaseId}:${entryId}`, { availability: "offloaded" });
     const offloaded = await source.read([entryId], 10);
     expect(offloaded[0]?.document.properties).toEqual([]);
   });

@@ -8,12 +8,15 @@
  * a second source of truth.
  */
 
-import type {
-  DatabaseDefinition,
-  DatabaseMergeConflict,
-  EntryValues,
-  RelationTargets,
-  Uuid,
+import {
+  type DatabaseDefinition,
+  type DatabaseMergeConflict,
+  type DatabasePresentationDefinition,
+  type EntryValues,
+  type ItemKind,
+  ownedSourceIdFromItemId,
+  type RelationTargets,
+  type Uuid,
 } from "@myownnotion/domain";
 import { Dexie, type EntityTable } from "dexie";
 // The envelope type, not the codec: `local-encryption.ts` knows nothing about
@@ -22,7 +25,7 @@ import type { LocalEnvelope } from "../security/local-encryption.ts";
 
 export interface LocalItemRow {
   readonly id: Uuid;
-  readonly kind: "page" | "folder" | "file";
+  readonly kind: ItemKind;
   readonly name: string;
   readonly icon: string | null;
   readonly lifecycle: "active" | "trashed" | "purged";
@@ -200,19 +203,27 @@ export interface LocalMetaRow {
 /** Open in memory; `definition` is replaced by ciphertext before persistence. */
 export interface LocalDatabaseRow {
   readonly itemId: Uuid;
+  readonly sourceId?: Uuid;
   readonly definitionVersion: number;
   readonly definitionRevisionId?: Uuid;
   readonly definition: DatabaseDefinition;
+  readonly presentationVersion?: number;
+  readonly presentationRevisionId?: Uuid;
+  readonly presentation?: DatabasePresentationDefinition;
 }
 
-export interface SealedLocalDatabaseRow extends Omit<LocalDatabaseRow, "definition"> {
+export interface SealedLocalDatabaseRow
+  extends Omit<LocalDatabaseRow, "definition" | "presentation"> {
   readonly sealedDefinition: LocalEnvelope;
+  readonly sealedPresentation?: LocalEnvelope;
 }
 
 /** Open in memory; values are sealed before the later version-6 Dexie write. */
 export interface LocalDatabaseEntryRow {
+  readonly key?: string;
   readonly entryItemId: Uuid;
   readonly databaseId: Uuid;
+  readonly sourceId?: Uuid;
   readonly valueVersion: number;
   readonly availability: "present" | "offloaded" | "never-fetched";
   /**
@@ -222,7 +233,8 @@ export interface LocalDatabaseEntryRow {
   readonly values: EntryValues;
 }
 
-export interface SealedLocalDatabaseEntryRow extends Omit<LocalDatabaseEntryRow, "values"> {
+export interface SealedLocalDatabaseEntryRow extends Omit<LocalDatabaseEntryRow, "values" | "key"> {
+  readonly key: string;
   readonly sealedValues: LocalEnvelope | null;
 }
 
@@ -240,7 +252,11 @@ export interface SealedLocalDatabaseEntryRow extends Omit<LocalDatabaseEntryRow,
  * because they are what the projection is *queried* by, and encrypting them
  * would mean decrypting every row to answer "what is in this folder".
  */
-export const LOCAL_SCHEMA_VERSION = 10;
+export const LOCAL_SCHEMA_VERSION = 12;
+
+export function databaseEntryPairKey(databaseId: Uuid, entryItemId: Uuid): string {
+  return `${databaseId}:${entryItemId}`;
+}
 export const META_KEYS = {
   workspaceId: "workspaceId",
   schemaVersion: "schemaVersion",
@@ -366,7 +382,9 @@ export type LocalDatabase = Dexie & {
   conflicts: EntityTable<ConflictRecordRow, "mutationId">;
   meta: EntityTable<LocalMetaRow, "key">;
   databases: EntityTable<SealedLocalDatabaseRow, "itemId">;
+  databaseSources: EntityTable<SealedLocalDatabaseRow, "sourceId">;
   databaseEntries: EntityTable<SealedLocalDatabaseEntryRow, "entryItemId">;
+  databaseEntryPairs: EntityTable<SealedLocalDatabaseEntryRow, "key">;
   pageOperationStates: EntityTable<SealedPageOperationStateRow, "pageId">;
   pageOperationUpdates: EntityTable<SealedPageOperationUpdateRow, "updateId">;
   pageAmbiguities: EntityTable<SealedPageAmbiguityRow, "ambiguityId">;
@@ -542,7 +560,7 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
   // Version 10 adds encrypted durable staging for editor file bytes. Historical
   // versions remain unchanged so an existing offline workspace upgrades
   // without rewriting or decrypting any owner-authored content.
-  db.version(LOCAL_SCHEMA_VERSION).stores({
+  db.version(10).stores({
     items: "id, kind, lifecycle, localAvailability",
     placements: "id, itemId, parentKey, [parentKey+kind]",
     relationships: "id, sourceItemId, targetItemId",
@@ -561,6 +579,69 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
     pendingFileTransfers: "fileItemId, status, createdAt",
     pendingFileTransferChunks: "id, fileItemId, chunkIndex, [fileItemId+chunkIndex]",
   });
+  // Feature 029 keeps historical encrypted rows untouched. The new store is
+  // keyed by source/entry pair so a page can retain values in multiple bases.
+  db.version(11).stores({
+    items: "id, kind, lifecycle, localAvailability",
+    placements: "id, itemId, parentKey, [parentKey+kind]",
+    relationships: "id, sourceItemId, targetItemId",
+    revisionHeaders: "id, itemId, local",
+    outbox: "mutationId, status, enqueueOrder",
+    conflicts: "mutationId, capturedAt",
+    meta: "key",
+    databases: "itemId",
+    databaseEntries: "entryItemId, databaseId, availability, [databaseId+availability]",
+    databaseEntryPairs: "key, entryItemId, databaseId, availability, [databaseId+availability]",
+    pageOperationStates: "pageId, status, localAvailability, lastAccessedAt",
+    pageOperationUpdates:
+      "updateId, pageId, status, enqueueOrder, [pageId+status], [status+pageId]",
+    pageAmbiguities: "ambiguityId, pageId, status, [pageId+status]",
+    legacyOfflineBranches: "pageId, branchId, status",
+    legacySyncRecoveries: "mutationId, pageId, status, capturedAt, [status+pageId]",
+    pendingFileTransfers: "fileItemId, status, createdAt",
+    pendingFileTransferChunks: "id, fileItemId, chunkIndex, [fileItemId+chunkIndex]",
+  });
+  // Several sources can share one origin page. The container row stays keyed
+  // by the page. Each source row is keyed by its own source id.
+  db.version(LOCAL_SCHEMA_VERSION)
+    .stores({
+      items: "id, kind, lifecycle, localAvailability",
+      placements: "id, itemId, parentKey, [parentKey+kind]",
+      relationships: "id, sourceItemId, targetItemId",
+      revisionHeaders: "id, itemId, local",
+      outbox: "mutationId, status, enqueueOrder",
+      conflicts: "mutationId, capturedAt",
+      meta: "key",
+      databases: "itemId",
+      databaseSources: "sourceId, itemId",
+      databaseEntries: "entryItemId, databaseId, availability, [databaseId+availability]",
+      databaseEntryPairs: "key, entryItemId, databaseId, availability, [databaseId+availability]",
+      pageOperationStates: "pageId, status, localAvailability, lastAccessedAt",
+      pageOperationUpdates:
+        "updateId, pageId, status, enqueueOrder, [pageId+status], [status+pageId]",
+      pageAmbiguities: "ambiguityId, pageId, status, [pageId+status]",
+      legacyOfflineBranches: "pageId, branchId, status",
+      legacySyncRecoveries: "mutationId, pageId, status, capturedAt, [status+pageId]",
+      pendingFileTransfers: "fileItemId, status, createdAt",
+      pendingFileTransferChunks: "id, fileItemId, chunkIndex, [fileItemId+chunkIndex]",
+    })
+    .upgrade(async (transaction) => {
+      const items = await transaction.table("items").toArray();
+      const databaseIds = new Set(
+        items.flatMap((item) =>
+          item.kind === "database" && typeof item.id === "string" ? [item.id] : [],
+        ),
+      );
+      const rows = await transaction.table("databases").toArray();
+      for (const row of rows) {
+        if (typeof row.itemId !== "string" || !databaseIds.has(row.itemId)) continue;
+        const sourceId =
+          typeof row.sourceId === "string"
+            ? row.sourceId
+            : ownedSourceIdFromItemId(row.itemId as Uuid);
+        await transaction.table("databaseSources").put({ ...row, sourceId });
+      }
+    });
   return db;
 }
 

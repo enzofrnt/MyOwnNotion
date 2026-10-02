@@ -5,5 +5,6 @@ export * from "./embeddings.ts";
 export * from "./merge.ts";
 export * from "./query.ts";
 export * from "./schema.ts";
+export * from "./source-lifecycle.ts";
 export * from "./types.ts";
 export * from "./values.ts";

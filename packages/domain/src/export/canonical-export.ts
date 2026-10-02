@@ -18,8 +18,12 @@ import {
   type Placement,
   type Relationship,
 } from "../content/types.ts";
-import { validateDatabaseDefinition } from "../databases/schema.ts";
-import type { DatabaseDefinition, EntryValues } from "../databases/types.ts";
+import { validateDatabaseDefinition, validateDatabasePresentation } from "../databases/schema.ts";
+import type {
+  DatabaseDefinition,
+  DatabasePresentationDefinition,
+  EntryValues,
+} from "../databases/types.ts";
 import {
   normalizeCivilDate,
   normalizeDecimal,
@@ -49,16 +53,26 @@ export interface ExportedItem extends CanonicalItem {
 
 export interface ExportedDatabase {
   readonly databaseId: Uuid;
+  readonly sourceId?: Uuid;
   readonly definitionRevisionId?: Uuid;
   readonly definitionVersion: number;
   readonly definition: DatabaseDefinition;
 }
 
+export interface ExportedDatabasePresentation {
+  readonly containerItemId: Uuid;
+  readonly presentationRevisionId: Uuid;
+  readonly presentationVersion: number;
+  readonly presentation: DatabasePresentationDefinition;
+}
+
 export interface ExportedDatabaseEntry {
   readonly entryId: Uuid;
   readonly databaseId: Uuid;
+  readonly sourceId?: Uuid;
   readonly valueVersion: number;
   readonly addedRevisionId: Uuid;
+  readonly valueRevisionId?: Uuid;
   readonly values: EntryValues;
 }
 
@@ -71,6 +85,7 @@ export interface CanonicalExportManifest {
   readonly changeCursor: string;
   readonly items: ReadonlyArray<ExportedItem>;
   readonly databases: ReadonlyArray<ExportedDatabase>;
+  readonly databasePresentations?: ReadonlyArray<ExportedDatabasePresentation>;
   readonly databaseEntries: ReadonlyArray<ExportedDatabaseEntry>;
   readonly relationships: ReadonlyArray<
     Relationship & {
@@ -87,6 +102,7 @@ export interface CanonicalExportManifest {
     readonly relationships: number;
     readonly revisions: number;
     readonly databases: number;
+    readonly databasePresentations?: number;
     readonly databaseEntries: number;
   };
 }
@@ -109,6 +125,7 @@ export interface BuildExportInput {
   readonly items: ReadonlyArray<ExportedItem>;
   /** Optional only so pre-009 callers can build an empty structured projection. */
   readonly databases?: ReadonlyArray<ExportedDatabase>;
+  readonly databasePresentations?: ReadonlyArray<ExportedDatabasePresentation>;
   readonly databaseEntries?: ReadonlyArray<ExportedDatabaseEntry>;
   readonly relationships: ReadonlyArray<
     Relationship & {
@@ -137,7 +154,14 @@ export function buildCanonicalExport(input: BuildExportInput): CanonicalExportMa
   const relationships = sortById(input.relationships);
   const revisions = sortById(input.revisions);
   const databases = sortByKey(input.databases ?? [], (database) => database.databaseId);
-  const databaseEntries = sortByKey(input.databaseEntries ?? [], (entry) => entry.entryId);
+  const databasePresentations = sortByKey(
+    input.databasePresentations ?? [],
+    (row) => row.containerItemId,
+  );
+  const databaseEntries = sortByKey(
+    input.databaseEntries ?? [],
+    (entry) => `${entry.databaseId}:${entry.entryId}`,
+  );
   return {
     format: CANONICAL_EXPORT_FORMAT,
     formatVersion: CANONICAL_EXPORT_VERSION,
@@ -147,6 +171,7 @@ export function buildCanonicalExport(input: BuildExportInput): CanonicalExportMa
     changeCursor: input.changeCursor,
     items,
     databases,
+    ...(databasePresentations.length === 0 ? {} : { databasePresentations }),
     databaseEntries,
     relationships,
     revisions,
@@ -158,6 +183,9 @@ export function buildCanonicalExport(input: BuildExportInput): CanonicalExportMa
       relationships: relationships.length,
       revisions: revisions.length,
       databases: databases.length,
+      ...(databasePresentations.length === 0
+        ? {}
+        : { databasePresentations: databasePresentations.length }),
       databaseEntries: databaseEntries.length,
     },
   };
@@ -170,10 +198,17 @@ export function canonicalExportString(manifest: CanonicalExportManifest): string
 
 /** Stable structured subset used by backup manifests for an independent digest. */
 export function canonicalStructuredDataString(
-  manifest: Pick<CanonicalExportManifest, "databases" | "databaseEntries">,
+  manifest: Pick<CanonicalExportManifest, "databases" | "databaseEntries"> &
+    Partial<Pick<CanonicalExportManifest, "databasePresentations">>,
 ): string {
   return JSON.stringify(
-    { databases: manifest.databases, databaseEntries: manifest.databaseEntries },
+    {
+      databases: manifest.databases,
+      databaseEntries: manifest.databaseEntries,
+      ...(manifest.databasePresentations === undefined
+        ? {}
+        : { databasePresentations: manifest.databasePresentations }),
+    },
     stableKeyOrder,
   );
 }
@@ -404,7 +439,7 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
     if (
       !isIdentifier(item["id"]) ||
       !isIdentifier(item["workspaceId"]) ||
-      !["page", "folder", "file"].includes(String(item["kind"])) ||
+      !["page", "folder", "file", "database", "database_view"].includes(String(item["kind"])) ||
       !(
         typeof item["name"] === "string" &&
         item["name"].length >= 1 &&
@@ -538,6 +573,7 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
     if (
       !isRecord(database) ||
       !isIdentifier(database["databaseId"]) ||
+      !(database["sourceId"] === undefined || isIdentifier(database["sourceId"])) ||
       !isPositiveInteger(database["definitionVersion"]) ||
       !(
         database["definitionRevisionId"] === undefined ||
@@ -563,6 +599,31 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
     }
   }
 
+  const presentations = (
+    Array.isArray(value["databasePresentations"]) ? value["databasePresentations"] : []
+  ) as unknown[];
+  if (
+    value["databasePresentations"] !== undefined &&
+    !Array.isArray(value["databasePresentations"])
+  ) {
+    issues.push(shapeIssue("database-presentation", "databasePresentations must be an array"));
+  }
+  for (const [index, row] of presentations.entries()) {
+    const presentation = isRecord(row) ? row["presentation"] : undefined;
+    if (
+      !isRecord(row) ||
+      !isIdentifier(row["containerItemId"]) ||
+      !isIdentifier(row["presentationRevisionId"]) ||
+      !isPositiveInteger(row["presentationVersion"]) ||
+      !isRecord(presentation) ||
+      !Array.isArray(presentation["views"])
+    ) {
+      issues.push(
+        shapeIssue("database-presentation", `databasePresentations[${index}] is incomplete`),
+      );
+    }
+  }
+
   const entries = (
     Array.isArray(value["databaseEntries"]) ? value["databaseEntries"] : []
   ) as unknown[];
@@ -572,8 +633,10 @@ function validateCanonicalShape(value: unknown): ExportValidationIssue[] {
       !isRecord(entry) ||
       !isIdentifier(entry["entryId"]) ||
       !isIdentifier(entry["databaseId"]) ||
+      !(entry["sourceId"] === undefined || isIdentifier(entry["sourceId"])) ||
       !isPositiveInteger(entry["valueVersion"]) ||
       !isIdentifier(entry["addedRevisionId"]) ||
+      !(entry["valueRevisionId"] === undefined || isIdentifier(entry["valueRevisionId"])) ||
       !isRecord(values) ||
       values["format"] !== "myownnotion.database-entry-values+json" ||
       values["formatVersion"] !== 1 ||
@@ -641,6 +704,8 @@ export function validateCanonicalExport(
   if (issues.length > 0) return issues;
   const databases = "databases" in manifest ? manifest.databases : [];
   const databaseEntries = "databaseEntries" in manifest ? manifest.databaseEntries : [];
+  const presentations =
+    "databasePresentations" in manifest ? (manifest.databasePresentations ?? []) : [];
   const duplicateCodes: ReadonlyArray<readonly [string, readonly string[]]> = [
     ["item.duplicate", manifest.items.map((item) => item.id)],
     ["revision.duplicate", manifest.revisions.map((revision) => revision.id)],
@@ -719,6 +784,12 @@ export function validateCanonicalExport(
     issues.push({ code: "counts.placements", detail: "Placement count does not match items" });
   if ("databases" in manifest && manifest.counts.databases !== databases.length) {
     issues.push({ code: "counts.databases", detail: "Database count does not match array" });
+  }
+  if (presentations.length > 0 && manifest.counts.databasePresentations !== presentations.length) {
+    issues.push({
+      code: "counts.database-presentations",
+      detail: "Database presentation count does not match array",
+    });
   }
   if ("databaseEntries" in manifest && manifest.counts.databaseEntries !== databaseEntries.length) {
     issues.push({
@@ -808,7 +879,15 @@ export function validateCanonicalExport(
           : hierarchyPlacements.length === 1 ||
             (item.kind === "page" &&
               hierarchyPlacements.length === 0 &&
-              (databaseIds.has(item.id) || entryIds.has(item.id)));
+              ((databaseIds.has(item.id) &&
+                databases.find((row) => row.databaseId === item.id)?.sourceId === undefined) ||
+                (entryIds.has(item.id) &&
+                  databaseEntries.some(
+                    (entry) =>
+                      entry.entryId === item.id &&
+                      databases.find((row) => row.databaseId === entry.databaseId)?.sourceId ===
+                        undefined,
+                  ))));
       if (!valid) {
         issues.push({
           code: "placement.cardinality",
@@ -889,10 +968,19 @@ export function validateCanonicalExport(
         code: "database.item-missing",
         detail: `Database ${database.databaseId} has no exported host page`,
       });
-    } else if (itemsById.get(database.databaseId)?.kind !== "page") {
+    } else if (
+      itemsById.get(database.databaseId)?.kind !==
+      (database.sourceId === undefined ? "page" : "database")
+    ) {
       issues.push({
         code: "database.host-kind",
-        detail: `Database ${database.databaseId} must be hosted by a page`,
+        detail: `Database ${database.databaseId} has the wrong owner item kind`,
+      });
+    }
+    if (database.sourceId === database.databaseId) {
+      issues.push({
+        code: "database.source-identity",
+        detail: `Database ${database.databaseId} owns itself as a source`,
       });
     }
     if (
@@ -922,24 +1010,77 @@ export function validateCanonicalExport(
   }
   const databasesById = new Map(databases.map((database) => [database.databaseId, database]));
 
-  const seenEntryIds = new Set<Uuid>();
+  const sourceIds = new Set(
+    databases.map((database) => database.sourceId).filter((id): id is Uuid => id !== undefined),
+  );
+  const seenPresentations = new Set<Uuid>();
+  for (const row of presentations) {
+    if (seenPresentations.has(row.containerItemId)) {
+      issues.push({
+        code: "database-presentation.duplicate",
+        detail: `Presentation ${row.containerItemId} appears more than once`,
+      });
+    }
+    seenPresentations.add(row.containerItemId);
+    const item = itemsById.get(row.containerItemId);
+    if (item === undefined || (item.kind !== "database" && item.kind !== "database_view")) {
+      issues.push({
+        code: "database-presentation.item-kind",
+        detail: `Presentation ${row.containerItemId} has no database container`,
+      });
+      continue;
+    }
+    if (
+      !revisionIds.has(row.presentationRevisionId) ||
+      revisionsById.get(row.presentationRevisionId)?.itemId !== row.containerItemId
+    ) {
+      issues.push({
+        code: "database-presentation.revision",
+        detail: `Presentation ${row.containerItemId} has no owned revision`,
+      });
+    }
+    if (
+      !validateDatabasePresentation(row.presentation, item.kind).ok ||
+      row.presentation.containerItemId !== row.containerItemId ||
+      row.presentation.views.some((view) => !sourceIds.has(view.sourceId))
+    ) {
+      issues.push({
+        code: "database-presentation.invalid",
+        detail: `Presentation ${row.containerItemId} has invalid views or sources`,
+      });
+    }
+  }
+  for (const database of databases) {
+    if (database.sourceId !== undefined && !seenPresentations.has(database.databaseId)) {
+      issues.push({
+        code: "database-presentation.missing",
+        detail: `Database ${database.databaseId} has no saved view presentation`,
+      });
+    }
+  }
+
+  const seenEntryIds = new Set<string>();
   for (const entry of databaseEntries) {
-    if (seenEntryIds.has(entry.entryId)) {
+    const pairKey = `${entry.databaseId}:${entry.entryId}`;
+    if (seenEntryIds.has(pairKey)) {
       issues.push({
         code: "database-entry.duplicate",
         detail: `Database entry ${entry.entryId} is listed more than once`,
       });
     }
-    seenEntryIds.add(entry.entryId);
+    seenEntryIds.add(pairKey);
     if (!itemIds.has(entry.entryId)) {
       issues.push({
         code: "database-entry.item-missing",
         detail: `Database entry ${entry.entryId} has no exported page`,
       });
-    } else if (itemsById.get(entry.entryId)?.kind !== "page") {
+    } else if (
+      itemsById.get(entry.entryId)?.kind !== "page" &&
+      itemsById.get(entry.entryId)?.kind !== "folder"
+    ) {
       issues.push({
         code: "database-entry.item-kind",
-        detail: `Database entry ${entry.entryId} must reference a page`,
+        detail: `Database entry ${entry.entryId} must reference a page or folder`,
       });
     }
     if (entry.entryId === entry.databaseId) {
@@ -965,6 +1106,15 @@ export function validateCanonicalExport(
       issues.push({
         code: "database-entry.revision-owner-mismatch",
         detail: `Database entry ${entry.entryId} added revision belongs to another item`,
+      });
+    }
+    if (
+      entry.valueRevisionId !== undefined &&
+      revisionsById.get(entry.valueRevisionId)?.itemId !== entry.entryId
+    ) {
+      issues.push({
+        code: "database-entry.value-revision",
+        detail: `Database entry ${entry.entryId} has no owned value revision`,
       });
     }
     if (entry.values.entryId !== entry.entryId || entry.values.databaseId !== entry.databaseId) {

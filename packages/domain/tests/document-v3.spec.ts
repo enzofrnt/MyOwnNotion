@@ -490,7 +490,7 @@ describe("the canonical v3 parser", () => {
     const validCell = { id: cellId, content: [] };
     const validRow = { id: rowId, cells: [validCell] };
     const invalidCases: readonly { readonly block: unknown; readonly path: string }[] = [
-      { block: { type: "heading", id, level: 4, content: [] }, path: "blocks[0].level" },
+      { block: { type: "heading", id, level: 5, content: [] }, path: "blocks[0].level" },
       { block: { type: "checkbox", id, checked: "yes", content: [] }, path: "blocks[0].checked" },
       { block: { type: "code", id, text: 1, language: null }, path: "blocks[0].text" },
       { block: { type: "code", id, text: "x", language: false }, path: "blocks[0].language" },

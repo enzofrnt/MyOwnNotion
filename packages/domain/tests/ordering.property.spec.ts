@@ -10,6 +10,7 @@ import {
   generateUuidV7,
   initialKeys,
   isValidPositionKey,
+  keyAfterAll,
   keyBetween,
   type Placement,
   sortSiblings,
@@ -94,6 +95,13 @@ describe("position keys", () => {
     expect(() => keyBetween("V", "V")).toThrow();
     expect(() => keyBetween("Z", "A")).toThrow();
     expect(() => keyBetween("é", null)).toThrow();
+  });
+
+  it("places a key after reordered view keys that are not fractional", () => {
+    const keys = ["view-000001", "view-000002", "view-000003"];
+    const next = keyAfterAll(keys);
+    expect(keys.every((key) => next > key)).toBe(true);
+    expect(keys.includes(next)).toBe(false);
   });
 });
 

@@ -38,6 +38,7 @@ import type {
 } from "@myownnotion/graph";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 import {
+  databaseEntryPairKey,
   type LocalDatabase,
   type LocalDatabaseEntryRow,
   type LocalDatabaseRow,
@@ -46,6 +47,7 @@ import {
   type LocalRelationshipRow,
   META_KEYS,
   parentKeyOf,
+  type SealedLocalDatabaseRow,
   type SealedLocalItemRow,
 } from "./schema.ts";
 
@@ -109,21 +111,59 @@ function relationshipRowFrom(dto: RelationshipDto): LocalRelationshipRow {
   };
 }
 
+function splitDatabaseRows(rows: readonly SealedLocalDatabaseRow[]): {
+  readonly containers: SealedLocalDatabaseRow[];
+  readonly sources: SealedLocalDatabaseRow[];
+} {
+  const byItem = new Map<string, SealedLocalDatabaseRow[]>();
+  for (const row of rows) {
+    const group = byItem.get(row.itemId) ?? [];
+    group.push(row);
+    byItem.set(row.itemId, group);
+  }
+  const containers: SealedLocalDatabaseRow[] = [];
+  const sources: SealedLocalDatabaseRow[] = [];
+  for (const group of byItem.values()) {
+    const container = group.find((row) => row.sealedPresentation !== undefined) ?? group[0];
+    if (container !== undefined) containers.push(container);
+    for (const row of group) {
+      if (row.sourceId !== undefined) sources.push(row);
+    }
+  }
+  return { containers, sources };
+}
+
 function databaseRowFrom(dto: DatabaseProjectionDto): LocalDatabaseRow {
   return {
     itemId: dto.itemId as Uuid,
+    ...(dto.sourceId === undefined ? {} : { sourceId: dto.sourceId as Uuid }),
     definitionVersion: dto.definitionVersion,
     ...(dto.definitionRevisionId === undefined
       ? {}
       : { definitionRevisionId: dto.definitionRevisionId as Uuid }),
     definition: dto.definition as unknown as DatabaseDefinition,
+    ...(dto.presentationVersion === undefined
+      ? {}
+      : { presentationVersion: dto.presentationVersion }),
+    ...(dto.presentationRevisionId === undefined
+      ? {}
+      : { presentationRevisionId: dto.presentationRevisionId as Uuid }),
+    ...(dto.presentation === undefined
+      ? {}
+      : {
+          presentation: dto.presentation as unknown as NonNullable<
+            LocalDatabaseRow["presentation"]
+          >,
+        }),
   };
 }
 
 function databaseEntryRowFrom(dto: DatabaseEntryProjectionDto): LocalDatabaseEntryRow {
   return {
+    key: databaseEntryPairKey(dto.databaseId as Uuid, dto.entryItemId as Uuid),
     entryItemId: dto.entryItemId as Uuid,
     databaseId: dto.databaseId as Uuid,
+    ...(dto.sourceId === undefined ? {} : { sourceId: dto.sourceId as Uuid }),
     valueVersion: dto.valueVersion,
     availability: "present",
     values: dto.values as unknown as EntryValues,
@@ -201,11 +241,16 @@ export class LocalRepository {
       input.items.filter(({ lifecycle }) => lifecycle !== "purged").map(({ id }) => id),
     );
     const databaseRows = await Promise.all(
-      (input.databases ?? []).map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
+      (input.databases ?? [])
+        .filter(({ itemId }) => retainedItemIds.has(itemId))
+        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
     );
     const databaseEntryRows = await Promise.all(
       (input.databaseEntries ?? [])
-        .filter(({ entryItemId }) => retainedItemIds.has(entryItemId))
+        .filter(
+          ({ entryItemId, databaseId }) =>
+            retainedItemIds.has(entryItemId) && retainedItemIds.has(databaseId),
+        )
         .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
     );
     await this.db.transaction(
@@ -215,7 +260,8 @@ export class LocalRepository {
         this.db.placements,
         this.db.relationships,
         this.db.databases,
-        this.db.databaseEntries,
+        this.db.databaseSources,
+        this.db.databaseEntryPairs,
         this.db.meta,
       ],
       async () => {
@@ -223,7 +269,8 @@ export class LocalRepository {
         await this.db.placements.clear();
         await this.db.relationships.clear();
         await this.db.databases.clear();
-        await this.db.databaseEntries.clear();
+        await this.db.databaseSources.clear();
+        await this.db.databaseEntryPairs.clear();
         for (const [index, dto] of input.items.entries()) {
           const row = sealed[index];
           if (row !== undefined) {
@@ -237,9 +284,13 @@ export class LocalRepository {
         if (relationshipRows.length > 0) {
           await this.db.relationships.bulkPut(relationshipRows);
         }
-        if (databaseRows.length > 0) await this.db.databases.bulkPut(databaseRows);
+        const storedDatabases = splitDatabaseRows(databaseRows);
+        if (storedDatabases.containers.length > 0)
+          await this.db.databases.bulkPut(storedDatabases.containers);
+        if (storedDatabases.sources.length > 0)
+          await this.db.databaseSources.bulkPut(storedDatabases.sources);
         if (databaseEntryRows.length > 0) {
-          await this.db.databaseEntries.bulkPut(databaseEntryRows);
+          await this.db.databaseEntryPairs.bulkPut(databaseEntryRows);
         }
         await this.db.meta.bulkPut([
           { key: META_KEYS.workspaceId, value: input.workspaceId },
@@ -264,11 +315,16 @@ export class LocalRepository {
       input.items.filter(({ lifecycle }) => lifecycle === "purged").map(({ id }) => id),
     );
     const databaseRows = await Promise.all(
-      (input.databases ?? []).map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
+      (input.databases ?? [])
+        .filter(({ itemId }) => !purgedItemIds.has(itemId))
+        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
     );
     const databaseEntryRows = await Promise.all(
       (input.databaseEntries ?? [])
-        .filter(({ entryItemId }) => !purgedItemIds.has(entryItemId))
+        .filter(
+          ({ entryItemId, databaseId }) =>
+            !purgedItemIds.has(entryItemId) && !purgedItemIds.has(databaseId),
+        )
         .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
     );
     const changedItemIds = new Set(input.items.map(({ id }) => id));
@@ -279,7 +335,8 @@ export class LocalRepository {
         this.db.placements,
         this.db.relationships,
         this.db.databases,
-        this.db.databaseEntries,
+        this.db.databaseSources,
+        this.db.databaseEntryPairs,
         this.db.meta,
       ],
       async () => {
@@ -298,7 +355,12 @@ export class LocalRepository {
             // projections. Keep the item identity unavailable, but remove its
             // definition/membership/value material immediately. A purged host
             // also invalidates every retained membership keyed to that base.
-            await this.db.databaseEntries.delete(itemId);
+            await this.db.databaseEntryPairs.where("entryItemId").equals(itemId).delete();
+            if (dto.kind === "database" || dto.kind === "database_view") {
+              await this.db.databaseEntryPairs.where("databaseId").equals(itemId).delete();
+              await this.db.databases.delete(itemId);
+              await this.db.databaseSources.where("itemId").equals(itemId).delete();
+            }
           }
         }
         const relevantRelationships = relationshipRows.filter(({ sourceItemId }) =>
@@ -307,9 +369,13 @@ export class LocalRepository {
         if (relevantRelationships.length > 0) {
           await this.db.relationships.bulkPut(relevantRelationships);
         }
-        if (databaseRows.length > 0) await this.db.databases.bulkPut(databaseRows);
+        const storedDatabases = splitDatabaseRows(databaseRows);
+        if (storedDatabases.containers.length > 0)
+          await this.db.databases.bulkPut(storedDatabases.containers);
+        if (storedDatabases.sources.length > 0)
+          await this.db.databaseSources.bulkPut(storedDatabases.sources);
         if (databaseEntryRows.length > 0) {
-          await this.db.databaseEntries.bulkPut(databaseEntryRows);
+          await this.db.databaseEntryPairs.bulkPut(databaseEntryRows);
         }
         await this.db.meta.put({ key: META_KEYS.lastChangeCursor, value: input.cursor });
       },
@@ -436,7 +502,7 @@ export class LocalRepository {
         this.db.placements,
         this.db.relationships,
         this.db.databases,
-        this.db.databaseEntries,
+        this.db.databaseEntryPairs,
         this.db.meta,
       ],
       async () => ({
@@ -444,7 +510,7 @@ export class LocalRepository {
         placements: await this.db.placements.toArray(),
         relationships: await this.db.relationships.toArray(),
         databases: await this.db.databases.toArray(),
-        memberships: await this.db.databaseEntries.toArray(),
+        memberships: await this.db.databaseEntryPairs.toArray(),
         cursor: (await this.db.meta.get(META_KEYS.lastChangeCursor))?.value,
       }),
     );
@@ -457,8 +523,17 @@ export class LocalRepository {
         .filter(({ definition }) => definition.taskRoles !== null)
         .map(({ itemId }) => itemId),
     );
+    const directOwnerByEntry = new Map(
+      snapshot.placements
+        .filter((placement) => placement.kind === "hierarchy" && placement.parentItemId !== null)
+        .map((placement) => [placement.itemId, placement.parentItemId] as const),
+    );
     const membershipByEntry = new Map(
-      snapshot.memberships.map((membership) => [membership.entryItemId, membership]),
+      snapshot.memberships
+        .filter(
+          (membership) => directOwnerByEntry.get(membership.entryItemId) === membership.databaseId,
+        )
+        .map((membership) => [membership.entryItemId, membership]),
     );
     const parentsByItem = new Map<Uuid, Uuid[]>();
     for (const placement of snapshot.placements) {
@@ -526,16 +601,17 @@ export class LocalRepository {
     const requested = [...new Set(itemIds)].toSorted();
     const fetched = await this.db.transaction(
       "r",
-      [this.db.items, this.db.placements, this.db.databases, this.db.databaseEntries],
+      [this.db.items, this.db.placements, this.db.databases, this.db.databaseEntryPairs],
       async () => ({
         items: (await Promise.all(requested.map(async (id) => await this.db.items.get(id)))).filter(
           (row): row is SealedLocalItemRow => row !== undefined,
         ),
         placements: await this.db.placements.where("itemId").anyOf(requested).toArray(),
         databases: await this.db.databases.toArray(),
-        memberships: (
-          await Promise.all(requested.map(async (id) => await this.db.databaseEntries.get(id)))
-        ).filter((row): row is NonNullable<typeof row> => row !== undefined),
+        memberships: await this.db.databaseEntryPairs
+          .where("entryItemId")
+          .anyOf(requested)
+          .toArray(),
       }),
     );
     const [items, definitions] = await Promise.all([
@@ -553,7 +629,16 @@ export class LocalRepository {
     const memberships = await Promise.all(
       fetched.memberships.map(async (row) => await this.#codec.openDatabaseEntry(row)),
     );
-    const membershipByEntry = new Map(memberships.map((entry) => [entry.entryItemId, entry]));
+    const directOwnerByEntry = new Map(
+      fetched.placements
+        .filter((placement) => placement.kind === "hierarchy" && placement.parentItemId !== null)
+        .map((placement) => [placement.itemId, placement.parentItemId] as const),
+    );
+    const membershipByEntry = new Map(
+      memberships
+        .filter((entry) => directOwnerByEntry.get(entry.entryItemId) === entry.databaseId)
+        .map((entry) => [entry.entryItemId, entry]),
+    );
     return items.map((item) => {
       const membership = membershipByEntry.get(item.id);
       const database =

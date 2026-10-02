@@ -9,16 +9,21 @@
  */
 import {
   type CanonicalItem,
+  canContain,
   createInitialDatabaseDefinition,
   type DatabaseDefinition,
   type DatabaseMutationCommand,
+  type DatabasePresentationDefinition,
+  databaseEntryPlacementId,
   type EntryValues,
   generateUuidV7,
   type HierarchyView,
   INTERNAL_PAGE_LINK_RELATION_TYPE,
+  keyAfterAll,
   type MutationCommand,
   normalizePropertyValue,
   normalizeRelationTargets,
+  ownedSourceIdFromItemId,
   type Placement,
   pageBodyHoldsEditorialContent,
   previewDefinitionImpact,
@@ -26,10 +31,12 @@ import {
   TRASH_RETENTION_MS,
   type Uuid,
   validateDatabaseDefinition,
+  validateDatabasePresentation,
   validatePageLinkTargetSet,
   wouldCreateCycle,
 } from "@myownnotion/domain";
 import {
+  databaseEntryPairKey,
   type LocalDatabase,
   type LocalItemRow,
   parentKeyOf,
@@ -292,6 +299,9 @@ export interface PreparedProjectionWrite {
   /** The finished row to write, already sealed. */
   readonly item?: SealedLocalItemRow;
   readonly database?: SealedLocalDatabaseRow;
+  /** An additional source owned by the same page, stored beside the container row. */
+  readonly databaseSource?: SealedLocalDatabaseRow;
+  readonly deletedSourceId?: Uuid;
   readonly databaseEntry?: SealedLocalDatabaseEntryRow;
   readonly relationTargets?: RelationTargets;
 }
@@ -302,6 +312,170 @@ export async function prepareProjectionWrite(
   codec: LocalRecordCodec,
 ): Promise<PreparedProjectionWrite> {
   switch (command.type) {
+    case "database_view.create": {
+      const sources = await Promise.all(
+        [...(await db.databases.toArray()), ...(await db.databaseSources.toArray())].map((row) =>
+          codec.openDatabase(row),
+        ),
+      );
+      const source = sources.find((row) => row.sourceId === command.sourceId);
+      const owner = source === undefined ? undefined : await db.items.get(source.itemId);
+      const template = source?.definition.views.find((view) => view.state === "active");
+      if (source === undefined || owner?.lifecycle !== "active" || template === undefined) {
+        throw new LocalValidationError(
+          "database.source-unavailable",
+          "Linked view source is unavailable locally",
+        );
+      }
+      const revisionId = generateUuidV7();
+      return {
+        revisionId,
+        item: await codec.sealItem({
+          id: command.id,
+          kind: "database_view",
+          name: command.name,
+          icon: null,
+          lifecycle: "active",
+          currentRevisionId: revisionId,
+          trashedAt: null,
+          purgeAfter: null,
+          favourite: false,
+          offlineIntent: false,
+          localAvailability: "present",
+          pageDocument: null,
+          file: null,
+        }),
+        database: await codec.sealDatabase({
+          itemId: command.id,
+          definitionVersion: source.definitionVersion,
+          ...(source.definitionRevisionId === undefined
+            ? {}
+            : { definitionRevisionId: source.definitionRevisionId }),
+          definition: source.definition,
+          presentationVersion: 1,
+          presentationRevisionId: revisionId,
+          presentation: {
+            format: "myownnotion.database-presentation+json",
+            formatVersion: 1,
+            containerItemId: command.id,
+            views: [{ ...template, id: command.initialViewId, sourceId: command.sourceId }],
+          },
+        }),
+      };
+    }
+    case "database.source.create": {
+      const owner = await db.items.get(command.ownerItemId);
+      const container = await db.databases.get(command.ownerItemId);
+      const opened = container === undefined ? null : await codec.openDatabase(container);
+      const presentation = opened?.presentation;
+      if (
+        owner === undefined ||
+        owner.lifecycle !== "active" ||
+        (owner.kind !== "database" && owner.kind !== "database_view") ||
+        opened === null ||
+        presentation === undefined ||
+        opened.presentationRevisionId !== command.baseRevisionId
+      ) {
+        throw new LocalValidationError("database.not-found", "Database page does not exist");
+      }
+      const definition = createInitialDatabaseDefinition({
+        type: "database.create",
+        id: command.ownerItemId,
+        sourceId: command.sourceId,
+        name: command.name,
+        placement: {
+          id: command.initialViewId,
+          parentItemId: command.ownerItemId,
+          positionKey: "a",
+        },
+        titlePropertyId: command.titlePropertyId,
+        initialViewId: command.initialViewId,
+        initialViewName: command.initialViewName,
+      });
+      const nextPresentation: DatabasePresentationDefinition = {
+        ...presentation,
+        views: [
+          ...presentation.views,
+          {
+            id: command.initialViewId,
+            name: command.initialViewName,
+            type: "table",
+            positionKey: keyAfterAll(presentation.views.map((view) => view.positionKey)),
+            state: "active",
+            sourceId: command.sourceId,
+            properties: definition.views[0]?.properties ?? [],
+            filter: { mode: "all", criteria: [] },
+            sorts: [],
+            group: null,
+            options: { density: "comfortable", freezeTitle: true },
+          },
+        ],
+      };
+      const revisionId = generateUuidV7();
+      const presentationVersion = (opened.presentationVersion ?? 1) + 1;
+      return {
+        revisionId,
+        ...(owner.kind === "database_view"
+          ? { item: { ...owner, kind: "database" as const } }
+          : {}),
+        database: await codec.sealDatabase({
+          ...opened,
+          presentation: nextPresentation,
+          presentationRevisionId: revisionId,
+          presentationVersion,
+        }),
+        databaseSource: await codec.sealDatabase({
+          itemId: command.ownerItemId,
+          sourceId: command.sourceId,
+          definition,
+          definitionRevisionId: revisionId,
+          definitionVersion: 1,
+          presentation: nextPresentation,
+          presentationRevisionId: revisionId,
+          presentationVersion,
+        }),
+      };
+    }
+    case "database.source.delete": {
+      const owner = await db.items.get(command.ownerItemId);
+      const container = await db.databases.get(command.ownerItemId);
+      const opened = container === undefined ? null : await codec.openDatabase(container);
+      const storedSource = await db.databaseSources.get(command.sourceId);
+      const openedSource =
+        storedSource === undefined ? null : await codec.openDatabase(storedSource);
+      if (
+        owner === undefined ||
+        opened === null ||
+        openedSource === null ||
+        openedSource.itemId !== command.ownerItemId ||
+        opened.presentation === undefined ||
+        opened.presentationRevisionId !== command.baseRevisionId
+      ) {
+        throw new LocalValidationError("database.not-found", "Source does not exist on this page");
+      }
+      const owned = await db.databaseSources.where("itemId").equals(command.ownerItemId).count();
+      const remaining = Math.max(0, owned - 1);
+      const revisionId = generateUuidV7();
+      const nextPresentation: DatabasePresentationDefinition = {
+        ...opened.presentation,
+        views: opened.presentation.views.map((view) =>
+          view.sourceId === command.sourceId ? { ...view, state: "retired" as const } : view,
+        ),
+      };
+      return {
+        revisionId,
+        ...(remaining === 0 && owner.kind === "database"
+          ? { item: { ...owner, kind: "database_view" as const } }
+          : {}),
+        database: await codec.sealDatabase({
+          ...opened,
+          presentation: nextPresentation,
+          presentationRevisionId: revisionId,
+          presentationVersion: (opened.presentationVersion ?? 1) + 1,
+        }),
+        deletedSourceId: command.sourceId,
+      };
+    }
     case "database.create": {
       const revisionId = generateUuidV7();
       const definition = createInitialDatabaseDefinition(command);
@@ -318,7 +492,7 @@ export async function prepareProjectionWrite(
         revisionId,
         item: await codec.sealItem({
           id: command.id,
-          kind: "page",
+          kind: "database",
           name: command.name,
           icon: null,
           lifecycle: "active",
@@ -328,28 +502,45 @@ export async function prepareProjectionWrite(
           favourite: false,
           offlineIntent: false,
           localAvailability: "present",
-          pageDocument: {
-            format: "myownnotion.document+json",
-            formatVersion: 1,
-            body: {},
-          },
+          pageDocument: null,
           file: null,
         }),
         database: await codec.sealDatabase({
           itemId: command.id,
+          sourceId: command.sourceId ?? ownedSourceIdFromItemId(command.id),
           definitionVersion: 1,
           definitionRevisionId: revisionId,
           definition: validated.value,
+          presentationVersion: 1,
+          presentationRevisionId: revisionId,
+          presentation: {
+            format: "myownnotion.database-presentation+json",
+            formatVersion: 1,
+            containerItemId: command.id,
+            views: validated.value.views.map((view) => ({
+              ...view,
+              sourceId: command.sourceId ?? ownedSourceIdFromItemId(command.id),
+            })),
+          },
         }),
       };
     }
 
     case "database.definition.replace":
     case "database.definition.resolve-conflict": {
-      const [storedDatabase, storedItem] = await Promise.all([
+      const [containerRow, storedItem] = await Promise.all([
         db.databases.get(command.databaseId),
         db.items.get(command.databaseId),
       ]);
+      const requestedSourceId =
+        command.type === "database.definition.replace" ? command.sourceId : undefined;
+      const openedContainer =
+        containerRow === undefined ? null : await codec.openDatabase(containerRow);
+      const extraRow =
+        requestedSourceId !== undefined && openedContainer?.sourceId !== requestedSourceId
+          ? await db.databaseSources.get(requestedSourceId)
+          : undefined;
+      const storedDatabase = extraRow ?? containerRow;
       if (storedDatabase === undefined) return {};
       const database = await codec.openDatabase(storedDatabase);
       const item = storedItem === undefined ? undefined : await codec.openItem(storedItem);
@@ -376,7 +567,7 @@ export async function prepareProjectionWrite(
           "validation.invalid-payload",
           "This client must preserve linked database displays",
         );
-      const entryRows = await db.databaseEntries
+      const entryRows = await db.databaseEntryPairs
         .where("databaseId")
         .equals(command.databaseId)
         .toArray();
@@ -410,14 +601,76 @@ export async function prepareProjectionWrite(
         throw new LocalValidationError("database.impact-stale", "Database impact changed");
       }
       const revisionId = generateUuidV7();
+      const sealedDefinition = await codec.sealDatabase({
+        ...database,
+        itemId: command.databaseId,
+        definitionVersion: database.definitionVersion + 1,
+        definitionRevisionId: revisionId,
+        definition: candidate.value,
+      });
       return {
         revisionId,
         ...(item === undefined ? {} : { item: await codec.sealItem(item) }),
+        ...(extraRow === undefined
+          ? { database: sealedDefinition }
+          : { databaseSource: sealedDefinition }),
+      };
+    }
+
+    case "database.presentation.replace": {
+      const stored = await db.databases.get(command.containerItemId);
+      const itemRow = await db.items.get(command.containerItemId);
+      if (stored === undefined || itemRow === undefined) {
+        throw new LocalValidationError(
+          "database.not-found",
+          "Database presentation is unavailable locally",
+        );
+      }
+      const database = await codec.openDatabase(stored);
+      const item = await codec.openItem(itemRow);
+      if (
+        database.presentation === undefined ||
+        database.presentationRevisionId === undefined ||
+        database.presentationRevisionId !== command.baseRevisionId ||
+        item.lifecycle !== "active"
+      ) {
+        throw new LocalValidationError(
+          "revision.stale-base",
+          "Database views changed since this edit was prepared",
+        );
+      }
+      const validated = validateDatabasePresentation(
+        command.presentation,
+        item.kind === "database_view" ? "database_view" : "database",
+      );
+      if (!validated.ok || validated.value.containerItemId !== command.containerItemId) {
+        throw new LocalValidationError(
+          "validation.invalid-payload",
+          "Database presentation is invalid",
+        );
+      }
+      const before = database.presentation.views.filter((view) => view.state === "active");
+      const after = validated.value.views.filter((view) => view.state === "active");
+      if (
+        item.kind === "database" &&
+        before.length === 1 &&
+        after.length === 1 &&
+        before[0]?.sourceId !== after[0]?.sourceId
+      ) {
+        throw new LocalValidationError(
+          "database.view-source-locked",
+          "Add another view before changing its source",
+        );
+      }
+      const revisionId = generateUuidV7();
+      return {
+        revisionId,
+        item: await codec.sealItem({ ...item, currentRevisionId: revisionId }),
         database: await codec.sealDatabase({
-          itemId: command.databaseId,
-          definitionVersion: database.definitionVersion + 1,
-          definitionRevisionId: revisionId,
-          definition: candidate.value,
+          ...database,
+          presentationVersion: (database.presentationVersion ?? 1) + 1,
+          presentationRevisionId: revisionId,
+          presentation: validated.value,
         }),
       };
     }
@@ -425,6 +678,12 @@ export async function prepareProjectionWrite(
     case "database.entry.create": {
       const storedDatabase = await db.databases.get(command.databaseId);
       if (storedDatabase === undefined) return {};
+      if (command.kind === "folder" && command.document !== undefined) {
+        throw new LocalValidationError(
+          "validation.invalid-payload",
+          "Folders cannot carry a page document",
+        );
+      }
       const database = await codec.openDatabase(storedDatabase);
       const structured = await normalizeStructuredCommandValues(db, database.definition, command);
       const revisionId = generateUuidV7();
@@ -432,7 +691,7 @@ export async function prepareProjectionWrite(
         revisionId,
         item: await codec.sealItem({
           id: command.id,
-          kind: "page",
+          kind: command.kind ?? "page",
           name: command.title,
           icon: null,
           lifecycle: "active",
@@ -442,16 +701,21 @@ export async function prepareProjectionWrite(
           favourite: false,
           offlineIntent: false,
           localAvailability: "present",
-          pageDocument: command.document ?? {
-            format: "myownnotion.document+json",
-            formatVersion: 1,
-            body: {},
-          },
+          pageDocument:
+            command.kind === "folder"
+              ? null
+              : (command.document ?? {
+                  format: "myownnotion.document+json",
+                  formatVersion: 1,
+                  body: {},
+                }),
           file: null,
         }),
         databaseEntry: await codec.sealDatabaseEntry({
           entryItemId: command.id,
           databaseId: command.databaseId,
+          sourceId:
+            command.sourceId ?? database.sourceId ?? ownedSourceIdFromItemId(command.databaseId),
           valueVersion: 1,
           availability: "present",
           values: structured.values,
@@ -464,25 +728,31 @@ export async function prepareProjectionWrite(
     case "database.entry.values.resolve-conflict": {
       const [storedDatabase, storedEntry, storedItem] = await Promise.all([
         db.databases.get(command.databaseId),
-        db.databaseEntries.get(command.entryId),
+        db.databaseEntryPairs.get(databaseEntryPairKey(command.databaseId, command.entryId)),
         db.items.get(command.entryId),
       ]);
       if (storedDatabase === undefined) {
         throw new LocalValidationError("database.not-found", "Database is not available locally");
       }
-      if (storedEntry === undefined || storedItem === undefined) return {};
-      const [database, entry, item] = await Promise.all([
+      if (storedItem === undefined) return {};
+      const activePlacement = (
+        await db.placements.where("itemId").equals(command.entryId).toArray()
+      ).some(
+        (placement) =>
+          placement.kind === "hierarchy" && placement.parentItemId === command.databaseId,
+      );
+      if (!activePlacement) {
+        throw new LocalValidationError("database.entry-not-found", "Entry is outside this source");
+      }
+      const [database, existingEntry, item] = await Promise.all([
         codec.openDatabase(storedDatabase),
-        codec.openDatabaseEntry(storedEntry),
+        storedEntry === undefined ? Promise.resolve(null) : codec.openDatabaseEntry(storedEntry),
         codec.openItem(storedItem),
       ]);
-      if (entry.databaseId !== command.databaseId) {
-        throw new LocalValidationError(
-          "database.entry-not-found",
-          "Database entry is not available locally",
-        );
-      }
-      if (storedEntry.availability !== "present" || storedEntry.sealedValues === null) {
+      if (
+        storedEntry !== undefined &&
+        (storedEntry.availability !== "present" || storedEntry.sealedValues === null)
+      ) {
         throw new LocalValidationError(
           "database.projection-unavailable",
           "Database entry values are not available on this device",
@@ -499,13 +769,21 @@ export async function prepareProjectionWrite(
       }
       const structured = await normalizeStructuredCommandValues(db, database.definition, command);
       const revisionId = generateUuidV7();
+      const history = await db.databaseEntryPairs
+        .where("entryItemId")
+        .equals(command.entryId)
+        .toArray();
+      const nextVersion = Math.max(0, ...history.map((row) => row.valueVersion)) + 1;
       return {
         revisionId,
         item: await codec.sealItem({ ...item, currentRevisionId: revisionId }),
         databaseEntry: await codec.sealDatabaseEntry({
-          ...entry,
-          valueVersion: entry.valueVersion + 1,
-          values: { ...structured.values, preserved: entry.values.preserved },
+          key: databaseEntryPairKey(command.databaseId, command.entryId),
+          entryItemId: command.entryId,
+          databaseId: command.databaseId,
+          availability: "present",
+          valueVersion: nextVersion,
+          values: { ...structured.values, preserved: existingEntry?.values.preserved ?? [] },
         }),
         relationTargets: structured.relationTargets,
       };
@@ -559,16 +837,6 @@ export async function prepareProjectionWrite(
       }
       const opened = await codec.openItem(row);
       const revisionId = generateUuidV7();
-      if (
-        command.type === "item.convert" &&
-        command.targetKind === "folder" &&
-        (await db.databaseEntries.get(command.itemId)) !== undefined
-      ) {
-        throw new LocalValidationError(
-          "database.page-required",
-          "A database host or entry must remain a page",
-        );
-      }
       // Reopened, edited, resealed. A partial update is not available: the
       // envelope binds the whole row's identity, so a new title cannot be
       // written without re-deriving the record it belongs to.
@@ -671,6 +939,90 @@ export async function applyCommandToProjection(
   mutationId?: Uuid,
 ): Promise<Uuid[]> {
   switch (command.type) {
+    case "database_view.create": {
+      if ((await db.items.get(command.id)) !== undefined) {
+        throw new LocalValidationError(
+          "database.membership-conflict",
+          "Linked view already exists",
+        );
+      }
+      const parentId = command.placement.parentItemId;
+      if (parentId !== null) {
+        const parent = await db.items.get(parentId);
+        if (
+          parent === undefined ||
+          parent.lifecycle !== "active" ||
+          !canContain(parent.kind, "database_view", "hierarchy")
+        ) {
+          throw new LocalValidationError("item.not-found", "Parent is not an active container");
+        }
+      }
+      if (
+        prepared.item === undefined ||
+        prepared.database === undefined ||
+        prepared.revisionId === undefined
+      ) {
+        throw new LocalValidationError("database.not-found", "Linked view was not prepared");
+      }
+      const revisionId = await writeLocalRevision(
+        db,
+        command.id,
+        [],
+        now,
+        prepared.revisionId,
+        mutationId,
+      );
+      await db.items.add(prepared.item);
+      await db.placements.add({
+        id: command.placement.id,
+        itemId: command.id,
+        kind: "hierarchy",
+        parentItemId: parentId,
+        parentKey: parentKeyOf(parentId),
+        positionKey: command.placement.positionKey,
+      });
+      await db.databases.add(prepared.database);
+      return [revisionId];
+    }
+    case "database.source.create": {
+      if (
+        prepared.database === undefined ||
+        prepared.databaseSource === undefined ||
+        prepared.revisionId === undefined
+      ) {
+        throw new LocalValidationError("database.not-found", "The source write was not prepared");
+      }
+      const revisionId = await writeLocalRevision(
+        db,
+        command.ownerItemId,
+        [command.baseRevisionId],
+        now,
+        prepared.revisionId,
+        mutationId,
+      );
+      if (prepared.item !== undefined) await db.items.put(prepared.item);
+      await db.databases.put(prepared.database);
+      await db.databaseSources.put(prepared.databaseSource);
+      return [revisionId];
+    }
+    case "database.source.delete": {
+      if (prepared.database === undefined || prepared.revisionId === undefined) {
+        throw new LocalValidationError("database.not-found", "The source write was not prepared");
+      }
+      const revisionId = await writeLocalRevision(
+        db,
+        command.ownerItemId,
+        [command.baseRevisionId],
+        now,
+        prepared.revisionId,
+        mutationId,
+      );
+      if (prepared.item !== undefined) await db.items.put(prepared.item);
+      await db.databases.put(prepared.database);
+      if (prepared.deletedSourceId !== undefined)
+        await db.databaseSources.delete(prepared.deletedSourceId);
+      return [revisionId];
+    }
     case "database.create": {
       if (
         (await db.items.get(command.id)) !== undefined ||
@@ -678,9 +1030,14 @@ export async function applyCommandToProjection(
       ) {
         throw new LocalValidationError("database.membership-conflict", "Database already exists");
       }
-      if (command.placement.parentItemId !== null) {
-        const parent = await db.items.get(command.placement.parentItemId);
-        if (parent === undefined || parent.lifecycle !== "active" || parent.kind === "file") {
+      const parentItemId = command.hostPageId ?? command.placement.parentItemId;
+      if (parentItemId !== null) {
+        const parent = await db.items.get(parentItemId);
+        if (
+          parent === undefined ||
+          parent.lifecycle !== "active" ||
+          !canContain(parent.kind, "database", "hierarchy")
+        ) {
           throw new LocalValidationError("item.not-found", "Parent is not an active container");
         }
       }
@@ -700,17 +1057,16 @@ export async function applyCommandToProjection(
         mutationId,
       );
       await db.items.add(prepared.item);
-      if (command.hostPageId === undefined) {
-        await db.placements.add({
-          id: command.placement.id,
-          itemId: command.id,
-          kind: "hierarchy",
-          parentItemId: command.placement.parentItemId,
-          parentKey: parentKeyOf(command.placement.parentItemId),
-          positionKey: command.placement.positionKey,
-        });
-      }
+      await db.placements.add({
+        id: command.placement.id,
+        itemId: command.id,
+        kind: "hierarchy",
+        parentItemId,
+        parentKey: parentKeyOf(parentItemId),
+        positionKey: command.placement.positionKey,
+      });
       await db.databases.add(prepared.database);
+      if (prepared.database.sourceId !== undefined) await db.databaseSources.put(prepared.database);
       return [revisionId];
     }
 
@@ -718,13 +1074,20 @@ export async function applyCommandToProjection(
     case "database.definition.resolve-conflict": {
       const item = await db.items.get(command.databaseId);
       const source = await db.databases.get(command.databaseId);
-      if (source === undefined) {
+      const targeted =
+        command.type === "database.definition.replace" && command.sourceId !== undefined
+          ? ((await db.databaseSources.get(command.sourceId)) ?? source)
+          : source;
+      if (targeted === undefined) {
         throw new LocalValidationError("database.not-found", "Database is not available locally");
       }
-      if (prepared.database === undefined || prepared.revisionId === undefined) {
+      if (
+        (prepared.database === undefined && prepared.databaseSource === undefined) ||
+        prepared.revisionId === undefined
+      ) {
         throw new LocalValidationError("database.not-found", "The database write was not prepared");
       }
-      const sourceRevisionId = source.definitionRevisionId ?? item?.currentRevisionId;
+      const sourceRevisionId = targeted.definitionRevisionId ?? item?.currentRevisionId;
       if (sourceRevisionId === undefined)
         throw new LocalValidationError("database.not-found", "Database revision is unavailable");
       const revisionId = await writeLocalRevision(
@@ -738,6 +1101,40 @@ export async function applyCommandToProjection(
         mutationId,
       );
       if (prepared.item !== undefined) await db.items.put(prepared.item);
+      if (prepared.databaseSource !== undefined) {
+        await db.databaseSources.put(prepared.databaseSource);
+      } else if (prepared.database !== undefined) {
+        await db.databases.put(prepared.database);
+        if (prepared.database.sourceId !== undefined)
+          await db.databaseSources.put(prepared.database);
+      }
+      return [revisionId];
+    }
+
+    case "database.presentation.replace": {
+      const item = await db.items.get(command.containerItemId);
+      const database = await db.databases.get(command.containerItemId);
+      if (
+        item === undefined ||
+        database === undefined ||
+        prepared.item === undefined ||
+        prepared.database === undefined ||
+        prepared.revisionId === undefined
+      ) {
+        throw new LocalValidationError(
+          "database.not-found",
+          "Database presentation is unavailable locally",
+        );
+      }
+      const revisionId = await writeLocalRevision(
+        db,
+        command.containerItemId,
+        [item.currentRevisionId],
+        now,
+        prepared.revisionId,
+        mutationId,
+      );
+      await db.items.put(prepared.item);
       await db.databases.put(prepared.database);
       return [revisionId];
     }
@@ -748,23 +1145,26 @@ export async function applyCommandToProjection(
       }
       if (
         (await db.items.get(command.id)) !== undefined ||
-        (await db.databaseEntries.get(command.id)) !== undefined
+        (await db.databaseEntryPairs.get(databaseEntryPairKey(command.databaseId, command.id))) !==
+          undefined
       ) {
         throw new LocalValidationError(
           "database.membership-conflict",
           "Page already has a database membership",
         );
       }
+      const owner = await db.items.get(command.databaseId);
+      if (owner === undefined || owner.kind !== "database" || owner.lifecycle !== "active") {
+        throw new LocalValidationError("database.source-unavailable", "Source owner is not active");
+      }
       if (
         command.placement !== undefined &&
-        (command.placement.parentItemId === command.databaseId
-          ? null
-          : command.placement.parentItemId) !== null
+        command.placement.parentItemId !== command.databaseId
       ) {
-        const parent = await db.items.get(command.placement.parentItemId as Uuid);
-        if (parent === undefined || parent.lifecycle !== "active" || parent.kind === "file") {
-          throw new LocalValidationError("item.not-found", "Parent is not an active container");
-        }
+        throw new LocalValidationError(
+          "validation.invalid-payload",
+          "Entries must be direct children of their source owner",
+        );
       }
       if (
         prepared.item === undefined ||
@@ -786,23 +1186,15 @@ export async function applyCommandToProjection(
         mutationId,
       );
       await db.items.add(prepared.item);
-      if (command.placement !== undefined)
-        await db.placements.add({
-          id: command.placement.id,
-          itemId: command.id,
-          kind: "hierarchy",
-          parentItemId:
-            command.placement.parentItemId === command.databaseId
-              ? null
-              : command.placement.parentItemId,
-          parentKey: parentKeyOf(
-            command.placement.parentItemId === command.databaseId
-              ? null
-              : command.placement.parentItemId,
-          ),
-          positionKey: command.placement.positionKey,
-        });
-      await db.databaseEntries.add(prepared.databaseEntry);
+      await db.placements.add({
+        id: command.placement?.id ?? databaseEntryPlacementId(command.id),
+        itemId: command.id,
+        kind: "hierarchy",
+        parentItemId: command.databaseId,
+        parentKey: parentKeyOf(command.databaseId),
+        positionKey: command.placement?.positionKey ?? `a${command.id.replaceAll("-", "")}`,
+      });
+      await db.databaseEntryPairs.add(prepared.databaseEntry);
       await reconcileLocalDatabaseRelationships(db, {
         databaseId: command.databaseId,
         entryId: command.id,
@@ -814,7 +1206,13 @@ export async function applyCommandToProjection(
     case "database.entry.values.replace":
     case "database.entry.values.resolve-conflict": {
       const item = await db.items.get(command.entryId);
-      if (item === undefined || (await db.databaseEntries.get(command.entryId)) === undefined) {
+      if (
+        item === undefined ||
+        !(await db.placements.where("itemId").equals(command.entryId).toArray()).some(
+          (placement) =>
+            placement.kind === "hierarchy" && placement.parentItemId === command.databaseId,
+        )
+      ) {
         throw new LocalValidationError(
           "database.entry-not-found",
           "Database entry is not available locally",
@@ -842,7 +1240,7 @@ export async function applyCommandToProjection(
         mutationId,
       );
       await db.items.put(prepared.item);
-      await db.databaseEntries.put(prepared.databaseEntry);
+      await db.databaseEntryPairs.put(prepared.databaseEntry);
       await reconcileLocalDatabaseRelationships(db, {
         databaseId: command.databaseId,
         entryId: command.entryId,
@@ -1034,17 +1432,7 @@ export async function applyCommandToProjection(
         seen.add(current);
         branch.push(current);
         for (const child of view.getActiveChildren(current)) {
-          // Devices can upgrade while offline, before migration 0016's feed
-          // arrives. Detach legacy membership placements in this transaction.
-          const membership = await db.databaseEntries.get(child.itemId);
-          if (membership?.databaseId === current) {
-            await db.placements.update(child.id, {
-              parentItemId: null,
-              parentKey: parentKeyOf(null),
-            });
-            continue;
-          }
-          queue.push(child.itemId);
+          if (view.getItem(child.itemId)?.lifecycle === "active") queue.push(child.itemId);
         }
       }
       const trashedAt = now().toISOString();

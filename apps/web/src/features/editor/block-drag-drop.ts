@@ -55,6 +55,14 @@ export function validateBlockDrop(
     ) {
       return "Un bloc ne peut pas être déplacé à l’intérieur de lui-même.";
     }
+    const parentType = move.currentParent?.type;
+    if (
+      (parentType === "table" || parentType === "tableRow" || parentType === "tableCell") &&
+      move.block.type !== "tableRow" &&
+      move.block.type !== "tableCell"
+    ) {
+      return "Ce bloc ne peut pas être déposé à l’intérieur d’un tableau.";
+    }
   }
   return null;
 }

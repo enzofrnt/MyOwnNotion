@@ -20,13 +20,15 @@ export interface PageHeaderProps {
   /** Open tabs strip; shown on every surface so tabs stay reachable. */
   readonly tabs?: ReactNode;
   readonly actions?: ReactNode;
-  readonly kind?: "page" | "folder" | "file" | "workspace" | "graph";
+  readonly kind?: "page" | "folder" | "file" | "database" | "database_view" | "workspace" | "graph";
 }
 
 const KIND_LABELS = {
   page: "Page",
   folder: "Dossier",
   file: "Fichier",
+  database: "Base de données",
+  database_view: "Vue de base de données",
   workspace: "Espace de travail",
   graph: "Graphe",
 } as const;
@@ -38,7 +40,12 @@ export function PageHeader({
   tabs,
   title,
 }: PageHeaderProps) {
-  const compactChrome = kind === "page" || kind === "folder" || kind === "graph";
+  const compactChrome =
+    kind === "page" ||
+    kind === "folder" ||
+    kind === "database" ||
+    kind === "database_view" ||
+    kind === "graph";
   return (
     <header
       className="workspace-page-header"

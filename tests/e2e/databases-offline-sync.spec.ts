@@ -13,7 +13,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   closeMobileNavigation,
   ensureNavigationVisible,
-  openRootDatabaseCreation,
+  createRootDatabase,
   openSecondDevice,
   openWorkspace,
   openWorkspaceDiagnostics,
@@ -47,11 +47,7 @@ async function goOnline(page: Page): Promise<void> {
 
 async function createDatabase(page: Page, name: string): Promise<void> {
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const form = page.getByRole("form", { name: "Créer une base de données" });
-  await form.getByLabel("Créer une base de données").fill(name);
-  await form.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(name, { timeout: 15_000 });
+  await createRootDatabase(page, name);
   await waitForSynchronized(page);
 }
 
@@ -73,10 +69,13 @@ async function addTextProperty(
 
 async function createEntry(page: Page, title: string): Promise<void> {
   const form = page.locator(".database-entry-create");
-  const titleInput = form.getByLabel("Nouvelle entrée");
-  await titleInput.fill(title);
-  await expect(titleInput).toHaveValue(title);
-  await form.getByRole("button", { name: "Nouvelle entrée" }).click();
+  const button = form.getByRole("button", { name: "Nouvelle page" });
+  await expect(button).toBeEnabled({ timeout: 15_000 });
+  await button.click();
+  const editor = page.locator(".database-cell-title-input");
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.fill(title);
+  await editor.press("Enter");
   await expect(page.locator("[data-entry-trigger]").filter({ hasText: title }).first()).toBeVisible(
     {
       timeout: 15_000,

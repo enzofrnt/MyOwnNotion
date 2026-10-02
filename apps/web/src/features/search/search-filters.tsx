@@ -1,7 +1,13 @@
 import type { ItemKind, Uuid } from "@myownnotion/domain";
 import { Button, FR_COPY } from "../../ui/index.ts";
 
-export const ALL_SEARCH_KINDS = ["page", "folder", "file"] as const satisfies readonly ItemKind[];
+export const ALL_SEARCH_KINDS = [
+  "page",
+  "folder",
+  "file",
+  "database",
+  "database_view",
+] as const satisfies readonly ItemKind[];
 
 export interface SearchBranchOption {
   readonly itemId: Uuid;
@@ -12,6 +18,8 @@ const KIND_LABELS: Readonly<Record<ItemKind, string>> = {
   page: FR_COPY.search.pages,
   folder: FR_COPY.search.folders,
   file: FR_COPY.search.files,
+  database: "Bases de données",
+  database_view: "Vues de bases de données",
 };
 
 export function SearchFilters({

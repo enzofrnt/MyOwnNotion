@@ -10,7 +10,8 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   ensureNavigationVisible,
-  openRootDatabaseCreation,
+  createDatabaseEntry,
+  createRootDatabase,
   openWorkspace,
   openWorkspaceDiagnostics,
   returnToWorkspace,
@@ -65,10 +66,7 @@ async function indexedDbContents(page: Page): Promise<string> {
 
 async function createStructuredContent(page: Page): Promise<string> {
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(SENTINELS.database);
-  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
+  await createRootDatabase(page, SENTINELS.database);
   await expect(page.getByTestId("active-item-title")).toHaveValue(SENTINELS.database, {
     timeout: 15_000,
   });
@@ -85,9 +83,7 @@ async function createStructuredContent(page: Page): Promise<string> {
   await expect(propertyEditor).toBeHidden({ timeout: 15_000 });
   await waitForDatabaseDefinitionSaved(page);
 
-  const createEntry = page.locator(".database-entry-create");
-  await createEntry.getByLabel("Nouvelle entrée").fill(SENTINELS.entry);
-  await createEntry.getByRole("button", { name: "Nouvelle entrée" }).click();
+  await createDatabaseEntry(page, SENTINELS.entry);
   const entry = page.locator("[data-entry-trigger]").filter({ hasText: SENTINELS.entry }).first();
   await expect(entry).toBeVisible({ timeout: 15_000 });
   await entry.click();

@@ -111,13 +111,20 @@ describe("database editor surfaces (T022)", () => {
 
   it("submits the current option text even before the controlled draft rerenders", () => {
     const data = new FormData();
+    const key = "018f4000-0000-7000-8000-0000000000aa";
     data.set("property-name", "Status");
-    data.set("property-type", "status");
-    data.set("property-options", "To do, Done");
+    data.set("property-type", "select");
+    data.set("option-order", key);
+    data.set(`option-label-${key}`, "To do");
+    data.set(`option-tone-${key}`, "blue");
 
     expect(
-      propertyDraftFromFormData(data, { name: "Status", type: "status", optionsText: "" }),
-    ).toEqual({ name: "Status", type: "status", optionsText: "To do, Done" });
+      propertyDraftFromFormData(data, { name: "Status", type: "select", options: [] }),
+    ).toEqual({
+      name: "Status",
+      type: "select",
+      options: [{ key, label: "To do", tone: "blue" }],
+    });
   });
 
   it("renders the schema and fixed actions without turning the database into a new item kind", () => {
@@ -137,7 +144,9 @@ describe("database editor surfaces (T022)", () => {
     expect(markup).toContain("Contenu de la base de données");
     expect(markup).toContain("Estimate");
     expect(markup).toContain("Ajouter une propriété");
-    expect(markup).toContain("Nouvelle entrée");
+    expect(markup).not.toContain("Nouvel élément");
+    expect(markup).toContain("Nouvelle page");
+    expect(markup).not.toContain(">Créer<");
     expect(markup).not.toContain("kind=database");
   });
 

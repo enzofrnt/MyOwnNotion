@@ -7,7 +7,7 @@
  */
 import type { Uuid } from "../ids/uuid.ts";
 
-export const ITEM_KINDS = ["page", "folder", "file"] as const;
+export const ITEM_KINDS = ["page", "folder", "file", "database", "database_view"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 
 export const LIFECYCLES = ["active", "trashed", "purged"] as const;
@@ -137,6 +137,8 @@ export const SAFE_ERROR_CODES = [
   "database.cursor-stale",
   "database.projection-unavailable",
   "database.invalid-view",
+  "database.view-source-locked",
+  "database.source-unavailable",
   "database.invalid-cursor",
   "database.projection-building",
   "database.projection-degraded",
@@ -243,6 +245,9 @@ export function canContain(
     // Only pages own attachment collections; only files can be attached.
     return parentKind === "page" && childKind === "file";
   }
-  // Hierarchy: root, pages, and folders may contain anything; files never contain.
+  // A source owns only its direct page/folder entries. Linked views are leaves.
+  if (parentKind === "database") {
+    return childKind === "page" || childKind === "folder";
+  }
   return parentKind === null || parentKind === "page" || parentKind === "folder";
 }

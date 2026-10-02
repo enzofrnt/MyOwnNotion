@@ -188,20 +188,30 @@ function projectedItem(
   id: Uuid,
   name: string,
   lifecycle: ItemDto["lifecycle"] = "active",
+  parentItemId: Uuid | null = null,
+  kind: "page" | "database" = "page",
 ): ItemDto {
   return {
     id,
-    kind: "page",
+    kind,
     name,
     lifecycle,
     currentRevisionId: generateUuidV7(),
     pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
-    placements: [],
+    placements: [
+      {
+        id: generateUuidV7(),
+        itemId: id,
+        kind: "hierarchy",
+        parentItemId,
+        positionKey: "V",
+      },
+    ],
   };
 }
 
 describe("purged structured projections (T102, FR-046)", () => {
-  it("keeps the host tombstone and independent source but removes values when the entry itself is purged", async () => {
+  it("keeps the owner tombstone but removes its source and entries on purge", async () => {
     const { codec } = await createTestCodec();
     const db: LocalDatabase = openLocalDatabase(`database-purge-${generateUuidV7()}`);
     const repository = new LocalRepository(db, codec);
@@ -219,7 +229,10 @@ describe("purged structured projections (T102, FR-046)", () => {
         workspaceId: generateUuidV7(),
         schemaVersion: 7,
         cursor: "before-purge",
-        items: [projectedItem(ids.database, "Database"), projectedItem(ids.entryA, "Entry")],
+        items: [
+          projectedItem(ids.database, "Database", "active", null, "database"),
+          projectedItem(ids.entryA, "Entry", "active", ids.database),
+        ],
         databases: [
           { itemId: ids.database, definitionVersion: 1, definition: definition() as never },
         ],
@@ -237,8 +250,8 @@ describe("purged structured projections (T102, FR-046)", () => {
 
       await repository.applyServerChange({
         cursor: "after-purge",
-        items: [projectedItem(ids.database, "Unavailable database", "purged")],
-        // Source resources survive the old host tombstone.
+        items: [projectedItem(ids.database, "Unavailable database", "purged", null, "database")],
+        // A stale source envelope accompanying the owner tombstone cannot revive it.
         databases: [
           { itemId: ids.database, definitionVersion: 1, definition: definition() as never },
         ],
@@ -253,8 +266,8 @@ describe("purged structured projections (T102, FR-046)", () => {
       });
 
       expect((await repository.getItem(ids.database))?.lifecycle).toBe("purged");
-      expect(await databases.getDatabase(ids.database)).not.toBeNull();
-      expect(await databases.getEntry(ids.entryA)).not.toBeNull();
+      expect(await databases.getDatabase(ids.database)).toBeNull();
+      expect(await databases.getEntry(ids.entryA)).toBeNull();
       await repository.applyServerChange({
         cursor: "entry-purge",
         items: [projectedItem(ids.entryA, "Unavailable entry", "purged")],

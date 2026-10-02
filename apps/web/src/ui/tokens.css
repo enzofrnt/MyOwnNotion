@@ -236,7 +236,7 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ui-color-canvas: #191918;
+  --ui-color-canvas: #191919;
   --ui-color-sidebar: #20201e;
   --ui-color-surface: #252522;
   --ui-color-surface-raised: #2b2b28;
@@ -268,8 +268,8 @@
   --ui-shadow-dialog: 0 26px 76px rgb(0 0 0 / 58%), 0 4px 16px rgb(0 0 0 / 34%);
   --ui-shadow-drag: 0 20px 52px rgb(0 0 0 / 54%), 0 3px 12px rgb(0 0 0 / 34%);
   --ui-focus-ring: 0 0 0 3px rgb(156 188 255 / 32%);
-  --ui-content-gray: #c0bcb4;
-  --ui-content-gray-soft: #3a3935;
+  --ui-content-gray: #b9b5ad;
+  --ui-content-gray-soft: #30302d;
   --ui-content-brown: #d2a58f;
   --ui-content-brown-soft: #49362d;
   --ui-content-orange: #ffb173;
@@ -292,7 +292,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
-    --ui-color-canvas: #191918;
+    --ui-color-canvas: #191919;
     --ui-color-sidebar: #20201e;
     --ui-color-surface: #252522;
     --ui-color-surface-raised: #2b2b28;
@@ -324,8 +324,8 @@
     --ui-shadow-dialog: 0 26px 76px rgb(0 0 0 / 58%), 0 4px 16px rgb(0 0 0 / 34%);
     --ui-shadow-drag: 0 20px 52px rgb(0 0 0 / 54%), 0 3px 12px rgb(0 0 0 / 34%);
     --ui-focus-ring: 0 0 0 3px rgb(156 188 255 / 32%);
-    --ui-content-gray: #c0bcb4;
-    --ui-content-gray-soft: #3a3935;
+    --ui-content-gray: #b9b5ad;
+    --ui-content-gray-soft: #30302d;
     --ui-content-brown: #d2a58f;
     --ui-content-brown-soft: #49362d;
     --ui-content-orange: #ffb173;

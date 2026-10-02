@@ -462,6 +462,7 @@ export function normaliseBlockV3(block: CanonicalBlockV3): CanonicalBlockV3 {
     case "image":
     case "fileEmbed":
     case "embed":
+    case "databaseView":
       return block;
   }
 }
@@ -639,6 +640,14 @@ function serialiseBlockV3(block: CanonicalBlockV3, canonicalOpaque: boolean): Js
         provider: block.provider,
         sourceUrl: block.sourceUrl,
         caption: block.caption,
+      };
+      break;
+    case "databaseView":
+      known = {
+        type: block.type,
+        id: block.id,
+        containerItemId: block.containerItemId,
+        viewId: block.viewId,
       };
       break;
   }

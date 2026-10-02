@@ -226,6 +226,48 @@ describe("database table accessibility (T042)", () => {
     expect(nextGridCell({ row: 1, column: 1 }, "End", 3, 3, true)).toEqual({ row: 2, column: 2 });
   });
 
+  it("shows the known page and folder glyphs on title buttons", () => {
+    const markup = renderToStaticMarkup(
+      createElement(TableView, {
+        properties,
+        view,
+        page: {
+          ...page,
+          availableCount: 3,
+          expectedCount: 3,
+          rows: [
+            {
+              ...page.rows[0],
+              entryId: ids.entryA,
+              itemKind: "folder",
+              holdsContent: false,
+              title: "Dossier",
+            },
+            {
+              ...page.rows[1],
+              entryId: ids.entryB,
+              itemKind: "page",
+              holdsContent: true,
+              title: "Page remplie",
+            },
+            {
+              ...page.rows[1],
+              entryId: asUuid("018f4000-0000-7000-8000-000000000008"),
+              itemKind: "page",
+              holdsContent: false,
+              title: "Page vide",
+            },
+          ],
+        },
+        onOpenEntry: vi.fn(),
+        onResize: vi.fn(),
+      }),
+    );
+    expect(markup).toContain('data-icon="folder"');
+    expect(markup).toContain('data-icon="fileText"');
+    expect(markup).toContain('data-icon="file"');
+  });
+
   it("renders a one-tab-stop ARIA grid with logical row indexes and resize alternatives", () => {
     const markup = renderToStaticMarkup(
       createElement(TableView, {
@@ -242,8 +284,174 @@ describe("database table accessibility (T042)", () => {
     expect(markup).toContain('aria-rowindex="2"');
     expect(markup.match(/tabindex="0"/g)).toHaveLength(1);
     expect(markup).toContain('data-grid-mode="navigation"');
-    expect(markup).toContain("Réduire la largeur de Title");
-    expect(markup).toContain("Augmenter la largeur de Notes");
+    expect(markup).toContain("Largeur de Title : 240 pixels");
+    expect(markup).toContain("Largeur de Notes : 180 pixels");
+    expect(markup).toContain("database-column-resize");
     expect(markup).toContain('aria-live="polite"');
+  });
+
+  it("writes a status from the cell menu without a save form", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const statusId = asUuid("018f4000-0000-7000-8000-000000000010");
+    const optionId = asUuid("018f4000-0000-7000-8000-000000000011");
+    const statusProperty: DatabaseProperty = {
+      id: statusId,
+      name: "bob",
+      type: "status",
+      positionKey: "c",
+      state: "active",
+      config: {
+        options: [
+          {
+            id: optionId,
+            label: "ta soeur",
+            positionKey: "a",
+            tone: "neutral",
+            state: "active",
+          },
+        ],
+      },
+    };
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const onUpdateEntry = vi.fn(async () => undefined);
+    const onOpenEntry = vi.fn();
+    try {
+      act(() =>
+        root.render(
+          <TableView
+            properties={[...properties, statusProperty]}
+            view={{
+              ...view,
+              properties: [
+                ...view.properties,
+                { propertyId: statusId, visible: true, positionKey: "c", width: 180 },
+              ],
+            }}
+            page={page}
+            onOpenEntry={onOpenEntry}
+            onUpdateEntry={onUpdateEntry}
+            onResize={vi.fn()}
+          />,
+        ),
+      );
+      const trigger = container.querySelector<HTMLButtonElement>("button.option-menu__trigger");
+      if (trigger === null) throw new Error("Missing status control");
+      expect(trigger.textContent).toContain("—");
+      expect(container.querySelector(".database-cell-editor")).toBeNull();
+      act(() => trigger.click());
+      const item = document.querySelector<HTMLElement>(`[data-option-id="${optionId}"]`);
+      if (item === null) throw new Error("Missing status option");
+      await act(async () => {
+        item.click();
+        await Promise.resolve();
+      });
+      expect(onUpdateEntry).toHaveBeenCalledExactlyOnceWith(ids.entryA, {
+        kind: "property",
+        propertyId: statusId,
+        value: { kind: "status", optionId },
+      });
+      expect(onOpenEntry).not.toHaveBeenCalled();
+      expect(container.querySelector(".database-cell-editor")).toBeNull();
+      expect(container.querySelector(".database-cell-editor__actions")).toBeNull();
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
+  it("edits a text cell in place from a click and commits on blur", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const onUpdateEntry = vi.fn(async () => undefined);
+    const onOpenEntry = vi.fn();
+    try {
+      act(() =>
+        root.render(
+          <TableView
+            properties={properties}
+            view={view}
+            page={page}
+            onOpenEntry={onOpenEntry}
+            onUpdateEntry={onUpdateEntry}
+            onResize={vi.fn()}
+          />,
+        ),
+      );
+      const notes = container.querySelectorAll<HTMLTableCellElement>("tbody td")[1];
+      if (notes === undefined) throw new Error("Missing notes cell");
+      act(() => notes.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      const input = container.querySelector<HTMLInputElement>(".database-cell-inline-field input");
+      if (input === null) throw new Error("Missing inline editor");
+      expect(container.querySelector(".database-cell-editor")).toBeNull();
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setter?.call(input, "Updated");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(async () => {
+        input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+        await Promise.resolve();
+      });
+      expect(onUpdateEntry).toHaveBeenCalledExactlyOnceWith(ids.entryA, {
+        kind: "property",
+        propertyId: ids.text,
+        value: { kind: "text", value: "Updated" },
+      });
+      expect(onOpenEntry).not.toHaveBeenCalled();
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
+  it("renames a title from a cell click and opens the entry from the hover control", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const onUpdateEntry = vi.fn(async () => undefined);
+    const onOpenEntry = vi.fn();
+    try {
+      act(() =>
+        root.render(
+          <TableView
+            properties={properties}
+            view={view}
+            page={page}
+            onOpenEntry={onOpenEntry}
+            onUpdateEntry={onUpdateEntry}
+            onResize={vi.fn()}
+          />,
+        ),
+      );
+      const titleCell = container.querySelector<HTMLTableCellElement>("tbody td");
+      if (titleCell === null) throw new Error("Missing title cell");
+      act(() => titleCell.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      const input = container.querySelector<HTMLInputElement>("[data-title-edit]");
+      if (input === null) throw new Error("Missing title editor");
+      expect(input.value).toBe("Alpha");
+      expect(onOpenEntry).not.toHaveBeenCalled();
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setter?.call(input, "Alpha 2");
+        input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+        await Promise.resolve();
+      });
+      expect(onUpdateEntry).toHaveBeenCalledExactlyOnceWith(ids.entryA, {
+        kind: "title",
+        title: "Alpha 2",
+      });
+      const open = container.querySelector<HTMLButtonElement>(".database-cell-title__open");
+      if (open === null) throw new Error("Missing open control");
+      act(() => open.click());
+      expect(onOpenEntry).toHaveBeenCalledExactlyOnceWith(ids.entryA, open);
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
   });
 });

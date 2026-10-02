@@ -222,7 +222,8 @@ describe("workspace shell", () => {
 
     expect(workspaceCss).toMatch(/--workspace-page-icon-offset:\s*var\(--space-10\)/u);
     expect(workspaceCss).toMatch(/padding:\s*var\(--workspace-page-icon-offset\)/u);
-    expect(iconCss).not.toMatch(
+    expect(workspaceCss).toMatch(/\.workspace-page-title__heading\s*\{[^}]*display:\s*flex/u);
+    expect(iconCss).toMatch(
       /\.item-emoji-picker\[data-picker-variant="page"\]\[data-empty\]\s*\{[^}]*position:\s*absolute/u,
     );
     expect(iconCss).toMatch(

@@ -6,7 +6,12 @@
  * accepted head so silent overwrites are impossible.
  */
 
-import { pageLinkTargets, readDocumentBody } from "../document/index.ts";
+import {
+  pageLinkTargets,
+  pageLinkTargetsV3,
+  readDocumentBody,
+  validatePageDocumentEnvelopeV3,
+} from "../document/index.ts";
 import type { Uuid } from "../ids/uuid.ts";
 import { validatePageDocument } from "./hierarchy.ts";
 import { type CanonicalItem, type DomainResult, err, ok, type PageDocument } from "./types.ts";
@@ -31,6 +36,19 @@ export function validatePageLinkTargetSet(
   targetItemIds: readonly Uuid[],
 ): DomainResult<Uuid[]> {
   const supplied = [...new Set(targetItemIds)];
+  if (document.formatVersion === 3) {
+    const checked = validatePageDocumentEnvelopeV3(document);
+    if (!checked.ok)
+      return err("validation.invalid-payload", "Page-link targets require a valid v3 document");
+    const extracted = pageLinkTargetsV3(checked.envelope.body);
+    const suppliedSet = new Set(supplied);
+    return suppliedSet.size === extracted.length && extracted.every((id) => suppliedSet.has(id))
+      ? ok(extracted)
+      : err(
+          "validation.invalid-payload",
+          "Page-link targets must match the links stored in the document",
+        );
+  }
   const read = readDocumentBody(document.body);
   if (read.kind === "blocks" && !read.result.ok) {
     return err("validation.invalid-payload", "Page-link targets require a valid block document");

@@ -280,6 +280,28 @@ cookies or service-worker caches.
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.
 
+### Reset before the database page/view refactor (feature 029)
+
+Migration `0019_database_pages_views` refuses to run when the installation still
+contains databases from the former page-backed/linked model. It does not delete
+them. This is a pre-V1 breaking change: older structured data and backups are
+not migrated by opening the app.
+
+For an **isolated, disposable development profile**, first inventory the pages,
+databases, entries, uploaded files and local backups in that profile. Export or
+copy anything that must survive. Then, and only after deciding to discard the
+entire profile, run `bun run dev:stack:reset` and recreate test data under the
+new model. The command deletes the profile's PostgreSQL data, encrypted file
+store and local backup store; it is broader than a database-only reset. It does
+not clear a browser's IndexedDB or service-worker cache, which must also be
+cleared for that test profile before reconnecting a new server identity.
+
+For a profile with data to preserve, leave the migration refusal in place and
+use a separate fresh test profile. Do not edit historical migrations or remove
+the guard to force startup. The new-model export/backup and restore journey is
+validated on a fresh installation as described in
+[`specs/029-database-pages-views/quickstart.md`](../specs/029-database-pages-views/quickstart.md).
+
 ### Notion import CLI
 
 `bun run import:notion --source PATH` performs a source-only preview. Explicit

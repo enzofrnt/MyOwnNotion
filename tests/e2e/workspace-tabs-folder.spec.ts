@@ -12,6 +12,7 @@ import {
   createChildItem,
   createRootItem,
   ensureNavigationRowVisible,
+  nameNewlyCreatedItem,
   expectNoHorizontalOverflow,
   expectTreeOrder,
   openSecondDevice,
@@ -52,10 +53,7 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   expect(secondId).not.toBeNull();
 
   await clickItemAction(page, root, `new-database-inside-${root}`);
-  const databaseCreation = page.getByRole("form", { name: "Créer une base de données" });
-  await databaseCreation.getByLabel("Créer une base de données").fill(database);
-  await databaseCreation.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(database);
+  await nameNewlyCreatedItem(page, database);
 
   await createChildItem(page, root, "folder", levelOne);
   await createChildItem(page, levelOne, "folder", levelTwo);
@@ -142,7 +140,7 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   await expect(folderCanvas.locator(".ProseMirror")).toHaveCount(0);
   const databaseRow = folderCanvas.getByTestId("folder-child").filter({ hasText: database });
   await expect(databaseRow).toContainText("Base de données");
-  await expect(databaseRow.locator('[data-icon="table"]')).toBeVisible();
+  await expect(databaseRow.locator('[data-icon="layers"]')).toBeVisible();
   const accessibility = await new AxeBuilder({ page })
     .include('[data-testid="open-tabs"], [data-testid="workspace-folder-canvas"]')
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])

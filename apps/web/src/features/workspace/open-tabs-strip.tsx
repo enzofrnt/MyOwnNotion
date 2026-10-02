@@ -3,6 +3,7 @@ import {
   DndContext,
   type DragEndEvent,
   KeyboardSensor,
+  MeasuringStrategy,
   type Modifier,
   PointerSensor,
   useSensor,
@@ -15,15 +16,22 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { GRAPH_TAB_ID, isGraphTabId } from "@myownnotion/client-core";
 import { type KeyboardEvent, useCallback, useEffect, useRef, type WheelEvent } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { ItemIcon, type ItemIconKind } from "../../ui/item-icon.tsx";
 
-/** Keep the strip on one line: a vertical drag must not lift or sink neighbours. */
-const restrictTabsToHorizontalAxis: Modifier = ({ transform }) => ({
-  ...transform,
-  y: 0,
-});
+/** Stay on the strip: no vertical lift, and no slide past the first tab. */
+const restrictTabsToStrip: Modifier = ({ activeNodeRect, draggingNodeRect, transform }) => {
+  const next = { ...transform, y: 0, scaleX: 1, scaleY: 1 };
+  const strip = document.querySelector(".open-tabs");
+  const rect = draggingNodeRect ?? activeNodeRect;
+  if (strip === null || rect === null) return next;
+  const bounds = strip.getBoundingClientRect();
+  if (rect.left + next.x < bounds.left) next.x = bounds.left - rect.left;
+  else if (rect.right + next.x > bounds.right) next.x = bounds.right - rect.right;
+  return next;
+};
 
 export function isCloseTabShortcut(event: {
   readonly key: string;
@@ -43,6 +51,30 @@ export interface OpenTab {
   readonly name: string;
   readonly kind: ItemIconKind | "graph";
   readonly icon?: string | null;
+}
+
+/** Project device-local tab IDs into visible items; only standalone files lack a workspace tab. */
+export function openTabsForItems(
+  ids: readonly string[],
+  items: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly kind: ItemIconKind;
+    readonly icon?: string | null;
+  }[],
+): OpenTab[] {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const tabs: OpenTab[] = [];
+  for (const id of ids) {
+    if (isGraphTabId(id)) {
+      tabs.push({ id: GRAPH_TAB_ID, name: "Graphe", kind: "graph", icon: null });
+      continue;
+    }
+    const item = byId.get(id);
+    if (item === undefined || item.kind === "file") continue;
+    tabs.push({ id: item.id, name: item.name, kind: item.kind, icon: item.icon ?? null });
+  }
+  return tabs;
 }
 
 export interface OpenTabsStripProps {
@@ -92,10 +124,14 @@ function SortableOpenTab({
     transition,
   } = useSortable({
     id: tab.id,
+    // A drop must not replay a corrective slide. Neighbours are already in
+    // their new places when the pointer lifts, including onto the first tab.
+    animateLayoutChanges: () => false,
   });
   // Sorting strategy is horizontal, but pointer deltas still carry a Y that
   // would shove neighbours up/down. Keep every tab on the strip baseline.
-  const horizontalTransform = transform === null ? null : { ...transform, y: 0 };
+  const horizontalTransform =
+    transform === null ? null : { ...transform, y: 0, scaleX: 1, scaleY: 1 };
 
   return (
     <div
@@ -146,7 +182,7 @@ function SortableOpenTab({
 }
 
 /**
- * The strip of opened pages and folders at the top of the canvas (spec 022, US2).
+ * The strip of opened pages, folders, databases and linked views at the top of the canvas.
  *
  * Tabs are navigation shortcuts, so the active one follows the URL rather than
  * owning it. The list scrolls horizontally instead of wrapping, the active tab
@@ -273,7 +309,8 @@ export function OpenTabsStrip({
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      modifiers={[restrictTabsToHorizontalAxis]}
+      modifiers={[restrictTabsToStrip]}
+      measuring={{ droppable: { strategy: MeasuringStrategy.BeforeDragging } }}
       onDragEnd={onDragEnd}
     >
       <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>

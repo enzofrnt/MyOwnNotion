@@ -79,6 +79,8 @@ function visibleBlockTextV3(block: CanonicalBlockV3): string[] {
       return [block.caption, block.sourceUrl]
         .filter((value): value is string => value !== null)
         .map(cleanVisibleText);
+    case "databaseView":
+      return [];
     case "table":
       return block.rows.flatMap((row) =>
         row.cells.map((cell) => visibleInlineTextV3(cell.content)),

@@ -253,11 +253,26 @@ MCP. Canevas : sections 26, 28–30, 42, 47 et 49.
 
 ### 028 — Import Notion local avant V1
 
-Dépend de024 et026. CLI avec aperçu par défaut pour Markdown/CSV/ZIP natifs et
+Dépend des fondations de sauvegarde 024 et de bases 026 ; l'application de
+l'import doit être réalignée sur le modèle de la refonte 029 avant la V1.
+CLI avec aperçu par défaut pour Markdown/CSV/ZIP natifs et
 dossier Obsidian converti ; contenu, liens, fichiers, propriétés et membres de
 sources réutilisables. Sauvegarde préalable sur cible occupée, provenance
 chiffrée et reprise idempotente. Les réglages absents restent explicitement
 inconnus. Aucun parcours UI ni synchronisation Notion continue.
+
+### 029 — Bases comme pages et vues (avant V1)
+
+**État** : spécification terminée ; plan, tâches et implémentation à venir.
+**Dossier** : [`specs/029-database-pages-views`](../../specs/029-database-pages-views/)
+**Canevas** : sections 10 à 14, 18 à 22 et 27 à 33.
+
+Remplace le cycle de vie indépendant des sources de 026 par une page de base
+propriétaire de sa source et des entrées pages ou dossiers placées sous elle.
+Les vues d'une même page peuvent montrer des sources différentes ; une vue
+liée peut vivre dans une page ou l'arborescence. La remise à zéro des anciennes
+données structurées de développement est autorisée avant V1, avec une procédure
+explicite. Les cinq formats initiaux sont conservés.
 
 ### 021 — Readable and actionable server logs
 
@@ -327,6 +342,9 @@ de vie et les budgets d'accessibilité/performance requis par cette feature.
 Ses copies suivent la langue active via une frontière propre à la feature ; la
 traduction française est activée avec le passage transversal de release plutôt
 que comme une interface 009 partiellement traduite.
+Le modèle de source et de placement décrit dans cette livraison historique est
+remplacé par la feature 029 avant V1 ; les propriétés, tâches et formats restent
+des fondations réutilisées.
 
 ### 011 — Whiteboards
 

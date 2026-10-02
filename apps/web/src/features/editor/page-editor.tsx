@@ -26,6 +26,7 @@ import { Button } from "../../ui/primitives/button.tsx";
 import { useTheme } from "../../ui/theme-provider.tsx";
 import { WORKSPACE_HISTORY_SLOT_ID } from "../workspace/page-header.tsx";
 import { validateBlockDrop } from "./block-drag-drop.ts";
+import { computeEditorDropCursor } from "./block-drag-reorder.ts";
 import { canonicalDocumentToBlockNote, canonicalV3ToLegacyV2 } from "./blocknote-conversion.ts";
 import {
   blockNoteSchema,
@@ -36,6 +37,7 @@ import {
 import { CodeBlockInputExtension } from "./code-block-input.ts";
 import { createCodeHighlighter } from "./code-highlighting.ts";
 import { moveTableCellByTab } from "./custom-blocks/table.tsx";
+import { useDatabaseViewBlockContext } from "./database-view-context.tsx";
 import {
   commandsFromBlockNoteChanges,
   EditorChangeBatcher,
@@ -56,8 +58,13 @@ import {
 import { BlockContextMenu } from "./editor-menus/block-context-menu.tsx";
 import { BlockSideMenu } from "./editor-menus/block-side-menu.tsx";
 import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
+import { LinkedDatabasePicker } from "./editor-menus/linked-database-picker.tsx";
 import { PageLinkPicker, type PageLinkPickerRequest } from "./editor-menus/page-link-picker.tsx";
-import { type CreateSubpage, FrenchSlashMenu } from "./editor-menus/slash-menu.tsx";
+import {
+  type CreateInlineDatabase,
+  type CreateSubpage,
+  FrenchSlashMenu,
+} from "./editor-menus/slash-menu.tsx";
 import {
   WebBookmarkDialog,
   type WebBookmarkEditor,
@@ -70,6 +77,7 @@ import {
   EditorOriginGuard,
 } from "./editor-remote-apply.ts";
 import { historyActionFromInputType, useEditorShortcuts } from "./editor-shortcuts.ts";
+import { PageOutline } from "./page-outline.tsx";
 import { pageLinkTargetFromHref } from "./page-link-href.ts";
 import { updatePageLinkPresentations } from "./page-link-inline-content.ts";
 import { TableKeymapExtension } from "./table-keymap.ts";
@@ -104,6 +112,9 @@ export function PageEditor({
   handleRef,
   items,
   onCreateSubpage,
+  onCreateSubfolder,
+  onCreateFullPageDatabase,
+  onCreateInlineDatabase,
   onOpenPage,
   onSettlementChange,
   session,
@@ -115,6 +126,9 @@ export function PageEditor({
   readonly handleRef: React.RefObject<PageEditorHandle | null>;
   readonly items: readonly ProjectedItem[];
   readonly onCreateSubpage?: CreateSubpage | undefined;
+  readonly onCreateSubfolder?: CreateSubpage | undefined;
+  readonly onCreateFullPageDatabase?: CreateSubpage | undefined;
+  readonly onCreateInlineDatabase?: CreateInlineDatabase | undefined;
   readonly onOpenPage?: ((itemId: string) => void) | undefined;
   /** Reports whether every browser gesture has crossed the durable engine boundary. */
   readonly onSettlementChange?: ((settled: boolean) => void) | undefined;
@@ -127,6 +141,8 @@ export function PageEditor({
   const [editorError, setEditorError] = useState<string | null>(null);
   const [pageLinkPicker, setPageLinkPicker] = useState<PageLinkPickerRequest | null>(null);
   const [webBookmarkDialog, setWebBookmarkDialog] = useState<WebBookmarkRequest | null>(null);
+  const [linkedDatabaseBlockId, setLinkedDatabaseBlockId] = useState<string | null>(null);
+  const databaseBlockContext = useDatabaseViewBlockContext();
   const [, setHistoryVersion] = useState(0);
   const onOpenPageRef = useRef(onOpenPage);
   const editorHostRef = useRef<HTMLElement | null>(null);
@@ -164,6 +180,11 @@ export function PageEditor({
         TableKeymapExtension,
       ],
       tabBehavior: "prefer-indent",
+      dropCursor: {
+        hooks: {
+          computeDropPosition: (context) => computeEditorDropCursor(context),
+        },
+      },
       links: {
         isValidLink: (href) =>
           pageLinkTargetFromHref(href) !== null || /^(?:https?|mailto):/u.test(href),
@@ -799,6 +820,7 @@ export function PageEditor({
             historyHost,
           )
         : null}
+      <PageOutline editor={editor} />
       <BlockNoteView
         editor={viewEditor}
         editable={editable}
@@ -820,6 +842,10 @@ export function PageEditor({
             setWebBookmarkDialog({ mode: "create", anchorBlockId: blockId })
           }
           onCreateSubpage={onCreateSubpage}
+          onCreateSubfolder={onCreateSubfolder}
+          onCreateFullPageDatabase={onCreateFullPageDatabase}
+          onCreateInlineDatabase={onCreateInlineDatabase}
+          onCreateLinkedDatabaseView={setLinkedDatabaseBlockId}
           onSubpageCreated={openCreatedSubpage}
           onError={reportEditorError}
         />
@@ -856,6 +882,16 @@ export function PageEditor({
         request={webBookmarkDialog}
         onClose={() => setWebBookmarkDialog(null)}
       />
+      {databaseBlockContext === null ? null : (
+        <LinkedDatabasePicker
+          blockId={linkedDatabaseBlockId}
+          parentItemId={pageId}
+          items={items}
+          service={databaseBlockContext.service}
+          editor={editor}
+          onClose={() => setLinkedDatabaseBlockId(null)}
+        />
+      )}
       {editorError === null ? null : (
         <AsyncState compact description={editorError} kind="error" testId="editor-error" />
       )}
