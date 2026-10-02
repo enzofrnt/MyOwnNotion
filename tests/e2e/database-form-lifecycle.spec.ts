@@ -1,7 +1,7 @@
 import { expect, test } from "./fixtures.ts";
 import {
   createDatabaseEntry,
-  openRootDatabaseCreation,
+  createRootDatabase,
   openSecondDevice,
   openWorkspace,
   saveEntryProperties,
@@ -16,11 +16,7 @@ test("cancels a pressed property action outside its button and activates exactly
 }) => {
   await openWorkspace(page);
   const databaseName = uniqueName("Interaction lifecycle");
-  await openRootDatabaseCreation(page);
-  const creation = page.getByRole("form", { name: "Créer une base de données" });
-  await creation.getByLabel("Créer une base de données").fill(databaseName);
-  await creation.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
   await page.getByRole("button", { name: "Ajouter une propriété" }).click();
   const form = page.getByRole("form", { name: "Éditeur de propriété" });
@@ -54,11 +50,7 @@ test("preserves a composing dirty field while another device updates an untouche
   await openWorkspace(page);
   const databaseName = uniqueName("Draft synchronization");
   const entryName = uniqueName("Current entry");
-  await openRootDatabaseCreation(page);
-  const creation = page.getByRole("form", { name: "Créer une base de données" });
-  await creation.getByLabel("Créer une base de données").fill(databaseName);
-  await creation.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
   for (const name of ["Notes", "Shared"]) {
     await page.getByRole("button", { name: "Ajouter une propriété" }).click();

@@ -1,4 +1,5 @@
 import {
+  activeDatabaseOwnerForEntry,
   type Database,
   readDatabaseEntryRecord,
   readDatabaseRecord,
@@ -65,7 +66,9 @@ export async function resolveSnapshotPayload(
     );
     resolved["databaseDefinitionVersion"] = database.definitionVersion;
   }
-  const entry = await readDatabaseEntryRecord(tx, itemId as Uuid);
+  const activeOwner = await activeDatabaseOwnerForEntry(tx, itemId as Uuid);
+  const entry =
+    activeOwner === null ? null : await readDatabaseEntryRecord(tx, itemId as Uuid, activeOwner);
   if (entry !== null && resolved["databaseEntryValues"] === undefined) {
     resolved["databaseId"] = entry.databaseId;
     resolved["databaseEntryValues"] = required(

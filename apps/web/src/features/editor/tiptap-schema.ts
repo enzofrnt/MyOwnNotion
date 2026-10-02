@@ -38,10 +38,7 @@ import { UnknownBlock } from "./unknown-block.ts";
 export function editorExtensions() {
   return [
     StarterKit.configure({
-      // The model defines exactly three heading levels, so the editor must not
-      // be able to produce a fourth: a document the schema allows and the model
-      // rejects is a save that fails after the owner has already typed.
-      heading: { levels: [1, 2, 3] },
+      heading: { levels: [1, 2, 3, 4] },
       link: {
         openOnClick: false,
         // Matches the model's validation rather than merely resembling it. An

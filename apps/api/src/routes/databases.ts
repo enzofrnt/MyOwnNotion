@@ -3,8 +3,11 @@ import {
   CreateDatabaseRequestSchema,
   type CreateEntryRequestDto,
   CreateEntryRequestSchema,
+  type CreateLinkedDatabaseViewRequestDto,
+  CreateLinkedDatabaseViewRequestSchema,
   DatabaseEntrySchema,
   DatabaseMutationResultSchema,
+  DatabasePresentationResponseSchema,
   DatabaseProjectionUnavailableProblemSchema,
   type DatabaseQueryDto,
   DatabaseQueryPageSchema,
@@ -13,6 +16,8 @@ import {
   DefinitionImpactSchema,
   EntryMutationResultSchema,
   ProblemSchema,
+  type ReplaceDatabasePresentationRequestDto,
+  ReplaceDatabasePresentationRequestSchema,
   ReplaceDefinitionCandidateSchema,
   type ReplaceDefinitionRequestDto,
   ReplaceDefinitionRequestSchema,
@@ -20,9 +25,12 @@ import {
   ReplaceEntryValuesRequestSchema,
 } from "@myownnotion/contracts";
 import {
+  isActiveDatabaseEntry,
   listDatabaseEntryRecords,
   listDatabaseRecords,
+  readCurrentDatabasePresentation,
   readDatabaseEntryRecord,
+  readDatabasePresentationRecord,
   readDatabaseRecord,
   readItem,
 } from "@myownnotion/database";
@@ -60,32 +68,50 @@ async function readDatabaseDto(context: AppContext, databaseId: Uuid) {
   ]);
   if (record === null || item === null) return null;
   const definition = await resolveDatabaseDefinition(context.db, record, context.protectedContent);
+  const [presentation, presentationRecord] = await Promise.all([
+    readCurrentDatabasePresentation(
+      context.db,
+      databaseId,
+      (revisionId) =>
+        context.protectedContent?.readRevisionSnapshot(context.db, revisionId) ??
+        Promise.resolve(null),
+    ),
+    readDatabasePresentationRecord(context.db, databaseId),
+  ]);
   const [resolvedItem] =
     definition.name !== undefined || item.lifecycle === "purged"
       ? []
       : await resolveProtectedContent(context.db, [item], context.protectedContent);
   return {
     databaseId,
+    sourceId: record.sourceId,
     definitionRevisionId: record.definitionRevisionId ?? item.currentRevisionId,
-    lifecycle: "active",
+    ...(presentationRecord === null
+      ? {}
+      : { presentationRevisionId: presentationRecord.presentationRevisionId }),
+    ...(presentation === null ? {} : { presentation }),
+    lifecycle: item.lifecycle,
     name: definition.name ?? resolvedItem?.name ?? "Base sans nom",
     definition,
   };
 }
 
 async function readEntryDto(context: AppContext, databaseId: Uuid, entryId: Uuid) {
-  const [record, item] = await Promise.all([
-    readDatabaseEntryRecord(context.db, entryId),
+  const [record, item, active] = await Promise.all([
+    readDatabaseEntryRecord(context.db, entryId, databaseId),
     readItem(context.db, entryId),
+    isActiveDatabaseEntry(context.db, databaseId, entryId),
   ]);
-  if (record === null || item === null || record.databaseId !== databaseId) return null;
+  if (item === null || !active) return null;
   const [resolvedItem] = await resolveProtectedContent(
     context.db,
     [item],
     context.protectedContent,
   );
   const [entryValues, relationTargets] = await Promise.all([
-    resolveDatabaseEntryValues(context.db, record, context.protectedContent),
+    record === null
+      ? Promise.resolve({ values: {} })
+      : resolveDatabaseEntryValues(context.db, record, context.protectedContent),
     resolveDatabaseRelationTargets(context.db, {
       databaseId,
       entryId,
@@ -95,6 +121,7 @@ async function readEntryDto(context: AppContext, databaseId: Uuid, entryId: Uuid
   return {
     databaseId,
     entryId,
+    kind: item.kind,
     revisionId: resolvedItem?.currentRevisionId ?? item.currentRevisionId,
     lifecycle: resolvedItem?.lifecycle ?? item.lifecycle,
     title: resolvedItem?.name ?? item.name,
@@ -105,6 +132,57 @@ async function readEntryDto(context: AppContext, databaseId: Uuid, entryId: Uuid
 }
 
 export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext): void {
+  app.post(
+    "/v1/database-views",
+    {
+      schema: {
+        body: CreateLinkedDatabaseViewRequestSchema,
+        response: {
+          201: Type.Object({
+            mutationId: Type.String({ format: "uuid" }),
+            revisionIds: Type.Array(Type.String({ format: "uuid" })),
+            itemId: Type.String({ format: "uuid" }),
+          }),
+          200: Type.Object({
+            mutationId: Type.String({ format: "uuid" }),
+            revisionIds: Type.Array(Type.String({ format: "uuid" })),
+            itemId: Type.String({ format: "uuid" }),
+          }),
+        },
+      },
+    },
+    async (request, reply) => {
+      const body = request.body as CreateLinkedDatabaseViewRequestDto;
+      return handleMutation({
+        db: context.db,
+        workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
+        rotationPolicies: context.rotationPolicies,
+        search: context.search,
+        structuredQueries: context.structuredQueries,
+        request,
+        reply,
+        successStatus: 201,
+        command: {
+          type: "database_view.create",
+          id: body.id as Uuid,
+          name: body.name,
+          sourceId: body.sourceId as Uuid,
+          placement: {
+            id: body.placement.id as Uuid,
+            parentItemId: body.placement.parentItemId as Uuid | null,
+            positionKey: body.placement.positionKey,
+          },
+          initialViewId: body.initialViewId as Uuid,
+        },
+        successBody: async ({ mutationId, revisionIds }) => ({
+          mutationId,
+          revisionIds,
+          itemId: body.id,
+        }),
+      });
+    },
+  );
   app.get(
     "/v1/databases",
     { schema: { response: { 200: Type.Array(DatabaseSchema) } } },
@@ -142,6 +220,7 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
           id: body.id as Uuid,
           name: body.name,
           ...(body.hostPageId === undefined ? {} : { hostPageId: body.hostPageId as Uuid }),
+          ...(body.sourceId === undefined ? {} : { sourceId: body.sourceId as Uuid }),
           placement: {
             id: body.placement.id as Uuid,
             parentItemId: body.placement.parentItemId as Uuid | null,
@@ -173,6 +252,63 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
         database ??
         sendProblem(reply, { code: "database.not-found", title: "Database does not exist" })
       );
+    },
+  );
+
+  app.get(
+    "/v1/databases/:databaseId/presentation",
+    {
+      schema: {
+        params: DatabaseParamsSchema,
+        response: { 200: DatabasePresentationResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const { databaseId } = request.params as { databaseId: Uuid };
+      const database = await readDatabaseDto(context, databaseId);
+      if (database?.presentation === undefined || database.presentationRevisionId === undefined) {
+        return sendProblem(reply, {
+          code: "database.not-found",
+          title: "Database presentation is unavailable",
+        });
+      }
+      return { revisionId: database.presentationRevisionId, presentation: database.presentation };
+    },
+  );
+
+  app.put(
+    "/v1/databases/:databaseId/presentation",
+    {
+      schema: {
+        params: DatabaseParamsSchema,
+        body: ReplaceDatabasePresentationRequestSchema,
+        response: { 200: DatabaseMutationResultSchema },
+      },
+    },
+    async (request, reply) => {
+      const { databaseId } = request.params as { databaseId: Uuid };
+      const body = request.body as ReplaceDatabasePresentationRequestDto;
+      return handleMutation({
+        db: context.db,
+        workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
+        rotationPolicies: context.rotationPolicies,
+        search: context.search,
+        structuredQueries: context.structuredQueries,
+        request,
+        reply,
+        command: {
+          type: "database.presentation.replace",
+          containerItemId: databaseId,
+          baseRevisionId: body.baseRevisionId as Uuid,
+          presentation: body.presentation as never,
+        },
+        successBody: async ({ mutationId, revisionIds }) => ({
+          mutationId,
+          revisionIds,
+          database: await readDatabaseDto(context, databaseId),
+        }),
+      });
     },
   );
 
@@ -291,6 +427,7 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
           databaseId,
           id: entryId,
           title: body.title,
+          ...(body.kind === undefined ? {} : { kind: body.kind }),
           ...(body.placement === undefined
             ? {}
             : {

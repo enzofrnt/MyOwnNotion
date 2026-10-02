@@ -267,7 +267,10 @@ export async function resolveDatabaseProjectionEntries(
       executor,
       records.map((record) => record.entryId),
     ) ?? new Map<string, string>(),
-    content?.readDatabaseEntryValuesMany(executor, records) ?? new Map<string, EntryValues>(),
+    content?.readDatabaseEntryValuesMany(
+      executor,
+      records.filter((record) => record.valueVersion > 0),
+    ) ?? new Map<string, EntryValues>(),
     content?.readRelationshipMetadataMany<Readonly<Record<string, unknown>>>(
       executor,
       relationships.map((relationship) => relationship.id),
@@ -288,9 +291,18 @@ export async function resolveDatabaseProjectionEntries(
   return records.map((record) => {
     const title = names.get(record.entryId) ?? record.storedName;
     const entryValues =
-      content === undefined
-        ? (values.get(record.entryId) ?? record.storedValues)
-        : (values.get(record.entryId) ?? null);
+      record.valueVersion === 0
+        ? {
+            format: "myownnotion.database-entry-values+json" as const,
+            formatVersion: 1 as const,
+            databaseId,
+            entryId: record.entryId,
+            values: {},
+            preserved: [],
+          }
+        : content === undefined
+          ? (values.get(record.entryId) ?? record.storedValues)
+          : (values.get(record.entryId) ?? null);
     if (title === SCRUBBED_PLACEHOLDER || entryValues === null || isProtectedPayload(entryValues))
       throw new ProtectedContentUnavailableError(record.entryId);
     return {

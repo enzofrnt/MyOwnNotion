@@ -332,8 +332,16 @@ describe("reconciliation (T044)", () => {
 
   it("applies items, structured payloads and relationships at the same cursor", async () => {
     const transport = new FakeTransport();
-    const databaseItem = serverItem("Structured database");
-    const entryItem = serverItem("Structured entry");
+    const databaseItem = { ...serverItem("Structured database"), kind: "database" as const };
+    const initialEntryItem = serverItem("Structured entry");
+    const entryItem = {
+      ...initialEntryItem,
+      kind: "page" as const,
+      placements: initialEntryItem.placements.map((placement) => ({
+        ...placement,
+        parentItemId: databaseItem.id,
+      })),
+    };
     const targetItem = serverItem("Structured target");
     const definition = createInitialDatabaseDefinition({
       type: "database.create",

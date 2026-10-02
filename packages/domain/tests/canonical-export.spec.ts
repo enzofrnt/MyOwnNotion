@@ -822,7 +822,7 @@ describe("validateCanonicalExport", () => {
     );
   });
 
-  it("requires database hosts and entries to be pages and forbids self-entry", () => {
+  it("requires a valid owner, accepts folder entries and forbids self-entry", () => {
     const manifest = structuredFixture();
     const database = manifest.databases[0];
     const entry = manifest.databaseEntries[0];
@@ -844,7 +844,7 @@ describe("validateCanonicalExport", () => {
         item.id === entry.entryId ? { ...item, kind: "folder", pageDocument: null } : item,
       ),
     };
-    expect(validateCanonicalExport(entryFolder as never).map((issue) => issue.code)).toContain(
+    expect(validateCanonicalExport(entryFolder as never).map((issue) => issue.code)).not.toContain(
       "database-entry.item-kind",
     );
 

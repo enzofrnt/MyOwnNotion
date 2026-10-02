@@ -2,7 +2,11 @@
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isCloseTabShortcut, OpenTabsStrip } from "../src/features/workspace/open-tabs-strip.tsx";
+import {
+  isCloseTabShortcut,
+  OpenTabsStrip,
+  openTabsForItems,
+} from "../src/features/workspace/open-tabs-strip.tsx";
 
 const tabs = [
   { id: "a", name: "Projets", kind: "folder" as const, icon: "📁" },
@@ -26,6 +30,48 @@ describe("open tabs strip", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+  });
+
+  it("keeps opened database owners and linked views as distinct workspace tabs", async () => {
+    const projected = openTabsForItems(
+      ["note", "database", "linked-view", "attachment", "missing"],
+      [
+        { id: "note", name: "Note", kind: "page" },
+        { id: "database", name: "Suivi", kind: "database" },
+        { id: "linked-view", name: "Vue du suivi", kind: "database_view" },
+        { id: "attachment", name: "export.csv", kind: "file" },
+      ],
+    );
+    expect(projected.map(({ id, kind }) => [id, kind])).toEqual([
+      ["note", "page"],
+      ["database", "database"],
+      ["linked-view", "database_view"],
+    ]);
+    const onActivate = vi.fn();
+    await act(async () => {
+      root.render(
+        <OpenTabsStrip
+          tabs={projected}
+          activeId="linked-view"
+          onActivate={onActivate}
+          onClose={vi.fn()}
+          onEmptyFocus={ignoreEmptyFocus}
+        />,
+      );
+    });
+    const owner = container.querySelector<HTMLElement>(
+      '[data-testid="open-tab"][data-tab-id="database"]',
+    );
+    const linked = container.querySelector<HTMLElement>(
+      '[data-testid="open-tab"][data-tab-id="linked-view"]',
+    );
+    expect(owner?.querySelector('[data-item-reference="true"]')).toBeNull();
+    expect(linked?.querySelector('[data-item-reference="true"]')).not.toBeNull();
+    expect(linked?.querySelector('[aria-current="page"]')).not.toBeNull();
+    await act(async () =>
+      owner?.querySelector<HTMLButtonElement>("[data-open-tab-activate]")?.click(),
+    );
+    expect(onActivate).toHaveBeenCalledWith("database");
   });
 
   it("renders one tab per open item with emoji, full label and a separate close control", async () => {

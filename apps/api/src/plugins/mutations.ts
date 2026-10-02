@@ -173,8 +173,13 @@ async function sealPayloads(
     command.type === "database.entry.values.resolve-conflict"
   ) {
     const entryId = command.type === "database.entry.create" ? command.id : command.entryId;
-    const record = await readDatabaseEntryRecord(tx, entryId);
-    const values = await readCurrentDatabaseEntryValues(tx, entryId, resolveSnapshot);
+    const record = await readDatabaseEntryRecord(tx, entryId, command.databaseId);
+    const values = await readCurrentDatabaseEntryValues(
+      tx,
+      entryId,
+      resolveSnapshot,
+      command.databaseId,
+    );
     const propertyRelationships = await listDatabasePropertyRelationships(tx, entryId);
     if (record !== null && values !== null) {
       await protectedContent.writeDatabaseEntryValues(tx, {

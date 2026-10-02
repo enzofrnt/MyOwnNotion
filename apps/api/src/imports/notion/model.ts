@@ -56,6 +56,7 @@ export interface ImportFolder {
 }
 export interface ImportDatabase {
   id: Uuid;
+  sourceId: Uuid;
   hostPageId: Uuid;
   path: string;
   name: string;
@@ -64,6 +65,13 @@ export interface ImportDatabase {
   embeddingId: Uuid;
   definition: DatabaseDefinition;
   memberIds: Uuid[];
+  linkedDisplays: Array<{
+    id: Uuid;
+    hostPageId: Uuid;
+    viewId: Uuid;
+    name: string;
+    view: import("@myownnotion/domain").DatabaseView;
+  }>;
 }
 export interface ImportReport {
   adapter: "notion" | "obsidian";

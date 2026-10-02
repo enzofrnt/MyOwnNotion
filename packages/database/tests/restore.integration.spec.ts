@@ -27,6 +27,7 @@ import {
   canonicalExportString,
   canonicalStructuredDataString,
   generateUuidV7,
+  ownedSourceIdFromItemId,
   type Uuid,
 } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
@@ -179,13 +180,14 @@ describe("rehearsing a restoration", () => {
     }
   });
 
-  it("restores a V1 archive with definitions, entries, relations and snapshots", async () => {
+  it("restores an archive with an owned source, presentation, entries and snapshots", async () => {
     const rehearsal = await createDisposableWorkspace(context.postgres.connectionString);
     try {
       const targetWorkspace = await getOrCreateWorkspace(rehearsal.handle.db);
       const sourceWorkspaceId = generateUuidV7();
       const folderId = generateUuidV7();
       const pageId = generateUuidV7();
+      const sourceId = ownedSourceIdFromItemId(pageId);
       const fileId = generateUuidV7();
       const entryId = generateUuidV7();
       const folderRevisionId = generateUuidV7();
@@ -236,7 +238,7 @@ describe("rehearsing a restoration", () => {
           {
             id: pageId,
             workspaceId: sourceWorkspaceId,
-            kind: "page",
+            kind: "database",
             name: "Restored page",
             icon: null,
             lifecycle: "active",
@@ -245,11 +247,7 @@ describe("rehearsing a restoration", () => {
             currentRevisionId: pageRevisionId,
             favourite: false,
             offlineIntent: true,
-            pageDocument: {
-              format: "myownnotion.document+json",
-              formatVersion: 1,
-              body: { type: "doc", content: [] },
-            },
+            pageDocument: null,
             file: null,
             placements: [
               {
@@ -321,7 +319,7 @@ describe("rehearsing a restoration", () => {
                 itemId: fileId,
                 itemIsFile: true,
                 kind: "attachment",
-                parentItemId: pageId,
+                parentItemId: entryId,
                 positionKey: "Vc",
                 removedAt: null,
               },
@@ -331,6 +329,7 @@ describe("rehearsing a restoration", () => {
         databases: [
           {
             databaseId: pageId,
+            sourceId,
             definitionVersion: 3,
             definition: {
               format: "myownnotion.database-definition+json",
@@ -381,6 +380,33 @@ describe("rehearsing a restoration", () => {
                 },
               ],
               taskRoles: null,
+            },
+          },
+        ],
+        databasePresentations: [
+          {
+            containerItemId: pageId,
+            presentationRevisionId: pageRevisionId,
+            presentationVersion: 1,
+            presentation: {
+              format: "myownnotion.database-presentation+json",
+              formatVersion: 1,
+              containerItemId: pageId,
+              views: [
+                {
+                  id: viewId,
+                  sourceId,
+                  name: "Table",
+                  type: "table",
+                  positionKey: "a",
+                  state: "active",
+                  properties: [{ propertyId: titlePropertyId, visible: true, positionKey: "a" }],
+                  filter: { mode: "all", criteria: [] },
+                  sorts: [],
+                  group: null,
+                  options: { density: "comfortable", freezeTitle: true },
+                },
+              ],
             },
           },
         ],
@@ -532,7 +558,10 @@ describe("rehearsing a restoration", () => {
       expect(await rehearsal.handle.db.select().from(schema.placements)).toHaveLength(4);
       expect(await rehearsal.handle.db.select().from(schema.relationships)).toHaveLength(2);
       expect(await rehearsal.handle.db.select().from(schema.databases)).toEqual([
-        expect.objectContaining({ itemId: pageId, definitionVersion: 3 }),
+        expect.objectContaining({ itemId: pageId, sourceId, definitionVersion: 3 }),
+      ]);
+      expect(await rehearsal.handle.db.select().from(schema.databasePresentations)).toEqual([
+        expect.objectContaining({ itemId: pageId, presentationVersion: 1 }),
       ]);
       expect(await rehearsal.handle.db.select().from(schema.databaseEntries)).toEqual([
         expect.objectContaining({
@@ -556,7 +585,7 @@ describe("rehearsing a restoration", () => {
       expect(await rehearsal.handle.db.select().from(schema.fileUsages)).toEqual([
         expect.objectContaining({
           fileItemId: fileId,
-          usedByItemId: pageId,
+          usedByItemId: entryId,
           usageKind: "attachment",
         }),
       ]);

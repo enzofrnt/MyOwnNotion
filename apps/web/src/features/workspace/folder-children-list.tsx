@@ -49,6 +49,7 @@ const KIND_LABEL: Record<FolderChild["kind"], string> = {
   folder: "Dossier",
   file: "Fichier",
   database: "Base de données",
+  database_view: "Vue de base de données",
 };
 
 function childLabel(child: FolderChild): string {

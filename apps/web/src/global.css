@@ -44,7 +44,7 @@ textarea {
 
 ::selection {
   color: var(--ui-color-text);
-  background: var(--ui-color-accent-soft);
+  background: color-mix(in srgb, var(--ui-color-surface-active) 85%, transparent);
 }
 
 .app-shell {
@@ -304,16 +304,17 @@ select {
   border-top: 1px solid var(--border);
 }
 
-.database-schema ul {
+.database-schema > ul {
   display: grid;
   gap: 0.4rem;
   list-style: none;
   padding: 0;
 }
 
-.database-schema li {
+.database-schema > ul > li {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0.75rem;
   min-height: 2.75rem;
   padding: 0.4rem 0.6rem;
@@ -321,7 +322,14 @@ select {
   border-radius: 6px;
 }
 
-.database-schema li button {
+.database-schema__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2rem;
+}
+
+.database-schema__summary button {
   margin-left: auto;
 }
 
@@ -515,18 +523,294 @@ select {
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
-.database-column-size {
+.database-table td.database-cell--property {
+  cursor: pointer;
+}
+
+.database-table td.database-cell--property:hover {
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
+.database-table .database-cell-control,
+.database-cell-inline-field input,
+.database-cell-inline-field select {
+  display: block;
+  width: 100%;
+  min-height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.database-table .database-cell-control[type="checkbox"] {
+  width: 1rem;
+  min-height: 1rem;
+  accent-color: var(--accent);
+}
+
+.database-cell-value {
+  display: flex;
+  align-items: center;
+  min-height: 2rem;
+}
+
+.option-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.option-pill {
   display: inline-flex;
-  gap: 0.2rem;
-  margin-left: 0.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  min-height: 1.5rem;
+  padding: 0.125rem 0.55rem 0.125rem 0.4rem;
+  border-radius: 999px;
+  background: var(--pill-soft);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.option-pill__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 999px;
+  background: var(--pill);
+}
+
+.option-pill__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option-pill[data-tone="gray"] {
+  --pill: var(--ui-content-gray);
+  --pill-soft: var(--ui-content-gray-soft);
+}
+.option-pill[data-tone="brown"] {
+  --pill: var(--ui-content-brown);
+  --pill-soft: var(--ui-content-brown-soft);
+}
+.option-pill[data-tone="orange"] {
+  --pill: var(--ui-content-orange);
+  --pill-soft: var(--ui-content-orange-soft);
+}
+.option-pill[data-tone="yellow"] {
+  --pill: var(--ui-content-yellow);
+  --pill-soft: var(--ui-content-yellow-soft);
+}
+.option-pill[data-tone="green"] {
+  --pill: var(--ui-content-green);
+  --pill-soft: var(--ui-content-green-soft);
+}
+.option-pill[data-tone="blue"] {
+  --pill: var(--ui-content-blue);
+  --pill-soft: var(--ui-content-blue-soft);
+}
+.option-pill[data-tone="purple"] {
+  --pill: var(--ui-content-purple);
+  --pill-soft: var(--ui-content-purple-soft);
+}
+.option-pill[data-tone="pink"] {
+  --pill: var(--ui-content-pink);
+  --pill-soft: var(--ui-content-pink-soft);
+}
+.option-pill[data-tone="red"] {
+  --pill: var(--ui-content-red);
+  --pill-soft: var(--ui-content-red-soft);
+}
+
+.option-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.option-menu__empty {
+  color: var(--muted);
+}
+
+.option-tone-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.option-tone-picker__swatch {
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--swatch);
+  cursor: pointer;
+}
+
+.option-tone-picker__swatch[data-tone="gray"] {
+  --swatch: var(--ui-content-gray);
+}
+.option-tone-picker__swatch[data-tone="brown"] {
+  --swatch: var(--ui-content-brown);
+}
+.option-tone-picker__swatch[data-tone="orange"] {
+  --swatch: var(--ui-content-orange);
+}
+.option-tone-picker__swatch[data-tone="yellow"] {
+  --swatch: var(--ui-content-yellow);
+}
+.option-tone-picker__swatch[data-tone="green"] {
+  --swatch: var(--ui-content-green);
+}
+.option-tone-picker__swatch[data-tone="blue"] {
+  --swatch: var(--ui-content-blue);
+}
+.option-tone-picker__swatch[data-tone="purple"] {
+  --swatch: var(--ui-content-purple);
+}
+.option-tone-picker__swatch[data-tone="pink"] {
+  --swatch: var(--ui-content-pink);
+}
+.option-tone-picker__swatch[data-tone="red"] {
+  --swatch: var(--ui-content-red);
+}
+
+.option-tone-picker__swatch[aria-pressed="true"] {
+  border-color: var(--text);
+}
+
+.property-options {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.property-options legend {
+  padding: 0;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.property-options ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.property-options li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 0;
   padding: 0;
   border: 0;
 }
 
-.database-column-size button {
-  min-width: 2rem;
-  min-height: 2rem;
-  padding: 0.2rem;
+.property-editor .property-options input[type="text"],
+.property-editor .property-options input:not([type="hidden"]),
+.property-options input:not([type="hidden"]) {
+  width: 9rem;
+  min-width: 0;
+}
+
+.database-board__column h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.database-cell-inline-field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.database-cell-inline-field .database-field__error {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--danger);
+  font-size: 0.75rem;
+}
+
+.database-table th {
+  position: relative;
+}
+
+.database-table th:hover,
+.database-table th:focus-within {
+  z-index: 1;
+}
+
+.database-column-resize {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  z-index: 3;
+  width: 8px;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.database-column-resize::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: transparent;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.database-column-resize:hover::after,
+.database-column-resize:focus-visible::after,
+.database-column-resize[data-active]::after {
+  background: var(--ui-color-accent);
+}
+
+.database-column-resize:focus-visible {
+  outline: 0;
+}
+
+.database-table[data-resizing],
+.database-table[data-resizing] * {
+  cursor: col-resize !important;
+  user-select: none;
 }
 
 .database-rule-controls {
@@ -2290,7 +2574,8 @@ textarea {
   --bn-colors-hovered-text: var(--ui-color-text);
   --bn-colors-hovered-background: var(--ui-color-surface-hover);
   --bn-colors-selected-text: var(--ui-color-text);
-  --bn-colors-selected-background: var(--ui-color-accent-soft);
+  /* Quiet node selection — never the accent wash BlockNote paints by default. */
+  --bn-colors-selected-background: var(--ui-color-surface-active);
   --bn-colors-disabled-text: var(--ui-color-text-disabled);
   --bn-colors-disabled-background: var(--ui-color-surface-sunken);
   --bn-colors-shadow: transparent;
@@ -2342,8 +2627,17 @@ textarea {
   caret-color: var(--ui-color-text);
 }
 
-.page-editor .bn-editor.editor-surface:has(.node-table) {
+.page-editor .bn-editor.editor-surface:has(.node-table),
+.page-editor .bn-editor.editor-surface:has(.editor-database-view-block) {
   overflow-x: visible;
+}
+
+/* Drop strokes follow the reading column. Tables break out to 100cqi; the
+   line must not inherit that width. JS also pins left/width on dragover. */
+.prosemirror-dropcursor-block-horizontal,
+.prosemirror-dropcursor-block {
+  box-sizing: border-box;
+  max-width: min(100%, var(--workspace-reading-width, var(--ui-reading-width, 48rem)));
 }
 
 .page-editor .bn-editor.editor-surface:focus-visible {
@@ -2357,8 +2651,19 @@ textarea {
 }
 
 .page-editor .bn-inline-content {
+  min-width: 0;
+  max-width: 100%;
   min-height: 1.5em;
+  overflow-wrap: anywhere;
   caret-color: var(--ui-color-text);
+}
+
+/* BlockNote transitions every property. While the sidebar width animates,
+   a table then eases its own width and margin and lands after the text. */
+.page-editor .bn-block,
+.page-editor .bn-block-outer,
+.page-editor .bn-block-group {
+  transition: none;
 }
 
 .page-editor .ProseMirror,
@@ -2399,6 +2704,17 @@ textarea {
   padding-top: var(--ui-space-4);
   font-size: 1.1875rem;
   line-height: 1.35;
+}
+
+.page-editor
+  .bn-block-outer
+  > .bn-block
+  > .bn-block-content[data-content-type="heading"][data-level="4"] {
+  --level: 1.0625rem;
+  padding-top: var(--ui-space-3);
+  font-size: 1.0625rem;
+  font-weight: 650;
+  line-height: 1.4;
 }
 
 .page-editor .bn-block-content[data-content-type="quote"] blockquote {
@@ -2464,6 +2780,16 @@ code,
   border-radius: var(--ui-radius-xs);
   font-family: var(--ui-font-mono);
   font-size: 0.9em;
+}
+
+.bn-suggestion-menu .bn-ak-suggestion-menu-item-section[data-position="right"] {
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: var(--ui-text-xs);
+  letter-spacing: 0.01em;
 }
 
 .page-editor .bn-ak-toolbar,
@@ -2535,28 +2861,76 @@ code,
   color: var(--ui-color-text-muted);
 }
 
+.page-editor .bn-side-menu .bn-ak-button[draggable="true"] {
+  cursor: grab;
+}
+
+.page-editor .bn-side-menu .bn-ak-button[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+html[data-block-grabbing="true"],
+html[data-block-grabbing="true"] * {
+  /* biome-ignore lint/complexity/noImportantStyles: grabbing must outrank the editor caret and buttons */
+  cursor: grabbing !important;
+}
+
+/* Page mentions read as content, not hyperlinks: same ink as the note, quiet
+   hover chip. Accent blue belongs to actions/focus, not inline references. */
 .page-editor a.page-link {
   display: inline-flex;
-  padding-inline: 0.12em;
+  padding: 0.05em 0.2em;
   align-items: center;
   gap: 0.3em;
-  color: var(--ui-color-info);
-  background: var(--ui-color-info-soft);
+  color: var(--ui-color-text);
+  background: transparent;
   border-radius: var(--ui-radius-xs);
-  font-weight: 550;
-  text-decoration: underline;
-  text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.16em;
+  font-weight: 500;
+  text-decoration: none;
   cursor: pointer;
+}
+
+.page-editor a.page-link:hover {
+  background: var(--ui-color-surface-hover);
+}
+
+.page-editor a.page-link:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
 }
 
 .page-link__icon {
   display: inline-flex;
   flex: 0 0 auto;
+  color: var(--ui-color-text-muted);
+}
+
+.page-link__icon .item-icon {
+  color: inherit;
 }
 
 .page-link__label {
   pointer-events: none;
+}
+
+/* Side-menu ghosts live on document.body, outside .page-editor. Keep the
+   mention chip instead of a full-width raw paragraph. */
+.bn-drag-preview a.page-link {
+  display: inline-flex;
+  padding: 0.05em 0.2em;
+  align-items: center;
+  gap: 0.3em;
+  color: var(--ui-color-text);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: var(--ui-radius-xs);
+}
+
+.bn-drag-preview .bn-block-outer:has(a.page-link) {
+  width: max-content;
+  max-width: 20rem;
+  padding-block: 0.15rem;
+  padding-inline: 0.4rem;
 }
 
 .page-link-picker,
@@ -2650,14 +3024,69 @@ code,
 .page-editor a.page-link-deleted,
 .page-editor a.page-link-unknown {
   color: var(--ui-color-danger);
+  background: transparent;
+  text-decoration: underline wavy;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.16em;
+}
+
+.page-editor a.page-link-deleted:hover,
+.page-editor a.page-link-unknown:hover {
   background: var(--ui-color-danger-soft);
-  text-decoration-style: wavy;
+}
+
+.page-editor a.page-link-deleted .page-link__icon,
+.page-editor a.page-link-unknown .page-link__icon {
+  color: inherit;
 }
 
 .page-editor a.page-link-unavailable {
   color: var(--ui-color-warning);
+  background: transparent;
+  text-decoration: underline dashed;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.16em;
+}
+
+.page-editor a.page-link-unavailable:hover {
   background: var(--ui-color-warning-soft);
-  text-decoration-style: dashed;
+}
+
+.page-editor a.page-link-unavailable .page-link__icon {
+  color: inherit;
+}
+
+/* Replace BlockNote's hardcoded blue node-selection wash with quiet surface
+   chrome (same family as sidebar selection — content first, accent for focus).
+   Tables opt out entirely in editor-table.css. */
+.page-editor .bn-block-content.ProseMirror-selectednode > *::after,
+.page-editor .ProseMirror-selectednode > .bn-block-content > *::after,
+.page-editor .bn-block-content .ProseMirror-selectednode::after,
+.page-editor .bn-inline-content .ProseMirror-selectednode::after {
+  background-color: color-mix(in srgb, var(--ui-color-surface-active) 70%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--ui-color-border-strong);
+}
+
+.page-editor
+  .bn-block-outer:has(> .bn-block > .node-table)
+  .bn-block-content.ProseMirror-selectednode
+  > *::after,
+.page-editor
+  .bn-block-outer:has(> .bn-block > .node-table)
+  .ProseMirror-selectednode
+  > .bn-block-content
+  > *::after,
+.page-editor
+  .bn-block-outer:has(> .bn-block > .node-table)
+  .bn-block-content
+  .ProseMirror-selectednode::after,
+.page-editor .bn-block:has(> .node-table) .bn-block-content.ProseMirror-selectednode > *::after,
+.page-editor .bn-block:has(> .node-table) .ProseMirror-selectednode > .bn-block-content > *::after,
+.page-editor .bn-block:has(> .node-table) .bn-block-content .ProseMirror-selectednode::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  box-shadow: none !important;
 }
 
 /* An unrenderable block must look present and deliberate, never like an empty
@@ -2807,6 +3236,8 @@ code,
 
 .editor-code-block code.bn-inline-content {
   display: block;
+  min-width: max-content;
+  max-width: none;
   min-height: 1.65em;
   padding: 0;
   font-family: var(--ui-font-mono);

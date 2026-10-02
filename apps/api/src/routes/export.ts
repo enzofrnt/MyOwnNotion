@@ -16,9 +16,11 @@ import {
 import {
   currentSequence,
   listDatabaseEntryRecords,
+  listDatabasePresentationRecords,
   listDatabaseRecords,
   listItems,
   listRelationships,
+  readCurrentDatabasePresentation,
   schema,
   sequenceToCursor,
   type Transaction,
@@ -221,21 +223,46 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
     const definition = await resolveDatabaseDefinition(tx, record, context.protectedContent);
     databases.push({
       databaseId: record.databaseId,
+      sourceId: record.sourceId,
       definitionVersion: record.definitionVersion,
       ...(record.definitionRevisionId === null
         ? {}
         : { definitionRevisionId: record.definitionRevisionId }),
       definition,
     });
-    const entries = await listDatabaseEntryRecords(tx, record.databaseId);
+    const entries = (await listDatabaseEntryRecords(tx, record.databaseId)).filter(
+      (entry) => entry.sourceId === record.sourceId,
+    );
     for (const entry of entries) {
       const values = await resolveDatabaseEntryValues(tx, entry, context.protectedContent);
       databaseEntries.push({
         entryId: entry.entryId,
         databaseId: entry.databaseId,
+        sourceId: entry.sourceId,
         valueVersion: entry.valueVersion,
         addedRevisionId: entry.addedRevisionId,
+        valueRevisionId: entry.valueRevisionId,
         values,
+      });
+    }
+  }
+
+  const databasePresentations = [];
+  if (structuredTablesAvailable) {
+    for (const record of await listDatabasePresentationRecords(tx, context.workspaceId)) {
+      const presentation = await readCurrentDatabasePresentation(
+        tx,
+        record.containerItemId,
+        (revisionId) =>
+          context.protectedContent?.readRevisionSnapshot(tx, revisionId) ?? Promise.resolve(null),
+      );
+      if (presentation === null)
+        throw new Error(`Presentation ${record.containerItemId} cannot be exported`);
+      databasePresentations.push({
+        containerItemId: record.containerItemId,
+        presentationRevisionId: record.presentationRevisionId,
+        presentationVersion: record.presentationVersion,
+        presentation,
       });
     }
   }
@@ -247,6 +274,7 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
     changeCursor: sequenceToCursor(sequence),
     items,
     databases,
+    databasePresentations,
     databaseEntries,
     relationships,
     revisions,

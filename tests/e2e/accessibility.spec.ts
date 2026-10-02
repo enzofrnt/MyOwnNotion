@@ -20,7 +20,7 @@ import {
   openNoteInformation,
   openPageAttachments,
   openRootCreation,
-  openRootDatabaseCreation,
+  createRootDatabase,
   openSettingsSection,
   openWorkspace,
   openWorkspaceDiagnostics,
@@ -391,15 +391,7 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await ensureNavigationVisible(page);
     const databaseName = uniqueName("Accessible planning");
     const entryName = uniqueName("Keyboard card");
-    await openRootDatabaseCreation(page);
-    const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-    await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-    const createDatabaseButton = createDatabase.getByRole("button", {
-      name: "Créer la base de données",
-    });
-    await createDatabaseButton.click();
-    await expect(createDatabase).toBeHidden({ timeout: 15_000 });
-    await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+    await createRootDatabase(page, databaseName);
     await waitForSynchronized(page);
 
     const addProperty = async (name: string, type: "status" | "date"): Promise<void> => {
@@ -420,8 +412,11 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await addProperty("Due", "date");
 
     const entryForm = page.locator(".database-entry-create");
-    await entryForm.getByLabel("Nouvelle entrée").fill(entryName);
-    await entryForm.getByRole("button", { name: "Nouvelle entrée" }).click();
+    await entryForm.getByRole("button", { name: "Nouvelle page" }).click();
+    const titleEditor = page.locator(".database-cell-title-input");
+    await expect(titleEditor).toBeVisible({ timeout: 15_000 });
+    await titleEditor.fill(entryName);
+    await titleEditor.press("Enter");
     const entryTrigger = page
       .locator("[data-entry-trigger]")
       .filter({ hasText: entryName })

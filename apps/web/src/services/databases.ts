@@ -12,6 +12,10 @@ export type DatabaseRowSyncState = "synced" | "pending" | "conflict";
 
 export type DatabaseViewRow = DatabaseQueryPageDto["rows"][number] & {
   readonly syncState: DatabaseRowSyncState;
+  /** Page or folder, using the same glyphs as the tree. Absent rows stay a blank page. */
+  readonly itemKind?: "page" | "folder";
+  /** Pages with no editorial body keep the blank-page glyph. */
+  readonly holdsContent?: boolean;
 };
 
 export interface DatabaseViewPage extends Omit<DatabaseQueryPageDto, "rows"> {

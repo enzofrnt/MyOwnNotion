@@ -54,6 +54,35 @@ export function isConvertibleKind(kind: ItemKind): kind is ConvertibleKind {
 }
 
 /**
+ * Whether a block is plain paragraph scaffolding with no owner-authored text.
+ *
+ * Empty paragraphs (and paragraphs that hold only whitespace) are structural:
+ * the operational editor needs stable block identities, and pressing Enter
+ * before typing must not look like content. Unknown keys remain conservative
+ * because they may carry content from a newer document schema.
+ */
+function isBlankStructuralParagraph(block: unknown): boolean {
+  if (typeof block !== "object" || block === null || Array.isArray(block)) {
+    return false;
+  }
+  const candidate = block as Record<string, unknown>;
+  if (candidate["type"] !== "paragraph") return false;
+  if (!Object.keys(candidate).every((key) => key === "type" || key === "id" || key === "content")) {
+    return false;
+  }
+  const content = candidate["content"];
+  if (!Array.isArray(content)) return false;
+  if (content.length === 0) return true;
+  return content.every((inline) => {
+    if (typeof inline !== "object" || inline === null || Array.isArray(inline)) {
+      return false;
+    }
+    const text = (inline as Record<string, unknown>)["text"];
+    return typeof text === "string" && text.trim().length === 0;
+  });
+}
+
+/**
  * Whether a stored page body contains anything the owner could lose.
  *
  * Both the optimistic client and the authoritative server use this exact
@@ -61,8 +90,8 @@ export function isConvertibleKind(kind: ItemKind): kind is ConvertibleKind {
  * one side from treating editor scaffolding as content while the other side
  * accepts it as empty.
  *
- * A single plain, empty paragraph is structural: the operational editor needs
- * one stable block identity before the first keystroke. Unknown keys remain
+ * Any number of plain empty (or whitespace-only) paragraphs count as empty:
+ * they are structural lines, not editorial content. Unknown keys remain
  * conservative because they may carry content from a newer document schema.
  */
 export function pageBodyHoldsEditorialContent(body: unknown): boolean {
@@ -74,20 +103,8 @@ export function pageBodyHoldsEditorialContent(body: unknown): boolean {
   if (!Array.isArray(blocks)) {
     return Object.keys(record).length > 0;
   }
-  if (blocks.length !== 1) {
-    return blocks.length > 0;
-  }
-  const [block] = blocks;
-  if (typeof block !== "object" || block === null || Array.isArray(block)) {
-    return true;
-  }
-  const candidate = block as Record<string, unknown>;
-  return !(
-    candidate["type"] === "paragraph" &&
-    Array.isArray(candidate["content"]) &&
-    candidate["content"].length === 0 &&
-    Object.keys(candidate).every((key) => key === "type" || key === "id" || key === "content")
-  );
+  if (blocks.length === 0) return false;
+  return !blocks.every(isBlankStructuralParagraph);
 }
 
 /**

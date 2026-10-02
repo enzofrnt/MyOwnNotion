@@ -7,6 +7,8 @@ const KIND_LABELS: Readonly<Record<ItemKind, string>> = {
   page: FR_COPY.search.pages,
   folder: FR_COPY.search.folders,
   file: FR_COPY.search.files,
+  database: "Bases de données",
+  database_view: "Vues de bases de données",
 };
 
 export function SearchResults({

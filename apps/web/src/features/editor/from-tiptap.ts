@@ -19,7 +19,7 @@
  */
 
 import type { Block, BlockDocument, Inline, JsonObject, Mark, Uuid } from "@myownnotion/domain";
-import { generateUuidV7 } from "@myownnotion/domain";
+import { generateUuidV7, isHeadingLevel } from "@myownnotion/domain";
 import type { JSONContent } from "@tiptap/core";
 import { UNKNOWN_BLOCK_NODE } from "./unknown-block.ts";
 
@@ -69,7 +69,7 @@ function convertNode(node: JSONContent): Block[] {
         {
           type: "heading",
           id,
-          level: level === 1 || level === 2 || level === 3 ? level : 1,
+          level: isHeadingLevel(level) ? level : 1,
           content: inlineOf(node),
         },
       ];

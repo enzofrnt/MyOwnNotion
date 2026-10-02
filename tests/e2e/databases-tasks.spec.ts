@@ -3,7 +3,8 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   editorApplyCount,
-  openRootDatabaseCreation,
+  createDatabaseEntry,
+  createRootDatabase,
   openWorkspace,
   saveDocument,
   saveEntryProperties,
@@ -28,10 +29,7 @@ for (const cancel of [false, true]) {
     page,
   }) => {
     await openWorkspace(page);
-    await openRootDatabaseCreation(page);
-    const creation = page.getByRole("form", { name: "Créer une base de données" });
-    await creation.getByLabel("Créer une base de données").fill(uniqueName("Stable property"));
-    await creation.getByRole("button", { name: "Créer la base de données" }).click();
+    await createRootDatabase(page, uniqueName("Stable property"));
     await expect(page.locator(".database-schema")).toBeVisible();
     // Classification is known at creation. A page-editor placeholder above the
     // database would move this action after the owner has already pressed it.
@@ -75,11 +73,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   const editorialNote = uniqueName("editorial-checkbox");
 
   await createRootItem(page, "page", projectName);
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
 
   const addProperty = async (name: string, type: string, options?: string): Promise<void> => {
@@ -119,9 +113,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   );
   await waitForDatabaseDefinitionSaved(page);
 
-  const createEntry = page.locator(".database-entry-create");
-  await createEntry.getByLabel("Nouvelle entrée").fill(taskName);
-  await createEntry.getByRole("button", { name: "Nouvelle entrée" }).click();
+  await createDatabaseEntry(page, taskName);
   const taskTrigger = page.locator("[data-entry-trigger]").filter({ hasText: taskName }).first();
   await expect(taskTrigger).toBeVisible({ timeout: 15_000 });
   await waitForSynchronized(page);

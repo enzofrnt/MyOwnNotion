@@ -118,6 +118,37 @@ describe("editorial content detection", () => {
     ).toBe(false);
   });
 
+  it("treats several empty or whitespace-only lines as no content", () => {
+    expect(
+      pageBodyHoldsEditorialContent({
+        blocks: [
+          { type: "paragraph", id: generateUuidV7(), content: [] },
+          { type: "paragraph", id: generateUuidV7(), content: [] },
+          {
+            type: "paragraph",
+            id: generateUuidV7(),
+            content: [{ type: "text", text: "   " }],
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it("detects a page once any line holds owner text", () => {
+    expect(
+      pageBodyHoldsEditorialContent({
+        blocks: [
+          { type: "paragraph", id: generateUuidV7(), content: [] },
+          {
+            type: "paragraph",
+            id: generateUuidV7(),
+            content: [{ type: "text", text: "hello" }],
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+
   it("remains conservative when an empty paragraph carries unknown data", () => {
     expect(
       pageBodyHoldsEditorialContent({

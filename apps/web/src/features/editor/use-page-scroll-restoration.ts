@@ -22,6 +22,9 @@ export function usePageScrollRestoration(
     const attempt = (): void => {
       if (stopped) return;
       const root = rootRef.current;
+      // A hidden session only contributes header history. Restoring its scroll
+      // would move the visible page.
+      if (root?.closest("[hidden]") != null) return;
       const scroller = root === null ? null : editorScrollContainer(root);
       if (root !== null && root.querySelector(".bn-block-outer[data-id]") !== null) {
         restoreScrollAnchor(anchor, root);

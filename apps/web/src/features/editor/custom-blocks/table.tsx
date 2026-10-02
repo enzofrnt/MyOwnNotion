@@ -646,18 +646,81 @@ function preventEditorSelection(event: PointerEvent<HTMLElement>): void {
 }
 
 /**
+ * One continuous accent stroke for a column edge. Per-cell handle backgrounds
+ * leave notches where horizontal borders cross; this paints above the grid.
+ */
+function ColumnEdgeStroke({
+  tableId,
+  columnIndex,
+  active,
+}: {
+  readonly tableId: string;
+  readonly columnIndex: number;
+  readonly active: boolean;
+}) {
+  const strokeRef = useRef<HTMLSpanElement>(null);
+  const widthDraft = useTableColumnWidthDraft(tableId);
+
+  useLayoutEffect(() => {
+    const stroke = strokeRef.current;
+    if (stroke === null) return;
+    if (!active) {
+      stroke.hidden = true;
+      return;
+    }
+    let frame = 0;
+    const paint = (): void => {
+      const geometry = axisGeometry(tableId, "column", columnIndex);
+      if (geometry === null) {
+        stroke.hidden = true;
+        return;
+      }
+      const { source } = geometry;
+      const x = source.left + source.width - 1;
+      stroke.hidden = false;
+      stroke.style.transform = `translate(${Math.round(x)}px, ${Math.round(source.top)}px)`;
+      stroke.style.height = `${Math.round(source.height)}px`;
+      if (widthDraft !== null && widthDraft.columnIndex === columnIndex) {
+        frame = requestAnimationFrame(paint);
+      }
+    };
+    paint();
+    window.addEventListener("scroll", paint, true);
+    window.addEventListener("resize", paint);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", paint, true);
+      window.removeEventListener("resize", paint);
+    };
+  }, [active, tableId, columnIndex, widthDraft]);
+
+  return (
+    <span
+      ref={strokeRef}
+      className="editor-table-column-stroke"
+      data-testid="editor-table-column-stroke"
+      aria-hidden="true"
+      hidden
+    />
+  );
+}
+
+/**
  * AFFiNE column-resize hit target on the right edge of a cell. Preview widths
  * live in table-ui-state; persistence happens once on pointerup. Hovering any
- * cell's handle highlights the same edge on every row of that column.
+ * cell's handle highlights the same edge on every row of that column via one
+ * continuous stroke (never per-cell segments that notch at row borders).
  */
 function ColumnResizeHandle({
   editor,
   tableId,
   columnIndex,
+  rowIndex,
 }: {
   readonly editor: TableEditorApi;
   readonly tableId: string;
   readonly columnIndex: number;
+  readonly rowIndex: number;
 }) {
   const copy = FR_COPY.editor.richBlocks.table;
   const resizeHover = useTableColumnResizeHover(tableId);
@@ -731,7 +794,11 @@ function ColumnResizeHandle({
       onPointerMove={onPointerMove}
       onPointerUp={finish}
       onPointerCancel={finish}
-    />
+    >
+      {rowIndex === 0 ? (
+        <ColumnEdgeStroke tableId={tableId} columnIndex={columnIndex} active={highlighted} />
+      ) : null}
+    </button>
   );
 }
 
@@ -1360,8 +1427,13 @@ function TableCellView({
       {tableId !== null && columnIndex === 0 && rowIndex !== undefined && (
         <RowHandle editor={tableEditor} tableId={tableId} rowIndex={rowIndex} />
       )}
-      {tableId !== null && columnIndex !== undefined && (
-        <ColumnResizeHandle editor={tableEditor} tableId={tableId} columnIndex={columnIndex} />
+      {tableId !== null && columnIndex !== undefined && rowIndex !== undefined && (
+        <ColumnResizeHandle
+          editor={tableEditor}
+          tableId={tableId}
+          columnIndex={columnIndex}
+          rowIndex={rowIndex}
+        />
       )}
     </div>
   );

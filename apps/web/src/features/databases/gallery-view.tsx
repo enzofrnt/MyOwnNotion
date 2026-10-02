@@ -5,7 +5,7 @@ import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases
 import { AsyncState } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
-import { displayDatabaseValue } from "./database-value.ts";
+import { PropertyValue } from "./option-appearance.tsx";
 
 type GalleryViewDefinition = Extract<DatabaseView, { type: "gallery" }>;
 
@@ -107,7 +107,9 @@ function GalleryCard({
           {selectedProperties.map((property) => (
             <div key={property.id}>
               <dt>{property.name}</dt>
-              <dd>{displayDatabaseValue(row, property)}</dd>
+              <dd>
+                <PropertyValue property={property} row={row} />
+              </dd>
             </div>
           ))}
         </dl>

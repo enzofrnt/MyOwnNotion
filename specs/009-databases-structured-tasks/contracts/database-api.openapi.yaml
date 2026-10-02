@@ -641,6 +641,13 @@ components:
         options:
           type: object
           additionalProperties: true
+        icon:
+          oneOf:
+            - type: string
+              minLength: 1
+              maxLength: 40
+              pattern: "^[a-z0-9-]+$"
+            - type: "null"
 
     TaskRoleMapping:
       type: object

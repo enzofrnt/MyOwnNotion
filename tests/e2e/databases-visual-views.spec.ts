@@ -3,7 +3,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createDatabaseEntry,
   ensureNavigationVisible,
-  openRootDatabaseCreation,
+  createRootDatabase,
   openSecondDevice,
   openWorkspace,
   saveEntryProperties,
@@ -76,11 +76,7 @@ test("preserves native property input across a remote projection before input de
   const databaseName = uniqueName("Draft projection");
   const title = uniqueName("Draft entry");
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(createDatabase).toBeHidden();
+  await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
   await addProperty(page, "Summary", "text");
   const trigger = await createDatabaseEntry(page, title);
@@ -124,15 +120,7 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   const secondDate = `${month}-11`;
 
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-  const createDatabaseButton = createDatabase.getByRole("button", {
-    name: "Créer la base de données",
-  });
-  await createDatabaseButton.click();
-  await expect(createDatabase).toBeHidden({ timeout: 15_000 });
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
   await addProperty(page, "Status", "status");
   await addProperty(page, "Due", "date");

@@ -115,7 +115,7 @@ describe("folder children list", () => {
     ]);
     expect(links[1]?.textContent).toContain("3 éléments");
     expect(links[3]?.textContent).toContain("Base de données");
-    expect(links[3]?.querySelector('[data-icon="table"]')).not.toBeNull();
+    expect(links[3]?.querySelector('[data-icon="layers"]')).not.toBeNull();
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/notes/a",
       "/notes/b",

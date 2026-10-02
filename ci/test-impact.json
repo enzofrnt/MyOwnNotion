@@ -388,6 +388,25 @@
       }
     },
     {
+      "test": "tests/e2e/databases-pages-views.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/databases.ts",
+          "apps/web/src/services/local-content.ts",
+          "packages/domain/src/content/hierarchy.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/databases-offline-sync.spec.ts",
       "owners": {
         "exact": [

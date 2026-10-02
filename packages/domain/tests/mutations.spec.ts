@@ -96,10 +96,41 @@ describe("typed mutation dispatch (T073)", () => {
         initialViewId: viewId,
         initialViewName: "Table",
       },
+      "database.source.create": {
+        ownerItemId: itemId,
+        sourceId: generateUuidV7(),
+        name: "Nouvelle source",
+        titlePropertyId,
+        initialViewId: generateUuidV7(),
+        initialViewName: "Tableau",
+        baseRevisionId: revisionId,
+      },
+      "database.source.delete": {
+        ownerItemId: itemId,
+        sourceId: generateUuidV7(),
+        baseRevisionId: revisionId,
+      },
+      "database_view.create": {
+        id: generateUuidV7(),
+        name: "Linked view",
+        sourceId: itemId,
+        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "V" },
+        initialViewId: generateUuidV7(),
+      },
       "database.definition.replace": {
         databaseId: itemId,
         baseRevisionId: revisionId,
         definition: databaseDefinition,
+      },
+      "database.presentation.replace": {
+        containerItemId: itemId,
+        baseRevisionId: revisionId,
+        presentation: {
+          format: "myownnotion.database-presentation+json",
+          formatVersion: 1,
+          containerItemId: itemId,
+          views: [{ ...databaseDefinition.views[0], sourceId: itemId }],
+        },
       },
       "database.definition.resolve-conflict": {
         databaseId: itemId,

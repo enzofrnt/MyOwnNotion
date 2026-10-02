@@ -87,6 +87,7 @@ export function validateValueDraft(
       : { ok: true, input, value: { kind: "instant", instant: result.value } };
   }
   if (property.type === "status" || property.type === "select") {
+    if (input === "") return { ok: true, input };
     if (!isUuid(input)) {
       return { ok: false, input, error: DATABASE_COPY.value.chooseOption };
     }
@@ -128,6 +129,8 @@ export function ValueEditor({
   error,
   relationOptions = [],
   idSuffix,
+  presentation = "field",
+  onBlur,
   onChange,
 }: {
   readonly property: DatabaseProperty;
@@ -135,12 +138,15 @@ export function ValueEditor({
   readonly error: string | null;
   readonly relationOptions?: readonly RelationOption[];
   readonly idSuffix?: string;
+  readonly presentation?: "field" | "inline";
+  readonly onBlur?: () => void;
   readonly onChange: (input: ValueDraft) => void;
 }) {
   const suffix = idSuffix === undefined ? "" : `-${idSuffix}`;
   const errorId = `database-value-error-${property.id}${suffix}`;
   const controlId = `database-value-${property.id}${suffix}`;
   const describedBy = error === null ? undefined : errorId;
+  const inlineLabel = presentation === "inline" ? property.name : undefined;
   let control: React.ReactNode;
 
   if (property.type === "checkbox") {
@@ -149,7 +155,9 @@ export function ValueEditor({
         id={controlId}
         type="checkbox"
         checked={typeof input === "boolean" && input}
+        aria-label={inlineLabel}
         aria-describedby={describedBy}
+        onBlur={onBlur}
         onChange={(event) => onChange(event.target.checked)}
       />
     );
@@ -163,7 +171,9 @@ export function ValueEditor({
         id={controlId}
         multiple={property.type === "multi-select"}
         value={property.type === "multi-select" ? (input as readonly string[]) : String(input)}
+        aria-label={inlineLabel}
         aria-describedby={describedBy}
+        onBlur={onBlur}
         onChange={(event) =>
           onChange(
             property.type === "multi-select"
@@ -192,7 +202,9 @@ export function ValueEditor({
         value={
           property.config.cardinality === "many" ? (input as readonly string[]) : String(input)
         }
+        aria-label={inlineLabel}
         aria-describedby={describedBy}
+        onBlur={onBlur}
         onChange={(event) => {
           const selected = [...event.target.selectedOptions].map((option) => option.value);
           onChange(property.config.cardinality === "one" ? selected.slice(0, 1) : selected);
@@ -215,15 +227,17 @@ export function ValueEditor({
         type={property.type === "date" && property.config.mode === "date" ? "date" : "text"}
         inputMode={property.type === "number" ? "decimal" : undefined}
         value={typeof input === "string" ? input : ""}
+        aria-label={inlineLabel}
         aria-describedby={describedBy}
+        onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
       />
     );
   }
 
   return (
-    <div className="database-field">
-      <label htmlFor={controlId}>{property.name}</label>
+    <div className={presentation === "inline" ? "database-cell-inline-field" : "database-field"}>
+      {presentation === "inline" ? null : <label htmlFor={controlId}>{property.name}</label>}
       {control}
       {error !== null ? (
         <span id={errorId} className="database-field__error" role="alert">

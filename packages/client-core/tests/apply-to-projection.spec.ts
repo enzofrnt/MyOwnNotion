@@ -288,20 +288,22 @@ describe("database projection placement and host guards", () => {
     const result = await applyMutation("database.create", payload);
 
     expect(result.ok).toBe(true);
-    expect((await readItem(payload.id))?.kind).toBe("page");
+    expect((await readItem(payload.id))?.kind).toBe("database");
     expect((await readDatabase(payload.id))?.definition.databaseId).toBe(payload.id);
     expect((await db.placements.get(payload.placement.id))?.parentItemId).toBeNull();
     expect(await db.outbox.count()).toBe(1);
   });
 
-  it("creates an embedded display without adding a second hierarchy placement", async () => {
+  it("creates an embedded owner's hierarchy placement under its host", async () => {
     const host = await createItem("page", "Host", null);
     const payload = createDatabasePayload({ hostPageId: host.itemId });
     const result = await applyMutation("database.create", payload);
 
     expect(result.ok).toBe(true);
     expect((await readDatabase(payload.id))?.definition.embeddings).toHaveLength(1);
-    expect(await db.placements.where("itemId").equals(payload.id).count()).toBe(0);
+    expect((await db.placements.where("itemId").equals(payload.id).first())?.parentItemId).toBe(
+      host.itemId,
+    );
   });
 
   it.each([
@@ -354,7 +356,6 @@ describe("database projection placement and host guards", () => {
   it("rolls back a prepared database when its hierarchy parent is invalid", async () => {
     const host = await createItem("page", "Host", null);
     const payload = createDatabasePayload({
-      hostPageId: host.itemId,
       placement: { id: generateUuidV7(), parentItemId: generateUuidV7(), positionKey: "a" },
     });
     const result = await applyMutation("database.create", payload);
@@ -425,7 +426,7 @@ describe("database entry placement guards", () => {
     return payload;
   }
 
-  it("places an entry beneath an active container", async () => {
+  it("rejects an entry beneath a container other than its source owner", async () => {
     const database = await createDatabase();
     const parent = await createItem("folder", "Board", null);
     const entryId = generateUuidV7();
@@ -438,13 +439,12 @@ describe("database entry placement guards", () => {
       relationTargets: {},
     });
 
-    expect(result.ok).toBe(true);
-    expect((await db.placements.where("itemId").equals(entryId).first())?.parentItemId).toBe(
-      parent.itemId,
-    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("validation.invalid-payload");
+    expect(await db.items.get(entryId)).toBeUndefined();
   });
 
-  it("treats the reusable source itself as the entry container", async () => {
+  it("places an entry directly under its source owner", async () => {
     const database = await createDatabase();
     const entryId = generateUuidV7();
     const result = await applyMutation("database.entry.create", {
@@ -457,7 +457,9 @@ describe("database entry placement guards", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect((await db.placements.where("itemId").equals(entryId).first())?.parentItemId).toBeNull();
+    expect((await db.placements.where("itemId").equals(entryId).first())?.parentItemId).toBe(
+      database.id,
+    );
   });
 
   it.each([
@@ -499,7 +501,7 @@ describe("database entry placement guards", () => {
     });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("item.not-found");
+    if (!result.ok) expect(result.error.code).toBe("validation.invalid-payload");
     expect(await db.items.get(entryId)).toBeUndefined();
     expect(await db.databaseEntries.get(entryId)).toBeUndefined();
     expect(await db.outbox.count()).toBe(1);

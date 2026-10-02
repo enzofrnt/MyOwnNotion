@@ -21,10 +21,16 @@ export interface NavigationInlineCreateProps {
     readonly toggle?: string;
     readonly page?: string;
     readonly folder?: string;
+    readonly database?: string;
   };
   readonly onOpenChange: (open: boolean) => void;
   readonly onCreatePage: () => void;
   readonly onCreateFolder: () => void;
+  readonly onCreateDatabase?: () => void;
+  /** Page and folder chips. Folder is omitted when this row cannot contain one. */
+  readonly includeFolder?: boolean;
+  /** `end` grows toward the left, `start` keeps the plus on the leading edge. */
+  readonly edge?: "end" | "start";
 }
 
 function prefersReducedMotion(): boolean {
@@ -44,10 +50,13 @@ export function NavigationInlineCreate({
   itemName,
   onCreateFolder,
   onCreatePage,
+  onCreateDatabase,
   onOpenChange,
   open,
   testIds,
   variant = "item",
+  includeFolder = true,
+  edge = "end",
 }: NavigationInlineCreateProps) {
   const root = useRef<HTMLSpanElement | null>(null);
   const surface = useRef<HTMLSpanElement | null>(null);
@@ -65,11 +74,15 @@ export function NavigationInlineCreate({
   const exiting = phase === "closing";
   const expandedChrome = phase === "open" || exiting;
   const stopPointer = (event: PointerEvent<HTMLButtonElement>): void => event.stopPropagation();
-  const create = (event: MouseEvent<HTMLButtonElement>, kind: "page" | "folder"): void => {
+  const create = (
+    event: MouseEvent<HTMLButtonElement>,
+    kind: "page" | "folder" | "database",
+  ): void => {
     event.stopPropagation();
     onOpenChange(false);
     if (kind === "page") onCreatePage();
-    else onCreateFolder();
+    else if (kind === "folder") onCreateFolder();
+    else onCreateDatabase?.();
   };
 
   useEffect(() => {
@@ -140,6 +153,9 @@ export function NavigationInlineCreate({
       data-open={expandedChrome || undefined}
       data-closing={exiting || undefined}
       data-variant={variant}
+      data-edge={edge === "start" ? "start" : undefined}
+      data-choices={includeFolder ? undefined : "1"}
+      data-has-database={onCreateDatabase === undefined ? undefined : "true"}
     >
       <span ref={surface} className="navigation-inline-create__surface">
         <span
@@ -162,20 +178,38 @@ export function NavigationInlineCreate({
           >
             <AppIcon name="fileAdd" size="small" />
           </Button>
-          <Button
-            type="button"
-            size="square"
-            variant="ghost"
-            tabIndex={open ? 0 : -1}
-            data-testid={testIds?.folder ?? `new-folder-inline-${itemName}`}
-            aria-label={`Nouveau dossier dans ${itemName}`}
-            title="Nouveau dossier"
-            onPointerDown={stopPointer}
-            onKeyDown={closeFromKeyboard}
-            onClick={(event) => create(event, "folder")}
-          >
-            <AppIcon name="folderAdd" size="small" />
-          </Button>
+          {includeFolder ? (
+            <Button
+              type="button"
+              size="square"
+              variant="ghost"
+              tabIndex={open ? 0 : -1}
+              data-testid={testIds?.folder ?? `new-folder-inline-${itemName}`}
+              aria-label={`Nouveau dossier dans ${itemName}`}
+              title="Nouveau dossier"
+              onPointerDown={stopPointer}
+              onKeyDown={closeFromKeyboard}
+              onClick={(event) => create(event, "folder")}
+            >
+              <AppIcon name="folderAdd" size="small" />
+            </Button>
+          ) : null}
+          {onCreateDatabase === undefined ? null : (
+            <Button
+              type="button"
+              size="square"
+              variant="ghost"
+              tabIndex={open ? 0 : -1}
+              data-testid={testIds?.database ?? `new-database-inline-${itemName}`}
+              aria-label={`Nouvelle base de données dans ${itemName}`}
+              title="Nouvelle base de données"
+              onPointerDown={stopPointer}
+              onKeyDown={closeFromKeyboard}
+              onClick={(event) => create(event, "database")}
+            >
+              <AppIcon name="layersAdd" size="small" />
+            </Button>
+          )}
         </span>
         <Button
           ref={toggle}

@@ -95,7 +95,7 @@ function expandedDefinition(
 }
 
 describe("atomic structured local mutation (T021)", () => {
-  it("persists an unplaced canonical entry and its replayable offline mutation across restart", async () => {
+  it("persists a directly placed entry and its replayable offline mutation across restart", async () => {
     const source = createPayload();
     expect((await apply("database.create", source)).ok).toBe(true);
     const entryId = generateUuidV7();
@@ -108,9 +108,9 @@ describe("atomic structured local mutation (T021)", () => {
     });
     expect(mutation.ok).toBe(true);
     const original = required(await items.getItem(entryId));
-    expect(original.placements).toEqual([]);
+    expect(original.placements[0]?.parentItemId).toBe(source.id);
     const explicitId = generateUuidV7();
-    const placement = { id: generateUuidV7(), parentItemId: null, positionKey: "b" };
+    const placement = { id: generateUuidV7(), parentItemId: source.id, positionKey: "b" };
     expect(
       (
         await apply("database.entry.create", {
@@ -139,62 +139,77 @@ describe("atomic structured local mutation (T021)", () => {
     expect(JSON.stringify(await db.items.get(entryId))).not.toContain("Unplaced private entry");
   });
 
-  it("keeps encrypted sources after host tombstones and edits them offline without a visible anchor", async () => {
-    const payload = createPayload();
-    expect((await apply("database.create", payload)).ok).toBe(true);
-    const original = required(await databases.getDatabase(payload.id));
-    const entryId = generateUuidV7();
+  it("keeps an owned source after all local views point elsewhere", async () => {
+    const first = createPayload();
+    const second = createPayload();
+    expect((await apply("database.create", first)).ok).toBe(true);
+    expect((await apply("database.create", second)).ok).toBe(true);
+    const initial = required(await databases.getDatabase(first.id));
+    const linkedSource = required(await databases.getDatabase(second.id)).sourceId;
+    if (
+      initial.presentation === undefined ||
+      initial.presentationRevisionId === undefined ||
+      linkedSource === undefined
+    )
+      throw new Error("Missing local presentation");
+    const oneView = required(initial.presentation.views[0]);
+    const locked = await apply("database.presentation.replace", {
+      containerItemId: first.id,
+      baseRevisionId: initial.presentationRevisionId,
+      presentation: { ...initial.presentation, views: [{ ...oneView, sourceId: linkedSource }] },
+    });
+    expect(locked.ok).toBe(false);
+    const added = await apply("database.presentation.replace", {
+      containerItemId: first.id,
+      baseRevisionId: initial.presentationRevisionId,
+      presentation: {
+        ...initial.presentation,
+        views: [oneView, { ...oneView, id: generateUuidV7(), name: "Deuxième", positionKey: "b" }],
+      },
+    });
+    expect(added.ok).toBe(true);
+    const expanded = required(await databases.getDatabase(first.id));
+    const expandedPresentation = required(expanded.presentation);
     expect(
       (
-        await apply("database.entry.create", {
-          databaseId: payload.id,
-          id: entryId,
-          title: "Shared offline entry",
-          placement: { id: generateUuidV7(), parentItemId: payload.id, positionKey: "b" },
-          values: {},
-          relationTargets: {},
+        await apply("database.presentation.replace", {
+          containerItemId: first.id,
+          baseRevisionId: expanded.presentationRevisionId,
+          presentation: {
+            ...expandedPresentation,
+            views: expandedPresentation.views.map((view) => ({
+              ...view,
+              sourceId: linkedSource,
+            })),
+          },
         })
       ).ok,
     ).toBe(true);
-    expect((await items.getItem(entryId))?.placements[0]?.parentItemId).toBeNull();
-    // An existing device can still hold the pre-0016 placement while offline.
-    const legacyPlacement = required(
-      (await db.placements.where("itemId").equals(entryId).toArray())[0],
-    );
-    await db.placements.update(legacyPlacement.id, {
-      parentItemId: payload.id,
-      parentKey: payload.id,
+    const reopened = required(await databases.getDatabase(first.id));
+    expect(reopened.sourceId).toBe(initial.sourceId);
+    expect(reopened.presentation?.views.every((view) => view.sourceId === linkedSource)).toBe(true);
+    expect(JSON.stringify(await db.databases.toArray())).not.toContain("Deuxième");
+  });
+
+  it("creates a linked-view item with one presentation and no owned source", async () => {
+    const owner = createPayload();
+    expect((await apply("database.create", owner)).ok).toBe(true);
+    const owned = required(await databases.getDatabase(owner.id));
+    const linkedId = generateUuidV7();
+    const viewId = generateUuidV7();
+    const result = await apply("database_view.create", {
+      id: linkedId,
+      name: "Vue de projets",
+      sourceId: owned.sourceId,
+      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "b" },
+      initialViewId: viewId,
     });
-    expect((await apply("item.trash", { itemId: payload.id })).ok).toBe(true);
-    const host = required(await items.getItem(payload.id));
-    await items.applyServerChange({
-      cursor: "purged-host",
-      items: [{ ...host, lifecycle: "purged", trashedAt: null, purgeAfter: null }] as never,
-    });
-    expect(await databases.getDatabase(payload.id)).toEqual(original);
-    expect((await items.getItem(entryId))?.lifecycle).toBe("active");
-    expect((await items.getItem(entryId))?.placements[0]?.parentItemId).toBeNull();
-    expect(await databases.getEntry(entryId)).not.toBeNull();
-    await db.items.delete(payload.id);
-    expect(
-      (
-        await apply("database.definition.replace", {
-          databaseId: payload.id,
-          baseRevisionId: original.definitionRevisionId,
-          definition: { ...original.definition, name: "Private renamed source", embeddings: [] },
-        })
-      ).ok,
-    ).toBe(true);
-    const databaseName = db.name;
-    db.close();
-    db = openLocalDatabase(databaseName);
-    databases = new LocalDatabaseRepository(db, codec);
-    const reopened = required(await databases.getDatabase(payload.id));
-    expect(reopened.definition.name).toBe("Private renamed source");
-    expect(reopened.definition.embeddings).toEqual([]);
-    expect((await databases.listDatabases()).map((row) => row.itemId)).toContain(payload.id);
-    expect(JSON.stringify(await db.databases.toArray())).not.toContain("Private renamed source");
-    expect(await db.outbox.count()).toBe(4);
+    expect(result.ok).toBe(true);
+    expect((await items.getItem(linkedId))?.kind).toBe("database_view");
+    const linked = required(await databases.getDatabase(linkedId));
+    expect(linked.sourceId).toBeUndefined();
+    expect(linked.presentation?.views).toMatchObject([{ id: viewId, sourceId: owned.sourceId }]);
+    expect(await db.outbox.count()).toBe(2);
   });
 
   it("maps a source head on acknowledgement before accepting a quick definition edit", async () => {
@@ -222,7 +237,7 @@ describe("atomic structured local mutation (T021)", () => {
     const payload = createPayload();
     const result = await apply("database.create", payload);
     expect(result.ok).toBe(true);
-    expect((await items.getItem(payload.id))?.kind).toBe("page");
+    expect((await items.getItem(payload.id))?.kind).toBe("database");
     const database = await databases.getDatabase(payload.id);
     expect(database).toMatchObject({ itemId: payload.id, definitionVersion: 1 });
     expect(database?.definition.databaseId).toBe(payload.id);
@@ -332,7 +347,7 @@ describe("atomic structured local mutation (T021)", () => {
     if (first.ok && replay.ok) {
       expect(replay.value.localRevisionIds).toEqual(first.value.localRevisionIds);
     }
-    expect(await db.databaseEntries.count()).toBe(1);
+    expect(await db.databaseEntryPairs.count()).toBe(1);
     expect(await db.items.where("id").equals(entryId).count()).toBe(1);
     expect(await db.outbox.where("mutationId").equals(entryMutationId).count()).toBe(1);
 
@@ -379,7 +394,7 @@ describe("atomic structured local mutation (T021)", () => {
     });
   });
 
-  it("trashes only the former display page and preserves independent entry lifecycle", async () => {
+  it("trashes a database branch and preserves independently trashed entries on restore", async () => {
     const create = createPayload();
     expect((await apply("database.create", create)).ok).toBe(true);
     const entryIds = [generateUuidV7(), generateUuidV7()];
@@ -390,7 +405,7 @@ describe("atomic structured local mutation (T021)", () => {
             databaseId: create.id,
             id: entryId,
             title: `Moved entry ${index + 1}`,
-            placement: { id: generateUuidV7(), parentItemId: null, positionKey: `m${index}` },
+            placement: { id: generateUuidV7(), parentItemId: create.id, positionKey: `m${index}` },
             values: {},
             relationTargets: {},
           })
@@ -401,19 +416,20 @@ describe("atomic structured local mutation (T021)", () => {
     expect((await apply("item.trash", { itemId: independentlyTrashed })).ok).toBe(true);
 
     const trashed = await apply("item.trash", { itemId: create.id });
-    expect(trashed.ok && trashed.value.localRevisionIds).toHaveLength(1);
+    expect(trashed.ok && trashed.value.localRevisionIds).toHaveLength(2);
     expect((await items.getItem(create.id))?.lifecycle).toBe("trashed");
-    expect((await items.getItem(entryIds[0] as Uuid))?.lifecycle).toBe("active");
+    expect((await items.getItem(entryIds[0] as Uuid))?.lifecycle).toBe("trashed");
 
     const restored = await apply("item.restore", { itemId: create.id });
-    expect(restored.ok && restored.value.localRevisionIds).toHaveLength(1);
+    expect(restored.ok && restored.value.localRevisionIds).toHaveLength(2);
     expect((await items.getItem(create.id))?.lifecycle).toBe("active");
     expect((await items.getItem(entryIds[0] as Uuid))?.lifecycle).toBe("active");
     // The test clock returns the exact same instant for every action. Mutation
     // identity, not timestamp coincidence, keeps this separately trashed page
     // out of the database host's restore group.
     expect((await items.getItem(independentlyTrashed))?.lifecycle).toBe("trashed");
-    expect(await databases.getEntry(independentlyTrashed)).not.toBeNull();
+    expect(await databases.getEntry(independentlyTrashed)).toBeNull();
+    expect(await db.databaseEntryPairs.get(`${create.id}:${independentlyTrashed}`)).toBeDefined();
   });
 
   it("rolls every projection store back when outbox persistence fails", async () => {

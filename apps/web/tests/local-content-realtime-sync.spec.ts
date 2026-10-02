@@ -70,10 +70,10 @@ describe("LocalContentService realtime integration", () => {
     const targetId = generateUuidV7();
     const relationshipId = generateUuidV7();
     const propertyId = generateUuidV7();
-    const item = (id: string, name: string): ItemDto =>
+    const item = (id: string, name: string, parentItemId: string | null = null): ItemDto =>
       ({
         id,
-        kind: "page",
+        kind: id === databaseId ? "database" : "page",
         name,
         lifecycle: "active",
         currentRevisionId: generateUuidV7(),
@@ -83,7 +83,7 @@ describe("LocalContentService realtime integration", () => {
             id: generateUuidV7(),
             itemId: id,
             kind: "hierarchy",
-            parentItemId: null,
+            parentItemId,
             positionKey: "V",
           },
         ],
@@ -112,7 +112,7 @@ describe("LocalContentService realtime integration", () => {
           digest: "a".repeat(64),
           items: [
             item(databaseId, "Projects"),
-            item(entryId, "Migration"),
+            item(entryId, "Migration", databaseId),
             item(targetId, "Owner"),
           ],
           relationships: [

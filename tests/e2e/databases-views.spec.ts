@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createDatabaseEntry,
   ensureNavigationVisible,
-  openRootDatabaseCreation,
+  createRootDatabase,
   openSecondDevice,
   openWorkspace,
   saveEntryProperties,
@@ -32,11 +32,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   };
 
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await createRootDatabase(page, databaseName);
 
   await page.getByRole("button", { name: "Ajouter une propriété" }).click();
   const propertyEditor = page.getByRole("form", { name: "Éditeur de propriété" });
@@ -163,8 +159,10 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     )
     .toEqual([expect.stringContaining("Status"), expect.stringContaining("Titre")]);
   await waitForDatabaseDefinitionSaved(page);
-  await page.getByRole("button", { name: "Augmenter la largeur de Titre" }).click();
-  await expect(page.getByRole("group", { name: "Largeur de Titre : 280 pixels" })).toBeVisible();
+  const titleWidth = page.getByRole("button", { name: /Largeur de Titre/ });
+  await titleWidth.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("button", { name: "Largeur de Titre : 280 pixels" })).toBeVisible();
   await waitForDatabaseDefinitionSaved(page);
 
   await page.getByRole("button", { name: "Nouvelle vue liste" }).click();

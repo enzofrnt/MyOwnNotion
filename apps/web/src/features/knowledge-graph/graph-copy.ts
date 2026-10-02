@@ -15,5 +15,6 @@ export const GRAPH_KIND_LABELS: Readonly<Record<GraphNodeKind, string>> = {
   folder: "Dossier",
   file: "Fichier",
   database: "Base de données",
+  database_view: "Vue de base de données",
   task: "Tâche",
 };

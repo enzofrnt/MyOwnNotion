@@ -401,7 +401,8 @@ export const revisions = pgTable(
 export const databases = pgTable(
   "databases",
   {
-    itemId: uuid("item_id").primaryKey(),
+    sourceId: uuid("source_id").primaryKey(),
+    itemId: uuid("item_id").notNull(),
     definitionRevisionId: uuid("definition_revision_id"),
     workspaceId: uuid("workspace_id")
       .notNull()
@@ -411,22 +412,58 @@ export const databases = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("databases_item_workspace_unique").on(table.itemId, table.workspaceId),
+    index("databases_owner_item_idx").on(table.itemId),
     index("databases_workspace_idx").on(table.workspaceId),
+    foreignKey({
+      name: "databases_owner_item_fk",
+      columns: [table.itemId, table.workspaceId],
+      foreignColumns: [items.id, items.workspaceId],
+    }),
     check("databases_definition_version_check", sql`${table.definitionVersion} >= 1`),
+    check("databases_owner_source_distinct", sql`${table.itemId} <> ${table.sourceId}`),
   ],
 );
 
-/** One active database membership per canonical entry page. */
+/** Protected saved views belong to a visible database or linked-view item. */
+export const databasePresentations = pgTable(
+  "database_presentations",
+  {
+    itemId: uuid("item_id")
+      .primaryKey()
+      .references(() => items.id),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    presentationRevisionId: uuid("presentation_revision_id")
+      .notNull()
+      .references(() => revisions.id),
+    presentationVersion: integer("presentation_version").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("database_presentations_workspace_idx").on(table.workspaceId),
+    foreignKey({
+      name: "database_presentations_item_workspace_fk",
+      columns: [table.itemId, table.workspaceId],
+      foreignColumns: [items.id, items.workspaceId],
+    }),
+    check(
+      "database_presentations_presentation_version_check",
+      sql`${table.presentationVersion} >= 1`,
+    ),
+  ],
+);
+
+/** Values persist for each owner/entry pair even after the entry moves out. */
 export const databaseEntries = pgTable(
   "database_entries",
   {
     entryItemId: uuid("entry_item_id")
-      .primaryKey()
-      .references(() => items.id),
-    databaseId: uuid("database_id")
       .notNull()
-      .references(() => databases.itemId),
+      .references(() => items.id),
+    databaseId: uuid("database_id").notNull(),
+    sourceId: uuid("source_id").notNull(),
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspaces.id),
@@ -434,11 +471,20 @@ export const databaseEntries = pgTable(
     addedRevisionId: uuid("added_revision_id")
       .notNull()
       .references(() => revisions.id),
+    valueRevisionId: uuid("value_revision_id")
+      .notNull()
+      .references(() => revisions.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    primaryKey({ columns: [table.databaseId, table.entryItemId] }),
+    uniqueIndex("database_entries_global_value_version_unique").on(
+      table.entryItemId,
+      table.valueVersion,
+    ),
     index("database_entries_database_idx").on(table.databaseId),
+    index("database_entries_source_idx").on(table.sourceId),
     index("database_entries_workspace_idx").on(table.workspaceId),
     foreignKey({
       name: "database_entries_item_workspace_fk",
@@ -446,9 +492,9 @@ export const databaseEntries = pgTable(
       foreignColumns: [items.id, items.workspaceId],
     }),
     foreignKey({
-      name: "database_entries_database_workspace_fk",
-      columns: [table.databaseId, table.workspaceId],
-      foreignColumns: [databases.itemId, databases.workspaceId],
+      name: "database_entries_source_fk",
+      columns: [table.sourceId],
+      foreignColumns: [databases.sourceId],
     }),
     check("database_entries_not_self_check", sql`${table.entryItemId} <> ${table.databaseId}`),
     check("database_entries_value_version_check", sql`${table.valueVersion} >= 1`),

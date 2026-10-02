@@ -7,15 +7,47 @@ import {
 import { type FormEvent, useId, useRef, useState } from "react";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
+import {
+  nextOptionTone,
+  type OptionTone,
+  OptionTonePicker,
+  optionTone,
+} from "./option-appearance.tsx";
 
 export type EditablePropertyType = Exclude<DatabasePropertyType, "title">;
+
+export interface PropertyOptionDraft {
+  readonly key: string;
+  readonly label: string;
+  readonly tone: OptionTone;
+}
 
 export interface DatabasePropertyDraft {
   readonly name: string;
   readonly type: EditablePropertyType;
-  readonly optionsText?: string;
+  readonly options?: readonly PropertyOptionDraft[];
   readonly dateMode?: "date" | "instant";
   readonly relationCardinality?: "one" | "many";
+}
+
+const CHOICE_PROPERTY_TYPES = ["status", "select", "multi-select"] as const;
+
+function isChoiceType(type: EditablePropertyType): boolean {
+  return (CHOICE_PROPERTY_TYPES as readonly string[]).includes(type);
+}
+
+/** One owner-facing type for a property whose values are named states. */
+const PROPERTY_TYPE_CHOICES = DATABASE_PROPERTY_TYPES.filter(
+  (type): type is EditablePropertyType =>
+    type !== "title" && type !== "status" && type !== "multi-select",
+);
+
+export function defaultSelectionOptions(): PropertyOptionDraft[] {
+  return [
+    { key: generateUuidV7(), label: "Pas commencé", tone: "gray" },
+    { key: generateUuidV7(), label: "En cours", tone: "blue" },
+    { key: generateUuidV7(), label: "Terminé", tone: "green" },
+  ];
 }
 
 export type PropertyDraftValidation =
@@ -34,11 +66,8 @@ export function validatePropertyDraft(draft: DatabasePropertyDraft): PropertyDra
   if (normalizedName.length > 512) {
     return { ok: false, draft, error: DATABASE_COPY.property.nameTooLong };
   }
-  if (draft.type === "status" || draft.type === "select" || draft.type === "multi-select") {
-    const labels = (draft.optionsText ?? "")
-      .split(",")
-      .map((label) => label.trim())
-      .filter(Boolean);
+  if (isChoiceType(draft.type)) {
+    const labels = (draft.options ?? []).map((option) => option.label.trim()).filter(Boolean);
     if (new Set(labels.map((label) => label.toLocaleLowerCase())).size !== labels.length) {
       return { ok: false, draft, error: DATABASE_COPY.property.distinctOptions };
     }
@@ -73,15 +102,14 @@ export function propertyFromDraft(
         ...common,
         type: draft.type,
         config: {
-          options: (draft.optionsText ?? "")
-            .split(",")
-            .map((label) => label.trim())
-            .filter(Boolean)
-            .map((label, index) => ({
+          options: (draft.options ?? [])
+            .map((option) => ({ ...option, label: option.label.trim() }))
+            .filter((option) => option.label.length > 0)
+            .map((option, index) => ({
               id: generateUuidV7(),
-              label,
+              label: option.label,
               positionKey: `option-${String(index).padStart(6, "0")}`,
-              tone: "gray",
+              tone: optionTone(option.tone),
               state: "active" as const,
             })),
         },
@@ -92,10 +120,6 @@ export function propertyFromDraft(
       return { ...common, type: draft.type, config: {} };
   }
 }
-
-const EDITABLE_PROPERTY_TYPES = DATABASE_PROPERTY_TYPES.filter(
-  (type): type is EditablePropertyType => type !== "title",
-);
 
 function stringFormValue(data: FormData, name: string, fallback: string): string {
   const value = data.get(name);
@@ -114,18 +138,27 @@ export function propertyDraftFromFormData(
   fallback: DatabasePropertyDraft,
 ): DatabasePropertyDraft {
   const rawType = stringFormValue(data, "property-type", fallback.type);
-  const type = EDITABLE_PROPERTY_TYPES.includes(rawType as EditablePropertyType)
-    ? (rawType as EditablePropertyType)
-    : fallback.type;
+  const type =
+    rawType !== "title" && DATABASE_PROPERTY_TYPES.includes(rawType as DatabasePropertyType)
+      ? (rawType as EditablePropertyType)
+      : fallback.type;
   const common = {
     name: stringFormValue(data, "property-name", fallback.name),
     type,
   };
 
-  if (type === "status" || type === "select" || type === "multi-select") {
+  if (isChoiceType(type)) {
+    const keys = stringFormValue(data, "option-order", "")
+      .split(",")
+      .map((key) => key.trim())
+      .filter(Boolean);
     return {
       ...common,
-      optionsText: stringFormValue(data, "property-options", fallback.optionsText ?? ""),
+      options: keys.map((key) => ({
+        key,
+        label: stringFormValue(data, `option-label-${key}`, ""),
+        tone: optionTone(stringFormValue(data, `option-tone-${key}`, "gray")),
+      })),
     };
   }
   if (type === "date") {
@@ -141,6 +174,30 @@ export function propertyDraftFromFormData(
     return { ...common, relationCardinality: cardinality === "one" ? "one" : "many" };
   }
   return common;
+}
+
+function FormTonePicker({
+  name,
+  tone,
+  onChange,
+}: {
+  readonly name: string;
+  readonly tone: OptionTone;
+  readonly onChange: (tone: OptionTone) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input ref={inputRef} type="hidden" name={name} defaultValue={tone} />
+      <OptionTonePicker
+        tone={tone}
+        onChange={(next) => {
+          if (inputRef.current !== null) inputRef.current.value = next;
+          onChange(next);
+        }}
+      />
+    </>
+  );
 }
 
 export function PropertyEditor({
@@ -188,10 +245,8 @@ export function PropertyEditor({
     submitVisibleDraft();
   };
 
-  const usesOptions =
-    visibleDraft.type === "status" ||
-    visibleDraft.type === "select" ||
-    visibleDraft.type === "multi-select";
+  const usesOptions = isChoiceType(visibleDraft.type);
+  const optionRows = visibleDraft.options ?? [];
 
   return (
     <form
@@ -215,13 +270,21 @@ export function PropertyEditor({
           name="property-type"
           defaultValue={visibleDraft.type}
           onChange={(event) =>
-            changeDraft((current) => ({
-              ...current,
-              type: event.target.value as EditablePropertyType,
-            }))
+            changeDraft((current) => {
+              const type = event.target.value as EditablePropertyType;
+              if (!isChoiceType(type)) return { ...current, type };
+              return {
+                ...current,
+                type,
+                options:
+                  current.options !== undefined && current.options.length > 0
+                    ? current.options
+                    : defaultSelectionOptions(),
+              };
+            })
           }
         >
-          {EDITABLE_PROPERTY_TYPES.map((type) => (
+          {PROPERTY_TYPE_CHOICES.map((type) => (
             <option key={type} value={type}>
               {DATABASE_COPY.property.typeLabels[type]}
             </option>
@@ -230,17 +293,84 @@ export function PropertyEditor({
       </div>
 
       {usesOptions ? (
-        <label className="database-field">
-          {DATABASE_COPY.property.optionsSeparated}
+        <fieldset className="property-options">
+          <legend>{DATABASE_COPY.property.options}</legend>
           <input
-            name="property-options"
-            defaultValue={visibleDraft.optionsText ?? ""}
-            placeholder={DATABASE_COPY.property.optionPlaceholder}
-            onChange={(event) =>
-              changeDraft((current) => ({ ...current, optionsText: event.target.value }))
-            }
+            type="hidden"
+            name="option-order"
+            value={optionRows.map(({ key }) => key).join(",")}
           />
-        </label>
+          <ul>
+            {optionRows.map((option) => (
+              <li key={option.key}>
+                <input
+                  name={`option-label-${option.key}`}
+                  aria-label={DATABASE_COPY.property.optionName}
+                  defaultValue={option.label}
+                  onChange={(event) =>
+                    changeDraft((current) => ({
+                      ...current,
+                      options: (current.options ?? optionRows).map((candidate) =>
+                        candidate.key === option.key
+                          ? { ...candidate, label: event.target.value }
+                          : candidate,
+                      ),
+                    }))
+                  }
+                />
+                <FormTonePicker
+                  name={`option-tone-${option.key}`}
+                  tone={option.tone}
+                  onChange={(tone) =>
+                    changeDraft((current) => ({
+                      ...current,
+                      options: (current.options ?? optionRows).map((candidate) =>
+                        candidate.key === option.key ? { ...candidate, tone } : candidate,
+                      ),
+                    }))
+                  }
+                />
+                <button
+                  type="button"
+                  className="link"
+                  aria-label={`${DATABASE_COPY.property.removeOption} ${option.label}`}
+                  onClick={() =>
+                    changeDraft((current) => ({
+                      ...current,
+                      options: (current.options ?? optionRows).filter(
+                        (candidate) => candidate.key !== option.key,
+                      ),
+                    }))
+                  }
+                >
+                  {DATABASE_COPY.property.removeOption}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="link"
+            onClick={() =>
+              changeDraft((current) => {
+                const options = current.options ?? optionRows;
+                return {
+                  ...current,
+                  options: [
+                    ...options,
+                    {
+                      key: generateUuidV7(),
+                      label: "",
+                      tone: nextOptionTone(options.length),
+                    },
+                  ],
+                };
+              })
+            }
+          >
+            {DATABASE_COPY.property.addOption}
+          </button>
+        </fieldset>
       ) : null}
 
       {visibleDraft.type === "date" ? (

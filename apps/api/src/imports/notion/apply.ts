@@ -1,11 +1,19 @@
-import { readDatabaseRecord, runMutation, schema, type Transaction } from "@myownnotion/database";
+import {
+  readDatabasePresentationRecord,
+  readDatabaseRecord,
+  runMutation,
+  schema,
+  type Transaction,
+} from "@myownnotion/database";
 import {
   type MutationCommand,
   pageLinkTargets,
+  pageLinkTargetsV3,
   readDocumentBody,
   type Uuid,
   validateDatabaseDefinition,
   validatePageDocument,
+  validatePageDocumentEnvelopeV3,
 } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
 import { publishCanonicalFile } from "../../files/canonical-file-import.ts";
@@ -41,9 +49,16 @@ export async function applyNotionImport(
   if (plan.report.issues.some((issue) => issue.blocking))
     throw new NotionImportError("import.preview-blocked");
   for (const page of plan.pages) {
-    const parsed = readDocumentBody(page.document.body);
-    if (!validatePageDocument(page.document).ok || parsed.kind !== "blocks" || !parsed.result.ok)
-      throw new NotionImportError("import.invalid-document");
+    const valid =
+      page.document.formatVersion === 3
+        ? validatePageDocumentEnvelopeV3(page.document).ok
+        : (() => {
+            const parsed = readDocumentBody(page.document.body);
+            return (
+              validatePageDocument(page.document).ok && parsed.kind === "blocks" && parsed.result.ok
+            );
+          })();
+    if (!valid) throw new NotionImportError("import.invalid-document");
   }
   for (const database of plan.databases)
     if (!validateDatabaseDefinition(database.definition).ok)
@@ -72,7 +87,7 @@ export async function applyNotionImport(
   const headKey = (id: Uuid) => importId(plan.id, `head:${id}`);
   const sourceIds = new Set(plan.databases.map((source) => source.id));
   const currentHead = async (tx: Transaction, id: Uuid) => {
-    // 026 definition revisions are independent of the source item's editorial head.
+    // The owned source definition can advance independently of the container presentation.
     if (sourceIds.has(id)) return (await readDatabaseRecord(tx, id))?.definitionRevisionId ?? null;
     const [item] = await tx
       .select({ currentRevisionId: schema.items.currentRevisionId })
@@ -108,7 +123,10 @@ export async function applyNotionImport(
       await target.ready(tx);
       return read<Step>(tx, "import.step", mutationId);
     });
-    if (prior) return;
+    if (prior) {
+      if (changedTarget) await runMutation(context.db, (tx) => checkHead(tx, changedTarget));
+      return;
+    }
     const input = await runMutation(context.db, make);
     const result = await submitCanonicalMutation({
       ...context,
@@ -181,12 +199,12 @@ export async function applyNotionImport(
         await command(`source:${source.id}`, async () => ({
           type: "database.create",
           id: source.id,
+          sourceId: source.sourceId,
           name: source.name,
-          hostPageId: source.hostPageId,
           titlePropertyId: source.titlePropertyId,
           initialViewId: source.initialViewId,
           initialViewName: "Import — table par défaut",
-          placement: { id: source.embeddingId, parentItemId: null, positionKey: "a" },
+          placement: { id: source.embeddingId, parentItemId: source.hostPageId, positionKey: "a" },
         }));
         await command(
           `schema:${source.id}`,
@@ -197,10 +215,7 @@ export async function applyNotionImport(
               type: "database.definition.replace",
               databaseId: source.id,
               baseRevisionId: record.definitionRevisionId,
-              definition: {
-                ...source.definition,
-                embeddings: source.definition.embeddings?.slice(0, 1) ?? [],
-              },
+              definition: source.definition,
             };
           },
           source.id,
@@ -235,6 +250,40 @@ export async function applyNotionImport(
         );
       }
     }
+    for (const source of plan.databases)
+      for (const display of source.linkedDisplays) {
+        await command(`linked:${display.id}`, async () => ({
+          type: "database_view.create",
+          id: display.id,
+          name: display.name,
+          sourceId: source.sourceId,
+          placement: {
+            id: importId(display.id, "placement"),
+            parentItemId: display.hostPageId,
+            positionKey: "a",
+          },
+          initialViewId: display.viewId,
+        }));
+        await command(
+          `linked-presentation:${display.id}`,
+          async (tx) => {
+            const record = await readDatabasePresentationRecord(tx, display.id);
+            if (record === null) throw new NotionImportError("import.target-changed");
+            return {
+              type: "database.presentation.replace",
+              containerItemId: display.id,
+              baseRevisionId: record.presentationRevisionId,
+              presentation: {
+                format: "myownnotion.database-presentation+json",
+                formatVersion: 1,
+                containerItemId: display.id,
+                views: [{ ...display.view, sourceId: source.sourceId }],
+              },
+            };
+          },
+          display.id,
+        );
+      }
     for (const file of plan.files) {
       const mutationId = importId(plan.id, `operation:file:${file.id}`);
       const published = await runMutation(context.db, async (tx) => {
@@ -281,6 +330,10 @@ export async function applyNotionImport(
           baseRevisionId: await checkHead(tx, page.id),
           document: page.document,
           pageLinkTargetIds: (() => {
+            if (page.document.formatVersion === 3) {
+              const parsed = validatePageDocumentEnvelopeV3(page.document);
+              return parsed.ok ? pageLinkTargetsV3(parsed.envelope.body) : [];
+            }
             const parsed = readDocumentBody(page.document.body);
             return parsed.kind === "blocks" && parsed.result.ok
               ? pageLinkTargets(parsed.result.document)
@@ -303,21 +356,6 @@ export async function applyNotionImport(
           page.id,
         );
     }
-    for (const source of plan.databases)
-      await command(
-        `displays:${source.id}`,
-        async (tx) => {
-          const record = await readDatabaseRecord(tx, source.id);
-          if (!record?.definitionRevisionId) throw new NotionImportError("import.target-changed");
-          return {
-            type: "database.definition.replace",
-            databaseId: source.id,
-            baseRevisionId: record.definitionRevisionId,
-            definition: source.definition,
-          };
-        },
-        source.id,
-      );
     await runMutation(context.db, async (tx) => {
       await target.ready(tx);
       await write(tx, "import.job", plan.id, { ...job, complete: true });

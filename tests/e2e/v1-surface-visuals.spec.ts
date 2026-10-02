@@ -4,7 +4,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   ensureNavigationVisible,
-  openRootDatabaseCreation,
+  createRootDatabase,
   openSettingsSection,
   openWorkspace,
   waitForDatabaseDefinitionSaved,
@@ -83,12 +83,7 @@ test("matches the dark empty-database surface", async ({ page }, testInfo) => {
   );
   await prepareVisualSurface(page, "dark", DESKTOP);
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const form = page.getByRole("form", { name: "Créer une base de données" });
-  await form.getByLabel("Créer une base de données").fill("Suivi visuel");
-  await form.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(form).toBeHidden({ timeout: 15_000 });
-  await expect(page.getByTestId("active-item-title")).toHaveValue("Suivi visuel");
+  await createRootDatabase(page, "Suivi visuel");
   await waitForDatabaseDefinitionSaved(page);
   await expect(page.locator(".database-page")).toBeVisible();
   await expect(page.getByTestId("block-editor").locator(".ProseMirror")).toBeVisible();

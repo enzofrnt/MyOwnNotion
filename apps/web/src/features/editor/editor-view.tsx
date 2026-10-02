@@ -30,7 +30,8 @@ import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { PageAmbiguityNotice } from "../sync/page-ambiguity-notice.tsx";
 import { usePageReconciler } from "../sync/use-page-reconciler.ts";
 import { PageContentSkeleton } from "../workspace/page-content-skeleton.tsx";
-import type { CreateSubpage } from "./editor-menus/slash-menu.tsx";
+import { DatabaseViewBlockContext } from "./database-view-context.tsx";
+import type { CreateInlineDatabase, CreateSubpage } from "./editor-menus/slash-menu.tsx";
 import { EditorSurface, type EditorSurfaceHandle } from "./editor-surface.tsx";
 import { type EditorDurableSession, EditorSyncStatus } from "./editor-sync-status.tsx";
 import { captureScrollAnchor, editorScrollContainer } from "./editor-view-state.ts";
@@ -59,6 +60,9 @@ export function EditorView({
   editingAllowed = true,
   items = [],
   onCreateSubpage,
+  onCreateSubfolder,
+  onCreateFullPageDatabase,
+  onCreateInlineDatabase,
   onOpenPage,
   initialScrollAnchor = null,
   onCaptureScrollAnchor,
@@ -70,6 +74,9 @@ export function EditorView({
   readonly editingAllowed?: boolean;
   readonly items?: readonly ProjectedItem[];
   readonly onCreateSubpage?: CreateSubpage;
+  readonly onCreateSubfolder?: CreateSubpage;
+  readonly onCreateFullPageDatabase?: CreateSubpage;
+  readonly onCreateInlineDatabase?: CreateInlineDatabase;
   readonly onOpenPage?: (itemId: string) => void;
   /** Where the owner left this page, restored once blocks are mounted (FR-009). */
   readonly initialScrollAnchor?: PageScrollAnchor | null;
@@ -290,19 +297,24 @@ export function EditorView({
           device's write must never remount this surface. A mode change (an
           offline branch converting) is exactly the one remount that should
           happen, because the authority itself changed. */}
-      <EditorSurface
-        key={`${itemId}:${state.mode}`}
-        document={SESSION_DOCUMENT_PLACEHOLDER}
-        editable={editingAllowed}
-        handleRef={surface}
-        currentItemId={itemId}
-        items={items}
-        onCreateSubpage={onCreateSubpage}
-        onOpenPage={onOpenPage}
-        onSettlementChange={setEditorSettled}
-        session={state.session}
-        discoverable={discoverable}
-      />
+      <DatabaseViewBlockContext.Provider value={{ service, openItem: onOpenPage ?? (() => {}) }}>
+        <EditorSurface
+          key={`${itemId}:${state.mode}`}
+          document={SESSION_DOCUMENT_PLACEHOLDER}
+          editable={editingAllowed}
+          handleRef={surface}
+          currentItemId={itemId}
+          items={items}
+          onCreateSubpage={onCreateSubpage}
+          onCreateSubfolder={onCreateSubfolder}
+          onCreateFullPageDatabase={onCreateFullPageDatabase}
+          onCreateInlineDatabase={onCreateInlineDatabase}
+          onOpenPage={onOpenPage}
+          onSettlementChange={setEditorSettled}
+          session={state.session}
+          discoverable={discoverable}
+        />
+      </DatabaseViewBlockContext.Provider>
       <EditorSyncStatus
         service={service}
         session={state.session}

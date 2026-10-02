@@ -211,6 +211,7 @@ describe("structured database payloads", () => {
       definition,
     });
     expect(await codec.openDatabaseEntry(sealedEntry)).toEqual({
+      key: `${databaseId}:${entryItemId}`,
       entryItemId,
       databaseId,
       valueVersion: 7,

@@ -2,9 +2,12 @@ import {
   buildItemSnapshot,
   executeCommand,
   insertRevision,
+  listDatabaseProjectionEntries,
   type MutationContext,
   readCurrentDatabaseDefinition,
   readCurrentDatabaseEntryValues,
+  readCurrentDatabasePresentation,
+  readCurrentDatabaseSource,
   readDatabaseEntryRecord,
   readDatabaseRecord,
   runMutation,
@@ -133,7 +136,7 @@ function expandedDefinition(
 }
 
 describe("database capability and entries (T019)", () => {
-  it("creates a page-backed database atomically and replays without duplicate identity", async () => {
+  it("creates a canonical database owner and distinct source atomically", async () => {
     const command = databaseCreate();
     const mutationId = generateUuidV7();
     const first = await submit(command, mutationId);
@@ -150,8 +153,23 @@ describe("database capability and entries (T019)", () => {
       .select()
       .from(schema.items)
       .where(eq(schema.items.id, command.id));
-    expect(item?.kind).toBe("page");
+    expect(item?.kind).toBe("database");
     expect(item?.id).toBe(command.id);
+    expect(record?.sourceId).not.toBe(command.id);
+    const [presentation] = await context.handle.db
+      .select()
+      .from(schema.databasePresentations)
+      .where(eq(schema.databasePresentations.itemId, command.id));
+    expect(presentation?.presentationRevisionId).toBe(item?.currentRevisionId);
+    expect(await readCurrentDatabaseSource(context.handle.db, command.id)).toMatchObject({
+      ownerItemId: command.id,
+      sourceId: record?.sourceId,
+      name: command.name,
+    });
+    expect(await readCurrentDatabasePresentation(context.handle.db, command.id)).toMatchObject({
+      containerItemId: command.id,
+      views: [{ id: command.initialViewId, sourceId: record?.sourceId }],
+    });
 
     const replay = await submit(command, mutationId);
     expect(replay.result.status).toBe("already-accepted");
@@ -160,6 +178,74 @@ describe("database capability and entries (T019)", () => {
       .from(schema.databases)
       .where(eq(schema.databases.itemId, command.id));
     expect(rows).toHaveLength(1);
+  });
+
+  it("keeps the owned source when all saved views point to another source", async () => {
+    const first = databaseCreate();
+    const second = databaseCreate();
+    const firstCreated = await submit(first);
+    await submit(second);
+    const firstSource = await readDatabaseRecord(context.handle.db, first.id);
+    const secondSource = await readDatabaseRecord(context.handle.db, second.id);
+    const initial = await readCurrentDatabasePresentation(context.handle.db, first.id);
+    expect(initial?.views).toHaveLength(1);
+    if (initial === null || firstSource === null || secondSource === null)
+      throw new Error("missing setup");
+    const firstRevision = firstCreated.result.revisionIds?.[0] as Uuid;
+    const locked = await submit({
+      type: "database.presentation.replace",
+      containerItemId: first.id,
+      baseRevisionId: firstRevision,
+      presentation: {
+        ...initial,
+        views: initial.views.map((view) => ({ ...view, sourceId: secondSource.sourceId })),
+      },
+    });
+    expect(locked.result.status).toBe("rejected");
+    expect(locked.result.problem?.code).toBe("database.view-source-locked");
+    const firstView = initial.views[0];
+    if (firstView === undefined) throw new Error("Missing initial view");
+    const secondViewId = generateUuidV7();
+    const added = await submit({
+      type: "database.presentation.replace",
+      containerItemId: first.id,
+      baseRevisionId: firstRevision,
+      presentation: {
+        ...initial,
+        views: [
+          ...initial.views,
+          { ...firstView, id: secondViewId, name: "Autre vue", positionKey: "b" },
+        ],
+      },
+    });
+    expect(added.result.status).toBe("accepted");
+    const redirected = await submit({
+      type: "database.presentation.replace",
+      containerItemId: first.id,
+      baseRevisionId: added.result.revisionIds?.[0] as Uuid,
+      presentation: {
+        ...initial,
+        views: [
+          { ...firstView, sourceId: secondSource.sourceId },
+          {
+            ...firstView,
+            id: secondViewId,
+            name: "Autre vue",
+            positionKey: "b",
+            sourceId: secondSource.sourceId,
+          },
+        ],
+      },
+    });
+    expect(redirected.result.status).toBe("accepted");
+    expect(
+      (await readCurrentDatabasePresentation(context.handle.db, first.id))?.views.every(
+        (view) => view.sourceId === secondSource.sourceId,
+      ),
+    ).toBe(true);
+    expect((await readCurrentDatabaseSource(context.handle.db, first.id))?.sourceId).toBe(
+      firstSource.sourceId,
+    );
   });
 
   it("creates one canonical entry membership and stable property relations", async () => {
@@ -235,7 +321,7 @@ describe("database capability and entries (T019)", () => {
           databaseId: first.id,
           id: entryId,
           title: "Unique",
-          placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
+          placement: { id: generateUuidV7(), parentItemId: first.id, positionKey: "a" },
           values: {},
           relationTargets: {},
         })
@@ -246,7 +332,7 @@ describe("database capability and entries (T019)", () => {
       databaseId: second.id,
       id: entryId,
       title: "Duplicated",
-      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "b" },
+      placement: { id: generateUuidV7(), parentItemId: second.id, positionKey: "b" },
       values: {},
       relationTargets: {},
     });
@@ -257,7 +343,7 @@ describe("database capability and entries (T019)", () => {
     });
   });
 
-  it("keeps entries as pages while allowing the former database host to become an ordinary folder", async () => {
+  it("keeps the owner a database while allowing an entry page to become a folder", async () => {
     const create = databaseCreate();
     await submit(create);
     const entryId = generateUuidV7();
@@ -279,7 +365,7 @@ describe("database capability and entries (T019)", () => {
           confirmedDestruction: true,
         })
       ).result.status,
-    ).toBe("accepted");
+    ).toBe("rejected");
     expect(await readCurrentDatabaseDefinition(context.handle.db, create.id)).not.toBeNull();
     for (const itemId of [entryId]) {
       const result = await submit({
@@ -288,9 +374,151 @@ describe("database capability and entries (T019)", () => {
         targetKind: "folder",
         confirmedDestruction: true,
       });
-      expect(result.result.status).toBe("rejected");
-      expect(result.result.problem?.code).toBe("database.page-required");
+      expect(result.result.status).toBe("accepted");
+      const [entryItem] = await context.handle.db
+        .select({ kind: schema.items.kind })
+        .from(schema.items)
+        .where(eq(schema.items.id, itemId));
+      expect(entryItem?.kind).toBe("folder");
     }
+  });
+
+  it("uses direct placement for active membership and restores values after moving back", async () => {
+    const owner = databaseCreate();
+    const created = await submit(owner);
+    const textPropertyId = generateUuidV7();
+    const relationPropertyId = generateUuidV7();
+    await submit({
+      type: "database.definition.replace",
+      databaseId: owner.id,
+      baseRevisionId: created.result.revisionIds?.[0] as Uuid,
+      definition: expandedDefinition(owner, relationPropertyId, textPropertyId),
+    });
+    const entryId = generateUuidV7();
+    const placementId = generateUuidV7();
+    const values = { [textPropertyId]: { kind: "text" as const, value: "retained" } };
+    expect(
+      (
+        await submit({
+          type: "database.entry.create",
+          databaseId: owner.id,
+          id: entryId,
+          title: "Moving entry",
+          placement: { id: placementId, parentItemId: owner.id, positionKey: "a" },
+          values,
+          relationTargets: {},
+        })
+      ).result.status,
+    ).toBe("accepted");
+    expect(
+      (await listDatabaseProjectionEntries(context.handle.db, owner.id)).map((row) => row.entryId),
+    ).toContain(entryId);
+
+    expect(
+      (
+        await submit({
+          type: "placement.move",
+          placementId,
+          parentItemId: null,
+          positionKey: "b",
+        })
+      ).result.status,
+    ).toBe("accepted");
+    expect(await listDatabaseProjectionEntries(context.handle.db, owner.id)).toHaveLength(0);
+    expect(
+      (await readCurrentDatabaseEntryValues(context.handle.db, entryId, undefined, owner.id))
+        ?.values,
+    ).toEqual(values);
+
+    expect(
+      (
+        await submit({
+          type: "placement.move",
+          placementId,
+          parentItemId: owner.id,
+          positionKey: "c",
+        })
+      ).result.status,
+    ).toBe("accepted");
+    expect(
+      (await listDatabaseProjectionEntries(context.handle.db, owner.id)).map((row) => row.entryId),
+    ).toContain(entryId);
+    expect(
+      (await readCurrentDatabaseEntryValues(context.handle.db, entryId, undefined, owner.id))
+        ?.values,
+    ).toEqual(values);
+  });
+
+  it("starts independent values when an existing entry enters another source", async () => {
+    const first = databaseCreate();
+    const second = databaseCreate();
+    await submit(first);
+    const secondCreated = await submit(second);
+    const secondText = generateUuidV7();
+    const secondRelation = generateUuidV7();
+    expect(
+      (
+        await submit({
+          type: "database.definition.replace",
+          databaseId: second.id,
+          baseRevisionId: secondCreated.result.revisionIds?.[0] as Uuid,
+          definition: expandedDefinition(second, secondRelation, secondText),
+        })
+      ).result.status,
+    ).toBe("accepted");
+    const entryId = generateUuidV7();
+    const placementId = generateUuidV7();
+    expect(
+      (
+        await submit({
+          type: "database.entry.create",
+          databaseId: first.id,
+          id: entryId,
+          title: "Shared page",
+          placement: { id: placementId, parentItemId: first.id, positionKey: "a" },
+          values: {},
+          relationTargets: {},
+        })
+      ).result.status,
+    ).toBe("accepted");
+    expect(
+      (
+        await submit({
+          type: "placement.move",
+          placementId,
+          parentItemId: second.id,
+          positionKey: "b",
+        })
+      ).result.status,
+    ).toBe("accepted");
+    expect(
+      (await listDatabaseProjectionEntries(context.handle.db, second.id))[0]?.valueVersion,
+    ).toBe(0);
+    const [current] = await context.handle.db
+      .select({ revisionId: schema.items.currentRevisionId })
+      .from(schema.items)
+      .where(eq(schema.items.id, entryId));
+    const secondValues = { [secondText]: { kind: "text" as const, value: "second source" } };
+    expect(
+      (
+        await submit({
+          type: "database.entry.values.replace",
+          databaseId: second.id,
+          entryId,
+          baseRevisionId: current?.revisionId as Uuid,
+          values: secondValues,
+          relationTargets: {},
+        })
+      ).result.status,
+    ).toBe("accepted");
+    expect(
+      (await readCurrentDatabaseEntryValues(context.handle.db, entryId, undefined, second.id))
+        ?.values,
+    ).toEqual(secondValues);
+    expect(
+      (await readCurrentDatabaseEntryValues(context.handle.db, entryId, undefined, first.id))
+        ?.values,
+    ).toEqual({});
   });
 
   it("carries structured state through ordinary page revisions", async () => {
@@ -514,7 +742,7 @@ describe("database capability and entries (T019)", () => {
         .select()
         .from(schema.placements)
         .where(eq(schema.placements.id, accepted.placement.id)),
-    ).toHaveLength(0);
+    ).toEqual([expect.objectContaining({ parentItemId: activeHost })]);
     expect(
       (await readCurrentDatabaseDefinition(context.handle.db, accepted.id))?.embeddings,
     ).toEqual([
@@ -526,7 +754,7 @@ describe("database capability and entries (T019)", () => {
     ]);
 
     const rejectedCases = [
-      { label: "missing host", hostPageId: generateUuidV7(), code: "item.not-active" },
+      { label: "missing host", hostPageId: generateUuidV7(), code: "containment.parent-not-found" },
       { label: "folder host", hostPageId: folderId, code: "item.not-active" },
       { label: "trashed host", hostPageId: trashedHost, code: "item.not-active" },
     ] as const;
@@ -627,7 +855,7 @@ describe("database capability and entries (T019)", () => {
         .select()
         .from(schema.placements)
         .where(eq(schema.placements.itemId, withoutPlacement)),
-    ).toHaveLength(0);
+    ).toEqual([expect.objectContaining({ parentItemId: create.id })]);
 
     const selfParent = generateUuidV7();
     const selfParentPlacement = { id: generateUuidV7(), parentItemId: create.id, positionKey: "b" };
@@ -646,7 +874,7 @@ describe("database capability and entries (T019)", () => {
         .select({ parentItemId: schema.placements.parentItemId })
         .from(schema.placements)
         .where(eq(schema.placements.id, selfParentPlacement.id)),
-    ).toEqual([{ parentItemId: null }]);
+    ).toEqual([{ parentItemId: create.id }]);
 
     const rejectedCases = [
       {
@@ -655,7 +883,7 @@ describe("database capability and entries (T019)", () => {
         placement: { id: generateUuidV7(), parentItemId: generateUuidV7(), positionKey: "c" },
         values: {},
         relationTargets: {},
-        code: "containment.parent-not-found",
+        code: "validation.invalid-payload",
       },
       {
         label: "title in structured values",

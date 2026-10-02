@@ -93,6 +93,31 @@ describe("structured local durability and coverage (T070)", () => {
     const databaseId = generateUuidV7();
     const entryId = generateUuidV7();
     await seedHost(db, databaseId);
+    await db.items.put(
+      await codec.sealItem({
+        id: entryId,
+        kind: "page",
+        name: "Private entry",
+        icon: null,
+        lifecycle: "active",
+        currentRevisionId: generateUuidV7(),
+        trashedAt: null,
+        purgeAfter: null,
+        favourite: false,
+        offlineIntent: false,
+        localAvailability: "present",
+        pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
+        file: null,
+      }),
+    );
+    await db.placements.add({
+      id: generateUuidV7(),
+      itemId: entryId,
+      kind: "hierarchy",
+      parentItemId: databaseId,
+      parentKey: databaseId,
+      positionKey: "a",
+    });
     let repository = new LocalDatabaseRepository(db, codec);
     await repository.putDatabase({
       itemId: databaseId,
@@ -125,7 +150,7 @@ describe("structured local durability and coverage (T070)", () => {
     expect(await repository.offloadEntryValues(entryId)).toBe(false);
     await repository.setOfflineIntent(databaseId, false);
     expect(await repository.offloadEntryValues(entryId)).toBe(true);
-    expect(await db.databaseEntries.get(entryId)).toMatchObject({
+    expect(await db.databaseEntryPairs.get(`${databaseId}:${entryId}`)).toMatchObject({
       availability: "offloaded",
       sealedValues: null,
     });
@@ -188,7 +213,9 @@ describe("structured local durability and coverage (T070)", () => {
     );
 
     expect(await repository.offloadEntryValues(entryId)).toBe(false);
-    expect((await db.databaseEntries.get(entryId))?.sealedValues).not.toBeNull();
+    expect(
+      (await db.databaseEntryPairs.get(`${databaseId}:${entryId}`))?.sealedValues,
+    ).not.toBeNull();
     db.close();
   });
 
@@ -345,7 +372,9 @@ describe("structured local durability and coverage (T070)", () => {
 
     expect(await repository.offloadEntryValues(generateUuidV7())).toBe(false);
     expect(await repository.offloadEntryValues(entryId)).toBe(false);
-    expect((await db.databaseEntries.get(entryId))?.sealedValues).not.toBeNull();
+    expect(
+      (await db.databaseEntryPairs.get(`${databaseId}:${entryId}`))?.sealedValues,
+    ).not.toBeNull();
     db.close();
   });
 });

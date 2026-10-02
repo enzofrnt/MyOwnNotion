@@ -245,6 +245,13 @@ function typeCommand(before: EditorBlock, after: EditorBlock): PageCommand | nul
         blockType: "callout",
         properties: { icon: next.icon, tone: next.tone },
       };
+    case "databaseView":
+      return {
+        type: "set-block-type",
+        blockId: after.id as Uuid,
+        blockType: "databaseView",
+        properties: { containerItemId: next.containerItemId, viewId: next.viewId },
+      };
     case "table":
     case "image":
     case "fileEmbed":
@@ -349,6 +356,18 @@ function propertyCommands(before: EditorBlock, after: EditorBlock): PageCommand[
   }
   if (oldBlock.type === "embed" && newBlock.type === "embed") {
     for (const key of ["provider", "sourceUrl", "caption"] as const) {
+      if (oldBlock[key] !== newBlock[key]) {
+        commands.push({
+          type: "set-block-property",
+          blockId: after.id as Uuid,
+          key,
+          value: newBlock[key],
+        });
+      }
+    }
+  }
+  if (oldBlock.type === "databaseView" && newBlock.type === "databaseView") {
+    for (const key of ["containerItemId", "viewId"] as const) {
       if (oldBlock[key] !== newBlock[key]) {
         commands.push({
           type: "set-block-property",
@@ -656,10 +675,11 @@ export function commandsFromBlockNoteChanges(input: {
     // slash menu can expose `/div` and its final type change in one coalesced
     // browser batch, so remove the query before changing the block type.
     // Other text-capable transforms keep their type-first ordering.
-    const clearsTextForDivider =
-      changedType?.type === "set-block-type" && changedType.blockType === "divider";
+    const clearsTextForNonTextBlock =
+      changedType?.type === "set-block-type" &&
+      (changedType.blockType === "divider" || changedType.blockType === "databaseView");
     commands.push(...markPhases.beforeText);
-    if (clearsTextForDivider && replacement !== null) {
+    if (clearsTextForNonTextBlock && replacement !== null) {
       commands.push({
         type: "replace-text",
         blockId: change.block.id,
@@ -667,7 +687,7 @@ export function commandsFromBlockNoteChanges(input: {
       });
     }
     if (changedType !== null) commands.push(changedType);
-    if (!clearsTextForDivider && replacement !== null) {
+    if (!clearsTextForNonTextBlock && replacement !== null) {
       commands.push({
         type: "replace-text",
         blockId: change.block.id,

@@ -1,6 +1,12 @@
-import { type DatabaseDefinition, generateUuidV7, type Uuid } from "@myownnotion/domain";
+import {
+  type DatabaseDefinition,
+  generateUuidV7,
+  type Uuid,
+  validateCanonicalExport,
+} from "@myownnotion/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DatabaseProjectionUnavailableError } from "../src/databases/database-query-service.ts";
+import { buildManifest } from "../src/routes/export.ts";
 import {
   type ApiHarness,
   createApiHarness,
@@ -86,6 +92,69 @@ function withTextAndRelation(
 }
 
 describe("owner database contract (T020)", () => {
+  it("creates a linked view item without creating a second source", async () => {
+    const source = await createDatabase();
+    const read = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/databases/${source.databaseId}`,
+    });
+    const sourceId = (read.json() as { sourceId: Uuid }).sourceId;
+    const linkedId = generateUuidV7();
+    const created = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/database-views",
+      headers: idempotencyHeaders(),
+      payload: {
+        id: linkedId,
+        name: "Vue des projets",
+        sourceId,
+        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "b" },
+        initialViewId: generateUuidV7(),
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${linkedId}` });
+    expect(item.json()).toMatchObject({ kind: "database_view", name: "Vue des projets" });
+    const sources = await harness.built.app.inject({ method: "GET", url: "/v1/databases" });
+    expect(
+      (sources.json() as { databaseId: Uuid }[]).some(
+        (candidate) => candidate.databaseId === linkedId,
+      ),
+    ).toBe(false);
+    const snapshot = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/snapshots/current",
+    });
+    expect(snapshot.statusCode, snapshot.body).toBe(200);
+    const linkedProjection = (
+      snapshot.json() as {
+        databases: Array<{
+          itemId: Uuid;
+          sourceId?: Uuid;
+          presentation?: { views: Array<{ sourceId: Uuid }> };
+        }>;
+      }
+    ).databases.find((candidate) => candidate.itemId === linkedId);
+    expect(linkedProjection?.sourceId).toBeUndefined();
+    expect(linkedProjection?.presentation?.views[0]?.sourceId).toBe(sourceId);
+    const changes = await harness.built.app.inject({ method: "GET", url: "/v1/changes?after=" });
+    expect(changes.statusCode, changes.body).toBe(200);
+    const linkedChange = (
+      changes.json() as { changes: Array<{ databases?: Array<{ itemId: Uuid }> }> }
+    ).changes
+      .flatMap((change) => change.databases ?? [])
+      .find((candidate) => candidate.itemId === linkedId);
+    expect(linkedChange).toBeDefined();
+    const manifest = await buildManifest(harness.built.context);
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+    expect(
+      manifest.databases.find((candidate) => candidate.databaseId === source.databaseId)?.sourceId,
+    ).toBe(sourceId);
+    expect(
+      manifest.databasePresentations?.find((candidate) => candidate.containerItemId === linkedId)
+        ?.presentation.views[0]?.sourceId,
+    ).toBe(sourceId);
+  });
   it("creates and reads a page-backed database with its opened definition", async () => {
     const created = await createDatabase();
     expect(created.body.database).toMatchObject({
@@ -226,7 +295,7 @@ describe("owner database contract (T020)", () => {
     });
   });
 
-  it("does not announce source entries as casualties of deleting its old host", async () => {
+  it("previews direct entries before deleting their source owner", async () => {
     const created = await createDatabase();
     for (let index = 0; index < 2; index += 1) {
       const response = await harness.built.app.inject({
@@ -238,7 +307,7 @@ describe("owner database contract (T020)", () => {
           title: `Entry ${index + 1}`,
           placement: {
             id: generateUuidV7(),
-            parentItemId: null,
+            parentItemId: created.databaseId,
             positionKey: `m${index}`,
           },
           values: {},
@@ -253,7 +322,7 @@ describe("owner database contract (T020)", () => {
       url: `/v1/items/${created.databaseId}/trash-impact`,
     });
     expect(impact.statusCode, impact.body).toBe(200);
-    expect(impact.json()).toEqual({ isDatabase: false, activeEntryCount: 0 });
+    expect(impact.json()).toEqual({ isDatabase: true, activeEntryCount: 2 });
   });
 
   it("returns safe problems without reflecting private values", async () => {

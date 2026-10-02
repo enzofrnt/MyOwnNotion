@@ -4,6 +4,14 @@
 **Created**: 2026-09-05
 **Status**: Implémentée et vérifiée localement/PR ; finalisation de la CI main en attente
 
+**Évolution 029 (2026-09-27)** : la [nouvelle spécification](../029-database-pages-views/spec.md)
+remplace les règles de source indépendante, d'emplacements à plusieurs vues,
+de conservation d'une source après purge de tous ses hôtes, de migration sans
+rupture et d'entrées sans placement décrites ci-dessous. Les scénarios et
+critères historiques restent la trace de la livraison 026 ; les garanties de
+partage des données entre vues, de chiffrement et de disponibilité locale
+restent applicables sous le nouveau modèle.
+
 **Input**: Une base indépendante peut être affichée dans plusieurs pages normales, avec des vues configurables table, Kanban et calendrier. Les entrées restent des pages canoniques.
 
 ## Product Direction, Dependencies, and Scope

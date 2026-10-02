@@ -264,9 +264,9 @@ describe("saved database views (T041)", () => {
         }),
       ),
     );
-    expect(markup).toContain("Base disponible · 1 entrée");
     expect(markup).toContain("database-list");
     expect(markup).toContain("Alpha");
     expect(markup).toContain("Status");
+    expect(markup).toContain('option-pill__label">To do');
   });
 });

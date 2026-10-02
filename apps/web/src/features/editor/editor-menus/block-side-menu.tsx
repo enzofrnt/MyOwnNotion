@@ -11,6 +11,7 @@ import {
 } from "@blocknote/react";
 import { memo, useCallback, useMemo } from "react";
 import { AppIcon } from "../../../ui/icons.tsx";
+import { beginSideMenuBlockReorder, endSideMenuBlockReorder } from "../block-drag-reorder.ts";
 import {
   deleteSelectedBlocks,
   duplicateSelectedBlocks,
@@ -153,6 +154,7 @@ function MyOwnNotionDragHandleButton({
 }) {
   const components = useComponentsContext();
   const dictionary = useDictionary();
+  const editor = useBlockNoteEditor() as unknown as EditorInstance;
   const sideMenu = useExtension(SideMenuExtension);
   if (components === undefined) return null;
 
@@ -168,10 +170,14 @@ function MyOwnNotionDragHandleButton({
         <components.SideMenu.Button
           label={dictionary.side_menu.drag_handle_label}
           draggable={true}
-          onDragStart={(event) =>
-            sideMenu.blockDragStart(event, block as Parameters<typeof sideMenu.blockDragStart>[1])
-          }
-          onDragEnd={() => sideMenu.blockDragEnd()}
+          onDragStart={(event) => {
+            sideMenu.blockDragStart(event, block as Parameters<typeof sideMenu.blockDragStart>[1]);
+            beginSideMenuBlockReorder(editor, block.id);
+          }}
+          onDragEnd={() => {
+            endSideMenuBlockReorder();
+            sideMenu.blockDragEnd();
+          }}
           className="bn-button"
           icon={<AppIcon name="drag" size="large" data-test="dragHandle" />}
         />

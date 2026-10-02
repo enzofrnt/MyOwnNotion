@@ -65,7 +65,7 @@ beforeAll(async () => {
       titlePropertyId: generateUuidV7(),
       initialViewId: viewId,
       initialViewName: "Table",
-      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a0" },
+      placement: { id: generateUuidV7(), parentItemId: host.itemId, positionKey: "a0" },
     },
   });
   expect(source.statusCode, source.body).toBe(201);
@@ -81,7 +81,7 @@ beforeAll(async () => {
           id,
           databaseId,
           title: `Private entry ${index}`,
-          placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a0" },
+          placement: { id: generateUuidV7(), parentItemId: databaseId, positionKey: "a0" },
           values: {},
           relationTargets: {},
         },

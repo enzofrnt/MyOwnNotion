@@ -519,17 +519,15 @@ export async function openRootCreation(page: Page): Promise<void> {
 }
 
 export async function openRootDatabaseCreation(page: Page): Promise<void> {
-  await ensureNavigationVisible(page);
-  // The database control is a visually-hidden test hook. A pointer click lands
-  // on the Notes heading that covers its 1×1 box, and opening the adjacent
-  // create envelope first treats that click as outside the envelope. Activate
-  // the node directly; owners reach the same form through the product UI.
-  await page.getByTestId("new-root-database").evaluate((element) => {
-    if (!(element instanceof HTMLButtonElement)) {
-      throw new Error("new-root-database is not a button");
-    }
-    element.click();
-  });
+  await openRootCreation(page);
+  await page.getByTestId("new-database-inline-Notes").click();
+}
+
+/** A root database opens untitled, like a page. The name is typed on its page. */
+export async function createRootDatabase(page: Page, name: string): Promise<void> {
+  await openRootDatabaseCreation(page);
+  await nameNewlyCreatedItem(page, name);
+  await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached({ timeout: 15_000 });
 }
 
 export async function clickEditorInsertBlock(page: Page): Promise<void> {
@@ -546,7 +544,7 @@ export async function clickEditorInsertBlock(page: Page): Promise<void> {
   });
 }
 
-async function nameNewlyCreatedItem(page: Page, name: string): Promise<void> {
+export async function nameNewlyCreatedItem(page: Page, name: string): Promise<void> {
   const title = page.getByTestId("active-item-title");
   await expect(title).toBeVisible({ timeout: 15_000 });
   await expect(title).toBeFocused({ timeout: 15_000 });
@@ -832,22 +830,27 @@ export async function selectItem(page: Page, name: string): Promise<void> {
   });
 }
 
-/** Creates one database entry and waits for the form handler to finish. */
-export async function createDatabaseEntry(page: Page, title: string): Promise<Locator> {
+/** Creates one database entry from the page or folder button, then names the new row. */
+export async function createDatabaseEntry(
+  page: Page,
+  title: string,
+  kind: "page" | "folder" = "page",
+): Promise<Locator> {
   const form = page.locator(".database-entry-create");
-  const input = form.getByLabel("Nouvelle entrée");
-  const submit = form.getByRole("button", { name: "Nouvelle entrée" });
-  await expect(input).toBeEnabled({ timeout: 15_000 });
-  await input.fill(title);
-  await expect(input).toHaveValue(title);
-  await submit.click();
+  const button = form.getByRole("button", { name: kind === "folder" ? "Nouveau dossier" : "Nouvelle page" });
+  await expect(button).toBeEnabled({ timeout: 15_000 });
+  await button.click();
+  const editor = page.locator(".database-cell-title-input");
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.fill(title);
+  await editor.press("Enter");
 
-  // The exact row is the local mutation acknowledgement. Waiting for the
-  // form to unlock as well proves that the async handler from this creation
-  // can no longer clear or disable the next user's input.
+  // The renamed row is the local mutation acknowledgement. Waiting for the
+  // button to unlock as well proves that this creation can no longer block
+  // the next one.
   const trigger = page.locator("[data-entry-trigger]").filter({ hasText: title }).first();
   await expect(trigger).toBeVisible({ timeout: 15_000 });
-  await expect(input).toBeEnabled({ timeout: 15_000 });
+  await expect(button).toBeEnabled({ timeout: 15_000 });
   return trigger;
 }
 

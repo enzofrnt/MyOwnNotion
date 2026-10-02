@@ -2,13 +2,16 @@ import { type DomainResult, err, normalizeDisplayName, ok } from "../content/typ
 import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type {
   DatabaseDefinition,
+  DatabasePresentationDefinition,
   DatabaseProperty,
+  DatabaseSourceDefinition,
   DatabaseView,
   DefinitionImpact,
   DefinitionImpactReason,
   EntryValues,
   NonRelationPropertyValue,
   PropertyOption,
+  SourcedDatabaseView,
   TaskDueDateValue,
   TaskRoleMapping,
   TaskSemanticField,
@@ -108,7 +111,16 @@ function normalizeView(view: DatabaseView): DatabaseView | null {
   ) {
     return null;
   }
-  return { ...view, name: name.value };
+  const icon = view.icon;
+  const normalizedIcon =
+    icon === undefined || icon === null
+      ? icon
+      : typeof icon === "string" && /^[a-z0-9-]{1,40}$/.test(icon)
+        ? icon
+        : null;
+  return normalizedIcon === undefined
+    ? { ...view, name: name.value }
+    : { ...view, name: name.value, icon: normalizedIcon };
 }
 
 function propertyById(
@@ -212,6 +224,99 @@ export function validateDatabaseDefinition(
               .filter((view: DatabaseView | null): view is DatabaseView => view !== null),
           })),
         }),
+  });
+}
+
+/** Validates a source independently of any view that happens to display it. */
+export function validateDatabaseSource(
+  source: DatabaseSourceDefinition,
+): DomainResult<DatabaseSourceDefinition> {
+  const invalidFields: string[] = [];
+  if (source.format !== "myownnotion.database-source+json" || source.formatVersion !== 1) {
+    invalidFields.push("format");
+  }
+  if (!isUuid(source.sourceId)) invalidFields.push("sourceId");
+  if (!isUuid(source.ownerItemId) || source.ownerItemId === source.sourceId) {
+    invalidFields.push("ownerItemId");
+  }
+  const name = normalizeDisplayName(source.name);
+  if (!name.ok) invalidFields.push("name");
+  if (duplicateIds(source.properties.map((property) => property.id)))
+    invalidFields.push("properties");
+  const properties = source.properties.map(normalizeProperty);
+  if (properties.some((property) => property === null)) invalidFields.push("properties");
+  const normalizedProperties = properties.filter(
+    (property): property is DatabaseProperty => property !== null,
+  );
+  if (
+    normalizedProperties.filter(
+      (property) => property.type === "title" && property.state === "active",
+    ).length !== 1
+  ) {
+    invalidFields.push("properties.title");
+  }
+  if (!validTaskRoles(source.taskRoles, normalizedProperties)) invalidFields.push("taskRoles");
+  if (invalidFields.length > 0) {
+    return err("validation.invalid-payload", "Database source is invalid", {
+      invalidFields: [...new Set(invalidFields)].map((field) => ({ field, code: "invalid" })),
+    });
+  }
+  return ok({
+    ...source,
+    name: name.ok ? name.value : source.name,
+    properties: normalizedProperties,
+  });
+}
+
+/** Validates the views hosted by one hierarchy item, without owning their sources. */
+export function validateDatabasePresentation(
+  presentation: DatabasePresentationDefinition,
+  containerKind: "database" | "database_view",
+): DomainResult<DatabasePresentationDefinition> {
+  const invalidFields: string[] = [];
+  if (
+    presentation.format !== "myownnotion.database-presentation+json" ||
+    presentation.formatVersion !== 1
+  ) {
+    invalidFields.push("format");
+  }
+  if (!isUuid(presentation.containerItemId)) invalidFields.push("containerItemId");
+  if (duplicateIds(presentation.views.map((view) => view.id))) invalidFields.push("views");
+  void containerKind;
+  const views: SourcedDatabaseView[] = [];
+  for (const view of presentation.views) {
+    if (!isUuid(view.sourceId)) invalidFields.push("views.sourceId");
+    const normalized = normalizeView(view);
+    if (normalized === null) invalidFields.push("views");
+    else views.push({ ...normalized, sourceId: view.sourceId });
+  }
+  if (invalidFields.length > 0) {
+    return err("validation.invalid-payload", "Database presentation is invalid", {
+      invalidFields: [...new Set(invalidFields)].map((field) => ({ field, code: "invalid" })),
+    });
+  }
+  return ok({ ...presentation, views });
+}
+
+/** A lone view on an owner cannot abandon the owner's source. */
+export function changeDatabaseViewSource(
+  presentation: DatabasePresentationDefinition,
+  containerKind: "database" | "database_view",
+  viewId: Uuid,
+  sourceId: Uuid,
+): DomainResult<DatabasePresentationDefinition> {
+  const validated = validateDatabasePresentation(presentation, containerKind);
+  if (!validated.ok) return validated;
+  if (!isUuid(sourceId)) return err("validation.invalid-identifier", "Source id must be a UUID");
+  if (!validated.value.views.some((view) => view.id === viewId && view.state === "active")) {
+    return err("database.invalid-view", "View does not exist");
+  }
+  if (containerKind === "database" && validated.value.views.length === 1) {
+    return err("database.view-source-locked", "Add another view before changing its source");
+  }
+  return ok({
+    ...validated.value,
+    views: validated.value.views.map((view) => (view.id === viewId ? { ...view, sourceId } : view)),
   });
 }
 

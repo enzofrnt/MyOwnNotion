@@ -187,7 +187,13 @@ export class Outbox {
         let retry = false;
         await this.#db.transaction(
           "rw",
-          [this.#db.items, this.#db.databases, this.#db.outbox, this.#db.revisionHeaders],
+          [
+            this.#db.items,
+            this.#db.databases,
+            this.#db.databaseSources,
+            this.#db.outbox,
+            this.#db.revisionHeaders,
+          ],
           async () => {
             const current = await this.#db.outbox.toArray();
             const currentFingerprint = JSON.stringify(
@@ -208,6 +214,24 @@ export class Outbox {
                     : revisions.get(source.definitionRevisionId);
                 if (canonicalRevisionId !== undefined)
                   await this.#db.databases.update(source.itemId, {
+                    definitionRevisionId: canonicalRevisionId,
+                  });
+                const canonicalPresentationRevisionId =
+                  source.presentationRevisionId === undefined
+                    ? undefined
+                    : revisions.get(source.presentationRevisionId);
+                if (canonicalPresentationRevisionId !== undefined)
+                  await this.#db.databases.update(source.itemId, {
+                    presentationRevisionId: canonicalPresentationRevisionId,
+                  });
+              }
+              for (const source of await this.#db.databaseSources.toArray()) {
+                const canonicalRevisionId =
+                  source.definitionRevisionId === undefined
+                    ? undefined
+                    : revisions.get(source.definitionRevisionId);
+                if (canonicalRevisionId !== undefined && source.sourceId !== undefined)
+                  await this.#db.databaseSources.update(source.sourceId, {
                     definitionRevisionId: canonicalRevisionId,
                   });
               }

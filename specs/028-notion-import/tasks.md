@@ -1,5 +1,10 @@
 # Tasks: Notion import
 
+> Evolution 029: checked tasks record the historical 028 delivery. The
+> [database redesign](../029-database-pages-views/spec.md) requires a new
+> compatibility task for import preview/apply under owner database pages and
+> direct hierarchical entries before V1; it will be tracked in 029 tasks.
+
 ## Phase1 — Specify, plan and analyze
 
 - [x] T001 Specify scope, accepted source formats and preview/apply restrictions.
