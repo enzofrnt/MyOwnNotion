@@ -1018,7 +1018,9 @@
 .database-container-page .database-page .database-view-status,
 .editor-database-view-block .database-page .database-view-status {
   grid-column: 1 / -1;
-  grid-row: 3;
+  /* A projection refresh can finish between pointerdown and click. Keep its
+     transient status after the view so it cannot move a column action. */
+  grid-row: 7;
   min-height: 0;
   margin: 0;
 }

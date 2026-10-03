@@ -39,9 +39,29 @@ for (const cancel of [false, true]) {
     // Classification is known at creation. A page-editor placeholder above the
     // database would move this action after the owner has already pressed it.
     await expect(page.getByTestId("editor-loading-skeleton")).not.toBeVisible();
-    await page.getByRole("button", { name: "Ajouter une propriété" }).click();
+    const addProperty = page.getByRole("button", { name: "Ajouter une propriété" });
+    const stopObserving = await addProperty.evaluateHandle((button) => {
+      const positions = [button.getBoundingClientRect().top];
+      let connected = true;
+      const sample = () => {
+        connected &&= button.isConnected;
+        if (button.isConnected) positions.push(button.getBoundingClientRect().top);
+      };
+      const observer = new MutationObserver(sample);
+      observer.observe(document.body, { subtree: true, childList: true, attributes: true });
+      return () => {
+        sample();
+        observer.disconnect();
+        return { connected, displacement: Math.max(...positions) - Math.min(...positions) };
+      };
+    });
+    await addProperty.click();
     const form = page.getByRole("form", { name: "Éditeur de propriété" });
     await form.getByLabel("Nom").fill("Notes");
+    const stability = await stopObserving.evaluate((stop) => stop());
+    await stopObserving.dispose();
+    expect(stability.connected).toBe(true);
+    expect(stability.displacement).toBeLessThanOrEqual(1);
     const save = form.getByRole("button", { name: "Enregistrer la propriété" });
     await save.scrollIntoViewIfNeeded();
     const before = await save.boundingBox();

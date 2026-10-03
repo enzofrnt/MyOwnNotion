@@ -115,3 +115,5 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 
 - [ ] T051 Corriger les derniers écarts mobiles révélés par la matrice : contraste du bouton destructif au survol en clair et fermeture du panneau avant création dans le parcours de confidentialité. Appliquer ui-quality + lessons, conserver audit d'accessibilité et capture réelle, sans affaiblir les assertions de chiffrement.
 - [ ] T052 Rétablir les contrôles de sécurité avant publication : versions corrigées des dépendances signalées par l'audit, lecture des liens Git comme chemins suivis sans lire leur cible non suivie ; tests de lecture et scan de l'image candidate avec la version Trivy de la CI. Conserver seuils et règles des scans.
+
+- [ ] T053 Stabiliser l'action d'ajout de propriété pendant l'actualisation d'une nouvelle base : placer le statut temporaire après la vue, observer connexion et position du bouton pendant le clic réel, conserver activation/annulation et répéter les deux parcours sur Firefox Linux et Chromium. Appliquer ui-quality + lessons, sans attendre la fin de synchronisation pour rendre l'action utilisable.

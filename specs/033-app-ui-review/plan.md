@@ -84,6 +84,15 @@ dans leurs majeures existantes, avec des overrides limités aux majeures affect�
 Les règles, budgets et seuils de sécurité restent inchangés. Le scan d'image
 utilise Trivy 0.70.0, défaut de l'action CI épinglée, et sa base du jour.
 
+T053 traite l'ouverture intermittente du formulaire pendant la création d'une
+base. Le statut d'actualisation placé avant le tableau pouvait déplacer une
+action entre appui et relâchement. Il suit désormais la vue et la pagination ;
+la présentation au repos reste identique. Le parcours réel observe la connexion
+du bouton et son déplacement durant le clic, puis conserve les garanties du
+formulaire (appui, annulation et activation clavier). Rejeux répétés sur Firefox
+Linux et Chromium, selon ui-quality et lessons, sans attente artificielle de
+synchronisation ni clic forcé.
+
 Sauvegarde demandée : commit 3ac40b2e. Le report des E2E est levé. Remettre les
 tests en cohérence avec FR-009/012/017–021 et les améliorations du propriétaire
 (configuration directe et catalogue de symboles partagé), sans restaurer les

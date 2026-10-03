@@ -826,3 +826,32 @@ audits du dialogue ouvert et réellement survolé. La capture inspectée
 conserve fond neutre, texte/contour rouges et commandes lisibles. Le rouge de
 base et la palette des propriétés sont inchangés. Ces résultats ciblés
 confirment les corrections ; ils ne remplacent pas le contrôle complet requis.
+
+### Contrôle complet — troisième tentative
+
+Commit `8a9b2722` : 481 fichiers et 5 069 tests de couverture réussis (deux cas
+réservés à Windows), neuf budgets de performance, 375 tests d'intégration,
+13 tests de migration et 1 864 tests de contrat réussis. Chromium bureau
+termine correctement. Firefox révèle un échec intermittent à l'ouverture du
+formulaire de propriété ; sa relance réussit mais `--fail-on-flaky-tests` reste
+bloquant. La tentative est interrompue pendant Firefox/WebKit bureau ; les
+profils mobiles et les gates suivantes ne sont pas validés par cette tentative.
+
+La trace est reconstruite avec ses références de nœuds : le tableau et son
+bouton restent présents. Le statut transitoire d'actualisation était toutefois
+placé avant les actions. T053 le déplace après la vue et ajoute une observation
+de connexion/position pendant le clic réel, tout en conservant le scénario
+qui agit avant la fin de création/synchronisation.
+
+Le scan indépendant de l'image API exacte `8a9b2722` avec Trivy 0.70.0 et sa
+base du 3 octobre réussit au seuil CI (HIGH/CRITICAL corrigibles, secrets).
+Le rapport complet conserve aussi les alertes sans correctif ; il ne constitue
+pas une déclaration d'absence de toute vulnérabilité. Les huit tests unitaires
+d'interaction des propriétés passent après T053.
+
+Rejeu ciblé `e2e-property-stability-13.log` : 40 parcours Chromium bureau et
+40 parcours Firefox Linux réussissent, sans relance autorisée (`--retries=0`).
+L'observation du clic vérifie le même bouton connecté et un déplacement d'au
+plus un pixel ; les deux variantes conservent validation et annulation du
+formulaire. Les captures de la trace au repos gardent la présentation compacte
+du tableau. Ce résultat ne remplace pas la prochaine matrice complète.
