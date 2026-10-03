@@ -561,6 +561,20 @@
       }
     },
     {
+      "test": "tests/e2e/editor-suggestion-menu.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/global.css", "apps/web/src/main.tsx"],
+        "prefixes": [
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/workspace/",
+          "apps/web/src/ui/",
+          "packages/domain/src/document/",
+          "packages/page-state/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/file-preview.spec.ts",
       "owners": {
         "exact": [],
