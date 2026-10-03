@@ -9,6 +9,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
+  addDatabaseProperty,
   createDatabaseEntry,
   createRootDatabase,
   ensureNavigationVisible,
@@ -16,7 +17,6 @@ import {
   openWorkspace,
   openWorkspaceDiagnostics,
   returnToWorkspace,
-  waitForDatabaseDefinitionSaved,
   waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -77,13 +77,7 @@ async function createStructuredContent(page: Page): Promise<string> {
   const databaseId = await databaseRow.getAttribute("data-item-id");
   expect(databaseId).not.toBeNull();
 
-  await page.getByRole("button", { name: "Ajouter une propriété" }).click();
-  const propertyEditor = page.getByRole("form", { name: "Éditeur de propriété" });
-  await propertyEditor.getByLabel("Nom").fill(SENTINELS.property);
-  await propertyEditor.getByLabel("Type").selectOption("text");
-  await propertyEditor.getByRole("button", { name: "Enregistrer la propriété" }).click();
-  await expect(propertyEditor).toBeHidden({ timeout: 15_000 });
-  await waitForDatabaseDefinitionSaved(page);
+  await addDatabaseProperty(page, SENTINELS.property, "text");
 
   await createDatabaseEntry(page, SENTINELS.entry);
   const entry = entryTrigger(page, SENTINELS.entry).first();

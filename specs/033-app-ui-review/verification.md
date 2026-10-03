@@ -794,3 +794,35 @@ qui compte encore les adhésions dans `databaseEntries`, remplacée par
 `databaseEntryPairs`. Le benchmark est adapté au stockage canonique actuel,
 vérifie l'ensemble exact des identités survivantes et l'absence de doublon
 historique, à volume et seuil identiques. Cette tentative n'autorise aucun push.
+
+### Contrôle complet — deuxième tentative
+
+Commit `4dbe8a59` : code/types/couverture réussis (480 fichiers, 5 065 tests,
+deux cas réservés à Windows), neuf budgets de performance réussis, 375 tests
+d'intégration, 13 tests de migration et 1 860 tests de contrat réussis.
+Chromium bureau termine avec 299 réussites et 12 exclusions de profils ;
+Firefox Linux termine avec 285 réussites et 26 exclusions explicites.
+
+Chromium mobile révèle deux échecs : contraste rouge sur le fond de survol
+clair du dialogue de conversion et ancien parcours de confidentialité cliquant
+derrière un panneau resté ouvert. La tentative est interrompue après ces
+diagnostics : 205 réussites mobiles, 16 exclusions et 88 cas non exécutés ;
+WebKit bureau est interrompu dans sa troisième tranche, WebKit mobile ne démarre
+pas. Cette tentative ne valide pas la matrice ni les gates suivantes.
+
+Les scans indépendants révèlent 15 alertes hautes de dépendances et une erreur
+de lecture du lien Git `.codex` (pas un secret détecté). La lecture du lien
+porte désormais sur son chemin stocké, sans lire une cible non suivie ; les
+fichiers référencés et suivis restent contrôlés. Quatre tests de contrat passent.
+Les dépendances sont corrigées dans leurs majeures courantes ; `bun ci` réussit
+sur le lock gelé, l'audit ne trouve plus d'alerte haute/critique (cinq alertes
+sous le seuil restent rapportées) et le scan des secrets réussit sans exception
+de chemin ajoutée. Les analyses statique et de licences précédentes réussissent
+également, mais toutes seront rejouées sur le prochain commit exact.
+
+Rejeu ciblé mobile `e2e-mobile-focus-12.log` : deux parcours réussis, dont les
+audits du dialogue ouvert et réellement survolé. La capture inspectée
+[conversion au survol en clair](assets/validation-conversion-hover-light-mobile.png)
+conserve fond neutre, texte/contour rouges et commandes lisibles. Le rouge de
+base et la palette des propriétés sont inchangés. Ces résultats ciblés
+confirment les corrections ; ils ne remplacent pas le contrôle complet requis.

@@ -61,6 +61,29 @@ pertinents, types/lint/build ; aucun test recopiant CSS. Instance HMR conservée
 
 ## Validation automatisée et publication — 2026-10-03
 
+La seconde tentative révèle un contraste insuffisant du texte destructif sur
+le fond neutre de survol clair (T051). La variante `danger-text` claire devient
+`#A94338` : rapports 5,06 sur `surface-hover` et 4,58 sur `surface-active` ;
+l'accent de base et la palette de propriétés ne changent pas. L'audit du dialogue
+inclut son état de survol réel et conserve une capture, selon ui-quality/lessons.
+Le parcours de confidentialité réutilise la création de propriété partagée,
+qui ferme le panneau avant l'action suivante ; aucun contrôle de contenu privé
+n'est retiré.
+
+T052 traite les écarts des gates de sécurité. Les liens symboliques Git sont
+lus comme leur chemin stocké, sans suivre les données non suivies d'une cible ;
+les fichiers `.agents/` restent scannés séparément. Les tests couvrent fichier,
+lien de dossier, cible externe, borne de taille et erreur de lecture. Les
+correctifs minimaux de [Fastify](https://github.com/advisories/GHSA-667r-xxjv-c9mm),
+[Busboy](https://github.com/advisories/GHSA-xjh9-v7x6-24jw),
+[gRPC](https://github.com/advisories/GHSA-m9gg-hp2v-232j),
+[brace-expansion](https://github.com/advisories/GHSA-qhr7-859c-m2p7),
+[fast-uri](https://github.com/advisories/GHSA-qw65-cvwx-89v3) et
+[Undici](https://github.com/advisories/GHSA-w293-vg96-wgc3) sont résolus par Bun
+dans leurs majeures existantes, avec des overrides limités aux majeures affectées.
+Les règles, budgets et seuils de sécurité restent inchangés. Le scan d'image
+utilise Trivy 0.70.0, défaut de l'action CI épinglée, et sa base du jour.
+
 Sauvegarde demandée : commit 3ac40b2e. Le report des E2E est levé. Remettre les
 tests en cohérence avec FR-009/012/017–021 et les améliorations du propriétaire
 (configuration directe et catalogue de symboles partagé), sans restaurer les

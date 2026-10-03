@@ -218,7 +218,9 @@ test.describe("automated accessibility audit", () => {
     ).toEqual([]);
   });
 
-  test("the conversion confirmation has no critical or serious violations", async ({ page }) => {
+  test("the conversion confirmation has no critical or serious violations", async ({
+    page,
+  }, testInfo) => {
     // Audited deliberately: a dialog is not on screen at load, so an audit that
     // only visits pages never sees it — and a destructive confirmation is
     // exactly where an owner using assistive technology must not be stranded.
@@ -234,13 +236,21 @@ test.describe("automated accessibility audit", () => {
     await convertItem(page, name);
     await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
 
-    const found = await violations(page);
-    expect(
-      found.map(
-        (violation) =>
-          `${violation.id}: ${violation.help} (${violation.nodes.map((node) => `${JSON.stringify(node.target)}: ${node.html}`).join("; ")})`,
-      ),
-    ).toEqual([]);
+    for (const state of ["open", "hover"] as const) {
+      await test.step(`audits the ${state} confirmation`, async () => {
+        if (state === "hover") await page.getByTestId("confirm-convert").hover();
+        const found = await violations(page);
+        expect(
+          found.map(
+            (violation) =>
+              `${violation.id}: ${violation.help} (${violation.nodes.map((node) => `${JSON.stringify(node.target)}: ${node.html}`).join("; ")})`,
+          ),
+        ).toEqual([]);
+      });
+    }
+    const path = testInfo.outputPath("conversion-confirmation-hover.png");
+    await page.getByTestId("convert-confirmation").screenshot({ path });
+    await testInfo.attach("conversion-confirmation-hover", { path, contentType: "image/png" });
   });
 
   test("the backup status and restoration invitation have no critical or serious violations", async ({
