@@ -123,19 +123,29 @@ test.describe("offline continuity (US6)", () => {
       await openWorkspace(page);
       await selectItem(page, pageName);
       await saveDocument(page, { until: "synced" });
-      await expect(page.getByTestId("block-editor")).toContainText("offline device", {
-        timeout: 30_000,
-      });
-      await expect(page.getByTestId("block-editor")).toContainText("online device");
+      await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+        "offline device",
+        {
+          timeout: 30_000,
+        },
+      );
+      await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+        "online device",
+      );
       await expect(page.getByTestId("conflict-notice")).toHaveCount(0);
 
       await second.page.reload();
       await openWorkspace(second.page);
       await selectItem(second.page, pageName);
-      await expect(second.page.getByTestId("block-editor")).toContainText("offline device", {
-        timeout: 30_000,
-      });
-      await expect(second.page.getByTestId("block-editor")).toContainText("online device");
+      await expect(second.page.locator('[data-testid="block-editor"]:visible')).toContainText(
+        "offline device",
+        {
+          timeout: 30_000,
+        },
+      );
+      await expect(second.page.locator('[data-testid="block-editor"]:visible')).toContainText(
+        "online device",
+      );
     } finally {
       await second.context.close();
     }

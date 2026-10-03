@@ -57,8 +57,8 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 ## Clarification — compteurs réduits et preview du glisser de bloc
 
 - [x] T020 [US1] Rétablir les compteurs locaux dédoublonnés avec badges plus petits, appliquer ui-quality/lessons, mettre à jour canevas/017 et vérifier rempli/vide/inconnu/noms longs aux deux thèmes et largeurs (FR-011).
-- [ ] T021 [US1] Corriger le repère de dépôt de bloc pour cibler l'éditeur actif, conserver snapping/dépôt/annulation et accent bleu ; tests ciblés multi-éditeurs et preuve réelle sur fixture mémoire, selon ui-quality/lessons, sans E2E ni modification de contenu utilisateur (FR-012).
-  - Correction et tests ciblés terminés. La preuve visuelle du trait pendant un glisser natif reste à confirmer : le contrôleur disponible démarre/annule le drag, mais ne transmet pas son survol natif. Voir verification.md ; ne pas présenter ce parcours comme vérifié.
+- [x] T021 [US1] Corriger le repère de dépôt de bloc pour cibler l'éditeur actif, conserver snapping/dépôt/annulation et accent bleu ; tests ciblés multi-éditeurs et preuve réelle sur fixture mémoire, selon ui-quality/lessons (FR-012).
+  - La validation automatisée autorisée le 2026-10-03 confirme maintenant le survol/dépôt/annulation natifs avec un autre éditeur masqué ; capture validation-native-block-drop-preview-chromium.png et parcours block-editor.spec.ts. Les données du propriétaire restent intactes.
 
 ## Retour — fluidité des PJ d'une autre page
 
@@ -95,3 +95,20 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 - [x] T037 [US1] Unifier clic/clic droit/Maj+F10 sur le menu du libellé, conserver configuration et retour du focus ; adapter les tests ciblés (FR-018).
 - [x] T038 [US2] Partager InputSurface/NativeInput dans les trois recherches ; croix à l'intérieur de la pastille, retrait de la seule valeur et focus de recherche ; supprimer les anciens propriétaires CSS (FR-021).
 - [x] T039 [US3] Appliquer ui-quality + lessons : preuves réelles/mémoire clair/sombre, 320/1280, clavier/tactile, plusieurs choix longs et retrait/recherche ; documenter guide, contrôles et limites, sans E2E.
+
+## Phase 6: Convergence
+
+- [ ] T040 Actualiser les tests de valeurs d’entrée pour observer la sauvegarde automatique durable, la concurrence et la reprise sans bouton explicite, selon FR-017 et Constitution III (partial).
+- [ ] T041 Rejouer les parcours de fichiers via les blocs de l’éditeur et vérifier la projection sidebar, l’inspection indépendante et la fermeture au changement de vue, selon FR-009/010/011 (contradicts).
+- [ ] T042 Couvrir configuration directe clic/clic droit/clavier, choix/retrait de symboles, champ composé et ordre des propriétés indépendant des colonnes ; appliquer ui-quality + lessons avec preuves visuelles dans verification.md, selon FR-018/019/020/021 (partial).
+- [x] T043 Confirmer la preview et le dépôt/annulation natifs de blocs dans l’éditeur actif avec un autre onglet masqué ; appliquer ui-quality + lessons et conserver la preuve permettant de clore T021, selon FR-012/013/014 (missing).
+- [ ] T044 Corriger tous les échecs unitaires/E2E et contrôles de la matrice complète sans affaiblir les garanties ; enregistrer les suites et résultats dans verification.md, selon FR-008 et Constitution III/VII (partial).
+- [ ] T045 Publier après checks:local réussi sur le commit exact, ouvrir/attacher la PR et corriger sa CI jusqu’au succès du dernier commit ; consigner les références et limites, selon FR-008 et Constitution III/VII (missing).
+
+- [ ] T046 Rétablir l’action de réordonner les colonnes dans les paramètres de visibilité avec les primitives existantes ; préserver largeur/visibilité et ordre du schéma, couvrir les limites en unitaire et la persistance en E2E (régression de 009 FR-018 découverte en convergence ; ui-quality + lessons).
+
+- [ ] T047 Protéger l'identité des sources dans les écritures locales et serveur ; refuser les doublons sans écriture partielle, tester créations/suppressions/promotions et export canonique (029, Constitution IV/V).
+- [ ] T048 Préserver la vue active de chaque page de base après remontage/rechargement, sans enregistrer de contenu en clair ; tests et preuve E2E (009/029).
+- [ ] T049 Corriger les régressions d'interaction/accessibilité révélées par la matrice : accès à l'entrée sous un titre long, confirmation de conversion après fermeture du menu et contraste des textes/actions en thème clair. Appliquer ui-quality + lessons, tests clavier et preuves clair/sombre/320 px, conserver la palette des propriétés.
+
+- [ ] T050 Rebrancher le chargement progressif dans les conteneurs de vues (026 FR-011/SC-005, maintenus par 029) : requête sur toute la source et réglages de la vue courante, couverture partielle honnête, curseur stable, états de synchronisation et retour/focus sur la dernière entrée au-delà de 1 000 lignes. Appliquer ui-quality + lessons et conserver le parcours E2E réel.

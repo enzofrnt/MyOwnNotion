@@ -1244,6 +1244,18 @@
       }
     },
     {
+      "test": "tests/e2e/database-entry-properties.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/ui/stable-action-button.tsx"],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/",
+          "apps/api/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/database-form-lifecycle.spec.ts",
       "owners": {
         "exact": ["apps/web/src/ui/stable-action-button.tsx"],

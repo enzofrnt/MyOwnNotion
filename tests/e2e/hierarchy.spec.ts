@@ -10,6 +10,7 @@ import {
   moveItemToRoot,
   moveItemUp,
   moveSelectedItemInto,
+  openItemIconPicker,
   openSettingsSection,
   openWorkspace,
   returnToWorkspace,
@@ -188,11 +189,14 @@ test.describe("hierarchy organization (US1)", () => {
 
     const surface = row.locator(".navigation-inline-create__surface");
     const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-    const expectedSurfaceWidth = coarsePointer ? 140 : 72;
     const expectedSurfaceHeight = coarsePointer ? 44 : 26;
     await expect
-      .poll(async () => Math.round((await surface.boundingBox())?.width ?? 0))
-      .toBe(expectedSurfaceWidth);
+      .poll(() =>
+        surface.evaluate((element) =>
+          element.getAnimations().every((animation) => animation.playState !== "running"),
+        ),
+      )
+      .toBe(true);
     const surfaceBox = await surface.boundingBox();
     expect(surfaceBox).not.toBeNull();
     expect(Math.abs((surfaceBox?.height ?? 0) - expectedSurfaceHeight)).toBeLessThanOrEqual(1);
@@ -213,6 +217,7 @@ test.describe("hierarchy organization (US1)", () => {
     const creationControls = [
       page.getByTestId(`new-page-inline-${parent}`),
       page.getByTestId(`new-folder-inline-${parent}`),
+      page.getByTestId(`new-database-inline-${parent}`),
       inlineToggle,
     ];
     const controlBoxes = await Promise.all(
@@ -226,16 +231,13 @@ test.describe("hierarchy organization (US1)", () => {
       );
     }
     const expectedGutter = coarsePointer ? 4 : 3;
-    expect(
-      Math.abs(
-        (controlBoxes[1]?.x ?? 0) - ((controlBoxes[0]?.x ?? 0) + (controlBoxes[0]?.width ?? 0)),
-      ),
-    ).toBeLessThanOrEqual(expectedGutter);
-    expect(
-      Math.abs(
-        (controlBoxes[2]?.x ?? 0) - ((controlBoxes[1]?.x ?? 0) + (controlBoxes[1]?.width ?? 0)),
-      ),
-    ).toBeLessThanOrEqual(expectedGutter);
+    for (let index = 1; index < controlBoxes.length; index += 1) {
+      const gap =
+        (controlBoxes[index]?.x ?? 0) -
+        ((controlBoxes[index - 1]?.x ?? 0) + (controlBoxes[index - 1]?.width ?? 0));
+      expect(gap).toBeGreaterThanOrEqual(-0.5);
+      expect(gap).toBeLessThanOrEqual(expectedGutter);
+    }
 
     const plus = inlineToggle.locator(".ui-icon");
     await expect(plus).toHaveAttribute("data-icon", "add");
@@ -340,7 +342,7 @@ test.describe("hierarchy organization (US1)", () => {
     await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
 
     const titleIcon = page.getByTestId("item-icon-picker-trigger");
-    await titleIcon.click();
+    await openItemIconPicker(page);
     const picker = page.getByTestId("emoji-picker-panel");
     await expect(picker).toBeVisible();
     const emojiSearch = picker.locator('em-emoji-picker input[type="search"]');

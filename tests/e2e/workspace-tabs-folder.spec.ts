@@ -12,9 +12,10 @@ import {
   createChildItem,
   createRootItem,
   ensureNavigationRowVisible,
-  nameNewlyCreatedItem,
   expectNoHorizontalOverflow,
   expectTreeOrder,
+  nameNewlyCreatedItem,
+  openItemIconPicker,
   openSecondDevice,
   openWorkspace,
   renameItem,
@@ -53,6 +54,10 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   expect(secondId).not.toBeNull();
 
   await clickItemAction(page, root, `new-database-inside-${root}`);
+  await page
+    .getByRole("dialog", { name: "Nouvelle base de données" })
+    .getByRole("button", { name: "Créer une nouvelle source" })
+    .click();
   await nameNewlyCreatedItem(page, database);
 
   await createChildItem(page, root, "folder", levelOne);
@@ -95,7 +100,7 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   await expect(renamedLeafTab).toHaveAttribute("aria-current", "page");
   await waitForSynchronized(page);
 
-  await page.getByTestId("workspace-page-canvas").getByTestId("item-icon-picker-trigger").click();
+  await openItemIconPicker(page);
   const picker = page.getByTestId("emoji-picker-panel");
   const emojiSearch = picker.locator('em-emoji-picker input[type="search"]');
   await emojiSearch.focus();

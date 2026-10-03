@@ -92,7 +92,9 @@ export function PageOutline({ editor }: { readonly editor: OutlineEditor }) {
       const threshold = root.getBoundingClientRect().top + 48;
       const positions = headings.flatMap((heading) => {
         const element = headingElement(heading.id);
-        return element === null ? [] : [{ id: heading.id, top: element.getBoundingClientRect().top }];
+        return element === null
+          ? []
+          : [{ id: heading.id, top: element.getBoundingClientRect().top }];
       });
       setActiveId(activeHeadingId(positions, threshold));
     };
@@ -108,10 +110,15 @@ export function PageOutline({ editor }: { readonly editor: OutlineEditor }) {
   if (headings.length < 2) return null;
 
   return createPortal(
-    <nav className="page-outline" aria-label={FR_COPY.editor.outline.label} data-testid="page-outline">
+    <nav
+      className="page-outline"
+      aria-label={FR_COPY.editor.outline.label}
+      data-testid="page-outline"
+    >
       <ol className="page-outline__list">
         {headings.map((heading) => {
-          const label = heading.text.length > 0 ? heading.text : FR_COPY.editor.outline.emptyHeading;
+          const label =
+            heading.text.length > 0 ? heading.text : FR_COPY.editor.outline.emptyHeading;
           return (
             <li
               key={heading.id}

@@ -1,9 +1,6 @@
 [
   {
-    "headings": [
-      "32px",
-      "32px"
-    ],
+    "headings": ["32px", "32px"],
     "rows": [
       {
         "height": 40,
@@ -56,10 +53,7 @@
     "width": 1280
   },
   {
-    "headings": [
-      "32px",
-      "32px"
-    ],
+    "headings": ["32px", "32px"],
     "rows": [
       {
         "height": 40,

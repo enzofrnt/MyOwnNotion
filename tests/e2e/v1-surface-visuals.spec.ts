@@ -2,9 +2,9 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
+  createRootDatabase,
   createRootItem,
   ensureNavigationVisible,
-  createRootDatabase,
   openSettingsSection,
   openWorkspace,
   waitForDatabaseDefinitionSaved,
@@ -86,7 +86,9 @@ test("matches the dark empty-database surface", async ({ page }, testInfo) => {
   await createRootDatabase(page, "Suivi visuel");
   await waitForDatabaseDefinitionSaved(page);
   await expect(page.locator(".database-page")).toBeVisible();
-  await expect(page.getByTestId("block-editor").locator(".ProseMirror")).toBeVisible();
+  // A database has its own page and views, with no text editor or footer block.
+  await expect(page.locator('[data-testid="block-editor"]:visible')).toHaveCount(0);
+  await expect(page.locator(".database-table")).toBeVisible();
   await expect(page.getByText("Item does not exist", { exact: true })).toHaveCount(0);
   await settlePixels(page);
 

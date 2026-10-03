@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  activeHeadingId,
-  collectPageHeadings,
-} from "../src/features/editor/page-outline.tsx";
+import { activeHeadingId, collectPageHeadings } from "../src/features/editor/page-outline.tsx";
 
 describe("page outline", () => {
   it("collects heading levels in document order, including nested blocks", () => {

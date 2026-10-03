@@ -273,7 +273,7 @@ export function StructuredConflictCard({
     >
       <h2>{DATABASE_COPY.conflict.heading}</h2>
       <p className="muted">{DATABASE_COPY.conflict.explanation}</p>
-      <ReadTable scrollLabel={DATABASE_COPY.conflict.region} className="conflict-columns">
+      <ReadTable scrollLabel={DATABASE_COPY.conflict.caption} className="conflict-columns">
         <caption className="muted">{DATABASE_COPY.conflict.caption}</caption>
         <thead>
           <tr>

@@ -17,4 +17,10 @@ transferts de fichiers de l’éditeur sont désactivés dans ce laboratoire.
 Contrôles : `bun run --filter @myownnotion/web typecheck`,
 `bun run --bun vitest run --project web <suites pertinentes>`,
 `bun run --filter @myownnotion/web build`, Biome ciblé et `git diff --check`.
-Aucun E2E pendant cette passe ; pas de push sans les gates de publication.
+La revue visuelle initiale différérait les E2E à la demande du propriétaire.
+Depuis sa demande du 3 octobre 2026, lancer toutes les suites et la matrice de
+`bun run checks:local` avant chaque push, puis vérifier la CI du dernier commit
+sur la PR. Les bases, fichiers et clés des tests restent jetables et distincts
+à chaque projet de navigateur. Pour cette machine, PostgreSQL de tests écoute
+sur 55432 ; l'instance du propriétaire sur 5432 reste intacte. Voir la procédure
+et les outils requis dans [development.md](../../docs/development.md).

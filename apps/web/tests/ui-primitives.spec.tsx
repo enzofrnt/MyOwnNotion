@@ -191,9 +191,9 @@ describe("shared UI primitive contracts", () => {
 
     // Animating both foreground and background between different contrast
     // pairs creates an unreadable midpoint even when both endpoints pass.
-    expect(normal).toContain("color: var(--ui-color-danger)");
+    expect(normal).toContain("color: var(--ui-color-danger-text)");
     expect(normal).toContain("background: transparent");
-    expect(hover).toContain("color: var(--ui-color-danger)");
+    expect(hover).toContain("color: var(--ui-color-danger-text)");
     expect(hover).toContain("background: var(--ui-color-surface-hover)");
   });
 

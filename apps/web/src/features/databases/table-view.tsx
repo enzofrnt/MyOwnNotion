@@ -756,9 +756,7 @@ export function TableView({
     setEditingCell({ key: refKey(position), draft, error: null, saving: false });
     setAnnouncement(DATABASE_COPY.table.editing(property.name, row.title));
     queueMicrotask(() => {
-      const field = refs.current
-        .get(refKey(position))
-        ?.querySelector<HTMLElement>("input, select");
+      const field = refs.current.get(refKey(position))?.querySelector<HTMLElement>("input, select");
       if (field instanceof HTMLInputElement && field.type !== "checkbox") {
         field.focus();
         const end = field.value.length;
@@ -1331,6 +1329,7 @@ export function TableView({
                                   <StableActionButton
                                     type="button"
                                     className="database-cell-title__open"
+                                    pinDuringPointer
                                     size="square"
                                     variant="ghost"
                                     aria-label={DATABASE_COPY.table.openEntry}

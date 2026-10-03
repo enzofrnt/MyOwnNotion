@@ -16,7 +16,7 @@ import {
 } from "./helpers.ts";
 
 function editor(page: Page): Locator {
-  return page.getByTestId("block-editor").locator(".ProseMirror");
+  return page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
 }
 
 function rootBlocks(page: Page): Locator {
@@ -113,7 +113,7 @@ test("delete/edit ambiguity survives restart and restores the edited block", asy
     );
     await editor(second.page).pressSequentially("contenu modifié hors ligne");
     await waitForEditorSettled(second.page, { afterSequence: beforeEdit });
-    await expect(second.page.getByTestId("block-editor")).toContainText(
+    await expect(second.page.locator('[data-testid="block-editor"]:visible')).toContainText(
       "contenu modifié hors ligne",
     );
 
@@ -149,14 +149,17 @@ test("delete/edit ambiguity survives restart and restores the edited block", asy
 
     await second.page.getByTestId("ambiguity-restore").click();
     await expect(second.page.getByTestId("ambiguity-notice")).toHaveCount(0, { timeout: 30_000 });
-    await expect(second.page.getByTestId("block-editor")).toContainText(
+    await expect(second.page.locator('[data-testid="block-editor"]:visible')).toContainText(
       "contenu modifié hors ligne",
       { timeout: 30_000 },
     );
     await selectItem(page, pageName);
-    await expect(page.getByTestId("block-editor")).toContainText("contenu modifié hors ligne", {
-      timeout: 30_000,
-    });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "contenu modifié hors ligne",
+      {
+        timeout: 30_000,
+      },
+    );
   } finally {
     await second.context.close();
   }

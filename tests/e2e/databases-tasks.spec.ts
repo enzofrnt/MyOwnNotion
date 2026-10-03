@@ -1,17 +1,22 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
-  createRootItem,
-  editorApplyCount,
+  addDatabaseProperty,
+  chooseEntryOptions,
+  chooseEntryRelation,
   createDatabaseEntry,
   createRootDatabase,
+  createRootItem,
+  editorApplyCount,
+  entryTrigger,
+  openDatabaseTools,
   openWorkspace,
   saveDocument,
-  saveEntryProperties,
   typeIntoEditor,
   uniqueName,
   waitForDatabaseDefinitionSaved,
   waitForEditorSettled,
+  waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -30,7 +35,7 @@ for (const cancel of [false, true]) {
   }) => {
     await openWorkspace(page);
     await createRootDatabase(page, uniqueName("Stable property"));
-    await expect(page.locator(".database-schema")).toBeVisible();
+    await expect(page.locator(".database-grid")).toBeVisible();
     // Classification is known at creation. A page-editor placeholder above the
     // database would move this action after the owner has already pressed it.
     await expect(page.getByTestId("editor-loading-skeleton")).not.toBeVisible();
@@ -76,26 +81,13 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
 
-  const addProperty = async (name: string, type: string, options?: string): Promise<void> => {
-    await page.getByRole("button", { name: "Ajouter une propriété" }).click();
-    const editor = page.getByRole("form", { name: "Éditeur de propriété" });
-    await expect(editor).toBeVisible();
-    await editor.getByLabel("Nom").fill(name);
-    await editor.getByLabel("Type").selectOption(type);
-    if (options !== undefined) {
-      await editor.getByLabel("Options séparées par des virgules").fill(options);
-    }
-    await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
-    await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
-    await waitForDatabaseDefinitionSaved(page);
-  };
+  await addDatabaseProperty(page, "Notes", "text");
+  await addDatabaseProperty(page, "Workflow", "status", ["To do", "In progress", "Done"]);
+  await addDatabaseProperty(page, "Deadline", "date");
+  await addDatabaseProperty(page, "Importance", "select", ["Low", "High"]);
+  await addDatabaseProperty(page, "Project", "relation");
 
-  await addProperty("Notes", "text");
-  await addProperty("Workflow", "status", "To do, In progress, Done");
-  await addProperty("Deadline", "date");
-  await addProperty("Importance", "select", "Low, High");
-  await addProperty("Project", "relation");
-
+  await openDatabaseTools(page);
   const taskConfiguration = page.locator(".task-configuration");
   await taskConfiguration.getByRole("button", { name: "Activer le suivi des tâches" }).click();
   await expect(taskConfiguration.getByLabel("Propriété de statut de la tâche")).toHaveValue(/.+/u);
@@ -113,26 +105,27 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   );
   await waitForDatabaseDefinitionSaved(page);
 
+  await page.keyboard.press("Escape");
   await createDatabaseEntry(page, taskName);
-  const taskTrigger = page.locator("[data-entry-trigger]").filter({ hasText: taskName }).first();
+  const taskTrigger = entryTrigger(page, taskName).first();
   await expect(taskTrigger).toBeVisible({ timeout: 15_000 });
   await waitForSynchronized(page);
   await taskTrigger.click();
 
   const entryPanel = page.locator(".entry-panel");
   await expect(entryPanel.getByLabel("Suivi des tâches")).toBeVisible();
-  await entryPanel.getByLabel("Workflow", { exact: true }).selectOption({ label: "In progress" });
+  await chooseEntryOptions(page, "Workflow", ["In progress"]);
   await entryPanel.getByLabel("Deadline", { exact: true }).fill("2026-09-15");
-  await entryPanel.getByLabel("Importance", { exact: true }).selectOption({ label: "High" });
+  await chooseEntryOptions(page, "Importance", ["High"]);
   await entryPanel.getByLabel("Notes", { exact: true }).fill(propertyNote);
-  await entryPanel.getByLabel("Project", { exact: true }).selectOption({ label: projectName });
-  await saveEntryProperties(page);
+  await chooseEntryRelation(page, "Project", projectName);
+  await waitForEntryAutosave(page);
 
   const legacyConversion = page.getByTestId("convert-legacy-document");
   if (await legacyConversion.isVisible()) await legacyConversion.click();
   await typeIntoEditor(page, editorialNote);
   const editorialBlock = page
-    .getByTestId("block-editor")
+    .locator('[data-testid="block-editor"]:visible')
     .locator(".bn-block-outer[data-id]")
     .filter({ hasText: editorialNote })
     .last();
@@ -140,9 +133,13 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   const beforeTaskConversion = await editorApplyCount(page);
   await page.getByRole("menuitem", { name: "Liste de tâches" }).click();
   await waitForEditorSettled(page, { afterApplyCount: beforeTaskConversion });
-  const documentCheckbox = page.getByTestId("block-editor").locator('input[type="checkbox"]');
+  const documentCheckbox = page
+    .locator('[data-testid="block-editor"]:visible')
+    .locator('input[type="checkbox"]');
   await expect(
-    page.getByTestId("block-editor").locator('[data-content-type="checkListItem"]'),
+    page
+      .locator('[data-testid="block-editor"]:visible')
+      .locator('[data-content-type="checkListItem"]'),
   ).toBeVisible();
   const beforeCheck = await editorApplyCount(page);
   await documentCheckbox.click();
@@ -164,17 +161,17 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await result.getByRole("button").click();
   await expect(entryPanel).toBeVisible();
 
-  await entryPanel.getByLabel("Workflow", { exact: true }).selectOption({ label: "Done" });
-  await saveEntryProperties(page);
+  await chooseEntryOptions(page, "Workflow", ["Done"]);
+  await waitForEntryAutosave(page);
   search = await openSearch(page, "Done");
   await expect(search.getByRole("listitem").filter({ hasText: taskName })).toHaveCount(1);
   await search.getByRole("button", { name: "Fermer la recherche" }).click();
 
-  await expect(page.getByTestId("block-editor")).toContainText(editorialNote);
+  await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(editorialNote);
   await expect(documentCheckbox).toBeChecked();
-  await expect(
-    entryPanel.getByLabel("Project", { exact: true }).locator("option:checked"),
-  ).toHaveText(projectName);
+  await expect(entryPanel.getByRole("button", { name: "Project", exact: true })).toHaveText(
+    projectName,
+  );
   await page.getByRole("button", { name: "Fermer l'entrée" }).click();
   await expect(page.locator("[data-entry-trigger]")).toHaveCount(1);
 });

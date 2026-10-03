@@ -289,9 +289,7 @@ export function ValueEditor({
         id={controlId}
         type={property.type === "date" && property.config.mode === "date" ? "date" : "text"}
         autoFocus={presentation === "inline"}
-        className={
-          presentation === "inline" ? "database-cell-inline-input" : "ui-native-input"
-        }
+        className={presentation === "inline" ? "database-cell-inline-input" : "ui-native-input"}
         data-size={presentation !== "inline" ? "compact" : undefined}
         inputMode={property.type === "number" ? "decimal" : undefined}
         value={typeof input === "string" ? input : ""}

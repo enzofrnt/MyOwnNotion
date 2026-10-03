@@ -22,6 +22,21 @@ type WorkspacePageEditorProps = Omit<
   readonly createDatabase: CreateDatabaseChild;
 };
 
+/** Commands always use the owner of this editor, even when another tab is selected. */
+export function bindWorkspaceChildCommands(
+  itemId: Uuid,
+  createPage: CreateChild,
+  createFolder: CreateChild,
+  createDatabase: CreateDatabaseChild,
+) {
+  return {
+    onCreateSubpage: (request: CreateSubpageRequest) => createPage(itemId, request),
+    onCreateSubfolder: (request: CreateSubpageRequest) => createFolder(itemId, request),
+    onCreateFullPageDatabase: (request: CreateSubpageRequest) => createDatabase(itemId, request),
+    onCreateInlineDatabase: (request: CreateSubpageRequest) => createDatabase(itemId, request),
+  };
+}
+
 /** Sidebar disclosure changes do not invalidate durable editor sessions.
  * Bind commands to the page once, while accepting real data/selection updates. */
 export const WorkspacePageEditor = memo(function WorkspacePageEditor({
@@ -32,12 +47,7 @@ export const WorkspacePageEditor = memo(function WorkspacePageEditor({
   ...props
 }: WorkspacePageEditorProps) {
   const commands = useMemo(
-    () => ({
-      onCreateSubpage: (request: CreateSubpageRequest) => createPage(itemId, request),
-      onCreateSubfolder: (request: CreateSubpageRequest) => createFolder(itemId, request),
-      onCreateFullPageDatabase: (request: CreateSubpageRequest) => createDatabase(itemId, request),
-      onCreateInlineDatabase: (request: CreateSubpageRequest) => createDatabase(itemId, request),
-    }),
+    () => bindWorkspaceChildCommands(itemId, createPage, createFolder, createDatabase),
     [createPage, createFolder, createDatabase, itemId],
   );
   return <EditorView {...props} {...commands} itemId={itemId} />;

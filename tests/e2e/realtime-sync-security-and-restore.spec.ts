@@ -22,7 +22,7 @@ import {
 const run = promisify(execFile);
 
 function editor(page: Page): Locator {
-  return page.getByTestId("block-editor").locator(".ProseMirror");
+  return page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
 }
 
 async function appendText(page: Page, text: string): Promise<void> {
@@ -165,17 +165,19 @@ test("a restore accepts newer offline work instead of replacing it", async ({
     await second.context.close();
     await context.setOffline(false);
     await waitForSynchronized(page);
-    await expect(page.getByTestId("block-editor")).toContainText("travail local après sauvegarde");
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "travail local après sauvegarde",
+    );
     await expect(page.getByTestId("conflict-notice")).toHaveCount(0);
 
     verifier = await openSecondDevice(browser, baseURL);
     await openWorkspace(verifier.page);
     await selectItem(verifier.page, pageName);
     await waitForEditorSettled(verifier.page);
-    await expect(verifier.page.getByTestId("block-editor")).toContainText(
+    await expect(verifier.page.locator('[data-testid="block-editor"]:visible')).toContainText(
       "travail local après sauvegarde",
     );
-    await expect(verifier.page.getByTestId("block-editor")).not.toContainText(
+    await expect(verifier.page.locator('[data-testid="block-editor"]:visible')).not.toContainText(
       "version serveur à restaurer",
     );
   } finally {

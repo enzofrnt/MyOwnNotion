@@ -1,24 +1,7 @@
 {
   "lab": [
     {
-      "buttonSizes": [
-        [
-          20,
-          20
-        ],
-        [
-          20,
-          20
-        ],
-        [
-          20,
-          20
-        ],
-        [
-          20,
-          20
-        ]
-      ],
+      "buttonSizes": [[20, 20], [20, 20], [20, 20], [20, 20]],
       "counts": 0,
       "fileInset": 8,
       "rowHeight": 30,
@@ -29,24 +12,7 @@
       "width": 1280
     },
     {
-      "buttonSizes": [
-        [
-          20,
-          20
-        ],
-        [
-          20,
-          20
-        ],
-        [
-          20,
-          20
-        ],
-        [
-          20,
-          20
-        ]
-      ],
+      "buttonSizes": [[20, 20], [20, 20], [20, 20], [20, 20]],
       "counts": 0,
       "fileInset": 8,
       "rowHeight": 30,
@@ -57,24 +23,7 @@
       "width": 1280
     },
     {
-      "buttonSizes": [
-        [
-          44,
-          44
-        ],
-        [
-          44,
-          44
-        ],
-        [
-          44,
-          44
-        ],
-        [
-          44,
-          44
-        ]
-      ],
+      "buttonSizes": [[44, 44], [44, 44], [44, 44], [44, 44]],
       "counts": 0,
       "fileInset": 8,
       "rowHeight": 44,
@@ -85,24 +34,7 @@
       "width": 320
     },
     {
-      "buttonSizes": [
-        [
-          44,
-          44
-        ],
-        [
-          44,
-          44
-        ],
-        [
-          44,
-          44
-        ],
-        [
-          44,
-          44
-        ]
-      ],
+      "buttonSizes": [[44, 44], [44, 44], [44, 44], [44, 44]],
       "counts": 0,
       "fileInset": 8,
       "rowHeight": 44,
@@ -134,13 +66,8 @@
     "counts": 0,
     "embeddedFileName": "CNAM_Rapport_d_activité.pdf",
     "expanded": "true",
-    "sidebarFiles": [
-      "CNAM_Rapport_d_activité.pdf"
-    ],
-    "viewport": [
-      1304,
-      909
-    ]
+    "sidebarFiles": ["CNAM_Rapport_d_activité.pdf"],
+    "viewport": [1304, 909]
   },
   "performance": {
     "before": {

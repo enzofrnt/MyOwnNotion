@@ -50,6 +50,7 @@ export function ConvertItemControl({
   kind,
   convert,
   finalFocus,
+  onActiveChange,
   variant = "button",
 }: {
   readonly itemId: Uuid;
@@ -61,6 +62,7 @@ export function ConvertItemControl({
     confirmedDestruction: boolean,
   ) => Promise<ConvertOutcome>;
   readonly finalFocus?: RefObject<HTMLElement | null>;
+  readonly onActiveChange?: (active: boolean) => void;
   readonly variant?: "button" | "menu";
 }) {
   const [pending, setPending] = useState(false);
@@ -72,10 +74,12 @@ export function ConvertItemControl({
 
   const close = useCallback(() => {
     setConfirming(false);
-  }, []);
+    onActiveChange?.(false);
+  }, [onActiveChange]);
 
   const run = useCallback(
     async (confirmedDestruction: boolean) => {
+      onActiveChange?.(true);
       setPending(true);
       setError(null);
       const outcome = await convert(itemId, target, confirmedDestruction);
@@ -83,6 +87,7 @@ export function ConvertItemControl({
 
       if (outcome.ok) {
         setConfirming(false);
+        onActiveChange?.(false);
         return;
       }
       if (outcome.needsConfirmation) {
@@ -93,8 +98,9 @@ export function ConvertItemControl({
         return;
       }
       setError(outcome.message ?? "La conversion n’a pas abouti.");
+      onActiveChange?.(false);
     },
-    [convert, itemId, target],
+    [convert, itemId, target, onActiveChange],
   );
 
   return (

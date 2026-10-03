@@ -1428,7 +1428,6 @@
   border-color: transparent;
   box-shadow: none;
   opacity: 0;
-  pointer-events: none;
   transform: translateY(-50%);
 }
 
@@ -1537,7 +1536,10 @@
 /* The writing field is the cell, including its horizontal padding. Text stays
    on the same inset as the value shown at rest. */
 .database-container-page .database-table td[data-grid-mode="editing"] .database-cell-inline-input,
-.editor-database-view-block .database-table td[data-grid-mode="editing"] .database-cell-inline-input {
+.editor-database-view-block
+  .database-table
+  td[data-grid-mode="editing"]
+  .database-cell-inline-input {
   width: calc(100% + 2 * var(--ui-space-3));
   max-width: none;
   margin-inline: calc(-1 * var(--ui-space-3));

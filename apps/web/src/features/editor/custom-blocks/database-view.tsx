@@ -1,4 +1,4 @@
-import type { LocalDatabaseRow } from "@myownnotion/client-core";
+import type { LocalDatabaseQuerySource, LocalDatabaseRow } from "@myownnotion/client-core";
 import type { DatabaseDto, DatabaseEntryDto } from "@myownnotion/contracts";
 import {
   type DatabaseDefinition,
@@ -10,10 +10,12 @@ import {
   previewDefinitionImpact,
   type Uuid,
 } from "@myownnotion/domain";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { DatabaseRowSyncState } from "../../../services/databases.ts";
 import type { LocalContentService } from "../../../services/local-content.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../../databases/database-page.tsx";
 import { definitionViewsPreservingPresentation } from "../../databases/definition-view-merge.ts";
+import { PageViewQuery } from "../../databases/page-view-query.ts";
 import type { DatabaseCellUpdate } from "../../databases/table-view.tsx";
 import { updateDatabaseCell } from "../../databases/update-database-cell.ts";
 
@@ -23,6 +25,9 @@ interface LoadedView {
   readonly sourceLifecycle: "active" | "trashed" | "purged";
   readonly view: NonNullable<LocalDatabaseRow["presentation"]>["views"][number];
   readonly entries: readonly DatabaseEntryDto[];
+  readonly querySource: Omit<LocalDatabaseQuerySource, "generation">;
+  readonly states: ReadonlyMap<Uuid, DatabaseRowSyncState>;
+  readonly queryGeneration?: number;
 }
 
 async function loadView(
@@ -53,10 +58,23 @@ async function loadView(
         )
       : [];
   const ids = memberships.map((entry) => entry.entryItemId);
-  const [items, relations] = await Promise.all([
+  const [items, relations, queued, conflicts] = await Promise.all([
     service.getItems(ids),
     service.getDatabaseEntryRelations(source.itemId, ids),
+    service.outbox.all(),
+    service.outbox.activeConflicts(),
   ]);
+  const states = new Map<Uuid, DatabaseRowSyncState>();
+  for (const [mutations, state] of [
+    [queued, "pending"],
+    [conflicts, "conflict"],
+  ] as const) {
+    for (const mutation of mutations) {
+      const entryId =
+        mutation.payload["entryId"] ?? mutation.payload["id"] ?? mutation.payload["itemId"];
+      if (typeof entryId === "string") states.set(entryId as Uuid, state);
+    }
+  }
   const byId = new Map(items.map((item) => [item.id, item]));
   const entries = memberships.flatMap((membership) => {
     const item = byId.get(membership.entryItemId);
@@ -81,7 +99,30 @@ async function loadView(
       } as unknown as DatabaseEntryDto,
     ];
   });
-  return { container, source, sourceLifecycle: owner.lifecycle, view, entries };
+  const availability = new Map(memberships.map((row) => [row.entryItemId, row.availability]));
+  const querySource: Omit<LocalDatabaseQuerySource, "generation"> = {
+    databaseId: source.itemId,
+    definitionRevisionId: source.definitionRevisionId ?? source.itemId,
+    definition: { ...source.definition, views: [view] },
+    expectedCount: memberships.length,
+    entries: entries.map((entry) => ({
+      entryId: entry.entryId as Uuid,
+      revisionId: entry.revisionId as Uuid,
+      title: entry.title,
+      availability: availability.get(entry.entryId as Uuid) ?? "never-fetched",
+      values: entry.values as LocalDatabaseQuerySource["entries"][number]["values"],
+      relationTargets: relations.get(entry.entryId as Uuid) ?? {},
+    })),
+  };
+  return {
+    container,
+    source,
+    sourceLifecycle: owner.lifecycle,
+    view,
+    entries,
+    querySource,
+    states,
+  };
 }
 
 export function DatabaseViewSurface({
@@ -101,19 +142,35 @@ export function DatabaseViewSurface({
   readonly onReturnFocusRestored?: () => void;
   readonly formatPlacement?: "panel" | "chrome";
 }) {
+  // A cursor belongs to one service, container and view; crossing that boundary resets it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: these identities define the lifetime of the cursor store.
+  const query = useMemo(() => new PageViewQuery(), [service, containerItemId, viewId]);
   const [loaded, setLoaded] = useState<LoadedView | "missing-source" | "missing-view" | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refresh = useCallback(async () => {
     try {
-      setLoaded(await loadView(service, containerItemId, viewId));
+      const next = await loadView(service, containerItemId, viewId);
+      setLoaded(
+        typeof next === "string"
+          ? next
+          : { ...next, queryGeneration: query.update(next.querySource, next.states) },
+      );
       setError(null);
     } catch {
       setError("Cette vue ne peut pas être chargée pour le moment.");
     } finally {
       setReady(true);
     }
-  }, [service, containerItemId, viewId]);
+  }, [service, containerItemId, viewId, query]);
+  const queryGeneration =
+    typeof loaded === "object" && loaded !== null ? loaded.queryGeneration : undefined;
+  // DatabasePage reloads its first page when the underlying snapshot changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: generation invalidates the query callback consumed by DatabasePage.
+  const queryView = useCallback(
+    (id: Uuid, cursor?: string) => query.query(id, cursor),
+    [query, queryGeneration],
+  );
   useEffect(() => {
     void refresh();
     return service.subscribeProjection(() => {
@@ -122,13 +179,13 @@ export function DatabaseViewSurface({
   }, [service, refresh]);
   if (!ready)
     return (
-      <div className="editor-database-view-block" data-testid="database-view-block">
+      <div className="editor-database-view-block" data-testid="database-view-surface">
         Chargement de la base…
       </div>
     );
   if (error !== null)
     return (
-      <div className="editor-database-view-block" data-testid="database-view-block" role="alert">
+      <div className="editor-database-view-block" data-testid="database-view-surface" role="alert">
         {error}
       </div>
     );
@@ -137,13 +194,13 @@ export function DatabaseViewSurface({
     (typeof loaded === "object" && loaded !== null && loaded.sourceLifecycle !== "active")
   )
     return (
-      <div className="editor-database-view-block" data-testid="database-view-block" role="alert">
+      <div className="editor-database-view-block" data-testid="database-view-surface" role="alert">
         {MISSING_DATA_SOURCE_MESSAGE}
       </div>
     );
   if (loaded === null || loaded === "missing-view")
     return (
-      <div className="editor-database-view-block" data-testid="database-view-block" role="alert">
+      <div className="editor-database-view-block" data-testid="database-view-surface" role="alert">
         La vue ou sa source n’est plus disponible.
       </div>
     );
@@ -273,7 +330,7 @@ export function DatabaseViewSurface({
     <div
       className="editor-database-view-block"
       contentEditable={false}
-      data-testid="database-view-block"
+      data-testid="database-view-surface"
     >
       <DatabasePage
         embeddingId={viewId as Uuid}
@@ -285,6 +342,7 @@ export function DatabaseViewSurface({
         {...(onReturnFocusRestored === undefined ? {} : { onReturnFocusRestored })}
         database={database}
         entries={loaded.entries}
+        onQueryView={queryView}
         onPreviewDefinitionImpact={previewDefinition}
         onReplaceDefinition={replaceDefinition}
         onCreateEntry={async (title) => {

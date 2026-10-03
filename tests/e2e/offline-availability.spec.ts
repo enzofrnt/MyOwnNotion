@@ -97,7 +97,9 @@ test.describe("what the owner asks to keep", () => {
       await selectItem(page, child);
       // Opened from the local projection: the editor is there, and there is no
       // error about the network.
-      await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+        timeout: 30_000,
+      });
       await expect(page.getByTestId("editor-unavailable")).toHaveCount(0);
     } finally {
       await context.setOffline(false);
@@ -138,7 +140,9 @@ test.describe("what this device says it is holding", () => {
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
     await selectItem(page, pageName);
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+      timeout: 30_000,
+    });
     await openWorkspaceDiagnostics(page);
     await returnToWorkspace(page);
 
@@ -156,7 +160,9 @@ test.describe("what this device says it is holding", () => {
 
       // Still there. Releasing this would destroy an edit the server has never
       // seen, and there would be nowhere to fetch it back from.
-      await expect(page.getByTestId("block-editor")).toContainText("written while offline");
+      await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+        "written while offline",
+      );
     } finally {
       await context.setOffline(false);
     }

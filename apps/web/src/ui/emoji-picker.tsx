@@ -1,7 +1,7 @@
 import emojiData from "@emoji-mart/data";
 import frenchEmojiPickerText from "@emoji-mart/data/i18n/fr.json";
 import { Picker } from "emoji-mart";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { AppIcon } from "./icons.tsx";
 import { ItemIcon, type ItemIconKind } from "./item-icon.tsx";
 import {

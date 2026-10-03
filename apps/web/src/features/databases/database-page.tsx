@@ -992,7 +992,9 @@ export function DatabasePage({
         )}
       </div>
 
-      {page === null || page.nextCursor === null || onQueryView === undefined ? null : (
+      {page === null ||
+      onQueryView === undefined ||
+      (page.nextCursor === null && page.rows.length <= 100) ? null : (
         <section
           className="database-pagination"
           aria-label="Chargement des entrées"

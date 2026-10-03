@@ -13,8 +13,8 @@ import {
 } from "@blocknote/core";
 import { calloutBlockSpec } from "./custom-blocks/callout.tsx";
 import { codeBlockSpec } from "./custom-blocks/code-block.tsx";
-import { databaseViewBlockSpec } from "./custom-blocks/embedded-database-block.tsx";
 import { embedBlockSpec } from "./custom-blocks/embed.tsx";
+import { databaseViewBlockSpec } from "./custom-blocks/embedded-database-block.tsx";
 import { fileEmbedBlockSpec } from "./custom-blocks/file-embed.tsx";
 import { imageBlockSpec } from "./custom-blocks/image.tsx";
 import { tableBlockSpec, tableCellBlockSpec, tableRowBlockSpec } from "./custom-blocks/table.tsx";

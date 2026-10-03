@@ -151,6 +151,7 @@ export async function applyLocalMutation(
 
 export class LocalValidationError extends Error {
   readonly code:
+    | "mutation.duplicate"
     | "item.not-found"
     | "item.wrong-kind"
     | "containment.cycle-rejected"

@@ -24,9 +24,9 @@ injectées dans le lab si nécessaires ; adapters de production conservés.
 I/IV : données/chiffrement/hors ligne/permissions conservés. II/VIII : dossier
 unique lié au canevas. V : système existant, abstraction seulement répétée.
 VI : clic sémantique/labels/focus/clavier/tactile. VII : Bun et vérification
-types/lint/tests ciblés/build. III : exception autorisée par Enzo, aucun E2E
-maintenant, pas de publication ; risque multi-navigateurs/natif non couvert,
-suite de release avant push. Après conception : mêmes conclusions.
+types/lint/tests/build. III : le propriétaire réactive la validation automatisée
+complète et autorise push/PR le 2026-10-03. Toutes les gates de docs/development.md
+s’appliquent avant chaque push, puis la CI est suivie jusqu’au succès.
 
 ## Phase 0 — Research
 
@@ -58,6 +58,29 @@ docs/design/ui-system.md
 Revue navigateur des familles courantes et fixtures des états rares, thèmes
 et largeurs. Captures/mesures dans verification.md. Tests comportementaux
 pertinents, types/lint/build ; aucun test recopiant CSS. Instance HMR conservée.
+
+## Validation automatisée et publication — 2026-10-03
+
+Sauvegarde demandée : commit 3ac40b2e. Le report des E2E est levé. Remettre les
+tests en cohérence avec FR-009/012/017–021 et les améliorations du propriétaire
+(configuration directe et catalogue de symboles partagé), sans restaurer les
+anciens boutons ni modifier l’UI pour satisfaire des assertions obsolètes.
+Appliquer ui-quality et lessons.md aux preuves de non-régression visuelle.
+
+Les tests de sauvegarde attendent une écriture réellement observable avant la
+file de synchronisation ; les tests de fichiers passent par les blocs de
+l’éditeur. Ajouter les parcours manquants de configuration, choix d’icône,
+réordonnancement/annulation et preview native dans un éditeur actif alors qu’un
+autre onglet est masqué. Les tests unitaires couvrent concurrence, erreurs et
+reprise ; les E2E couvrent persistance/rechargement et interactions réelles.
+
+Exécuter la matrice locale isolée : Chromium desktop/mobile sur l’hôte,
+Firefox et WebKit desktop/mobile dans les conteneurs Linux documentés sur macOS.
+Chaque projet a sa base, ses ports, fichiers et clés jetables ; ne pas réinitialiser
+l’instance myownnotion-ui-dev. Corriger les échecs pertinents, revoir les captures
+avant toute actualisation de référence, puis exécuter checks:local sur le commit
+publié. Ouvrir/attacher la PR, inspecter les logs de sa CI et répéter les
+corrections/gates avant chaque nouveau push. Aucune fusion automatique.
 
 ## Retours du propriétaire — 2026-10-03
 
@@ -288,3 +311,29 @@ Pas de nouvelle persistance/migration : files et protections existantes conserv�
 retrait puis saisie, création et erreur existantes ; thèmes clair/sombre,
 320/1280 px. Tests ciblés de parcours et preuves sur fixture mémoire ; page
 réelle uniquement en lecture. Aucun E2E, reset ni push à cette étape.
+
+La convergence automatisée révèle aussi que le nouveau panneau de visibilité a perdu les actions de déplacement des colonnes (009 FR-018). T046 les rétablit dans ce panneau avec les boutons/icônes existants et une transformation pure des présentations de la seule vue, sans réordonner les propriétés de la source ni perdre leurs largeurs. Les tests conservent le parcours utilisateur de réordonnancement.
+
+### Régressions découvertes par la validation automatisée
+
+Les contrôles de convergence couvrent également l'identité globale des sources
+(029), la conservation par conteneur de l'onglet actif (009/029), les titres longs
+qui interceptent l'action d'ouverture, le maintien d'une confirmation de
+conversion après fermeture du menu et le contraste en thème clair. Les accents
+du propriétaire et la palette des propriétés restent les références ; les
+rôles de texte et de remplissage accessible peuvent recevoir une variante
+sémantique. Chaque correction d'interface suit ui-quality + lessons avec
+preuves dans verification.md. Aucune donnée de l'instance de développement
+n'est déplacée ni réinitialisée.
+
+La matrice révèle que DatabaseViewSurface n'utilise plus la requête paginée
+après 029. T050 réutilise le moteur local de requête sur l'instantané complet
+de la source choisie et les réglages du conteneur, puis le chargement/focus
+existant de DatabasePage. Les identités, disponibilité et révisions bornent le
+curseur ; changements sans rapport gardent la génération. Couverture partielle
+et travaux locaux sont conservés, sans afficher une base complète à tort.
+
+La validation E2E conserve la géométrie de la cible pendant un appui si une
+largeur distante change, sans capture forcée ni activation au pointerdown. Le
+retour vers une entrée paginée est demandé lors de la fermeture de l’entrée,
+afin que l’ancienne vue ne le consomme pas avant la navigation.

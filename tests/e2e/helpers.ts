@@ -4,11 +4,17 @@
  * The security section at the bottom adds the virtual-authenticator, mounted
  * secret, and readiness helpers the feature-002 journeys need (T003).
  */
-import { generateUuidV7, type PageDocument, PROTOCOL_VERSION } from "@myownnotion/domain";
+import {
+  type DatabasePropertyType,
+  generateUuidV7,
+  type PageDocument,
+  PROTOCOL_VERSION,
+} from "@myownnotion/domain";
 import {
   type APIRequestContext,
   type Browser,
   type BrowserContext,
+  test as browserTest,
   type ElementHandle,
   expect,
   type Locator,
@@ -526,6 +532,10 @@ export async function openRootDatabaseCreation(page: Page): Promise<void> {
 /** A root database opens untitled, like a page. The name is typed on its page. */
 export async function createRootDatabase(page: Page, name: string): Promise<void> {
   await openRootDatabaseCreation(page);
+  await page
+    .getByRole("dialog", { name: "Nouvelle base de données" })
+    .getByRole("button", { name: "Créer une nouvelle source" })
+    .click();
   await nameNewlyCreatedItem(page, name);
   await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached({ timeout: 15_000 });
 }
@@ -611,18 +621,29 @@ export async function ensureNavigationVisible(page: Page): Promise<void> {
     await expect(navigation).toBeVisible();
     return;
   }
+  // A journey can inspect a narrow layout then return to desktop. Do not
+  // mistake the still-mounted mobile drawer for the permanent rail during
+  // React's resize transition.
+  const slot = page.locator(".workspace-sidebar-slot");
+  await expect(slot).toHaveAttribute("data-mode", /^(desktop|tablet)$/);
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await expect
       .poll(async () => (await navigation.isVisible()) || (await trigger.isVisible()), {
         timeout: 15_000,
       })
       .toBe(true);
-    if (await navigation.isVisible()) return;
+    // A collapsed rail still has a visible box during its closing transition.
+    // Its declared state, rather than that transient geometry, owns visibility.
+    if ((await slot.getAttribute("data-open")) === "true") {
+      await expect(navigation).toBeVisible();
+      return;
+    }
     if ((await trigger.getAttribute("aria-expanded")) !== "true") {
       await trigger.click();
     }
     try {
       await expect(navigation).toBeVisible({ timeout: 3_000 });
+      await expect(slot).toHaveAttribute("data-open", "true");
       return;
     } catch {
       // A reload can replace the responsive trigger between resolution and
@@ -675,6 +696,18 @@ export async function closeMobileNavigation(page: Page): Promise<void> {
   if (await dismiss.isVisible()) {
     await dismiss.click();
   }
+}
+
+/** Empty page icons are offered when the title is hovered or being edited. */
+export async function openItemIconPicker(page: Page): Promise<void> {
+  const title = page.locator(".workspace-page-title__body:visible");
+  if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
+    await page.getByTestId("active-item-title").click();
+  } else {
+    await title.hover();
+  }
+  await page.getByTestId("item-icon-picker-trigger").click();
+  await expect(page.getByTestId("emoji-picker-panel")).toBeVisible();
 }
 
 /** Chooses one action from a hierarchy row's menu. */
@@ -831,13 +864,24 @@ export async function selectItem(page: Page, name: string): Promise<void> {
 }
 
 /** Creates one database entry from the page or folder button, then names the new row. */
+export function entryTrigger(scope: Page | Locator, title: string): Locator {
+  return scope
+    .locator(".database-table:visible tr")
+    .filter({ hasText: title })
+    .locator("[data-entry-trigger]")
+    .or(scope.locator("[data-entry-trigger]:visible").filter({ hasText: title }))
+    .first();
+}
+
 export async function createDatabaseEntry(
   page: Page,
   title: string,
   kind: "page" | "folder" = "page",
 ): Promise<Locator> {
   const form = page.locator(".database-entry-create");
-  const button = form.getByRole("button", { name: kind === "folder" ? "Nouveau dossier" : "Nouvelle page" });
+  const button = form.getByRole("button", {
+    name: kind === "folder" ? "Nouveau dossier" : "Nouvelle page",
+  });
   await expect(button).toBeEnabled({ timeout: 15_000 });
   await button.click();
   const editor = page.locator(".database-cell-title-input");
@@ -848,24 +892,173 @@ export async function createDatabaseEntry(
   // The renamed row is the local mutation acknowledgement. Waiting for the
   // button to unlock as well proves that this creation can no longer block
   // the next one.
-  const trigger = page.locator("[data-entry-trigger]").filter({ hasText: title }).first();
+  const trigger = entryTrigger(page, title).first();
   await expect(trigger).toBeVisible({ timeout: 15_000 });
   await expect(button).toBeEnabled({ timeout: 15_000 });
   return trigger;
 }
 
-/** Saves structured values only after the local mutation is observably accepted. */
-export async function saveEntryProperties(page: Page): Promise<void> {
+/** Flushes a focused draft and observes local durability before watching sync. */
+export async function waitForEntryAutosave(
+  page: Page,
+  options: { readonly synchronize?: boolean } = {},
+): Promise<void> {
   const panel = page.locator(".entry-panel");
-  await panel.getByRole("button", { name: "Enregistrer les propriétés" }).click();
-  // Waiting for an empty queue immediately after the click can return before
-  // the async handler has enqueued anything. This acknowledgement proves the
-  // local write happened, so the synchronization wait below cannot race ahead
-  // of the action it is meant to observe.
-  await expect(panel.getByTestId("entry-properties-saved")).toHaveText(
-    "Propriétés enregistrées localement.",
+  await panel.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
+  await expect(panel.locator(".entry-properties__status")).toHaveAttribute(
+    "data-save-state",
+    "saved",
     { timeout: 15_000 },
   );
+  if (options.synchronize !== false) await waitForSynchronized(page);
+}
+
+/** Chooses values through the entry popup rather than the old native select. */
+export async function chooseEntryOptions(page: Page, property: string, labels: readonly string[]) {
+  const trigger = page.locator(".entry-panel").getByRole("button", { name: property, exact: true });
+  for (const label of labels) {
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
+    const choice = page.locator(".entry-choice");
+    await expect(choice).toBeVisible();
+    await choice.getByRole("button", { name: label, exact: true }).click();
+  }
+  if ((await trigger.getAttribute("aria-expanded")) === "true") await page.keyboard.press("Escape");
+}
+
+export async function chooseEntryRelation(
+  page: Page,
+  property: string,
+  label: string,
+): Promise<void> {
+  const trigger = page.locator(".entry-panel").getByRole("button", { name: property, exact: true });
+  await trigger.click();
+  const option = page
+    .getByRole("menuitemcheckbox", { name: label, exact: true })
+    .or(page.getByRole("menuitemradio", { name: label, exact: true }));
+  await option.click();
+}
+
+/** Inserts real file bytes through the editor drop path, including durable upload. */
+export async function dropEditorFile(
+  page: Page,
+  file: { readonly name: string; readonly mimeType: string; readonly buffer: Buffer },
+): Promise<string> {
+  const uploaded = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PATCH" &&
+      new URL(response.url()).pathname.startsWith("/v1/uploads/") &&
+      response.status() === 201,
+  );
+  // A sidebar disclosure can be open on mobile; close only the navigation,
+  // never the page or its document, before dropping into the active editor.
+  await closeMobileNavigation(page);
+  const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
+  await expect(editor).toBeVisible({ timeout: 30_000 });
+  await editor.click();
+  await editor.evaluate(
+    (surface, file) => {
+      const bytes = Uint8Array.from(atob(file.base64), (character) => character.charCodeAt(0));
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([bytes], file.name, { type: file.mimeType }));
+      surface.dispatchEvent(
+        new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }),
+      );
+    },
+    { name: file.name, mimeType: file.mimeType, base64: file.buffer.toString("base64") },
+  );
+  if (file.mimeType.startsWith("image/")) {
+    await expect(editor.getByRole("img", { name: file.name, exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+  } else {
+    await expect(editor.locator(".editor-file-block input").last()).toHaveValue(file.name, {
+      timeout: 30_000,
+    });
+  }
+  await waitForEditorSettled(page);
+  await waitForSynchronized(page);
+  // Restore the page disclosure for callers inspecting its file projection.
+  const pageName = await page.getByTestId("active-item-title").inputValue();
+  await openPageAttachments(page, pageName);
+  const response = await uploaded;
+  const result = (await response.json()) as { itemId: string };
+  return result.itemId;
+}
+
+/** Creates a property using the current per-option form, then closes its panel. */
+export async function addDatabaseProperty(
+  page: Page,
+  name: string,
+  type: Exclude<DatabasePropertyType, "title">,
+  options?: readonly string[],
+): Promise<void> {
+  await page.getByRole("button", { name: "Ajouter une propriété", exact: true }).click();
+  const form = page.getByRole("form", { name: "Éditeur de propriété" });
+  await form.getByLabel("Nom", { exact: true }).fill(name);
+  await form
+    .getByLabel("Type", { exact: true })
+    .selectOption(type === "status" || type === "multi-select" ? "select" : type);
+  if (options !== undefined) {
+    const inputs = form.getByLabel("Nom de l'option", { exact: true });
+    while ((await inputs.count()) > options.length) {
+      await form
+        .getByRole("button", { name: /^Retirer / })
+        .last()
+        .click();
+    }
+    while ((await inputs.count()) < options.length) {
+      await form.getByRole("button", { name: "Ajouter une option", exact: true }).click();
+    }
+    for (const [index, label] of options.entries()) await inputs.nth(index).fill(label);
+  }
+  await form.getByRole("button", { name: "Enregistrer la propriété" }).click();
+  await expect(form).toBeHidden();
+  await waitForDatabaseDefinitionSaved(page);
+  await page.keyboard.press("Escape");
+  if (type === "multi-select") {
+    await openPropertyConfiguration(page, name);
+    await page.getByRole("checkbox", { name: "Autoriser plusieurs options" }).click();
+    await page.getByRole("button", { name: "Confirmer la modification", exact: true }).click();
+    await expect(page.getByRole("checkbox", { name: "Autoriser plusieurs options" })).toBeChecked();
+    await waitForSynchronized(page);
+    await page.keyboard.press("Escape");
+    await page
+      .locator(".database-view-settings")
+      .getByRole("button", { name: "Fermer", exact: true })
+      .click();
+    await expect(page.locator(".database-view-settings")).toBeHidden();
+  }
+}
+
+export async function openPropertyConfiguration(page: Page, name: string): Promise<void> {
+  await page.getByRole("button", { name: "Options de la vue", exact: true }).click();
+  const settings = page.locator(".database-view-settings");
+  await settings.getByRole("button", { name: /Modifier les propriétés/ }).click();
+  await settings
+    .getByRole("button", { name: `Modifier la propriété ${name}`, exact: true })
+    .click();
+  await expect(page.getByLabel("Nom de la propriété", { exact: true })).toBeVisible();
+}
+
+export function databaseViewButton(scope: Page | Locator, name: string | RegExp): Locator {
+  return scope.locator(".database-container-page__tabs").getByRole("button", { name, exact: true });
+}
+
+export async function openDatabaseTools(page: Page): Promise<void> {
+  const trigger = page.getByRole("button", { name: "Filtrer, trier et configurer", exact: true });
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
+  await expect(page.locator(".database-settings-panel")).toBeVisible();
+}
+
+export async function createDatabaseView(page: Page, format: string): Promise<void> {
+  await page.getByRole("button", { name: "Ajouter une vue", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Ajouter une nouvelle vue" })
+    .getByRole("button", { name: format, exact: true })
+    .click();
+  await expect(page.getByRole("dialog", { name: "Ajouter une nouvelle vue" })).toBeHidden();
   await waitForSynchronized(page);
 }
 
@@ -1081,7 +1274,7 @@ export async function readSessionCookie(
  * useful place for it to point.
  */
 export async function waitForEditor(page: Page): Promise<void> {
-  const editor = page.getByTestId("block-editor");
+  const editor = page.locator('[data-testid="block-editor"]:visible');
   await expect(editor).toBeVisible({ timeout: 30_000 });
   await expect(editor).toHaveAttribute("data-editor-settled", /^(?:true|false)$/u, {
     timeout: 15_000,
@@ -1090,7 +1283,9 @@ export async function waitForEditor(page: Page): Promise<void> {
 
 /** Browser input observed by the editor, including work not durable yet. */
 export async function editorChangeSequence(page: Page): Promise<number> {
-  const value = await page.getByTestId("block-editor").getAttribute("data-editor-change-sequence");
+  const value = await page
+    .locator('[data-testid="block-editor"]:visible')
+    .getAttribute("data-editor-change-sequence");
   const sequence = Number(value);
   if (!Number.isSafeInteger(sequence) || sequence < 0) {
     throw new Error(`invalid editor change sequence: ${String(value)}`);
@@ -1100,7 +1295,9 @@ export async function editorChangeSequence(page: Page): Promise<number> {
 
 /** Canonical editor batches handed to the operational engine. */
 export async function editorApplyCount(page: Page): Promise<number> {
-  const value = await page.getByTestId("block-editor").getAttribute("data-editor-apply-count");
+  const value = await page
+    .locator('[data-testid="block-editor"]:visible')
+    .getAttribute("data-editor-apply-count");
   const count = Number(value);
   if (!Number.isSafeInteger(count) || count < 0) {
     throw new Error(`invalid editor apply count: ${String(value)}`);
@@ -1133,16 +1330,23 @@ export async function waitForEditorSettled(
       })
       .toBeGreaterThan(options.afterSequence);
   }
-  await expect(page.getByTestId("block-editor")).toHaveAttribute("data-editor-settled", "true", {
-    timeout: 20_000,
-  });
-  await expect(page.getByTestId("block-editor")).toHaveAttribute("data-editor-apply-failures", "0");
+  await expect(page.locator('[data-testid="block-editor"]:visible')).toHaveAttribute(
+    "data-editor-settled",
+    "true",
+    {
+      timeout: 20_000,
+    },
+  );
+  await expect(page.locator('[data-testid="block-editor"]:visible')).toHaveAttribute(
+    "data-editor-apply-failures",
+    "0",
+  );
 }
 
 export async function typeIntoEditor(page: Page, text: string): Promise<void> {
   await waitForEditorSettled(page);
   const beforeSequence = await editorChangeSequence(page);
-  const surface = page.getByTestId("block-editor").locator(".ProseMirror");
+  const surface = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
   await surface.click();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.press("Delete");
@@ -1209,8 +1413,12 @@ export async function openSecondDevice(
   baseURL: string | undefined,
   name = "Second end-to-end device",
 ): Promise<{ context: BrowserContext; page: Page; deviceId: string | null }> {
-  const context = await browser.newContext();
-  const seeded = await seedSessionOnNewDevice(name);
+  const context = await browserTest.step("Create second browser context", () =>
+    browser.newContext(),
+  );
+  const seeded = await browserTest.step("Seed second device session", () =>
+    seedSessionOnNewDevice(name),
+  );
   if (seeded !== null && baseURL !== undefined) {
     await context.addCookies([
       {

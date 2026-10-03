@@ -1113,3 +1113,195 @@ describe("database capability and entries (T019)", () => {
     });
   });
 });
+
+describe("owned source lifecycle and transaction safety", () => {
+  async function owner() {
+    const command = databaseCreate();
+    const outcome = await submit(command);
+    const revision = outcome.result.revisionIds?.[0];
+    const source = await readDatabaseRecord(context.handle.db, command.id);
+    if (revision === undefined || source === null) throw new Error("Missing source fixture");
+    return { command, revision, source };
+  }
+
+  async function addSource(ownerItemId: Uuid, baseRevisionId: Uuid) {
+    const command: Extract<MutationCommand, { type: "database.source.create" }> = {
+      type: "database.source.create",
+      ownerItemId,
+      baseRevisionId,
+      sourceId: generateUuidV7(),
+      name: "Additional source",
+      titlePropertyId: generateUuidV7(),
+      initialViewId: generateUuidV7(),
+      initialViewName: "Additional table",
+    };
+    const outcome = await submit(command);
+    return { command, outcome };
+  }
+
+  async function state(id: Uuid) {
+    return {
+      presentation: await readCurrentDatabasePresentation(context.handle.db, id),
+      sources: await context.handle.db
+        .select()
+        .from(schema.databases)
+        .where(eq(schema.databases.itemId, id)),
+      item: await context.handle.db.select().from(schema.items).where(eq(schema.items.id, id)),
+    };
+  }
+
+  it.each(["missing source", "foreign source"] as const)(
+    "refuses definition replacement targeting a %s without touching either owner",
+    async (failure) => {
+      const original = await owner();
+      const other = await owner();
+      const definition = await readCurrentDatabaseDefinition(
+        context.handle.db,
+        original.command.id,
+      );
+      if (definition === null) throw new Error("Missing definition fixture");
+      const before = await state(original.command.id);
+      const otherBefore = await state(other.command.id);
+      const result = await submit({
+        type: "database.definition.replace",
+        databaseId: original.command.id,
+        sourceId: failure === "missing source" ? generateUuidV7() : other.source.sourceId,
+        baseRevisionId: original.revision as Uuid,
+        definition: { ...definition, name: "Must not overwrite a source" },
+      });
+      expect(result.result).toMatchObject({
+        status: "rejected",
+        problem: { code: "database.not-found" },
+      });
+      expect(await state(original.command.id)).toEqual(before);
+      expect(await state(other.command.id)).toEqual(otherBefore);
+      expect(await readCurrentDatabaseDefinition(context.handle.db, original.command.id)).toEqual(
+        definition,
+      );
+    },
+  );
+
+  it("creates a second source once, preserving the first source and both views", async () => {
+    const original = await owner();
+    const added = await addSource(original.command.id, original.revision as Uuid);
+    expect(added.outcome.result.status).toBe("accepted");
+    const current = await state(original.command.id);
+    expect(current.sources).toHaveLength(2);
+    expect(current.presentation?.views.map((view) => view.sourceId)).toEqual([
+      original.source.sourceId,
+      added.command.sourceId,
+    ]);
+    expect(await readCurrentDatabaseSource(context.handle.db, original.command.id)).toMatchObject({
+      sourceId: original.source.sourceId,
+    });
+    const rejected = await submit({
+      ...added.command,
+      baseRevisionId: added.outcome.result.revisionIds?.[0] as Uuid,
+    });
+    expect(rejected.result).toMatchObject({
+      status: "rejected",
+      problem: { code: "mutation.duplicate" },
+    });
+    expect(await state(original.command.id)).toEqual(current);
+  });
+
+  it("promotes a linked page with a new source and restores its linked nature on source deletion", async () => {
+    const original = await owner();
+    const linkedId = generateUuidV7();
+    const linked = await submit({
+      type: "database_view.create",
+      id: linkedId,
+      name: "Linked page",
+      sourceId: original.source.sourceId,
+      initialViewId: generateUuidV7(),
+      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "z" },
+    });
+    expect(linked.result.status).toBe("accepted");
+    const added = await addSource(linkedId, linked.result.revisionIds?.[0] as Uuid);
+    expect(added.outcome.result.status).toBe("accepted");
+    expect((await state(linkedId)).item[0]?.kind).toBe("database");
+    const removed = await submit({
+      type: "database.source.delete",
+      ownerItemId: linkedId,
+      sourceId: added.command.sourceId,
+      baseRevisionId: added.outcome.result.revisionIds?.[0] as Uuid,
+    });
+    expect(removed.result.status).toBe("accepted");
+    const after = await state(linkedId);
+    expect(after.item[0]?.kind).toBe("database_view");
+    expect(after.sources).toHaveLength(0);
+    expect(after.presentation?.views.map((view) => view.state)).toEqual(["active", "retired"]);
+    expect(await readDatabaseRecord(context.handle.db, original.command.id)).toEqual(
+      original.source,
+    );
+  });
+
+  it("deletes only the selected owned source and keeps the other source and view", async () => {
+    const original = await owner();
+    const added = await addSource(original.command.id, original.revision as Uuid);
+    const removed = await submit({
+      type: "database.source.delete",
+      ownerItemId: original.command.id,
+      sourceId: original.source.sourceId,
+      baseRevisionId: added.outcome.result.revisionIds?.[0] as Uuid,
+    });
+    expect(removed.result.status).toBe("accepted");
+    const after = await state(original.command.id);
+    expect(after.sources.map((source) => source.sourceId)).toEqual([added.command.sourceId]);
+    expect(after.item[0]?.kind).toBe("database");
+    expect(after.presentation?.views.map((view) => view.state)).toEqual(["retired", "active"]);
+  });
+
+  it.each([
+    "missing owner",
+    "wrong owner kind",
+    "trashed owner",
+    "stale revision",
+    "duplicate view",
+  ] as const)("refuses source creation with %s without changing the container", async (failure) => {
+    const original = await owner();
+    let ownerId = original.command.id;
+    if (failure === "missing owner") ownerId = generateUuidV7();
+    if (failure === "wrong owner kind") ownerId = await createPage("Ordinary page");
+    if (failure === "trashed owner") await submit({ type: "item.trash", itemId: ownerId });
+    const before = await state(original.command.id);
+    const command: Extract<MutationCommand, { type: "database.source.create" }> = {
+      type: "database.source.create",
+      ownerItemId: ownerId,
+      sourceId: generateUuidV7(),
+      name: "Rejected source",
+      titlePropertyId: generateUuidV7(),
+      initialViewId:
+        failure === "duplicate view" ? original.command.initialViewId : generateUuidV7(),
+      initialViewName: "Rejected table",
+      baseRevisionId: failure === "stale revision" ? generateUuidV7() : (original.revision as Uuid),
+    };
+    const result = await submit(command);
+    expect(result.result.status).toBe(failure === "stale revision" ? "conflict" : "rejected");
+    expect(await state(original.command.id)).toEqual(before);
+  });
+
+  it.each(["missing source", "foreign source", "stale revision"] as const)(
+    "refuses source deletion with %s without losing existing data",
+    async (failure) => {
+      const original = await owner();
+      const other = await owner();
+      const before = await state(original.command.id);
+      const result = await submit({
+        type: "database.source.delete",
+        ownerItemId: original.command.id,
+        sourceId:
+          failure === "missing source"
+            ? generateUuidV7()
+            : failure === "foreign source"
+              ? other.source.sourceId
+              : original.source.sourceId,
+        baseRevisionId:
+          failure === "stale revision" ? generateUuidV7() : (original.revision as Uuid),
+      });
+      expect(result.result.status).toBe(failure === "stale revision" ? "conflict" : "rejected");
+      expect(await state(original.command.id)).toEqual(before);
+      expect(await readDatabaseRecord(context.handle.db, other.command.id)).toEqual(other.source);
+    },
+  );
+});

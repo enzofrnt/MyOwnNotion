@@ -216,7 +216,11 @@ Les aliases `--color-*`, `--space-*`, etc. sont conservés pour les consommateur
 existants, y compris les styles inline. Nouveau CSS : `--ui-*`. Les couleurs et
 ombres littérales vivent dans `tokens.css`. Les accents utilisent le bleu `#4481D8` et le rouge `#D56C5E` demandés par le
 propriétaire (031), avec leurs variantes hover. Le focus utilise une bordure
-neutre et `--ui-focus-ring: none`, sans glow. La palette des propriétés
+neutre et `--ui-focus-ring: none`, sans glow. Pour du texte coloré, utiliser
+`--ui-color-accent-text` / `--ui-color-danger-text` : leurs variantes conservent
+un contraste lisible sur les surfaces de chaque thème. Le bouton principal
+emploie `--ui-color-accent-solid` / `-solid-hover` pour son texte blanc ; les
+repères de sélection et traits de dépôt gardent `--ui-color-accent`. La palette des propriétés
 `--ui-content-*` reste inchangée. Une nouvelle valeur de thème doit
 être vérifiée dans `:root`, `[data-theme="dark"]` et le fallback sombre sans JS.
 

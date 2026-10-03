@@ -365,6 +365,9 @@ export async function prepareProjectionWrite(
       ) {
         throw new LocalValidationError("database.not-found", "Database page does not exist");
       }
+      if ((await db.databaseSources.get(command.sourceId)) !== undefined) {
+        throw new LocalValidationError("mutation.duplicate", "Source identity already exists");
+      }
       const definition = createInitialDatabaseDefinition({
         type: "database.create",
         id: command.ownerItemId,
@@ -398,6 +401,13 @@ export async function prepareProjectionWrite(
           },
         ],
       };
+      const validatedPresentation = validateDatabasePresentation(nextPresentation, "database");
+      if (!validatedPresentation.ok) {
+        throw new LocalValidationError(
+          "validation.invalid-payload",
+          validatedPresentation.error.title,
+        );
+      }
       const revisionId = generateUuidV7();
       const presentationVersion = (opened.presentationVersion ?? 1) + 1;
       return {
@@ -407,7 +417,7 @@ export async function prepareProjectionWrite(
           : {}),
         database: await codec.sealDatabase({
           ...opened,
-          presentation: nextPresentation,
+          presentation: validatedPresentation.value,
           presentationRevisionId: revisionId,
           presentationVersion,
         }),
@@ -417,7 +427,7 @@ export async function prepareProjectionWrite(
           definition,
           definitionRevisionId: revisionId,
           definitionVersion: 1,
-          presentation: nextPresentation,
+          presentation: validatedPresentation.value,
           presentationRevisionId: revisionId,
           presentationVersion,
         }),
@@ -523,10 +533,19 @@ export async function prepareProjectionWrite(
         command.type === "database.definition.replace" ? command.sourceId : undefined;
       const openedContainer =
         containerRow === undefined ? null : await codec.openDatabase(containerRow);
+      const containerSourceId =
+        openedContainer?.sourceId ?? ownedSourceIdFromItemId(command.databaseId);
       const extraRow =
-        requestedSourceId !== undefined && openedContainer?.sourceId !== requestedSourceId
+        requestedSourceId !== undefined && containerSourceId !== requestedSourceId
           ? await db.databaseSources.get(requestedSourceId)
           : undefined;
+      if (
+        requestedSourceId !== undefined &&
+        containerSourceId !== requestedSourceId &&
+        (extraRow === undefined || extraRow.itemId !== command.databaseId)
+      ) {
+        throw new LocalValidationError("database.not-found", "Source is not owned by this page");
+      }
       const storedDatabase = extraRow ?? containerRow;
       if (storedDatabase === undefined) return {};
       const database = await codec.openDatabase(storedDatabase);
@@ -990,9 +1009,14 @@ export async function applyCommandToProjection(
       );
       if (prepared.item !== undefined) await db.items.put(prepared.item);
       await db.databases.put(prepared.database);
-      if (command.type === "database.source.create" && prepared.databaseSource !== undefined)
-        await db.databaseSources.put(prepared.databaseSource);
-      else if (command.type === "database.source.delete" && prepared.deletedSourceId !== undefined)
+      if (command.type === "database.source.create" && prepared.databaseSource !== undefined) {
+        if ((await db.databaseSources.get(command.sourceId)) !== undefined)
+          throw new LocalValidationError("mutation.duplicate", "Source identity already exists");
+        await db.databaseSources.add(prepared.databaseSource);
+      } else if (
+        command.type === "database.source.delete" &&
+        prepared.deletedSourceId !== undefined
+      )
         await db.databaseSources.delete(prepared.deletedSourceId);
       return [revisionId];
     }

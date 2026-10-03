@@ -271,6 +271,8 @@ function RetireChoiceOption({
   );
 }
 
+import { useContainerView } from "./use-container-view.ts";
+
 /** A hierarchy item hosts views; its owned source survives even when every tab points elsewhere. */
 export function DatabaseContainerPage({
   containerItemId,
@@ -288,7 +290,7 @@ export function DatabaseContainerPage({
   readonly linked?: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [selectedViewId, setSelectedViewId] = useState<Uuid | null>(null);
+  const [selectedViewId, setSelectedViewId] = useContainerView(containerItemId);
   const [renamingViewId, setRenamingViewId] = useState<Uuid | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const renameClosed = useRef(false);

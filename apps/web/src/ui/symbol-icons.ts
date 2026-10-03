@@ -28,8 +28,8 @@ import {
   Bomb,
   Bone,
   Book,
-  BookOpen,
   Bookmark,
+  BookOpen,
   Bot,
   Box,
   Boxes,
@@ -134,6 +134,7 @@ import {
   ListTodo,
   Lock,
   LockOpen,
+  type LucideIcon,
   Luggage,
   Magnet,
   Mail,
@@ -158,8 +159,8 @@ import {
   Paperclip,
   PawPrint,
   Pen,
-  PenTool,
   Pencil,
+  PenTool,
   Phone,
   PiggyBank,
   Pill,
@@ -234,7 +235,6 @@ import {
   Wine,
   Wrench,
   Zap,
-  type LucideIcon,
 } from "lucide-react";
 
 export interface SymbolIconChoice {

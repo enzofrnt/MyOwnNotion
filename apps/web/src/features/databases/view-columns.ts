@@ -70,3 +70,23 @@ export function visibleViewColumns(
     column.visible ? [column.property] : [],
   );
 }
+
+/** Reorders only this view, preserving visibility, width and the source schema. */
+export function moveViewColumn(
+  properties: readonly DatabaseProperty[],
+  presentations: DatabaseView["properties"],
+  propertyId: string,
+  offset: -1 | 1,
+): DatabaseView["properties"] | null {
+  const columns = [...viewColumns(properties, presentations)];
+  const from = columns.findIndex((column) => column.property.id === propertyId);
+  const to = from + offset;
+  if (from < 0 || to < 0 || to >= columns.length) return null;
+  const [moved] = columns.splice(from, 1);
+  if (moved === undefined) return null;
+  columns.splice(to, 0, moved);
+  return columnPresentations(presentations, columns).map((column, index) => ({
+    ...column,
+    positionKey: `col-${String(index + 1).padStart(6, "0")}`,
+  }));
+}

@@ -36,13 +36,13 @@
 
 .ui-button[data-variant="primary"] {
   color: var(--ui-color-text-inverse);
-  background: var(--ui-color-accent);
+  background: var(--ui-color-accent-solid);
   border-color: var(--ui-color-accent);
 }
 
 .ui-button[data-variant="primary"]:hover:not(:disabled) {
   color: var(--ui-color-text-inverse);
-  background: var(--ui-color-accent-hover);
+  background: var(--ui-color-accent-solid-hover);
   border-color: var(--ui-color-accent-hover);
 }
 
@@ -66,15 +66,15 @@
 }
 
 .ui-button[data-variant="danger"] {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
   background: transparent;
-  border-color: var(--ui-color-danger);
+  border-color: var(--ui-color-danger-text);
 }
 
 .ui-button[data-variant="danger"]:hover:not(:disabled) {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
   background: var(--ui-color-surface-hover);
-  border-color: var(--ui-color-danger);
+  border-color: var(--ui-color-danger-text);
 }
 
 .ui-button:disabled,
@@ -132,7 +132,7 @@
 }
 
 .ui-switch[aria-checked="true"] {
-  background: var(--ui-color-accent);
+  background: var(--ui-color-accent-solid);
 }
 
 .ui-switch__thumb {
@@ -280,7 +280,7 @@
 }
 
 .ui-field[data-invalid="true"] input.ui-field__control {
-  border-color: var(--ui-color-danger);
+  border-color: var(--ui-color-danger-text);
 }
 
 .ui-field[data-disabled="true"] {
@@ -288,7 +288,7 @@
 }
 
 .ui-field__error {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
   font-size: var(--ui-text-xs);
 }
 
@@ -345,7 +345,7 @@
 .ui-menu__item[data-destructive="true"]:hover,
 .ui-menu__item[data-destructive="true"][data-active-item],
 .ui-menu__item[data-destructive="true"]:focus-visible {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 
 .ui-menu__item-label {
@@ -497,7 +497,7 @@
 
 .ui-status[data-kind="error"] > .ui-icon,
 .ui-status[data-kind="conflict"] > .ui-icon {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 
 .ui-status__content {
@@ -871,7 +871,7 @@
 .ui-native-select[aria-invalid="true"],
 .ui-select[aria-invalid="true"],
 .ui-native-textarea[aria-invalid="true"] {
-  border-color: var(--ui-color-danger);
+  border-color: var(--ui-color-danger-text);
 }
 .ui-native-textarea {
   min-height: 6rem;
@@ -928,7 +928,7 @@
   box-shadow: var(--ui-focus-ring);
 }
 .ui-native-input[aria-invalid="true"] {
-  border-color: var(--ui-color-danger);
+  border-color: var(--ui-color-danger-text);
 }
 .ui-native-input:disabled {
   opacity: 0.62;
@@ -969,7 +969,7 @@
   border-color: var(--ui-color-focus);
 }
 .ui-input-surface:has(.ui-native-input[aria-invalid="true"]) {
-  border-color: var(--ui-color-danger);
+  border-color: var(--ui-color-danger-text);
 }
 .ui-input-surface > .ui-icon {
   flex: none;

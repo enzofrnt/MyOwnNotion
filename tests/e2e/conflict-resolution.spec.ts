@@ -30,7 +30,7 @@ async function appendInPlace(
 ): Promise<void> {
   await waitForEditorSettled(page);
   const beforeSequence = await editorChangeSequence(page);
-  const surface = page.getByTestId("block-editor").locator(".ProseMirror");
+  const surface = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
   await surface.click();
   await page.keyboard.press("ControlOrMeta+End");
   await surface.pressSequentially(text);
@@ -40,7 +40,12 @@ async function appendInPlace(
 }
 
 async function visibleDocumentText(page: Page): Promise<string> {
-  return ((await page.getByTestId("block-editor").locator(".ProseMirror").innerText()) ?? "")
+  return (
+    (await page
+      .locator('[data-testid="block-editor"]:visible')
+      .locator(".ProseMirror")
+      .innerText()) ?? ""
+  )
     .replace(/\s+/gu, " ")
     .trim();
 }
@@ -136,11 +141,11 @@ test.describe("concurrent edits to the same paragraph (US3)", () => {
       await selectItem(second.page, name);
       await saveDocument(second.page, { until: "synced" });
       await expect(second.page.getByTestId("conflict-notice")).toHaveCount(0);
-      await expect(second.page.getByTestId("block-editor")).toContainText(
+      await expect(second.page.locator('[data-testid="block-editor"]:visible')).toContainText(
         "what the first device added",
         { timeout: 30_000 },
       );
-      await expect(second.page.getByTestId("block-editor")).toContainText(
+      await expect(second.page.locator('[data-testid="block-editor"]:visible')).toContainText(
         "what the second device added",
       );
 
@@ -149,9 +154,12 @@ test.describe("concurrent edits to the same paragraph (US3)", () => {
       await page.reload();
       await openWorkspace(page);
       await selectItem(page, name);
-      await expect(page.getByTestId("block-editor")).toContainText("what the second device added", {
-        timeout: 30_000,
-      });
+      await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+        "what the second device added",
+        {
+          timeout: 30_000,
+        },
+      );
       expect(await visibleDocumentText(page)).toBe(await visibleDocumentText(second.page));
     } finally {
       await second.context.close();

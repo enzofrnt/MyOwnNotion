@@ -43,12 +43,14 @@ async function openPage(page: Page, name: string): Promise<string> {
   await createRootItem(page, "page", name);
   await waitForSynchronized(page);
   await selectItem(page, name);
-  await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+    timeout: 30_000,
+  });
   return (await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id")) ?? "";
 }
 
 function surface(page: Page) {
-  return page.getByTestId("block-editor").locator(".ProseMirror");
+  return page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
 }
 
 function rootBlocks(editor: Locator): Locator {
@@ -525,7 +527,9 @@ test.describe("a page written before the block editor existed", () => {
 
     // Activation happens before the editor accepts its first gesture and
     // preserves every historical block.
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(surface(page)).toContainText("written by an older client", { timeout: 30_000 });
     await expect(surface(page)).toContainText("appended without activating", { timeout: 30_000 });
     const blindReplacement = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
@@ -564,4 +568,98 @@ test.describe("a page written before the block editor existed", () => {
     expect(durableBody).toContain("appended without activating");
     expect(durableBody).toContain("continued today after activation");
   });
+});
+
+test("shows a blue reading-column preview during native block drag with another editor hidden", async ({
+  page,
+}, testInfo) => {
+  await openPage(page, uniqueName("Hidden drag editor"));
+  await typeParagraphs(surface(page), ["Hidden editor content"]);
+  await saveDocument(page);
+  const name = uniqueName("Native drag editor");
+  await openPage(page, name);
+  const editor = surface(page);
+  const values = ["First destination", "Middle paragraph", "Dragged paragraph"];
+  await typeParagraphs(editor, values);
+  await saveDocument(page);
+  await expect
+    .poll(() =>
+      page
+        .locator(".ProseMirror")
+        .evaluateAll(
+          (nodes) => nodes.filter((node) => (node as HTMLElement).offsetParent === null).length,
+        ),
+    )
+    .toBeGreaterThan(0);
+  const blocks = rootBlocks(editor);
+  const previousIds = await blocks.evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute("data-id")),
+  );
+  const before = await editorApplyCount(page);
+  await blocks.last().hover();
+  const handle = page.getByRole("button", { name: "Ouvrir le menu du bloc", exact: true });
+  await expect(handle).toHaveAttribute("draggable", "true");
+  const from = await handle.boundingBox();
+  const to = await blocks.first().boundingBox();
+  if (from === null || to === null) throw new Error("Missing native drag geometry");
+  try {
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y - 3, { steps: 12 });
+    await page.mouse.move(to.x + to.width / 2 + 1, to.y - 3);
+    const cursor = page
+      .locator(
+        ".prosemirror-dropcursor-block-horizontal:visible, .prosemirror-dropcursor-block:visible",
+      )
+      .first();
+    await expect(cursor).toBeVisible();
+    const geometry = await cursor.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, width: rect.width, color: getComputedStyle(node).backgroundColor };
+    });
+    const readingColumn = await blocks.first().boundingBox();
+    expect(Math.abs(geometry.left - (readingColumn?.x ?? -1000))).toBeLessThanOrEqual(2);
+    expect(Math.abs(geometry.width - (readingColumn?.width ?? -1000))).toBeLessThanOrEqual(2);
+    expect(geometry.color).toBe("rgb(68, 129, 216)");
+    expect(await editorApplyCount(page)).toBe(before);
+    await page.screenshot({ path: testInfo.outputPath("native-block-drop-preview.png") });
+    await testInfo.attach("native-block-drop-preview", {
+      path: testInfo.outputPath("native-block-drop-preview.png"),
+      contentType: "image/png",
+    });
+    await page.mouse.up();
+    await expect
+      .poll(() => blocks.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-id"))))
+      .toEqual([previousIds[2], previousIds[0], previousIds[1]]);
+    await saveDocument(page);
+    await page.reload();
+    await openWorkspace(page);
+    await expect
+      .poll(() => blocks.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-id"))))
+      .toEqual([previousIds[2], previousIds[0], previousIds[1]]);
+    await blocks.first().hover();
+    const cancelFrom = await handle.boundingBox();
+    const cancelTo = await blocks.last().boundingBox();
+    if (cancelFrom === null || cancelTo === null) throw new Error("Missing cancel geometry");
+    const applied = await editorApplyCount(page);
+    await page.mouse.move(
+      cancelFrom.x + cancelFrom.width / 2,
+      cancelFrom.y + cancelFrom.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(cancelTo.x + cancelTo.width / 2, cancelTo.y + cancelTo.height - 2, {
+      steps: 12,
+    });
+    await page.mouse.move(cancelTo.x + cancelTo.width / 2 + 1, cancelTo.y + cancelTo.height - 2);
+    await expect(cursor).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.mouse.up();
+    await expect(cursor).toHaveCount(0);
+    expect(await editorApplyCount(page)).toBe(applied);
+    expect(
+      await blocks.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-id"))),
+    ).toEqual([previousIds[2], previousIds[0], previousIds[1]]);
+  } finally {
+    await page.mouse.up();
+  }
 });

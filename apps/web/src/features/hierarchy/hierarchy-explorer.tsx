@@ -452,6 +452,7 @@ export function HierarchyExplorer({
     readonly definition: DatabaseDefinition;
   } | null>(null);
   const [entryReturnFocusId, setEntryReturnFocusId] = useState<Uuid | null>(null);
+  const databaseEntryOrigin = useRef<{ entryId: Uuid; containerItemId: Uuid } | null>(null);
   const linkedEntryOrigin = useRef<{
     hostPageId: Uuid;
     embeddingId: Uuid;
@@ -488,7 +489,10 @@ export function HierarchyExplorer({
   const [iconPickerItemId, setIconPickerItemId] = useState<Uuid | null>(null);
   const [trashConfirmation, setTrashConfirmation] = useState<TrashConfirmation | null>(null);
   const [trashing, setTrashing] = useState(false);
-  const [databaseCreate, setDatabaseCreate] = useState<{ parentItemId: Uuid | null } | null>(null);
+  const [databaseCreate, setDatabaseCreate] = useState<{
+    parentItemId: Uuid | null;
+    returnToMobileNavigation: boolean;
+  } | null>(null);
   const [databaseCreateMode, setDatabaseCreateMode] = useState<"choose" | "existing">("choose");
   const [databaseSourceOptions, setDatabaseSourceOptions] = useState<
     readonly { id: Uuid; name: string }[]
@@ -1220,7 +1224,7 @@ export function HierarchyExplorer({
     (entryId: Uuid, _trigger?: HTMLElement | null) => {
       const database = selectedDatabase;
       if (database === null) return;
-      setEntryReturnFocusId(entryId);
+      databaseEntryOrigin.current = { entryId, containerItemId: database.databaseId as Uuid };
       const visibleEntry = databaseEntries.find((entry) => entry.entryId === entryId);
       if (visibleEntry !== undefined) {
         const definition = database.definition as unknown as DatabaseDefinition;
@@ -1471,7 +1475,10 @@ export function HierarchyExplorer({
     (parentItemId: Uuid | null) => {
       setRootCreationOpen(false);
       setInlineCreationItemId(null);
-      setDatabaseCreate({ parentItemId });
+      // As with trash confirmation, replace the modal drawer rather than
+      // opening an unrelated modal outside its locked interaction boundary.
+      setMobileNavigationOpen(false);
+      setDatabaseCreate({ parentItemId, returnToMobileNavigation: mobileNavigationOpen });
       setDatabaseCreateMode("choose");
       setDatabaseCreateError(null);
       setDatabaseCreateBusy(false);
@@ -1499,7 +1506,7 @@ export function HierarchyExplorer({
           setDatabaseCreateError("Les sources existantes ne sont pas disponibles.");
         });
     },
-    [items, service],
+    [items, mobileNavigationOpen, service],
   );
 
   const createLinkedDatabasePage = useCallback(async () => {
@@ -2155,13 +2162,17 @@ export function HierarchyExplorer({
                         {...(node.item.kind !== "page" && node.item.kind !== "folder"
                           ? {}
                           : {
-                              conversion: (returnFocus: RefObject<HTMLButtonElement | null>) => (
+                              conversion: (
+                                returnFocus: RefObject<HTMLButtonElement | null>,
+                                onActiveChange: (active: boolean) => void,
+                              ) => (
                                 <ConvertItemControl
                                   itemId={node.item.id}
                                   itemName={node.item.name}
                                   kind={node.item.kind as ConvertibleKind}
                                   convert={convertItem}
                                   finalFocus={returnFocus}
+                                  onActiveChange={onActiveChange}
                                   variant="menu"
                                 />
                               ),
@@ -2329,7 +2340,7 @@ export function HierarchyExplorer({
             : "bounded"
       }
       mobileNavigationOpen={mobileNavigationOpen}
-      restoreMobileFocusOnClose={titleDraftSession?.focused !== true}
+      restoreMobileFocusOnClose={titleDraftSession?.focused !== true && databaseCreate === null}
       sidebarOpen={sidebarOpen}
       sidebarWidth={sidebarWidth}
       onMobileNavigationOpenChange={setMobileNavigationOpen}
@@ -2398,7 +2409,10 @@ export function HierarchyExplorer({
         busy={databaseCreateBusy}
         error={databaseCreateError}
         onCancel={() => {
-          if (!databaseCreateBusy) setDatabaseCreate(null);
+          if (!databaseCreateBusy) {
+            if (databaseCreate?.returnToMobileNavigation === true) setMobileNavigationOpen(true);
+            setDatabaseCreate(null);
+          }
         }}
         onCreateNewSource={() => {
           const parentItemId = databaseCreate?.parentItemId ?? null;
@@ -2650,7 +2664,10 @@ export function HierarchyExplorer({
                         containerItemId={selectedItem.id}
                         service={service}
                         onOpenEntry={(entryId) => {
-                          setEntryReturnFocusId(entryId);
+                          databaseEntryOrigin.current = {
+                            entryId,
+                            containerItemId: selectedItem.id,
+                          };
                           selectItemById(entryId);
                         }}
                         returnFocusEntryId={entryReturnFocusId}
@@ -3010,6 +3027,9 @@ export function HierarchyExplorer({
                     )
                   }
                   onClose={() => {
+                    // Request restoration on return, not while the source view
+                    // is still mounted during the outward navigation.
+                    setEntryReturnFocusId(selectedEntry.entryId as Uuid);
                     const databaseId = selectedEntry.databaseId as Uuid;
                     const visibleIds = new Set(items.map((item) => item.id));
                     const origin =
@@ -3021,11 +3041,16 @@ export function HierarchyExplorer({
                       origin === null ? null : { ...origin, returning: true };
                     const hostPageId =
                       origin?.hostPageId ??
+                      (databaseEntryOrigin.current?.entryId === selectedEntry.entryId &&
+                      visibleIds.has(databaseEntryOrigin.current.containerItemId)
+                        ? databaseEntryOrigin.current.containerItemId
+                        : null) ??
                       databaseEmbeddings(entryDefinition).find(
                         (embedding) =>
                           embedding.state === "active" && visibleIds.has(embedding.hostPageId),
                       )?.hostPageId ??
                       (visibleIds.has(databaseId) ? databaseId : null);
+                    databaseEntryOrigin.current = null;
                     selectItemById(hostPageId, { replace: true });
                     remotelyOpenedEntry.current = null;
                   }}

@@ -12,7 +12,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate((value) => {
       document.documentElement.dataset["theme"] = value;
     }, theme);
-    const editor = page.getByTestId("block-editor").locator(".ProseMirror");
+    const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await expect(editor).toBeVisible();
     const line = editor.locator(".bn-inline-content").first();
     await line.click();

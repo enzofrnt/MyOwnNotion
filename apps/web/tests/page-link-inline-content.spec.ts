@@ -94,9 +94,7 @@ describe("page-link clipboard recovery", () => {
   it("keeps an empty page-link mention after a drag-shaped conversion", () => {
     const targetItemId = generateUuidV7();
     expect(
-      blockNoteInlineToCanonical([
-        { type: "pageLink", props: { targetItemId }, content: [] },
-      ]),
+      blockNoteInlineToCanonical([{ type: "pageLink", props: { targetItemId }, content: [] }]),
     ).toEqual([{ text: "Sans titre", marks: [{ type: "pageLink", targetItemId }] }]);
   });
 });

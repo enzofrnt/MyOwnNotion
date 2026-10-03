@@ -24,6 +24,7 @@ function EmbeddedDatabaseBlock({ containerItemId }: { readonly containerItemId: 
   const context = useDatabaseViewBlockContext();
   if (context === null || containerItemId === "") return null;
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: This noneditable boundary only stops editor selection; child controls own all actions and keyboard input.
     <div
       className="editor-database-view-block"
       contentEditable={false}

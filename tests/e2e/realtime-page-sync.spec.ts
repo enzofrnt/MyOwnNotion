@@ -16,7 +16,7 @@ import {
 } from "./helpers.ts";
 
 function editor(page: Page): Locator {
-  return page.getByTestId("block-editor").locator(".ProseMirror");
+  return page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
 }
 
 function blocks(page: Page): Locator {
@@ -121,7 +121,9 @@ test("connected devices exchange text, marks and block order without reload or r
     await openWorkspace(second.page);
     await selectItem(second.page, pageName);
     await waitForEditorSettled(second.page);
-    await expect(second.page.getByTestId("block-editor")).toContainText("second bloc temps réel");
+    await expect(second.page.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "second bloc temps réel",
+    );
     await openNoteInformation(page);
     await openNoteInformation(second.page);
     await expect(page.getByTestId("live-connection-state")).toHaveAttribute("data-state", "live");
@@ -147,9 +149,12 @@ test("connected devices exchange text, marks and block order without reload or r
     await waitForEditorSettled(page, { afterSequence: beforeText });
     propagationMs.push(
       await expectPropagated(second.page, textStartedAt, async () => {
-        await expect(second.page.getByTestId("block-editor")).toContainText("écrit sur A", {
-          timeout: 1_900,
-        });
+        await expect(second.page.locator('[data-testid="block-editor"]:visible')).toContainText(
+          "écrit sur A",
+          {
+            timeout: 1_900,
+          },
+        );
       }),
     );
     await expect(

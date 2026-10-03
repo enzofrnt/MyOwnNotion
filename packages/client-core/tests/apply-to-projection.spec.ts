@@ -15,8 +15,12 @@ import {
   type LocalDatabase,
   openLocalDatabase,
 } from "@myownnotion/client-core";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { generateUuidV7, type MutationCommand, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  type PreparedProjectionWrite,
+  prepareProjectionWrite,
+} from "../src/outbox/apply-to-projection.ts";
 import { createTestCodec } from "./helpers/codec.ts";
 
 let db: LocalDatabase;
@@ -354,7 +358,7 @@ describe("database projection placement and host guards", () => {
   });
 
   it("rolls back a prepared database when its hierarchy parent is invalid", async () => {
-    const host = await createItem("page", "Host", null);
+    await createItem("page", "Host", null);
     const payload = createDatabasePayload({
       placement: { id: generateUuidV7(), parentItemId: generateUuidV7(), positionKey: "a" },
     });
@@ -1408,4 +1412,568 @@ describe("conversion and definition validation", () => {
     expect(convert.ok).toBe(true);
     expect((await readItem(id))?.kind).toBe("folder");
   });
+});
+
+describe("owned data sources and linked database pages", () => {
+  function required<T>(value: T | undefined | null): T {
+    if (value === undefined || value === null) throw new Error("Missing fixture value");
+    return value;
+  }
+
+  async function owner() {
+    const payload = createDatabasePayload();
+    expect((await applyMutation("database.create", payload)).ok).toBe(true);
+    const database = await readDatabase(payload.id);
+    if (database?.presentationRevisionId === undefined || database.sourceId === undefined)
+      throw new Error("Missing source fixture");
+    return { id: payload.id, database };
+  }
+
+  async function addSource(ownerItemId: Uuid, baseRevisionId: Uuid) {
+    const payload = {
+      ownerItemId,
+      baseRevisionId,
+      sourceId: generateUuidV7(),
+      name: "  Independent source  ",
+      titlePropertyId: generateUuidV7(),
+      initialViewId: generateUuidV7(),
+      initialViewName: "  New table  ",
+    };
+    const result = await applyMutation("database.source.create", payload);
+    return { payload, result };
+  }
+
+  async function linked(sourceId: Uuid, parentItemId: Uuid | null = null) {
+    const payload = {
+      id: generateUuidV7(),
+      name: "Linked page",
+      sourceId,
+      initialViewId: generateUuidV7(),
+      placement: { id: generateUuidV7(), parentItemId, positionKey: "b" },
+    };
+    return { payload, result: await applyMutation("database_view.create", payload) };
+  }
+
+  async function snapshot() {
+    return {
+      items: await db.items.toArray(),
+      databases: await db.databases.toArray(),
+      sources: await db.databaseSources.toArray(),
+      revisions: await db.revisionHeaders.toArray(),
+      placements: await db.placements.toArray(),
+      outbox: await db.outbox.toArray(),
+    };
+  }
+
+  it("creates independent sources on one page without replacing its original definition", async () => {
+    const original = await owner();
+    const { payload, result } = await addSource(
+      original.id,
+      required(original.database.presentationRevisionId),
+    );
+    expect(result.ok).toBe(true);
+    const updated = await readDatabase(original.id);
+    expect(updated?.definition).toEqual(original.database.definition);
+    expect(updated?.presentationVersion).toBe(2);
+    expect(updated?.presentation?.views).toHaveLength(2);
+    expect(updated?.presentation?.views[1]).toMatchObject({
+      id: payload.initialViewId,
+      sourceId: payload.sourceId,
+      name: "New table",
+      state: "active",
+    });
+    const stored = await db.databaseSources.get(payload.sourceId);
+    expect(stored).toBeDefined();
+    if (stored === undefined) throw new Error("Missing created source");
+    const source = await codec.openDatabase(stored);
+    expect(source.definition).toMatchObject({
+      databaseId: original.id,
+      name: "Independent source",
+    });
+    expect(source.definitionRevisionId).toBe(updated?.presentationRevisionId);
+    expect(source.definition.properties).toHaveLength(1);
+    expect(await db.databaseSources.count()).toBe(2);
+    expect(await db.outbox.count()).toBe(2);
+  });
+
+  it("promotes a linked page when it creates a source, and preserves its linked view after deleting that source", async () => {
+    const original = await owner();
+    const view = await linked(required(original.database.sourceId));
+    expect(view.result.ok).toBe(true);
+    expect((await readItem(view.payload.id))?.kind).toBe("database_view");
+    const before = await readDatabase(view.payload.id);
+    const added = await addSource(
+      view.payload.id,
+      required(required(before).presentationRevisionId),
+    );
+    expect(added.result.ok).toBe(true);
+    expect((await readItem(view.payload.id))?.kind).toBe("database");
+    const after = await readDatabase(view.payload.id);
+    expect(after?.presentation?.views[0]?.sourceId).toBe(original.database.sourceId);
+    const removed = await applyMutation("database.source.delete", {
+      ownerItemId: view.payload.id,
+      sourceId: added.payload.sourceId,
+      baseRevisionId: required(required(after).presentationRevisionId),
+    });
+    expect(removed.ok).toBe(true);
+    expect((await readItem(view.payload.id))?.kind).toBe("database_view");
+    expect(await db.databaseSources.get(added.payload.sourceId)).toBeUndefined();
+    const final = await readDatabase(view.payload.id);
+    expect(final?.presentation?.views.map((item) => item.state)).toEqual(["active", "retired"]);
+    expect(await readDatabase(original.id)).toEqual(original.database);
+  });
+
+  it("retires only views of the deleted source and keeps the owner while another owned source exists", async () => {
+    const original = await owner();
+    const added = await addSource(original.id, required(original.database.presentationRevisionId));
+    expect(added.result.ok).toBe(true);
+    const current = await readDatabase(original.id);
+    expect(
+      (
+        await applyMutation("database.source.delete", {
+          ownerItemId: original.id,
+          sourceId: required(original.database.sourceId),
+          baseRevisionId: required(required(current).presentationRevisionId),
+        })
+      ).ok,
+    ).toBe(true);
+    expect((await readItem(original.id))?.kind).toBe("database");
+    expect(
+      (await readDatabase(original.id))?.presentation?.views.map((view) => view.state),
+    ).toEqual(["retired", "active"]);
+    expect(await db.databaseSources.get(added.payload.sourceId)).toBeDefined();
+  });
+
+  it.each([
+    "missing owner",
+    "trashed owner",
+    "wrong owner kind",
+    "missing container",
+    "missing presentation",
+    "stale revision",
+  ] as const)("rejects source creation atomically with %s", async (failure) => {
+    const original = await owner();
+    let ownerId = original.id;
+    let revision = required(original.database.presentationRevisionId);
+    if (failure === "missing owner") ownerId = generateUuidV7();
+    if (failure === "trashed owner") await db.items.update(ownerId, { lifecycle: "trashed" });
+    if (failure === "wrong owner kind") await db.items.update(ownerId, { kind: "page" });
+    if (failure === "missing container") await db.databases.delete(ownerId);
+    if (failure === "missing presentation") {
+      const { presentation: _, ...without } = original.database;
+      await db.databases.put(await codec.sealDatabase(without));
+    }
+    if (failure === "stale revision") revision = generateUuidV7();
+    const before = await snapshot();
+    const added = await addSource(ownerId, revision);
+    expect(added.result).toMatchObject({ ok: false, error: { code: "database.not-found" } });
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it.each([
+    "missing owner",
+    "missing container",
+    "missing source",
+    "foreign source",
+    "missing presentation",
+    "stale revision",
+  ] as const)("rejects source deletion atomically with %s", async (failure) => {
+    const original = await owner();
+    let ownerId = original.id;
+    let sourceId = required(original.database.sourceId);
+    let revision = required(original.database.presentationRevisionId);
+    if (failure === "missing owner") await db.items.delete(ownerId);
+    if (failure === "missing container") await db.databases.delete(ownerId);
+    if (failure === "missing source") sourceId = generateUuidV7();
+    if (failure === "foreign source") {
+      const other = await owner();
+      ownerId = other.id;
+      revision = required(other.database.presentationRevisionId);
+    }
+    if (failure === "missing presentation") {
+      const { presentation: _, ...without } = original.database;
+      await db.databases.put(await codec.sealDatabase(without));
+    }
+    if (failure === "stale revision") revision = generateUuidV7();
+    const before = await snapshot();
+    expect(
+      await applyMutation("database.source.delete", {
+        ownerItemId: ownerId,
+        sourceId,
+        baseRevisionId: revision,
+      }),
+    ).toMatchObject({ ok: false, error: { code: "database.not-found" } });
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it.each([
+    "missing source",
+    "trashed source owner",
+    "no active template",
+    "invalid parent",
+    "duplicate page",
+  ] as const)("rejects linked page creation atomically with %s", async (failure) => {
+    const original = await owner();
+    let sourceId = required(original.database.sourceId);
+    let parentId: Uuid | null = null;
+    if (failure === "missing source") sourceId = generateUuidV7();
+    if (failure === "trashed source owner")
+      await db.items.update(original.id, { lifecycle: "trashed" });
+    if (failure === "no active template") {
+      const replacement = {
+        ...original.database,
+        definition: {
+          ...original.database.definition,
+          views: original.database.definition.views.map((view) => ({
+            ...view,
+            state: "retired" as const,
+          })),
+        },
+      };
+      const row = await codec.sealDatabase(replacement);
+      await db.databases.put(row);
+      await db.databaseSources.put(row);
+    }
+    if (failure === "invalid parent") parentId = generateUuidV7();
+    if (failure === "duplicate page") {
+      const first = await linked(sourceId);
+      expect(first.result.ok).toBe(true);
+      const before = await snapshot();
+      expect(await applyMutation("database_view.create", first.payload)).toMatchObject({
+        ok: false,
+        error: { code: "database.membership-conflict" },
+      });
+      expect(await snapshot()).toEqual(before);
+      return;
+    }
+    const before = await snapshot();
+    expect((await linked(sourceId, parentId)).result.ok).toBe(false);
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("locks source replacement for a single owner view but allows it after adding a second view", async () => {
+    const original = await owner();
+    const other = await owner();
+    const presentation = required(original.database.presentation);
+    const view = required(presentation.views[0]);
+    const replacement = {
+      ...presentation,
+      views: [{ ...view, sourceId: required(other.database.sourceId) }],
+    };
+    const before = await snapshot();
+    expect(
+      await applyMutation("database.presentation.replace", {
+        containerItemId: original.id,
+        baseRevisionId: required(original.database.presentationRevisionId),
+        presentation: replacement,
+      }),
+    ).toMatchObject({ ok: false, error: { code: "database.view-source-locked" } });
+    expect(await snapshot()).toEqual(before);
+    const second = { ...view, id: generateUuidV7(), name: "Second", positionKey: "z" };
+    expect(
+      (
+        await applyMutation("database.presentation.replace", {
+          containerItemId: original.id,
+          baseRevisionId: required(original.database.presentationRevisionId),
+          presentation: { ...replacement, views: [...replacement.views, second] },
+        })
+      ).ok,
+    ).toBe(true);
+    expect((await readDatabase(original.id))?.presentation?.views.map((v) => v.sourceId)).toEqual([
+      other.database.sourceId,
+      original.database.sourceId,
+    ]);
+    expect((await readDatabase(original.id))?.definition).toEqual(original.database.definition);
+  });
+
+  it.each([
+    "missing container",
+    "missing owner",
+    "missing presentation",
+    "missing revision",
+    "stale revision",
+    "trashed owner",
+    "foreign presentation",
+  ] as const)("rejects view replacement atomically with %s", async (failure) => {
+    const original = await owner();
+    let revision = required(original.database.presentationRevisionId);
+    if (failure === "missing container") await db.databases.delete(original.id);
+    if (failure === "missing owner") await db.items.delete(original.id);
+    if (failure === "trashed owner") await db.items.update(original.id, { lifecycle: "trashed" });
+    if (failure === "missing presentation" || failure === "missing revision") {
+      const { presentation, presentationRevisionId, ...rest } = original.database;
+      await db.databases.put(
+        await codec.sealDatabase({
+          ...rest,
+          ...(failure === "missing presentation"
+            ? { presentationRevisionId: required(presentationRevisionId) }
+            : { presentation: required(presentation) }),
+        }),
+      );
+    }
+    if (failure === "stale revision") revision = generateUuidV7();
+    const before = await snapshot();
+    const result = await applyMutation("database.presentation.replace", {
+      containerItemId: original.id,
+      baseRevisionId: revision,
+      presentation: {
+        ...required(original.database.presentation),
+        ...(failure === "foreign presentation" ? { containerItemId: generateUuidV7() } : {}),
+      },
+    });
+    expect(result.ok).toBe(false);
+    expect(await snapshot()).toEqual(before);
+  });
+  it.each(["missing", "foreign"] as const)(
+    "refuses editing a %s source through another owner's page without changing its projection",
+    async (failure) => {
+      const original = await owner();
+      const another = await owner();
+      const sourceId =
+        failure === "missing" ? generateUuidV7() : required(another.database.sourceId);
+      const current = failure === "missing" ? original.database : another.database;
+      const before = await snapshot();
+      const result = await applyMutation("database.definition.replace", {
+        databaseId: original.id,
+        sourceId,
+        baseRevisionId: current.definitionRevisionId,
+        definition: {
+          ...current.definition,
+          databaseId: original.id,
+          name: "Incorrectly retargeted source",
+        },
+      });
+      expect(result).toMatchObject({ ok: false, error: { code: "database.not-found" } });
+      expect(await snapshot()).toEqual(before);
+    },
+  );
+
+  it("edits an additional owned source independently of the owner's original schema and views", async () => {
+    const original = await owner();
+    const added = await addSource(original.id, required(original.database.presentationRevisionId));
+    expect(added.result.ok).toBe(true);
+    const stored = required(await db.databaseSources.get(added.payload.sourceId));
+    const extra = await codec.openDatabase(stored);
+    const container = await readDatabase(original.id);
+    const candidate = { ...extra.definition, name: "Changed independent schema" };
+    expect(
+      await applyMutation("database.definition.replace", {
+        databaseId: original.id,
+        sourceId: added.payload.sourceId,
+        baseRevisionId: extra.definitionRevisionId,
+        definition: candidate,
+      }),
+    ).toMatchObject({ ok: true });
+    const changed = await codec.openDatabase(
+      required(await db.databaseSources.get(added.payload.sourceId)),
+    );
+    expect(changed.definition).toEqual(candidate);
+    expect(changed.definitionVersion).toBe(extra.definitionVersion + 1);
+    expect(changed.definitionRevisionId).not.toBe(extra.definitionRevisionId);
+    expect(await readDatabase(original.id)).toEqual(container);
+    expect(
+      (
+        await codec.openDatabase(
+          required(await db.databaseSources.get(required(original.database.sourceId))),
+        )
+      ).definition,
+    ).toEqual(original.database.definition);
+  });
+
+  it("refuses a new source that reuses an existing source identity", async () => {
+    const original = await owner();
+    const another = await owner();
+    const before = await snapshot();
+    const result = await applyMutation("database.source.create", {
+      ownerItemId: another.id,
+      sourceId: original.database.sourceId,
+      name: "Duplicate source",
+      titlePropertyId: generateUuidV7(),
+      initialViewId: generateUuidV7(),
+      initialViewName: "Duplicate",
+      baseRevisionId: another.database.presentationRevisionId,
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "mutation.duplicate" } });
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("refuses a new source whose initial view duplicates an existing saved view", async () => {
+    const original = await owner();
+    const first = required(original.database.presentation?.views[0]);
+    const before = await snapshot();
+    const result = await applyMutation("database.source.create", {
+      ownerItemId: original.id,
+      sourceId: generateUuidV7(),
+      name: "Second source",
+      titlePropertyId: generateUuidV7(),
+      initialViewId: first.id,
+      initialViewName: "Duplicate",
+      baseRevisionId: original.database.presentationRevisionId,
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "validation.invalid-payload" } });
+    expect(await snapshot()).toEqual(before);
+  });
+});
+
+describe("prepared projection atomicity", () => {
+  function required<T>(value: T | undefined | null): T {
+    if (value === undefined || value === null) throw new Error("Missing fixture value");
+    return value;
+  }
+  const omissions = [
+    ["database.create", "item"],
+    ["database.create", "database"],
+    ["database.create", "revisionId"],
+    ["database_view.create", "item"],
+    ["database_view.create", "database"],
+    ["database_view.create", "revisionId"],
+    ["database.source.create", "database"],
+    ["database.source.create", "databaseSource"],
+    ["database.source.create", "revisionId"],
+    ["database.source.delete", "database"],
+    ["database.source.delete", "revisionId"],
+    ["database.definition.replace", "database"],
+    ["database.definition.replace", "revisionId"],
+    ["database.presentation.replace", "item"],
+    ["database.presentation.replace", "database"],
+    ["database.presentation.replace", "revisionId"],
+    ["database.entry.create", "item"],
+    ["database.entry.create", "databaseEntry"],
+    ["database.entry.create", "revisionId"],
+    ["database.entry.create", "relationTargets"],
+    ["database.entry.values.replace", "item"],
+    ["database.entry.values.replace", "databaseEntry"],
+    ["database.entry.values.replace", "revisionId"],
+    ["database.entry.values.replace", "relationTargets"],
+    ["item.rename", "item"],
+    ["item.rename", "revisionId"],
+    ["page.document.replace", "item"],
+    ["page.document.replace", "revisionId"],
+  ] as const;
+
+  it.each(omissions)(
+    "rejects %s without prepared %s before writing any revision or projection",
+    async (type, missing) => {
+      const owner = createDatabasePayload();
+      expect((await applyMutation("database.create", owner)).ok).toBe(true);
+      const database = await readDatabase(owner.id);
+      if (
+        database === undefined ||
+        database.presentation === undefined ||
+        database.sourceId === undefined ||
+        database.presentationRevisionId === undefined
+      )
+        throw new Error("Owner fixture is incomplete");
+      const entryId = generateUuidV7();
+      expect(
+        (
+          await applyMutation("database.entry.create", {
+            databaseId: owner.id,
+            id: entryId,
+            title: "Protected entry",
+            values: {},
+            relationTargets: {},
+          })
+        ).ok,
+      ).toBe(true);
+      const entry = await readItem(entryId);
+      if (entry === undefined) throw new Error("Entry fixture missing");
+      const command = (() => {
+        switch (type) {
+          case "database.create":
+            return { type, ...createDatabasePayload() };
+          case "database_view.create":
+            return {
+              type,
+              id: generateUuidV7(),
+              name: "Linked",
+              sourceId: database.sourceId,
+              placement: { id: generateUuidV7(), parentItemId: null, positionKey: "b" },
+              initialViewId: generateUuidV7(),
+              initialViewName: "Linked table",
+            };
+          case "database.source.create":
+            return {
+              type,
+              ownerItemId: owner.id,
+              sourceId: generateUuidV7(),
+              name: "Second source",
+              baseRevisionId: database.presentationRevisionId,
+              titlePropertyId: generateUuidV7(),
+              initialViewId: generateUuidV7(),
+              initialViewName: "Second table",
+            };
+          case "database.source.delete":
+            return {
+              type,
+              ownerItemId: owner.id,
+              sourceId: database.sourceId,
+              baseRevisionId: database.presentationRevisionId,
+            };
+          case "database.definition.replace":
+            return {
+              type,
+              databaseId: owner.id,
+              baseRevisionId: required(database.definitionRevisionId),
+              definition: database.definition,
+            };
+          case "database.presentation.replace":
+            return {
+              type,
+              containerItemId: owner.id,
+              baseRevisionId: database.presentationRevisionId,
+              presentation: database.presentation,
+            };
+          case "database.entry.create":
+            return {
+              type,
+              databaseId: owner.id,
+              id: generateUuidV7(),
+              title: "Unwritten",
+              values: {},
+              relationTargets: {},
+            };
+          case "database.entry.values.replace":
+            return {
+              type,
+              databaseId: owner.id,
+              entryId,
+              baseRevisionId: entry.currentRevisionId,
+              values: {},
+              relationTargets: {},
+            };
+          case "item.rename":
+            return { type, itemId: entryId, name: "Unwritten rename" };
+          case "page.document.replace":
+            return {
+              type,
+              itemId: entryId,
+              baseRevisionId: entry.currentRevisionId,
+              document: required(entry.pageDocument),
+            };
+        }
+      })() satisfies MutationCommand;
+      const prepared: PreparedProjectionWrite = {
+        ...(await prepareProjectionWrite(db, command, codec)),
+      };
+      expect(prepared[missing]).toBeDefined();
+      delete (prepared as Partial<Record<keyof PreparedProjectionWrite, unknown>>)[missing];
+      const snapshot = () =>
+        Promise.all([
+          db.items.toArray(),
+          db.databases.toArray(),
+          db.databaseSources.toArray(),
+          db.databaseEntryPairs.toArray(),
+          db.placements.toArray(),
+          db.revisionHeaders.toArray(),
+          db.relationships.toArray(),
+          db.outbox.toArray(),
+        ]);
+      const before = await snapshot();
+      await expect(applyCommandToProjection(db, command, now, prepared)).rejects.toMatchObject({
+        name: "LocalValidationError",
+      });
+      expect(await snapshot()).toEqual(before);
+    },
+  );
 });

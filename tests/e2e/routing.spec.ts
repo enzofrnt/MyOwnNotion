@@ -3,9 +3,9 @@ import { expect, test } from "./fixtures.ts";
 import {
   convertItem,
   createDatabaseEntry,
+  createRootDatabase,
   createRootItem,
   moveSelectedItemInto,
-  createRootDatabase,
   openWorkspace,
   renameItem,
   selectItem,

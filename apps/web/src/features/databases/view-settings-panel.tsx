@@ -26,7 +26,7 @@ import {
 import { DatabasePropertyIcon } from "./property-icon.tsx";
 import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
 import { SortGroupEditor } from "./sort-group-editor.tsx";
-import { viewColumns } from "./view-columns.ts";
+import { moveViewColumn, viewColumns } from "./view-columns.ts";
 import { ViewMark } from "./view-icon.tsx";
 import { isAutomaticViewName, VIEW_TYPE_ICON, VIEW_TYPE_LABEL } from "./view-tab-names.ts";
 
@@ -566,7 +566,7 @@ export function ViewSettingsPanel({
         ) : null}
         {screen === "visibility" ? (
           <ul className="database-view-settings__body database-view-settings__list">
-            {columns.map((column) => (
+            {columns.map((column, index) => (
               <li key={column.property.id} className="database-view-settings__switch-row">
                 <span className="database-view-settings__switch-copy">
                   {column.property.name}
@@ -579,6 +579,30 @@ export function ViewSettingsPanel({
                   visible={column.visible}
                   onToggle={onToggleProperty}
                 />
+                {([-1, 1] as const).map((offset) => (
+                  <Button
+                    key={offset}
+                    size="square"
+                    variant="ghost"
+                    disabled={offset === -1 ? index === 0 : index === columns.length - 1}
+                    aria-label={
+                      offset === -1
+                        ? DATABASE_COPY.toolbar.moveColumnEarlier(column.property.name)
+                        : DATABASE_COPY.toolbar.moveColumnLater(column.property.name)
+                    }
+                    onClick={() => {
+                      const properties = moveViewColumn(
+                        activeProperties,
+                        view.properties,
+                        column.property.id,
+                        offset,
+                      );
+                      if (properties !== null) onChangeView({ ...view, properties });
+                    }}
+                  >
+                    <AppIcon name={offset === -1 ? "arrowLeft" : "chevronRight"} size="small" />
+                  </Button>
+                ))}
               </li>
             ))}
           </ul>

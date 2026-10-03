@@ -50,9 +50,7 @@
     },
     {
       "name": "files-ready",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1361,
       "scrollWidth": 320,
@@ -61,9 +59,7 @@
     },
     {
       "name": "files-error",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1361,
       "scrollWidth": 320,
@@ -72,10 +68,7 @@
     },
     {
       "name": "history",
-      "headings": [
-        "Revue des interfaces",
-        "Historique"
-      ],
+      "headings": ["Revue des interfaces", "Historique"],
       "height": 900,
       "scrollHeight": 1399,
       "scrollWidth": 320,
@@ -84,10 +77,7 @@
     },
     {
       "name": "history",
-      "headings": [
-        "Revue des interfaces",
-        "Historique"
-      ],
+      "headings": ["Revue des interfaces", "Historique"],
       "height": 900,
       "scrollHeight": 1138,
       "scrollWidth": 1280,
@@ -96,9 +86,7 @@
     },
     {
       "name": "properties",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1497,
       "scrollWidth": 320,
@@ -107,9 +95,7 @@
     },
     {
       "name": "properties",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1120,
       "scrollWidth": 1280,
@@ -190,11 +176,7 @@
     },
     {
       "name": "desktop",
-      "headings": [
-        "Revue des interfaces",
-        "Coffre local",
-        "Mise à jour de l’application"
-      ],
+      "headings": ["Revue des interfaces", "Coffre local", "Mise à jour de l’application"],
       "height": 900,
       "scrollHeight": 1322,
       "scrollWidth": 320,
@@ -203,11 +185,7 @@
     },
     {
       "name": "desktop",
-      "headings": [
-        "Revue des interfaces",
-        "Coffre local",
-        "Mise à jour de l’application"
-      ],
+      "headings": ["Revue des interfaces", "Coffre local", "Mise à jour de l’application"],
       "height": 900,
       "scrollHeight": 1080,
       "scrollWidth": 1280,
@@ -216,11 +194,7 @@
     },
     {
       "name": "desktop",
-      "headings": [
-        "Revue des interfaces",
-        "Coffre local",
-        "Mise à jour de l’application"
-      ],
+      "headings": ["Revue des interfaces", "Coffre local", "Mise à jour de l’application"],
       "height": 900,
       "scrollHeight": 1322,
       "scrollWidth": 320,
@@ -229,11 +203,7 @@
     },
     {
       "name": "desktop",
-      "headings": [
-        "Revue des interfaces",
-        "Coffre local",
-        "Mise à jour de l’application"
-      ],
+      "headings": ["Revue des interfaces", "Coffre local", "Mise à jour de l’application"],
       "height": 900,
       "scrollHeight": 1080,
       "scrollWidth": 1280,
@@ -351,9 +321,7 @@
     },
     {
       "name": "files-ready",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1361,
       "scrollWidth": 320,
@@ -362,9 +330,7 @@
     },
     {
       "name": "files-error",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1361,
       "scrollWidth": 320,
@@ -373,9 +339,7 @@
     },
     {
       "name": "files-unsupported",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1071,
       "scrollWidth": 320,
@@ -384,9 +348,7 @@
     },
     {
       "name": "gallery",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1074,
       "scrollWidth": 320,
@@ -395,9 +357,7 @@
     },
     {
       "name": "gallery",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -406,9 +366,7 @@
     },
     {
       "name": "gallery",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1074,
       "scrollWidth": 320,
@@ -417,9 +375,7 @@
     },
     {
       "name": "gallery",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -428,9 +384,7 @@
     },
     {
       "name": "list",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 320,
@@ -439,9 +393,7 @@
     },
     {
       "name": "list",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -450,9 +402,7 @@
     },
     {
       "name": "list",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 320,
@@ -461,9 +411,7 @@
     },
     {
       "name": "list",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -472,11 +420,7 @@
     },
     {
       "name": "calendar",
-      "headings": [
-        "Revue des interfaces",
-        "octobre 2026",
-        "Non planifiées · 1"
-      ],
+      "headings": ["Revue des interfaces", "octobre 2026", "Non planifiées · 1"],
       "height": 900,
       "scrollHeight": 1611,
       "scrollWidth": 320,
@@ -485,11 +429,7 @@
     },
     {
       "name": "calendar",
-      "headings": [
-        "Revue des interfaces",
-        "octobre 2026",
-        "Non planifiées · 1"
-      ],
+      "headings": ["Revue des interfaces", "octobre 2026", "Non planifiées · 1"],
       "height": 900,
       "scrollHeight": 1355,
       "scrollWidth": 1280,
@@ -498,11 +438,7 @@
     },
     {
       "name": "calendar",
-      "headings": [
-        "Revue des interfaces",
-        "octobre 2026",
-        "Non planifiées · 1"
-      ],
+      "headings": ["Revue des interfaces", "octobre 2026", "Non planifiées · 1"],
       "height": 900,
       "scrollHeight": 1611,
       "scrollWidth": 320,
@@ -511,11 +447,7 @@
     },
     {
       "name": "calendar",
-      "headings": [
-        "Revue des interfaces",
-        "octobre 2026",
-        "Non planifiées · 1"
-      ],
+      "headings": ["Revue des interfaces", "octobre 2026", "Non planifiées · 1"],
       "height": 900,
       "scrollHeight": 1355,
       "scrollWidth": 1280,
@@ -584,9 +516,7 @@
     },
     {
       "name": "table",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 320,
@@ -595,9 +525,7 @@
     },
     {
       "name": "table",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -606,9 +534,7 @@
     },
     {
       "name": "table",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 320,
@@ -617,9 +543,7 @@
     },
     {
       "name": "table",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -1592,9 +1516,7 @@
     },
     {
       "name": "properties",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1120,
       "scrollWidth": 1280,
@@ -1603,9 +1525,7 @@
     },
     {
       "name": "properties",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1497,
       "scrollWidth": 320,
@@ -1864,10 +1784,7 @@
     },
     {
       "name": "history",
-      "headings": [
-        "Revue des interfaces",
-        "Historique"
-      ],
+      "headings": ["Revue des interfaces", "Historique"],
       "height": 900,
       "scrollHeight": 1138,
       "scrollWidth": 1280,
@@ -1876,10 +1793,7 @@
     },
     {
       "name": "history",
-      "headings": [
-        "Revue des interfaces",
-        "Historique"
-      ],
+      "headings": ["Revue des interfaces", "Historique"],
       "height": 900,
       "scrollHeight": 1399,
       "scrollWidth": 320,
@@ -1888,10 +1802,7 @@
     },
     {
       "name": "auth-login",
-      "headings": [
-        "Se connecter",
-        "Utiliser votre passkey"
-      ],
+      "headings": ["Se connecter", "Utiliser votre passkey"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 320,
@@ -1900,10 +1811,7 @@
     },
     {
       "name": "auth-login",
-      "headings": [
-        "Se connecter",
-        "Utiliser votre passkey"
-      ],
+      "headings": ["Se connecter", "Utiliser votre passkey"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -1912,10 +1820,7 @@
     },
     {
       "name": "auth-login",
-      "headings": [
-        "Se connecter",
-        "Utiliser votre passkey"
-      ],
+      "headings": ["Se connecter", "Utiliser votre passkey"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 320,
@@ -1924,10 +1829,7 @@
     },
     {
       "name": "auth-login",
-      "headings": [
-        "Se connecter",
-        "Utiliser votre passkey"
-      ],
+      "headings": ["Se connecter", "Utiliser votre passkey"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -1936,10 +1838,7 @@
     },
     {
       "name": "auth-setup",
-      "headings": [
-        "Configurer cette installation",
-        "Créer la passkey du propriétaire"
-      ],
+      "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 320,
@@ -1948,10 +1847,7 @@
     },
     {
       "name": "auth-setup",
-      "headings": [
-        "Configurer cette installation",
-        "Créer la passkey du propriétaire"
-      ],
+      "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -1960,10 +1856,7 @@
     },
     {
       "name": "auth-setup",
-      "headings": [
-        "Configurer cette installation",
-        "Créer la passkey du propriétaire"
-      ],
+      "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 320,
@@ -1972,10 +1865,7 @@
     },
     {
       "name": "auth-setup",
-      "headings": [
-        "Configurer cette installation",
-        "Créer la passkey du propriétaire"
-      ],
+      "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -1984,9 +1874,7 @@
     },
     {
       "name": "auth-connection",
-      "headings": [
-        "Connecter cette application"
-      ],
+      "headings": ["Connecter cette application"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 320,
@@ -1995,9 +1883,7 @@
     },
     {
       "name": "auth-connection",
-      "headings": [
-        "Connecter cette application"
-      ],
+      "headings": ["Connecter cette application"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -2006,9 +1892,7 @@
     },
     {
       "name": "auth-connection",
-      "headings": [
-        "Connecter cette application"
-      ],
+      "headings": ["Connecter cette application"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 320,
@@ -2017,9 +1901,7 @@
     },
     {
       "name": "auth-connection",
-      "headings": [
-        "Connecter cette application"
-      ],
+      "headings": ["Connecter cette application"],
       "height": 900,
       "scrollHeight": 900,
       "scrollWidth": 1280,
@@ -2060,10 +1942,7 @@
     },
     {
       "name": "editor-rich",
-      "headings": [
-        "Revue des interfaces",
-        "Une page de référence"
-      ],
+      "headings": ["Revue des interfaces", "Une page de référence"],
       "height": 900,
       "scrollHeight": 1697,
       "scrollWidth": 320,
@@ -2072,10 +1951,7 @@
     },
     {
       "name": "editor-rich",
-      "headings": [
-        "Revue des interfaces",
-        "Une page de référence"
-      ],
+      "headings": ["Revue des interfaces", "Une page de référence"],
       "height": 900,
       "scrollHeight": 1697,
       "scrollWidth": 320,
@@ -2084,10 +1960,7 @@
     },
     {
       "name": "editor-rich",
-      "headings": [
-        "Revue des interfaces",
-        "Une page de référence"
-      ],
+      "headings": ["Revue des interfaces", "Une page de référence"],
       "height": 900,
       "scrollHeight": 1214,
       "scrollWidth": 1280,
@@ -2096,10 +1969,7 @@
     },
     {
       "name": "editor-rich",
-      "headings": [
-        "Revue des interfaces",
-        "Une page de référence"
-      ],
+      "headings": ["Revue des interfaces", "Une page de référence"],
       "height": 900,
       "scrollHeight": 1214,
       "scrollWidth": 1280,
@@ -2108,9 +1978,7 @@
     },
     {
       "name": "database-rules",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1629,
       "scrollWidth": 320,
@@ -2119,9 +1987,7 @@
     },
     {
       "name": "database-rules",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1629,
       "scrollWidth": 320,
@@ -2130,9 +1996,7 @@
     },
     {
       "name": "database-rules",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1054,
       "scrollWidth": 1280,
@@ -2141,9 +2005,7 @@
     },
     {
       "name": "database-rules",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1054,
       "scrollWidth": 1280,
@@ -2188,9 +2050,7 @@
     },
     {
       "name": "database-empty",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1522,
       "scrollWidth": 320,
@@ -2199,9 +2059,7 @@
     },
     {
       "name": "database-empty",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 1522,
       "scrollWidth": 320,
@@ -2210,9 +2068,7 @@
     },
     {
       "name": "database-empty",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 946,
       "scrollWidth": 1280,
@@ -2221,9 +2077,7 @@
     },
     {
       "name": "database-empty",
-      "headings": [
-        "Revue des interfaces"
-      ],
+      "headings": ["Revue des interfaces"],
       "height": 900,
       "scrollHeight": 946,
       "scrollWidth": 1280,
@@ -2232,10 +2086,7 @@
     },
     {
       "name": "history-reflow-200",
-      "headings": [
-        "Revue des interfaces",
-        "Historique"
-      ],
+      "headings": ["Revue des interfaces", "Historique"],
       "height": 900,
       "scrollHeight": 1178,
       "scrollWidth": 640,

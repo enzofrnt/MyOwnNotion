@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode, type RefObject, useRef } from "react";
+import { type MouseEvent, type ReactNode, type RefObject, useRef, useState } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
   MenuContent,
@@ -15,7 +15,10 @@ export interface NavigationItemMenuProps {
   readonly canMoveSelectedInside: boolean;
   readonly favourite: boolean;
   readonly keptOffline: boolean;
-  readonly conversion?: (returnFocus: RefObject<HTMLButtonElement | null>) => ReactNode;
+  readonly conversion?: (
+    returnFocus: RefObject<HTMLButtonElement | null>,
+    onActiveChange: (active: boolean) => void,
+  ) => ReactNode;
   readonly onCreatePage: () => void;
   readonly onCreateFolder: () => void;
   readonly onCreateDatabase?: (() => void) | undefined;
@@ -35,6 +38,7 @@ export function NavigationItemMenu(props: NavigationItemMenuProps) {
   const { itemName, onImportFile } = props;
   const fileInput = useRef<HTMLInputElement | null>(null);
   const menuTrigger = useRef<HTMLButtonElement | null>(null);
+  const [conversionActive, setConversionActive] = useState(false);
   return (
     <span className="navigation-item-menu">
       <MenuRoot>
@@ -48,12 +52,17 @@ export function NavigationItemMenu(props: NavigationItemMenuProps) {
           <AppIcon name="more" />
         </MenuTrigger>
         <MenuContent
-          unmountOnHide
+          unmountOnHide={!conversionActive}
           className="navigation-item-menu__content"
           aria-label={`Actions pour ${itemName}`}
           onClick={(event) => event.stopPropagation()}
         >
-          <NavigationItemMenuItems {...props} fileInput={fileInput} menuTrigger={menuTrigger} />
+          <NavigationItemMenuItems
+            {...props}
+            fileInput={fileInput}
+            menuTrigger={menuTrigger}
+            onConversionActiveChange={setConversionActive}
+          />
         </MenuContent>
       </MenuRoot>
       {onImportFile === undefined ? null : (
@@ -77,6 +86,7 @@ export function NavigationItemMenu(props: NavigationItemMenuProps) {
 function NavigationItemMenuItems({
   fileInput,
   menuTrigger,
+  onConversionActiveChange,
   canContainChildren,
   canMoveSelectedInside,
   canMoveToRoot,
@@ -100,6 +110,7 @@ function NavigationItemMenuItems({
 }: NavigationItemMenuProps & {
   readonly fileInput: RefObject<HTMLInputElement | null>;
   readonly menuTrigger: RefObject<HTMLButtonElement | null>;
+  readonly onConversionActiveChange: (active: boolean) => void;
 }) {
   return (
     <>
@@ -141,7 +152,7 @@ function NavigationItemMenuItems({
           Ajouter ou changer l’icône
         </MenuItem>
       )}
-      {conversion?.(menuTrigger)}
+      {conversion?.(menuTrigger, onConversionActiveChange)}
       <MenuItem data-testid={`move-up-${itemName}`} onClick={onMoveUp}>
         <AppIcon name="arrowUp" size="small" />
         Déplacer vers le haut

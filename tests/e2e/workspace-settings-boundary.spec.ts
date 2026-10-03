@@ -18,7 +18,7 @@ import {
 const PARAGRAPHS = 20;
 
 async function fillLongPage(page: import("@playwright/test").Page): Promise<void> {
-  const editor = page.getByTestId("block-editor").locator(".ProseMirror");
+  const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
   await expect(editor).toBeVisible({ timeout: 30_000 });
   await editor.click();
   await page.keyboard.press("ControlOrMeta+a");

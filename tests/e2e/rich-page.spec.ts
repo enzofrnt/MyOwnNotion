@@ -39,7 +39,7 @@ test.describe("rich page composition", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", pageName);
     await selectItem(page, pageName);
-    const editor = page.getByTestId("block-editor").locator(".ProseMirror");
+    const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await expect(editor).toBeVisible({ timeout: 30_000 });
     await editor.click();
     await page.keyboard.press("ControlOrMeta+a");
@@ -131,7 +131,7 @@ test.describe("rich page composition", () => {
     await page.reload();
     await openWorkspace(page);
     await selectItem(page, pageName);
-    const reloaded = page.getByTestId("block-editor").locator(".ProseMirror");
+    const reloaded = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await expect(reloaded).toBeVisible({ timeout: 30_000 });
     await expect(reloaded.locator("strong")).toContainText("important");
     await expect(reloaded.locator(".editor-callout")).toContainText("Information mise en évidence");

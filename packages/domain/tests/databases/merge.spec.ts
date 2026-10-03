@@ -77,6 +77,45 @@ describe("three-way database definition merge", () => {
 });
 
 describe("three-way entry value merge", () => {
+  it.each(["ancestorDefinition", "localDefinition", "remoteDefinition"] as const)(
+    "requires all three schemas when only %s is available",
+    (field) => {
+      const ancestor = values(IDS.entryA, { [IDS.text]: { kind: "text", value: "Before" } });
+      const local = values(IDS.entryA, { [IDS.text]: { kind: "text", value: "Local" } });
+      const result = mergeEntryValues({ ancestor, local, remote: ancestor, [field]: definition() });
+      expect(result).toMatchObject({
+        kind: "needs-owner",
+        conflicts: [{ path: "definition", reason: "definition-missing" }],
+        ancestor,
+        local,
+        remote: ancestor,
+      });
+    },
+  );
+
+  it("preserves every version when a remote property disappears while its local value changes", () => {
+    const original = definition();
+    const ancestor = values(IDS.entryA, { [IDS.text]: { kind: "text", value: "Before" } });
+    const local = values(IDS.entryA, { [IDS.text]: { kind: "text", value: "Local" } });
+    const remote = values(IDS.entryA, {});
+    const result = mergeEntryValues({
+      ancestor,
+      local,
+      remote,
+      ancestorDefinition: original,
+      localDefinition: original,
+      remoteDefinition: {
+        ...original,
+        properties: original.properties.filter((p) => p.id !== IDS.text),
+      },
+    });
+    expect(result).toMatchObject({ kind: "needs-owner", ancestor, local, remote });
+    if (result.kind === "needs-owner")
+      expect(result.conflicts).toContainEqual({
+        path: `values.${IDS.text}`,
+        reason: "type-value-incompatible",
+      });
+  });
   it("merges different property values and identical edits", () => {
     const ancestor = values(IDS.entryA, {
       [IDS.text]: { kind: "text", value: "before" },

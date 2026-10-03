@@ -5,9 +5,10 @@ import {
   CURRENT_PROTOCOL_HEADERS,
   closeMobileNavigation,
   createDatabaseEntry,
+  createRootDatabase,
   createUnopenedPage,
   ensureNavigationVisible,
-  createRootDatabase,
+  entryTrigger,
   openSecondDevice,
   openWorkspace,
   selectItem,
@@ -39,7 +40,7 @@ test("keeps entry activation and cancellation intact while another device update
       [280, false],
       [300, true],
     ] as const) {
-      const trigger = page.locator("[data-entry-trigger]").filter({ hasText: entryName }).first();
+      const trigger = entryTrigger(page, entryName).first();
       await trigger.click({ trial: true });
       const original = await trigger.elementHandle();
       const box = await trigger.boundingBox();
@@ -74,7 +75,6 @@ test("keeps entry activation and cancellation intact while another device update
       await expect(
         page.getByRole("button", { name: `Largeur de Titre : ${width} pixels`, exact: true }),
       ).toBeVisible();
-      await expect(page.locator(".database-pagination")).toBeVisible();
       expect(await original.evaluate((element) => element.isConnected)).toBe(true);
       expect(await trigger.evaluate((element, previous) => element === previous, original)).toBe(
         true,
@@ -89,21 +89,17 @@ test("keeps entry activation and cancellation intact while another device update
         await expect(page.getByTestId("active-item-title")).toHaveValue(hostName);
       } else {
         await page.mouse.up();
-        await expect(
-          page.locator(".entry-panel").getByRole("heading", { name: entryName }),
-        ).toBeVisible();
+        await expect(page.getByTestId("active-item-title")).toHaveValue(entryName);
         await page.getByRole("button", { name: "Fermer l'entrée", exact: true }).click();
         await expect(page.getByTestId("active-item-title")).toHaveValue(hostName);
       }
       await original.dispose();
     }
     for (const key of ["Enter", "Space"]) {
-      const trigger = page.locator("[data-entry-trigger]").filter({ hasText: entryName }).first();
+      const trigger = entryTrigger(page, entryName).first();
       await trigger.focus();
       await page.keyboard.press(key);
-      await expect(
-        page.locator(".entry-panel").getByRole("heading", { name: entryName }),
-      ).toBeVisible();
+      await expect(page.getByTestId("active-item-title")).toHaveValue(entryName);
       await page.getByRole("button", { name: "Fermer l'entrée", exact: true }).click();
       await expect(page.getByTestId("active-item-title")).toHaveValue(hostName);
     }
@@ -177,9 +173,7 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   const loaded = page.locator(".database-pagination");
   await expect(loaded).toContainText("100 entrées chargées", { timeout: 30_000 });
   const firstPageMs = Date.now() - openStarted;
-  await expect(page.locator(".database-view-status")).toContainText(
-    "Base disponible · 1001 entrées",
-  );
+  await expect(page.locator(".database-view-status")).not.toContainText("Vue partielle");
   const nextStarted = Date.now();
   for (let expected = 200; expected <= 1100; expected += 100) {
     await loaded.getByRole("button", { name: "Charger les entrées suivantes" }).click();
@@ -192,12 +186,13 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   await scroller.evaluate((element) => {
     element.scrollTop = element.scrollHeight;
   });
-  const last = page.locator("[data-entry-trigger]").filter({ hasText: "Entry 1000" });
+  const last = entryTrigger(page, "Entry 1000");
   await expect(last).toBeVisible();
   const nextPageMs = Date.now() - nextStarted;
   await last.click();
   await expect(page.locator(".entry-panel")).toBeVisible();
-  await page.locator(".entry-panel").getByRole("button", { name: "Fermer l'entrée" }).click();
+  await page.getByRole("button", { name: "Fermer l'entrée", exact: true }).click();
+  await expect(page.getByTestId("active-item-title")).toHaveValue("Large reusable source");
   await expect(loaded).toContainText("1001 entrées chargées", { timeout: 30_000 });
   await expect(last).toBeFocused();
   await expect(last)

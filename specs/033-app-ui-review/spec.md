@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/033-app-ui-review`
 **Created**: 2026-10-03
-**Status**: Implémentée — revue du propriétaire en attente
+**Status**: État UI validé par le propriétaire — validation automatisée et PR en cours
 **Input**: « Commit en l’état, passe complète sur l’app ; composants génériques réutilisables si cohérents, sans casser les interfaces. »
 
 ## Direction produit et périmètre
@@ -79,8 +79,12 @@ Observer sur l’instance courante et disposer de règles réellement vérifiée
   sur surfaces corrigées ; scroll local des contenus larges.
 - **FR-007** : Accents #4481D8/#D56C5E, palette de contenu conservée, focus
   discret visible, attente neutre, suppression neutre à texte/contour rouges.
-- **FR-008** : Instance, preuves, tâches et guide reflètent la passe ; E2E
-  différés explicitement à la demande du propriétaire.
+  Les textes et remplissages d'action utilisent des variantes sémantiques
+  contrastées dans chaque thème, sans changer la palette des propriétés.
+- **FR-008** : Instance, preuves, tâches et guide reflètent la passe. Après la
+  sauvegarde de l’état UI validé, toutes les suites unitaires et E2E sont remises
+  en cohérence avec les parcours actuels. Les contrôles locaux complets puis la
+  CI de la PR doivent réussir avant livraison ; les données de dev sont préservées.
 - **FR-009** : La liste de pièces jointes de la sidebar suit
   les fichiers/images intégrés au contenu local courant, y compris imbriqués,
   sans doublon ni bouton d'ajout indépendant. Les fichiers historiques sans
@@ -201,4 +205,6 @@ Observer sur l’instance courante et disposer de règles réellement vérifiée
   modèles métier des tableaux, éditeur ou graphe.
 - Revue complète des capacités implémentées/états distincts, pas des fonctions
   futures ni de toutes les combinaisons de données possibles.
-- Pas d’E2E ni push ; risque et gates différés documentés, aucune release annoncée.
+- Le 2026-10-03, le propriétaire lève le report des E2E et autorise la publication
+  de la branche et l’ouverture d’une PR, avec correction jusqu’à une CI verte.
+  Les anciennes notes « sans E2E » décrivent les étapes précédentes uniquement.

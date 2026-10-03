@@ -3,7 +3,10 @@
  */
 import { expect, test } from "./fixtures.ts";
 import {
+  apiOrigin,
+  closeMobileNavigation,
   createRootItem,
+  dropEditorFile,
   ensureNavigationRowVisible,
   openAttachmentDetails,
   openItemActions,
@@ -71,7 +74,7 @@ test.describe("canonical files (US2)", () => {
 
     // Import a file into the page's attachment collection.
     const fileName = `${uniqueName("doc")}.txt`;
-    await page.getByTestId("attachment-upload").setInputFiles({
+    await dropEditorFile(page, {
       name: fileName,
       mimeType: "text/plain",
       buffer: Buffer.from("original attachment bytes"),
@@ -174,7 +177,10 @@ test.describe("canonical files (US2)", () => {
     await expect(page.getByTestId(`attachment-${fileName}`)).toHaveCount(0);
   });
 
-  test("removing the final attachment placement sends the file to the trash", async ({ page }) => {
+  test("removing an embedded block hides its attachment but preserves retained file bytes", async ({
+    page,
+    request,
+  }) => {
     await openWorkspace(page);
     const pageName = uniqueName("TrashFileHost");
     await createRootItem(page, "page", pageName);
@@ -183,23 +189,34 @@ test.describe("canonical files (US2)", () => {
     await openPageAttachments(page, pageName);
 
     const fileName = `${uniqueName("gone")}.txt`;
-    await page.getByTestId("attachment-upload").setInputFiles({
+    const fileId = await dropEditorFile(page, {
       name: fileName,
       mimeType: "text/plain",
       buffer: Buffer.from("final placement bytes"),
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 15_000 });
 
-    await openAttachmentDetails(page, fileName);
-
-    await page.getByRole("button", { name: `Retirer ce fichier de la page : ${fileName}` }).click();
-    await expect(page.getByTestId(`attachment-${fileName}`)).toHaveCount(0);
-
-    // The canonical file entered the 30-day trash (after sync refresh).
+    const row = page.getByTestId(`attachment-${fileName}`);
+    await closeMobileNavigation(page);
+    const block = page
+      .locator('[data-testid="block-editor"]:visible')
+      .locator(".editor-file-block");
+    await block.click({ button: "right" });
+    await page.getByTestId("context-delete").click();
+    await expect(block).toHaveCount(0);
+    await waitForSynchronized(page);
+    await openPageAttachments(page, pageName);
+    await expect(row).toHaveCount(0);
+    await expect(page.getByTestId("attachments-empty")).toBeVisible();
+    // Historical placements are retained for recovery. Removing a block is
+    // not the global destructive action tested below.
+    const content = await request.get(`${apiOrigin()}/v1/files/${fileId}/content`);
+    expect(content.status()).toBe(200);
+    expect(await content.text()).toBe("final placement bytes");
     await page.reload();
     await openWorkspace(page);
-    await openSettingsSection(page, "trash");
-    await expect(page.getByTestId(`trash-item-${fileName}`)).toBeVisible({ timeout: 15_000 });
+    await openPageAttachments(page, pageName);
+    await expect(row).toHaveCount(0);
   });
 });
 
@@ -210,7 +227,7 @@ test.describe("what a page says about its files (US1)", () => {
     name: string,
     body: string,
   ): Promise<void> {
-    await page.getByTestId("attachment-upload").setInputFiles({
+    await dropEditorFile(page, {
       name,
       mimeType: "text/plain",
       buffer: Buffer.from(body),
@@ -321,7 +338,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     await openPageAttachments(page, pageName);
 
     const fileName = `${uniqueName("before")}.txt`;
-    await page.getByTestId("attachment-upload").setInputFiles({
+    await dropEditorFile(page, {
       name: fileName,
       mimeType: "text/plain",
       buffer: Buffer.from("bytes that outlive the name"),
@@ -352,7 +369,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     await openPageAttachments(page, pageName);
 
     const fileName = `${uniqueName("used")}.txt`;
-    await page.getByTestId("attachment-upload").setInputFiles({
+    await dropEditorFile(page, {
       name: fileName,
       mimeType: "text/plain",
       buffer: Buffer.from("still in use"),
@@ -365,7 +382,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     const confirmation = page.getByTestId("delete-file-confirmation");
     await expect(confirmation).toBeVisible({ timeout: 30_000 });
     await expect(confirmation).toHaveAttribute("role", "alertdialog");
-    await expect(page.getByTestId("delete-file-usages")).toContainText("1 utilisation connue");
+    await expect(page.getByTestId("delete-file-usages")).toContainText("2 utilisations connues");
     // Named, not merely counted.
     await expect(page.getByTestId("delete-file-usage-list")).toContainText(pageName);
 
@@ -384,7 +401,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     await openPageAttachments(page, pageName);
 
     const fileName = `${uniqueName("doomed")}.txt`;
-    await page.getByTestId("attachment-upload").setInputFiles({
+    await dropEditorFile(page, {
       name: fileName,
       mimeType: "text/plain",
       buffer: Buffer.from("about to go"),

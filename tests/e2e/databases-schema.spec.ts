@@ -7,20 +7,23 @@
  */
 import { expect, test } from "./fixtures.ts";
 import {
+  addDatabaseProperty,
+  chooseEntryOptions,
+  chooseEntryRelation,
   createDatabaseEntry,
+  createRootDatabase,
   createRootItem,
   ensureNavigationVisible,
+  entryTrigger,
   moveSelectedItemInto,
-  createRootDatabase,
   openSettingsSection,
   openWorkspace,
   renameItem,
   returnToWorkspace,
-  saveEntryProperties,
   selectItem,
   trashItem,
   uniqueName,
-  waitForDatabaseDefinitionSaved,
+  waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -45,46 +48,32 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
   await waitForSynchronized(page);
 
-  const addProperty = async (name: string, type: string, options?: string): Promise<void> => {
-    await page.getByRole("button", { name: "Ajouter une propriété" }).click();
-    const editor = page.getByRole("form", { name: "Éditeur de propriété" });
-    await expect(editor).toBeVisible();
-    await editor.getByLabel("Nom").fill(name);
-    await editor.getByLabel("Type").selectOption(type);
-    if (options !== undefined) {
-      await editor.getByLabel("Options séparées par des virgules").fill(options);
-    }
-    await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
-    await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
-    await waitForDatabaseDefinitionSaved(page);
-  };
-
-  await addProperty("Notes", "text");
-  await addProperty("Estimate", "number");
-  await addProperty("Due", "date");
-  await addProperty("Status", "status", "Planned, In progress, Done");
-  await addProperty("Priority", "select", "Low, High");
-  await addProperty("Tags", "multi-select", "Backend, Migration");
-  await addProperty("Done", "checkbox");
-  await addProperty("Related", "relation");
+  await addDatabaseProperty(page, "Notes", "text");
+  await addDatabaseProperty(page, "Estimate", "number");
+  await addDatabaseProperty(page, "Due", "date");
+  await addDatabaseProperty(page, "Status", "status", ["Planned", "In progress", "Done"]);
+  await addDatabaseProperty(page, "Priority", "select", ["Low", "High"]);
+  await addDatabaseProperty(page, "Tags", "multi-select", ["Backend", "Migration"]);
+  await addDatabaseProperty(page, "Done", "checkbox");
+  await addDatabaseProperty(page, "Related", "relation");
 
   const entryButton = await createDatabaseEntry(page, entryName);
   await waitForSynchronized(page);
   await entryButton.click();
 
-  await expect(page.getByText("Entrée de base de données · page")).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(entryName);
   const entryPanel = page.locator(".entry-panel");
   await entryPanel
     .getByLabel("Notes", { exact: true })
     .fill("Move the customer data without downtime");
   await entryPanel.getByLabel("Estimate", { exact: true }).fill("12.5");
   await entryPanel.getByLabel("Due", { exact: true }).fill("2026-09-15");
-  await entryPanel.getByLabel("Status", { exact: true }).selectOption({ label: "In progress" });
-  await entryPanel.getByLabel("Priority", { exact: true }).selectOption({ label: "High" });
-  await entryPanel.getByLabel("Tags", { exact: true }).selectOption(["Backend", "Migration"]);
+  await chooseEntryOptions(page, "Status", ["In progress"]);
+  await chooseEntryOptions(page, "Priority", ["High"]);
+  await chooseEntryOptions(page, "Tags", ["Backend", "Migration"]);
   await entryPanel.getByLabel("Done", { exact: true }).check();
-  await entryPanel.getByLabel("Related", { exact: true }).selectOption({ label: targetName });
-  await saveEntryProperties(page);
+  await chooseEntryRelation(page, "Related", targetName);
+  await waitForEntryAutosave(page);
 
   await page.getByRole("button", { name: "Fermer l'entrée" }).click();
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
@@ -98,14 +87,12 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await moveSelectedItemInto(page, folderName);
 
   await selectItem(page, databaseName);
-  const reopenedEntryButton = page
-    .locator(".database-table")
-    .getByRole("button", { name: entryName, exact: true });
+  const reopenedEntryButton = entryTrigger(page, entryName);
   await expect(reopenedEntryButton).toBeVisible({ timeout: 15_000 });
   await reopenedEntryButton.click();
-  await expect(
-    entryPanel.getByLabel("Related", { exact: true }).locator("option:checked"),
-  ).toHaveText(renamedTarget);
+  await expect(entryPanel.getByRole("button", { name: "Related", exact: true })).toHaveText(
+    renamedTarget,
+  );
   await expect(entryPanel.getByLabel("Notes", { exact: true })).toHaveValue(
     "Move the customer data without downtime",
   );
@@ -154,6 +141,6 @@ test("trashes and restores the owner with the same direct entry pages", async ({
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-entry-trigger"))),
   ).toEqual(entryIds);
   for (const entryName of entryNames) {
-    await expect(page.locator("[data-entry-trigger]").filter({ hasText: entryName })).toBeVisible();
+    await expect(entryTrigger(page, entryName)).toBeVisible();
   }
 });

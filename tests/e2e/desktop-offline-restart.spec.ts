@@ -81,7 +81,7 @@ test("recovers a durable offline creation after process death and reconciles it 
       await ensureNavigationRowVisible(restarted.window, "Desktop offline creation");
       await selectItem(restarted.window, "Desktop online page");
       await expect(
-        restarted.window.getByTestId("block-editor").locator(".ProseMirror"),
+        restarted.window.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror"),
       ).toContainText("Text written while the server is unreachable");
       await setDesktopOffline(restarted, false);
       await waitForDesktopSynchronized(restarted.window);

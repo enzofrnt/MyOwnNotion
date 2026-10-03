@@ -346,7 +346,10 @@ export function blockNoteInlineToCanonical(content: unknown): readonly InlineV3[
       // Side-menu drag serializes the node view (no contentDOM). An empty
       // mention would otherwise vanish after drop.
       if (!emitted) {
-        result.push({ text: "Sans titre", marks: [{ type: "pageLink", targetItemId: pageTarget }] });
+        result.push({
+          text: "Sans titre",
+          marks: [{ type: "pageLink", targetItemId: pageTarget }],
+        });
       }
     }
   }

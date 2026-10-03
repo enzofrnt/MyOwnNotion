@@ -319,7 +319,8 @@ export function buildCustomSlashMenuItems({
             aliases: ["vue liée", "base existante", "linked database"],
             group: copy.databaseGroup,
             icon: <ItemIcon kind="database_view" size="inline" />,
-            onItemClick: () => onCreateLinkedDatabaseView(slashEditor.getTextCursorPosition().block.id),
+            onItemClick: () =>
+              onCreateLinkedDatabaseView(slashEditor.getTextCursorPosition().block.id),
           },
         ]),
   ];

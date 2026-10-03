@@ -371,11 +371,10 @@ export function PropertyConfiguration({
                   <input
                     type="checkbox"
                     checked={property.type === "multi-select"}
-                    onChange={(event) =>
-                      onChange((p) =>
-                        propertyWithType(p, event.target.checked ? "multi-select" : "select"),
-                      )
-                    }
+                    onChange={(event) => {
+                      const checked = event.currentTarget.checked;
+                      onChange((p) => propertyWithType(p, checked ? "multi-select" : "select"));
+                    }}
                   />
                   Autoriser plusieurs options
                 </label>
@@ -388,13 +387,14 @@ export function PropertyConfiguration({
                 <input
                   type="checkbox"
                   checked={property.config.mode === "instant"}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
                     onChange((p) =>
                       p.type === "date"
-                        ? { ...p, config: { mode: event.target.checked ? "instant" : "date" } }
+                        ? { ...p, config: { mode: checked ? "instant" : "date" } }
                         : p,
-                    )
-                  }
+                    );
+                  }}
                 />
                 Inclure l’heure
               </label>
@@ -404,13 +404,14 @@ export function PropertyConfiguration({
                 <input
                   type="checkbox"
                   checked={property.config.cardinality === "many"}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
                     onChange((p) =>
                       p.type === "relation"
-                        ? { ...p, config: { cardinality: event.target.checked ? "many" : "one" } }
+                        ? { ...p, config: { cardinality: checked ? "many" : "one" } }
                         : p,
-                    )
-                  }
+                    );
+                  }}
                 />
                 Autoriser plusieurs pages
               </label>

@@ -9,6 +9,7 @@ import {
   ensureNavigationRowVisible,
   ensureNavigationVisible,
   moveSelectedItemInto,
+  openItemIconPicker,
   openWorkspace,
   renameItem,
   saveDocument,
@@ -20,7 +21,7 @@ import {
 const PAGE_LINK_PREFIX = "#page=";
 
 function editorSurface(page: Page): Locator {
-  return page.getByTestId("block-editor").locator(".ProseMirror");
+  return page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
 }
 
 function pageLinks(page: Page): Locator {
@@ -97,7 +98,7 @@ test("links to another page without nesting it, including a descendant", async (
   await waitForSynchronized(page);
   await selectItem(page, reference);
   const referenceIcon = page.getByTestId("item-icon-picker-trigger");
-  await referenceIcon.click();
+  await openItemIconPicker(page);
   const emojiPicker = page.getByTestId("emoji-picker-panel");
   const emojiSearch = emojiPicker.locator('em-emoji-picker input[type="search"]');
   await emojiSearch.focus();

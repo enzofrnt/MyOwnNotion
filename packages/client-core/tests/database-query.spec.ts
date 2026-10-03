@@ -124,6 +124,88 @@ function source(
 }
 
 describe("local saved database queries", () => {
+  it.each(["unknown", "retired", "invalid filter"] as const)(
+    "refuses a %s view instead of displaying misleading rows",
+    (failure) => {
+      const input = source([entry(ids.entryA, "Alpha", ids.todo)]);
+      const candidate = {
+        ...input,
+        definition: {
+          ...input.definition,
+          views: input.definition.views.map((view) =>
+            failure === "retired"
+              ? { ...view, state: "retired" as const }
+              : failure === "invalid filter"
+                ? {
+                    ...view,
+                    filter: {
+                      mode: "all" as const,
+                      criteria: [
+                        {
+                          id: ids.filter,
+                          propertyId: ids.title,
+                          operator: "less-than" as const,
+                          operand: { kind: "number" as const, decimal: "1" },
+                        },
+                      ],
+                    },
+                  }
+                : view,
+          ),
+        },
+      };
+      try {
+        queryLocalDatabase(candidate, {
+          viewId: failure === "unknown" ? generateUuidV7() : ids.view,
+        });
+        throw new Error("An invalid view was accepted");
+      } catch (error) {
+        expect(error).toMatchObject({ code: "database.invalid-view" });
+      }
+    },
+  );
+
+  it.each([
+    "invalid",
+    "remote.1",
+    "local.2.a.b.c.1.1.d",
+    "local.1.a.b.c.1.0.d",
+    "local.1.a.b.c.1.-1.d",
+    "local.1.a.b.c.1.NaN.d",
+    "local.1.a.b.c.1.1.5.d",
+    "local.1.a.b.c.1.9007199254740992.d",
+  ])("rejects malformed local cursor %s", (cursor) => {
+    const input = source([entry(ids.entryA, "Alpha", ids.todo)]);
+    expect(() => queryLocalDatabase(input, { viewId: ids.view, cursor })).toThrowError(
+      expect.objectContaining({ code: "database.invalid-cursor" }),
+    );
+  });
+
+  it("pages through a stable projection without repeating or omitting identities", () => {
+    const input = source([
+      entry(ids.entryA, "Alpha", ids.todo),
+      entry(ids.entryB, "Beta", ids.todo),
+      entry(ids.entryC, "Gamma", ids.todo),
+    ]);
+    const first = queryLocalDatabase(input, { viewId: ids.view, limit: 1 });
+    if (first.nextCursor === null) throw new Error("Missing cursor");
+    const next = queryLocalDatabase(input, {
+      viewId: ids.view,
+      cursor: first.nextCursor,
+      limit: 2,
+    });
+    expect([...first.rows, ...next.rows].map((row) => row.entryId)).toEqual([
+      ids.entryA,
+      ids.entryB,
+      ids.entryC,
+    ]);
+    expect(next.nextCursor).toBeNull();
+    const foreign = { ...input, databaseId: generateUuidV7() };
+    const cursor = first.nextCursor;
+    expect(() => queryLocalDatabase(foreign, { viewId: ids.view, cursor })).toThrowError(
+      expect.objectContaining({ code: "database.cursor-stale" }),
+    );
+  });
   it("has the same filtered identities, order and groups as the shared evaluator", () => {
     const localSource = source([
       entry(ids.entryB, "Beta", ids.todo),

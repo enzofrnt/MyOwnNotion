@@ -704,3 +704,82 @@ sync restent chiffrés. Le retrait est un null explicite.
   revendique pas une réécriture de tous les champs de l’app ni une validation
   de release. HMR actif sur localhost:8080 ; onglets temporaires et émulations
   nettoyés, données conservées. T021 conserve sa limite documentée.
+
+## Validation automatisée autorisée — 2026-10-03
+
+Le propriétaire valide l'état UI puis demande un commit de sauvegarde, la remise
+à niveau de tous les tests unitaires/E2E et le suivi de la PR jusqu'à une CI
+réussie. Les reports d'E2E/push consignés plus haut sont historiques.
+Sauvegarde : `3ac40b2e`. Les bases, fichiers et clés des suites sont jetables ;
+l'instance localhost:8080 et son PostgreSQL sur 5432 ne sont pas réinitialisés.
+
+### Contrôles intermédiaires
+
+- Couverture complète : 479 fichiers réussis, 5 060 tests réussis et deux tests
+  réservés à Windows. Budgets absolus inchangés ; les cas ajoutés couvrent
+  chiffrement, refus atomiques, sources, export, fusion et stockage hors ligne.
+- Intégration serveur : 38 fichiers, 375 tests réussis sur PostgreSQL jetable.
+- Types de tous les packages réussis. Ces résultats intermédiaires ne remplacent
+  pas `checks:local` sur le commit exact avant chaque push.
+- Chromium desktop, premier corpus complet après adaptations : 281 réussis,
+  17 échecs à corriger, 12 exclusions de profils explicites. Les échecs ne sont
+  pas effacés du bilan : changements de parcours, références visuelles anciennes
+  et régression de pagination. Les relances ciblées sont en cours.
+
+### Preuves réelles conservées
+
+- [Preview native de bloc](assets/validation-native-block-drop-preview-chromium.png) :
+  trait bleu saturé dans la colonne active, autre éditeur masqué ; dépôt persistant
+  et annulation contrôlés par le parcours. La limite historique de T021 est levée.
+- [Champ composé](assets/validation-composite-property-input-chromium.png) :
+  pastille et croix contenues dans la même saisie, recherche et retrait conservés.
+- [Ordre des propriétés](assets/validation-ordered-entry-properties-chromium.png) :
+  en-tête canonique, lignes compactes et poignée clavier ; ordre indépendant des
+  colonnes. Captures issues de données E2E jetables, inspectées visuellement.
+
+Les variantes de texte/remplissage d'accent corrigent le contraste en clair,
+sans modifier les couleurs de contenu. Les images de référence sont comparées
+au rendu accepté avant tout remplacement ; aucune mise à jour aveugle ni hausse
+de tolérance. La validation complète et les références PR/CI seront ajoutées
+après réussite des contrôles, sans déclarer les tâches restantes terminées.
+
+### Références visuelles et derniers écarts E2E
+
+Les anciennes références montraient encore « Ajouter une base », une base en
+pied d'éditeur et l'ancien bouton permanent d'ajout d'icône. Ces comportements
+ont été remplacés sur demande du propriétaire. Après comparaison des images
+attendues/reçues (macOS et Linux séparément), les références de recherche, base
+vide, canevas clair/sombre et sécurité mobile Linux sont actualisées. Aucun seuil
+de différence n'est relevé. Le rejeu Linux sans retry confirme 8 captures réussies
+et 8 exclusions réservées à l'autre viewport (`visual-linux-03.log`).
+
+Les parcours ont aussi révélé un déplacement physique du bouton d'entrée lors
+d'une largeur distante et une consommation prématurée de la demande de focus,
+avant le départ vers l'entrée. La cible est désormais figée pendant le geste,
+jusqu'au clic natif (le relâchement ailleurs annule toujours), et le focus est
+demandé au retour. La carte de conflit et sa table défilante ont des noms
+accessibles distincts. Le rejeu complet reste requis.
+
+Les captures `assets/validation-column-order-{light,dark}-{1280,320}.png`
+montrent les actions partagées de réordonnancement dans les paramètres de vue,
+sans débordement du panneau ni modification de l'ordre de la source.
+
+Le rejeu Chromium bureau ciblé (`e2e-chromium-focus-10.log`, projet bureau)
+confirme 10 réussites : reprise/reconciliation/résolution hors ligne, propagation
+structurée, annulation/activation pendant une largeur distante, retour/focus
+après 1 001 entrées, et six références visuelles. La preuve
+`assets/validation-large-table-return-chromium.png` montre la dernière entrée
+visible, la bonne page source et le total chargé. Ce diagnostic a été arrêté
+pendant sa partie mobile après identification d'un blocage du dialogue de
+création par le tiroir ouvert ; il ne constitue pas un gate complet.
+
+La création d'une base depuis le tiroir le ferme désormais avant d'ouvrir le
+dialogue. Annuler rouvre la navigation ; créer ouvre la page de base. Le parcours
+dédié couvre clic réel, Échap et retour au tiroir, sans interaction forcée.
+
+Le diagnostic mobile suivant (`e2e-chromium-mobile-focus-11.log`) confirme
+11 parcours réussis et 6 exclusions de captures réservées au bureau. Son seul
+échec est la référence macOS de sécurité mobile, encore antérieure au champ
+et au bouton partagés. L'image reçue est comparée et adoptée à seuil constant,
+avec sa propre adresse de fixture macOS. Le contrôle complet ci-dessous devra
+confirmer toutes les références et tous les moteurs sur le commit exact.

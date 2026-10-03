@@ -1,43 +1,28 @@
 [
   {
     "file": "backups-dark-1280.jpg",
-    "headings": [
-      "Sauvegardes",
-      "Sauvegarde complète du serveur",
-      "Exports portables"
-    ],
+    "headings": ["Sauvegardes", "Sauvegarde complète du serveur", "Exports portables"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280
   },
   {
     "file": "backups-dark-320.jpg",
-    "headings": [
-      "Sauvegardes",
-      "Sauvegarde complète du serveur",
-      "Exports portables"
-    ],
+    "headings": ["Sauvegardes", "Sauvegarde complète du serveur", "Exports portables"],
     "scroll": 320,
     "theme": "dark",
     "width": 320
   },
   {
     "file": "backups-light-1280.jpg",
-    "headings": [
-      "Sauvegardes",
-      "Sauvegarde complète du serveur"
-    ],
+    "headings": ["Sauvegardes", "Sauvegarde complète du serveur"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280
   },
   {
     "file": "backups-light-320.jpg",
-    "headings": [
-      "Sauvegardes",
-      "Sauvegarde complète du serveur",
-      "Exports portables"
-    ],
+    "headings": ["Sauvegardes", "Sauvegarde complète du serveur", "Exports portables"],
     "scroll": 320,
     "theme": "light",
     "width": 320
@@ -136,45 +121,35 @@
   },
   {
     "file": "connection-dark-1280.jpg",
-    "headings": [
-      "Connecter cette application"
-    ],
+    "headings": ["Connecter cette application"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280
   },
   {
     "file": "connection-dark-320.jpg",
-    "headings": [
-      "Connecter cette application"
-    ],
+    "headings": ["Connecter cette application"],
     "scroll": 320,
     "theme": "dark",
     "width": 320
   },
   {
     "file": "connection-light-1280.jpg",
-    "headings": [
-      "Connecter cette application"
-    ],
+    "headings": ["Connecter cette application"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280
   },
   {
     "file": "connection-light-320.jpg",
-    "headings": [
-      "Connecter cette application"
-    ],
+    "headings": ["Connecter cette application"],
     "scroll": 320,
     "theme": "light",
     "width": 320
   },
   {
     "file": "database-dark-1280.jpg",
-    "headings": [
-      "Base sans nom"
-    ],
+    "headings": ["Base sans nom"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280,
@@ -183,9 +158,7 @@
   },
   {
     "file": "database-dark-320.jpg",
-    "headings": [
-      "Base sans nom"
-    ],
+    "headings": ["Base sans nom"],
     "scroll": 320,
     "theme": "dark",
     "width": 320,
@@ -194,9 +167,7 @@
   },
   {
     "file": "database-light-1280.jpg",
-    "headings": [
-      "Base sans nom"
-    ],
+    "headings": ["Base sans nom"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280,
@@ -205,9 +176,7 @@
   },
   {
     "file": "database-light-320.jpg",
-    "headings": [
-      "Base sans nom"
-    ],
+    "headings": ["Base sans nom"],
     "scroll": 320,
     "theme": "light",
     "width": 320,
@@ -216,10 +185,7 @@
   },
   {
     "file": "database-settings-dark-1280.jpg",
-    "headings": [
-      "Base sans nom",
-      "Afficher les paramètres"
-    ],
+    "headings": ["Base sans nom", "Afficher les paramètres"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280,
@@ -228,10 +194,7 @@
   },
   {
     "file": "database-settings-dark-320.jpg",
-    "headings": [
-      "Base sans nom",
-      "Afficher les paramètres"
-    ],
+    "headings": ["Base sans nom", "Afficher les paramètres"],
     "scroll": 320,
     "theme": "dark",
     "width": 320,
@@ -240,10 +203,7 @@
   },
   {
     "file": "database-settings-light-1280.jpg",
-    "headings": [
-      "Base sans nom",
-      "Afficher les paramètres"
-    ],
+    "headings": ["Base sans nom", "Afficher les paramètres"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280,
@@ -252,10 +212,7 @@
   },
   {
     "file": "database-settings-light-320.jpg",
-    "headings": [
-      "Base sans nom",
-      "Afficher les paramètres"
-    ],
+    "headings": ["Base sans nom", "Afficher les paramètres"],
     "scroll": 320,
     "theme": "light",
     "width": 320,
@@ -318,9 +275,7 @@
   },
   {
     "file": "graph-filters-dark-1280.jpg",
-    "headings": [
-      "Filtres et périmètre"
-    ],
+    "headings": ["Filtres et périmètre"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280,
@@ -329,9 +284,7 @@
   },
   {
     "file": "graph-filters-dark-320.jpg",
-    "headings": [
-      "Filtres et périmètre"
-    ],
+    "headings": ["Filtres et périmètre"],
     "scroll": 320,
     "theme": "dark",
     "width": 320,
@@ -340,9 +293,7 @@
   },
   {
     "file": "graph-filters-light-1280.jpg",
-    "headings": [
-      "Filtres et périmètre"
-    ],
+    "headings": ["Filtres et périmètre"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280,
@@ -351,9 +302,7 @@
   },
   {
     "file": "graph-filters-light-320.jpg",
-    "headings": [
-      "Filtres et périmètre"
-    ],
+    "headings": ["Filtres et périmètre"],
     "scroll": 320,
     "theme": "light",
     "width": 320,
@@ -556,89 +505,63 @@
   },
   {
     "file": "login-dark-1280.jpg",
-    "headings": [
-      "Se connecter",
-      "Utiliser votre mot de passe"
-    ],
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280
   },
   {
     "file": "login-dark-320.jpg",
-    "headings": [
-      "Se connecter",
-      "Utiliser votre mot de passe"
-    ],
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
     "scroll": 320,
     "theme": "dark",
     "width": 320
   },
   {
     "file": "login-error-dark-1280.jpg",
-    "headings": [
-      "Se connecter",
-      "Utiliser votre mot de passe"
-    ],
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280
   },
   {
     "file": "login-error-dark-320.jpg",
-    "headings": [
-      "Se connecter",
-      "Utiliser votre mot de passe"
-    ],
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
     "scroll": 320,
     "theme": "dark",
     "width": 320
   },
   {
     "file": "login-error-light-1280.jpg",
-    "headings": [
-      "Se connecter",
-      "Utiliser votre mot de passe"
-    ],
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280
   },
   {
     "file": "login-error-light-320.jpg",
-    "headings": [
-      "Se connecter",
-      "Utiliser votre mot de passe"
-    ],
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
     "scroll": 320,
     "theme": "light",
     "width": 320
   },
   {
     "file": "login-light-1280.jpg",
-    "headings": [
-      "Se connecter",
-      "Utiliser votre mot de passe"
-    ],
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280
   },
   {
     "file": "login-light-320.jpg",
-    "headings": [
-      "Se connecter",
-      "Utiliser votre mot de passe"
-    ],
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
     "scroll": 320,
     "theme": "light",
     "width": 320
   },
   {
     "file": "page-dark-1280.jpg",
-    "headings": [
-      "Vue d'ensemble — Produit"
-    ],
+    "headings": ["Vue d'ensemble — Produit"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280,
@@ -647,9 +570,7 @@
   },
   {
     "file": "page-dark-320.jpg",
-    "headings": [
-      "Vue d'ensemble — Produit"
-    ],
+    "headings": ["Vue d'ensemble — Produit"],
     "scroll": 320,
     "theme": "dark",
     "width": 320,
@@ -718,9 +639,7 @@
   },
   {
     "file": "page-light-1280.jpg",
-    "headings": [
-      "Vue d'ensemble — Produit"
-    ],
+    "headings": ["Vue d'ensemble — Produit"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280,
@@ -729,9 +648,7 @@
   },
   {
     "file": "page-light-320.jpg",
-    "headings": [
-      "Vue d'ensemble — Produit"
-    ],
+    "headings": ["Vue d'ensemble — Produit"],
     "scroll": 320,
     "theme": "light",
     "width": 320,
@@ -743,10 +660,7 @@
     "dialogs": [
       "Rechercher dans l’espace de travailRechercheRechercherFiltrer par typePagesDossiersFichier"
     ],
-    "headings": [
-      "Vue d'ensemble — Produit",
-      "Rechercher dans l’espace de travail"
-    ],
+    "headings": ["Vue d'ensemble — Produit", "Rechercher dans l’espace de travail"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280,
@@ -758,10 +672,7 @@
     "dialogs": [
       "Rechercher dans l’espace de travailRechercheRechercherFiltrer par typePagesDossiersFichier"
     ],
-    "headings": [
-      "Vue d'ensemble — Produit",
-      "Rechercher dans l’espace de travail"
-    ],
+    "headings": ["Vue d'ensemble — Produit", "Rechercher dans l’espace de travail"],
     "scroll": 320,
     "theme": "dark",
     "width": 320,
@@ -773,10 +684,7 @@
     "dialogs": [
       "Rechercher dans l’espace de travailRechercheRechercherFiltrer par typePagesDossiersFichier"
     ],
-    "headings": [
-      "Vue d'ensemble — Produit",
-      "Rechercher dans l’espace de travail"
-    ],
+    "headings": ["Vue d'ensemble — Produit", "Rechercher dans l’espace de travail"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280,
@@ -788,10 +696,7 @@
     "dialogs": [
       "Rechercher dans l’espace de travailRechercheRechercherFiltrer par typePagesDossiersFichier"
     ],
-    "headings": [
-      "Vue d'ensemble — Produit",
-      "Rechercher dans l’espace de travail"
-    ],
+    "headings": ["Vue d'ensemble — Produit", "Rechercher dans l’espace de travail"],
     "scroll": 320,
     "theme": "light",
     "width": 320,
@@ -872,84 +777,56 @@
   },
   {
     "file": "setup-dark-1280.jpg",
-    "headings": [
-      "Configurer cette installation",
-      "Créer la passkey du propriétaire"
-    ],
+    "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280
   },
   {
     "file": "setup-dark-320.jpg",
-    "headings": [
-      "Configurer cette installation",
-      "Créer la passkey du propriétaire"
-    ],
+    "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
     "scroll": 320,
     "theme": "dark",
     "width": 320
   },
   {
     "file": "setup-light-1280.jpg",
-    "headings": [
-      "Configurer cette installation",
-      "Créer la passkey du propriétaire"
-    ],
+    "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280
   },
   {
     "file": "setup-light-320.jpg",
-    "headings": [
-      "Configurer cette installation",
-      "Créer la passkey du propriétaire"
-    ],
+    "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
     "scroll": 320,
     "theme": "light",
     "width": 320
   },
   {
     "file": "storage-dark-1280.jpg",
-    "headings": [
-      "Stockage et synchronisation",
-      "Cet appareil",
-      "Anciens brouillons récupérables"
-    ],
+    "headings": ["Stockage et synchronisation", "Cet appareil", "Anciens brouillons récupérables"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280
   },
   {
     "file": "storage-dark-320.jpg",
-    "headings": [
-      "Stockage et synchronisation",
-      "Cet appareil",
-      "Anciens brouillons récupérables"
-    ],
+    "headings": ["Stockage et synchronisation", "Cet appareil", "Anciens brouillons récupérables"],
     "scroll": 320,
     "theme": "dark",
     "width": 320
   },
   {
     "file": "storage-light-1280.jpg",
-    "headings": [
-      "Stockage et synchronisation",
-      "Cet appareil",
-      "Anciens brouillons récupérables"
-    ],
+    "headings": ["Stockage et synchronisation", "Cet appareil", "Anciens brouillons récupérables"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280
   },
   {
     "file": "storage-light-320.jpg",
-    "headings": [
-      "Stockage et synchronisation",
-      "Cet appareil",
-      "Anciens brouillons récupérables"
-    ],
+    "headings": ["Stockage et synchronisation", "Cet appareil", "Anciens brouillons récupérables"],
     "scroll": 320,
     "theme": "light",
     "width": 320
@@ -957,10 +834,7 @@
   {
     "file": "trash-dark-1280.jpg",
     "dialogs": [],
-    "headings": [
-      "Corbeille",
-      "Éléments supprimés"
-    ],
+    "headings": ["Corbeille", "Éléments supprimés"],
     "scroll": 1280,
     "theme": "dark",
     "width": 1280,
@@ -970,10 +844,7 @@
   {
     "file": "trash-dark-320.jpg",
     "dialogs": [],
-    "headings": [
-      "Corbeille",
-      "Éléments supprimés"
-    ],
+    "headings": ["Corbeille", "Éléments supprimés"],
     "scroll": 320,
     "theme": "dark",
     "width": 320,
@@ -983,10 +854,7 @@
   {
     "file": "trash-light-1280.jpg",
     "dialogs": [],
-    "headings": [
-      "Corbeille",
-      "Éléments supprimés"
-    ],
+    "headings": ["Corbeille", "Éléments supprimés"],
     "scroll": 1280,
     "theme": "light",
     "width": 1280,
@@ -996,10 +864,7 @@
   {
     "file": "trash-light-320.jpg",
     "dialogs": [],
-    "headings": [
-      "Corbeille",
-      "Éléments supprimés"
-    ],
+    "headings": ["Corbeille", "Éléments supprimés"],
     "scroll": 320,
     "theme": "light",
     "width": 320,

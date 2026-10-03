@@ -96,17 +96,15 @@ describe("row-local attachment disclosure", () => {
     const render = async (activeViewId: string) => {
       await act(async () =>
         root.render(
-          <>
-            {["page-a", "page-b"].map((page) => (
-              <TreeAttachmentDisclosure key={page} activeViewId={activeViewId}>
-                {(open, toggle) => (
-                  <button type="button" aria-expanded={open} onClick={toggle}>
-                    Pièces jointes de {page}
-                  </button>
-                )}
-              </TreeAttachmentDisclosure>
-            ))}
-          </>,
+          ["page-a", "page-b"].map((page) => (
+            <TreeAttachmentDisclosure key={page} activeViewId={activeViewId}>
+              {(open, toggle) => (
+                <button type="button" aria-expanded={open} onClick={toggle}>
+                  Pièces jointes de {page}
+                </button>
+              )}
+            </TreeAttachmentDisclosure>
+          )),
         ),
       );
     };

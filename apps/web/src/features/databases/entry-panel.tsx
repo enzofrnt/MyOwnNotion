@@ -138,7 +138,12 @@ export function EntryPanel({
                 onBlur={autosave.flush}
               />
             )}
-            <div className="entry-properties__status" role="status" aria-live="polite">
+            <div
+              className="entry-properties__status"
+              data-save-state={autosave.state}
+              role="status"
+              aria-live="polite"
+            >
               {autosave.state === "saving" ? DATABASE_COPY.common.savingLocally : null}
             </div>
             {autosave.error !== null ? (
