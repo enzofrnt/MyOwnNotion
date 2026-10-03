@@ -3,6 +3,7 @@ import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
 import { AsyncState } from "../../ui/primitives/index.ts";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { PropertyValue } from "./option-appearance.tsx";
@@ -95,6 +96,7 @@ function GalleryCard({
         )}
       </div>
       <StableActionButton
+        variant="ghost"
         type="button"
         className="link database-card__title"
         data-entry-trigger={row.entryId}
@@ -277,7 +279,8 @@ export function GalleryView({
         <summary>{DATABASE_COPY.gallery.settings}</summary>
         <label className="database-view-setting">
           {DATABASE_COPY.gallery.preview}
-          <select
+          <NativeSelect
+            density="compact"
             value={view.options.preview}
             onChange={(event) =>
               void onChangeView({
@@ -292,7 +295,7 @@ export function GalleryView({
             <option value="none">{DATABASE_COPY.gallery.none}</option>
             <option value="page">{DATABASE_COPY.gallery.page}</option>
             <option value="first-safe-file">{DATABASE_COPY.gallery.file}</option>
-          </select>
+          </NativeSelect>
         </label>
         <fieldset>
           <legend>{DATABASE_COPY.gallery.properties}</legend>

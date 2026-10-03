@@ -138,3 +138,16 @@
   flex-wrap: wrap;
   gap: var(--ui-space-2);
 }
+
+/* Confirmation stays a readable checkbox row at narrow widths. */
+.recovery-replacement-confirm {
+  flex-wrap: nowrap;
+}
+.recovery-replacement-confirm label,
+.recovery-kit-confirm label {
+  flex: 1;
+  min-width: 0;
+}
+.recovery-kit-confirm input[type="checkbox"] {
+  flex: none;
+}

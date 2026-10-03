@@ -52,7 +52,7 @@ export function isChoiceProperty(
 
 export function OptionPill({ label, tone }: { readonly label: string; readonly tone: string }) {
   return (
-    <span className="option-pill" data-tone={optionTone(tone)}>
+    <span className="option-pill" data-tone={optionTone(tone)} title={label}>
       <span className="option-pill__dot" aria-hidden="true" />
       <span className="option-pill__label">{label}</span>
     </span>

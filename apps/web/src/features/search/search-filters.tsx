@@ -1,5 +1,6 @@
 import type { ItemKind, Uuid } from "@myownnotion/domain";
 import { Button, FR_COPY } from "../../ui/index.ts";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 
 export const ALL_SEARCH_KINDS = [
   "page",
@@ -65,7 +66,8 @@ export function SearchFilters({
 
       <label className="search-filters__branch">
         {FR_COPY.search.branch}
-        <select
+        <NativeSelect
+          density="compact"
           className="ui-native-select"
           data-size="compact"
           value={branchRootItemId ?? ""}
@@ -79,7 +81,7 @@ export function SearchFilters({
               {branch.label}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
 
       <Button type="button" size="compact" disabled={!hasActiveFilter} onClick={onReset}>

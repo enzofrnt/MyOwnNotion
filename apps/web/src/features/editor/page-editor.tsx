@@ -77,9 +77,9 @@ import {
   EditorOriginGuard,
 } from "./editor-remote-apply.ts";
 import { historyActionFromInputType, useEditorShortcuts } from "./editor-shortcuts.ts";
-import { PageOutline } from "./page-outline.tsx";
 import { pageLinkTargetFromHref } from "./page-link-href.ts";
 import { updatePageLinkPresentations } from "./page-link-inline-content.ts";
+import { PageOutline } from "./page-outline.tsx";
 import { TableKeymapExtension } from "./table-keymap.ts";
 
 const EDITOR_PROJECTION_QUIET_MS = 120;
@@ -119,6 +119,7 @@ export function PageEditor({
   onSettlementChange,
   session,
   discoverable = true,
+  fileTransfersEnabled = true,
 }: {
   readonly pageId: Uuid;
   readonly document: BlockDocument;
@@ -136,6 +137,8 @@ export function PageEditor({
   readonly session?: import("./editor-sync-status.tsx").EditorDurableSession | undefined;
   /** False for keep-alive sessions that must not match Playwright/a11y locators. */
   readonly discoverable?: boolean;
+  /** Memory-only previews cannot stage bytes in the owner's durable file queue. */
+  readonly fileTransfersEnabled?: boolean;
 }) {
   const { resolvedTheme } = useTheme();
   const [editorError, setEditorError] = useState<string | null>(null);
@@ -609,10 +612,13 @@ export function PageEditor({
   // Dropped or pasted bytes are encrypted durably before the block commit.
   // The transfer becomes runnable only after that commit succeeds, so neither
   // quota nor a process interruption can leave an orphan editor reference.
-  const fileQueue = useMemo(editorFileTransferQueue, []);
+  const fileQueue = useMemo(
+    () => (fileTransfersEnabled ? editorFileTransferQueue() : null),
+    [fileTransfersEnabled],
+  );
   const acceptFiles = useCallback(
     (files: readonly File[]) => {
-      if (!editable || files.length === 0) return;
+      if (!editable || fileQueue === null || files.length === 0) return;
       const fingerprint = files
         .map((file) => `${file.name}\u0000${file.size}\u0000${file.type}\u0000${file.lastModified}`)
         .join("\u0001");

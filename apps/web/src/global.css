@@ -25,3 +25,4 @@
 @import "./features/navigation/convert.css";
 @import "./features/save-state/save-state.css";
 @import "./features/reconciliation/reconciliation.css";
+@import "./features/diagnostics/diagnostics.css";

@@ -12,6 +12,7 @@ import { jsonValuesEqual } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
+import { Button, CodePreview, ReadTable, Section } from "../../ui/primitives/index.ts";
 import type { ConflictSide } from "../sync/conflict-resolution.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
@@ -265,14 +266,14 @@ export function StructuredConflictCard({
   );
 
   return (
-    <section
-      className="panel"
+    <Section
+      className="conflict-resolution"
       aria-label={DATABASE_COPY.conflict.region}
       data-testid={`database-conflict-${row.mutationId}`}
     >
       <h2>{DATABASE_COPY.conflict.heading}</h2>
       <p className="muted">{DATABASE_COPY.conflict.explanation}</p>
-      <table className="conflict-columns">
+      <ReadTable scrollLabel={DATABASE_COPY.conflict.region} className="conflict-columns">
         <caption className="muted">{DATABASE_COPY.conflict.caption}</caption>
         <thead>
           <tr>
@@ -290,13 +291,22 @@ export function StructuredConflictCard({
               <tr key={`${conflict.path}:${conflict.reason}`}>
                 <th scope="row">{conflict.path}</th>
                 {(["local", "ancestor", "remote"] as const).map((version) => (
-                  <td key={version} data-column={version}>
-                    <pre data-testid={`database-conflict-${version}-${conflict.path}`}>
+                  <td
+                    key={version}
+                    data-column={
+                      version === "local"
+                        ? DATABASE_COPY.conflict.thisDevice
+                        : version === "ancestor"
+                          ? DATABASE_COPY.conflict.ancestor
+                          : DATABASE_COPY.conflict.otherDevice
+                    }
+                  >
+                    <CodePreview data-testid={`database-conflict-${version}-${conflict.path}`}>
                       {display(versionValue(row.structured, version, conflict.path))}
-                    </pre>
+                    </CodePreview>
                   </td>
                 ))}
-                <td data-column="Keep">
+                <td data-column={DATABASE_COPY.conflict.keep}>
                   <fieldset>
                     <legend className="muted">
                       {DATABASE_COPY.conflict.keepFor(conflict.path)}
@@ -322,10 +332,10 @@ export function StructuredConflictCard({
             );
           })}
         </tbody>
-      </table>
+      </ReadTable>
 
       <h3>{DATABASE_COPY.conflict.review}</h3>
-      <pre data-testid="database-conflict-review">{display(result)}</pre>
+      <CodePreview data-testid="database-conflict-review">{display(result)}</CodePreview>
 
       {confirmation !== null ? (
         <section
@@ -334,30 +344,30 @@ export function StructuredConflictCard({
           aria-label={DATABASE_COPY.conflict.confirmSchema}
         >
           <p>{DATABASE_COPY.conflict.schemaImpact}</p>
-          <button
+          <Button
             type="button"
             onClick={() =>
               void finish({ digest: confirmation.digest, decision: "preserve-incompatible" })
             }
           >
             {DATABASE_COPY.common.preserveIncompatible}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="danger"
+            variant="danger"
             onClick={() =>
               void finish({ digest: confirmation.digest, decision: "discard-confirmed" })
             }
           >
             {DATABASE_COPY.common.discardAffected}
-          </button>
+          </Button>
         </section>
       ) : null}
       {failure === null ? null : <AsyncState compact kind="error" description={failure} />}
-      <button type="button" disabled={saving} onClick={() => void finish()}>
-        {saving ? DATABASE_COPY.common.saving : DATABASE_COPY.conflict.save}
-      </button>
-    </section>
+      <Button variant="primary" type="button" busy={saving} onClick={() => void finish()}>
+        {DATABASE_COPY.conflict.save}
+      </Button>
+    </Section>
   );
 }
 

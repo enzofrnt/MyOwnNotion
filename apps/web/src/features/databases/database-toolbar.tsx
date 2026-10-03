@@ -6,6 +6,7 @@ import {
 } from "@myownnotion/domain";
 import { type FormEvent, type KeyboardEvent, useLayoutEffect, useRef, useState } from "react";
 import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { columnPresentations, viewColumns } from "./view-columns.ts";
 
@@ -330,7 +331,8 @@ export function DatabaseToolbar({
         ) : null}
         <label>
           Format
-          <select
+          <NativeSelect
+            density="compact"
             aria-label="Format de la vue intégrée"
             value={active.type}
             disabled={savingView}
@@ -361,7 +363,7 @@ export function DatabaseToolbar({
             <option value="calendar" disabled={!hasCalendarDate}>
               Calendrier
             </option>
-          </select>
+          </NativeSelect>
         </label>
         {hasBoardAxis ? null : <p className="muted">{DATABASE_COPY.toolbar.boardNeedsProperty}</p>}
         {hasCalendarDate ? null : (

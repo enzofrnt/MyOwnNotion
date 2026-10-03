@@ -61,6 +61,7 @@ export function ListView({
           {page.rows.map((row) => (
             <li key={row.entryId} className="database-list__entry">
               <StableActionButton
+                variant="ghost"
                 type="button"
                 className="link database-list__title"
                 data-entry-trigger={row.entryId}

@@ -8,6 +8,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { type InputHTMLAttributes, useLayoutEffect, useRef } from "react";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
 export type ValueDraft = string | boolean | readonly string[];
@@ -167,7 +168,8 @@ export function ValueEditor({
     property.type === "multi-select"
   ) {
     control = (
-      <select
+      <NativeSelect
+        density="compact"
         id={controlId}
         multiple={property.type === "multi-select"}
         value={property.type === "multi-select" ? (input as readonly string[]) : String(input)}
@@ -192,11 +194,12 @@ export function ValueEditor({
               {option.label}
             </option>
           ))}
-      </select>
+      </NativeSelect>
     );
   } else if (property.type === "relation") {
     control = (
-      <select
+      <NativeSelect
+        density="compact"
         id={controlId}
         multiple={property.config.cardinality === "many"}
         value={
@@ -218,13 +221,15 @@ export function ValueEditor({
             {option.label}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     );
   } else {
     control = (
       <DraftTextInput
         id={controlId}
         type={property.type === "date" && property.config.mode === "date" ? "date" : "text"}
+        className={presentation === "field" ? "ui-native-input" : undefined}
+        data-size={presentation === "field" ? "compact" : undefined}
         inputMode={property.type === "number" ? "decimal" : undefined}
         value={typeof input === "string" ? input : ""}
         aria-label={inlineLabel}

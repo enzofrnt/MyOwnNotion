@@ -7,6 +7,7 @@ import type {
 import { useRef, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
 import { AsyncState, Button } from "../../ui/primitives/index.ts";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY, DATABASE_LOCALE } from "./database-copy.ts";
 import type { DatabaseCellUpdate } from "./table-view.tsx";
@@ -300,7 +301,8 @@ export function CalendarView({
       <div className="database-calendar__toolbar">
         <label className="database-view-setting">
           {DATABASE_COPY.calendar.dateProperty}
-          <select
+          <NativeSelect
+            density="compact"
             value={property.id}
             onChange={(event) => {
               const next = dateProperties.find(({ id }) => id === event.target.value);
@@ -317,7 +319,7 @@ export function CalendarView({
                 {candidate.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <div className="database-calendar__navigation">
           <Button

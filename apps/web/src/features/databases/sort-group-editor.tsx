@@ -6,6 +6,8 @@ import type {
   Uuid,
 } from "@myownnotion/domain";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../../ui/primitives/button.tsx";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
 function draftSignature(sorts: readonly SortCriterion[], group: GroupCriterion | null): string {
@@ -95,7 +97,8 @@ export function SortGroupEditor({
                 ) : null}
                 <label>
                   {DATABASE_COPY.sort.property}
-                  <select
+                  <NativeSelect
+                    density="compact"
                     value={sort.propertyId}
                     onChange={(event) =>
                       updateSort(index, { propertyId: event.target.value as Uuid })
@@ -115,11 +118,12 @@ export function SortGroupEditor({
                           {candidate.name}
                         </option>
                       ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label>
                   {DATABASE_COPY.sort.direction}
-                  <select
+                  <NativeSelect
+                    density="compact"
                     value={sort.direction}
                     onChange={(event) =>
                       updateSort(index, {
@@ -129,11 +133,12 @@ export function SortGroupEditor({
                   >
                     <option value="ascending">{DATABASE_COPY.sort.ascending}</option>
                     <option value="descending">{DATABASE_COPY.sort.descending}</option>
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label>
                   {DATABASE_COPY.sort.emptyValues}
-                  <select
+                  <NativeSelect
+                    density="compact"
                     value={sort.missing}
                     onChange={(event) =>
                       updateSort(index, {
@@ -143,31 +148,43 @@ export function SortGroupEditor({
                   >
                     <option value="last">{DATABASE_COPY.sort.last}</option>
                     <option value="first">{DATABASE_COPY.sort.first}</option>
-                  </select>
+                  </NativeSelect>
                 </label>
-                <button
+                <Button
+                  size="compact"
+                  variant="ghost"
                   type="button"
                   onClick={() =>
                     updateSorts((current) => current.filter((_, position) => position !== index))
                   }
                 >
                   {DATABASE_COPY.sort.remove}
-                </button>
-                <button type="button" disabled={index === 0} onClick={() => moveSort(index, -1)}>
+                </Button>
+                <Button
+                  size="compact"
+                  variant="ghost"
+                  type="button"
+                  disabled={index === 0}
+                  onClick={() => moveSort(index, -1)}
+                >
                   {DATABASE_COPY.sort.moveEarlier}
-                </button>
-                <button
+                </Button>
+                <Button
+                  size="compact"
+                  variant="ghost"
                   type="button"
                   disabled={index === sorts.length - 1}
                   onClick={() => moveSort(index, 1)}
                 >
                   {DATABASE_COPY.sort.moveLater}
-                </button>
+                </Button>
               </li>
             );
           })}
         </ol>
-        <button
+        <Button
+          size="compact"
+          variant="ghost"
           type="button"
           disabled={unusedProperties.length === 0}
           onClick={() => {
@@ -180,10 +197,11 @@ export function SortGroupEditor({
           }}
         >
           {DATABASE_COPY.sort.add}
-        </button>
+        </Button>
         <label>
           {DATABASE_COPY.sort.groupBy}
-          <select
+          <NativeSelect
+            density="compact"
             value={group?.propertyId ?? ""}
             onChange={(event) =>
               updateGroup(
@@ -197,9 +215,11 @@ export function SortGroupEditor({
                 {property.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
-        <button
+        <Button
+          size="compact"
+          variant="primary"
           type="button"
           onClick={() => {
             pendingSignature.current = draftSignature(sorts, group);
@@ -212,7 +232,7 @@ export function SortGroupEditor({
           }}
         >
           {saving ? DATABASE_COPY.sort.saving : DATABASE_COPY.sort.save}
-        </button>
+        </Button>
       </fieldset>
     </details>
   );

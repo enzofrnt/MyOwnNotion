@@ -8,6 +8,7 @@ import type {
 } from "@myownnotion/domain";
 import { type ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
+import { Button } from "../../ui/primitives/button.tsx";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import {
@@ -199,9 +200,9 @@ export function EntryPanel({
           <p className="muted">{DATABASE_COPY.entry.eyebrow}</p>
           <h2 id={`entry-heading-${entry.entryId}`}>{entry.title}</h2>
         </div>
-        <button type="button" className="link" onClick={onClose}>
+        <Button size="compact" variant="ghost" onClick={onClose}>
           {DATABASE_COPY.entry.close}
-        </button>
+        </Button>
       </header>
 
       {!valuesAvailable ? (

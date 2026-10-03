@@ -1,5 +1,6 @@
 import type { Uuid } from "@myownnotion/domain";
 import { Button, DialogContent, DialogHeading, DialogRoot } from "../../ui/primitives/index.ts";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 
 export interface DatabaseSourceOption {
   readonly id: Uuid;
@@ -78,7 +79,8 @@ export function DatabaseCreateChoiceDialog({
             <p>La page ne possédera pas cette source. Elle l’affichera, et portera une flèche.</p>
             <label>
               Source
-              <select
+              <NativeSelect
+                density="compact"
                 aria-label="Source existante"
                 value={sourceId}
                 disabled={busy || sources.length === 0}
@@ -89,7 +91,7 @@ export function DatabaseCreateChoiceDialog({
                     {source.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <div className="database-create-choice__actions">
               <Button type="button" variant="ghost" disabled={busy} onClick={onBack}>

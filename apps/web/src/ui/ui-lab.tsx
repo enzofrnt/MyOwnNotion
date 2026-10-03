@@ -101,6 +101,14 @@ export function UiLab({
         </p>
       </header>
 
+      <section className="ui-lab__section" aria-label="Revue des composants métier">
+        <h2>Interfaces de l’application</h2>
+        <p className="ui-lab__hint">
+          Conflits, fichiers, bases de données, éditeur et récupération sur des exemples isolés.
+        </p>
+        <LinkButton href="/__ui-lab?review=conflicts">Parcourir les interfaces</LinkButton>
+      </section>
+
       <section className="ui-lab__section" aria-labelledby="ui-lab-auth">
         <h2 id="ui-lab-auth">Connexion et installation</h2>
         <p className="ui-lab__hint">

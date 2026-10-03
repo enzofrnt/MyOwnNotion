@@ -2,13 +2,18 @@ import { classNames } from "../class-names.ts";
 
 export interface SkeletonProps {
   readonly className?: string;
-  readonly layout?: "lines" | "table";
+  readonly layout?: "lines" | "table" | "media";
   readonly rows?: number;
 }
 
 /** Decorative geometry; the owning status provides the loading announcement. */
 export function Skeleton({ className, layout = "lines", rows = 3 }: SkeletonProps) {
-  const count = Number.isFinite(rows) ? Math.max(1, Math.min(20, Math.round(rows))) : 3;
+  const count =
+    layout === "media"
+      ? 1
+      : Number.isFinite(rows)
+        ? Math.max(1, Math.min(20, Math.round(rows)))
+        : 3;
   return (
     <div className={classNames("ui-skeleton", className)} data-layout={layout} aria-hidden="true">
       {Array.from({ length: count }, (_, index) => `placeholder-${index}`).map((key) =>

@@ -25,13 +25,19 @@ function render(content: ReactNode): void {
 if (window.location.pathname === "/__ui-lab") {
   const query = new URLSearchParams(window.location.search);
   const surface = query.get("surface");
-  render(
-    surface === "login" || surface === "setup" || surface === "connection" ? (
-      <UiLabAuthPreview surface={surface} />
-    ) : (
-      <UiLab compositionView={query.get("view") === "board" ? "board" : "table"} />
-    ),
-  );
+  const review = query.get("review");
+  if (review !== null) {
+    void import("./ui/ui-lab-review.tsx").then(({ UiLabReview, isReviewSurface }) =>
+      render(isReviewSurface(review) ? <UiLabReview surface={review} /> : <UiLab />),
+    );
+  } else
+    render(
+      surface === "login" || surface === "setup" || surface === "connection" ? (
+        <UiLabAuthPreview surface={surface} />
+      ) : (
+        <UiLab compositionView={query.get("view") === "board" ? "board" : "table"} />
+      ),
+    );
 } else {
   // The deterministic UI lab must stay independent from API and CRDT startup.
   // The normal workspace remains a separate chunk and is loaded only here.

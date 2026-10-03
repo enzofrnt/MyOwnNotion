@@ -704,27 +704,17 @@ html[data-block-grabbing="true"] * {
   margin-block: var(--ui-space-2);
   padding: var(--ui-space-3);
   color: var(--ui-color-text-muted);
-  background: var(--ui-color-warning-soft);
-  border: 1px dashed var(--ui-color-warning);
+  background: var(--ui-color-surface-subtle);
+  border: 1px solid var(--ui-color-border);
   border-radius: var(--ui-radius-md);
   font-size: var(--ui-text-sm);
 }
 
-.editor-unknown-block > button {
+.editor-unknown-block > .ui-button {
   width: fit-content;
-  min-height: var(--ui-target-compact);
+  max-width: 100%;
+  white-space: normal;
   margin-top: var(--ui-space-1);
-  padding-inline: var(--ui-space-2);
-  color: var(--ui-color-warning);
-  background: var(--ui-color-surface);
-  border: 1px solid currentColor;
-  border-radius: var(--ui-radius-sm);
-  cursor: pointer;
-}
-
-.editor-unknown-block > button:focus-visible {
-  outline: 2px solid var(--ui-color-focus);
-  outline-offset: 2px;
 }
 
 /* Rich V3 blocks keep the same quiet, content-first hierarchy as the rest of
@@ -794,6 +784,12 @@ html[data-block-grabbing="true"] * {
   gap: var(--ui-space-1);
 }
 
+@media (max-width: 600px) {
+  .editor-callout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .editor-callout-controls select {
   width: 5rem;
   min-height: var(--ui-target-compact);
@@ -803,6 +799,13 @@ html[data-block-grabbing="true"] * {
   border: 0;
   border-radius: var(--ui-radius-sm);
   cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .editor-callout-icon,
+  .editor-callout-controls select {
+    min-height: var(--ui-target);
+  }
 }
 
 .editor-callout-controls select:hover,

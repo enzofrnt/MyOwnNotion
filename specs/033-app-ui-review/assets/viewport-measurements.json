@@ -1,0 +1,2246 @@
+{
+  "method": "Last observation for each rendered surface/theme/width; before and intermediate fixtures excluded. Native browser DOM and CDP screenshots; overlay clip follows viewport scroll. 640 CSS px checks reflow equivalent to 200% at 1280, not native browser zoom.",
+  "measurements": [
+    {
+      "name": "conflicts",
+      "headings": [
+        "Revue des interfaces",
+        "Résoudre ce conflit",
+        "Ordre du contenu enregistré",
+        "Vérification avant enregistrement",
+        "Résoudre le conflit de base de données",
+        "Vérifier avant l'enregistrement"
+      ],
+      "height": 900,
+      "scrollHeight": 3168,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "conflicts",
+      "headings": [
+        "Revue des interfaces",
+        "Résoudre ce conflit",
+        "Ordre du contenu enregistré",
+        "Vérification avant enregistrement",
+        "Résoudre le conflit de base de données",
+        "Vérifier avant l'enregistrement"
+      ],
+      "height": 900,
+      "scrollHeight": 1949,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "files-loading",
+      "headings": [
+        "Revue des interfaces",
+        "Pièces jointes dans la navigation",
+        "Détails des pièces jointes",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf"
+      ],
+      "height": 900,
+      "scrollHeight": 1941,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "files-ready",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1361,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "files-error",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1361,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "history",
+      "headings": [
+        "Revue des interfaces",
+        "Historique"
+      ],
+      "height": 900,
+      "scrollHeight": 1399,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "history",
+      "headings": [
+        "Revue des interfaces",
+        "Historique"
+      ],
+      "height": 900,
+      "scrollHeight": 1138,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "properties",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1497,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "properties",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1120,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "recovery",
+      "headings": [
+        "Revue des interfaces",
+        "Récupération du compte",
+        "Enregistrer votre kit de récupération",
+        "Confirmer le nouveau kit de récupération",
+        "Clés de chiffrement",
+        "Clé de l’installation",
+        "Clé des notes",
+        "Anciens brouillons récupérables"
+      ],
+      "height": 900,
+      "scrollHeight": 3266,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "recovery",
+      "headings": [
+        "Revue des interfaces",
+        "Récupération du compte",
+        "Enregistrer votre kit de récupération",
+        "Confirmer le nouveau kit de récupération",
+        "Clés de chiffrement",
+        "Clé de l’installation",
+        "Clé des notes",
+        "Anciens brouillons récupérables"
+      ],
+      "height": 900,
+      "scrollHeight": 1988,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "recovery",
+      "headings": [
+        "Revue des interfaces",
+        "Récupération du compte",
+        "Enregistrer votre kit de récupération",
+        "Confirmer le nouveau kit de récupération",
+        "Clés de chiffrement",
+        "Clé de l’installation",
+        "Clé des notes",
+        "Anciens brouillons récupérables"
+      ],
+      "height": 900,
+      "scrollHeight": 3266,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "recovery",
+      "headings": [
+        "Revue des interfaces",
+        "Récupération du compte",
+        "Enregistrer votre kit de récupération",
+        "Confirmer le nouveau kit de récupération",
+        "Clés de chiffrement",
+        "Clé de l’installation",
+        "Clé des notes",
+        "Anciens brouillons récupérables"
+      ],
+      "height": 900,
+      "scrollHeight": 1988,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "desktop",
+      "headings": [
+        "Revue des interfaces",
+        "Coffre local",
+        "Mise à jour de l’application"
+      ],
+      "height": 900,
+      "scrollHeight": 1322,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "desktop",
+      "headings": [
+        "Revue des interfaces",
+        "Coffre local",
+        "Mise à jour de l’application"
+      ],
+      "height": 900,
+      "scrollHeight": 1080,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "desktop",
+      "headings": [
+        "Revue des interfaces",
+        "Coffre local",
+        "Mise à jour de l’application"
+      ],
+      "height": 900,
+      "scrollHeight": 1322,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "desktop",
+      "headings": [
+        "Revue des interfaces",
+        "Coffre local",
+        "Mise à jour de l’application"
+      ],
+      "height": 900,
+      "scrollHeight": 1080,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "backup",
+      "headings": [
+        "Revue des interfaces",
+        "Sauvegarde complète du serveur",
+        "Copie distante",
+        "Vérifier la restauration",
+        "Exports portables",
+        "Test de restauration"
+      ],
+      "height": 900,
+      "scrollHeight": 2048,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "backup",
+      "headings": [
+        "Revue des interfaces",
+        "Sauvegarde complète du serveur",
+        "Copie distante",
+        "Vérifier la restauration",
+        "Exports portables",
+        "Test de restauration"
+      ],
+      "height": 900,
+      "scrollHeight": 1489,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "backup",
+      "headings": [
+        "Revue des interfaces",
+        "Sauvegarde complète du serveur",
+        "Copie distante",
+        "Vérifier la restauration",
+        "Exports portables",
+        "Test de restauration"
+      ],
+      "height": 900,
+      "scrollHeight": 2048,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "backup",
+      "headings": [
+        "Revue des interfaces",
+        "Sauvegarde complète du serveur",
+        "Copie distante",
+        "Vérifier la restauration",
+        "Exports portables",
+        "Test de restauration"
+      ],
+      "height": 900,
+      "scrollHeight": 1489,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "files-loading",
+      "headings": [
+        "Revue des interfaces",
+        "Pièces jointes dans la navigation",
+        "Détails des pièces jointes",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf"
+      ],
+      "height": 900,
+      "scrollHeight": 1445,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "files-loading",
+      "headings": [
+        "Revue des interfaces",
+        "Pièces jointes dans la navigation",
+        "Détails des pièces jointes",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf"
+      ],
+      "height": 900,
+      "scrollHeight": 1941,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "files-loading",
+      "headings": [
+        "Revue des interfaces",
+        "Pièces jointes dans la navigation",
+        "Détails des pièces jointes",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf"
+      ],
+      "height": 900,
+      "scrollHeight": 1445,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "files-ready",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1361,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "files-error",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1361,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "files-unsupported",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1071,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "gallery",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1074,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "gallery",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "gallery",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1074,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "gallery",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "list",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "list",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "list",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "list",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "calendar",
+      "headings": [
+        "Revue des interfaces",
+        "octobre 2026",
+        "Non planifiées · 1"
+      ],
+      "height": 900,
+      "scrollHeight": 1611,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "calendar",
+      "headings": [
+        "Revue des interfaces",
+        "octobre 2026",
+        "Non planifiées · 1"
+      ],
+      "height": 900,
+      "scrollHeight": 1355,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "calendar",
+      "headings": [
+        "Revue des interfaces",
+        "octobre 2026",
+        "Non planifiées · 1"
+      ],
+      "height": 900,
+      "scrollHeight": 1611,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "calendar",
+      "headings": [
+        "Revue des interfaces",
+        "octobre 2026",
+        "Non planifiées · 1"
+      ],
+      "height": 900,
+      "scrollHeight": 1355,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "board",
+      "headings": [
+        "Revue des interfaces",
+        "Pas commencé · 1",
+        "En cours · 1",
+        "Terminé · 0",
+        "Sans état · 0"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "board",
+      "headings": [
+        "Revue des interfaces",
+        "Pas commencé · 1",
+        "En cours · 1",
+        "Terminé · 0",
+        "Sans état · 0"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "board",
+      "headings": [
+        "Revue des interfaces",
+        "Pas commencé · 1",
+        "En cours · 1",
+        "Terminé · 0",
+        "Sans état · 0"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "board",
+      "headings": [
+        "Revue des interfaces",
+        "Pas commencé · 1",
+        "En cours · 1",
+        "Terminé · 0",
+        "Sans état · 0"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "table",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "table",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "table",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "table",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "entry-drawer",
+      "width": 320,
+      "theme": "dark",
+      "dialogs": [
+        {
+          "right": 320,
+          "text": "Dismiss popupPropriétés de la pageEntrée de base de données · pagePréparer la prochaine versionFermer l'entréeÉtatAucune valeurPas commencéEn coursTerminéDateTexteValeurValidéCatégoriesUne option au nom particulièrement longPrioritéAucune valeurHauteÉchéance précisePages liéesEnregistrer les propriétésContenu de la pageLe document éditorial appartient à cette même page.",
+          "width": 272,
+          "x": 48
+        }
+      ],
+      "documentWidth": 320,
+      "scrollY": 0,
+      "viewport": 320
+    },
+    {
+      "name": "entry-drawer",
+      "width": 1280,
+      "theme": "dark",
+      "dialogs": [
+        {
+          "right": 1280,
+          "text": "Dismiss popupPropriétés de la pageEntrée de base de données · pagePréparer la prochaine versionFermer l'entréeÉtatAucune valeurPas commencéEn coursTerminéDateTexteValeurValidéCatégoriesUne option au nom particulièrement longPrioritéAucune valeurHauteÉchéance précisePages liéesEnregistrer les propriétésContenu de la pageLe document éditorial appartient à cette même page.",
+          "width": 352,
+          "x": 928
+        }
+      ],
+      "documentWidth": 1280,
+      "scrollY": 0,
+      "viewport": 1280
+    },
+    {
+      "name": "entry-drawer",
+      "width": 320,
+      "theme": "light",
+      "dialogs": [
+        {
+          "right": 320,
+          "text": "Dismiss popupPropriétés de la pageEntrée de base de données · pagePréparer la prochaine versionFermer l'entréeÉtatAucune valeurPas commencéEn coursTerminéDateTexteValeurValidéCatégoriesUne option au nom particulièrement longPrioritéAucune valeurHauteÉchéance précisePages liéesEnregistrer les propriétésContenu de la pageLe document éditorial appartient à cette même page.",
+          "width": 272,
+          "x": 48
+        }
+      ],
+      "documentWidth": 320,
+      "scrollY": 0,
+      "viewport": 320
+    },
+    {
+      "name": "entry-drawer",
+      "width": 1280,
+      "theme": "light",
+      "dialogs": [
+        {
+          "right": 1280,
+          "text": "Dismiss popupPropriétés de la pageEntrée de base de données · pagePréparer la prochaine versionFermer l'entréeÉtatAucune valeurPas commencéEn coursTerminéDateTexteValeurValidéCatégoriesUne option au nom particulièrement longPrioritéAucune valeurHauteÉchéance précisePages liéesEnregistrer les propriétésContenu de la pageLe document éditorial appartient à cette même page.",
+          "width": 352,
+          "x": 928
+        }
+      ],
+      "documentWidth": 1280,
+      "scrollY": 0,
+      "viewport": 1280
+    },
+    {
+      "name": "entry-validation",
+      "width": 320,
+      "theme": "dark",
+      "dialogs": [
+        {
+          "right": 320,
+          "text": "Dismiss popupPropriétés de la pageEntrée de base de données · pagePréparer la prochaine versionFermer l'entréeÉtatAucune valeurPas commencéEn coursTerminéDateTexteValeurUtilisez un point comme séparateur décimal.ValidéCatégoriesUne option au nom particulièrement longPrioritéAucune valeurHauteÉchéance précisePages liéesEnregistrer les propriétésContenu de la pageLe document éditorial appartient à cette même page.",
+          "width": 272,
+          "x": 48
+        }
+      ],
+      "documentWidth": 320,
+      "scrollY": 0,
+      "viewport": 320
+    },
+    {
+      "name": "app-database",
+      "headings": [
+        "Base sans nom",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Ajouter une nouvelle vue",
+        "Affichage",
+        "Colonnes",
+        "Propriétés",
+        "Suivi des tâches",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-database",
+      "headings": [
+        "Notes",
+        "Base sans nom",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Ajouter une nouvelle vue",
+        "Affichage",
+        "Colonnes",
+        "Propriétés",
+        "Suivi des tâches"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-database",
+      "headings": [
+        "Base sans nom",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Ajouter une nouvelle vue",
+        "Affichage",
+        "Colonnes",
+        "Propriétés",
+        "Suivi des tâches",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-database",
+      "headings": [
+        "Notes",
+        "Base sans nom",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Ajouter une nouvelle vue",
+        "Affichage",
+        "Colonnes",
+        "Propriétés",
+        "Suivi des tâches"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-security",
+      "headings": [
+        "Base sans nom",
+        "Sécurité et appareils",
+        "Sécurité",
+        "Passkeys",
+        "Mot de passe",
+        "Vos connexions",
+        "Vos appareils",
+        "Accès des assistants",
+        "Autoriser un assistant",
+        "Connexions autorisées",
+        "Récupération du compte",
+        "Clés de chiffrement",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Ajouter une nouvelle vue",
+        "Affichage",
+        "Colonnes",
+        "Propriétés",
+        "Suivi des tâches",
+        "Révoquer «  » ?",
+        "Révoquer «  » ?",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 4253,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-security",
+      "headings": [
+        "Notes",
+        "Base sans nom",
+        "Sécurité et appareils",
+        "Sécurité",
+        "Passkeys",
+        "Mot de passe",
+        "Vos connexions",
+        "Vos appareils",
+        "Accès des assistants",
+        "Autoriser un assistant",
+        "Connexions autorisées",
+        "Récupération du compte",
+        "Clés de chiffrement",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Ajouter une nouvelle vue",
+        "Affichage",
+        "Colonnes",
+        "Propriétés",
+        "Suivi des tâches",
+        "Révoquer «  » ?",
+        "Révoquer «  » ?"
+      ],
+      "height": 900,
+      "scrollHeight": 3211,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-security",
+      "headings": [
+        "Base sans nom",
+        "Sécurité et appareils",
+        "Sécurité",
+        "Passkeys",
+        "Mot de passe",
+        "Vos connexions",
+        "Vos appareils",
+        "Accès des assistants",
+        "Autoriser un assistant",
+        "Connexions autorisées",
+        "Récupération du compte",
+        "Clés de chiffrement",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Ajouter une nouvelle vue",
+        "Affichage",
+        "Colonnes",
+        "Propriétés",
+        "Suivi des tâches",
+        "Révoquer «  » ?",
+        "Révoquer «  » ?",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 4253,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-security",
+      "headings": [
+        "Notes",
+        "Base sans nom",
+        "Sécurité et appareils",
+        "Sécurité",
+        "Passkeys",
+        "Mot de passe",
+        "Vos connexions",
+        "Vos appareils",
+        "Accès des assistants",
+        "Autoriser un assistant",
+        "Connexions autorisées",
+        "Récupération du compte",
+        "Clés de chiffrement",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Ajouter une nouvelle vue",
+        "Affichage",
+        "Colonnes",
+        "Propriétés",
+        "Suivi des tâches",
+        "Révoquer «  » ?",
+        "Révoquer «  » ?"
+      ],
+      "height": 900,
+      "scrollHeight": 3211,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-storage",
+      "headings": [
+        "Bienvenue",
+        "Stockage et synchronisation",
+        "Cet appareil",
+        "Répartition du stockage",
+        "Anciens brouillons récupérables",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 1397,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-storage",
+      "headings": [
+        "Notes",
+        "Bienvenue",
+        "Stockage et synchronisation",
+        "Cet appareil",
+        "Répartition du stockage",
+        "Anciens brouillons récupérables",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 1011,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-storage",
+      "headings": [
+        "Bienvenue",
+        "Stockage et synchronisation",
+        "Cet appareil",
+        "Répartition du stockage",
+        "Anciens brouillons récupérables",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 1397,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-storage",
+      "headings": [
+        "Notes",
+        "Bienvenue",
+        "Stockage et synchronisation",
+        "Cet appareil",
+        "Répartition du stockage",
+        "Anciens brouillons récupérables",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 1011,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-backups",
+      "headings": [
+        "Bienvenue",
+        "Sauvegardes",
+        "Sauvegarde complète du serveur",
+        "Copie distante",
+        "Vérifier la restauration",
+        "Exports portables",
+        "Test de restauration",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 1269,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-backups",
+      "headings": [
+        "Notes",
+        "Bienvenue",
+        "Sauvegardes",
+        "Sauvegarde complète du serveur",
+        "Copie distante",
+        "Vérifier la restauration",
+        "Exports portables",
+        "Test de restauration",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-backups",
+      "headings": [
+        "Bienvenue",
+        "Sauvegardes",
+        "Sauvegarde complète du serveur",
+        "Copie distante",
+        "Vérifier la restauration",
+        "Exports portables",
+        "Test de restauration",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 1269,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-backups",
+      "headings": [
+        "Notes",
+        "Bienvenue",
+        "Sauvegardes",
+        "Sauvegarde complète du serveur",
+        "Copie distante",
+        "Vérifier la restauration",
+        "Exports portables",
+        "Test de restauration",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-trash",
+      "headings": [
+        "Bienvenue",
+        "Corbeille",
+        "Éléments supprimés",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-trash",
+      "headings": [
+        "Notes",
+        "Bienvenue",
+        "Corbeille",
+        "Éléments supprimés",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-trash",
+      "headings": [
+        "Bienvenue",
+        "Corbeille",
+        "Éléments supprimés",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-trash",
+      "headings": [
+        "Notes",
+        "Bienvenue",
+        "Corbeille",
+        "Éléments supprimés",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-page-details",
+      "headings": [
+        "Vue d'ensemble — Produit",
+        "Page actuelle",
+        "Vue d'ensemble — Produit",
+        "Identité et relations",
+        "Historique",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 1644,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-page-details",
+      "headings": [
+        "Notes",
+        "Vue d'ensemble — Produit",
+        "Page actuelle",
+        "Vue d'ensemble — Produit",
+        "Identité et relations",
+        "Historique",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 954,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-page-details",
+      "headings": [
+        "Vue d'ensemble — Produit",
+        "Page actuelle",
+        "Vue d'ensemble — Produit",
+        "Identité et relations",
+        "Historique",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 1644,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-page-details",
+      "headings": [
+        "Notes",
+        "Vue d'ensemble — Produit",
+        "Page actuelle",
+        "Vue d'ensemble — Produit",
+        "Identité et relations",
+        "Historique",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 954,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-page",
+      "headings": [
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-page",
+      "headings": [
+        "Notes",
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-page",
+      "headings": [
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-page",
+      "headings": [
+        "Notes",
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-folder",
+      "headings": [
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-folder",
+      "headings": [
+        "Notes",
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-folder",
+      "headings": [
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-folder",
+      "headings": [
+        "Notes",
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-graph",
+      "headings": [
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-graph",
+      "headings": [
+        "Notes",
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-graph",
+      "headings": [
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-graph",
+      "headings": [
+        "Notes",
+        "Vue d'ensemble — Produit",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-graph-filters",
+      "headings": [
+        "Filtres et périmètre",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-graph-filters",
+      "headings": [
+        "Notes",
+        "Filtres et périmètre",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-graph-filters",
+      "headings": [
+        "Filtres et périmètre",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-graph-filters",
+      "headings": [
+        "Notes",
+        "Filtres et périmètre",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-search",
+      "headings": [
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Rechercher dans l’espace de travail",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-search",
+      "headings": [
+        "Notes",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Rechercher dans l’espace de travail"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-search",
+      "headings": [
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Rechercher dans l’espace de travail",
+        "Navigation",
+        "Notes"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-search",
+      "headings": [
+        "Notes",
+        "Nouvelle base de données",
+        "Placer cet élément dans la corbeille ?",
+        "Changer l’icône",
+        "Rechercher dans l’espace de travail"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-create-menu",
+      "width": 320,
+      "theme": "dark",
+      "dialogs": [
+        {
+          "right": 272,
+          "text": "NavigationRechercher⌘ KGrapheNotesProduitVue d'ensemble — Produit1RechercheDesignArchitectureLivraisonVue d'ensemble — LivraisonPlan de livraisonScénario isolé — Import non reliéScénario isolé — Brouillon sans référenceScénario isolé — Note personnelle temporaireScénario isolé — Idée en attente de triScénario isolé — Archive sans backlinkScénario isolé — Compte rendu détachéScénario isolé — Test de page orphelineScénario isolé — Capture rapide is",
+          "width": 272,
+          "x": 0
+        }
+      ],
+      "documentWidth": 320,
+      "viewport": 320
+    },
+    {
+      "name": "app-create-menu",
+      "width": 1280,
+      "theme": "dark",
+      "dialogs": [],
+      "documentWidth": 1280,
+      "viewport": 1280
+    },
+    {
+      "name": "app-create-menu",
+      "width": 320,
+      "theme": "light",
+      "dialogs": [
+        {
+          "right": 272,
+          "text": "NavigationRechercher⌘ KGrapheNotesProduitVue d'ensemble — Produit1RechercheDesignArchitectureLivraisonVue d'ensemble — LivraisonPlan de livraisonScénario isolé — Import non reliéScénario isolé — Brouillon sans référenceScénario isolé — Note personnelle temporaireScénario isolé — Idée en attente de triScénario isolé — Archive sans backlinkScénario isolé — Compte rendu détachéScénario isolé — Test de page orphelineScénario isolé — Capture rapide is",
+          "width": 272,
+          "x": 0
+        }
+      ],
+      "documentWidth": 320,
+      "viewport": 320
+    },
+    {
+      "name": "app-create-menu",
+      "width": 1280,
+      "theme": "light",
+      "dialogs": [],
+      "documentWidth": 1280,
+      "viewport": 1280
+    },
+    {
+      "name": "properties",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1120,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "properties",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1497,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "states",
+      "headings": [
+        "Revue des interfaces",
+        "Chargement du document",
+        "Espace de travail",
+        "Enregistrement et connexion",
+        "Changements locaux"
+      ],
+      "height": 900,
+      "scrollHeight": 3299,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "states",
+      "headings": [
+        "Revue des interfaces",
+        "Chargement du document",
+        "Espace de travail",
+        "Enregistrement et connexion",
+        "Changements locaux"
+      ],
+      "height": 900,
+      "scrollHeight": 2829,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "states",
+      "headings": [
+        "Revue des interfaces",
+        "Chargement du document",
+        "Espace de travail",
+        "Enregistrement et connexion",
+        "Changements locaux"
+      ],
+      "height": 900,
+      "scrollHeight": 3299,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "states",
+      "headings": [
+        "Revue des interfaces",
+        "Chargement du document",
+        "Espace de travail",
+        "Enregistrement et connexion",
+        "Changements locaux"
+      ],
+      "height": 900,
+      "scrollHeight": 2829,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "attachment-details",
+      "headings": [
+        "Revue des interfaces",
+        "Pièces jointes dans la navigation",
+        "Détails des pièces jointes",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf"
+      ],
+      "height": 900,
+      "scrollHeight": 1941,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "attachment-details",
+      "headings": [
+        "Revue des interfaces",
+        "Pièces jointes dans la navigation",
+        "Détails des pièces jointes",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf",
+        "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdf"
+      ],
+      "height": 900,
+      "scrollHeight": 1445,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "delete-file-dialog",
+      "width": 320,
+      "theme": "dark",
+      "dialogs": [
+        {
+          "right": 296,
+          "text": "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdfLe fichier sera placé dans la corbeille et pourra être restauré pendant 30 jours.1 utilisation connueattachmentUne page avec un titre particulièrement long qui utilise cette pièce jointeConserver le fichierSupprimer quand même",
+          "width": 288,
+          "x": 8
+        }
+      ],
+      "documentWidth": 320,
+      "scrollY": 946,
+      "viewport": 320
+    },
+    {
+      "name": "delete-file-dialog",
+      "width": 1280,
+      "theme": "dark",
+      "dialogs": [
+        {
+          "right": 832,
+          "text": "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdfLe fichier sera placé dans la corbeille et pourra être restauré pendant 30 jours.1 utilisation connueattachmentUne page avec un titre particulièrement long qui utilise cette pièce jointeConserver le fichierSupprimer quand même",
+          "width": 384,
+          "x": 448
+        }
+      ],
+      "documentWidth": 1280,
+      "scrollY": 438.5,
+      "viewport": 1280
+    },
+    {
+      "name": "delete-file-dialog",
+      "width": 320,
+      "theme": "light",
+      "dialogs": [
+        {
+          "right": 296,
+          "text": "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdfLe fichier sera placé dans la corbeille et pourra être restauré pendant 30 jours.1 utilisation connueattachmentUne page avec un titre particulièrement long qui utilise cette pièce jointeConserver le fichierSupprimer quand même",
+          "width": 288,
+          "x": 8
+        }
+      ],
+      "documentWidth": 320,
+      "scrollY": 946,
+      "viewport": 320
+    },
+    {
+      "name": "delete-file-dialog",
+      "width": 1280,
+      "theme": "light",
+      "dialogs": [
+        {
+          "right": 832,
+          "text": "Supprimer ce fichier ? Une pièce jointe au nom particulièrement long.pdfLe fichier sera placé dans la corbeille et pourra être restauré pendant 30 jours.1 utilisation connueattachmentUne page avec un titre particulièrement long qui utilise cette pièce jointeConserver le fichierSupprimer quand même",
+          "width": 384,
+          "x": 448
+        }
+      ],
+      "documentWidth": 1280,
+      "scrollY": 438.5,
+      "viewport": 1280
+    },
+    {
+      "name": "bookmark-validation",
+      "width": 320,
+      "theme": "dark",
+      "dialogs": [
+        {
+          "right": 296,
+          "text": "Modifier le lien WebSaisissez un lien Web valide.Enregistrer",
+          "width": 288,
+          "x": 8
+        }
+      ],
+      "documentWidth": 320,
+      "scrollY": 583.5,
+      "viewport": 320
+    },
+    {
+      "name": "bookmark-validation",
+      "width": 1280,
+      "theme": "light",
+      "dialogs": [
+        {
+          "right": 832,
+          "text": "Modifier le lien WebSaisissez un lien Web valide.Enregistrer",
+          "width": 384,
+          "x": 448
+        }
+      ],
+      "documentWidth": 1280,
+      "scrollY": 208.5,
+      "viewport": 1280
+    },
+    {
+      "name": "editor-slash-menu",
+      "width": 320,
+      "theme": "dark",
+      "dialogs": [
+        {
+          "right": 320,
+          "text": "TitresTitre 1Utilisé pour un titre de premier niveau⌘-Alt-1Titre 2Titre de deuxième niveau Utilisé pour les sections clés⌘-Alt-2Titre 3Titre de troisième niveau utilisé pour les sous-sections et les titres de groupe⌘-Alt-3Titre 4Titre de sous‑section mineure⌘-Alt-4Blocs de baseCitationCitation ou extraitListe NumérotéeUtilisé pour afficher une liste numérotée⌘-Shift-7Liste à pucesUtilisé pour afficher une liste à puce non numérotée⌘-Shift-8Liste ",
+          "width": 288,
+          "x": 32
+        }
+      ],
+      "documentWidth": 320,
+      "scrollY": 827,
+      "viewport": 320
+    },
+    {
+      "name": "editor-slash-menu",
+      "width": 1280,
+      "theme": "light",
+      "dialogs": [
+        {
+          "right": 653.0390625,
+          "text": "TitresTitre 1Utilisé pour un titre de premier niveau⌘-Alt-1Titre 2Titre de deuxième niveau Utilisé pour les sections clés⌘-Alt-2Titre 3Titre de troisième niveau utilisé pour les sous-sections et les titres de groupe⌘-Alt-3Titre 4Titre de sous‑section mineure⌘-Alt-4Blocs de baseCitationCitation ou extraitListe NumérotéeUtilisé pour afficher une liste numérotée⌘-Shift-7Liste à pucesUtilisé pour afficher une liste à puce non numérotée⌘-Shift-8Liste ",
+          "width": 557.0390625,
+          "x": 96
+        }
+      ],
+      "documentWidth": 1280,
+      "scrollY": 259,
+      "viewport": 1280
+    },
+    {
+      "name": "conflicts",
+      "headings": [
+        "Revue des interfaces",
+        "Résoudre ce conflit",
+        "Ordre du contenu enregistré",
+        "Vérification avant enregistrement",
+        "Résoudre le conflit de base de données",
+        "Vérifier avant l'enregistrement"
+      ],
+      "height": 900,
+      "scrollHeight": 3168,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "conflicts",
+      "headings": [
+        "Revue des interfaces",
+        "Résoudre ce conflit",
+        "Ordre du contenu enregistré",
+        "Vérification avant enregistrement",
+        "Résoudre le conflit de base de données",
+        "Vérifier avant l'enregistrement"
+      ],
+      "height": 900,
+      "scrollHeight": 1949,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "history",
+      "headings": [
+        "Revue des interfaces",
+        "Historique"
+      ],
+      "height": 900,
+      "scrollHeight": 1138,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "history",
+      "headings": [
+        "Revue des interfaces",
+        "Historique"
+      ],
+      "height": 900,
+      "scrollHeight": 1399,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "auth-login",
+      "headings": [
+        "Se connecter",
+        "Utiliser votre passkey"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "auth-login",
+      "headings": [
+        "Se connecter",
+        "Utiliser votre passkey"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "auth-login",
+      "headings": [
+        "Se connecter",
+        "Utiliser votre passkey"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "auth-login",
+      "headings": [
+        "Se connecter",
+        "Utiliser votre passkey"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "auth-setup",
+      "headings": [
+        "Configurer cette installation",
+        "Créer la passkey du propriétaire"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "auth-setup",
+      "headings": [
+        "Configurer cette installation",
+        "Créer la passkey du propriétaire"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "auth-setup",
+      "headings": [
+        "Configurer cette installation",
+        "Créer la passkey du propriétaire"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "auth-setup",
+      "headings": [
+        "Configurer cette installation",
+        "Créer la passkey du propriétaire"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "auth-connection",
+      "headings": [
+        "Connecter cette application"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "auth-connection",
+      "headings": [
+        "Connecter cette application"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "auth-connection",
+      "headings": [
+        "Connecter cette application"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "auth-connection",
+      "headings": [
+        "Connecter cette application"
+      ],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-item-menu",
+      "width": 1280,
+      "theme": "dark",
+      "dialogs": [
+        {
+          "right": 515,
+          "text": "Nouvelle page à l’intérieurNouveau dossier à l’intérieurNouvelle base à l’intérieurImporter un fichier à l’intérieurRenommerF2Ajouter ou changer l’icôneTransformer en pageDéplacer vers le hautDéplacer vers le basAjouter aux favorisConserver hors lignePlacer dans la corbeille",
+          "width": 272,
+          "x": 243
+        }
+      ],
+      "documentWidth": 1280,
+      "scrollY": 0,
+      "viewport": 1280
+    },
+    {
+      "name": "app-item-menu",
+      "width": 1280,
+      "theme": "light",
+      "dialogs": [
+        {
+          "right": 515,
+          "text": "Nouvelle page à l’intérieurNouveau dossier à l’intérieurNouvelle base à l’intérieurImporter un fichier à l’intérieurRenommerF2Ajouter ou changer l’icôneTransformer en pageDéplacer vers le hautDéplacer vers le basAjouter aux favorisConserver hors lignePlacer dans la corbeille",
+          "width": 272,
+          "x": 243
+        }
+      ],
+      "documentWidth": 1280,
+      "scrollY": 0,
+      "viewport": 1280
+    },
+    {
+      "name": "editor-rich",
+      "headings": [
+        "Revue des interfaces",
+        "Une page de référence"
+      ],
+      "height": 900,
+      "scrollHeight": 1697,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "editor-rich",
+      "headings": [
+        "Revue des interfaces",
+        "Une page de référence"
+      ],
+      "height": 900,
+      "scrollHeight": 1697,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "editor-rich",
+      "headings": [
+        "Revue des interfaces",
+        "Une page de référence"
+      ],
+      "height": 900,
+      "scrollHeight": 1214,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "editor-rich",
+      "headings": [
+        "Revue des interfaces",
+        "Une page de référence"
+      ],
+      "height": 900,
+      "scrollHeight": 1214,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "database-rules",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1629,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "database-rules",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1629,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "database-rules",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1054,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "database-rules",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1054,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "app-not-found",
+      "headings": [],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "app-not-found",
+      "headings": [],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "app-not-found",
+      "headings": [],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "app-not-found",
+      "headings": [],
+      "height": 900,
+      "scrollHeight": 900,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "database-empty",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1522,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "name": "database-empty",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 1522,
+      "scrollWidth": 320,
+      "theme": "light",
+      "width": 320
+    },
+    {
+      "name": "database-empty",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 946,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "name": "database-empty",
+      "headings": [
+        "Revue des interfaces"
+      ],
+      "height": 900,
+      "scrollHeight": 946,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "name": "history-reflow-200",
+      "headings": [
+        "Revue des interfaces",
+        "Historique"
+      ],
+      "height": 900,
+      "scrollHeight": 1178,
+      "scrollWidth": 640,
+      "theme": "dark",
+      "width": 640
+    }
+  ]
+}

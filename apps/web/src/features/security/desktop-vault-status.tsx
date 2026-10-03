@@ -28,6 +28,10 @@ export function DesktopVaultStatus() {
     };
   }, []);
 
+  return <DesktopVaultNotice state={state} />;
+}
+
+export function DesktopVaultNotice({ state }: { readonly state: VaultUiState }) {
   if (state === "checking" || state === "available" || state === "web") {
     return null;
   }

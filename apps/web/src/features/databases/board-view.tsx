@@ -10,6 +10,7 @@ import {
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
 import { AppIcon } from "../../ui/icons.tsx";
 import { AsyncState, Button } from "../../ui/primitives/index.ts";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { OptionPill } from "./option-appearance.tsx";
@@ -216,7 +217,8 @@ function BoardCards({
                   <span className="visually-hidden">
                     {DATABASE_COPY.board.moveToAnother(row.title)}
                   </span>
-                  <select
+                  <NativeSelect
+                    density="compact"
                     className="ui-native-select"
                     data-size="compact"
                     aria-label={DATABASE_COPY.board.moveToAnother(row.title)}
@@ -231,7 +233,7 @@ function BoardCards({
                         {target.label}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <div className="database-card__move-actions">
                   <Button
@@ -349,7 +351,8 @@ export function BoardView({
     >
       <label className="database-view-setting">
         {DATABASE_COPY.board.groupingProperty}
-        <select
+        <NativeSelect
+          density="compact"
           className="ui-native-select"
           data-size="compact"
           value={axis.id}
@@ -373,7 +376,7 @@ export function BoardView({
               {property.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       <ol className="database-board" aria-label={DATABASE_COPY.board.columnsGroupedBy(axis.name)}>
         {columns.map((column) => {

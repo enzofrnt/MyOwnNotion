@@ -1,3 +1,4 @@
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 /**
  * What this device is holding, and what it may release (T041, US4, FR-019).
  *
@@ -21,6 +22,12 @@ import { useCallback, useEffect, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 import { AsyncState, Button, FR_COPY } from "../../ui/index.ts";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
+
+function storageLabel(label: string): string {
+  if (label === "Files held on this device") return "Fichiers conservés sur cet appareil";
+  if (label === "Page content") return "Contenu des pages";
+  return label.replace(/^Changes waiting to be sent/, "Changements en attente d’envoi");
+}
 
 export function StoragePanel({ service }: { readonly service: LocalContentService }) {
   const [measurement, setMeasurement] = useState<StorageMeasurement | null>(null);
@@ -86,7 +93,7 @@ export function StoragePanel({ service }: { readonly service: LocalContentServic
       <ul className="storage-panel__breakdown" data-testid="storage-breakdown">
         {measurement.breakdown.map((entry) => (
           <li key={entry.label}>
-            <span className="tree-name">{entry.label}</span>
+            <span>{storageLabel(entry.label)}</span>
             <span className="muted">{entry.bytes > 0 ? formatByteLength(entry.bytes) : "—"}</span>
           </li>
         ))}
@@ -96,7 +103,7 @@ export function StoragePanel({ service }: { readonly service: LocalContentServic
         <label htmlFor="storage-limit" className="muted">
           {FR_COPY.files.storage.limit}
         </label>
-        <select
+        <NativeSelect
           id="storage-limit"
           className="ui-native-select"
           data-testid="storage-limit"
@@ -112,7 +119,7 @@ export function StoragePanel({ service }: { readonly service: LocalContentServic
           {/* Unlimited is the absence of a limit, offered as its own choice
               rather than as an implausibly large number. */}
           <option value="unlimited">{FR_COPY.files.storage.unlimited}</option>
-        </select>
+        </NativeSelect>
       </div>
 
       <p className="muted">{FR_COPY.files.storage.explanation}</p>

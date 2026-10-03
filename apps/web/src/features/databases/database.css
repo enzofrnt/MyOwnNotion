@@ -1736,12 +1736,15 @@
 /* Structured pages (feature 009). A database remains a page in the tree; this
    surface adds schema and values without creating a second navigation model. */
 .database-create,
-.database-page,
-.entry-panel {
+.database-page {
   border: 1px solid var(--ui-color-border);
   border-radius: 8px;
   padding: 1rem;
   margin-top: 1rem;
+  min-width: 0;
+}
+
+.entry-panel {
   min-width: 0;
 }
 
@@ -1776,9 +1779,7 @@
   margin-top: 1rem;
 }
 
-.task-configuration,
-.entry-task-properties,
-.entry-ordinary-properties {
+.task-configuration {
   padding: 0.75rem;
   border: 1px solid var(--ui-color-border);
   border-radius: 6px;
@@ -1939,11 +1940,20 @@
   background: color-mix(in srgb, var(--ui-color-accent) 10%, var(--ui-color-surface));
 }
 
-.database-columns[open],
-.database-rule-editor[open] {
+.database-columns[open] {
   padding: 0.65rem;
   border: 1px solid var(--ui-color-border);
   border-radius: 6px;
+}
+
+.database-rule-editor {
+  min-width: 0;
+  padding-block: var(--ui-space-3);
+  border-top: 1px solid var(--ui-color-border);
+}
+
+.database-rule-editor[open] > summary {
+  margin-bottom: var(--ui-space-3);
 }
 
 .database-columns summary,
@@ -1971,7 +1981,9 @@
 .database-rules {
   display: grid;
   gap: 0.5rem;
-  padding-left: 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .database-rule {
@@ -1979,9 +1991,7 @@
   align-items: end;
   gap: 0.5rem;
   flex-wrap: wrap;
-  padding: 0.55rem;
-  border: 1px solid var(--ui-color-border);
-  border-radius: 6px;
+  padding-block: var(--ui-space-2);
 }
 
 .database-rule label {
@@ -2321,10 +2331,25 @@
 }
 
 .database-rule-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--ui-space-2);
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+.database-rule-controls > label,
+.database-rule-controls > .database-rules {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.database-rule-controls > label {
+  display: grid;
+  gap: var(--ui-space-1);
 }
 
 .database-filter-period {
@@ -2389,7 +2414,7 @@
 
 .database-list {
   display: grid;
-  gap: 0.55rem;
+  gap: 0;
   margin: 1rem 0 0;
   padding: 0;
   list-style: none;
@@ -2404,9 +2429,9 @@
 .database-list__entry {
   display: grid;
   gap: 0.4rem;
-  padding: 0.8rem;
-  border: 1px solid var(--ui-color-border);
-  border-radius: 7px;
+  min-width: 0;
+  padding: var(--ui-space-3) 0;
+  border-bottom: 1px solid var(--ui-color-border);
 }
 
 .database-list--compact .database-list__entry {
@@ -2414,9 +2439,14 @@
 }
 
 .database-list__title {
-  justify-self: start;
-  font-size: 1rem;
-  font-weight: 650;
+  justify-self: stretch;
+  justify-content: flex-start;
+  min-width: 0;
+  padding-inline: 0;
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .database-list dl {
@@ -2429,6 +2459,8 @@
 .database-list dl div {
   display: flex;
   gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .database-list dt {
@@ -2436,6 +2468,7 @@
 }
 
 .database-list dd {
+  min-width: 0;
   margin: 0;
 }
 
@@ -2619,7 +2652,7 @@
   padding: 0.75rem;
   overflow: hidden;
   color: var(--ui-color-text-muted);
-  background: color-mix(in srgb, var(--ui-color-surface) 90%, var(--ui-color-accent));
+  background: var(--ui-color-surface-subtle);
 }
 
 .database-gallery__preview p {
@@ -2646,6 +2679,7 @@
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .database-gallery dt {
@@ -2653,9 +2687,16 @@
 }
 
 .database-gallery dd {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
   text-align: end;
+}
+
+.database-gallery .option-pill__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .database-calendar {
@@ -2753,6 +2794,12 @@
 }
 
 @media (pointer: coarse) {
+  .database-field > label {
+    display: flex;
+    align-items: center;
+    min-height: var(--ui-target);
+  }
+
   .database-card__title {
     min-height: var(--ui-target);
   }
@@ -2878,4 +2925,8 @@
   .database-view-setting select {
     width: 100%;
   }
+}
+
+.database-field > input[type="checkbox"] {
+  justify-self: start;
 }

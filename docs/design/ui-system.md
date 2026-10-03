@@ -31,6 +31,14 @@ Sous les couleurs de contenu, le sélecteur de démonstration utilise les mêmes
 tokens : fond `-soft`, contour et point central en couleur de contenu, nom et
 choix explicites. Il ne définit pas une nouvelle palette ni une API globale.
 
+Le lien « Parcourir les interfaces » ouvre `?review=conflicts`. Dix parcours
+utilisent les composants de production : conflits, fichiers, historique, bases,
+propriétés, éditeur, récupération, desktop, sauvegardes et états de l’app.
+Les vues `?review=database&format=gallery` acceptent `table`, `board`, `gallery`,
+`list` et `calendar`. Les callbacks et autorités de document sont en mémoire ;
+l’éditeur de revue désactive les transferts de fichiers. Les exemples desktop
+montrent le renderer, sans déclencher installation, rotation ou coffre natif.
+
 ## Où écrire le CSS
 
 Les chemins suivants sont relatifs à `apps/web/src/`. Chaque feuille possède une
@@ -66,6 +74,7 @@ famille ; plusieurs classes de composition peuvent employer une primitive commun
 | `features/security/mcp-access-panel.css` | Gestion des accès MCP, importée par son composant |
 | `features/save-state/save-state.css` | Présentation de l’enregistrement |
 | `features/reconciliation/reconciliation.css` | Décisions de réconciliation |
+| `features/diagnostics/diagnostics.css` | Liste des mutations locales, sans classes d’arborescence |
 
 ### Chargement et priorité
 
@@ -100,12 +109,16 @@ Importer depuis `ui/primitives/index.ts` ; lire les types du composant avant usa
 | Icône seule | `Button size="square"` avec `aria-label` et aide `title` ; `AppIcon` est décoratif par défaut |
 | Saisie simple | `Field` (`input`), `label`, `description`, `error`, taille compacte, props natives ; `inputClassName` pour une adaptation locale |
 | Booléen | `Switch`, `checked`, `onCheckedChange`, nom accessible ; le composant rend un bouton |
-| Sélection / texte multiligne | Éléments natifs `.ui-native-select` / `.ui-native-textarea`, label associé, `aria-describedby`, `aria-invalid`, `disabled`, `data-size="compact"` si nécessaire ; `.ui-select` est un alias historique du même select |
+| Saisie composée / sélection | `NativeInput` / `NativeSelect`, props et ref natifs, `density="comfortable"` (défaut) ou `"compact"` ; conservent `defaultValue`, `multiple`, `size`, validation et `FormData`. Associer un label. |
+| Texte multiligne | `<textarea className="ui-native-textarea">`, label associé, `aria-describedby`, `aria-invalid`, `disabled`, `data-size="compact"` si nécessaire |
+| Section de document | `Section`, props natives de `<section>` ; le consommateur fournit titre et actions. Hairline et espacement communs, sans carte. |
+| Tableau de lecture | `ReadTable scrollLabel="…"`, props/ref du `<table>` ; scrollport nommé et accessible au clavier, caption/th/td conservés. Aucun modèle de données ajouté. |
+| Aperçu de contenu conservé | `CodePreview`, props/ref du `<pre>` ; scroll local, `prose` pour un retour à la ligne du texte. Ce n’est pas un éditeur. |
 | Menu | `MenuRoot`, `MenuTrigger`, `MenuContent`, `MenuItem`, `MenuLabel`, `MenuSeparator` ; `bare` seulement pour un déclencheur déjà composé |
 | Popover | `PopoverRoot`, `PopoverTrigger`, `PopoverContent`, heading/description/dismiss |
 | Modal / tiroir | `DialogRoot` / `DrawerRoot`, trigger/content/heading/description/dismiss ; `ConfirmDialog` pour une confirmation destructive |
 | Attente / vide / erreur | `Status` ou `AsyncState` (description + action de reprise), `LiveRegion` pour une annonce concise |
-| Placeholder de contenu | `Skeleton`, `layout="lines"` ou `"table"`, `rows` ; décoratif, à placer dans un cadre adapté au contenu. `AsyncState kind="loading"` l’intègre via `loadingLayout` / `loadingRows` avec annonce d’attente |
+| Placeholder de contenu | `Skeleton`, `layout="lines"`, `"table"` ou `"media"`, `rows` ; décoratif, à placer dans un cadre adapté au contenu. `media` remplit la géométrie de l’aperçu. `AsyncState kind="loading"` l’intègre via `loadingLayout` / `loadingRows` avec annonce d’attente |
 | Défilement d’overlay | `OverlayScrollArea` ; garder le rayon sur la surface peinte |
 | Types d’items | `ItemIcon` et `itemKindIconName` dans `ui/item-icon.tsx` |
 
@@ -130,6 +143,34 @@ actifs. Ne pas donner `open={false}` à un root destiné à être non contrôlé
 Le libellé des boutons est déjà horizontal avec un gap commun. Ne pas recopier
 son alignement dans chaque feature. Les dispositions particulières de recherche
 et navigation gardent leurs overrides explicites.
+
+Un groupe d’actions peut utiliser `.ui-actions` (flex, retour à la ligne, gap 8 px).
+`Field` reste le choix d’un champ complet avec label, aide et erreur. Pour un
+formulaire composé, `NativeInput` apporte la même peinture sans imposer de wrapper.
+`.ui-field__control` appartient à `Field` : ne pas l’utiliser seule sur une saisie
+de domaine. Les éditeurs de brouillon qui gèrent eux-mêmes leur ref peuvent employer
+`.ui-native-input`, sans changer leur protocole d’édition.
+
+```tsx
+<Section aria-labelledby="compare-title">
+  <h2 id="compare-title">Comparer les versions</h2>
+  <ReadTable scrollLabel="Versions conservées">
+    <caption>Contenu disponible</caption>
+    <tbody><tr><th scope="row">Texte</th><td><CodePreview prose>{text}</CodePreview></td></tr></tbody>
+  </ReadTable>
+  <div className="ui-actions"><Button onClick={keep}>Conserver</Button></div>
+</Section>
+<label>Format <NativeSelect density="compact" defaultValue="table">
+  <option value="table">Table</option>
+  <option value="board">Tableau kanban</option>
+</NativeSelect></label>
+```
+
+Usages réels : `sync/conflict-resolution.tsx`,
+`databases/database-conflict-resolution.tsx`, `history/revision-restore.tsx`,
+`databases/property-editor.tsx` et `knowledge-graph/graph-controls.tsx`.
+Les grilles de bases virtualisées, tableaux éditoriaux, sélection et resize restent
+dans leur domaine. `ReadTable` sert uniquement aux comparaisons de lecture.
 
 ## Tokens, exceptions et intention Notion
 
@@ -241,3 +282,5 @@ Les gates de [développement](../development.md) restent requis avant push.
 
 Historique de cette standardisation : [031 et ses preuves](../../specs/031-css-system/verification.md).
 Revue des surfaces en contexte et limites : [032](../../specs/032-ui-uniformity/verification.md).
+Inventaire complet des familles, bibliothèque et états conditionnels :
+[033](../../specs/033-app-ui-review/verification.md).

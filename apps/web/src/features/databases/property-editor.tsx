@@ -5,6 +5,8 @@ import {
   generateUuidV7,
 } from "@myownnotion/domain";
 import { type FormEvent, useId, useRef, useState } from "react";
+import { NativeInput } from "../../ui/primitives/native-input.tsx";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import {
@@ -257,7 +259,9 @@ export function PropertyEditor({
     >
       <div className="field-row">
         <label htmlFor={`${fieldId}-name`}>{DATABASE_COPY.property.name}</label>
-        <input
+        <NativeInput
+          type="text"
+          density="compact"
           id={`${fieldId}-name`}
           name="property-name"
           defaultValue={visibleDraft.name}
@@ -265,7 +269,8 @@ export function PropertyEditor({
           onChange={(event) => changeDraft((current) => ({ ...current, name: event.target.value }))}
         />
         <label htmlFor={`${fieldId}-type`}>{DATABASE_COPY.property.type}</label>
-        <select
+        <NativeSelect
+          density="compact"
           id={`${fieldId}-type`}
           name="property-type"
           defaultValue={visibleDraft.type}
@@ -284,12 +289,17 @@ export function PropertyEditor({
             })
           }
         >
+          {!PROPERTY_TYPE_CHOICES.includes(visibleDraft.type) ? (
+            <option value={visibleDraft.type}>
+              {DATABASE_COPY.property.typeLabels[visibleDraft.type]} (actuel)
+            </option>
+          ) : null}
           {PROPERTY_TYPE_CHOICES.map((type) => (
             <option key={type} value={type}>
               {DATABASE_COPY.property.typeLabels[type]}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
 
       {usesOptions ? (
@@ -303,7 +313,8 @@ export function PropertyEditor({
           <ul>
             {optionRows.map((option) => (
               <li key={option.key}>
-                <input
+                <NativeInput
+                  density="compact"
                   name={`option-label-${option.key}`}
                   aria-label={DATABASE_COPY.property.optionName}
                   defaultValue={option.label}
@@ -376,7 +387,8 @@ export function PropertyEditor({
       {visibleDraft.type === "date" ? (
         <label className="database-field">
           {DATABASE_COPY.property.dateMode}
-          <select
+          <NativeSelect
+            density="compact"
             name="property-date-mode"
             defaultValue={visibleDraft.dateMode ?? "date"}
             onChange={(event) =>
@@ -388,14 +400,15 @@ export function PropertyEditor({
           >
             <option value="date">{DATABASE_COPY.property.calendarDate}</option>
             <option value="instant">{DATABASE_COPY.property.dateAndTime}</option>
-          </select>
+          </NativeSelect>
         </label>
       ) : null}
 
       {visibleDraft.type === "relation" ? (
         <label className="database-field">
           {DATABASE_COPY.property.relationCardinality}
-          <select
+          <NativeSelect
+            density="compact"
             name="property-relation-cardinality"
             defaultValue={visibleDraft.relationCardinality ?? "many"}
             onChange={(event) =>
@@ -407,7 +420,7 @@ export function PropertyEditor({
           >
             <option value="one">{DATABASE_COPY.property.onePage}</option>
             <option value="many">{DATABASE_COPY.property.manyPages}</option>
-          </select>
+          </NativeSelect>
         </label>
       ) : null}
 
