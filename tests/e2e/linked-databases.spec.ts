@@ -182,7 +182,11 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
     });
   }
   await expect(loaded.getByRole("button")).toHaveCount(0);
-  const scroller = page.locator(".database-table-scroll");
+  const renderedRows = page.locator(".database-grid tbody tr[data-index]");
+  await expect.poll(() => renderedRows.count()).toBeGreaterThan(0);
+  await expect.poll(() => renderedRows.count()).toBeLessThan(100);
+  // The table owns horizontal scrolling; its page owns vertical scrolling.
+  const scroller = page.locator(".workspace-main");
   await scroller.evaluate((element) => {
     element.scrollTop = element.scrollHeight;
   });
@@ -222,6 +226,16 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   await page.screenshot({ path: returnScreenshot });
   await testInfo.attach("large-table-return", {
     path: returnScreenshot,
+    contentType: "image/png",
+  });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(last).toBeFocused();
+  await expect(last).toBeInViewport({ ratio: 1 });
+  const darkScreenshot = testInfo.outputPath("large-table-return-dark.png");
+  await page.screenshot({ path: darkScreenshot });
+  await testInfo.attach("large-table-return-dark", {
+    path: darkScreenshot,
     contentType: "image/png",
   });
   await testInfo.attach("pagination-timings", {

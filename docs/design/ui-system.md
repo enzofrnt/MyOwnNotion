@@ -261,7 +261,12 @@ restent en place ; les nouveaux espacements communs utilisent l’échelle.
 - **Base** : `databases/database-container-page.tsx`, `table-view.tsx`,
   `board-view.tsx` et `database.css`. Onglets denses, en-têtes légers, séparations
   fines et actions contextuelles. Une vue intégrée garde la largeur du texte.
-  La table et le kanban possèdent leurs scrollports ; ne pas donner
+  La table possède son scroll horizontal. En pleine page ou intégrée, son
+  défilement vertical suit `.workspace-main` via `useTableViewport` ; le lab
+  borné garde son scroll vertical local. Conserver l'origine du tbody et
+  l'étendue calculée pendant les remplacements de lignes virtualisées, afin
+  de garder pagination et retour/focus accessibles après 1 000 entrées.
+  Le kanban possède ses scrollports ; ne pas donner
   `overflow: visible` au scrollport du kanban en voulant libérer le tableau.
   Sur une carte Kanban, le titre est une action ghost alignée au texte. Le select
   compact et les flèches de déplacement partagent une ligne ; les flèches gardent

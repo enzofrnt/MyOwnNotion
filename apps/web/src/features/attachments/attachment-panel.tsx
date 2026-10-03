@@ -48,11 +48,13 @@ function attachmentByteLength(row: AttachmentRow): number {
 export function CompactAttachmentList({
   actions,
   onOpenUsage,
+  onInspect,
   rows,
 }: {
   readonly rows: readonly AttachmentRow[];
   readonly onOpenUsage: (itemId: string) => void;
   readonly actions: (row: AttachmentRow) => ReactNode;
+  readonly onInspect?: () => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -82,7 +84,7 @@ export function CompactAttachmentList({
             {formatByteLength(attachmentByteLength(row))}
           </span>
           <span className="workspace-attachment-file__details">
-            <PopoverRoot placement="right-start">
+            <PopoverRoot placement="right-start" setOpen={(open) => open && onInspect?.()}>
               <PopoverTrigger
                 className="workspace-attachment-file__details-trigger"
                 aria-label={`Actions pour ${row.item.name}`}
@@ -287,6 +289,7 @@ export function AttachmentPanel({
       ) : compact ? (
         <CompactAttachmentList
           rows={rows}
+          onInspect={() => void refresh()}
           onOpenUsage={(itemId) => onOpenUsage?.(itemId as Uuid)}
           actions={actions}
         />

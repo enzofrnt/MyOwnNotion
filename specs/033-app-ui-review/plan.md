@@ -369,3 +369,9 @@ La validation E2E conserve la géométrie de la cible pendant un appui si une
 largeur distante change, sans capture forcée ni activation au pointerdown. Le
 retour vers une entrée paginée est demandé lors de la fermeture de l’entrée,
 afin que l’ancienne vue ne le consomme pas avant la navigation.
+
+T054 distingue les deux usages légitimes d’un fichier : placement et bloc intégré. Le parcours part d’un autre document, inspecte la page sans la sélectionner, puis ouvre chacune des références. T055 observe le scrollport vertical réel sans changer le layout approuvé : workspace-main pour le flux de page, surface du tableau pour le lab borné. Le décalage du tbody dans ce scrollport entre dans les mesures de virtualisation ; les spacers retirent ce décalage. Un tableau intégré qui apparaît ne remet pas la page en haut, les widgets masqués ne pilotent pas le scroll, et les changements de vue conservent leur contexte. Réutiliser ui-quality et lessons ; vérifier 1 001 lignes, DOM borné, ouverture/retour avec focus sur les cinq profils.
+
+T056 corrige une réponse de détails restée en cache pendant que le bloc intégré arrive au serveur. L’ouverture des détails déclenche une lecture fraîche sans retirer la liste locale, sans attendre pour ouvrir le panneau et avec la protection existante contre les réponses anciennes. Le parcours des deux usages part d’une autre page et ne réinitialise pas l’instance du propriétaire.
+
+T055 maintient aussi l’étendue verticale calculée (lignes + en-tête mesuré) sur la surface en flux de page pendant le remplacement des rangées/spacers. Cela évite la remise à zéro transitoire de WebKit lors des retraits DOM ; la surface bornée du lab conserve son plafond et son scroll propre. Les boutons d’entrée gardent 32 px avec l’espace requis pour les demi-bordures fusionnées. Les assertions conservent le clic automatique natif, sans pré-défilement de pagination, la limite de rangées DOM et la visibilité complète du retour.

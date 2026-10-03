@@ -855,3 +855,19 @@ L'observation du clic vérifie le même bouton connecté et un déplacement d'au
 plus un pixel ; les deux variantes conservent validation et annulation du
 formulaire. Les captures de la trace au repos gardent la présentation compacte
 du tableau. Ce résultat ne remplace pas la prochaine matrice complète.
+
+### Validation complète — tentative 04, commit 95460cd2
+
+Les contrôles précédant les E2E passent : 5 069 tests de couverture (2 exclusions Windows), 9 benchmarks, 375 tests d’intégration, 13 de migrations et 1 864 de contrats. Couverture : statements 91,72 %, branches 86,33 %, functions 94,37 %, lines 92,82 %. Aucun budget modifié. Chromium desktop et mobile, ainsi que les trois shards WebKit desktop passent. Firefox échoue sur un locator supposant une seule référence de fichier, alors que placement et bloc sont deux usages. WebKit mobile échoue deux fois sur la dernière entrée de 1 001 lignes, absente du DOM malgré le compteur chargé ; son troisième shard n’est donc pas exécuté. La matrice complète reste rouge.
+
+Après les navigateurs, les gates suivantes exécutées séparément sur ce même commit passent : desktop, build, images amd64/arm64 et restauration réelle de sauvegarde, audit, secrets, analyse statique, licences et compose. Trivy 0.70.0 sur l’image ARM candidate de ce commit passe le seuil HIGH/CRITICAL corrigibles ; le rapport SARIF complet conserve les vulnérabilités sans correctif. Cela ne remplace pas un checks:local complet réussi après T054/T055. Logs locaux ignorés : checks-local-04.log, post-e2e-gates-04.log et trivy-gate-04.log.
+
+### Corrections T054–T056 et virtualisation
+
+La référence du fichier n’est pas seulement un problème de locator : le panneau PJ peut rester monté pendant que le serveur reçoit le bloc. L’ouverture de ses détails réactualise maintenant les usages, sans retirer sa liste locale. Le test vérifie placement et bloc depuis une autre page, puis la navigation et la fermeture de l’inspection. Six tests du panneau passent, dont le passage réel d’un à deux usages dans le composant.
+
+Le tableau pleine page observait son conteneur horizontal non borné. `useTableViewport` résout le véritable scrollport vertical, mesure l’origine du tbody et l’en-tête, se désabonne au démontage et ignore les surfaces masquées. Cinq tests couvrent pleine page/intégré/borné, défilement, changement de géométrie et lifecycle. La surface de page conserve son étendue calculée pendant les remplacements de rangées, car WebKit peut borner son scroll pendant les retraits DOM intermédiaires. Le parcours conserve le clic automatique natif sur la pagination ; les essais de désactivation des ajustements du moteur et de pré-défilement explicite ne sont pas retenus. Le bouton d’entrée de 32 px est intégralement visible à l’intérieur des bordures fusionnées.
+
+Rejeu ciblé `e2e-viewport-10.log` : Safari Linux desktop et mobile passent sans nouvelle tentative, 1 001 lignes chargées, moins de 100 rangées physiques, dernière entrée ouverte puis retour avec focus et visibilité intégrale. Captures réellement examinées : [desktop clair](assets/validation-large-table-webkit-desktop-light.png), [mobile clair](assets/validation-large-table-webkit-mobile-light.png). Le look reste celui de la table existante ; aucune nouvelle surface colorée. Ces preuves ne remplacent pas la prochaine matrice complète.
+
+Le rejeu final ciblé `e2e-viewport-final-11.log` passe sur les cinq profils en 309 s : 20 parcours, deux répétitions par cas/profil, zéro retry. 33 tests unitaires ciblés et les types passent également. Le contrôle complet suivant inclut aussi une capture sombre de la dernière entrée avec vérification de conservation du focus ; il reste à exécuter avant publication.

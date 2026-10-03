@@ -120,6 +120,39 @@ describe("the page attachment panel", () => {
     expect(container.querySelector('[data-testid="attachment-brief.pdf"]')).not.toBeNull();
   });
 
+  it("refreshes usages when details reopen after the document adds an embedded reference", async () => {
+    const lookup = vi.mocked(ContentApi.prototype.fileUsages);
+    lookup.mockResolvedValueOnce({
+      ok: true,
+      value: { usages: [{ usedByItemId: pageId, usedByName: "Page", usageKind: "attachment" }] },
+    });
+    await act(async () =>
+      root.render(<AttachmentPanel pageId={pageId} compact attachments={[pdf]} />),
+    );
+    lookup.mockResolvedValue({
+      ok: true,
+      value: {
+        usages: [
+          { usedByItemId: pageId, usedByName: "Page", usageKind: "attachment" },
+          {
+            usedByItemId: pageId,
+            usedByName: "Page",
+            usageKind: "embed",
+            blockId: generateUuidV7(),
+          },
+        ],
+      },
+    });
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="attachment-actions-brief.pdf"]',
+    );
+    await act(async () => trigger?.click());
+    expect(lookup).toHaveBeenCalledTimes(2);
+    const details = document.querySelector('[data-testid="attachment-usages-brief.pdf"]');
+    expect(details?.querySelectorAll("button")).toHaveLength(2);
+    expect(container.querySelector('[data-testid="attachment-brief.pdf"]')).not.toBeNull();
+  });
+
   it("ignores a late lookup failure after the file was removed from the page", async () => {
     let fail: ((result: Awaited<ReturnType<ContentApi["fileUsages"]>>) => void) | undefined;
     vi.mocked(ContentApi.prototype.fileUsages).mockReturnValue(

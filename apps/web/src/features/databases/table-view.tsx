@@ -45,6 +45,7 @@ import { displayDatabaseValue } from "./database-value.ts";
 import { isChoiceProperty, OptionValueMenu, PropertyOptionsEditor } from "./option-appearance.tsx";
 import { DatabasePropertyIcon } from "./property-icon.tsx";
 import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
+import { useTableViewport } from "./use-table-viewport.ts";
 import {
   type RelationOption,
   type ValueDraft,
@@ -577,6 +578,8 @@ export function TableView({
   });
   const rows = table.getRowModel().rows;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const viewport = useTableViewport(scrollRef);
+  const previousViewId = useRef(view.id);
   const [activeCell, setActiveCell] = useState<GridCellPosition>({ row: 0, column: 0 });
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -588,16 +591,30 @@ export function TableView({
   const [titleEdit, setTitleEdit] = useState<{ id: string; seed: string | null } | null>(null);
   const titleEditClosed = useRef<string | null>(null);
   useLayoutEffect(() => {
-    const element = scrollRef.current;
-    if (element !== null && Math.abs(element.scrollTop - scrollTop) >= 1) {
+    const element = viewport.element;
+    const changedView = previousViewId.current !== view.id;
+    if (element === null) return;
+    previousViewId.current = view.id;
+    // The page owns its initial anchor. Mounting an inline table must not reset it.
+    if ((!viewport.pageFlow || changedView) && Math.abs(element.scrollTop - scrollTop) >= 1) {
       element.scrollTop = scrollTop;
     }
-  }, [scrollTop]);
+  }, [scrollTop, view.id, viewport.element, viewport.pageFlow]);
+  useEffect(() => {
+    const element = viewport.element;
+    if (element === null || onScroll === undefined) return;
+    const remember = () => onScroll(element.scrollTop);
+    element.addEventListener("scroll", remember, { passive: true });
+    return () => element.removeEventListener("scroll", remember);
+  }, [onScroll, viewport.element]);
   const returnIndex = rows.findIndex((row) => row.original.entryId === returnFocusEntryId);
   const renameIndex = rows.findIndex((row) => row.original.entryId === renameEntryId);
   const virtualizer = useVirtualizer({
+    enabled: viewport.element !== null,
     count: rows.length,
-    getScrollElement: () => scrollRef.current,
+    getScrollElement: () => viewport.element,
+    initialOffset: () => viewport.element?.scrollTop ?? scrollTop,
+    scrollMargin: viewport.scrollMargin,
     estimateSize: () => 44,
     getItemKey: (index) => rows[index]?.id ?? index,
     overscan: 8,
@@ -611,8 +628,10 @@ export function TableView({
   });
   const virtualRows = virtualizer.getVirtualItems();
   useLayoutEffect(() => {
-    if (returnIndex >= 0) virtualizer.scrollToIndex(returnIndex, { align: "auto" });
-  }, [returnIndex, virtualizer]);
+    if (viewport.element !== null && viewport.scrollMargin >= 0 && returnIndex >= 0) {
+      virtualizer.scrollToIndex(returnIndex, { align: "auto" });
+    }
+  }, [returnIndex, virtualizer, viewport.element, viewport.scrollMargin]);
   useLayoutEffect(() => {
     if (renameEntryId == null || renameStarted.current === renameEntryId || renameIndex < 0) return;
     const column = visible.findIndex((property) => property.type === "title");
@@ -888,11 +907,14 @@ export function TableView({
         row: rows[item.index],
         index: item.index,
         item,
-        gap: Math.max(0, item.start - (virtualRows[offset - 1]?.end ?? 0)),
+        gap: Math.max(0, item.start - (virtualRows[offset - 1]?.end ?? viewport.scrollMargin)),
       }))
     : rows.map((row, index) => ({ row, index, item: null, gap: 0 }));
   const trailingGap = virtualized
-    ? Math.max(0, virtualizer.getTotalSize() - (virtualRows.at(-1)?.end ?? 0))
+    ? Math.max(
+        0,
+        virtualizer.getTotalSize() - ((virtualRows.at(-1)?.end ?? 0) - viewport.scrollMargin),
+      )
     : 0;
   const spacer = (height: number) =>
     height <= 0 ? null : (
@@ -910,8 +932,14 @@ export function TableView({
       <section
         ref={scrollRef}
         className="database-table-scroll"
+        // Keep the page extent while React replaces virtual rows/spacers.
+        // WebKit otherwise clamps scrollTop during intermediate DOM removals.
+        style={
+          viewport.pageFlow && virtualized
+            ? { minHeight: virtualizer.getTotalSize() + viewport.headerHeight }
+            : undefined
+        }
         aria-label={DATABASE_COPY.table.scrollLabel(view.name)}
-        onScroll={(event) => onScroll?.(event.currentTarget.scrollTop)}
       >
         <table
           className="database-table database-grid"

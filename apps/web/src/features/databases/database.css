@@ -1403,7 +1403,8 @@
 .editor-database-view-block .database-cell-title {
   position: relative;
   width: 100%;
-  min-height: var(--ui-target-compact);
+  /* Leave both collapsed border halves outside the 32px action target. */
+  min-height: calc(var(--ui-target-compact) + 2px);
   justify-content: flex-start;
   padding: 0;
   border: 0;

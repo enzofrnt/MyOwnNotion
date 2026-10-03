@@ -279,14 +279,28 @@ test.describe("what a page says about its files (US1)", () => {
     await attach(page, fileName, "shared bytes");
     await waitForSynchronized(page);
 
-    await openAttachmentDetails(page, fileName);
+    // Insertion retains both the file's placement and its embedded block.
+    // They are distinct usages even when both lead to the same page. Starting
+    // elsewhere verifies navigation instead of clicking an already-open page.
+    const elsewhere = uniqueName("Other page");
+    await createRootItem(page, "page", elsewhere);
+    await waitForSynchronized(page);
 
-    const usages = page.getByTestId(`attachment-usages-${fileName}`);
-    await expect(usages).toBeVisible();
-    await expect(usages).toContainText(first);
-
-    await page.getByTestId(`attachment-usage-${first}`).click();
-    await expect(page.getByTestId(`tree-item-${first}`)).toHaveAttribute("aria-selected", "true");
+    for (const index of [0, 1]) {
+      if (index > 0) await selectSettledPage(page, elsewhere);
+      await expect(page.getByTestId("active-item-title")).toHaveValue(elsewhere);
+      await openPageAttachments(page, first);
+      await openAttachmentDetails(page, fileName);
+      // Inspecting another page's files must not switch the active document.
+      await expect(page.getByTestId("active-item-title")).toHaveValue(elsewhere);
+      const usages = page.getByTestId(`attachment-usages-${fileName}`);
+      const links = usages.getByRole("button", { name: first, exact: true });
+      await expect(links).toHaveCount(2);
+      await links.nth(index).click();
+      await expect(page.getByTestId(`tree-item-${first}`)).toHaveAttribute("aria-selected", "true");
+      await expect(page.getByTestId("active-item-title")).toHaveValue(first);
+      await expect(page.getByTestId(`attachment-details-${fileName}`)).not.toBeVisible();
+    }
   });
 
   test("says so plainly when a page carries no files", async ({ page }) => {
