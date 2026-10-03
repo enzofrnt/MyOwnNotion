@@ -783,3 +783,14 @@ Le diagnostic mobile suivant (`e2e-chromium-mobile-focus-11.log`) confirme
 et au bouton partagés. L'image reçue est comparée et adoptée à seuil constant,
 avec sa propre adresse de fixture macOS. Le contrôle complet ci-dessous devra
 confirmer toutes les références et tous les moteurs sur le commit exact.
+
+### Contrôle complet — première tentative
+
+Commit `537b609a` : contrôles de code et couverture réussis (480 fichiers,
+5 065 tests réussis, deux exclusions propres à Windows ; budgets inchangés).
+Les requêtes des cinq formats de base respectent leur seuil, ainsi que la
+propagation structurée. Le stress de 10 000 opérations échoue sur une assertion
+qui compte encore les adhésions dans `databaseEntries`, remplacée par
+`databaseEntryPairs`. Le benchmark est adapté au stockage canonique actuel,
+vérifie l'ensemble exact des identités survivantes et l'absence de doublon
+historique, à volume et seuil identiques. Cette tentative n'autorise aucun push.
