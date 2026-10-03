@@ -111,6 +111,7 @@ test("configures entry properties directly, shares symbols, and preserves indepe
   );
   expect(orderBefore).toHaveLength(3);
   const handle = page.getByRole("button", { name: "Déplacer Brief", exact: true });
+  const dragAnnouncement = page.locator('.entry-panel [id^="DndLiveRegion-"]');
   await handle.focus();
   await handle.press("Space");
   await expect(rows.first()).toHaveAttribute("data-dragging", "true");
@@ -120,6 +121,21 @@ test("configures entry properties directly, shares symbols, and preserves indepe
       rows.first().evaluate((node) => new DOMMatrixReadOnly(getComputedStyle(node).transform).m42),
     )
     .toBeGreaterThan(0);
+  await expect(rows.nth(1)).toHaveAttribute("data-preview", "after");
+  await expect(dragAnnouncement).toHaveText("Après Team.");
+  await handle.press("Escape");
+  await expect(rows.first()).not.toHaveAttribute("data-dragging", "true");
+  await expect(page.locator(".entry-ordinary-properties [data-preview]")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-property-id"))),
+    )
+    .toEqual(orderBefore);
+  await handle.press("Space");
+  await expect(rows.first()).toHaveAttribute("data-dragging", "true");
+  await handle.press("ArrowDown");
+  await expect(rows.nth(1)).toHaveAttribute("data-preview", "after");
+  await expect(dragAnnouncement).toHaveText("Après Team.");
   await handle.press("Space");
   await expect
     .poll(() =>
