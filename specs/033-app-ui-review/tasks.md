@@ -122,3 +122,7 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 - [ ] T055 Faire suivre la virtualisation du tableau au véritable scrollport vertical : page pour les bases pleine page/intégrées, surface locale pour les compositions bornées ; préserver pagination, ordre, focus et retour après 1 000 lignes (026 SC-005, 033 T050). Appliquer ui-quality + lessons, tests de géométrie/lifecycle et preuve réelle mobile/desktop.
 - [ ] T056 Actualiser les usages d’un fichier à l’ouverture de ses détails, même si le panneau PJ reste monté pendant une modification de document ; préserver la projection locale et les réponses périmées, couvrir le rafraîchissement en unitaire et E2E (016 FR-005, 033 FR-011).
 - [ ] T057 Préserver une nouvelle saisie quand le retour d’entrée attend ou traverse une actualisation de projection : ne pas reprendre son focus ni fermer son champ, conserver les remplacements de cible et les retours successifs ; preuve unitaire rouge/verte et parcours E2E de créations consécutives (026 SC-005, 033 FR-005/017 ; ui-quality + lessons).
+
+## Phase 7: Convergence
+
+- [ ] T058 Préserver l’accès aux options du menu de blocs lorsqu’il manque de place sous le curseur : supprimer le retour involontaire en haut, conserver filtre/sélection/clavier et clic natif, vérifier défilement local, deux thèmes et 320/1280 px avec ui-quality + lessons et preuves dans verification.md, selon FR-005/006, US2/AC2 et Constitution III/VI (partial).

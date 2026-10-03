@@ -44,6 +44,11 @@ const insertRichBlock = insertOrUpdateBlockForSlashMenu as unknown as (
   block: unknown,
 ) => unknown;
 
+// The portal belongs to the editor, inside the page's scrolling surface.
+// Position against the viewport so WebKit does not undo the menu's own scroll
+// while revealing an option. Floating UI still tracks the caret and ancestors.
+const SLASH_MENU_FLOATING_OPTIONS = { useFloatingOptions: { strategy: "fixed" } } as const;
+
 interface SlashEditor {
   getTextCursorPosition(): {
     readonly block: { readonly id: string; readonly type: string; readonly content: unknown };
@@ -403,6 +408,7 @@ export function FrenchSlashMenu({
   return (
     <SuggestionMenuController
       triggerCharacter="/"
+      floatingUIOptions={SLASH_MENU_FLOATING_OPTIONS}
       getItems={async (query) => {
         const defaults = getDefaultReactSlashMenuItems(editor);
         return filterSuggestionItems(

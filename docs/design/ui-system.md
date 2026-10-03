@@ -340,6 +340,10 @@ restent en place ; les nouveaux espacements communs utilisent l’échelle.
   Ne pas recopier un offset par niveau de titre ni centrer sur la hauteur
   totale d'un titre multiligne ; les espacements et la typographie réels
   doivent déterminer le placement, sans mutation du DOM ProseMirror.
+  Le menu `/` utilise la stratégie `fixed` de Floating UI : son ancrage suit
+  le curseur et le défilement de page, tandis que les options défilent dans
+  leur propre surface bornée par le viewport. Cette option appartient à
+  `editor-menus/slash-menu.tsx` ; l’apparence reste dans `editor.css`.
 
 Ne pas reproduire la palette avec une nouvelle carte pour chaque section, des
 diagnostics dans le contenu, un dégradé promotionnel ou de gros boutons dans la
