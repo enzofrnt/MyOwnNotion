@@ -46,6 +46,7 @@ import {
   propertyFromDraft,
   validatePropertyDraft,
 } from "./property-editor.tsx";
+import { PropertyIconPicker } from "./property-icon.tsx";
 import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
 import { SortGroupEditor } from "./sort-group-editor.tsx";
 import { type DatabaseCellUpdate, TableView } from "./table-view.tsx";
@@ -66,6 +67,7 @@ function withEntryPresentation(
       entry.entryId,
       {
         itemKind: entry.kind === "folder" ? ("folder" as const) : ("page" as const),
+        icon: entry.icon ?? null,
         holdsContent:
           entry.kind !== "folder" && pageBodyHoldsEditorialContent(entry.document?.body),
       },
@@ -829,6 +831,17 @@ export function DatabasePage({
                 {activeProperties.map((property) => (
                   <li key={property.id} className="database-schema__property">
                     <div className="database-schema__summary">
+                      <PropertyIconPicker
+                        property={property}
+                        onChange={(icon) => {
+                          void replaceDefinition({
+                            ...definition,
+                            properties: definition.properties.map((p) =>
+                              p.id === property.id ? { ...p, icon } : p,
+                            ),
+                          });
+                        }}
+                      />
                       <span>{property.name}</span>
                       <span className="muted">
                         {DATABASE_COPY.property.typeLabels[property.type]}

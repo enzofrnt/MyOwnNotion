@@ -454,7 +454,10 @@ code,
 }
 
 .page-editor .bn-side-menu {
+  --editor-block-handle-icon-size: 22px;
+  --editor-block-handle-height: var(--ui-target-compact);
   gap: 1px;
+  padding-inline-end: var(--ui-space-1);
   /* Keep handles above the reading surface; never paint under the sidebar. */
   z-index: 2;
 }
@@ -466,12 +469,28 @@ code,
   color: var(--ui-color-text-muted);
 }
 
-.page-editor .bn-side-menu .bn-ak-button[draggable="true"] {
+.page-editor .bn-side-menu .editor-block-handle {
+  /* GripVertical's painted height exceeds its width by 8 / 24 icon units.
+     Removing that difference keeps the ink-to-edge inset equal on all sides. */
+  width: calc(var(--editor-block-handle-height) - var(--editor-block-handle-icon-size) / 3);
+  min-width: 0;
+  height: var(--editor-block-handle-height);
   cursor: grab;
 }
 
-.page-editor .bn-side-menu .bn-ak-button[draggable="true"]:active {
+.page-editor .editor-block-handle__icon {
+  width: var(--editor-block-handle-icon-size);
+  height: var(--editor-block-handle-icon-size);
+}
+
+.page-editor .bn-side-menu .editor-block-handle:active {
   cursor: grabbing;
+}
+
+@media (pointer: coarse) {
+  .page-editor .bn-side-menu {
+    --editor-block-handle-height: var(--ui-target);
+  }
 }
 
 html[data-block-grabbing="true"],

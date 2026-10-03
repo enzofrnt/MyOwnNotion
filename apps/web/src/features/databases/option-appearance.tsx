@@ -1,7 +1,8 @@
 import type { DatabaseProperty, PropertyOption, Uuid } from "@myownnotion/domain";
 import { generateUuidV7 } from "@myownnotion/domain";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { DatabaseViewRow } from "../../services/databases.ts";
+import { AppIcon } from "../../ui/icons.tsx";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "../../ui/primitives/menu.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
@@ -21,7 +22,7 @@ export const OPTION_TONES = [
 
 export type OptionTone = (typeof OPTION_TONES)[number];
 
-const OPTION_TONE_LABELS: Readonly<Record<OptionTone, string>> = {
+export const OPTION_TONE_LABELS: Readonly<Record<OptionTone, string>> = {
   gray: "Gris",
   brown: "Brun",
   orange: "Orange",
@@ -50,11 +51,24 @@ export function isChoiceProperty(
   );
 }
 
-export function OptionPill({ label, tone }: { readonly label: string; readonly tone: string }) {
+export function OptionPill({
+  label,
+  tone,
+  trailing,
+}: {
+  readonly label: string;
+  readonly tone: string;
+  readonly trailing?: ReactNode;
+}) {
   return (
     <span className="option-pill" data-tone={optionTone(tone)} title={label}>
       <span className="option-pill__dot" aria-hidden="true" />
       <span className="option-pill__label">{label}</span>
+      {trailing === undefined ? null : (
+        <span className="option-pill__trailing" aria-hidden="true">
+          {trailing}
+        </span>
+      )}
     </span>
   );
 }
@@ -141,16 +155,57 @@ export function OptionValueMenu({
   readonly row: DatabaseViewRow;
   readonly onCommit: (draft: ValueDraft) => void;
 }) {
-  const selected = new Set(choiceIds(property, row));
+  const ids = choiceIds(property, row);
+  return (
+    <OptionDraftMenu
+      property={property}
+      input={property.type === "multi-select" ? ids : (ids[0] ?? "")}
+      tabIndex={-1}
+      onCommit={onCommit}
+    />
+  );
+}
+
+/** Shared option picker: a cell commits immediately; an entry edits its retained draft. */
+export function OptionDraftMenu({
+  property,
+  input,
+  onCommit,
+  id,
+  describedBy,
+  invalid = false,
+  tabIndex = 0,
+  emptyLabel = "—",
+}: {
+  readonly property: Extract<DatabaseProperty, { type: "status" | "select" | "multi-select" }>;
+  readonly input: ValueDraft;
+  readonly onCommit: (draft: ValueDraft) => void;
+  readonly id?: string;
+  readonly describedBy?: string;
+  readonly invalid?: boolean;
+  readonly tabIndex?: number;
+  readonly emptyLabel?: string;
+}) {
+  const selected = new Set(
+    Array.isArray(input) ? input : typeof input === "string" && input !== "" ? [input] : [],
+  );
   const options = property.config.options.filter(
     (option) => option.state === "active" || selected.has(option.id),
   );
   const chosen = options.filter((option) => selected.has(option.id));
   return (
     <MenuRoot>
-      <MenuTrigger bare className="option-menu__trigger" aria-label={property.name} tabIndex={-1}>
+      <MenuTrigger
+        bare
+        id={id}
+        className="option-menu__trigger"
+        aria-label={property.name}
+        aria-describedby={describedBy}
+        aria-invalid={invalid || undefined}
+        tabIndex={tabIndex}
+      >
         {chosen.length === 0 ? (
-          <span className="option-menu__empty">—</span>
+          <span className="option-menu__empty">{emptyLabel}</span>
         ) : (
           <span className="option-pill-row">
             {chosen.map((option) => (
@@ -159,15 +214,18 @@ export function OptionValueMenu({
           </span>
         )}
       </MenuTrigger>
-      <MenuContent>
+      <MenuContent unmountOnHide>
         {property.type === "multi-select" ? null : (
-          <MenuItem onClick={() => onCommit("")}>—</MenuItem>
+          <MenuItem onClick={() => onCommit("")}>{emptyLabel}</MenuItem>
         )}
         {options.map((option) => (
           <MenuItem
             key={option.id}
             data-option-id={option.id}
-            aria-checked={property.type === "multi-select" ? selected.has(option.id) : undefined}
+            role={property.type === "multi-select" ? "menuitemcheckbox" : "menuitemradio"}
+            aria-checked={selected.has(option.id)}
+            shortcut={selected.has(option.id) ? <AppIcon name="check" size="small" /> : undefined}
+            disabled={option.state !== "active"}
             onClick={() => {
               if (property.type === "multi-select") {
                 const next = selected.has(option.id)

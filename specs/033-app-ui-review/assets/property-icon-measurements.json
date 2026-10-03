@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-03",
+  "fixture": "__ui-lab?review=entry",
+  "desktop": {
+    "viewport": 1280,
+    "document": 1280,
+    "paletteWidth": 296,
+    "gridClient": 270,
+    "gridScroll": 270,
+    "columns": 8,
+    "choiceWidth": 32
+  },
+  "narrowTouch": {
+    "viewport": 320,
+    "document": 320,
+    "paletteWidth": 296,
+    "gridClient": 270,
+    "gridScroll": 270,
+    "trigger": {
+      "width": 44,
+      "height": 44
+    },
+    "choice": {
+      "width": 52.3984375,
+      "height": 52.3984375
+    },
+    "columns": 5
+  },
+  "autosave": {
+    "statusHeight": 24,
+    "documentTopIdle": 962.5,
+    "documentTopSaving": 962.5
+  },
+  "keyboard": {
+    "choose": "Enter",
+    "paletteEscapeFocus": "Changer l’icône de Texte",
+    "configurationEscapeFocus": "Modifier la propriété Texte"
+  },
+  "ownerSource": {
+    "readOnly": true,
+    "theme": "light",
+    "viewport": 1280,
+    "paletteWidth": 296,
+    "document": 1280
+  },
+  "browserErrors": 0
+}

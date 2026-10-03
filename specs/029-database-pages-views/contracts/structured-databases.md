@@ -16,9 +16,10 @@ Tous les rejets emploient les erreurs structurées existantes avec un code pour 
 ## Lecture et synchronisation
 
 - `source` : `sourceId`, `ownerItemId`, `name`, propriétés et révision. Une seule source par propriétaire.
+- Une propriété porte facultativement `icon` (slug borné à 40 caractères ou null) : absence/retrait = symbole du type. Ce choix appartient à la définition de source, traverse les révisions chiffrées, export et sync, et ne modifie pas les valeurs. Les vues et pages de la même source le partagent.
 - `presentation` : `containerItemId`, vues ordonnées et révision ; une vue expose `viewId`, `sourceId`, `format`, `filters`, `sort`, `group`, `visiblePropertyIds` et, si elle est choisie, `icon` (slug ou null ; absente, l’icône du format reste).
 - `query(viewId)` : résout `sourceId` depuis la vue, inclut seulement les enfants directs actifs du propriétaire et leurs valeurs pour cette source ; état `ready | loading-partial | source-trashed | source-missing`, sans confondre cache partiel et suppression.
-- La projection de hiérarchie envoie `kind=database|database_view` directement. L'entrée reste `page|folder`. Le cache local et le flux de sync scellent source et présentation séparément et conservent les curseurs/conflits existants.
+- La projection de hiérarchie envoie `kind=database|database_view` directement. L'entrée reste `page|folder`. Sa lecture reprend l'icône de cet élément (`icon`, emoji ou null) : la vue table l'affiche à la place du glyphe par défaut. Le cache local et le flux de sync scellent source et présentation séparément et conservent les curseurs/conflits existants.
 
 ## Document et échange durable
 

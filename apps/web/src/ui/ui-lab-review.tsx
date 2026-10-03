@@ -33,6 +33,7 @@ import {
 } from "./primitives/index.ts";
 import { ReviewAttachments } from "./ui-lab-review-attachments.tsx";
 import { createReviewEditorSession } from "./ui-lab-review-editor-session.ts";
+import { ReviewEntryPage } from "./ui-lab-review-entry.tsx";
 import {
   reviewAmbiguity,
   reviewConflictService,
@@ -53,6 +54,7 @@ const surfaces = [
   "files",
   "history",
   "database",
+  "entry",
   "properties",
   "editor",
   "recovery",
@@ -65,6 +67,7 @@ const surfaceLabels = {
   files: "Fichiers",
   history: "Historique",
   database: "Bases de données",
+  entry: "Pages d’entrée",
   properties: "Propriétés",
   editor: "Éditeur",
   recovery: "Récupération",
@@ -238,7 +241,18 @@ function PreviewDatabases() {
         </Button>
       </nav>
       {view.type === "table" ? (
-        <TableView {...props} view={view} onResize={() => undefined} />
+        <TableView
+          {...props}
+          view={view}
+          onResize={(propertyId, width) =>
+            setView((current) => ({
+              ...current,
+              properties: current.properties.map((column) =>
+                column.propertyId === propertyId ? { ...column, width } : column,
+              ),
+            }))
+          }
+        />
       ) : view.type === "board" ? (
         <BoardView {...props} view={view} onChangeView={setView} />
       ) : view.type === "gallery" ? (
@@ -288,15 +302,18 @@ function PreviewDatabases() {
                     row.entryId === selected.entryId
                       ? {
                           ...row,
-                          values: Object.fromEntries(
-                            Object.entries(values).map(([id, value]) => [id, wireValue(value)]),
-                          ),
-                          relationTargets: Object.fromEntries(
-                            Object.entries(relationTargets).map(([id, targets]) => [
-                              id,
-                              [...targets],
-                            ]),
-                          ),
+                          values: Object.fromEntries([
+                            ...Object.entries(row.values),
+                            ...Object.entries(values).map(
+                              ([id, value]) => [id, wireValue(value)] as const,
+                            ),
+                          ]),
+                          relationTargets: Object.fromEntries([
+                            ...Object.entries(row.relationTargets),
+                            ...Object.entries(relationTargets).map(
+                              ([id, targets]) => [id, [...targets]] as const,
+                            ),
+                          ]),
                         }
                       : row,
                   ),
@@ -484,6 +501,29 @@ function PreviewEditor() {
           raw: { type: "future-block", id: reviewId(87), value: "Conservé" },
           syntheticId: false,
         },
+        {
+          id: reviewId(89),
+          type: "heading",
+          level: 2,
+          content: [
+            {
+              text: "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+            },
+          ],
+        },
+        {
+          id: reviewId(90),
+          type: "heading",
+          level: 3,
+          content: [{ text: "Un titre de niveau trois" }],
+        },
+        {
+          id: reviewId(91),
+          type: "heading",
+          level: 4,
+          content: [{ text: "Un titre de niveau quatre" }],
+        },
+        { id: reviewId(92), type: "heading", level: 2, content: [] },
         { id: reviewId(88), type: "paragraph", content: [] },
       ],
     }),
@@ -546,6 +586,8 @@ export function UiLabReview({ surface }: { readonly surface: ReviewSurface }) {
           <PreviewHistory />
         ) : surface === "database" ? (
           <PreviewDatabases />
+        ) : surface === "entry" ? (
+          <ReviewEntryPage />
         ) : surface === "properties" ? (
           <PreviewProperties />
         ) : surface === "recovery" ? (

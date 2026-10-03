@@ -20,6 +20,7 @@ import {
   transformSelectedBlocks,
 } from "../block-selection.ts";
 import type { EditorBlock, EditorInstance } from "../blocknote-schema.ts";
+import { blockTextSideMenuOffset } from "./block-side-menu-layout.ts";
 
 type SideMenuBlock = EditorBlock;
 
@@ -178,8 +179,15 @@ function MyOwnNotionDragHandleButton({
             endSideMenuBlockReorder();
             sideMenu.blockDragEnd();
           }}
-          className="bn-button"
-          icon={<AppIcon name="drag" size="large" data-test="dragHandle" />}
+          className="bn-button editor-block-handle"
+          icon={
+            <AppIcon
+              name="drag"
+              size="large"
+              className="editor-block-handle__icon"
+              data-test="dragHandle"
+            />
+          }
         />
       </components.Generic.Menu.Trigger>
       <MyOwnNotionDragHandleMenu block={block} onError={onError} />
@@ -199,20 +207,8 @@ export function resolveSideMenuAnchor(
   return anchor;
 }
 
-/** Vertical centring of the 30px menu on the block's first line (BlockNote's own table). */
+/** Preserve the specialized placement of blocks that have no inline text. */
 function sideMenuCrossAxisOffset(block: SideMenuBlock): number {
-  if (block.type === "heading") {
-    switch (block.props["level"]) {
-      case 1:
-        return 39;
-      case 2:
-        return 27;
-      case 3:
-        return 18.5;
-      default:
-        return 0;
-    }
-  }
   // Table block: 10px inset above the grid, then a 39px first row.
   if (block.type === "table") return 14.5;
   if (block.type === "file") return 4;
@@ -253,15 +249,37 @@ export const BlockSideMenu = memo(function BlockSideMenu({
     return () => document.removeEventListener("scroll", hide, { capture: true });
   }, [editor]);
 
-  const crossAxis = anchor === undefined ? 0 : sideMenuCrossAxisOffset(anchor);
   const middleware = useMemo(
     () => [
       {
         name: "myownnotion-cross-axis-offset",
-        fn: ({ x, y }: { x: number; y: number }) => ({ x, y: y + crossAxis }),
+        fn: ({
+          x,
+          y,
+          elements,
+          rects,
+        }: {
+          x: number;
+          y: number;
+          elements: { reference: Element | { contextElement?: Element | undefined } };
+          rects: { floating: { height: number } };
+        }) => {
+          const reference =
+            "contextElement" in elements.reference
+              ? elements.reference.contextElement
+              : elements.reference;
+          const textOffset =
+            anchor?.type !== "table" && reference instanceof Element
+              ? blockTextSideMenuOffset(reference, rects.floating.height)
+              : undefined;
+          return {
+            x,
+            y: y + (textOffset ?? (anchor === undefined ? 0 : sideMenuCrossAxisOffset(anchor))),
+          };
+        },
       },
     ],
-    [crossAxis],
+    [anchor],
   );
 
   return (

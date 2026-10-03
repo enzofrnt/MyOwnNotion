@@ -161,7 +161,7 @@ Supprimer une vue ne supprime pas sa source. Si la dernière vue d'une source es
 - **FR-008**: Chaque vue conserve un lien vérifiable vers sa source. La source reste rattachée à sa page d'origine même lorsqu'aucune vue ne l'affiche. Supprimer cette page supprime ses sources ; les vues ailleurs restent et indiquent que la source demandée n'existe plus.
 - **FR-009**: La remise à zéro des données de développement antérieures à la V1 est explicite, bornée et documentée avant exécution. Les bases et entrées créées sous le nouveau modèle bénéficient ensuite des garanties ordinaires de chiffrement, disponibilité hors ligne, export, sauvegarde, restauration et synchronisation.
 - **FR-010**: Création, déplacement, changement de source d'une vue, suppression, restauration et synchronisation gardent les conteneurs, sources, entrées et vues cohérents sur les appareils, y compris hors ligne et après conflit.
-- **FR-011**: Les menus, onglets et états vide, chargement, erreur et source supprimée restent utilisables au clavier, en thèmes clair/sombre et à 320 px ; l'interface suit la hiérarchie visuelle des captures sans en copier les détails arbitraires.
+- **FR-011**: Les menus, onglets et états vide, chargement, erreur et source supprimée restent utilisables au clavier, en thèmes clair/sombre et à 320 px ; l'interface suit la hiérarchie visuelle des captures sans en copier les détails arbitraires. Une entrée ouverte utilise le titre éditable, l'icône, le chemin et la colonne de lecture des pages canoniques. Dans la vue table, le titre de chaque entrée reprend l'icône de sa page ou de son dossier : le glyphe par défaut tant qu'aucune icône n'est choisie, puis l'emoji ou le symbole choisi dès qu'il change. Ses propriétés compactes reprennent les pastilles des vues, puis vient son contenu ou ses enfants. La prise de colonne reste transparente autour de son trait bleu (retour 033 FR-015/016). Les valeurs s’enregistrent automatiquement ; menu commun au clic et au clic droit, configuration compacte des propriétés/options et poignées de réordonnancement suivent 033 FR-017…019. Les choix retirables et la recherche partagent un champ unique, avec croix dans les pastilles (033 FR-021).
 - **FR-012**: Le conteneur créé par une insertion intégrée est un enfant visible de la page hôte dans l'arborescence, distinct du bloc de vue intégré dans son contenu.
 - **FR-013**: Supprimer une page de base qui possède des sources indique leur nombre et demande une confirmation explicite avant de supprimer ces sources avec la page. Les vues situées ailleurs ne sont pas supprimées. Elles affichent « Aucun résultat : la source de données demandée n'existe plus. »
 - **FR-014**: Chaque vue possède ses propres format, filtres, tris, regroupements et propriétés visibles. Les vues qui référencent la même source partagent les propriétés définies par cette source et ses entrées ; celles qui référencent des sources différentes restent distinctes.
@@ -209,6 +209,11 @@ Supprimer une vue ne supprime pas sa source. Si la dernière vue d'une source es
 - **SC-011**: Un import Notion de test avec deux sources et des entrées produit deux pages de base propriétaires et aucune entrée de source à la racine ; l'aperçu et l'application décrivent les mêmes placements.
 
 ## Assumptions
+
+- Une propriété peut avoir une icône personnalisée, partagée par la source,
+  comme les vues. Retirer cette icône restaure le symbole du type sans toucher
+  aux valeurs. Le contrat et la vérification de cette extension sont suivis par
+  033 FR-020 / T033–036.
 
 - Le propriétaire unique et les garanties existantes de chiffrement, disponibilité hors ligne, synchronisation, sauvegarde et export restent applicables.
 - Les types de propriétés déjà livrés ne sont pas redéfinis par cette feature ; les cinq formats de vue retenus sont Table, Kanban, Galerie, Liste et Calendrier.

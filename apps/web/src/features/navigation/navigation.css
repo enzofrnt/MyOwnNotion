@@ -425,17 +425,6 @@
   user-select: none;
   touch-action: pan-y;
   transition: border-radius var(--tree-join-radius-duration, 70ms) ease;
-  /* Space reserved for overlay actions when revealed (L-009). */
-  --tree-actions-reserve: calc(3 * var(--tree-action-size) + 2 * var(--ui-space-1));
-}
-
-.workspace-navigation .tree-row:has(.navigation-item-actions[data-inline-open="true"]),
-.workspace-navigation .tree-row:has(.navigation-inline-create[data-open="true"]) {
-  --tree-actions-reserve: calc(
-    var(--inline-create-open-width, 4.5rem) +
-    var(--tree-action-size) +
-    var(--ui-space-1)
-  );
 }
 
 .workspace-navigation .tree-row:active {
@@ -449,7 +438,8 @@
 }
 
 .workspace-navigation .tree-row:hover,
-.workspace-navigation .tree-row:focus-within {
+.workspace-navigation .tree-row:focus-within,
+.workspace-navigation .tree-drop-target:has(+ .workspace-page-attachments[data-joined]) .tree-row {
   background: var(--ui-color-surface-hover);
 }
 
@@ -459,9 +449,7 @@
   box-shadow: none;
 }
 
-.workspace-navigation
-  .tree-drop-target:has(+ .workspace-page-attachments[data-joined])
-  .tree-row[aria-selected="true"] {
+.workspace-navigation .tree-drop-target:has(+ .workspace-page-attachments[data-joined]) .tree-row {
   border-bottom-right-radius: 0;
   border-bottom-left-radius: 0;
 }
@@ -624,9 +612,7 @@ html[data-tree-grabbing="true"] * {
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* Title reaches the row edge; actions overlay on hover and only then
-     reserve space so ellipsis is not premature (L-009). */
-  transition: padding-right var(--ui-duration-fast) var(--ui-ease-standard);
+  /* Revealed actions join the flex row, so ellipsis follows their actual width. */
 }
 
 .workspace-navigation .tree-row[aria-selected="true"] .tree-name {
@@ -651,16 +637,24 @@ html[data-tree-grabbing="true"] * {
 }
 
 @media (pointer: fine) {
-  .workspace-navigation .tree-row:hover .tree-name,
-  .workspace-navigation .tree-row:focus-within .tree-name {
-    padding-right: var(--tree-actions-reserve);
+  .workspace-navigation .tree-row:hover .navigation-item-actions,
+  .workspace-navigation .tree-row:focus-within .navigation-item-actions,
+  .workspace-navigation
+    .tree-row:has(.navigation-item-actions [aria-expanded="true"])
+    .navigation-item-actions,
+  .workspace-navigation
+    .tree-row:has(.navigation-inline-create[data-open="true"])
+    .navigation-item-actions {
+    position: static;
+    transform: none;
   }
 }
 
 @media (hover: none), (pointer: coarse) {
-  /* Touch keeps actions visible — permanently leave room for the chrome. */
-  .workspace-navigation .tree-name {
-    padding-right: var(--tree-actions-reserve);
+  /* Touch keeps actions visible and reserves their intrinsic width. */
+  .workspace-navigation .navigation-item-actions {
+    position: static;
+    transform: none;
   }
 }
 
@@ -950,22 +944,27 @@ html[data-tree-grabbing="true"] * {
     padding 200ms var(--ui-ease-standard);
 }
 
+.workspace-page-attachments {
+  width: 100%;
+}
+
 .workspace-page-attachments-count {
   position: absolute;
   right: 0;
   bottom: 0;
-  min-width: 0.875rem;
-  padding-inline: 0.18rem;
-  color: var(--ui-color-text-inverse);
-  background: var(--ui-color-accent);
+  box-sizing: border-box;
+  min-width: 12px;
+  height: 12px;
+  padding-inline: 2px;
+  border: 1px solid var(--ui-color-surface-active);
   border-radius: var(--ui-radius-round);
-  font-size: 0.5625rem;
-  line-height: 0.875rem;
+  background: var(--ui-color-accent);
+  color: var(--ui-color-text-inverse);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  line-height: 10px;
   text-align: center;
-}
-
-.workspace-page-attachments {
-  width: 100%;
+  pointer-events: none;
 }
 
 .workspace-attachment-panel {
@@ -995,23 +994,10 @@ html[data-tree-grabbing="true"] * {
 }
 
 .workspace-attachment-panel__count {
-  min-width: 1rem;
-  padding-inline: 0.28rem;
   color: var(--ui-color-text-muted);
-  background: var(--ui-color-surface-hover);
-  border-radius: var(--ui-radius-round);
   font-size: 0.625rem;
-  line-height: 1rem;
-  text-align: center;
-}
-
-.workspace-attachment-panel__upload.ui-button[data-size="square"] {
-  width: var(--tree-action-size, var(--ui-target-compact));
-  min-width: var(--tree-action-size, var(--ui-target-compact));
-  min-height: var(--tree-action-size, var(--ui-target-compact));
-  height: var(--tree-action-size, var(--ui-target-compact));
-  margin-left: auto;
-  padding: 0;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .workspace-attachment-panel .field-row {
@@ -1060,6 +1046,13 @@ html[data-tree-grabbing="true"] * {
   padding: 0;
   gap: 1px;
   list-style: none;
+}
+
+/* Attachment rows are content, not another level of the hierarchical tree. */
+.workspace-navigation .tree .workspace-attachment-list {
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .workspace-attachment-file {
@@ -1220,15 +1213,37 @@ html[data-tree-grabbing="true"] * {
     gap: 0;
   }
 
+  .workspace-navigation .navigation-inline-create {
+    --inline-create-button: var(--ui-target);
+    --inline-create-gutter: 0px;
+    --inline-create-open-width: calc(3 * var(--ui-target));
+  }
+
+  .workspace-navigation .navigation-inline-create[data-has-database="true"] {
+    --inline-create-open-width: calc(4 * var(--ui-target));
+  }
+
+  .workspace-navigation .navigation-inline-create[data-choices="1"] {
+    --inline-create-open-width: calc(2 * var(--ui-target));
+  }
+
+  /* Expanded choices already provide the next action. Give their 44px targets
+     the row's space until closing, rather than overlapping neighbouring controls. */
+  .workspace-navigation
+    .navigation-item-actions:has(.navigation-inline-create[data-open="true"])
+    > :is(.navigation-item-menu, .workspace-page-attachments-trigger) {
+    display: none;
+  }
+
   .workspace-navigation .navigation-inline-create[data-open="true"],
   .workspace-navigation
     .navigation-inline-create[data-open="true"]
     .navigation-inline-create__surface {
-    width: calc(3 * var(--ui-target) + 2 * var(--ui-space-1));
+    width: var(--inline-create-open-width);
     height: var(--ui-target);
-    flex-basis: calc(3 * var(--ui-target) + 2 * var(--ui-space-1));
+    flex-basis: var(--inline-create-open-width);
     padding: 0;
-    gap: var(--ui-space-1);
+    gap: var(--inline-create-gutter);
   }
 
   .workspace-navigation .navigation-inline-create[data-open="true"] .ui-button[data-size="square"],
@@ -1251,8 +1266,8 @@ html[data-tree-grabbing="true"] * {
   }
 
   .navigation-inline-create__choices[data-visible="true"] {
-    width: calc(2 * var(--ui-target) + var(--ui-space-1));
-    gap: var(--ui-space-1);
+    width: calc(2 * var(--ui-target));
+    gap: var(--inline-create-gutter);
   }
 }
 
@@ -1293,6 +1308,9 @@ html[data-tree-grabbing="true"] * {
   .workspace-navigation .tree-row:focus-within .navigation-inline-create,
   .workspace-navigation .tree-row:hover .navigation-item-menu__trigger,
   .workspace-navigation .tree-row:focus-within .navigation-item-menu__trigger,
+  .workspace-navigation
+    .tree-row:has(.workspace-page-attachments-trigger[aria-expanded="true"])
+    :is(.navigation-inline-create, .navigation-item-menu__trigger),
   .workspace-page-attachments-trigger[aria-expanded="true"],
   .navigation-inline-create[data-open="true"]:not([data-closing="true"]),
   .navigation-item-menu__trigger[aria-expanded="true"] {
@@ -1358,24 +1376,14 @@ html[data-tree-grabbing="true"] * {
   pointer-events: none;
 }
 
-/* Progressive row chrome (L-012). Hide by collapsing width so the overlay
-   reserve and title ellipsis stay honest. The menu trigger stays in the DOM
+/* Progressive row chrome. Hide by collapsing width so the intrinsic action
+   width and title ellipsis stay honest. The menu trigger stays in the DOM
    even when visually gone so right-click / ContextMenu still open it. */
 @container tree-item (max-width: 11rem) {
-  .workspace-navigation .tree-row {
-    --tree-actions-reserve: calc(var(--tree-action-size) + var(--ui-space-1));
-  }
-
-  .workspace-navigation .tree-row:has(.navigation-inline-create[data-open="true"]) {
-    --tree-actions-reserve: calc(
-      var(--inline-create-open-width, 4.5rem) +
-      var(--tree-action-size) +
-      var(--ui-space-1)
-    );
-  }
-
   .workspace-navigation .tree-row:not([data-attachments-open]) .workspace-page-attachments-trigger,
-  .workspace-navigation .navigation-inline-create:not([data-open="true"]) {
+  .workspace-navigation
+    .tree-row:not([data-attachments-open])
+    .navigation-inline-create:not([data-open="true"]) {
     visibility: hidden;
     width: 0;
     min-width: 0;
@@ -1389,20 +1397,10 @@ html[data-tree-grabbing="true"] * {
 }
 
 @container tree-item (max-width: 7.5rem) {
-  .workspace-navigation .tree-row {
-    --tree-actions-reserve: 0px;
-  }
-
-  .workspace-navigation .tree-row[data-attachments-open] {
-    --tree-actions-reserve: calc(var(--tree-action-size) + var(--ui-space-1));
-  }
-
-  .workspace-navigation .tree-row:has(.navigation-inline-create[data-open="true"]) {
-    --tree-actions-reserve: var(--inline-create-open-width, 4.5rem);
-  }
-
   .workspace-navigation .tree-row:not([data-attachments-open]) .workspace-page-attachments-trigger,
-  .workspace-navigation .navigation-inline-create:not([data-open="true"]),
+  .workspace-navigation
+    .tree-row:not([data-attachments-open])
+    .navigation-inline-create:not([data-open="true"]),
   .workspace-navigation
     .tree-row:not([data-attachments-open]):not(:has(.navigation-inline-create[data-open="true"]))
     .navigation-item-menu {

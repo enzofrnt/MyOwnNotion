@@ -19,6 +19,46 @@ function required<T>(value: T | undefined): T {
 }
 
 describe("database definitions", () => {
+  it("round-trips optional property icons and keeps old definitions valid", () => {
+    const original = definition();
+    expect(unwrap(validateDatabaseDefinition(original)).properties[0]).not.toHaveProperty("icon");
+    for (const icon of ["lightbulb", "future-symbol", null]) {
+      const candidate = {
+        ...original,
+        properties: original.properties.map((p) => ({ ...p, icon })),
+      };
+      expect(unwrap(validateDatabaseDefinition(JSON.parse(JSON.stringify(candidate))))).toEqual(
+        candidate,
+      );
+    }
+    for (const icon of ["", "INVALID", "a".repeat(41), "<svg>"]) {
+      const candidate = {
+        ...original,
+        properties: original.properties.map((p) => ({ ...p, icon })),
+      };
+      expect(
+        unwrap(validateDatabaseDefinition(candidate)).properties.every((p) => p.icon === null),
+      ).toBe(true);
+    }
+  });
+
+  it("changing property icons has no conversion or destructive impact", async () => {
+    const current = definition();
+    const candidate = {
+      ...current,
+      properties: current.properties.map((p) => ({ ...p, icon: "star" })),
+    };
+    const impact = await previewDefinitionImpact({
+      current,
+      candidate,
+      baseRevisionId: IDS.revision,
+      entries: [values(IDS.entryA, { [IDS.text]: { kind: "text", value: "Keep" } })],
+    });
+    expect(impact.destructive).toBe(false);
+    expect(impact.affectedEntryCount).toBe(0);
+    expect(candidate.views).toBe(current.views);
+    expect(candidate.taskRoles).toBe(current.taskRoles);
+  });
   it("compares JSON content independently of object key serialization order", () => {
     expect(
       jsonValuesEqual(

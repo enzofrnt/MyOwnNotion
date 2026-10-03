@@ -95,6 +95,42 @@ function expandedDefinition(
 }
 
 describe("atomic structured local mutation (T021)", () => {
+  it("persists a property icon in the sealed source and replayable mutation across restart", async () => {
+    const source = createPayload();
+    expect((await apply("database.create", source)).ok).toBe(true);
+    const initial = required(await databases.getDatabase(source.id));
+    const icon = "lightbulb";
+    const candidate = {
+      ...initial.definition,
+      properties: initial.definition.properties.map((p) => ({ ...p, icon })),
+    };
+    expect(
+      (
+        await apply("database.definition.replace", {
+          databaseId: source.id,
+          sourceId: initial.sourceId,
+          baseRevisionId: initial.definitionRevisionId,
+          definition: candidate,
+        })
+      ).ok,
+    ).toBe(true);
+    const beforeRestart = required(await databases.getDatabase(source.id));
+    expect(beforeRestart.definition.properties[0]?.icon).toBe(icon);
+    expect(beforeRestart.presentation).toEqual(initial.presentation);
+    expect(beforeRestart.definitionRevisionId).not.toBe(initial.definitionRevisionId);
+    expect(JSON.stringify(await db.databases.get(source.id))).not.toContain(icon);
+    const name = db.name;
+    db.close();
+    db = openLocalDatabase(name);
+    databases = new LocalDatabaseRepository(db, codec);
+    expect((await databases.getDatabase(source.id))?.definition.properties[0]?.icon).toBe(icon);
+    const pending = await new Outbox(db, codec).pending();
+    expect(
+      pending.find((row) => row.commandType === "database.definition.replace")?.payload[
+        "definition"
+      ],
+    ).toMatchObject({ properties: [{ icon }] });
+  });
   it("persists a directly placed entry and its replayable offline mutation across restart", async () => {
     const source = createPayload();
     expect((await apply("database.create", source)).ok).toBe(true);

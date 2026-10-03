@@ -939,3 +939,65 @@
     min-height: var(--ui-target);
   }
 }
+
+/* Composed inputs own the entire boundary; inner NativeInput never paints a second field. */
+.ui-input-surface {
+  --ui-input-height: var(--ui-target);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-1);
+  width: 100%;
+  min-width: 0;
+  min-height: var(--ui-input-height);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  font-size: var(--ui-text-md);
+}
+.ui-input-surface[data-size="compact"] {
+  --ui-input-height: var(--ui-target-compact);
+  font-size: var(--ui-text-sm);
+}
+.ui-input-surface:hover,
+.ui-input-surface:focus-within {
+  border-color: var(--ui-color-border-strong);
+}
+.ui-input-surface:has(.ui-native-input:focus-visible) {
+  border-color: var(--ui-color-focus);
+}
+.ui-input-surface:has(.ui-native-input[aria-invalid="true"]) {
+  border-color: var(--ui-color-danger);
+}
+.ui-input-surface > .ui-icon {
+  flex: none;
+  color: var(--ui-color-text-muted);
+}
+.ui-input-surface > .ui-native-input {
+  flex: 1 1 8rem;
+  width: auto;
+  min-width: min(4rem, 100%);
+  max-width: 100%;
+  min-height: calc(var(--ui-input-height) - 2 * var(--ui-space-1) - 2px);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font: inherit;
+  line-height: 1.5;
+}
+.ui-input-surface > .ui-native-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.ui-input-surface > .ui-native-input::placeholder {
+  color: var(--ui-color-text-muted);
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  .ui-input-surface[data-size="compact"] {
+    --ui-input-height: var(--ui-target);
+  }
+}

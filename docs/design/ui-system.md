@@ -39,6 +39,14 @@ Les vues `?review=database&format=gallery` acceptent `table`, `board`, `gallery`
 l’éditeur de revue désactive les transferts de fichiers. Les exemples desktop
 montrent le renderer, sans déclencher installation, rotation ou coffre natif.
 
+L'exemple PJ de `?review=files` utilise `TreeAttachmentDisclosure` et le vrai
+`CollapsibleRegion` : le trombone inspecte la ligne sans sélectionner sa page.
+`activeViewId` identifie seulement la navigation qui ferme les inspections ;
+ne pas appeler la navigation de page depuis ce bouton. Les détails/actions de
+chaque fichier compact se montent à la demande dans leur `PopoverContent`,
+avec `unmountOnHide` local. Garder leur déclencheur et vérifier les dialogues
+imbriqués ainsi que le retour du focus après Échap.
+
 ## Où écrire le CSS
 
 Les chemins suivants sont relatifs à `apps/web/src/`. Chaque feuille possède une
@@ -110,6 +118,7 @@ Importer depuis `ui/primitives/index.ts` ; lire les types du composant avant usa
 | Saisie simple | `Field` (`input`), `label`, `description`, `error`, taille compacte, props natives ; `inputClassName` pour une adaptation locale |
 | Booléen | `Switch`, `checked`, `onCheckedChange`, nom accessible ; le composant rend un bouton |
 | Saisie composée / sélection | `NativeInput` / `NativeSelect`, props et ref natifs, `density="comfortable"` (défaut) ou `"compact"` ; conservent `defaultValue`, `multiple`, `size`, validation et `FormData`. Associer un label. |
+| Recherche avec icône / jetons | `InputSurface density="compact"` contenant un `NativeInput` direct et les décorations/jetons ; une seule bordure et un focus neutre sur la surface, sans cadre sur la saisie interne. Le nom accessible reste sur l’input. |
 | Texte multiligne | `<textarea className="ui-native-textarea">`, label associé, `aria-describedby`, `aria-invalid`, `disabled`, `data-size="compact"` si nécessaire |
 | Section de document | `Section`, props natives de `<section>` ; le consommateur fournit titre et actions. Hairline et espacement communs, sans carte. |
 | Tableau de lecture | `ReadTable scrollLabel="…"`, props/ref du `<table>` ; scrollport nommé et accessible au clavier, caption/th/td conservés. Aucun modèle de données ajouté. |
@@ -150,6 +159,25 @@ formulaire composé, `NativeInput` apporte la même peinture sans imposer de wra
 `.ui-field__control` appartient à `Field` : ne pas l’utiliser seule sur une saisie
 de domaine. Les éditeurs de brouillon qui gèrent eux-mêmes leur ref peuvent employer
 `.ui-native-input`, sans changer leur protocole d’édition.
+
+Une recherche avec icône ou des choix sélectionnés utilise `InputSurface` :
+
+```tsx
+<InputSurface density="compact">
+  <AppIcon name="search" size="small" />
+  <NativeInput aria-label="Rechercher une propriété" placeholder="Rechercher…"
+    value={query} onChange={event => setQuery(event.target.value)} />
+</InputSurface>
+```
+
+La peinture de la surface et du contrôle interne appartient à `primitives.css`.
+Ne pas ajouter de bordure/outline sur l’input ni rétablir un second champ dans
+le CSS de feature. La densité du wrapper gouverne sa saisie et le tactile.
+Usages réels : `EntryChoicePicker` et `DatabaseIconPicker` (essayables dans
+le lab d’entrée), ainsi que l’écran Propriétés de `ViewSettingsPanel` dans une
+base. Pour un jeton retirable, garder la croix
+dans la même `OptionPill` (`trailing`), réserver sa place même si le nom est long,
+et conserver un bouton de retrait nommé qui rend le focus à la recherche.
 
 ```tsx
 <Section aria-labelledby="compare-title">
@@ -235,6 +263,43 @@ restent en place ; les nouveaux espacements communs utilisent l’échelle.
   compact et les flèches de déplacement partagent une ligne ; les flèches gardent
   un nom accessible décrivant la destination et une aide au survol. Les cibles
   de 32 px passent à 44 px avec un pointeur tactile.
+- **Entrée de base** : `workspace-page-canvas.workspace-entry-canvas` contient
+  `EntryPanel` avec `renderHeader(onClose)` → `PageTitleEditor` (titre/icône,
+  chemin et retour). `entry-properties` et le document/dossier suivent la même
+  colonne ; `workspace.css` possède ce placement, `database.css` possède les
+  lignes/valeurs. `ValueEditor presentation="entry"` utilise `EntryChoicePicker`
+  et les mêmes `OptionPill` que les cellules : recherche/création, jetons retirables,
+  réglage du nom et de la couleur depuis chaque option. Relations en menu,
+  autres champs natifs compacts. `useEntryAutosave` conserve la saisie et sérialise
+  les écritures locales après une pause, blur/Entrée ou un choix immédiat ; aucun
+  bouton Enregistrer. `saveEntryPropertyChanges` fusionne uniquement les champs
+  modifiés dans la dernière révision, bloque une divergence sur le même champ
+  et préserve le brouillon pour reprise. Ne pas remplacer cette file par une
+  écriture du formulaire entier à chaque caractère.
+  `EntryPropertyList` possède les poignées à six points, la preview bleue et
+  le même menu d’actions au clic normal, clic droit ou Maj+F10 ; Échap rend le
+  focus au libellé. `PropertyConfiguration` et
+  `PropertyOptionSettings` utilisent les menus/popovers partagés et les tokens
+  de contenu ; leurs modifications sont automatiques. Les mutations passent
+  par `editEntrySourceDefinition`, avec confirmation d’impact avant retrait ou
+  changement incompatible et conservation des valeurs pour récupération.
+  `DatabaseIconPicker` est le sélecteur commun des icônes de vues et propriétés,
+  avec le catalogue de `view-icon.tsx`. `PropertyIconPicker` l’ouvre depuis la
+  configuration d’entrée et les réglages de source ; `DatabasePropertyIcon`
+  affiche partout le choix ou le symbole du type. La marque vit dans la propriété
+  (`icon` facultatif/null), jamais dans les valeurs ni dans une colonne de vue.
+  Retirer le choix revient au symbole du type ; conversion/duplication gardent
+  la marque. Conserver une grille sans débordement et les cibles tactiles.
+  L’ordre des lignes est celui des propriétés de la source ; les colonnes des
+  vues gardent leur ordre propre. Glisser ne persiste qu’au dépôt, Échap annule ;
+  clavier Espace/flèches/Espace et commandes Monter/Descendre restent disponibles.
+  Conserver protection de révision, validation, erreurs près des champs et
+  rôles de tâches accessibles. Ne pas ajouter un deuxième petit titre ou une carte
+  de formulaire. Exemple mémoire : `/__ui-lab?review=entry` (page/dossier,
+  indisponible, vide, échec/succès). Le lab ne restyle que ses titres de section
+  directs ; il laisse la typographie du document au propriétaire éditeur.
+  La liste invisible de mesure du chemin est contenue sans comprimer ses
+  segments ; les liens visibles respectent la largeur de leur segment.
 - **Navigation** : outils `workspace-navigation__search/__graph`, rangées d’arbre
   et `navigation.css`. Icône + libellé à gauche, fond discret ; icônes de ligne
   révélées puis chrome seulement au survol du contrôle (L-001…008/L-013).
@@ -256,6 +321,16 @@ restent en place ; les nouveaux espacements communs utilisent l’échelle.
 - **Éditeur tiers** : `editor.css`, `editor-table.css` et
   [guide des tableaux](affine-table-ui.md). Hover/drag hors du DOM ProseMirror ;
   géométries/`!important` des node views sont des exceptions expliquées (L-012…017).
+  La poignée de bloc conserve AppIcon `drag` ; sa surface est rectangulaire,
+  avec des marges égales autour des points et 4 px avant le texte. Sa largeur
+  retranche un tiers de la taille du dessin à sa hauteur (32 px au pointeur,
+  44 px au tactile) : ne pas lui
+  réappliquer une cible carrée (retrait supérieur fixé par le propriétaire).
+  L'ajout et la poignée se centrent sur la première ligne de texte mesurée
+  par `editor-menus/block-side-menu-layout.ts`, dans le middleware existant.
+  Ne pas recopier un offset par niveau de titre ni centrer sur la hauteur
+  totale d'un titre multiligne ; les espacements et la typographie réels
+  doivent déterminer le placement, sans mutation du DOM ProseMirror.
 
 Ne pas reproduire la palette avec une nouvelle carte pour chaque section, des
 diagnostics dans le contenu, un dégradé promotionnel ou de gros boutons dans la

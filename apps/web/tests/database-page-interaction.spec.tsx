@@ -135,6 +135,47 @@ describe("database page interaction durability", () => {
     },
   );
 
+  it("sets a property icon from the schema panel without changing its type or views", async () => {
+    const value = database();
+    const replace = vi.fn();
+    act(() =>
+      root.render(
+        <MemoryRouter>
+          <DatabasePage
+            database={value}
+            entries={[]}
+            onReplaceDefinition={replace}
+            onCreateEntry={vi.fn()}
+            onOpenEntry={vi.fn()}
+          />
+        </MemoryRouter>,
+      ),
+    );
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Filtrer, trier et configurer"]')
+        ?.click(),
+    );
+    const trigger = document.querySelector<HTMLButtonElement>(
+      ".database-schema .property-icon-picker__trigger",
+    );
+    expect(trigger).not.toBeNull();
+    await act(async () => {
+      trigger?.click();
+      await new Promise((r) => setTimeout(r, 60));
+    });
+    const choice = document.querySelector<HTMLButtonElement>(
+      '[role="option"][aria-label="étoile"]',
+    );
+    expect(choice).not.toBeNull();
+    await act(async () => choice?.click());
+    expect(replace).toHaveBeenCalledOnce();
+    const definition = replace.mock.calls[0]?.[0] as DatabaseDefinition;
+    expect(definition.properties[0]).toEqual({ ...value.definition.properties[0], icon: "star" });
+    expect(definition.views).toEqual(value.definition.views);
+    expect(definition.taskRoles).toEqual(value.definition.taskRoles);
+  });
+
   it("submits the latest option text even before React commits its next render", async () => {
     const onReplaceDefinition = vi.fn();
     const initialDatabase = database();

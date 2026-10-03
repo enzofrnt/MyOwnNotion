@@ -3,15 +3,15 @@ import { AttachmentUsages } from "../files/attachment-usages.tsx";
  * Discreet per-page attachment panel (T060, US2).
  *
  * Attachments stay out of the main tree (FR-006) and are discoverable here:
- * import a new file, attach an existing canonical file, or remove one
- * placement (the final removal sends the file to the 30-day trash).
+ * inspect the files embedded in the current local document. Insertion and
+ * removal of page references belong to the editor, not to this list.
  */
 
-import type { FileUsageDto, ItemDto, ProblemDto } from "@myownnotion/contracts";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import type { ProjectedItem } from "@myownnotion/client-core";
+import type { FileUsageDto, ProblemDto } from "@myownnotion/contracts";
+import type { Uuid } from "@myownnotion/domain";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
-import { safeKeyBetween } from "../../services/ordering.ts";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
   AsyncState,
@@ -71,8 +71,10 @@ export function CompactAttachmentList({
           data-testid={`attachment-${row.item.name}`}
           data-availability={row.availability}
         >
-          <AppIcon name="file" size="small" />
-          <span className="workspace-attachment-file__name">{row.item.name}</span>
+          <AppIcon name="paperclip" size="small" />
+          <span className="workspace-attachment-file__name" title={row.item.name}>
+            {row.item.name}
+          </span>
           <span
             className="workspace-attachment-file__size"
             data-testid={`attachment-size-${row.item.name}`}
@@ -89,6 +91,7 @@ export function CompactAttachmentList({
                 <AppIcon name="more" size="small" />
               </PopoverTrigger>
               <PopoverContent
+                unmountOnHide
                 className="workspace-attachment-file__details-panel"
                 aria-label={`Détails de ${row.item.name}`}
                 data-testid={`attachment-details-${row.item.name}`}
@@ -116,7 +119,9 @@ export function CompactAttachmentList({
                     : FR_COPY.files.attachments.notSynchronized}
                 </span>
                 <span data-testid={`attachment-usages-${row.item.name}`}>
-                  {row.usages.length === 0 ? (
+                  {row.usagesKnown === false ? (
+                    FR_COPY.files.attachments.usagesUnknown
+                  ) : row.usages.length === 0 ? (
                     FR_COPY.files.attachments.usedNowhereElse
                   ) : (
                     <AttachmentUsages usages={row.usages} onOpenUsage={onOpenUsage} />
@@ -133,140 +138,74 @@ export function CompactAttachmentList({
 }
 
 export function AttachmentPanel({
+  attachments,
   compact = false,
   pageId,
   onChanged,
   onOpenUsage,
 }: {
   readonly pageId: Uuid;
+  readonly attachments: readonly ProjectedItem[] | undefined;
   readonly compact?: boolean;
   readonly onChanged?: () => void;
   /** Opens a page that uses one of these files, so a usage is reachable (FR-005). */
   readonly onOpenUsage?: (itemId: Uuid) => void;
 }) {
   const api = useMemo(() => new ContentApi(), []);
-  const [attachments, setAttachments] = useState<ItemDto[]>([]);
   const [usagesByFile, setUsagesByFile] = useState<Record<string, FileUsageDto[]>>({});
   const [problem, setProblem] = useState<ProblemDto | null>(null);
-  const [busy, setBusy] = useState(false);
+  const usagesRequest = useRef(0);
   /** One preview open at a time: several 2 GB blobs at once is a crash. */
   const [previewing, setPreviewing] = useState<string | null>(null);
-  const compactUploadInput = useRef<HTMLInputElement | null>(null);
+  const attachmentIds = attachments?.map((item) => item.id).join(",") ?? "";
 
   const refresh = useCallback(async () => {
-    // Attachments are file items with an attachment placement on this page.
-    const result = await api.listItems({ lifecycle: "active" });
-    if (!result.ok) {
-      setProblem(result.problem);
-      return;
-    }
-    const attached = result.value.items.filter((item) =>
-      item.placements.some(
-        (placement) => placement.kind === "attachment" && placement.parentItemId === pageId,
-      ),
-    );
-    setAttachments(attached);
-
+    const request = ++usagesRequest.current;
+    setProblem(null);
     // Usages are fetched per file rather than carried on the listing: they are
     // read on this one screen, and putting them on every item would cost every
     // screen for this screen's benefit.
     const collected: Record<string, FileUsageDto[]> = {};
-    for (const item of attached) {
-      const usages = await api.fileUsages(item.id as Uuid);
+    for (const id of attachmentIds.split(",").filter(Boolean)) {
+      const usages = await api.fileUsages(id as Uuid);
+      if (request !== usagesRequest.current) return;
       // A usage lookup that fails leaves the row without usages rather than
       // failing the panel: the other eight fields are still worth showing, and
       // the deletion path fetches its own list before destroying anything.
-      collected[item.id] = usages.ok ? usages.value.usages : [];
+      if (!usages.ok) setProblem(usages.problem);
+      else collected[id] = usages.value.usages;
     }
     setUsagesByFile(collected);
-  }, [api, pageId]);
+  }, [api, attachmentIds]);
 
   /**
    * The nine fields of FR-002, assembled from what the client actually knows.
    *
-   * Availability is `present` for everything the API just returned, which is
-   * honest today: nothing offloads yet. It becomes real in US4, and the row
-   * already renders all three states so that arrival is a data change rather
-   * than a redesign.
+   * Membership and local availability come from the durable local projection.
+   * A successful usages lookup confirms that the server knows the file.
    */
-  const rows: AttachmentRow[] = attachments.map((item) => {
+  const rows: AttachmentRow[] = (attachments ?? []).map((item) => {
     return {
       item,
       addedAt: null,
       location: FR_COPY.files.attachments.location,
       usages: usagesByFile[item.id] ?? [],
-      availability: "present",
-      // The server answered with it, so it is stored and verified there.
-      synchronized: true,
+      usagesKnown: usagesByFile[item.id] !== undefined,
+      availability: item.localAvailability,
+      synchronized: usagesByFile[item.id] !== undefined,
     };
   });
 
   useEffect(() => {
     void refresh();
+    return () => {
+      ++usagesRequest.current;
+    };
   }, [refresh]);
 
-  const importFile = useCallback(
-    async (fileList: FileList | null) => {
-      const file = fileList?.[0];
-      if (file === undefined) {
-        return;
-      }
-      setBusy(true);
-      setProblem(null);
-      const keys = attachments
-        .flatMap((item) =>
-          item.placements.filter(
-            (placement) => placement.kind === "attachment" && placement.parentItemId === pageId,
-          ),
-        )
-        .map((placement) => placement.positionKey)
-        .sort();
-      const positionKey = safeKeyBetween(keys[keys.length - 1] ?? null, null);
-      const result = await api.importFile(generateUuidV7(), file, {
-        kind: "attachment",
-        parentItemId: pageId,
-        positionKey,
-      });
-      if (!result.ok) {
-        setProblem(result.problem);
-      }
-      setBusy(false);
-      await refresh();
-      onChanged?.();
-    },
-    [api, attachments, pageId, refresh, onChanged],
-  );
-
-  const removePlacement = useCallback(
-    async (placementId: Uuid) => {
-      setProblem(null);
-      const result = await api.removePlacement(generateUuidV7(), placementId);
-      if (!result.ok) {
-        setProblem(result.problem);
-      }
-      await refresh();
-      onChanged?.();
-    },
-    [api, refresh, onChanged],
-  );
-
   const actions = (row: AttachmentRow): ReactNode => {
-    const placement = row.item.placements.find(
-      (candidate) => candidate.kind === "attachment" && candidate.parentItemId === pageId,
-    );
     return (
       <>
-        <Button
-          type="button"
-          size="compact"
-          variant="ghost"
-          aria-label={`${FR_COPY.files.attachments.remove} : ${row.item.name}`}
-          onClick={() =>
-            placement !== undefined ? void removePlacement(placement.id as Uuid) : undefined
-          }
-        >
-          {FR_COPY.files.attachments.removeAction}
-        </Button>
         <Button
           type="button"
           size="compact"
@@ -308,52 +247,44 @@ export function AttachmentPanel({
     >
       <div className="workspace-attachment-panel__header">
         <h2>{FR_COPY.files.attachments.title}</h2>
-        {compact ? (
+        {compact && attachments !== undefined ? (
           <span className="workspace-attachment-panel__count" title={`${rows.length} fichiers`}>
             {rows.length}
           </span>
         ) : null}
-        {compact ? (
-          <Button
-            type="button"
-            size="square"
-            variant="ghost"
-            className="workspace-attachment-panel__upload"
-            aria-label={FR_COPY.files.attachments.add}
-            title={FR_COPY.files.attachments.add}
-            disabled={busy}
-            onClick={() => compactUploadInput.current?.click()}
-          >
-            <AppIcon name="add" size="small" />
-          </Button>
-        ) : null}
-        {compact ? (
-          <input
-            ref={compactUploadInput}
-            data-testid="attachment-upload"
-            type="file"
-            hidden
-            disabled={busy}
-            onChange={(event) => void importFile(event.target.files)}
-          />
-        ) : null}
       </div>
       {problem !== null ? (
-        <AsyncState kind="error" compact description={FR_COPY.files.attachments.loadFailed} />
+        <AsyncState
+          kind="error"
+          compact
+          description={FR_COPY.files.attachments.usagesUnavailable}
+          action={
+            <Button type="button" size="compact" variant="ghost" onClick={() => void refresh()}>
+              {FR_COPY.actions.retry}
+            </Button>
+          }
+        />
       ) : null}
-      {compact ? null : (
-        <div className="field-row">
-          <label htmlFor={`attachment-upload-${pageId}`}>{FR_COPY.files.attachments.add}</label>
-          <input
-            id={`attachment-upload-${pageId}`}
-            data-testid="attachment-upload"
-            type="file"
-            disabled={busy}
-            onChange={(event) => void importFile(event.target.files)}
-          />
-        </div>
-      )}
-      {compact ? (
+      {attachments === undefined ? (
+        <AsyncState
+          kind="info"
+          compact
+          title={FR_COPY.files.attachments.unloadedTitle}
+          description={FR_COPY.files.attachments.unloadedDescription}
+          action={
+            onOpenUsage === undefined ? undefined : (
+              <Button
+                type="button"
+                size="compact"
+                variant="ghost"
+                onClick={() => onOpenUsage(pageId)}
+              >
+                {FR_COPY.files.attachments.openPage}
+              </Button>
+            )
+          }
+        />
+      ) : compact ? (
         <CompactAttachmentList
           rows={rows}
           onOpenUsage={(itemId) => onOpenUsage?.(itemId as Uuid)}

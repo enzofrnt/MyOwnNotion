@@ -201,15 +201,16 @@ function draggedBlockIdForCursor(editor: EditorInstance): string | null {
   return activeReorder?.blockId ?? blockContainerIdAtSelection(editor);
 }
 
-function readingColumnRect(): DOMRect | null {
-  const sample = document.querySelector<HTMLElement>(
-    ".page-editor .bn-editor > .bn-block-group > .bn-block-outer:not(:has(> .bn-block > .node-table))",
+function readingColumnRect(editor: EditorInstance): DOMRect {
+  // Other tab sessions stay mounted with zero-size hidden DOM. Their column
+  // must never supply the active drag's geometry.
+  const editorDOM = editor.prosemirrorView.dom;
+  const sample = editorDOM.querySelector<HTMLElement>(
+    ":scope > .bn-block-group > .bn-block-outer:not(:has(> .bn-block > .node-table))",
   );
   if (sample !== null) return sample.getBoundingClientRect();
-  const editor = document.querySelector<HTMLElement>(".page-editor .bn-editor");
-  if (editor === null) return null;
-  const editorRect = editor.getBoundingClientRect();
-  const styles = getComputedStyle(editor);
+  const editorRect = editorDOM.getBoundingClientRect();
+  const styles = getComputedStyle(editorDOM);
   const padStart = Number.parseFloat(styles.paddingInlineStart) || 0;
   const padEnd = Number.parseFloat(styles.paddingInlineEnd) || 0;
   return new DOMRect(
@@ -229,12 +230,19 @@ const DROP_CURSOR_SELECTOR = [
   ".prosemirror-dropcursor-block-vertical-right",
 ].join(", ");
 
+function activeDropCursor(): HTMLElement | null {
+  // BlockNote mounts its overlay in this view's offsetParent. Scope to that
+  // host so a hidden tab's leftover cursor cannot steal this drag's preview.
+  const host = activeReorder?.editor.prosemirrorView.dom.offsetParent;
+  return host?.querySelector<HTMLElement>(DROP_CURSOR_SELECTOR) ?? null;
+}
+
 /** Keep the drop stroke on the reading column, not the table’s 100cqi breakout. */
 export function alignDropCursorToReadingColumn(): void {
   if (activeReorder === null) return;
-  const cursor = document.querySelector<HTMLElement>(DROP_CURSOR_SELECTOR);
-  const column = readingColumnRect();
-  if (cursor === null || column === null) return;
+  const cursor = activeDropCursor();
+  const column = readingColumnRect(activeReorder.editor);
+  if (cursor === null) return;
   const parent = cursor.offsetParent;
   const parentLeft = parent instanceof HTMLElement ? parent.getBoundingClientRect().left : 0;
   const nextLeft = `${column.left - parentLeft}px`;
@@ -371,7 +379,7 @@ function setBlockGrabCursor(active: boolean): void {
 
 function dropCursorIsVisible(): boolean {
   if (typeof document === "undefined") return false;
-  const cursor = document.querySelector<HTMLElement>(DROP_CURSOR_SELECTOR);
+  const cursor = activeDropCursor();
   if (cursor === null || cursor.style.display === "none") return false;
   return cursor.getClientRects().length > 0;
 }

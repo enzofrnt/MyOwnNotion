@@ -58,7 +58,7 @@ export interface CanonicalItem {
   readonly workspaceId: Uuid;
   readonly kind: ItemKind;
   readonly name: string;
-  /** One optional Unicode emoji grapheme used consistently as this item's icon. */
+  /** One optional Unicode emoji, or a `symbol:` id from the shared icon catalog. */
   readonly icon: string | null;
   readonly lifecycle: Lifecycle;
   readonly trashedAt: string | null;
@@ -213,21 +213,24 @@ export function normalizeDisplayName(raw: string): DomainResult<string> {
  * Validates the owner-selected icon without depending on an emoji vendor.
  *
  * Unicode grapheme segmentation keeps joined families, skin tones, flags and
- * keycaps as one visible icon. The property checks then reject ordinary text,
- * lone regional indicators and plain digits that merely participate in some
- * emoji sequences.
+ * keycaps as one visible icon. A `symbol:` id is the shared catalog used by
+ * property and view icons. The checks reject ordinary text, lone regional
+ * indicators and plain digits that merely participate in some emoji sequences.
  */
+const PAGE_SYMBOL_ICON = /^symbol:[a-z0-9-]{1,40}$/;
+
 export function normalizeItemIcon(raw: string | null): DomainResult<string | null> {
   if (raw === null) {
     return ok(null);
   }
   const icon = raw.trim();
+  if (PAGE_SYMBOL_ICON.test(icon)) return ok(icon);
   const graphemes = [...new Intl.Segmenter("und", { granularity: "grapheme" }).segment(icon)];
   const isFlag = /^\p{Regional_Indicator}{2}$/u.test(icon);
   const isKeycap = /^[0-9#*]\uFE0F?\u20E3$/u.test(icon);
   const isPictograph = /\p{Extended_Pictographic}/u.test(icon);
   if (graphemes.length !== 1 || (!isFlag && !isKeycap && !isPictograph)) {
-    return err("validation.invalid-icon", "Item icon must be one Unicode emoji");
+    return err("validation.invalid-icon", "Item icon must be one Unicode emoji or a symbol id");
   }
   return ok(icon);
 }

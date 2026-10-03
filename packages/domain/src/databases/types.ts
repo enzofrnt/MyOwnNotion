@@ -47,6 +47,8 @@ export interface PropertyOption {
 interface DatabasePropertyBase {
   readonly id: Uuid;
   readonly name: string;
+  /** Optional source-owned mark; absent/null keeps the property type symbol. */
+  readonly icon?: string | null;
   readonly positionKey: string;
   readonly state: DatabaseObjectState;
 }

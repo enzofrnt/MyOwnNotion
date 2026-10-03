@@ -14,6 +14,8 @@ export type DatabaseViewRow = DatabaseQueryPageDto["rows"][number] & {
   readonly syncState: DatabaseRowSyncState;
   /** Page or folder, using the same glyphs as the tree. Absent rows stay a blank page. */
   readonly itemKind?: "page" | "folder";
+  /** Chosen page or folder mark. Absent or null keeps the default glyph. */
+  readonly icon?: string | null;
   /** Pages with no editorial body keep the blank-page glyph. */
   readonly holdsContent?: boolean;
 };

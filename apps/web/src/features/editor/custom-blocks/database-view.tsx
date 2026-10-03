@@ -71,6 +71,7 @@ async function loadView(
         databaseId: source.itemId,
         entryId: item.id,
         kind: item.kind,
+        icon: item.icon ?? null,
         revisionId: item.currentRevisionId,
         lifecycle: item.lifecycle,
         title: item.name,

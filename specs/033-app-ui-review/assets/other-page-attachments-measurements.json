@@ -1,0 +1,334 @@
+{
+  "beforeNavigationOpening": {
+    "scriptMs": 303.5540000000019,
+    "taskMs": 392.71600000000717
+  },
+  "afterEmptyOpening": [
+    {
+      "name": "LayoutCount",
+      "delta": 27
+    },
+    {
+      "name": "RecalcStyleCount",
+      "delta": 39
+    },
+    {
+      "name": "LayoutDuration",
+      "delta": 0.004670999999999981
+    },
+    {
+      "name": "RecalcStyleDuration",
+      "delta": 0.005765999999999938
+    },
+    {
+      "name": "ScriptDuration",
+      "delta": 0.007765999999996609
+    },
+    {
+      "name": "TaskDuration",
+      "delta": 0.11489500000000419
+    }
+  ],
+  "afterFilledOpening": [
+    {
+      "name": "LayoutCount",
+      "delta": 28
+    },
+    {
+      "name": "RecalcStyleCount",
+      "delta": 38
+    },
+    {
+      "name": "LayoutDuration",
+      "delta": 0.004988000000000048
+    },
+    {
+      "name": "RecalcStyleDuration",
+      "delta": 0.005773999999999946
+    },
+    {
+      "name": "ScriptDuration",
+      "delta": 0.02582999999999913
+    },
+    {
+      "name": "TaskDuration",
+      "delta": 0.09466299999999706
+    }
+  ],
+  "afterFilledLazyOpening": [
+    {
+      "name": "LayoutCount",
+      "delta": 27
+    },
+    {
+      "name": "RecalcStyleCount",
+      "delta": 32
+    },
+    {
+      "name": "LayoutDuration",
+      "delta": 0.0045880000000000365
+    },
+    {
+      "name": "RecalcStyleDuration",
+      "delta": 0.0030210000000000514
+    },
+    {
+      "name": "ScriptDuration",
+      "delta": 0.010694999999998345
+    },
+    {
+      "name": "TaskDuration",
+      "delta": 0.06622799999999529
+    }
+  ],
+  "afterFilledClosing": [
+    {
+      "name": "LayoutCount",
+      "delta": 28
+    },
+    {
+      "name": "RecalcStyleCount",
+      "delta": 32
+    },
+    {
+      "name": "LayoutDuration",
+      "delta": 0.004489999999999994
+    },
+    {
+      "name": "RecalcStyleDuration",
+      "delta": 0.0038599999999999746
+    },
+    {
+      "name": "ScriptDuration",
+      "delta": 0.010435999999998558
+    },
+    {
+      "name": "TaskDuration",
+      "delta": 0.13014800000000548
+    }
+  ],
+  "responsive": [
+    {
+      "overflow": false,
+      "panel": "true",
+      "row": [
+        {
+          "background": "rgb(48, 48, 45)",
+          "controls": [
+            {
+              "label": "Pièces jointes de la page d’exemple",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 236,
+                "y": 598.5
+              },
+              "visibility": "visible"
+            },
+            {
+              "label": "Ajouter dans Vue d’ensemble — Produit et documentation",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 264,
+                "y": 598.5
+              },
+              "visibility": "visible"
+            },
+            {
+              "label": "Actions pour la page d’exemple",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 292,
+                "y": 598.5
+              },
+              "visibility": "visible"
+            }
+          ],
+          "open": "true",
+          "radius": "0px",
+          "selected": "false"
+        }
+      ],
+      "theme": "dark",
+      "width": 1280
+    },
+    {
+      "overflow": false,
+      "panel": "true",
+      "row": [
+        {
+          "background": "rgb(239, 237, 232)",
+          "controls": [
+            {
+              "label": "Pièces jointes de la page d’exemple",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 236,
+                "y": 598.5
+              },
+              "visibility": "visible"
+            },
+            {
+              "label": "Ajouter dans Vue d’ensemble — Produit et documentation",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 264,
+                "y": 598.5
+              },
+              "visibility": "visible"
+            },
+            {
+              "label": "Actions pour la page d’exemple",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 292,
+                "y": 598.5
+              },
+              "visibility": "visible"
+            }
+          ],
+          "open": "true",
+          "radius": "0px",
+          "selected": "false"
+        }
+      ],
+      "theme": "light",
+      "width": 1280
+    },
+    {
+      "overflow": false,
+      "panel": "true",
+      "row": [
+        {
+          "background": "rgb(48, 48, 45)",
+          "controls": [
+            {
+              "label": "Pièces jointes de la page d’exemple",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 180,
+                "y": 919.59375
+              },
+              "visibility": "visible"
+            },
+            {
+              "label": "Ajouter dans Vue d’ensemble — Produit et documentation",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 208,
+                "y": 919.59375
+              },
+              "visibility": "visible"
+            },
+            {
+              "label": "Actions pour la page d’exemple",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 236,
+                "y": 919.59375
+              },
+              "visibility": "visible"
+            }
+          ],
+          "open": "true",
+          "radius": "0px",
+          "selected": "false"
+        }
+      ],
+      "theme": "dark",
+      "width": 320
+    },
+    {
+      "overflow": false,
+      "panel": "true",
+      "row": [
+        {
+          "background": "rgb(239, 237, 232)",
+          "controls": [
+            {
+              "label": "Pièces jointes de la page d’exemple",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 180,
+                "y": 919.59375
+              },
+              "visibility": "visible"
+            },
+            {
+              "label": "Ajouter dans Vue d’ensemble — Produit et documentation",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 208,
+                "y": 919.59375
+              },
+              "visibility": "visible"
+            },
+            {
+              "label": "Actions pour la page d’exemple",
+              "opacity": "1",
+              "rect": {
+                "h": 24,
+                "w": 24,
+                "x": 236,
+                "y": 919.59375
+              },
+              "visibility": "visible"
+            }
+          ],
+          "open": "true",
+          "radius": "0px",
+          "selected": "false"
+        }
+      ],
+      "theme": "light",
+      "width": 320
+    }
+  ],
+  "touch": {
+    "coarse": true,
+    "overflow": false,
+    "selected": "false",
+    "targets": [
+      {
+        "h": 44,
+        "label": "Pièces jointes de la page d’exemple",
+        "w": 44,
+        "x": 120
+      },
+      {
+        "h": 44,
+        "label": "Ajouter dans Vue d’ensemble — Produit et documentation",
+        "w": 44,
+        "x": 168
+      },
+      {
+        "h": 44,
+        "label": "Actions pour la page d’exemple",
+        "w": 44,
+        "x": 216
+      }
+    ],
+    "width": 320
+  }
+}

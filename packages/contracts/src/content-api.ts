@@ -653,6 +653,12 @@ export const DatabasePropertyOptionSchema = Type.Object(
 const DatabasePropertyBase = {
   id: UuidSchema,
   name: DisplayNameSchema,
+  icon: Type.Optional(
+    Type.Union([
+      Type.String({ minLength: 1, maxLength: 40, pattern: "^[a-z0-9-]+$" }),
+      Type.Null(),
+    ]),
+  ),
   positionKey: Type.String({ minLength: 1, maxLength: 255 }),
   state: DatabaseStateSchema,
 };
@@ -1035,6 +1041,8 @@ export const DatabaseEntrySchema = Type.Object(
     databaseId: UuidSchema,
     entryId: UuidSchema,
     kind: Type.Optional(Type.Union([Type.Literal("page"), Type.Literal("folder")])),
+    /** Page or folder mark. Absent or null keeps the default glyph. */
+    icon: Type.Optional(ItemIconSchema),
     revisionId: UuidSchema,
     lifecycle: LifecycleSchema,
     title: Type.String(),

@@ -421,6 +421,13 @@ components:
           type: string
           minLength: 1
           maxLength: 512
+        icon:
+          oneOf:
+            - type: string
+              minLength: 1
+              maxLength: 40
+              pattern: "^[a-z0-9-]+$"
+            - type: "null"
         type:
           enum:
             [title, text, number, date, status, select, multi-select, checkbox, relation]
@@ -803,6 +810,15 @@ components:
           $ref: "#/components/schemas/Uuid"
         entryId:
           $ref: "#/components/schemas/Uuid"
+        kind:
+          enum: [page, folder]
+        icon:
+          description: Page or folder mark. Absent or null keeps the default glyph.
+          oneOf:
+            - type: string
+              minLength: 1
+              maxLength: 64
+            - type: "null"
         revisionId:
           $ref: "#/components/schemas/Uuid"
         lifecycle:

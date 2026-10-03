@@ -9,6 +9,12 @@ describe("item identity icon", () => {
     const folder = renderToStaticMarkup(<ItemIcon kind="folder" icon="📁" />);
 
     expect(page).toContain("🧠");
+    expect(renderToStaticMarkup(<ItemIcon kind="page" icon="symbol:star" />)).toContain(
+      'data-icon="star"',
+    );
+    expect(renderToStaticMarkup(<ItemIcon kind="page" icon="symbol:star" />)).not.toContain(
+      "symbol:star",
+    );
     expect(page).toContain('data-item-emoji="true"');
     expect(page).toContain('data-item-kind-badge="page"');
     expect(page).toContain('data-icon="fileText"');

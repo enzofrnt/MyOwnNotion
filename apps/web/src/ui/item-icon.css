@@ -91,10 +91,11 @@
   height: 0.625rem;
 }
 
-.emoji-picker-popover,
-.emoji-picker-dialog {
+.emoji-picker-popover.ui-popover,
+.emoji-picker-dialog.ui-dialog {
   width: min(22rem, calc(100vw - 2 * var(--ui-space-3)));
   padding: var(--ui-space-2);
+  overflow: hidden;
 }
 
 .emoji-picker-panel {
@@ -103,11 +104,87 @@
   gap: var(--ui-space-2);
 }
 
+.emoji-picker-panel__kinds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  background: var(--ui-color-surface);
+  border-radius: var(--ui-radius-md);
+}
+
+.emoji-picker-panel__kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-1);
+  min-height: var(--ui-target-compact);
+  padding: 0 var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--ui-radius-md) - 2px);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+  cursor: pointer;
+}
+
+.emoji-picker-panel__kind[aria-selected="true"] {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-raised);
+}
+
+.emoji-picker-panel__kind:hover,
+.emoji-picker-panel__kind:focus-visible {
+  color: var(--ui-color-text);
+}
+
+.emoji-picker-panel__kind:focus-visible {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: -1px;
+}
+
 .emoji-picker-panel__mart,
-.emoji-picker-panel__mart > em-emoji-picker {
-  display: block;
+.emoji-picker-panel__symbols {
+  height: min(435px, calc(100dvh - 10rem));
+  min-height: 12rem;
+  min-width: 0;
+}
+
+/* The host must stay a flex column with a definite height. `display: block`
+   lets every category grow the scroll box, so a category click changes
+   scrollTop without moving anything the owner can see. */
+.emoji-picker-panel__mart,
+.emoji-picker-panel__mart > div,
+.emoji-picker-panel__mart > div > em-emoji-picker {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 100%;
+  min-height: 0;
+}
+
+.emoji-picker-panel__mart > div,
+.emoji-picker-panel__mart > div > em-emoji-picker {
+  height: 100%;
+}
+
+.emoji-picker-panel__symbols {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.emoji-picker-panel__symbols .database-view-icon-picker__grid {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+@media (pointer: coarse) {
+  .emoji-picker-panel__kind {
+    min-height: var(--ui-target);
+  }
 }
 
 .emoji-picker-panel__remove {

@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { BlockNoteEditor, type PartialBlock } from "@blocknote/core";
 import { generateUuidV7 } from "@myownnotion/domain";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  alignDropCursorToReadingColumn,
+  beginSideMenuBlockReorder,
   blockDropTargetAtCursor,
+  endSideMenuBlockReorder,
   hideEditorDropCursors,
   isNoOpDropPosition,
   moveEditorBlock,
@@ -12,7 +15,94 @@ import {
 import type { EditorInstance } from "../src/features/editor/blocknote-schema.ts";
 import { blockNoteSchema } from "../src/features/editor/blocknote-schema.ts";
 
+function fixtureElement(root: Element, selector: string): HTMLElement {
+  const element = root.querySelector<HTMLElement>(selector);
+  if (element === null) throw new Error(`Missing fixture element: ${selector}`);
+  return element;
+}
+
 describe("side-menu block reorder", () => {
+  afterEach(() => {
+    endSideMenuBlockReorder();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("aligns the preview to the active tab even when a hidden editor comes first", () => {
+    vi.stubGlobal("DragEvent", class extends Event {});
+    const fixture = document.createElement("div");
+    fixture.innerHTML = `
+      <section class="page-editor" hidden>
+        <div class="bn-editor"><div class="bn-block-group"><div class="bn-block-outer"></div></div></div>
+        <div class="prosemirror-dropcursor-block-horizontal"></div>
+      </section>
+      <section class="page-editor">
+        <div class="bn-editor"><div class="bn-block-group">
+          <div class="bn-block-outer"><div class="bn-block"><div class="node-table"></div></div></div>
+          <div class="bn-block-outer" data-id="paragraph"></div>
+        </div></div>
+        <div class="prosemirror-dropcursor-block-horizontal"></div>
+      </section>`;
+    document.body.append(fixture);
+    const host = fixture.children[1] as HTMLElement;
+    const editorDOM = fixtureElement(host, ".bn-editor");
+    const column = fixtureElement(host, '[data-id="paragraph"]');
+    const cursor = fixtureElement(host, ".prosemirror-dropcursor-block-horizontal");
+    const hiddenCursor = fixtureElement(
+      fixture,
+      "[hidden] .prosemirror-dropcursor-block-horizontal",
+    );
+    Object.defineProperty(editorDOM, "offsetParent", { value: host });
+    Object.defineProperty(cursor, "offsetParent", { value: host });
+    vi.spyOn(host, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 0, 1100, 900));
+    vi.spyOn(column, "getBoundingClientRect").mockReturnValue(new DOMRect(480, 300, 688, 40));
+    const editor = { prosemirrorView: { dom: editorDOM } } as unknown as EditorInstance;
+
+    try {
+      beginSideMenuBlockReorder(editor, "source");
+      alignDropCursorToReadingColumn();
+
+      expect(cursor.style.display).toBe("");
+      expect(cursor.style.left).toBe("460px");
+      expect(cursor.style.width).toBe("688px");
+      expect(hiddenCursor.style.display).toBe("none");
+      expect(hiddenCursor.style.width).toBe("");
+
+      endSideMenuBlockReorder();
+      expect(cursor.style.display).toBe("none");
+      expect(document.documentElement.hasAttribute("data-block-grabbing")).toBe(false);
+    } finally {
+      endSideMenuBlockReorder();
+      fixture.remove();
+    }
+  });
+
+  it("uses the active editor's padded column when it only contains a table", () => {
+    vi.stubGlobal("DragEvent", class extends Event {});
+    const host = document.createElement("section");
+    host.innerHTML = `<div class="bn-editor" style="padding-inline-start: 40px; padding-inline-end: 40px">
+      <div class="bn-block-group"><div class="bn-block-outer"><div class="bn-block"><div class="node-table"></div></div></div></div>
+      </div><div class="prosemirror-dropcursor-block-horizontal"></div>`;
+    document.body.append(host);
+    const editorDOM = fixtureElement(host, ".bn-editor");
+    const cursor = fixtureElement(host, ".prosemirror-dropcursor-block-horizontal");
+    Object.defineProperty(editorDOM, "offsetParent", { value: host });
+    Object.defineProperty(cursor, "offsetParent", { value: host });
+    vi.spyOn(host, "getBoundingClientRect").mockReturnValue(new DOMRect(100, 0, 900, 500));
+    vi.spyOn(editorDOM, "getBoundingClientRect").mockReturnValue(new DOMRect(140, 100, 768, 300));
+    const editor = { prosemirrorView: { dom: editorDOM } } as unknown as EditorInstance;
+
+    try {
+      beginSideMenuBlockReorder(editor, "table");
+      alignDropCursorToReadingColumn();
+      expect(cursor.style.left).toBe("80px");
+      expect(cursor.style.width).toBe("688px");
+    } finally {
+      endSideMenuBlockReorder();
+      host.remove();
+    }
+  });
+
   it("moves a page-link paragraph without dropping the mention", () => {
     const first = generateUuidV7();
     const second = generateUuidV7();

@@ -23,7 +23,7 @@ import type {
 } from "@myownnotion/client-core";
 import type { Uuid } from "@myownnotion/domain";
 import { emptyDocument, generateUuidV7 } from "@myownnotion/domain";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 import { FR_COPY } from "../../ui/copy/fr.ts";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
@@ -85,6 +85,10 @@ export function EditorView({
   /** False for keep-alive sessions that must not match Playwright/a11y locators. */
   readonly discoverable?: boolean;
 }) {
+  const databaseContext = useMemo(
+    () => ({ service, openItem: onOpenPage ?? (() => {}) }),
+    [service, onOpenPage],
+  );
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [editorSettled, setEditorSettled] = useState(true);
   const editorRoot = useRef<HTMLElement | null>(null);
@@ -297,7 +301,7 @@ export function EditorView({
           device's write must never remount this surface. A mode change (an
           offline branch converting) is exactly the one remount that should
           happen, because the authority itself changed. */}
-      <DatabaseViewBlockContext.Provider value={{ service, openItem: onOpenPage ?? (() => {}) }}>
+      <DatabaseViewBlockContext.Provider value={databaseContext}>
         <EditorSurface
           key={`${itemId}:${state.mode}`}
           document={SESSION_DOCUMENT_PLACEHOLDER}

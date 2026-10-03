@@ -5,6 +5,7 @@ import { AsyncState } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { PropertyValue } from "./option-appearance.tsx";
+import { DatabasePropertyIcon } from "./property-icon.tsx";
 
 export function ListView({
   properties,
@@ -73,7 +74,12 @@ export function ListView({
                 <dl>
                   {secondary.map((property) => (
                     <div key={property.id}>
-                      <dt>{property.name}</dt>
+                      <dt className="database-property-caption">
+                        {property.icon == null ? null : (
+                          <DatabasePropertyIcon type={property.type} icon={property.icon} />
+                        )}
+                        {property.name}
+                      </dt>
                       <dd>
                         <PropertyValue property={property} row={row} />
                       </dd>

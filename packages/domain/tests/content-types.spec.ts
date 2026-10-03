@@ -63,12 +63,14 @@ describe("canonical item icon", () => {
     ["  🧑🏽‍💻  ", "🧑🏽‍💻"],
     ["🇫🇷", "🇫🇷"],
     ["1️⃣", "1️⃣"],
+    ["symbol:star", "symbol:star"],
+    ["  symbol:alarm-clock  ", "symbol:alarm-clock"],
     [null, null],
-  ] as const)("normalizes one Unicode emoji grapheme: %s", (input, expected) => {
+  ] as const)("accepts one emoji grapheme or a symbol id: %s", (input, expected) => {
     expect(normalizeItemIcon(input)).toEqual({ ok: true, value: expected });
   });
 
-  it.each(["", "  ", "A", "notes", "😀😀", "🇫", "1", "#"])(
+  it.each(["", "  ", "A", "notes", "😀😀", "🇫", "1", "#", "symbol:", "symbol:Star", "symbol:a b"])(
     "rejects a non-emoji or more than one grapheme: %s",
     (input) => {
       const result = normalizeItemIcon(input);

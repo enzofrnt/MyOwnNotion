@@ -332,17 +332,10 @@
 }
 
 .database-view-settings__search {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
-  min-height: 2rem;
   margin: 0.15rem 0.35rem 0.45rem;
-  padding: 0 0.55rem;
-  border: 1px solid color-mix(in srgb, var(--ui-color-border) 80%, transparent);
-  border-radius: var(--ui-radius-md);
+  width: auto;
 }
 
-.database-view-settings__search input,
 .database-view-settings__property-name {
   flex: 1 1 auto;
   min-width: 0;
@@ -355,7 +348,6 @@
 }
 
 .database-view-settings__name input:focus,
-.database-view-settings__search input:focus,
 .database-view-settings__property-name:focus {
   outline: none;
 }
@@ -481,6 +473,7 @@
 
 .database-view-icon-picker__remove {
   padding: 0;
+  min-height: var(--ui-target-compact);
   color: var(--ui-color-text-muted);
   background: transparent;
   border: 0;
@@ -500,33 +493,7 @@
 }
 
 .database-view-icon-picker__search {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 2rem;
   margin-bottom: 0.65rem;
-  padding: 0 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--ui-color-border) 80%, transparent);
-  border-radius: var(--ui-radius-md);
-}
-
-.database-view-icon-picker__search input {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 0.35rem 0;
-  color: var(--ui-color-text);
-  background: transparent;
-  border: 0;
-  font: inherit;
-  font-size: var(--ui-text-sm);
-}
-
-.database-view-icon-picker__search input:focus {
-  outline: none;
-}
-
-.database-view-icon-picker__search .ui-icon {
-  color: var(--ui-color-text-muted);
 }
 
 .database-view-icon-picker__section {
@@ -538,7 +505,7 @@
 
 .database-view-icon-picker__grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 2px;
   max-height: 16rem;
   overflow: auto;
@@ -548,6 +515,9 @@
   display: grid;
   place-items: center;
   aspect-ratio: 1;
+  min-height: var(--ui-target-compact);
+  min-width: 0;
+  padding: 0;
   color: var(--ui-color-text-muted);
   background: transparent;
   border: 0;
@@ -560,6 +530,12 @@
 .database-view-icon-picker__choice[aria-selected="true"] {
   color: var(--ui-color-text);
   background: var(--ui-color-surface-hover);
+}
+
+.database-view-icon-picker__choice:focus-visible,
+.database-view-icon-picker__remove:focus-visible {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: -1px;
 }
 
 .database-view-settings__list {
@@ -1510,21 +1486,70 @@
   text-decoration: none;
 }
 
-.database-cell-title-input {
+/* Cell text is the cell itself. Compatibility paints a bordered box on bare
+   inputs; these selectors outrank it so the caret sits in the full cell. */
+.database-table .database-cell-title-input,
+.database-table .database-cell-inline-input {
   flex: 1 1 auto;
+  align-self: stretch;
+  width: 100%;
   min-width: 0;
+  height: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
   margin: 0;
   padding: 0;
   border: 0;
-  outline: 0;
+  border-radius: 0;
+  outline: none;
   background: transparent;
+  box-shadow: none;
   color: var(--ui-color-text);
   font: inherit;
-  font-weight: 500;
+  /* A line box as tall as the cell clips the caret. Keep the glyphs and the
+     caret inside the field. */
+  line-height: normal;
+  overflow: hidden;
+  cursor: text;
+  caret-color: var(--ui-color-text);
 }
 
-.database-cell-title-input::placeholder {
+.database-table .database-cell-title-input,
+.database-table .database-cell-inline-input:not([type="date"]) {
+  appearance: none;
+}
+
+.database-table .database-cell-title-input:focus,
+.database-table .database-cell-title-input:focus-visible,
+.database-table .database-cell-inline-input:focus,
+.database-table .database-cell-inline-input:focus-visible {
+  outline: none;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.database-table .database-cell-title-input::placeholder,
+.database-table .database-cell-inline-input::placeholder {
   color: var(--ui-color-text-muted);
+  opacity: 1;
+}
+
+/* The writing field is the cell, including its horizontal padding. Text stays
+   on the same inset as the value shown at rest. */
+.database-container-page .database-table td[data-grid-mode="editing"] .database-cell-inline-input,
+.editor-database-view-block .database-table td[data-grid-mode="editing"] .database-cell-inline-input {
+  width: calc(100% + 2 * var(--ui-space-3));
+  max-width: none;
+  margin-inline: calc(-1 * var(--ui-space-3));
+  padding-inline: var(--ui-space-3);
+}
+
+.database-container-page .database-table td[data-grid-mode="editing"] .database-cell-title,
+.editor-database-view-block .database-table td[data-grid-mode="editing"] .database-cell-title {
+  width: calc(100% + 2 * var(--ui-space-3));
+  margin-inline: calc(-1 * var(--ui-space-3));
+  padding-inline: var(--ui-space-3);
+  min-height: var(--ui-target-compact);
 }
 
 @media (max-width: 600px) {
@@ -1771,8 +1796,6 @@
 
 .database-schema,
 .database-entry-create,
-.entry-properties,
-.entry-document,
 .database-impact,
 .property-editor,
 .task-configuration {
@@ -1793,23 +1816,12 @@
   flex-wrap: wrap;
 }
 
-.task-configuration__heading h3,
-.entry-task-properties h3 {
+.task-configuration__heading h3 {
   margin-top: 0;
 }
 
 .task-configuration__roles {
   margin-top: 0.75rem;
-}
-
-.entry-task-properties,
-.entry-ordinary-properties {
-  margin-bottom: 0.75rem;
-}
-
-.entry-task-property + .entry-task-property {
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--ui-color-border);
 }
 
 .database-schema > ul {
@@ -1837,7 +1849,7 @@
   min-height: 2rem;
 }
 
-.database-schema__summary button {
+.database-schema__summary > .ui-button:not(.property-icon-picker__trigger) {
   margin-left: auto;
 }
 
@@ -2037,11 +2049,22 @@
 .database-grid [data-grid-mode="editing"] {
   position: relative;
   z-index: 3;
-  background: color-mix(in srgb, var(--ui-color-accent) 10%, var(--ui-color-surface));
+  background: var(--ui-color-surface-active);
+}
+
+.database-container-page .database-table tbody td[data-grid-mode="editing"],
+.editor-database-view-block .database-table tbody td[data-grid-mode="editing"],
+.database-container-page .database-table tbody tr:hover td[data-grid-mode="editing"],
+.editor-database-view-block .database-table tbody tr:hover td[data-grid-mode="editing"] {
+  background: var(--ui-color-surface-active);
 }
 
 .database-table td.database-cell--property {
   cursor: pointer;
+}
+
+.database-table td.database-cell--text {
+  cursor: text;
 }
 
 .database-table td.database-cell--property:hover {
@@ -2049,7 +2072,6 @@
 }
 
 .database-table .database-cell-control,
-.database-cell-inline-field input,
 .database-cell-inline-field select {
   display: block;
   width: 100%;
@@ -2112,6 +2134,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.option-pill__trailing {
+  display: inline-flex;
+  flex: none;
+  color: var(--ui-color-text-muted);
 }
 
 .option-pill[data-tone="gray"] {
@@ -2269,6 +2297,7 @@
   display: block;
   width: 100%;
   min-width: 0;
+  min-height: var(--ui-target-compact);
 }
 
 .database-cell-inline-field .database-field__error {
@@ -2318,6 +2347,13 @@
 .database-column-resize:focus-visible::after,
 .database-column-resize[data-active]::after {
   background: var(--ui-color-accent);
+}
+
+.database-column-resize:hover,
+.database-column-resize:focus-visible,
+.database-column-resize[data-active] {
+  background: transparent;
+  box-shadow: none;
 }
 
 .database-column-resize:focus-visible {
@@ -2857,23 +2893,9 @@
   color: var(--ui-color-danger);
 }
 
-.entry-document {
-  padding-top: 1rem;
-  border-top: 1px solid var(--ui-color-border);
-}
-
 .database-shortcut {
   width: 100%;
   margin-bottom: 0.5rem;
-}
-
-/* Declared after `.muted` so the pair never descends in specificity: the
-   compound selector must keep winning the shared font-size without relying
-   on source position against the utility it refines. */
-.entry-task-property > .muted {
-  margin: 0 0 0.25rem;
-  font-size: 0.8rem;
-  font-weight: 600;
 }
 
 @media (max-width: 400px) {
@@ -2929,4 +2951,558 @@
 
 .database-field > input[type="checkbox"] {
   justify-self: start;
+}
+
+/* Entry values own their appearance here; workspace.css owns reading-column placement. */
+.entry-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  margin-bottom: var(--ui-space-4);
+}
+
+.entry-panel__header h2 {
+  margin: 0;
+  font-size: var(--ui-text-xl);
+  line-height: var(--ui-leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.entry-properties {
+  min-width: 0;
+  margin-top: var(--ui-space-4);
+}
+
+.database-field--entry {
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  gap: var(--ui-space-2) var(--ui-space-3);
+  min-height: calc(var(--ui-target-compact) + 2 * var(--ui-space-1));
+  margin: 0;
+  font-size: var(--ui-text-sm);
+}
+
+.database-field--entry > label:not(.entry-checkbox-control) {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  color: var(--ui-color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.database-field--entry > label:not(.entry-checkbox-control) > :first-child {
+  width: 1rem;
+  flex: none;
+  text-align: center;
+}
+
+.entry-checkbox-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  justify-self: start;
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  padding-left: var(--ui-space-2);
+  cursor: pointer;
+}
+
+.database-field--entry .ui-native-input,
+.database-field--entry .ui-native-select,
+.database-field--entry .option-menu__trigger {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ui-color-text);
+  font-size: inherit;
+}
+
+.database-field--entry .ui-native-input:hover,
+.database-field--entry .ui-native-select:hover,
+.database-field--entry .option-menu__trigger:hover {
+  background: var(--ui-color-surface-hover);
+}
+
+.database-field--entry .ui-native-input:focus-visible,
+.database-field--entry .ui-native-select:focus-visible,
+.database-field--entry .option-menu__trigger:focus-visible {
+  background: var(--ui-color-surface-hover);
+  outline: 1px solid var(--ui-color-border-strong);
+  outline-offset: -1px;
+}
+
+.entry-relation-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-1) var(--ui-space-3);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.entry-relation-values__page {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.entry-relation-values__icon {
+  flex: none;
+  color: var(--ui-color-text-muted);
+}
+
+.entry-relation-values__page > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-properties__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+
+.entry-properties__error {
+  margin: var(--ui-space-2) 0 0;
+  color: var(--ui-color-danger);
+  font-size: var(--ui-text-sm);
+}
+
+.entry-document {
+  margin-top: var(--ui-space-6);
+}
+
+@media (max-width: 600px) {
+  .database-field--entry {
+    grid-template-columns: minmax(0, 6rem) minmax(0, 1fr);
+    gap: var(--ui-space-1);
+  }
+}
+
+@media (max-width: 400px) {
+  .database-field--entry {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: var(--ui-space-2);
+  }
+}
+
+@media (pointer: coarse) {
+  .database-field--entry,
+  .entry-checkbox-control,
+  .database-field--entry .ui-native-input,
+  .database-field--entry .ui-native-select,
+  .database-field--entry .option-menu__trigger {
+    min-height: var(--ui-target);
+  }
+
+  .entry-checkbox-control {
+    min-width: var(--ui-target);
+  }
+}
+
+/* Entry property interactions: shared menu surfaces, no independent form chrome. */
+.entry-property-row {
+  position: relative;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.entry-property-row[data-dragging] {
+  z-index: 1;
+  background: var(--ui-color-surface-hover);
+  border-radius: var(--ui-radius-sm);
+  opacity: 0.8;
+}
+.entry-property-row[data-preview]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  height: 2px;
+  background: var(--ui-color-accent);
+  pointer-events: none;
+}
+.entry-property-row[data-preview="before"]::after {
+  top: -1px;
+}
+.entry-property-row[data-preview="after"]::after {
+  bottom: -1px;
+}
+.entry-property-row__handle.ui-button {
+  position: absolute;
+  left: -1.8rem;
+  top: 4px;
+  width: 1.54rem;
+  min-width: 1.54rem;
+  height: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  padding: 0;
+  opacity: 0;
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.entry-property-row:hover .entry-property-row__handle,
+.entry-property-row:focus-within .entry-property-row__handle,
+.entry-property-row[data-dragging] .entry-property-row__handle {
+  opacity: 1;
+}
+.entry-property-row__handle.ui-button:hover,
+.entry-property-row__handle.ui-button:focus-visible {
+  background: var(--ui-color-surface-hover);
+}
+.entry-property-row__handle:active {
+  cursor: grabbing;
+}
+.entry-property-row__label.ui-button {
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  padding: var(--ui-space-1);
+  color: var(--ui-color-text-muted);
+  font-weight: 400;
+  text-align: left;
+}
+.entry-property-row__label .ui-button__label {
+  min-width: 0;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--ui-space-2);
+}
+.entry-property-row__label .ui-button__label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entry-properties__add {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  font-size: var(--ui-text-sm);
+  cursor: pointer;
+}
+.entry-properties__add:hover {
+  background: var(--ui-color-surface-hover);
+}
+.entry-properties__status {
+  min-height: var(--ui-space-6);
+  padding-top: var(--ui-space-1);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+.entry-properties__schema-error {
+  margin: var(--ui-space-2) auto;
+  max-width: 48rem;
+  color: var(--ui-color-danger);
+}
+.entry-property-impact__heading {
+  font-weight: 600;
+}
+.ui-popover.property-settings,
+.ui-menu.property-settings__menu {
+  width: min(18rem, calc(100vw - 1rem));
+  max-width: min(18rem, calc(100vw - 1rem));
+  padding: var(--ui-space-2);
+  font-size: var(--ui-text-sm);
+}
+.ui-popover.property-settings {
+  max-height: min(36rem, calc(100dvh - 1rem));
+  overflow-y: auto;
+}
+.property-settings__menu .ui-menu__item-label {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.property-settings__menu .ui-menu__item-label > .ui-icon {
+  flex: none;
+}
+.property-settings__action .ui-button__label {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.property-settings__name {
+  display: flex;
+  gap: var(--ui-space-2);
+  align-items: center;
+  margin-bottom: var(--ui-space-2);
+}
+.property-settings__name .ui-native-input {
+  width: 100%;
+  min-width: 0;
+}
+.property-settings__name-input {
+  width: 100%;
+  min-width: 0;
+}
+.property-settings__validation {
+  display: block;
+  color: var(--ui-color-danger);
+  font-size: var(--ui-text-xs);
+}
+.property-settings__type {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  width: 100%;
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-color-text);
+  background: transparent;
+  cursor: pointer;
+}
+.property-settings__type-value {
+  margin-left: auto;
+  color: var(--ui-color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.property-settings__caption {
+  margin: var(--ui-space-2) var(--ui-space-1);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+.property-settings__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-color-text-muted);
+  cursor: pointer;
+}
+.property-settings__option:hover,
+.property-settings__type:hover {
+  background: var(--ui-color-surface-hover);
+}
+.property-settings__new-option {
+  display: flex;
+  gap: var(--ui-space-1);
+  margin-top: var(--ui-space-2);
+}
+.property-settings__new-option .ui-native-input {
+  width: 100%;
+  min-width: 0;
+}
+.property-settings__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+.property-settings__action.ui-button {
+  width: 100%;
+  justify-content: flex-start;
+  font-weight: 400;
+}
+.property-settings__danger.ui-button:hover,
+.property-settings__danger.ui-button:focus-visible {
+  color: var(--ui-color-danger);
+}
+.property-option-settings .ui-native-input {
+  width: 100%;
+  margin-bottom: var(--ui-space-2);
+}
+.property-option-settings .option-tone-picker {
+  padding: var(--ui-space-1);
+}
+.ui-popover.entry-choice {
+  width: min(24rem, calc(100vw - 1rem));
+  max-width: min(24rem, calc(100vw - 1rem));
+  padding: var(--ui-space-2);
+  font-size: var(--ui-text-sm);
+}
+.entry-choice__token {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-color-text-muted);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.entry-choice__token .option-pill {
+  min-width: 0;
+}
+.entry-choice__token:hover,
+.entry-choice__token:focus-visible {
+  background: transparent;
+}
+.entry-choice__token:focus-visible {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+.entry-choice__token:hover .option-pill__trailing {
+  color: var(--ui-color-text);
+}
+.entry-choice__list {
+  max-height: min(18rem, 45vh);
+  overflow-y: auto;
+}
+.entry-choice__row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: var(--ui-radius-sm);
+}
+.entry-choice__row:hover {
+  background: var(--ui-color-surface-hover);
+}
+.entry-choice__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  flex: 1;
+  min-width: 0;
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1);
+  border: 0;
+  background: transparent;
+  color: var(--ui-color-text);
+  cursor: pointer;
+}
+.entry-choice__option-settings.ui-button {
+  opacity: 0;
+}
+.entry-choice__row:hover .entry-choice__option-settings,
+.entry-choice__row:focus-within .entry-choice__option-settings {
+  opacity: 1;
+}
+.entry-choice__create.ui-button {
+  width: 100%;
+  justify-content: flex-start;
+  margin-top: var(--ui-space-1);
+  font-weight: 400;
+}
+@media (pointer: coarse) {
+  .entry-property-row__handle.ui-button {
+    opacity: 1;
+    height: var(--ui-target);
+    min-height: var(--ui-target);
+    top: 0;
+    width: 2.04rem;
+    min-width: 2.04rem;
+    left: -2.3rem;
+  }
+  .entry-property-row__label.ui-button,
+  .entry-properties__add,
+  .property-settings__option,
+  .property-settings__type,
+  .property-settings__toggle,
+  .entry-choice__option,
+  .entry-choice__token {
+    min-height: var(--ui-target);
+  }
+  .entry-choice__option-settings.ui-button {
+    opacity: 1;
+  }
+}
+
+.property-option-settings__swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  border: 1px solid;
+  border-radius: var(--ui-radius-sm);
+}
+.property-option-settings__swatch > span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Source property marks share the view icon palette, without changing field geometry. */
+.property-icon-picker__trigger.ui-button {
+  flex: none;
+  width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1);
+  margin: 0;
+  justify-content: center;
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border-color: transparent;
+}
+.property-icon-picker__trigger.ui-button:hover,
+.property-icon-picker__trigger.ui-button:focus-visible,
+.property-icon-picker__trigger.ui-button[aria-expanded="true"] {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+.database-view-settings__property-row {
+  display: flex;
+  gap: var(--ui-space-1);
+  align-items: center;
+  min-width: 0;
+}
+.database-view-settings__property-row > .database-view-settings__row,
+.database-view-settings__property-row > .database-view-settings__property-name {
+  flex: 1;
+  min-width: 0;
+}
+.database-view-icon-picker__empty {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+  margin: var(--ui-space-2) 0;
+}
+.database-property-caption {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+}
+@media (pointer: coarse) {
+  .property-icon-picker__trigger.ui-button {
+    width: var(--ui-target);
+    height: var(--ui-target);
+  }
+  .database-view-icon-picker__grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .database-view-icon-picker__choice,
+  .database-view-icon-picker__remove,
+  .database-view-icon-picker__search {
+    min-height: var(--ui-target);
+  }
 }

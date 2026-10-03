@@ -43,6 +43,7 @@ import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
 import { isChoiceProperty, OptionValueMenu, PropertyOptionsEditor } from "./option-appearance.tsx";
+import { DatabasePropertyIcon } from "./property-icon.tsx";
 import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
 import {
   type RelationOption,
@@ -65,6 +66,17 @@ const columnHelper = createColumnHelper<typeof FEATURES, DatabaseViewRow>();
 export interface GridCellPosition {
   readonly row: number;
   readonly column: number;
+}
+
+function TitleItemIcon({ row }: { readonly row: DatabaseViewRow }) {
+  return (
+    <ItemIcon
+      kind={row.itemKind === "folder" ? "folder" : "page"}
+      icon={row.icon ?? null}
+      holdsContent={row.holdsContent === true}
+      size="tree"
+    />
+  );
 }
 
 export type DatabaseCellUpdate =
@@ -314,15 +326,7 @@ function ColumnPropertyButton({
   const [name, setName] = useState(property.name);
   const label = (
     <span className="database-column-label">
-      {property.type === "title" ? (
-        <span aria-hidden="true">Aa</span>
-      ) : property.type === "date" ? (
-        <AppIcon name="calendar" size="small" />
-      ) : property.type === "checkbox" ? (
-        <AppIcon name="check" size="small" />
-      ) : (
-        <AppIcon name="list" size="small" />
-      )}
+      <DatabasePropertyIcon type={property.type} icon={property.icon} />
       <span className="database-column-label__name">{property.name}</span>
     </span>
   );
@@ -635,12 +639,25 @@ export function TableView({
     const input = scrollRef.current?.querySelector<HTMLInputElement>(
       `[data-title-edit="${titleEdit.id}"]`,
     );
-    if (input == null || document.activeElement === input) return;
-    input.focus();
-    if (titleEdit.seed === null) input.select();
+    if (input == null) return;
+    const end = input.value.length;
+    const caretReady =
+      document.activeElement === input &&
+      input.selectionStart === end &&
+      input.selectionEnd === end;
+    if (caretReady) return;
+    const placeCaret = () => {
+      if (!input.isConnected) return;
+      input.focus();
+      const caret = input.value.length;
+      input.setSelectionRange(caret, caret);
+    };
+    placeCaret();
+    const frame = requestAnimationFrame(placeCaret);
     if (typeof input.scrollIntoView === "function") {
       input.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
+    return () => cancelAnimationFrame(frame);
   }, [titleEdit]);
   const startTitleEdit = (entryId: string, seed: string | null): void => {
     titleEditClosed.current = null;
@@ -739,7 +756,16 @@ export function TableView({
     setEditingCell({ key: refKey(position), draft, error: null, saving: false });
     setAnnouncement(DATABASE_COPY.table.editing(property.name, row.title));
     queueMicrotask(() => {
-      refs.current.get(refKey(position))?.querySelector<HTMLElement>("input, select")?.focus();
+      const field = refs.current
+        .get(refKey(position))
+        ?.querySelector<HTMLElement>("input, select");
+      if (field instanceof HTMLInputElement && field.type !== "checkbox") {
+        field.focus();
+        const end = field.value.length;
+        field.setSelectionRange(end, end);
+        return;
+      }
+      field?.focus();
     });
   };
 
@@ -1078,7 +1104,11 @@ export function TableView({
                               else refs.current.set(key, element);
                             }}
                             className={
-                              property.type === "title" ? undefined : "database-cell--property"
+                              property.type === "title" ||
+                              property.type === "text" ||
+                              property.type === "number"
+                                ? "database-cell--text"
+                                : "database-cell--property"
                             }
                             role="gridcell"
                             aria-colindex={column + 1}
@@ -1138,11 +1168,7 @@ export function TableView({
                           >
                             {property.type === "title" && row.original.entryId === namingEntryId ? (
                               <label className="database-cell-title database-cell-title--naming">
-                                <ItemIcon
-                                  kind={row.original.itemKind === "folder" ? "folder" : "page"}
-                                  holdsContent={row.original.holdsContent === true}
-                                  size="tree"
-                                />
+                                <TitleItemIcon row={row.original} />
                                 <input
                                   className="database-cell-title-input"
                                   data-naming-entry={row.original.entryId}
@@ -1268,16 +1294,13 @@ export function TableView({
                               </div>
                             ) : property.type === "title" ? (
                               <div className="database-cell-title">
-                                <ItemIcon
-                                  kind={row.original.itemKind === "folder" ? "folder" : "page"}
-                                  holdsContent={row.original.holdsContent === true}
-                                  size="tree"
-                                />
+                                <TitleItemIcon row={row.original} />
                                 {titleEdit?.id === row.original.entryId ? (
                                   <input
                                     className="database-cell-title-input"
                                     data-title-edit={row.original.entryId}
                                     aria-label={`Nom de ${row.original.title}`}
+                                    placeholder={DATABASE_COPY.value.emptyPlaceholder}
                                     defaultValue={titleEdit.seed ?? row.original.title}
                                     onKeyDown={(event) => {
                                       event.stopPropagation();

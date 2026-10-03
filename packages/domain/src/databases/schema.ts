@@ -50,6 +50,15 @@ function normalizeOption(option: PropertyOption): PropertyOption | null {
 }
 
 function normalizeProperty(property: DatabaseProperty): DatabaseProperty | null {
+  const normalizedIcon =
+    property.icon === undefined
+      ? {}
+      : {
+          icon:
+            typeof property.icon === "string" && /^[a-z0-9-]{1,40}$/.test(property.icon)
+              ? property.icon
+              : null,
+        };
   const name = normalizeDisplayName(property.name);
   if (
     !DATABASE_PROPERTY_TYPES.includes(property.type) ||
@@ -83,9 +92,14 @@ function normalizeProperty(property: DatabaseProperty): DatabaseProperty | null 
     if (duplicateIds(property.config.options.map((option) => option.id))) return null;
     const options = property.config.options.map(normalizeOption);
     if (options.some((option) => option === null)) return null;
-    return { ...property, name: name.value, config: { options: options as PropertyOption[] } };
+    return {
+      ...property,
+      ...normalizedIcon,
+      name: name.value,
+      config: { options: options as PropertyOption[] },
+    };
   }
-  return { ...property, name: name.value };
+  return { ...property, ...normalizedIcon, name: name.value };
 }
 
 function normalizeView(view: DatabaseView): DatabaseView | null {

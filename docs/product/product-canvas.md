@@ -548,8 +548,8 @@ immédiate de repli ou de dépli. Un glissement emporte un
 fantôme de la ligne, révèle les destinations avant, dans et après, et conserve
 le curseur de prise en cours même au-dessus d'autres commandes. Les actions à droite restent compactes : pièces jointes lorsqu'elles
 existent, création d'un enfant, puis menu complémentaire. La création d'une
-page ou d'un dossier enfant se choisit dans une surface intégrée à la ligne qui
-ne décale ni son titre ni ses voisines.
+page, d'un dossier ou d'une base enfant se choisit dans une surface intégrée à
+la ligne ; le titre cède sa largeur par troncature, sans déplacer ses voisines.
 
 L'arborescence rend visuellement le lien entre un parent et ses descendants par
 une indentation et un guide sobres. Lorsqu'une branche ouverte est vide, son
@@ -565,8 +565,14 @@ le canevas, au-dessus de son titre, et peut y être modifié ou retiré.
 
 Une page révèle ses pièces jointes dans une continuation compacte de sa ligne,
 distincte de ses enfants hiérarchiques. Cette continuation ne redimensionne
-pas la ligne sélectionnée ; elle affiche un nombre, des lignes nom/taille ou un
-seul état vide. Sous-éléments et surfaces contextuelles s'ouvrent et se ferment
+pas la ligne sélectionnée ; elle affiche des lignes nom/taille ou un seul
+état vide ; les compteurs de pièces jointes restent petits et discrets.
+Tant qu'elle est ouverte, le trombone, « + » et
+le menu de ligne restent visibles ensemble. Le trombone d'une autre page permet
+d'inspecter ses fichiers dans la sidebar en conservant la page active. Ces
+inspections indépendantes se ferment à la navigation vers une autre vue ; leur
+bascule évite de recalculer les autres lignes et éditeurs.
+Sous-éléments et surfaces contextuelles s'ouvrent et se ferment
 progressivement sans laisser d'espace résiduel. Un dossier ouvert présente
 dans la zone principale son emoji et son titre modifiables avec les mêmes
 composants d'identité qu'une page, puis, à la place d'un contenu éditorial,
@@ -691,6 +697,11 @@ déplace et ne renomme jamais la page cible.
 
 Les blocs peuvent être sélectionnés, déplacés, transformés, dupliqués, regroupés et supprimés. Le bloc actif expose une poignée contextuelle, les déplacements affichent leur destination et les actions associées restent disponibles au clavier. Une sélection de plusieurs blocs conserve leur ordre lorsqu'elle est déplacée ou dupliquée. Les actions d'édition courantes doivent être annulables et rétablissables.
 
+La surface de la poignée à six points suit les proportions du dessin, avec
+un espace identique autour des points et un léger intervalle avant le texte.
+La poignée et l'ajout adjacent sont centrés face à la première ligne du texte,
+y compris pour les titres et leurs différents espacements.
+
 Une sélection de texte expose une barre de mise en forme contextuelle. Les
 mises en forme minimales comprennent le gras, l'italique, le souligné, le
 barré, le code en ligne, les liens, la couleur du texte et le surlignage. Le
@@ -745,6 +756,23 @@ dossier entrée peut lui-même contenir une base. Si une entrée quitte sa sourc
 puis y revient, elle retrouve les valeurs de propriétés qu'elle avait dans
 cette source. L'appartenance à une base ne confère aucun accès implicite aux
 pages qui l'affichent.
+
+Une entrée ouverte garde la présentation d'une page canonique : titre et
+icône éditables, chemin et colonne de lecture partagés. Les propriétés sont
+compactes et lisibles sous le titre, avec les mêmes couleurs d'options dans
+les vues et dans la page ; le contenu suit dans cette même colonne. Une prise
+de largeur de colonne ne peint que son repère d'accent, sans fond supplémentaire.
+Les valeurs s’enregistrent automatiquement sans bouton de validation. Le clic
+sur le nom et son menu contextuel permettent de configurer, renommer, dupliquer
+ou supprimer la propriété avec les confirmations d’impact nécessaires.
+Les options se choisissent, se créent et se configurent dans des panneaux
+compacts. Les poignées à six points réordonnent les propriétés des entrées
+partageant cette source, sans changer l’ordre propre aux colonnes des vues.
+Une erreur conserve la saisie et propose une reprise locale.
+Chaque propriété peut porter une icône personnalisée choisie dans le même
+catalogue que les vues. Ce choix appartient à la propriété de la source et
+se retrouve dans ses pages et affichages ; le retirer rétablit le symbole de
+son type. Changer l’icône ne change ni le type ni les valeurs.
 
 Avant la première V1, les bases, entrées et migrations de développement
 peuvent être réinitialisées explicitement pour remplacer l'ancien modèle.
@@ -811,6 +839,12 @@ Un bouton discret sur une page affiche la liste complète de ses pièces jointes
 - état de disponibilité locale ;
 - état de synchronisation ;
 - actions disponibles.
+
+Cette liste reflète les fichiers et images intégrés dans le contenu de la
+page, une ligne par fichier, et se met à jour avec ce contenu. Elle ne propose
+pas d'ajout indépendant par un bouton « + » : déposer ou insérer un fichier
+se fait dans la page. Un ancien rattachement sans bloc dans cette page n'y
+apparaît pas ; ce filtrage ne supprime ni le fichier ni ses autres usages.
 
 Déplacer ou renommer un fichier ne doit pas casser ses références. La suppression d'un fichier encore utilisé doit afficher ses utilisations et demander une confirmation explicite.
 

@@ -462,3 +462,32 @@ réelle sur Windows dans les tests desktop, exécutée sans Node/npm. Les parcou
 natifs contraints et toutes les gates restent requis ; ne pas livrer l'adaptateur
 expérimental de notification de fin de 014 T105. Le contrôle positif des fichiers
 ouverts et des données des pipes doit être réel, pas une comparaison de version.
+
+## Maintenance 2026-10-03 — stabilité du hot reload
+
+Cette correction relève de US1 / FR-006 et de la section 38 du canevas produit.
+Le proxy Web de `docker/Caddyfile.dev` ne doit pas appliquer de délai d'inactivité
+à la connexion WebSocket Vite : le serveur n'émet pas de message HMR tant que
+les sources ne changent pas. Le délai de lecture de 75 secondes observé coupe
+la connexion ; le client Vite interprète la coupure comme un redémarrage et
+recharge le document. Conserver les délais par défaut sans limite sur cette
+route de développement et les délais de 75 secondes sur la route API.
+
+Ajouter un contrat ciblé dans `tests/contract/compose-dev.spec.ts`, valider le
+Caddyfile avec l'image épinglée puis recharger uniquement Caddy dans la stack
+existante. Observer le navigateur au repos pendant au moins 160 secondes et
+vérifier une mise à jour CSS à chaud suivie de son retrait sans navigation.
+Consigner la preuve dans `validation.md` et le diagnostic dans
+`docs/development.md`.
+
+Aucune migration, modification de protocole, donnée utilisateur, cookie,
+certificat, origine, service worker ou configuration de production n'est
+nécessaire. Les modifications temporaires de style servant de probe sont
+retirées après vérification. Le retour arrière est le précédent Caddyfile
+suivi de son rechargement. Le rechargement de configuration ferme les anciennes
+connexions HMR et peut entraîner un dernier rechargement ponctuel.
+
+Conformément à la demande de l'utilisateur, les E2E et la porte complète ne
+sont pas lancés pendant cette passe de correction ; aucun push ni déclaration
+de gate complète ne sont prévus. Les contrats ciblés et la vérification réelle
+du transport constituent la preuve locale de cette maintenance.

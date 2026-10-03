@@ -58,6 +58,36 @@ describe("local emoji picker", () => {
     expect(onSelect).toHaveBeenCalledWith("🧠");
   });
 
+  it("keeps the original picker and stores a page symbol from the shared catalog", async () => {
+    const onSelect = vi.fn();
+    const factory = vi.fn<EmojiPickerFactory>(() => document.createElement("div"));
+    await act(async () => {
+      root.render(<EmojiPickerPanel value={null} onSelect={onSelect} factory={factory} />);
+    });
+    expect(factory.mock.calls[0]?.[0]).not.toHaveProperty("custom");
+    expect(factory.mock.calls[0]?.[0]).not.toHaveProperty("navPosition");
+    const icons = container.querySelector<HTMLButtonElement>('button[aria-label="Icônes"]');
+    await act(async () => icons?.click());
+    const search = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Filtrer les icônes"]',
+    );
+    expect(search).not.toBeNull();
+    await act(async () => {
+      if (search === null) return;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+        search,
+        "ampoule",
+      );
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const choice = container.querySelector<HTMLButtonElement>(
+      '[role="option"][aria-label="ampoule"]',
+    );
+    expect(choice).not.toBeNull();
+    await act(async () => choice?.click());
+    expect(onSelect).toHaveBeenCalledWith("symbol:lightbulb");
+  });
+
   it("offers removal only when the item currently has an emoji", async () => {
     const onSelect = vi.fn();
     const factory: EmojiPickerFactory = () => document.createElement("div");
@@ -109,6 +139,49 @@ describe("local emoji picker", () => {
     });
     expect(container.querySelector('[data-testid="clear-item-icon"]')).toBeNull();
     expect(container.querySelector(".item-emoji-picker")?.hasAttribute("data-empty")).toBe(true);
+  });
+
+  it("initializes the picker only when opened and accepts a selection after reopening", async () => {
+    const onChange = vi.fn();
+    const factory = vi.fn<EmojiPickerFactory>((options) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset["testid"] = "lazy-emoji";
+      button.addEventListener("click", () => options.onEmojiSelect({ native: "📌" }));
+      return button;
+    });
+    await act(async () =>
+      root.render(
+        <ItemEmojiPicker
+          factory={factory}
+          kind="page"
+          label="Notes"
+          value={null}
+          onChange={onChange}
+        />,
+      ),
+    );
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="item-icon-picker-trigger"]',
+    );
+    expect(factory).not.toHaveBeenCalled();
+    await act(async () => trigger?.click());
+    expect(factory).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[data-testid="lazy-emoji"]')?.click(),
+    );
+    expect(onChange).toHaveBeenCalledWith("📌");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(document.querySelector('[data-testid="lazy-emoji"]')).toBeNull();
+    await act(async () => trigger?.click());
+    expect(factory).toHaveBeenCalledTimes(2);
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('[data-testid="lazy-emoji"]')?.click(),
+    );
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[data-testid="item-icon-picker-trigger"]')).toBe(trigger);
   });
 
   it("keeps a filled page emoji in flow so the title geometry stays stable", async () => {

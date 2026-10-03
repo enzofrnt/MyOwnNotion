@@ -122,6 +122,7 @@ async function readEntryDto(context: AppContext, databaseId: Uuid, entryId: Uuid
     databaseId,
     entryId,
     kind: item.kind,
+    icon: resolvedItem?.icon ?? item.icon ?? null,
     revisionId: resolvedItem?.currentRevisionId ?? item.currentRevisionId,
     lifecycle: resolvedItem?.lifecycle ?? item.lifecycle,
     title: resolvedItem?.name ?? item.name,

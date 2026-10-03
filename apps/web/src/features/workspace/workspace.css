@@ -328,8 +328,15 @@
 .workspace-path__measure {
   position: absolute;
   inset: 0 auto auto 0;
+  /* Keep intrinsic crumb metrics, but contain the invisible list's scroll overflow. */
+  max-width: 100%;
+  overflow: hidden;
   visibility: hidden;
   pointer-events: none;
+}
+
+.workspace-path__measure > li {
+  flex: none;
 }
 
 .workspace-path__crumb {
@@ -355,6 +362,11 @@
   border-radius: var(--ui-radius-sm);
   font: inherit;
   cursor: pointer;
+}
+
+.workspace-path__link {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .workspace-path__link:hover,
@@ -977,7 +989,8 @@
     --open-tab-width: 7.5rem;
   }
 
-  .workspace-page-title__graph-label {
+  .workspace-page-title__graph-label,
+  .workspace-page-title__return-label {
     display: none;
   }
 
@@ -1189,4 +1202,18 @@
    starts. */
 .app-shell {
   overflow-x: clip;
+}
+
+/* A canonical database entry shares the page title/editor column, without a second form canvas. */
+.workspace-entry-canvas .entry-properties,
+.workspace-entry-canvas .entry-document > .folder-children {
+  box-sizing: border-box;
+  width: var(--workspace-reading-width, var(--ui-reading-width));
+  max-width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--workspace-page-inline-start) var(--workspace-page-inline-end);
+}
+
+.workspace-entry-canvas .entry-document > .workspace-page-editor {
+  padding-top: 0;
 }

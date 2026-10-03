@@ -184,6 +184,8 @@ export function PageEditor({
       ],
       tabBehavior: "prefer-indent",
       dropCursor: {
+        color: "var(--ui-color-accent)",
+        width: 2,
         hooks: {
           computeDropPosition: (context) => computeEditorDropCursor(context),
         },

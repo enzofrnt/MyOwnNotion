@@ -54,6 +54,8 @@ async function readSource(
     entries.push({
       databaseId: row.itemId,
       entryId: item.id,
+      kind: item.kind === "folder" ? "folder" : "page",
+      icon: item.icon ?? null,
       revisionId: item.currentRevisionId,
       lifecycle: item.lifecycle,
       title: item.name,

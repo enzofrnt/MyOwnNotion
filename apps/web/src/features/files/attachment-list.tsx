@@ -44,6 +44,8 @@ export interface AttachmentRow {
   readonly addedAt: string | null;
   readonly location: string;
   readonly usages: readonly FileUsageDto[];
+  /** Local rows can precede their secondary server lookup. */
+  readonly usagesKnown?: boolean;
   readonly availability: LocalAvailability;
   readonly synchronized: boolean;
 }
@@ -112,7 +114,9 @@ export function AttachmentList({
             </span>
 
             <span className="muted" data-testid={`attachment-usages-${row.item.name}`}>
-              {row.usages.length === 0 ? (
+              {row.usagesKnown === false ? (
+                FR_COPY.files.attachments.usagesUnknown
+              ) : row.usages.length === 0 ? (
                 FR_COPY.files.attachments.usedNowhereElse
               ) : (
                 <>

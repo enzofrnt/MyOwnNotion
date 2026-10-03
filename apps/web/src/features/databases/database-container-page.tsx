@@ -21,6 +21,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { LocalDatabaseRow } from "@myownnotion/client-core";
 import {
   type DatabasePresentationDefinition,
+  type DatabaseProperty,
   type DatabaseView,
   databasePageTitleMode,
   generateUuidV7,
@@ -50,6 +51,9 @@ import { DatabaseViewSurface } from "../editor/custom-blocks/database-view.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { createSavedView } from "./database-toolbar.tsx";
 import { definitionViewsPreservingPresentation } from "./definition-view-merge.ts";
+import { editEntrySourceDefinition } from "./edit-entry-properties.ts";
+import { duplicateEntryProperty } from "./entry-property-list.tsx";
+import { updateEntryProperty } from "./property-configuration.tsx";
 import { propertyFromDraft, validatePropertyDraft } from "./property-editor.tsx";
 import { ViewMark } from "./view-icon.tsx";
 import {
@@ -727,16 +731,26 @@ export function DatabaseContainerPage({
       setError(cause instanceof Error ? cause.message : "Le format n’a pas pu être modifié."),
     );
   };
-  const renameProperty = async (propertyId: Uuid, name: string): Promise<void> => {
-    if (selected === undefined) return;
-    const source = activeSources.find((candidate) => candidate.sourceId === selected.sourceId);
-    if (source === undefined) return;
-    await replaceSourceDefinition(selected.sourceId, {
-      ...source.definition,
-      properties: source.definition.properties.map((property) =>
-        property.id === propertyId ? { ...property, name } : property,
-      ),
-    });
+  const editProperty = async (
+    propertyId: Uuid,
+    edit: (property: DatabaseProperty) => DatabaseProperty,
+    confirmed = false,
+  ): Promise<void> => {
+    if (selected === undefined) throw new Error("Source indisponible");
+    await editEntrySourceDefinition(
+      service,
+      selected.sourceId,
+      (definition) => updateEntryProperty(definition, propertyId, edit),
+      confirmed,
+    );
+    await refresh();
+  };
+  const duplicateProperty = async (propertyId: Uuid): Promise<void> => {
+    if (selected === undefined) throw new Error("Source indisponible");
+    await editEntrySourceDefinition(service, selected.sourceId, (definition) =>
+      duplicateEntryProperty(definition, propertyId),
+    );
+    await refresh();
   };
   const createProperty = async (
     draft: Parameters<typeof validatePropertyDraft>[0],
@@ -1216,7 +1230,8 @@ export function DatabaseContainerPage({
               void revealOwnedSource();
             }}
             onCreateProperty={createProperty}
-            onRenameProperty={renameProperty}
+            onEditProperty={editProperty}
+            onDuplicateProperty={duplicateProperty}
           />
         )}
       </div>

@@ -1,19 +1,33 @@
-import { usePopoverContext } from "@ariakit/react";
-import type { DatabaseProperty, DatabaseView, Uuid } from "@myownnotion/domain";
+import type { DatabaseProperty, DatabaseView, DefinitionImpact, Uuid } from "@myownnotion/domain";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { AppIcon, type AppIconName } from "../../ui/icons.tsx";
-import { PopoverContent, PopoverRoot, PopoverTrigger } from "../../ui/primitives/index.ts";
+import {
+  Button,
+  DialogContent,
+  DialogDescription,
+  DialogHeading,
+  DialogRoot,
+  InputSurface,
+  NativeInput,
+  PopoverContent,
+  PopoverRoot,
+  PopoverTrigger,
+} from "../../ui/primitives/index.ts";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { DatabaseIconPicker } from "./database-icon-picker.tsx";
+import { EntrySchemaImpact } from "./edit-entry-properties.ts";
 import { FilterEditor } from "./filter-editor.tsx";
+import { PropertyConfiguration } from "./property-configuration.tsx";
 import {
   type DatabasePropertyDraft,
   PropertyEditor,
   validatePropertyDraft,
 } from "./property-editor.tsx";
+import { DatabasePropertyIcon } from "./property-icon.tsx";
 import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
 import { SortGroupEditor } from "./sort-group-editor.tsx";
 import { viewColumns } from "./view-columns.ts";
-import { VIEW_ICON_CHOICES, ViewMark, viewIconChoice } from "./view-icon.tsx";
+import { ViewMark } from "./view-icon.tsx";
 import { isAutomaticViewName, VIEW_TYPE_ICON, VIEW_TYPE_LABEL } from "./view-tab-names.ts";
 
 const VIEW_TYPE_CHOICES = ["table", "board", "gallery", "list", "calendar"] as const;
@@ -48,13 +62,6 @@ const SCREEN_TITLE: Record<ViewSettingsScreen, string> = {
   manage: "Sources de données",
   properties: "Propriétés",
 };
-
-function propertyIcon(type: DatabaseProperty["type"]): AppIconName | null {
-  if (type === "title") return null;
-  if (type === "date") return "calendar";
-  if (type === "checkbox") return "check";
-  return "list";
-}
 
 function resizeSourceTitle(field: HTMLTextAreaElement): void {
   field.style.height = "auto";
@@ -161,73 +168,6 @@ function SettingsRow({
   );
 }
 
-function ViewIconPicker({
-  current,
-  onQuery,
-  onSelect,
-  query,
-}: {
-  readonly current: string | null;
-  readonly query: string;
-  readonly onQuery: (value: string) => void;
-  readonly onSelect: (icon: string | null) => void;
-}) {
-  const popover = usePopoverContext();
-  const needle = query.trim().toLocaleLowerCase();
-  const choices = VIEW_ICON_CHOICES.filter((choice) =>
-    needle === ""
-      ? true
-      : choice.label.toLocaleLowerCase().includes(needle) || choice.id.includes(needle),
-  );
-  const choose = (icon: string | null): void => {
-    onSelect(icon);
-    popover?.hide();
-  };
-  return (
-    <>
-      <div className="database-view-icon-picker__header">
-        <p className="database-view-icon-picker__title">Icône</p>
-        <button
-          type="button"
-          className="database-view-icon-picker__remove"
-          disabled={viewIconChoice(current) === null}
-          onClick={() => choose(null)}
-        >
-          Supprimer
-        </button>
-      </div>
-      <label className="database-view-icon-picker__search">
-        <AppIcon name="search" size="small" />
-        <input
-          aria-label="Filtrer les icônes"
-          placeholder="Filtrer…"
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-        />
-      </label>
-      <p className="database-view-icon-picker__section">Icônes</p>
-      <div className="database-view-icon-picker__grid" role="listbox" aria-label="Icônes">
-        {choices.map((choice) => {
-          const Icon = choice.Icon;
-          return (
-            <button
-              key={choice.id}
-              type="button"
-              className="database-view-icon-picker__choice"
-              role="option"
-              aria-label={choice.label}
-              aria-selected={choice.id === current}
-              onClick={() => choose(choice.id)}
-            >
-              <Icon size={18} focusable="false" aria-hidden="true" />
-            </button>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
 /**
  * Side panel for one view. Source and properties are screens of this panel,
  * opened directly from the view menu when the owner asks for them.
@@ -261,7 +201,8 @@ export function ViewSettingsPanel({
   onNameFocusHandled,
   onCreateProperty,
   onCreateSource,
-  onRenameProperty,
+  onDuplicateProperty,
+  onEditProperty,
   onRevealOwnedSource,
   onScreen,
   onToggleProperty,
@@ -304,7 +245,12 @@ export function ViewSettingsPanel({
   readonly onCreateSource: () => void;
   readonly onRevealOwnedSource: () => void;
   readonly onCreateProperty: (draft: DatabasePropertyDraft) => Promise<void>;
-  readonly onRenameProperty: (propertyId: Uuid, name: string) => Promise<void>;
+  readonly onEditProperty: (
+    propertyId: Uuid,
+    edit: (property: DatabaseProperty) => DatabaseProperty,
+    confirmed?: boolean,
+  ) => Promise<void>;
+  readonly onDuplicateProperty: (propertyId: Uuid) => Promise<void>;
 }) {
   const titleId = useId();
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -319,9 +265,13 @@ export function ViewSettingsPanel({
   const [propertyDraft, setPropertyDraft] = useState<DatabasePropertyDraft>(EMPTY_PROPERTY_DRAFT);
   const [propertyError, setPropertyError] = useState<string | null>(null);
   const [savingProperty, setSavingProperty] = useState(false);
-  const [renamingPropertyId, setRenamingPropertyId] = useState<Uuid | null>(null);
-  const [propertyNameDraft, setPropertyNameDraft] = useState("");
-  const propertyRenameCancelled = useRef(false);
+  const [propertyEditor, setPropertyEditor] = useState<{ id: Uuid; anchor: DOMRect } | null>(null);
+  const [pendingImpact, setPendingImpact] = useState<{
+    id: Uuid;
+    edit: (property: DatabaseProperty) => DatabaseProperty;
+    impact: DefinitionImpact;
+  } | null>(null);
+  const cancelImpactRef = useRef<HTMLButtonElement>(null);
   const asideRef = useRef<HTMLElement>(null);
   const [frame, setFrame] = useState<{ top: number; left: number } | null>(null);
   useLayoutEffect(() => {
@@ -392,7 +342,7 @@ export function ViewSettingsPanel({
   useEffect(() => {
     if (screen !== "properties") {
       setCreatingProperty(false);
-      setRenamingPropertyId(null);
+      setPropertyEditor(null);
     }
     if (screen !== "source") setSourcesExpanded(false);
   }, [screen]);
@@ -407,17 +357,25 @@ export function ViewSettingsPanel({
   const otherSources = sources.filter((source) => !source.ownedHere);
   const hiddenOthers = sourcesExpanded ? 0 : Math.max(0, otherSources.length - SOURCE_PAGE_SIZE);
   const visibleOthers = sourcesExpanded ? otherSources : otherSources.slice(0, SOURCE_PAGE_SIZE);
-  const commitPropertyName = (propertyId: Uuid): void => {
-    const next = propertyNameDraft.trim();
-    const current = activeProperties.find((property) => property.id === propertyId)?.name ?? "";
-    setRenamingPropertyId(null);
-    if (next === "" || next === current) return;
-    void onRenameProperty(propertyId, next).catch((cause: unknown) => {
+  const editProperty = (
+    propertyId: Uuid,
+    edit: (property: DatabaseProperty) => DatabaseProperty,
+    confirmed = false,
+  ): void => {
+    void onEditProperty(propertyId, edit, confirmed).catch((cause: unknown) => {
+      if (cause instanceof EntrySchemaImpact) {
+        setPendingImpact({ id: propertyId, edit, impact: cause.impact });
+        return;
+      }
       setPropertyError(
-        cause instanceof Error ? cause.message : "La propriété n’a pas pu être renommée.",
+        cause instanceof Error ? cause.message : "La propriété n’a pas pu être modifiée.",
       );
     });
   };
+  const editedProperty =
+    propertyEditor === null
+      ? undefined
+      : activeProperties.find((property) => property.id === propertyEditor.id);
   return (
     <aside
       ref={asideRef}
@@ -469,8 +427,8 @@ export function ViewSettingsPanel({
                 >
                   <ViewMark icon={view.icon} type={type} />
                 </PopoverTrigger>
-                <PopoverContent className="database-view-icon-picker">
-                  <ViewIconPicker
+                <PopoverContent className="database-view-icon-picker" aria-label="Icône de la vue">
+                  <DatabaseIconPicker
                     current={view.icon ?? null}
                     query={iconQuery}
                     onQuery={setIconQuery}
@@ -736,76 +694,93 @@ export function ViewSettingsPanel({
         ) : null}
         {screen === "properties" ? (
           <div className="database-view-settings__body">
-            <label className="database-view-settings__search">
+            <InputSurface className="database-view-settings__search" density="compact">
               <AppIcon name="search" size="small" />
-              <input
+              <NativeInput
                 aria-label="Rechercher une propriété"
                 placeholder="Rechercher une propriété…"
                 value={propertyQuery}
                 onChange={(event) => setPropertyQuery(event.target.value)}
               />
-            </label>
+            </InputSurface>
             <ul className="database-view-settings__list">
-              {listedProperties.map((property) => {
-                const icon = propertyIcon(property.type);
-                const renaming = renamingPropertyId === property.id;
-                return (
-                  <li key={property.id}>
-                    {renaming ? (
-                      <input
-                        className="database-view-settings__property-name"
-                        aria-label={`Nom de ${property.name}`}
-                        value={propertyNameDraft}
-                        // biome-ignore lint/a11y/noAutofocus: the row click just asked to rename this property
-                        autoFocus
-                        onChange={(event) => setPropertyNameDraft(event.target.value)}
-                        onBlur={() => {
-                          if (propertyRenameCancelled.current) {
-                            propertyRenameCancelled.current = false;
-                            setRenamingPropertyId(null);
-                            return;
-                          }
-                          commitPropertyName(property.id);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            event.currentTarget.blur();
-                          }
-                          if (event.key === "Escape") {
-                            event.preventDefault();
-                            propertyRenameCancelled.current = true;
-                            setRenamingPropertyId(null);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        className="database-view-settings__row"
-                        onClick={() => {
-                          setPropertyError(null);
-                          setRenamingPropertyId(property.id);
-                          setPropertyNameDraft(property.name);
-                        }}
-                      >
-                        {property.type === "title" ? (
-                          <span className="database-view-settings__aa" aria-hidden="true">
-                            Aa
-                          </span>
-                        ) : icon === null ? null : (
-                          <AppIcon name={icon} size="small" />
-                        )}
-                        <span className="database-view-settings__row-label">{property.name}</span>
-                        <span className="database-view-settings__aside">
-                          {DATABASE_COPY.property.typeLabels[property.type]}
-                        </span>
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
+              {listedProperties.map((property) => (
+                <li key={property.id} className="database-view-settings__property-row">
+                  <button
+                    type="button"
+                    className="database-view-settings__row"
+                    aria-haspopup="dialog"
+                    aria-expanded={propertyEditor?.id === property.id}
+                    aria-label={`Modifier la propriété ${property.name}`}
+                    onClick={(event) => {
+                      setPropertyError(null);
+                      setPropertyEditor({
+                        id: property.id,
+                        anchor: event.currentTarget.getBoundingClientRect(),
+                      });
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setPropertyError(null);
+                      setPropertyEditor({
+                        id: property.id,
+                        anchor: DOMRect.fromRect({
+                          x: event.clientX,
+                          y: event.clientY,
+                          width: 0,
+                          height: 0,
+                        }),
+                      });
+                    }}
+                  >
+                    <DatabasePropertyIcon type={property.type} icon={property.icon} />
+                    <span className="database-view-settings__row-label">{property.name}</span>
+                    <span className="database-view-settings__aside">
+                      {DATABASE_COPY.property.typeLabels[property.type]}
+                    </span>
+                  </button>
+                </li>
+              ))}
             </ul>
+            {editedProperty === undefined || propertyEditor === null ? null : (
+              <PropertyConfiguration
+                property={editedProperty}
+                anchor={propertyEditor.anchor}
+                open
+                structure={editedProperty.type !== "title"}
+                onClose={() => setPropertyEditor(null)}
+                onChange={(edit) => editProperty(editedProperty.id, edit)}
+                onOptions={(options) =>
+                  editProperty(editedProperty.id, (current) =>
+                    current.type === "select" ||
+                    current.type === "multi-select" ||
+                    current.type === "status"
+                      ? { ...current, config: { ...current.config, options: [...options] } }
+                      : current,
+                  )
+                }
+                onDuplicate={() => {
+                  setPropertyEditor(null);
+                  void onDuplicateProperty(editedProperty.id).catch((cause: unknown) => {
+                    setPropertyError(
+                      cause instanceof Error
+                        ? cause.message
+                        : "La propriété n’a pas pu être dupliquée.",
+                    );
+                  });
+                }}
+                onRetire={() => {
+                  const id = editedProperty.id;
+                  setPropertyEditor(null);
+                  editProperty(id, (current) => ({ ...current, state: "retired" }));
+                }}
+              />
+            )}
+            {!creatingProperty && propertyError !== null ? (
+              <p className="database-view-settings__hint" role="alert">
+                {propertyError}
+              </p>
+            ) : null}
             {creatingProperty ? (
               <PropertyEditor
                 draft={propertyDraft}
@@ -860,6 +835,42 @@ export function ViewSettingsPanel({
           </div>
         ) : null}
       </div>
+      <DialogRoot
+        open={pendingImpact !== null}
+        setOpen={(open) => {
+          if (!open) setPendingImpact(null);
+        }}
+      >
+        <DialogContent size="small" initialFocus={cancelImpactRef} unmountOnHide>
+          <DialogHeading className="entry-property-impact__heading">
+            Modifier cette propriété ?
+          </DialogHeading>
+          <DialogDescription>
+            {pendingImpact === null
+              ? null
+              : DATABASE_COPY.page.impact(
+                  pendingImpact.impact.affectedValueCount,
+                  pendingImpact.impact.affectedEntryCount,
+                )}{" "}
+            Les valeurs incompatibles seront conservées pour récupération.
+          </DialogDescription>
+          <div className="ui-dialog__actions">
+            <Button
+              variant="danger"
+              onClick={() => {
+                const pending = pendingImpact;
+                setPendingImpact(null);
+                if (pending !== null) editProperty(pending.id, pending.edit, true);
+              }}
+            >
+              Confirmer la modification
+            </Button>
+            <Button ref={cancelImpactRef} variant="ghost" onClick={() => setPendingImpact(null)}>
+              Annuler
+            </Button>
+          </div>
+        </DialogContent>
+      </DialogRoot>
     </aside>
   );
 }

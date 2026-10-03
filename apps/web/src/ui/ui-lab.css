@@ -48,9 +48,20 @@
   border-top: 1px solid var(--ui-color-border);
 }
 
-.ui-lab__section h2 {
+.ui-lab__section > h2 {
   margin: 0 0 var(--ui-space-4);
   font-size: var(--ui-text-lg);
+}
+
+.ui-lab__attachment-navigation {
+  width: min(var(--workspace-sidebar-width, 16rem), 100%);
+  height: auto;
+  padding: var(--ui-space-1);
+}
+
+.ui-lab__attachment-navigation .workspace-attachment-panel h2 {
+  margin: 0;
+  font-size: var(--ui-text-xs);
 }
 
 .ui-lab__row {

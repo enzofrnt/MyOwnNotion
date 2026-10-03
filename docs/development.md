@@ -273,6 +273,19 @@ do not rebuild or restart containers; Bun `--watch` and Vite HMR pick them up
 inside the running processes. This helper is not the official deployment;
 `compose.yaml` still publishes HTTP only.
 
+If the page reloads every 75 seconds without source edits, inspect the Vite
+console for `server connection lost. Polling for restart...`. The HMR WebSocket
+can stay idle indefinitely; a proxy I/O deadline makes Vite mistake that idle
+connection for a server restart and reload the page. The development Caddy
+route to `web:5173` therefore uses the default unlimited I/O and stream
+lifetimes. Keep the 75-second deadlines on the API route, where SSE heartbeats
+keep live streams active. After changing the Caddyfile, validate and reload
+only Caddy with `docker compose -f compose.dev.yaml exec -T caddy caddy validate
+--config /etc/caddy/Caddyfile --adapter caddyfile` followed by the same command
+with `reload` in place of `validate`; include the same project and override
+arguments used to start your stack. Existing HMR connections close once during
+that reload, so one final browser refresh is expected. No data reset is needed.
+
 For a reproducible Knowledge Graph acceptance workspace, run
 `bun run dev:stack:demo`. It performs the same destructive local reset, creates
 the dummy owner/password and a verified 240-item forest corpus (243 relationships),

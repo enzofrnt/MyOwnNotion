@@ -5,11 +5,16 @@ import {
   normalizeCivilDate,
   normalizeDecimal,
   normalizeInstant,
+  type PropertyOption,
   type Uuid,
 } from "@myownnotion/domain";
 import { type InputHTMLAttributes, useLayoutEffect, useRef } from "react";
 import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { EntryChoicePicker } from "./entry-choice-picker.tsx";
+import { isChoiceProperty } from "./option-appearance.tsx";
+import { DatabasePropertyIcon } from "./property-icon.tsx";
+import { RelationDraftMenu } from "./relation-value-menu.tsx";
 
 export type ValueDraft = string | boolean | readonly string[];
 export type ValueDraftValidation =
@@ -45,7 +50,11 @@ export function validateValueDraft(
     if (!input.every((optionId) => isUuid(optionId) && active.has(optionId))) {
       return { ok: false, input, error: DATABASE_COPY.value.staleOption };
     }
-    return { ok: true, input, value: { kind: "multi-select", optionIds: input as Uuid[] } };
+    return {
+      ok: true,
+      input,
+      value: { kind: "multi-select", optionIds: [...input].sort() as Uuid[] },
+    };
   }
   if (property.type === "relation") {
     if (!Array.isArray(input) || !input.every(isUuid)) {
@@ -54,7 +63,7 @@ export function validateValueDraft(
     if (property.config.cardinality === "one" && input.length > 1) {
       return { ok: false, input, error: DATABASE_COPY.value.onePageOnly };
     }
-    return { ok: true, input, relationTargets: [...new Set(input)] as Uuid[] };
+    return { ok: true, input, relationTargets: [...new Set(input)].sort() as Uuid[] };
   }
   if (typeof input !== "string") {
     return { ok: false, input, error: DATABASE_COPY.value.enter };
@@ -116,11 +125,26 @@ function DraftTextInput({
 }) {
   const elementRef = useRef<HTMLInputElement>(null);
   const projectedValue = useRef(value);
+  const caretPlaced = useRef(false);
   useLayoutEffect(() => {
     const element = elementRef.current;
     if (element !== null && element.value === projectedValue.current) element.value = value;
     projectedValue.current = value;
   }, [value]);
+  useLayoutEffect(() => {
+    const element = elementRef.current;
+    if (element === null || props.autoFocus !== true || caretPlaced.current) return;
+    caretPlaced.current = true;
+    const placeCaret = () => {
+      if (!element.isConnected) return;
+      element.focus();
+      const end = element.value.length;
+      element.setSelectionRange(end, end);
+    };
+    placeCaret();
+    const frame = requestAnimationFrame(placeCaret);
+    return () => cancelAnimationFrame(frame);
+  }, [props.autoFocus]);
   return <input {...props} ref={elementRef} defaultValue={value} />;
 }
 
@@ -132,6 +156,8 @@ export function ValueEditor({
   idSuffix,
   presentation = "field",
   onBlur,
+  labelContent,
+  onChangeOptions,
   onChange,
 }: {
   readonly property: DatabaseProperty;
@@ -139,27 +165,50 @@ export function ValueEditor({
   readonly error: string | null;
   readonly relationOptions?: readonly RelationOption[];
   readonly idSuffix?: string;
-  readonly presentation?: "field" | "inline";
+  readonly presentation?: "field" | "inline" | "entry";
   readonly onBlur?: () => void;
+  readonly labelContent?: React.ReactNode;
+  readonly onChangeOptions?: ((options: readonly PropertyOption[]) => Promise<void>) | undefined;
   readonly onChange: (input: ValueDraft) => void;
 }) {
   const suffix = idSuffix === undefined ? "" : `-${idSuffix}`;
   const errorId = `database-value-error-${property.id}${suffix}`;
   const controlId = `database-value-${property.id}${suffix}`;
   const describedBy = error === null ? undefined : errorId;
-  const inlineLabel = presentation === "inline" ? property.name : undefined;
+  const inlineLabel =
+    presentation === "inline" || labelContent !== undefined ? property.name : undefined;
   let control: React.ReactNode;
 
   if (property.type === "checkbox") {
-    control = (
+    const checkbox = (
       <input
         id={controlId}
         type="checkbox"
         checked={typeof input === "boolean" && input}
-        aria-label={inlineLabel}
+        aria-label={presentation === "entry" ? property.name : inlineLabel}
         aria-describedby={describedBy}
         onBlur={onBlur}
         onChange={(event) => onChange(event.target.checked)}
+      />
+    );
+    control =
+      presentation === "entry" ? (
+        <label className="entry-checkbox-control" htmlFor={controlId}>
+          {checkbox}
+        </label>
+      ) : (
+        checkbox
+      );
+  } else if (presentation === "entry" && isChoiceProperty(property)) {
+    control = (
+      <EntryChoicePicker
+        property={property}
+        input={input}
+        id={controlId}
+        describedBy={describedBy}
+        invalid={error !== null}
+        onChange={onChange}
+        onOptions={onChangeOptions}
       />
     );
   } else if (
@@ -196,6 +245,17 @@ export function ValueEditor({
           ))}
       </NativeSelect>
     );
+  } else if (property.type === "relation" && presentation === "entry") {
+    control = (
+      <RelationDraftMenu
+        property={property}
+        input={input}
+        options={relationOptions}
+        id={controlId}
+        {...(describedBy === undefined ? {} : { describedBy })}
+        onChange={onChange}
+      />
+    );
   } else if (property.type === "relation") {
     control = (
       <NativeSelect
@@ -228,21 +288,51 @@ export function ValueEditor({
       <DraftTextInput
         id={controlId}
         type={property.type === "date" && property.config.mode === "date" ? "date" : "text"}
-        className={presentation === "field" ? "ui-native-input" : undefined}
-        data-size={presentation === "field" ? "compact" : undefined}
+        autoFocus={presentation === "inline"}
+        className={
+          presentation === "inline" ? "database-cell-inline-input" : "ui-native-input"
+        }
+        data-size={presentation !== "inline" ? "compact" : undefined}
         inputMode={property.type === "number" ? "decimal" : undefined}
         value={typeof input === "string" ? input : ""}
+        placeholder={
+          presentation !== "field" && property.type !== "date"
+            ? DATABASE_COPY.value.emptyPlaceholder
+            : undefined
+        }
         aria-label={inlineLabel}
         aria-describedby={describedBy}
         onBlur={onBlur}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+            event.currentTarget.blur();
+          }
+        }}
         onChange={(event) => onChange(event.target.value)}
       />
     );
   }
 
   return (
-    <div className={presentation === "inline" ? "database-cell-inline-field" : "database-field"}>
-      {presentation === "inline" ? null : <label htmlFor={controlId}>{property.name}</label>}
+    <div
+      className={
+        presentation === "inline"
+          ? "database-cell-inline-field"
+          : presentation === "entry"
+            ? "database-field database-field--entry"
+            : "database-field"
+      }
+    >
+      {presentation === "inline"
+        ? null
+        : (labelContent ?? (
+            <label htmlFor={controlId}>
+              {presentation === "entry" ? (
+                <DatabasePropertyIcon type={property.type} icon={property.icon} />
+              ) : null}
+              {property.name}
+            </label>
+          ))}
       {control}
       {error !== null ? (
         <span id={errorId} className="database-field__error" role="alert">

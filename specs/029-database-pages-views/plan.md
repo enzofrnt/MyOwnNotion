@@ -103,3 +103,12 @@ apps/api/tests/, packages/*/tests/, apps/web/tests/, tests/e2e/
 ## Phase 1 Design Gate
 
 Identités, cycle de vie, flux hors ligne, migration et import détaillés dans [data-model.md](data-model.md), [contracts](contracts/) et [quickstart.md](quickstart.md). Aucun écart non justifié avec la constitution ; prêt pour tâches et analyse croisée.
+
+### Ajustement visuel des entrées — 033
+
+Le retour 033 FR-015/016 utilise PageTitleEditor/workspace-page-canvas et un
+menu d'options partagé avec les cellules. Sauvegarde explicite des propriétés,
+révisions, projections, documents et hiérarchie inchangés. Propriétaires CSS :
+database.css (panneau/valeurs/prise) et workspace.css (colonne de lecture).
+ui-quality/lessons et preuves/tests ciblés dans 033 ; E2E différés à la demande
+explicite du propriétaire, sans push ni release.

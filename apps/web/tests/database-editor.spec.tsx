@@ -165,6 +165,41 @@ describe("database editor surfaces (T022)", () => {
     expect(markup).toContain("Utilisez un point comme séparateur décimal");
   });
 
+  it("serializes option and relation sets in canonical order without changing the draft", () => {
+    const a = generateUuidV7(),
+      b = generateUuidV7();
+    const ids = [b, a];
+    const base = { id: generateUuidV7(), name: "Tags", positionKey: "z", state: "active" as const };
+    const choice: DatabaseProperty = {
+      ...base,
+      type: "multi-select",
+      config: {
+        options: [a, b].map((id) => ({
+          id,
+          label: id,
+          positionKey: id,
+          tone: "neutral" as const,
+          state: "active" as const,
+        })),
+      },
+    };
+    const result = validateValueDraft(choice, ids);
+    expect(result).toMatchObject({
+      ok: true,
+      value: { kind: "multi-select", optionIds: [...ids].sort() },
+    });
+    const relation: DatabaseProperty = {
+      ...base,
+      type: "relation",
+      config: { cardinality: "many" },
+    };
+    expect(validateValueDraft(relation, ids)).toMatchObject({
+      ok: true,
+      relationTargets: [...ids].sort(),
+    });
+    expect(ids).toEqual([b, a]);
+  });
+
   it("accepts an intentionally missing date so calendar entries can remain unscheduled", () => {
     const dateProperty: DatabaseProperty = {
       id: generateUuidV7(),

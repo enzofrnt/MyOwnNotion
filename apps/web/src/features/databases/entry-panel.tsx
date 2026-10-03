@@ -1,51 +1,22 @@
 import type { DatabaseEntryDto } from "@myownnotion/contracts";
-import type {
-  DatabaseDefinition,
-  DatabaseProperty,
-  NonRelationPropertyValue,
-  RelationTargets,
-  Uuid,
-} from "@myownnotion/domain";
-import { type ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { DatabaseDefinition } from "@myownnotion/domain";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { Button } from "../../ui/primitives/button.tsx";
-import { StableActionButton } from "../../ui/stable-action-button.tsx";
-import { DATABASE_COPY } from "./database-copy.ts";
 import {
-  type RelationOption,
-  type ValueDraft,
-  ValueEditor,
-  validateValueDraft,
-} from "./value-editor.tsx";
+  DialogContent,
+  DialogDescription,
+  DialogHeading,
+  DialogRoot,
+} from "../../ui/primitives/dialog.tsx";
+import { DATABASE_COPY } from "./database-copy.ts";
+import { type EditEntryDefinition, EntrySchemaImpact } from "./edit-entry-properties.ts";
+import { type EntryDefinitionEdit, EntryPropertyList } from "./entry-property-list.tsx";
+import type { RelationOption } from "./value-editor.tsx";
 
-export type EntryDrafts = Readonly<Record<string, ValueDraft>>;
+export type { EntryDrafts } from "./use-entry-autosave.ts";
 
-function initialDraft(property: DatabaseProperty, entry: DatabaseEntryDto): ValueDraft {
-  if (property.type === "relation") return entry.relationTargets[property.id] ?? [];
-  const value = entry.values[property.id] as NonRelationPropertyValue | undefined;
-  if (value === undefined) {
-    if (property.type === "checkbox") return false;
-    if (property.type === "multi-select") return [];
-    return "";
-  }
-  switch (value.kind) {
-    case "text":
-      return value.value;
-    case "number":
-      return value.decimal;
-    case "date":
-      return value.date;
-    case "instant":
-      return value.instant;
-    case "status":
-    case "select":
-      return value.optionId;
-    case "multi-select":
-      return value.optionIds;
-    case "checkbox":
-      return value.checked;
-  }
-}
+import { type EntryDrafts, type SaveEntryValues, useEntryAutosave } from "./use-entry-autosave.ts";
 
 export function EntryPanel({
   entry,
@@ -53,9 +24,11 @@ export function EntryPanel({
   valuesAvailable = true,
   relationOptions = [],
   pageContent,
+  renderHeader,
   initialDrafts,
   onDraftsChange,
   onSaveValues,
+  onEditDefinition,
   onClose,
 }: {
   readonly entry: DatabaseEntryDto;
@@ -63,234 +36,166 @@ export function EntryPanel({
   readonly valuesAvailable?: boolean;
   readonly relationOptions?: readonly RelationOption[];
   readonly pageContent?: ReactNode;
+  /** The workspace supplies its canonical title/navigation; drawers use the compact header. */
+  readonly renderHeader?: (onClose: () => void) => ReactNode;
   /** Edited fields retained while a transient projection remounts this form. */
   readonly initialDrafts?: EntryDrafts;
   readonly onDraftsChange?: (drafts: EntryDrafts) => void;
-  readonly onSaveValues: (
-    values: Readonly<Record<Uuid, NonRelationPropertyValue>>,
-    relationTargets: RelationTargets,
-  ) => void | Promise<void>;
+  readonly onSaveValues: SaveEntryValues;
+  readonly onEditDefinition?: EditEntryDefinition;
   readonly onClose: () => void;
 }) {
+  const [localDefinition, setLocalDefinition] = useState(definition);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
+  const [pendingImpact, setPendingImpact] = useState<{
+    error: EntrySchemaImpact;
+    edit: (d: DatabaseDefinition) => DatabaseDefinition;
+  } | null>(null);
+  const retrySchema = useRef<(() => void) | null>(null);
+  const schemaQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const cancelImpactRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => setLocalDefinition(definition), [definition]);
+  const editDefinition: EntryDefinitionEdit = (edit, confirmed = false) => {
+    const operation = schemaQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (onEditDefinition === undefined) return;
+        setSchemaError(null);
+        try {
+          setLocalDefinition(await onEditDefinition(edit, confirmed));
+          retrySchema.current = null;
+        } catch (error) {
+          if (error instanceof EntrySchemaImpact) setPendingImpact({ error, edit });
+          else {
+            setSchemaError(
+              error instanceof Error ? error.message : "La propriété n’a pas pu être modifiée.",
+            );
+            retrySchema.current = () => void editDefinition(edit).catch(() => undefined);
+          }
+          throw error;
+        }
+      });
+    schemaQueue.current = operation;
+    return operation;
+  };
   const editableProperties = useMemo(
-    () =>
-      definition.properties.filter(
-        (property) => property.state === "active" && property.type !== "title",
-      ),
-    [definition],
+    () => localDefinition.properties.filter((p) => p.state === "active" && p.type !== "title"),
+    [localDefinition],
   );
-  const taskProperties = useMemo(() => {
-    const roles = definition.taskRoles;
-    if (roles === null) return [];
-    const configured = [
-      ["status", roles.statusPropertyId],
-      ["dueDate", roles.dueDatePropertyId],
-      ["priority", roles.priorityPropertyId],
-    ] as const;
-    return configured.flatMap(([role, propertyId]) => {
-      if (propertyId === null) return [];
-      const property = editableProperties.find(({ id }) => id === propertyId);
-      return property === undefined ? [] : [{ role, property }];
-    });
-  }, [definition.taskRoles, editableProperties]);
-  const taskPropertyIds = useMemo(
-    () => new Set(taskProperties.map(({ property }) => property.id)),
-    [taskProperties],
-  );
-  const ordinaryProperties = useMemo(
-    () => editableProperties.filter(({ id }) => !taskPropertyIds.has(id)),
-    [editableProperties, taskPropertyIds],
-  );
-  const projectionDrafts = useMemo<EntryDrafts>(
-    () =>
-      Object.fromEntries(
-        editableProperties.map((property) => [property.id, initialDraft(property, entry)]),
-      ),
-    [editableProperties, entry],
-  );
-  const [drafts, setDrafts] = useState<EntryDrafts>(() => ({
-    ...projectionDrafts,
-    ...initialDrafts,
-  }));
-  // Pointer activation may run before React commits the render scheduled by
-  // the last input event (observed on WebKit). Keep the authoritative draft in
-  // a synchronously updated ref so Save can never submit the previous render's
-  // value while the field already shows the owner's final text.
-  const draftsRef = useRef(drafts);
-  // Only owner-edited fields survive a projection refresh or a route remount.
-  // Untouched fields must keep following synchronization, including the short
-  // interval where an entry row exists before all its values finish hydrating.
-  const editedDraftsRef = useRef<EntryDrafts>(initialDrafts ?? {});
-  const initialDraftsRef = useRef(initialDrafts);
-  initialDraftsRef.current = initialDrafts;
-  const draftEntryIdRef = useRef(entry.entryId);
-  const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
-  const [saving, setSaving] = useState(false);
-  const saveInFlight = useRef(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveConfirmation, setSaveConfirmation] = useState<string | null>(null);
-
-  useLayoutEffect(() => {
-    if (draftEntryIdRef.current !== entry.entryId) {
-      draftEntryIdRef.current = entry.entryId;
-      editedDraftsRef.current = initialDraftsRef.current ?? {};
-    }
-    const next = { ...projectionDrafts, ...editedDraftsRef.current };
-    draftsRef.current = next;
-    setDrafts(next);
-  }, [entry.entryId, projectionDrafts]);
-
-  const updateDraft = (propertyId: Uuid, input: ValueDraft): void => {
-    const next = { ...draftsRef.current, [propertyId]: input };
-    const editedDrafts = { ...editedDraftsRef.current, [propertyId]: input };
-    draftsRef.current = next;
-    editedDraftsRef.current = editedDrafts;
-    setDrafts(next);
-    onDraftsChange?.(editedDrafts);
-    setSaveConfirmation(null);
-    setErrors((current) => {
-      const { [propertyId]: _removed, ...remaining } = current;
-      return remaining;
-    });
-  };
-
-  const save = async (): Promise<void> => {
-    if (saveInFlight.current || !valuesAvailable) return;
-    const nextValues: Record<string, NonRelationPropertyValue> = {};
-    const nextRelations: Record<string, readonly Uuid[]> = {};
-    const nextErrors: Record<string, string> = {};
-    const currentDrafts = draftsRef.current;
-    for (const property of editableProperties) {
-      const input =
-        currentDrafts[property.id] ??
-        (property.type === "checkbox" ? false : property.type === "multi-select" ? [] : "");
-      const result = validateValueDraft(property, input);
-      if (!result.ok) {
-        nextErrors[property.id] = result.error;
-      } else if (result.value !== undefined) {
-        nextValues[property.id] = result.value;
-      } else if (result.relationTargets !== undefined) {
-        nextRelations[property.id] = result.relationTargets;
-      }
-    }
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
-    saveInFlight.current = true;
-    setSaveError(null);
-    setSaveConfirmation(null);
-    setSaving(true);
-    try {
-      await onSaveValues(
-        nextValues as Readonly<Record<Uuid, NonRelationPropertyValue>>,
-        nextRelations as RelationTargets,
-      );
-      setSaveConfirmation(DATABASE_COPY.entry.saved);
-    } catch {
-      setSaveError(DATABASE_COPY.entry.saveFailed);
-    } finally {
-      saveInFlight.current = false;
-      setSaving(false);
-    }
-  };
+  const autosave = useEntryAutosave({
+    entry,
+    properties: editableProperties,
+    available: valuesAvailable,
+    initialDrafts,
+    onDraftsChange,
+    onSave: onSaveValues,
+  });
+  const { drafts, errors } = autosave;
 
   return (
-    <section className="entry-panel" aria-labelledby={`entry-heading-${entry.entryId}`}>
-      <header className="database-panel__header">
-        <div>
-          <p className="muted">{DATABASE_COPY.entry.eyebrow}</p>
+    <section
+      className="entry-panel"
+      aria-label={renderHeader === undefined ? undefined : entry.title}
+      aria-labelledby={renderHeader === undefined ? `entry-heading-${entry.entryId}` : undefined}
+    >
+      {renderHeader === undefined ? (
+        <header className="entry-panel__header">
           <h2 id={`entry-heading-${entry.entryId}`}>{entry.title}</h2>
-        </div>
-        <Button size="compact" variant="ghost" onClick={onClose}>
-          {DATABASE_COPY.entry.close}
-        </Button>
-      </header>
-
-      {!valuesAvailable ? (
-        <AsyncState compact kind="offline" description={DATABASE_COPY.entry.valuesUnavailable} />
+          <Button size="compact" variant="ghost" onClick={onClose}>
+            {DATABASE_COPY.entry.close}
+          </Button>
+        </header>
       ) : (
-        <div className="entry-properties">
-          {editableProperties.length === 0 ? (
-            <AsyncState compact kind="empty" description={DATABASE_COPY.entry.noProperties} />
-          ) : (
-            <>
-              {taskProperties.length === 0 ? null : (
-                <section
-                  className="entry-task-properties"
-                  aria-label={DATABASE_COPY.entry.taskTracking}
-                >
-                  <h3>{DATABASE_COPY.entry.taskTracking}</h3>
-                  {taskProperties.map(({ role, property }) => (
-                    <div key={role} data-task-role={role} className="entry-task-property">
-                      <p className="muted">
-                        {role === "status"
-                          ? DATABASE_COPY.entry.taskStatus
-                          : role === "dueDate"
-                            ? DATABASE_COPY.entry.taskDueDate
-                            : DATABASE_COPY.entry.taskPriority}
-                      </p>
-                      <ValueEditor
-                        key={`${entry.entryId}:${property.id}`}
-                        property={property}
-                        input={
-                          drafts[property.id] ??
-                          (property.type === "checkbox"
-                            ? false
-                            : property.type === "multi-select"
-                              ? []
-                              : "")
-                        }
-                        error={errors[property.id] ?? null}
-                        relationOptions={relationOptions.filter(
-                          (option) => option.id !== entry.entryId,
-                        )}
-                        onChange={(input) => updateDraft(property.id, input)}
-                      />
-                    </div>
-                  ))}
-                </section>
-              )}
-              {ordinaryProperties.length === 0 ? null : (
-                <section
-                  className="entry-ordinary-properties"
-                  aria-label={DATABASE_COPY.entry.otherProperties}
-                >
-                  {ordinaryProperties.map((property) => (
-                    <ValueEditor
-                      key={`${entry.entryId}:${property.id}`}
-                      property={property}
-                      input={
-                        drafts[property.id] ??
-                        (property.type === "checkbox"
-                          ? false
-                          : property.type === "multi-select"
-                            ? []
-                            : "")
-                      }
-                      error={errors[property.id] ?? null}
-                      relationOptions={relationOptions.filter(
-                        (option) => option.id !== entry.entryId,
-                      )}
-                      onChange={(input) => updateDraft(property.id, input)}
-                    />
-                  ))}
-                </section>
-              )}
-            </>
-          )}
-          <StableActionButton type="button" onActivate={() => void save()} disabled={saving}>
-            {saving ? DATABASE_COPY.common.savingLocally : DATABASE_COPY.entry.save}
-          </StableActionButton>
-          {saveConfirmation === null ? null : (
-            <p role="status" data-testid="entry-properties-saved">
-              {saveConfirmation}
-            </p>
-          )}
-          {saveError !== null ? <p role="alert">{saveError}</p> : null}
-        </div>
+        renderHeader(onClose)
       )}
 
+      <div className="entry-properties">
+        {!valuesAvailable ? (
+          <AsyncState compact kind="offline" description={DATABASE_COPY.entry.valuesUnavailable} />
+        ) : (
+          <>
+            {editableProperties.length === 0 ? (
+              <>
+                <AsyncState compact kind="empty" description={DATABASE_COPY.entry.noProperties} />
+                <EntryPropertyList
+                  definition={localDefinition}
+                  drafts={drafts}
+                  errors={errors}
+                  options={relationOptions}
+                  edit={onEditDefinition === undefined ? undefined : editDefinition}
+                  onChange={autosave.update}
+                  onBlur={autosave.flush}
+                />
+              </>
+            ) : (
+              <EntryPropertyList
+                definition={localDefinition}
+                drafts={drafts}
+                errors={errors}
+                options={relationOptions.filter((o) => o.id !== entry.entryId)}
+                edit={onEditDefinition === undefined ? undefined : editDefinition}
+                onChange={autosave.update}
+                onBlur={autosave.flush}
+              />
+            )}
+            <div className="entry-properties__status" role="status" aria-live="polite">
+              {autosave.state === "saving" ? DATABASE_COPY.common.savingLocally : null}
+            </div>
+            {autosave.error !== null ? (
+              <div className="entry-properties__error" role="alert">
+                <span>{autosave.error}</span>
+                <Button size="compact" variant="ghost" onClick={autosave.retry}>
+                  Réessayer
+                </Button>
+                <Button size="compact" variant="ghost" onClick={autosave.useCurrentValues}>
+                  Utiliser les valeurs actuelles
+                </Button>
+              </div>
+            ) : null}
+          </>
+        )}
+        {schemaError === null ? null : (
+          <div className="entry-properties__schema-error" role="alert">
+            <span>{schemaError}</span>
+            <Button size="compact" variant="ghost" onClick={() => retrySchema.current?.()}>
+              Réessayer
+            </Button>
+          </div>
+        )}
+      </div>
+      <DialogRoot open={pendingImpact !== null} setOpen={(open) => !open && setPendingImpact(null)}>
+        <DialogContent size="small" initialFocus={cancelImpactRef} unmountOnHide>
+          <DialogHeading className="entry-property-impact__heading">
+            Modifier cette propriété ?
+          </DialogHeading>
+          <DialogDescription>
+            {pendingImpact === null
+              ? null
+              : DATABASE_COPY.page.impact(
+                  pendingImpact.error.impact.affectedValueCount,
+                  pendingImpact.error.impact.affectedEntryCount,
+                )}{" "}
+            Les valeurs incompatibles seront conservées pour récupération.
+          </DialogDescription>
+          <div className="ui-dialog__actions">
+            <Button
+              variant="danger"
+              onClick={() => {
+                const pending = pendingImpact;
+                setPendingImpact(null);
+                if (pending !== null)
+                  void editDefinition(pending.edit, true).catch(() => undefined);
+              }}
+            >
+              Confirmer la modification
+            </Button>
+            <Button ref={cancelImpactRef} variant="ghost" onClick={() => setPendingImpact(null)}>
+              Annuler
+            </Button>
+          </div>
+        </DialogContent>
+      </DialogRoot>
       <section className="entry-document" aria-label={DATABASE_COPY.entry.pageContent}>
-        <h3>{DATABASE_COPY.entry.pageContent}</h3>
         {pageContent ?? <p className="muted">{DATABASE_COPY.entry.samePageDocument}</p>}
       </section>
     </section>

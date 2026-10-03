@@ -71,6 +71,21 @@ const page: DatabaseViewPage = {
 };
 
 describe("database table accessibility (T042)", () => {
+  it("uses the source property icon in headers and falls back for an unknown catalog mark", () => {
+    const markup = (icon: string | null) =>
+      renderToStaticMarkup(
+        createElement(TableView, {
+          properties: properties.map((p) => (p.id === ids.text ? { ...p, icon } : p)),
+          view,
+          page,
+          onOpenEntry: vi.fn(),
+        }),
+      );
+    expect(markup("lightbulb")).toContain('data-icon="lightbulb"');
+    expect(markup("future-symbol")).not.toContain('data-icon="future-symbol"');
+    expect(markup(null)).not.toContain('data-icon="lightbulb"');
+    expect(markup(null)).toContain("Aa");
+  });
   it("keeps the returned entry button's cell active after clearing the temporary return target", () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const container = document.createElement("div");
@@ -268,6 +283,40 @@ describe("database table accessibility (T042)", () => {
     expect(markup).toContain('data-icon="file"');
   });
 
+  it("replaces the default title glyph with the page or folder icon", () => {
+    const markup = renderToStaticMarkup(
+      createElement(TableView, {
+        properties,
+        view,
+        page: {
+          ...page,
+          rows: [
+            {
+              ...page.rows[0],
+              entryId: ids.entryA,
+              itemKind: "page",
+              icon: "📌",
+              title: "Page marquée",
+            },
+            {
+              ...page.rows[1],
+              entryId: ids.entryB,
+              itemKind: "folder",
+              icon: null,
+              title: "Dossier",
+            },
+          ],
+        },
+        onOpenEntry: vi.fn(),
+        onResize: vi.fn(),
+      }),
+    );
+    expect(markup).toContain("📌");
+    expect(markup).toContain('data-item-emoji="true"');
+    expect(markup).toContain('data-icon="folder"');
+    expect(markup.match(/data-item-emoji="true"/g)).toHaveLength(1);
+  });
+
   it("renders a one-tab-stop ARIA grid with logical row indexes and resize alternatives", () => {
     const markup = renderToStaticMarkup(
       createElement(TableView, {
@@ -386,6 +435,11 @@ describe("database table accessibility (T042)", () => {
       act(() => notes.dispatchEvent(new MouseEvent("click", { bubbles: true })));
       const input = container.querySelector<HTMLInputElement>(".database-cell-inline-field input");
       if (input === null) throw new Error("Missing inline editor");
+      expect(input.classList.contains("database-cell-inline-input")).toBe(true);
+      expect(input.placeholder).toBe("Vide");
+      expect(document.activeElement).toBe(input);
+      expect(input.selectionStart).toBe(input.selectionEnd);
+      expect(notes.classList.contains("database-cell--text")).toBe(true);
       expect(container.querySelector(".database-cell-editor")).toBeNull();
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
@@ -434,6 +488,9 @@ describe("database table accessibility (T042)", () => {
       const input = container.querySelector<HTMLInputElement>("[data-title-edit]");
       if (input === null) throw new Error("Missing title editor");
       expect(input.value).toBe("Alpha");
+      expect(input.selectionStart).toBe(input.value.length);
+      expect(input.selectionEnd).toBe(input.value.length);
+      expect(document.activeElement).toBe(input);
       expect(onOpenEntry).not.toHaveBeenCalled();
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;

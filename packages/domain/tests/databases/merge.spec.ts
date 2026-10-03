@@ -7,6 +7,32 @@ import {
 import { definition, IDS, values } from "./fixtures.ts";
 
 describe("three-way database definition merge", () => {
+  it("merges an icon selection with a concurrent rename and preserves removal", () => {
+    const original = definition();
+    const ancestor = {
+      ...original,
+      properties: original.properties.map((p) => ({ ...p, icon: "star" })),
+    };
+    for (const icon of ["lightbulb", null]) {
+      const local = {
+        ...ancestor,
+        properties: ancestor.properties.map((p) => (p.id === IDS.text ? { ...p, icon } : p)),
+      };
+      const remote = {
+        ...ancestor,
+        properties: ancestor.properties.map((p) =>
+          p.id === IDS.text ? { ...p, name: "Remote description" } : p,
+        ),
+      };
+      const outcome = mergeDatabaseDefinitions(ancestor, local, remote);
+      expect(outcome.kind).toBe("merged");
+      if (outcome.kind === "merged")
+        expect(outcome.value.properties.find((p) => p.id === IDS.text)).toMatchObject({
+          icon,
+          name: "Remote description",
+        });
+    }
+  });
   it("merges compatible edits to distinct stable identities", () => {
     const ancestor = definition();
     const local = {

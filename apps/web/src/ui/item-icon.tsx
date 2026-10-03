@@ -1,6 +1,7 @@
 import type { MouseEvent } from "react";
 import { classNames } from "./class-names.ts";
 import { AppIcon, type AppIconName } from "./icons.tsx";
+import { symbolIconChoice } from "./symbol-icons.ts";
 
 export type ItemIconKind = "page" | "folder" | "file" | "database" | "database_view";
 export type ItemIconSize = "tree" | "inline" | "page";
@@ -52,8 +53,10 @@ export function ItemIcon({
   size = "inline",
 }: ItemIconProps) {
   const canonicalIcon = kind === "file" ? null : (icon ?? null);
+  const symbol = symbolIconChoice(canonicalIcon);
   const showKindBadge = canonicalIcon !== null && kind !== "file" && size !== "page";
   const kindIcon = itemKindIconName(kind, { holdsContent });
+  const symbolSize = size === "page" ? 40 : size === "tree" ? 16 : 18;
   return (
     <span
       className={classNames("item-icon", className)}
@@ -62,11 +65,21 @@ export function ItemIcon({
       data-holds-content={kind === "page" ? holdsContent : undefined}
       aria-hidden="true"
     >
-      {canonicalIcon === null ? (
+      {canonicalIcon === null || (symbol === null && canonicalIcon.startsWith("symbol:")) ? (
         <AppIcon name={kindIcon} size={size === "tree" ? "small" : "medium"} />
-      ) : (
+      ) : symbol === null ? (
         <span className="item-icon__emoji" data-item-emoji="true">
           {canonicalIcon}
+        </span>
+      ) : (
+        <span className="item-icon__emoji" data-item-emoji="symbol">
+          <symbol.Icon
+            className="ui-icon"
+            size={symbolSize}
+            focusable="false"
+            aria-hidden="true"
+            data-icon={symbol.id}
+          />
         </span>
       )}
       {showKindBadge ? (
