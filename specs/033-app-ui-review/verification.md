@@ -923,3 +923,114 @@ Le rejeu final `e2e-slash-menu-final-31.log` passe les cinq profils : 50 parcour
 ### Contrôle complet 10 — 00312375
 
 La couverture échoue sur les deux assertions d’inventaire E2E de `test-impact.spec.ts` : le nouveau fichier n’a pas été déclaré dans `ci/test-impact.json`. Les 482 autres fichiers passent, 5 081 tests réussis et deux exclus Windows ; aucune matrice ni gate ultérieure lancée. T044/T058 ajoutent le parcours et ses propriétaires (éditeur, workspace, système UI et document/page-state), avec quatre contrôles de sélection dans le contrat d’impact. Le test d’inventaire/impact passe après correction ; assertions et sélection des cinq profils sont conservées. Le prochain contrôle complet portera sur le nouveau commit.
+
+### Contrôle complet 11 — réussite sur 69cec828
+
+`checks:local` termine avec code de sortie 0 sur le commit exact
+`69cec828eed0eb16a3bff45f4bc7ce35bef289ca`, arbre propre avant publication.
+`DATABASE_URL` et `TEST_DATABASE_URL` visent tous deux PostgreSQL de test 55432.
+L'instance du propriétaire (proxy, web, API et PostgreSQL 5432) reste en place,
+saine et non réinitialisée. La sauvegarde UI acceptée reste `3ac40b2e`.
+
+| Contrôle | Résultat |
+| --- | --- |
+| Toolchain, shell, format/lint, types | Réussis ; Bun 1.4.2, seuils inchangés |
+| Corpus sous couverture, unitaires/propriétés/intégration/contrats | 483 fichiers et 5 087 tests réussis ; deux cas réservés à Windows |
+| Couverture du code éligible | 91,72 % statements, 86,33 % branches, 94,37 % functions, 92,81 % lines |
+| Budgets de performance, sans instrumentation | Neuf suites, 22 tests réussis |
+| Intégration / migrations / contrats, runners séparés | 375 / 13 / 1 868 tests réussis ; ne pas additionner ces rejeux au corpus précédent |
+| Desktop natif macOS ARM | Build, package, lancement installé et neuf parcours réussis |
+| Production et images | Builds réussis ; API/web construits pour AMD64 et ARM64 |
+| Restauration native ARM en image | Historique SQL, séquence, blobs, préfixe d'upload, répétition et activation réussis |
+| Audit dépendances | 427 packages contrôlés, aucun problème au seuil HIGH/CRITICAL, cinq alertes sous ce seuil |
+| Secrets / analyse statique / licences | 1 830 fichiers sans finding / 1 309 sources sans finding / 431 packages conformes |
+| Compose | Services, ports loopback, secrets, images et temps réel validés |
+
+Matrice web complète : cinq profils réussis en 2 696 s, **1 456 réussites**,
+119 exclusions conditionnelles de plateforme déjà prévues. Aucun nouveau skip,
+clic forcé, budget abaissé ou réussite après retry. Sur macOS, les profils
+Firefox/WebKit utilisent le runtime Linux épinglé documenté ; les trois parties
+WebKit exécutent ensemble le corpus complet.
+
+| Profil | Réussites | Exclusions conditionnelles |
+| --- | ---: | ---: |
+| Chromium desktop | 303 | 12 |
+| Firefox desktop | 289 | 26 |
+| WebKit desktop | 289 | 26 |
+| Chromium mobile | 291 | 24 |
+| WebKit mobile | 284 | 31 |
+
+Les neuf parcours desktop s'ajoutent à la matrice web ; ils couvrent notamment
+onboarding, fichier natif, mise à jour vérifiée et reprise hors ligne après arrêt
+du processus. Les deux cas unitaires Windows et les parcours natifs des autres
+OS/architectures restent à confirmer par la CI.
+
+Trivy 0.70.0 sur l'image ARM du même commit passe le seuil HIGH/CRITICAL
+corrigibles ; son rapport conserve 46 résultats sans correctif. Logs locaux
+ignorés : `checks-local-11.log`, `checks-local-11-e2e-logs/`,
+`trivy-image-build-09.log`, `trivy-gate-09.log`, `container-scan-09.sarif`.
+Les logs web sont archivés avant le parcours desktop qui réutilise le nom de
+profil Chromium, afin de conserver les comptes de chaque corpus.
+
+Les états UI et captures associés à T040–044/T046–058 sont revus dans les
+sections précédentes : clair/sombre, largeur étroite, gestes natifs, sauvegarde,
+focus/retour, défilement et erreurs. Les tâches d'implémentation correspondantes
+sont closes après cette réussite. Publication du commit testé sur la
+[PR 180](https://github.com/enzofrnt/MyOwnNotion/pull/180) ;
+[CI initiale](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37161560744)
+en cours. T045 n'est pas encore clos ; aucune fusion.
+
+### CI initiale — écart natif de contraste, T059
+
+La CI `37161560744` sur `69cec828` échoue sur le même avis conditionnel du
+workspace sous Electron Linux AMD64, Linux ARM64, Windows x64 et Windows ARM64. Les audits
+rapportent `summary > span`, « 1 alerte », texte `#D56C5E` sur `#FCEBEA`,
+2,96:1 pour 15 px, au lieu de 4,5:1. Chaque retry échoue aussi. La capture Linux
+ARM est examinée : avis présent, surface de page conservée, texte peu contrasté.
+Les traces/logs sont conservés sous `work/test-readiness/ci-180-*-artifacts/`.
+T059 est ajouté en convergence pour FR-007 et US1/AC3 ; T045 reste ouvert.
+La réussite locale du contrôle 11 ne valide pas cet état natif clair manquant.
+
+
+### T059/T060 — correction et vérification ciblée
+
+Le parcours de sauvegarde existant produit un vrai avis périmé, puis audite le
+résumé fermé et le panneau ouvert au clavier dans les deux thèmes, à 320 et
+1 280 px. Avant correction, `e2e-notice-contrast-red-32.log` échoue sur l'audit.
+La correction réutilise `--ui-color-danger-text` sur `--ui-color-canvas` : le
+rouge de la palette reste inchangé et l'avis reste présent. Un fond danger doux
+ne suffit pas dans le thème sombre ; le canvas neutre conserve le contraste du
+texte. L'audit Electron existant contrôle maintenant workspace et réglages dans
+les deux thèmes, sans retirer son analyse globale.
+
+Le rejeu `e2e-notice-contrast-green-33.log` passe les cinq profils, sans retry,
+49 s. Le rejeu natif macOS `e2e-notice-desktop-green-34.log` passe les deux
+parcours d'accessibilité, 7 s. La sélection CI du parcours d'avis est contrôlée
+pour ses trois propriétaires supplémentaires : 45 tests de politique/impact
+réussis (`notice-impact-02.log`).
+
+La revue des premières captures révèle cependant un chevauchement à 320 px :
+la cible réelle du bouton de navigation mesure 44 px, alors que le gutter de
+l'en-tête compact n'en réservait que 32 et dépendait de l'état desktop. Le test
+de géométrie échoue avant correction (`e2e-welcome-overlap-red-35.log`). T060
+réserve la cible réelle et son espacement dans tous les en-têtes mobiles,
+y compris derrière le tiroir, sans réduire la cible ni modifier le bureau.
+
+Le rejeu final `e2e-notice-welcome-green-36.log` passe les cinq profils en 50 s,
+zéro retry : aucun chevauchement du contrôle avec le libellé ou le titre,
+ouverture/fermeture native du tiroir et retour du focus, huit états d'avis
+par profil sans violation serious/critical. Les références mobiles et le
+parcours d'onglets/chemin profond passent aussi sur Chromium/WebKit mobiles
+(`e2e-mobile-chrome-green-37.log`, 33 s), sans nouvelle exclusion ni modification
+de référence visuelle. Les probes temporaires ne font pas partie des tests.
+
+Les 16 captures après correction sont conservées pour Chromium desktop et
+WebKit mobile, chaque thème/largeur/état, sous
+`assets/validation-<profil>-notices-<thème>-<largeur>-<open|closed>.png`.
+Revue des captures finales : Chromium clair 320 fermé et sombre 320 ouvert,
+WebKit clair 320 ouvert et sombre 1 280 ouvert. Le bouton et les titres sont
+séparés ; l'avis/panneau restent lisibles, bornés et utilisables ; la surface
+principale conserve sa hiérarchie. La preuve avant correction est
+[avis natif Linux ARM](assets/ci-180-notice-contrast-before.png).
+Les résultats ciblés ne remplacent pas le prochain `checks:local` complet sur
+le nouveau commit exact. T059/T060 et T045 restent ouverts à cette étape.

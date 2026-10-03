@@ -33,7 +33,7 @@ test("onboarding preserves keyboard focus and has no serious accessibility viola
 test("workspace and security including native update controls have no serious accessibility violations", async ({
   baseURL,
   freshContent,
-}) => {
+}, testInfo) => {
   if (!baseURL) throw new Error("Missing test server");
   const { session, page } = await openDesktopWorkspace(baseURL, freshContent.cookies);
   try {
@@ -51,13 +51,18 @@ test("workspace and security including native update controls have no serious ac
           "none",
         );
       }
-      const report = await new AxeBuilder({ page }).setLegacyMode().analyze();
-      expect(
-        report.violations.filter((violation) =>
-          ["serious", "critical"].includes(violation.impact ?? ""),
-        ),
-        destination,
-      ).toEqual([]);
+      for (const theme of ["light", "dark"] as const) {
+        await page.emulateMedia({ colorScheme: theme });
+        await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+        const report = await new AxeBuilder({ page }).setLegacyMode().analyze();
+        expect(
+          report.violations.filter((violation) =>
+            ["serious", "critical"].includes(violation.impact ?? ""),
+          ),
+          `${destination}, ${theme}`,
+        ).toEqual([]);
+        await page.screenshot({ path: testInfo.outputPath(`${destination}-${theme}.png`) });
+      }
     }
   } finally {
     await session.close();

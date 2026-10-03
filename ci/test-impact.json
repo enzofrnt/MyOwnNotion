@@ -301,7 +301,10 @@
       "owners": {
         "exact": [
           "apps/api/src/routes/backups.ts",
+          "apps/web/src/features/hierarchy/hierarchy-explorer.tsx",
+          "apps/web/src/features/workspace/workspace.css",
           "apps/web/src/services/security-api.ts",
+          "apps/web/src/ui/tokens.css",
           "packages/database/src/repositories/backup-repository.ts"
         ],
         "prefixes": [

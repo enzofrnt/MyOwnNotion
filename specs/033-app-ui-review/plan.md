@@ -13,9 +13,12 @@ Canevas §§4, 7–22, 24, 26–33, 38–39, 43.4–43.6, 46. Sources :
 
 ## Technical Context
 
-TypeScript strict/Bun 1.4.2/React/Ariakit/BlockNote existants. Aucun framework
-ou dépendance ajouté. Web et renderer desktop partagé, 320/1280 clair/sombre.
-Aucune migration/contrat serveur/protocole ni réinitialisation des données.
+TypeScript strict/Bun 1.4.2/React/Ariakit/BlockNote existants. Frameworks conservés ;
+les versions de dépendances sont corrigées pour la sécurité dans T052.
+Web et renderer desktop partagé, 320/1280 clair/sombre.
+La passe UI initiale conserve le modèle serveur. Les correctifs de validation
+renforcent aussi les écritures d'identités de source côté client/serveur (T047),
+sans nouvelle migration, modification de protocole ni réinitialisation des données.
 Primitives gardent leurs props et focus. Fixtures mémoire et APIs locales
 injectées dans le lab si nécessaires ; adapters de production conservés.
 
@@ -389,3 +392,30 @@ T058 examine le menu de suggestions BlockNote/Ariakit réellement monté. Le par
 Le correctif T058 utilise `floatingUIOptions.useFloatingOptions.strategy = fixed`, API existante de BlockNote. Le portail conserve son contexte d’éditeur ; Floating UI suit toujours le curseur et ses ancêtres. Aucun CSS ni ordre de commandes changé. Les essais retirant `aria-activedescendant` ou le flex de la liste n’ont pas résolu le défaut et ne sont pas retenus. Le nouveau parcours prépare un paragraphe enregistré avant de tester le menu ; il garde un scénario de composition séparé pour le défilement réellement en défaut. Capturer le viewport après la fin de l’ouverture, sans faire défiler la surface pour la capture.
 
 T058 déclare aussi son parcours dans l’inventaire CI `ci/test-impact.json`. Les changements de menu, de surface de page et du système UI sélectionnent le parcours sur les cinq profils ; le contrat d’impact vérifie ces propriétaires. L’ajout ne modifie pas les règles de sélection globale ni les gates.
+
+Le contrôle complet 11 réussit sur `69cec828eed0eb16a3bff45f4bc7ce35bef289ca`,
+avec code de sortie 0 : couverture, budgets, intégration/migrations/contrats,
+cinq profils web, neuf parcours desktop natifs macOS ARM, builds/images,
+restauration réelle et contrôles de sécurité/Compose. Voir les nombres et limites
+dans [verification.md](verification.md). La [PR 180](https://github.com/enzofrnt/MyOwnNotion/pull/180)
+est ouverte sur ce commit exact ; T045 reste en cours tant que sa CI requise
+n'a pas entièrement réussi. Aucun changement de données du propriétaire.
+
+La CI initiale révèle un état conditionnel natif non couvert en clair : le résumé
+d'avis du workspace est rouge d'accent sur fond rouge clair (2,96:1). Linux AMD64,
+Linux ARM64, Windows x64 et Windows ARM64 échouent sur le même audit, y compris après leur retry.
+T059 remplace seulement ses couleurs par les tokens de texte danger et de canvas
+neutre, sans changer géométrie, avertissement ni contrôles. Tester l'avis fermé et
+ouvert au clavier sur une sauvegarde réellement périmée, aux deux thèmes et
+320/1280 px ; auditer également les deux thèmes de workspace/réglages Electron.
+Le contrat d'impact relie ce parcours partagé aux propriétaires CSS/hiérarchie.
+Appliquer ui-quality + lessons, conserver captures et preuve rouge/verte ;
+ne retirer ni l'avis, ni la règle de contraste, ni un profil de CI.
+
+La revue des captures T059 montre aussi le contrôle de navigation sur le libellé
+de l'accueil à 320 px. T060 réserve dans tous les en-têtes mobiles la largeur
+effective du bouton Square (`--ui-target`) avec son espacement, sans la condition
+d'ouverture de la sidebar desktop ni réduction de sa cible cliquable.
+La place reste réservée derrière le tiroir mobile pour éviter un déplacement
+de l'en-tête pendant son ouverture. Vérifier géométrie du contrôle et des deux
+textes, ouverture native du tiroir et retour, sans changer les pages desktop.

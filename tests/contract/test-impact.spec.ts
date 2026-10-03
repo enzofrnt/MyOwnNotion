@@ -120,6 +120,16 @@ describe("change-set parsing", () => {
 
 describe("pull-request selection", () => {
   it.each([
+    "apps/web/src/features/hierarchy/hierarchy-explorer.tsx",
+    "apps/web/src/features/workspace/workspace.css",
+    "apps/web/src/ui/tokens.css",
+  ])("selects the stale-notice journey when %s changes", (source) => {
+    const plan = pullRequestPlan([source]);
+    expect(plan.e2e.testFiles).toContain("tests/e2e/backup.spec.ts");
+    expect(plan.e2e.matrix.map(({ project }) => project)).toEqual(policy.e2eProjects);
+  });
+
+  it.each([
     "apps/web/src/features/editor/editor-menus/slash-menu.tsx",
     "apps/web/src/features/editor/editor.css",
     "apps/web/src/features/workspace/workspace.css",

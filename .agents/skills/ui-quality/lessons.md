@@ -281,3 +281,28 @@ validation explicite du propriétaire (correction vue ensemble).
   une saisie commencée avant la première disponibilité de la cible.
 - Preuve : test unitaire rouge/vert et créations consécutives répétées sur les
   cinq profils ; `specs/033-app-ui-review/verification.md`, T057.
+
+
+### L-021 — Une couleur d'accent ne garantit pas le contraste d'un texte
+- Statut : validée
+- Surface : avis conditionnels, résumés fermés et panneaux ouverts.
+- Anti-pattern : placer le rouge d'accent sur un fond teinté en supposant que
+  la paire reste lisible dans les deux thèmes ; n'auditer que l'état ouvert.
+- Règle : choisir les rôles sémantiques de texte et de surface ensemble,
+  vérifier les états fermé/ouvert avec une vraie condition métier, aux deux
+  thèmes et dans le runtime natif. Un canvas neutre peut conserver l'accent
+  et sa bordure sans modifier la palette ni masquer l'avertissement.
+- Preuve : audit rouge/vert, cinq profils navigateur, audit Electron clair/sombre
+  et captures réelles ; `specs/033-app-ui-review/verification.md`, T059.
+
+### L-022 — Réserver la cible réelle d'un contrôle dans l'en-tête mobile
+- Statut : validée
+- Surface : ouverture du tiroir, accueil et en-têtes compacts.
+- Anti-pattern : réserver seulement la taille dessinée de l'icône, ou calculer
+  le gutter mobile avec l'état de la sidebar desktop ; le bouton recouvre le texte.
+- Règle : conserver l'espace de la zone cliquable effective et son espacement
+  dans chaque état mobile, même derrière le tiroir. Contrôler à 320 px que
+  les boîtes du bouton et des textes ne se recouvrent pas, puis l'ouverture,
+  la fermeture et le retour du focus ; ne pas réduire la cible pour faire tenir.
+- Preuve : géométrie rouge/verte, cinq profils, références et onglets mobiles,
+  captures clair/sombre ; `specs/033-app-ui-review/verification.md`, T060.

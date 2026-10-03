@@ -812,8 +812,8 @@
   padding: var(--ui-space-2) var(--ui-space-3);
   align-items: center;
   gap: var(--ui-space-2);
-  color: var(--ui-color-danger);
-  background: var(--ui-color-danger-soft);
+  color: var(--ui-color-danger-text);
+  background: var(--ui-color-canvas);
   border: 1px solid var(--ui-color-danger);
   border-radius: var(--ui-radius-round);
   box-shadow: var(--ui-shadow-menu);
@@ -933,16 +933,13 @@
   .workspace-page-header {
     min-height: 6.75rem;
     padding: var(--ui-space-3) var(--ui-space-4);
+    padding-left: calc(var(--ui-target) + var(--ui-space-3));
   }
 
   .workspace-page-header[data-compact="true"] {
     min-height: var(--workspace-chrome-height, 1.875rem);
     padding: 0;
-  }
-
-  .workspace-shell[data-sidebar-open="false"] .workspace-page-header[data-compact="true"],
-  .workspace-shell:not([data-sidebar-open="true"]) .workspace-page-header[data-compact="true"] {
-    padding-left: calc(var(--ui-target-compact) + var(--ui-space-3));
+    padding-left: calc(var(--ui-target) + var(--ui-space-3));
   }
 
   .workspace-page-canvas {
