@@ -41,6 +41,14 @@ export function AutoPropertyName({
   onCommit: (name: string) => void;
 }) {
   const [value, setValue] = useState(name);
+  const element = useRef<HTMLInputElement | null>(null);
+  const bindInput = useCallback(
+    (input: HTMLInputElement | null) => {
+      element.current = input;
+      if (inputRef !== undefined) inputRef.current = input;
+    },
+    [inputRef],
+  );
   const errorId = useId();
   const error =
     value.trim() === ""
@@ -58,6 +66,7 @@ export function AutoPropertyName({
   useEffect(() => {
     if (ref.current.value === ref.current.name) {
       ref.current.value = name;
+      if (element.current !== null) element.current.value = name;
       setValue(name);
     }
     ref.current.name = name;
@@ -76,16 +85,19 @@ export function AutoPropertyName({
   return (
     <div className="property-settings__name-input">
       <input
-        ref={inputRef}
+        ref={bindInput}
         className="ui-native-input"
         data-size="compact"
         aria-label={label}
-        value={value}
+        // Keep a native replacement intact if a source projection renders
+        // before its input event. React state drives validation, while clean
+        // source updates are adopted explicitly by the effect above.
+        defaultValue={name}
         aria-invalid={error !== null || undefined}
         aria-describedby={error === null ? undefined : errorId}
-        onChange={(event) => {
+        onInput={(event) => {
           const r = ref.current;
-          r.value = event.target.value;
+          r.value = event.currentTarget.value;
           setValue(r.value);
           if (r.timer !== undefined) clearTimeout(r.timer);
           r.timer = setTimeout(commit, 350);

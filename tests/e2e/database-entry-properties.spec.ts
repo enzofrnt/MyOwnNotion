@@ -34,8 +34,11 @@ test("configures entry properties directly, shares symbols, and preserves indepe
   const config = page.locator(".property-settings");
   await expect(config).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Renommer", exact: true })).toHaveCount(0);
-  await config.getByLabel("Nom de la propriété").fill("Brief");
-  await config.getByLabel("Nom de la propriété").press("Enter");
+  const propertyName = config.getByLabel("Nom de la propriété");
+  await expect(propertyName).toBeFocused();
+  await propertyName.fill("Brief");
+  await expect(propertyName).toHaveValue("Brief");
+  await propertyName.press("Enter");
   const briefLabel = page.getByRole("button", { name: "Modifier la propriété Brief", exact: true });
   await expect(briefLabel).toBeVisible();
   await waitForSynchronized(page);
