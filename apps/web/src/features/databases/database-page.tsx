@@ -132,6 +132,13 @@ export function DatabasePage({
   readonly onReturnFocusRestored?: () => void;
 }) {
   const sectionRef = useRef<HTMLElement>(null);
+  const entryReturnAttempt = useRef<{
+    entryId: Uuid;
+    initialFocus: Element | null;
+    lastFocusedTrigger: HTMLElement | null;
+    attempts: number;
+    completed: boolean;
+  } | null>(null);
   const [editingProperty, setEditingProperty] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolsSlot, setToolsSlot] = useState<HTMLElement | null>(null);
@@ -364,21 +371,32 @@ export function DatabasePage({
     loadMore,
   ]);
   useEffect(() => {
-    if (returnFocusEntryId === undefined || returnFocusEntryId === null || !canRestoreEntryFocus) {
+    if (returnFocusEntryId == null) {
+      entryReturnAttempt.current = null;
       return;
     }
+    // A projection refresh can interrupt this effect after focus was restored.
+    // Keep the same attempt so its successor still recognizes a new owner draft.
+    if (entryReturnAttempt.current?.entryId !== returnFocusEntryId) {
+      entryReturnAttempt.current = {
+        entryId: returnFocusEntryId,
+        initialFocus: document.activeElement,
+        lastFocusedTrigger: null,
+        attempts: 0,
+        completed: false,
+      };
+    }
+    const attempt = entryReturnAttempt.current;
+    if (!canRestoreEntryFocus || attempt.completed) return;
     let frame: number | undefined;
-    let attempts = 0;
-    let completed = false;
-    let lastFocusedTrigger: HTMLElement | null = null;
 
     // Clear the saved selection now, never from a delayed callback that could
     // land after the owner has started another controlled-input draft.
     viewContext.finishEntryReturn();
 
     const complete = (): void => {
-      if (completed) return;
-      completed = true;
+      if (attempt.completed) return;
+      attempt.completed = true;
       onReturnFocusRestored?.();
     };
 
@@ -388,10 +406,11 @@ export function DatabasePage({
       );
       const activeElement = document.activeElement;
       const userMovedFocus =
-        lastFocusedTrigger !== null &&
         activeElement instanceof HTMLElement &&
         activeElement !== document.body &&
-        activeElement !== lastFocusedTrigger &&
+        activeElement !== trigger &&
+        activeElement !== attempt.lastFocusedTrigger &&
+        activeElement !== attempt.initialFocus &&
         activeElement.isConnected;
       if (userMovedFocus) {
         complete();
@@ -403,15 +422,15 @@ export function DatabasePage({
       // owner has moved to another connected control.
       if (trigger != null) {
         if (activeElement !== trigger) trigger.focus();
-        // The table has its own scroll container inside the workspace canvas.
-        // WebKit can focus a virtual row while leaving the outer canvas scrolled
+        // The table follows the workspace's vertical scroll in page flow.
+        // WebKit can focus a virtual row while leaving the canvas scrolled
         // below the viewport. Center the returned trigger in both ancestors so
         // subpixel scroll rounding does not leave its bottom edge clipped.
         trigger.scrollIntoView({ block: "center", inline: "nearest" });
-        lastFocusedTrigger = trigger;
+        attempt.lastFocusedTrigger = trigger;
       }
-      attempts += 1;
-      if (attempts < 20) {
+      attempt.attempts += 1;
+      if (attempt.attempts < 20) {
         frame = requestAnimationFrame(restore);
       } else {
         complete();

@@ -255,3 +255,29 @@ validation explicite du propriétaire (correction vue ensemble).
   clavier sans réafficher un bouton compacté hors du tiroir.
 - Preuve : `tests/e2e/workspace-tabs-folder.spec.ts`, répété sur Chromium et
   WebKit mobiles à 320 px ; `specs/022-page-tabs-folder-view/validation.md`.
+
+### L-019 — Virtualisation : observer le vrai défilement et conserver son étendue
+- Statut : validée
+- Surface : tableaux dans un flux de page, widgets bornés et onglets masqués.
+- Anti-pattern : observer le conteneur horizontal non borné alors que son
+  ancêtre possède le défilement vertical ; laisser les retraits de rangées
+  réduire provisoirement la hauteur et ramener WebKit en haut.
+- Règle : mesurer le scrollport réel et l’origine du contenu dans celui-ci,
+  conserver l’étendue calculée pendant les remplacements DOM et ignorer les
+  surfaces masquées. Un widget qui apparaît ne déplace pas l’ancre de la page.
+- Preuve : `use-table-viewport.ts`, tests de géométrie/lifecycle et retour après
+  1 001 lignes avec DOM borné, focus et visibilité intégrale sur les cinq profils ;
+  `specs/033-app-ui-review/verification.md`, T055 et captures clair/sombre.
+
+### L-020 — Retour du focus : une intention survit aux actualisations
+- Statut : validée
+- Surface : retour d’entrée, projections asynchrones et saisie suivante.
+- Anti-pattern : recréer une tentative de retour après chaque passage loading
+  puis ready ; elle oublie que le propriétaire a commencé un nouveau brouillon
+  et le ferme en reprenant le focus.
+- Règle : conserver le cycle d’une demande et ses cibles pendant les reprises,
+  terminer une seule fois dès qu’un autre contrôle prend volontairement le
+  focus, et distinguer une nouvelle demande explicitement réémise. Tester aussi
+  une saisie commencée avant la première disponibilité de la cible.
+- Preuve : test unitaire rouge/vert et créations consécutives répétées sur les
+  cinq profils ; `specs/033-app-ui-review/verification.md`, T057.

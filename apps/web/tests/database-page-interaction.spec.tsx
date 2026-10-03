@@ -457,6 +457,97 @@ describe("database page interaction durability", () => {
     }
   });
 
+  it.each(["pending", "refresh"] as const)(
+    "keeps a new draft focused through a %s entry return projection",
+    async (phase) => {
+      const originalScroll = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+      Object.defineProperty(Element.prototype, "scrollIntoView", {
+        configurable: true,
+        value: vi.fn(),
+      });
+      vi.stubGlobal(
+        "requestAnimationFrame",
+        vi.fn(() => 1),
+      );
+      vi.stubGlobal("cancelAnimationFrame", vi.fn());
+      const draft = document.createElement("input");
+      draft.value = "My next entry";
+      document.body.append(draft);
+      try {
+        const value = database();
+        const viewId = value.definition.views[0]?.id;
+        if (viewId === undefined) throw new Error("Missing view");
+        const target = generateUuidV7();
+        const page: DatabaseViewPage = {
+          databaseId: value.databaseId,
+          viewId,
+          definitionRevisionId: value.definitionRevisionId,
+          generation: 1,
+          coverage: "complete",
+          availableCount: 1,
+          expectedCount: 1,
+          rows: [
+            {
+              entryId: target,
+              revisionId: generateUuidV7(),
+              title: "Returned entry",
+              values: {},
+              relationTargets: {},
+              groupId: null,
+              syncState: "synced",
+            },
+          ],
+          groups: [],
+          nextCursor: null,
+          source: "local",
+          staleCursorRecovered: false,
+        };
+        const restored = vi.fn();
+        const render = (state: "ready" | "loading", returnId: typeof target | null = target) =>
+          root.render(
+            <MemoryRouter>
+              <DatabasePage
+                database={value}
+                entries={[]}
+                queryPage={page}
+                queryState={state}
+                returnFocusEntryId={returnId}
+                onReturnFocusRestored={restored}
+                onReplaceDefinition={vi.fn()}
+                onCreateEntry={vi.fn()}
+                onOpenEntry={vi.fn()}
+              />
+            </MemoryRouter>,
+          );
+        await act(async () => render(phase === "refresh" ? "ready" : "loading"));
+        if (phase === "refresh")
+          expect(document.activeElement?.getAttribute("data-entry-trigger")).toBe(target);
+        expect(restored).not.toHaveBeenCalled();
+        await act(async () => render("loading"));
+        act(() => draft.focus());
+        await act(async () => render("ready"));
+        expect(document.activeElement).toBe(draft);
+        expect(draft.value).toBe("My next entry");
+        expect(restored).toHaveBeenCalledOnce();
+        // An uncleared parent request must not steal focus on another refresh.
+        await act(async () => render("loading"));
+        await act(async () => render("ready"));
+        expect(document.activeElement).toBe(draft);
+        expect(restored).toHaveBeenCalledOnce();
+        // Clearing and opening the same entry again starts a distinct return.
+        await act(async () => render("ready", null));
+        await act(async () => render("ready"));
+        expect(document.activeElement?.getAttribute("data-entry-trigger")).toBe(target);
+      } finally {
+        draft.remove();
+        if (originalScroll === undefined)
+          Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+        else Object.defineProperty(Element.prototype, "scrollIntoView", originalScroll);
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
   it("creates a page from the kind button and ignores a second click while that write is in flight", async () => {
     let resolveCreate: (() => void) | undefined;
     const onCreateEntry = vi.fn(
