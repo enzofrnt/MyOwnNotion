@@ -1583,3 +1583,120 @@ du contrôle n'est donc justifiée par ces observations. Le contrôle complet 20
 doit utiliser les outils PostgreSQL réels et la configuration maintenue,
 sans wrapper ou setup de diagnostic, sur un commit figé. Tout nouvel échec
 reste bloquant et sera diagnostiqué ; les échecs 19/103 restent consignés.
+
+### Contrôle complet 20 — réussite sur 782f7618
+
+`checks:local` termine avec le **code 0** sur le commit exact
+`782f761837385209040fb2d96e6e4410c10cd586`, sans probe, wrapper PostgreSQL
+ou configuration de diagnostic. Le code reste figé pendant toute la chaîne.
+Le serveur de tests est sur 55432 ; les deux URLs de base évitent la base
+de développement du propriétaire sur 5432.
+
+| Contrôle | Résultat |
+| --- | --- |
+| Toolchain, shell, format, lint, types | Réussite ; 92 avertissements historiques, non bloquants selon la gate maintenue |
+| Couverture | 486 fichiers / 5 116 tests réussis ; deux cas conditionnels réservés à Windows sur cet hôte macOS |
+| Couverture statements / branches / functions / lines | 91,72 / 86,33 / 94,37 / 92,81 %, seuils inchangés |
+| Performance hors instrumentation | Neuf fichiers / 22 tests réussis |
+| Intégration et migrations | 38 fichiers / 375 tests ; 13 tests de migrations réussis |
+| Contrats | 154 fichiers / 1 871 tests réussis, configuration normale |
+| Web, cinq profils | 1 476 réussites / 119 exclusions de plateforme existantes, 2 857 s ; aucune réussite après retry |
+| Desktop macOS ARM | Build, package, lancement installé et neuf parcours natifs réussis, dont arrêt du processus et reprise hors ligne |
+| Builds et images | Production web/API, images AMD64/ARM64 et restauration complète dans le runtime ARM natif réussies |
+| Sécurité et Compose | 427 dépendances, aucun HIGH/CRITICAL ; cinq alertes sous ce seuil ; 1 835 fichiers et 1 314 sources sans finding, 431 licences conformes ; frontières Compose validées |
+
+Détail web réussites/exclusions : Chromium desktop **307/12**, Firefox desktop
+**293/26**, WebKit desktop **293/26**, Chromium mobile **295/24**, WebKit mobile
+**288/31**. Le collecteur archive les cinq logs et leur commit exact avant que
+le parcours desktop ne remplace le rapport Chromium. Les parcours T065–T067
+passent dans la matrice complète, dont les deux previews/dépôts mobiles et
+la dernière entrée d'une base de 1 001 lignes.
+
+Logs ignorés : `work/test-readiness/checks-local-20.log`,
+`checks-local-20-e2e-logs/summary.json` et les cinq profils correspondants,
+`checks-local-20-native-macos-arm.log`. Le code de sortie de la chaîne est
+observé ; une collection de succès intermédiaires ne le remplace pas.
+Les conteneurs du propriétaire conservent leurs identités Caddy `125a1a04c051`,
+web `d21f7c000c58`, API `9805c10c811b`, PostgreSQL `8c1a3325af0b`, tous sains.
+
+Le scan Trivy local de `69cec828` demeure une preuve d'entrées inchangées :
+aucun manifeste, lockfile, Dockerfile ou digest de base ne change depuis ce
+scan, conformément à `docs/development.md`. La CI du candidat le confirme
+par un nouveau scan. Le succès normal des contrats ne démontre pas la cause
+des expirations 19/103 ; ces observations et cette limite restent consignées.
+
+### CI sur 782f7618 — démarrage Windows x64
+
+Le [run 37188863857](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37188863857)
+correspond au commit exact du contrôle complet 20. Le job Windows x64
+`111396606405` s'arrête avant les tests : Bun 1.4.2 et la création de la fixture
+PostgreSQL 18 ont réussi, puis le lancement du contrôle de toolchain termine
+en 38 ms sans sortie du script avec `-1073741502` (`0xC0000142`).
+[Microsoft décrit ce code comme une erreur d'initialisation de DLL](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55).
+La DLL et la cause sous-jacente ne sont pas identifiées ; aucun échec de test
+produit n'est observé dans ce job. Les actions de rétention et de cleanup
+échouent aussi au démarrage sur cette machine. Windows ARM, macOS et les deux
+runners Linux réussissent leurs parcours natifs dans le même run.
+
+La relance isolée sur une nouvelle machine doit confirmer le job Windows x64.
+GitHub la refuse tant que le workflow initial tourne (HTTP 403). Les contrôles
+web et de contrats continuent ; ce run ne constitue pas encore une CI verte,
+et T045 reste ouvert. Journal ignoré :
+`work/test-readiness/ci-782f7618-windows-x64-failure.log`.
+
+La première tentative termine le 4 octobre : **les cinq profils web sont verts**.
+Chromium desktop passe 307 parcours / 12 exclusions, dont les quatre variantes
+du menu slash ; WebKit mobile passe 288 / 31, dont preview/dépôt avec éditeur
+masqué en 13,0/11,4 s et pagination de 1 001 entrées en 49,7 s. Aucun flaky
+n'est rapporté. Les contrats passent 154 fichiers / 1 871 tests ; la couverture
+Linux passe 486 fichiers / 5 115 tests, avec trois exclusions de plateforme
+existantes, et 91,72 / 86,33 / 94,37 / 92,82 % de couverture. Les corpus sous
+couverture et hors couverture se recoupent : ne pas additionner leurs nombres.
+Seul Windows x64 échoue, puis l'agrégat le répercute. La publication d'images
+sur une branche de PR est conditionnellement exclue, selon le workflow maintenu.
+
+La seconde tentative relance seulement Windows x64 et son agrégat dépendant,
+avec diagnostic du runner activé, sans modification de source ni retry des
+assertions. Le nouveau job `111402341743` utilise `GitHub Actions 1000008751`,
+distinct de la machine initiale `1000008724`. Son résultat est encore attendu.
+Logs ignorés : `ci-782f7618-{unit,contract,chromium-desktop,webkit-mobile}.log`
+et `ci-782f7618-retry-watch.log` sous `work/test-readiness/`.
+
+### Clôture de validation sur 782f7618
+
+La seconde tentative du [run 37188863857](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37188863857)
+termine avec **success** sur `782f761837385209040fb2d96e6e4410c10cd586` :
+**32 jobs requis verts**, `quality-gate` compris. Seule la publication d'images
+reste conditionnellement exclue pour une PR. La liste de checks de la PR est
+également verte. Les succès des autres suites sont conservés ; seuls Windows
+x64 et l'agrégat ont été réexécutés.
+
+Le job Windows x64 `111402341743` passe le contrôle de toolchain auparavant
+inexécutable, les types, **24 fichiers / 107 tests desktop réussis** et le cas
+DMG réservé à macOS exclu, le scan des secrets, les builds, le package et le
+lancement installé. Sa matrice native passe **1/1 projet en 37 s**. Le cleanup
+passe aussi ; la rétention d'échec est exclue puisque le job a réussi. La cause initiale
+reste inconnue : aucun patch produit ni relaxation de test n'a été effectué
+pour cet incident. Journal ignoré :
+`work/test-readiness/ci-782f7618-windows-x64-success.log`.
+
+Les critères de T045/T059–T068 sont ainsi satisfaits par le contrôle complet
+20 et la CI du même commit, avec les diagnostics et limites conservés. La
+clôture documentaire garde la PR ouverte, sans fusion. Conformément à la
+classification de la branche complète dans `docs/development.md`, le commit
+de clôture doit encore passer son propre contrôle complet avant push et sa CI
+avant livraison. Les références du dernier head sont ajoutées au
+[corps de la PR 180](https://github.com/enzofrnt/MyOwnNotion/pull/180) après ces
+contrôles, pour éviter un commit de preuve qui requiert son propre successeur.
+
+La convergence finale du 4 octobre examine **21 FR + cinq SC + huit scénarios
+d'acceptation = 34 éléments d'intention**, huit choix du plan et les huit
+principes de la Constitution. Résultat : **zéro finding** missing / partial /
+contradicts / unrequested, aucun écart matériel UI/UX et **68 tâches closes**.
+L'inventaire des 20 familles, les 151 observations initiales et les preuves
+complémentaires des corrections restent traçables ; les sept composants
+historiques non montés gardent leur exclusion explicite. Le hash de `tasks.md`
+est identique avant/après cette phase : aucune réécriture ni phase vide de
+convergence. Ce compte rendu est ajouté après la revue, dans la mise à jour
+de suivi d'implémentation. Les liens locaux de spec/plan/tasks/preuves/guide
+ont été vérifiés ; les prérequis Spec Kit et `git diff --check` réussissent.

@@ -103,7 +103,7 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 - [x] T042 Couvrir configuration directe clic/clic droit/clavier, choix/retrait de symboles, champ composé et ordre des propriétés indépendant des colonnes ; appliquer ui-quality + lessons avec preuves visuelles dans verification.md, selon FR-018/019/020/021 (partial).
 - [x] T043 Confirmer la preview et le dépôt/annulation natifs de blocs dans l’éditeur actif avec un autre onglet masqué ; appliquer ui-quality + lessons et conserver la preuve permettant de clore T021, selon FR-012/013/014 (missing).
 - [x] T044 Corriger tous les échecs unitaires/E2E et contrôles de la matrice complète sans affaiblir les garanties ; enregistrer les suites et résultats dans verification.md, selon FR-008 et Constitution III/VII (partial).
-- [ ] T045 Publier après checks:local réussi sur le commit exact, ouvrir/attacher la PR et corriger sa CI jusqu’au succès du dernier commit ; consigner les références et limites, selon FR-008 et Constitution III/VII (missing).
+- [x] T045 Publier après checks:local réussi sur le commit exact, ouvrir/attacher la PR et corriger sa CI jusqu’au succès du dernier commit ; consigner les références et limites, selon FR-008 et Constitution III/VII (missing).
 
 - [x] T046 Rétablir l’action de réordonner les colonnes dans les paramètres de visibilité avec les primitives existantes ; préserver largeur/visibilité et ordre du schéma, couvrir les limites en unitaire et la persistance en E2E (régression de 009 FR-018 découverte en convergence ; ui-quality + lessons).
 
@@ -129,37 +129,37 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 
 ## Phase 8: Convergence
 
-- [ ] T059 Corriger le contraste du résumé d'alertes partagé révélé par Electron Linux/Windows en thème clair : conserver l'accent et un fond neutre, contrôler les avis fermés/ouverts au clavier en clair/sombre et 320/1280 px ; audit sur une vraie sauvegarde périmée et sur les deux thèmes natifs, preuves visuelles selon ui-quality + lessons, puis contrôle complet et CI (FR-005/006/007/008, US1/AC3, Constitution III/VI/VII, partial).
+- [x] T059 Corriger le contraste du résumé d'alertes partagé révélé par Electron Linux/Windows en thème clair : conserver l'accent et un fond neutre, contrôler les avis fermés/ouverts au clavier en clair/sombre et 320/1280 px ; audit sur une vraie sauvegarde périmée et sur les deux thèmes natifs, preuves visuelles selon ui-quality + lessons, puis contrôle complet et CI (FR-005/006/007/008, US1/AC3, Constitution III/VI/VII, partial).
 
-- [ ] T060 Préserver la place du contrôle de navigation dans l'en-tête d'accueil à 320 px, indépendamment de l'état desktop : éviter le chevauchement de l'icône avec le libellé/titre, conserver les en-têtes compacts et l'ouverture du tiroir ; preuve de géométrie rouge/verte, captures clair/sombre et gestes natifs avec ui-quality + lessons (FR-005/006, US1/AC2, partial).
+- [x] T060 Préserver la place du contrôle de navigation dans l'en-tête d'accueil à 320 px, indépendamment de l'état desktop : éviter le chevauchement de l'icône avec le libellé/titre, conserver les en-têtes compacts et l'ouverture du tiroir ; preuve de géométrie rouge/verte, captures clair/sombre et gestes natifs avec ui-quality + lessons (FR-005/006, US1/AC2, partial).
 
 
 ## Phase 9: Convergence
 
-- [ ] T061 Préserver le dépôt natif d'un bloc à la destination de sa preview sur WebKit mobile, avec un autre éditeur masqué : diagnostiquer l'échec CI avant toute correction, conserver déplacement durable/annulation/mentions et contrôles de géométrie, rejouer les cinq profils sans retry et appliquer ui-quality + lessons avec preuves, selon FR-005/012, US2/AC2 et Constitution III/VI/VII (partial).
+- [x] T061 Préserver le dépôt natif d'un bloc à la destination de sa preview sur WebKit mobile, avec un autre éditeur masqué : diagnostiquer l'échec CI avant toute correction, conserver déplacement durable/annulation/mentions et contrôles de géométrie, rejouer les cinq profils sans retry et appliquer ui-quality + lessons avec preuves, selon FR-005/012, US2/AC2 et Constitution III/VI/VII (partial).
 
 ## Phase 10: Convergence
 
-- [ ] T062 Diagnostiquer la mesure intermittente de débordement de création inline sur WebKit mobile ; comparer ligne, surface et contrôles dans un même repère, conserver stabilité des dimensions, tolérances et gestes natifs, couvrir ouverture animée et thèmes avec ui-quality + lessons et preuve réelle, puis contrôle complet et CI, selon FR-008/010, US2/AC2 et Constitution III/VI/VII (partial).
+- [x] T062 Diagnostiquer la mesure intermittente de débordement de création inline sur WebKit mobile ; comparer ligne, surface et contrôles dans un même repère, conserver stabilité des dimensions, tolérances et gestes natifs, couvrir ouverture animée et thèmes avec ui-quality + lessons et preuve réelle, puis contrôle complet et CI, selon FR-008/010, US2/AC2 et Constitution III/VI/VII (partial).
 
 
 ## Phase 11: Convergence
 
-- [ ] T063 Diagnostiquer le dépôt clavier intermittent des enfants de dossier : distinguer transformation visuelle, collision retenue et destination persistée, conserver Espace/flèches/Échap, gestes natifs, ordre sidebar/second appareil et annulation ; preuve rouge/verte, cinq profils et contrôle complet/CI, avec ui-quality + lessons selon 022 FR-023/024, 033 FR-005/008, US2/AC2 et Constitution III/VI/VII (partial).
+- [x] T063 Diagnostiquer le dépôt clavier intermittent des enfants de dossier : distinguer transformation visuelle, collision retenue et destination persistée, conserver Espace/flèches/Échap, gestes natifs, ordre sidebar/second appareil et annulation ; preuve rouge/verte, cinq profils et contrôle complet/CI, avec ui-quality + lessons selon 022 FR-023/024, 033 FR-005/008, US2/AC2 et Constitution III/VI/VII (partial).
 
 ## Phase 12: Convergence
 
-- [ ] T064 Diagnostiquer le remplacement de texte concaténé sous WebKit dans le parcours de convergence hors ligne ; préserver la sélection, la saisie et le focus déjà pris par l’utilisateur face au placement différé du caret, garder focus initial/Entrée/Échap et champs natifs sans sélection textuelle ; tests unitaires rouge/vert et parcours natifs sur cinq profils sans retry, preuve selon ui-quality + lessons, puis contrôle complet et CI (009 FR-015/047, 033 FR-005/008/017, US2/AC2, Constitution III/VI/VII, partial).
+- [x] T064 Diagnostiquer le remplacement de texte concaténé sous WebKit dans le parcours de convergence hors ligne ; préserver la sélection, la saisie et le focus déjà pris par l’utilisateur face au placement différé du caret, garder focus initial/Entrée/Échap et champs natifs sans sélection textuelle ; tests unitaires rouge/vert et parcours natifs sur cinq profils sans retry, preuve selon ui-quality + lessons, puis contrôle complet et CI (009 FR-015/047, 033 FR-005/008/017, US2/AC2, Constitution III/VI/VII, partial).
 
 ## Phase 13: Convergence
 
-- [ ] T065 Diagnostiquer l'ouverture absente du menu slash sous Chromium Linux après déplacement natif en fin de document : distinguer sélection, réception du caractère déclencheur et cycle de suggestion/projection, conserver saisie rapide, contenu durable, défilement local, clavier/Échap/clic natif et géométrie ; preuve rouge/verte dans le runtime CI, cinq profils, clair/sombre et 320/1280 px avec ui-quality + lessons, puis contrôle complet et CI, selon FR-005/006/008, US2/AC2 et Constitution III/VI/VII (partial).
+- [x] T065 Diagnostiquer l'ouverture absente du menu slash sous Chromium Linux après déplacement natif en fin de document : distinguer sélection, réception du caractère déclencheur et cycle de suggestion/projection, conserver saisie rapide, contenu durable, défilement local, clavier/Échap/clic natif et géométrie ; preuve rouge/verte dans le runtime CI, cinq profils, clair/sombre et 320/1280 px avec ui-quality + lessons, puis contrôle complet et CI, selon FR-005/006/008, US2/AC2 et Constitution III/VI/VII (partial).
 
 ## Phase 14: Convergence
 
-- [ ] T066 Diagnostiquer le dépôt WebKit mobile absent malgré une preview valide dans la CI : observer événements natifs, types de transfert, destination retenue et visibilité de la ligne au relâchement ; préserver annulation, destinations interdites, éditeur masqué, absence d'écriture avant dépôt et ordre durable ; tests rouge/vert, cinq profils et contrôle complet/CI avec ui-quality + lessons et preuves, selon FR-005/008/012, US2/AC2 et Constitution III/VI/VII (partial).
-- [ ] T067 Stabiliser l'accès natif à la dernière entrée d'un tableau virtualisé après 1 001 entrées chargées : diagnostiquer déplacement du scrollport et remesure au clic WebKit mobile, conserver virtualisation bornée, pagination, focus et retour d'entrée ; tests ciblés puis cinq profils et contrôle complet/CI, preuves ui-quality + lessons selon 026 SC-005, 033 FR-005/008, US2/AC2 et Constitution III/VI/VII (partial).
+- [x] T066 Diagnostiquer le dépôt WebKit mobile absent malgré une preview valide dans la CI : observer événements natifs, types de transfert, destination retenue et visibilité de la ligne au relâchement ; préserver annulation, destinations interdites, éditeur masqué, absence d'écriture avant dépôt et ordre durable ; tests rouge/vert, cinq profils et contrôle complet/CI avec ui-quality + lessons et preuves, selon FR-005/008/012, US2/AC2 et Constitution III/VI/VII (partial).
+- [x] T067 Stabiliser l'accès natif à la dernière entrée d'un tableau virtualisé après 1 001 entrées chargées : diagnostiquer déplacement du scrollport et remesure au clic WebKit mobile, conserver virtualisation bornée, pagination, focus et retour d'entrée ; tests ciblés puis cinq profils et contrôle complet/CI, preuves ui-quality + lessons selon 026 SC-005, 033 FR-005/008, US2/AC2 et Constitution III/VI/VII (partial).
 
 ## Phase 15: Convergence
 
-- [ ] T068 Diagnostiquer l'échec du contrôle complet 19 sur les contrats d'import et de migration de fichiers : distinguer disponibilité des outils PostgreSQL, attente de connexion/verrou, contention des fixtures et défaut produit ; conserver sauvegarde réelle, refus d'identité, reprise V1 et budgets existants ; observer les trois suites concernées sous charge sans exposer SQL privé ni clés, corriger le mécanisme démontré puis repasser le contrôle complet sur le commit exact et sa CI, selon FR-008, plan: validation isolée et Constitution III/VII (partial, HIGH).
+- [x] T068 Diagnostiquer l'échec du contrôle complet 19 sur les contrats d'import et de migration de fichiers : distinguer disponibilité des outils PostgreSQL, attente de connexion/verrou, contention des fixtures et défaut produit ; conserver sauvegarde réelle, refus d'identité, reprise V1 et budgets existants ; observer les trois suites concernées sous charge sans exposer SQL privé ni clés, corriger le mécanisme démontré puis repasser le contrôle complet sur le commit exact et sa CI, selon FR-008, plan: validation isolée et Constitution III/VII (partial, HIGH).

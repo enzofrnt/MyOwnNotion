@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/033-app-ui-review`
 **Created**: 2026-10-03
-**Status**: État UI validé par le propriétaire — validation automatisée et PR en cours
+**Status**: État UI validé par le propriétaire — implémentation et validation automatisée convergées ; PR ouverte sans fusion
 **Input**: « Commit en l’état, passe complète sur l’app ; composants génériques réutilisables si cohérents, sans casser les interfaces. »
 
 ## Direction produit et périmètre

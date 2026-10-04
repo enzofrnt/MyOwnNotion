@@ -604,3 +604,21 @@ peuvent modifier le timing. Conserver ces échecs et ne pas ajouter de patch
 spéculatif, retry ou budget accru. Le prochain contrôle normal utilise la
 configuration maintenue sans instrumentation ; il reste bloquant jusqu'au
 succès complet, puis la CI du dernier commit confirme les runtimes de livraison.
+
+Le contrôle normal 20 sur `782f7618` termine avec le code 0, dont les
+1 871 contrats sans instrumentation. La CI Linux sur le même commit passe
+également ces 1 871 contrats. Aucun changement des budgets ou du produit n'est
+justifié par le diagnostic non reproductible ; les observations et leurs
+limites restent dans `verification.md`. La clôture de livraison attend encore
+le job Windows x64 et l'agrégat CI du commit exact.
+
+Le run `37188863857`, seconde tentative sur `782f7618`, réussit ensuite tous
+les jobs requis. La relance isolée Windows x64 passe la compilation, le
+packaging, le lancement installé et les parcours natifs sur une nouvelle
+machine, sans changement produit. La cause de l'initialisation de DLL initiale
+reste inconnue ; elle n'est pas présentée comme un défaut produit corrigé.
+Le commit de clôture ne change que les artefacts de suivi. La branche complète
+reste mixte : `checks:local` doit passer sur ce nouveau commit exact avant son
+push, puis la CI confirme ce dernier head. Les références de cette validation
+de clôture sont consignées dans le corps de la PR, sans boucle de commits
+contenant leur propre identifiant. La PR reste ouverte, aucune fusion.
