@@ -147,6 +147,8 @@ export function CurrentSourceTitle({
 
 function SettingsRow({
   aside,
+  disabled = false,
+  disabledReason,
   icon,
   label,
   onClick,
@@ -154,10 +156,19 @@ function SettingsRow({
   readonly icon: AppIconName;
   readonly label: string;
   readonly aside?: string | undefined;
+  readonly disabled?: boolean;
+  readonly disabledReason?: string;
   readonly onClick: () => void;
 }) {
   return (
-    <button type="button" className="database-view-settings__row" onClick={onClick}>
+    <button
+      type="button"
+      className="database-view-settings__row"
+      disabled={disabled}
+      title={disabled ? disabledReason : undefined}
+      aria-description={disabled ? disabledReason : undefined}
+      onClick={onClick}
+    >
       <AppIcon name={icon} size="small" />
       <span className="database-view-settings__row-label">{label}</span>
       {aside === undefined || aside === "" ? null : (
@@ -514,6 +525,8 @@ export function ViewSettingsPanel({
             <SettingsRow
               icon="layers"
               label="Source"
+              disabled={sourceLocked}
+              disabledReason={DATABASE_COPY.common.sourceLocked}
               aside={sources.find((source) => source.sourceId === currentSourceId)?.name}
               onClick={() => onScreen("source")}
             />
@@ -651,9 +664,7 @@ export function ViewSettingsPanel({
         {screen === "source" ? (
           <div className="database-view-settings__body">
             {sourceLocked ? (
-              <p className="database-view-settings__hint">
-                Ajoutez une deuxième vue pour changer sa source.
-              </p>
+              <p className="database-view-settings__hint">{DATABASE_COPY.common.sourceLocked}</p>
             ) : null}
             {ownedSources.length === 0 ? null : (
               <section aria-label="Sources de cette page">

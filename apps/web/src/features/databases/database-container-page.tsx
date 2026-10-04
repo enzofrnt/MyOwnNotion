@@ -345,6 +345,7 @@ export function DatabaseContainerPage({
           })
           .concat(storedViews.filter((view) => !pendingOrder.includes(view.id)));
   const selected = views.find((view) => view.id === selectedViewId) ?? views[0];
+  const sourceLocked = !linked && views.length < 2;
   const beginCloseSettings = useCallback(() => {
     if (settingsClosingRef.current) return;
     settingsClosingRef.current = true;
@@ -492,8 +493,7 @@ export function DatabaseContainerPage({
     }
   };
   const changeSource = async (sourceId: Uuid): Promise<void> => {
-    if (presentation === undefined || selected === undefined || (!linked && views.length < 2))
-      return;
+    if (presentation === undefined || selected === undefined || sourceLocked) return;
     const source = activeSources.find((candidate) => candidate.sourceId === sourceId);
     const template = source?.definition.views.find((view) => view.state === "active");
     if (template === undefined || source === undefined) return;
@@ -1135,6 +1135,9 @@ export function DatabaseContainerPage({
               Modifier la vue
             </MenuItem>
             <MenuItem
+              disabled={sourceLocked}
+              title={sourceLocked ? DATABASE_COPY.common.sourceLocked : undefined}
+              aria-description={sourceLocked ? DATABASE_COPY.common.sourceLocked : undefined}
               onClick={() => {
                 openSettings("source");
               }}
@@ -1192,7 +1195,7 @@ export function DatabaseContainerPage({
                   ],
             )}
             currentSourceId={selected.sourceId}
-            sourceLocked={!linked && views.length < 2}
+            sourceLocked={sourceLocked}
             boardAvailable={hasBoardAxis}
             calendarAvailable={hasCalendarDate}
             revealOwnedSource={!linked && selected.sourceId !== ownedSourceId}

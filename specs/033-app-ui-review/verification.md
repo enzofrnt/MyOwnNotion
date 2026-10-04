@@ -1735,3 +1735,70 @@ L'instance du propriétaire conserve Caddy `125a1a04c051`, web `d21f7c000c58`, A
 `9805c10c811b` et PostgreSQL `8c1a3325af0b`, tous sains. Les références du commit
 publié sont ajoutées au corps de la PR 180 ; aucune fusion et aucune nouvelle
 suite applicative lancée pour cette mise à jour documentaire.
+
+## Sidebar et accès Source après fusion — 2026-10-04
+
+Base : `main` fusionné `01a0560b51cecc461135fb26b49e7ceff9105f6a`, CI
+37196888713 verte. Correctifs locaux sur `codex/033-sidebar-source-controls`,
+selon FR-022/023, T070/071 et ui-quality + lessons L-009/010/018.
+
+### Diagnostic et résultat réel
+
+À 1059×843, une longue branche fait grandir la rangée implicite de la grille :
+sidebar de 1236,45 px, pied à 1183,45 px, hors de la fenêtre. La rangée explicite
+`minmax(0, 1fr)`, la taille minimale nulle du rail et le pied non rétrécissable
+conservent le défilement dans OverlayScrollArea. Après correction : shell et
+rail de 843 px, pied à 790–835 px. Après défilement de la navigation (1273 px
+observés), le pied garde le même emplacement. Le tiroir mobile à 320×843 garde
+son pied à 770–815 px, sans débordement horizontal ; Échap le ferme et rend le
+focus au déclencheur.
+
+Le refus de choisir « bob » provenait du verrou existant de vue unique.
+Un même booléen est maintenant utilisé par l'écriture, le menu Ariakit et
+la ligne des paramètres. Les deux commandes sont grisées/inactives avec
+description accessible et titre natif « Ajoutez une deuxième vue pour changer
+sa source. ». Ajouter une deuxième vue réactive les accès ; la gestion des
+sources et l'exception des vues liées restent inchangées.
+
+Preuves de l'instance réelle, examinées dans le navigateur intégré :
+
+- [Sidebar et paramètres sombres à 1059](assets/sidebar-source-dark-1059.jpg).
+- [Menu Source désactivé](assets/source-menu-dark-1059.jpg).
+- [Sidebar et paramètres sombres à 1280](assets/sidebar-source-dark-1280.jpg).
+- [Sidebar défilée et paramètres clairs à 1280](assets/sidebar-source-light-1280.jpg).
+- [Tiroir clair à 320](assets/sidebar-light-320.jpg),
+  [tiroir sombre défilé à 320](assets/sidebar-dark-320.jpg).
+- [Paramètres clairs à 320](assets/source-settings-light-320.jpg),
+  [paramètres sombres à 320](assets/source-settings-dark-320.jpg).
+
+Les dimensions et le thème système ont été temporairement émulés pour la
+revue, puis restaurés ; aucune préférence de thème ni donnée métier changée.
+Pas de nouvelle leçon dans le journal avant validation explicite du propriétaire.
+
+### Validation proportionnée
+
+- Vitest web : **33/33** tests, quatre fichiers (nouveau verrou du panneau,
+  shell, sidebar, compositions partagées). Le bouton natif refuse le clic puis
+  accepte l'action après déverrouillage, sans garder la raison obsolète.
+- Types web et TypeScript racine : **réussis**.
+- Biome sur les neuf fichiers exécutables modifiés : **code 0**, zéro erreur,
+  63 avertissements de spécificité CSS ; aucune règle désactivée. Diff vérifié.
+- Deux parcours sélectionnés, Chromium desktop et WebKit mobile Linux :
+  **4/4 réussites, sans retry**, 35 s pour la matrice ciblée. Géométrie bureau
+  et 320 px, défilement natif déclenché par focus, Échap/retour du focus ; menu
+  au clic droit puis Shift+F10, raison accessible et déverrouillage des deux
+  accès. Source et création de pages/dossiers restent opérationnelles.
+- Le premier essai du nouveau test utilisait une molette non supportée par
+  Playwright WebKit mobile ; le parcours utilise maintenant le défilement natif
+  au focus, avec les mêmes assertions. Ce premier essai n'est pas une preuve
+  réussie et aucune assertion produit n'a été retirée.
+- Spécifications/plan/tâches cohérents avec le canevas §§12/14 et 029 ; preuves
+  locales présentes, titres/liens et diff vérifiés. Aucune suite complète, aucun
+  reset du workspace du propriétaire, aucune migration ni dépendance changée.
+
+L'instance HTTP 8080 reste en dev sur ce checkout. Docker Desktop avait conservé
+une taille de fichier obsolète sur les sources modifiées, provoquant des lectures
+tronquées : le web a été recréé et ces six fichiers ont été actualisés dans le
+montage. Les données et services API/PostgreSQL/Caddy sont conservés. Les sources
+lues dans le conteneur correspondent aux fichiers locaux corrigés. La vérification
+applicative de la CI précédente n'est pas annoncée comme une CI de ces correctifs.

@@ -44,10 +44,22 @@ test("a database is a navigable owner with direct page and folder entries", asyn
   await expect(page.getByRole("button", { name: "Ajouter une base", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Options de la vue" }).click();
   const settings = page.locator(".database-view-settings");
-  await settings.getByRole("button", { name: /^Source/ }).click();
-  await expect(settings).toContainText("Ajoutez une deuxième vue pour changer sa source.");
+  const lockedReason = "Ajoutez une deuxième vue pour changer sa source.";
+  await expect(settings.getByRole("button", { name: /^Source/ })).toBeDisabled();
+  await expect(settings.getByRole("button", { name: /^Source/ })).toHaveAccessibleDescription(
+    lockedReason,
+  );
   await settings.getByRole("button", { name: "Fermer", exact: true }).click();
   await expect(settings).toBeHidden();
+  const firstView = databaseViewButton(page, "Tableau");
+  await firstView.click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "Actions de la vue" });
+  await expect(menu.getByRole("menuitem", { name: /^Source/ })).toBeDisabled();
+  await expect(menu.getByRole("menuitem", { name: /^Source/ })).toHaveAccessibleDescription(
+    lockedReason,
+  );
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
 
   const entry = uniqueName("Database page");
   await createDatabaseEntry(page, entry);
@@ -62,6 +74,14 @@ test("a database is a navigable owner with direct page and folder entries", asyn
 
   await createDatabaseView(page, "Tableau");
   await expect(databaseViewButton(page, "Tableau 2")).toHaveAttribute("aria-current", "page");
+  await databaseViewButton(page, "Tableau 2").press("Shift+F10");
+  await expect(menu.getByRole("menuitem", { name: /^Source/ })).toBeEnabled();
+  await menu.getByRole("menuitem", { name: /^Source/ }).click();
+  await expect(settings.getByRole("heading", { name: "Source", exact: true })).toBeVisible();
+  await settings.getByRole("button", { name: "Retour", exact: true }).click();
+  await expect(settings.getByRole("button", { name: /^Source/ })).toBeEnabled();
+  await settings.getByRole("button", { name: "Fermer", exact: true }).click();
+  await expect(settings).toBeHidden();
   await page.getByRole("button", { name: "Options de la vue" }).click();
   await settings.getByRole("button", { name: /^Source/ }).click();
   await expect(settings.getByText("Ajoutez une deuxième vue pour changer sa source.")).toHaveCount(

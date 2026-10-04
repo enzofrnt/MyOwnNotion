@@ -3,6 +3,8 @@
   display: grid;
   height: 100%;
   grid-template-columns: auto minmax(0, 1fr);
+  /* The rail and stage scroll internally; long trees must not grow this row. */
+  grid-template-rows: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   overflow: hidden;

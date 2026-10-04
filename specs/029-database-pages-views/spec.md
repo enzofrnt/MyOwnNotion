@@ -182,6 +182,11 @@ Supprimer une vue ne supprime pas sa source. Si la dernière vue d'une source es
 - **FR-029**: L'import Notion local destiné à la V1 adapte son aperçu et son application au nouveau modèle : chaque source importée a une page de base propriétaire, les pages et dossiers membres deviennent ses enfants directs, et les vues importées ou reconstruites comme choix par défaut ne créent aucune source orpheline. Les garanties de prévisualisation, sauvegarde préalable, provenance chiffrée et reprise restent applicables.
 - **FR-030**: Le clic droit ou le menu contextuel d’un onglet de vue ouvre Renommer, Modifier la vue, Source, Dupliquer la vue et Supprimer la vue. Les icônes sont alignées sur les libellés. Supprimer la vue ne rougit, texte et icône, qu’au survol ou au focus. Renommer ouvre le même panneau, le curseur dans le champ du nom. Un nom encore automatique y apparaît en indication : le champ reste vide, et le vider après un nom choisi rétablit le nom automatique du format. L’icône de ce champ suit les icônes des rangées et ouvre un choix d’icône pour la vue ; la retirer rétablit l’icône du format. Le panneau propose aussi de gérer les sources de données de la page courante, sans les sources nées ailleurs. Modifier la vue ouvre un panneau latéral des réglages de cette vue. Source ouvre directement son sous-écran. Ce panneau regroupe le nom, la disposition, la visibilité, les filtres, le tri, la source et les propriétés. La source et les propriétés sont des sous-écrans du panneau. La commande d’options de la vue ouvre le même panneau. Dupliquer crée une vue de la même source, nommée « nom (1) » lorsque le nom a été choisi. Supprimer reste soumis au choix de la dernière vue d’une source sur sa page d’origine, et au verrou qui empêche de changer la source d’une vue unique.
 
+Précision d'interface du 2026-10-04 (033 FR-023) : si le verrou de vue unique
+interdit le changement de source, la commande « Source » du menu de vue et
+des paramètres est grisée et inactive, avec la raison du verrou accessible.
+Le déverrouillage réactive les deux accès sans changer les règles métier.
+
 ### Key Entities
 
 - **Page de base**: Élément canonique sans corps éditorial. Elle possède zéro, une ou plusieurs sources et affiche une ou plusieurs vues.

@@ -11,6 +11,30 @@ Canevas §§4, 7–22, 24, 26–33, 38–39, 43.4–43.6, 46. Sources :
 [lessons](../../.agents/skills/ui-quality/lessons.md),
 [guide](../../docs/design/ui-system.md).
 
+## Maintenance sidebar et accès Source — 2026-10-04
+
+Canevas §§12 et 14, 029 verrou de source, 033 FR-022/023. Appliquer ui-quality
+et lessons L-009/010/018 : conserver un propriétaire CSS par domaine et vérifier
+la géométrie réelle, le tiroir et les accès clavier.
+
+La grille du shell possède une rangée implicite dont la taille minimale dépend
+du contenu : sur le cas réel à 1059×843, la sidebar atteint 1236 px et son pied
+commence à 1183 px. Borner la rangée du shell et son rail à l'espace disponible,
+en conservant OverlayScrollArea comme propriétaire du défilement de l'arbre.
+Le pied ne doit pas rétrécir. Aucun changement de données, d'état d'arbre ni
+de primitives globales.
+
+Réutiliser le même `sourceLocked` pour le menu de vue et la ligne de paramètres.
+Contrôles désactivés natifs/Ariakit, couleur sémantique muted, sans survol actif,
+raison via description accessible et indication au survol. La gestion des
+sources reste disponible ; les vues liées conservent leur exception actuelle.
+
+Validation proportionnée : test comportemental de la ligne verrouillée puis
+déverrouillée, parcours Playwright ciblés sur les deux défauts (aucune suite
+complète), types web et contrôles statiques des fichiers modifiés. Preuves du
+cas réel, clair/sombre et bureau/320 px, défilement et Échap/clavier. Source,
+synchronisation, stockage, migrations et dépendances restent inchangés.
+
 ## Technical Context
 
 TypeScript strict/Bun 1.4.2/React/Ariakit/BlockNote existants. Frameworks conservés ;

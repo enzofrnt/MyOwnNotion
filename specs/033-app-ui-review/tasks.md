@@ -167,3 +167,8 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 ## Phase 16: Maintenance des règles de validation — demande du propriétaire
 
 - [x] T069 Aligner FR-008, plan, quickstart et preuves avec la validation proportionnée de Constitution 4.0.0 ; appliquer l'exception documentaire après le code déjà validé, conserver les contrôles requis avant fusion/release, vérifier documents et cohérence puis préparer la publication sans nouvelles suites applicatives. Preuve : verification, section « Validation proportionnée et publication documentaire ».
+
+## Phase 17: Sidebar bornée et commande Source verrouillée
+
+- [x] T070 Garder Réglages visible dans la sidebar avec un arbre long, défilement local bureau/tiroir mobile, selon FR-022 et canevas §12 ; correction dans les propriétaires CSS existants, parcours ciblé et preuves ui-quality + lessons. Preuve : verification, section « Sidebar et accès Source après fusion ».
+- [x] T071 Griser et désactiver Source dans le menu clic/clic droit et les paramètres en réutilisant le verrou existant, selon FR-023 et 029 ; raison accessible, déverrouillage conservé, tests ciblés et preuves ui-quality + lessons. Preuve : verification, section « Sidebar et accès Source après fusion ».
