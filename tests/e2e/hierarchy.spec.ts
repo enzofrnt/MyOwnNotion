@@ -240,7 +240,7 @@ test.describe("hierarchy organization (US1)", () => {
         return {
           row: rect(element),
           surface: rect(surface),
-          controls: [...surface.querySelectorAll("button")].map(rect),
+          controls: Array.from(surface.querySelectorAll("button"), rect),
         };
       });
       const surfaceBox = geometry.surface;

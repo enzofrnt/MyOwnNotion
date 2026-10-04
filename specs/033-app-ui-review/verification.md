@@ -1184,3 +1184,17 @@ sa place aux actions, les thèmes et le tiroir restent cohérents. Vérification
 avec ui-quality, lessons et le guide du système UI. Le contrôle complet sur
 le nouveau commit et sa CI restent obligatoires ; T045/T059–062 restent
 ouverts à cette étape. Les données de dev sont intactes.
+
+
+### Contrôle complet 15 — typage du parcours renforcé
+
+Sur `02b93a82ddd82b411acb5f69da9d110eafde5793`, les contrôles de
+politique/outillage, shell, format et lint passent. Le typage racine échoue
+sur la conversion par spread du `NodeList` de boutons, car sa configuration
+DOM ne déclare pas les itérateurs. Les suites suivantes ne sont pas lancées
+et aucun push n’est fait. La conversion utilise maintenant `Array.from`
+avec le même mapper de géométrie : gestes et assertions sont inchangés.
+Le prochain contrôle complet reste requis sur le commit corrigé.
+
+Le typage de tous les packages et du dépôt passe après correction
+(`work/test-readiness/inline-scroll-types-50.log`).
