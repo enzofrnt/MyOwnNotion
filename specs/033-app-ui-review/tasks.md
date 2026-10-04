@@ -150,3 +150,12 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 ## Phase 12: Convergence
 
 - [ ] T064 Diagnostiquer le remplacement de texte concaténé sous WebKit dans le parcours de convergence hors ligne ; préserver la sélection, la saisie et le focus déjà pris par l’utilisateur face au placement différé du caret, garder focus initial/Entrée/Échap et champs natifs sans sélection textuelle ; tests unitaires rouge/vert et parcours natifs sur cinq profils sans retry, preuve selon ui-quality + lessons, puis contrôle complet et CI (009 FR-015/047, 033 FR-005/008/017, US2/AC2, Constitution III/VI/VII, partial).
+
+## Phase 13: Convergence
+
+- [ ] T065 Diagnostiquer l'ouverture absente du menu slash sous Chromium Linux après déplacement natif en fin de document : distinguer sélection, réception du caractère déclencheur et cycle de suggestion/projection, conserver saisie rapide, contenu durable, défilement local, clavier/Échap/clic natif et géométrie ; preuve rouge/verte dans le runtime CI, cinq profils, clair/sombre et 320/1280 px avec ui-quality + lessons, puis contrôle complet et CI, selon FR-005/006/008, US2/AC2 et Constitution III/VI/VII (partial).
+
+## Phase 14: Convergence
+
+- [ ] T066 Diagnostiquer le dépôt WebKit mobile absent malgré une preview valide dans la CI : observer événements natifs, types de transfert, destination retenue et visibilité de la ligne au relâchement ; préserver annulation, destinations interdites, éditeur masqué, absence d'écriture avant dépôt et ordre durable ; tests rouge/vert, cinq profils et contrôle complet/CI avec ui-quality + lessons et preuves, selon FR-005/008/012, US2/AC2 et Constitution III/VI/VII (partial).
+- [ ] T067 Stabiliser l'accès natif à la dernière entrée d'un tableau virtualisé après 1 001 entrées chargées : diagnostiquer déplacement du scrollport et remesure au clic WebKit mobile, conserver virtualisation bornée, pagination, focus et retour d'entrée ; tests ciblés puis cinq profils et contrôle complet/CI, preuves ui-quality + lessons selon 026 SC-005, 033 FR-005/008, US2/AC2 et Constitution III/VI/VII (partial).

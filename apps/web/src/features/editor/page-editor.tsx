@@ -38,6 +38,7 @@ import { CodeBlockInputExtension } from "./code-block-input.ts";
 import { createCodeHighlighter } from "./code-highlighting.ts";
 import { moveTableCellByTab } from "./custom-blocks/table.tsx";
 import { useDatabaseViewBlockContext } from "./database-view-context.tsx";
+import { DocumentEndExtension } from "./document-end-keymap.ts";
 import {
   commandsFromBlockNoteChanges,
   EditorChangeBatcher,
@@ -181,6 +182,7 @@ export function PageEditor({
         SyntaxHighlightingExtension({ createHighlighter: createCodeHighlighter }),
         CodeBlockInputExtension,
         TableKeymapExtension,
+        DocumentEndExtension,
       ],
       tabBehavior: "prefer-indent",
       dropCursor: {

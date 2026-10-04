@@ -1315,3 +1315,123 @@ ne sont pas encore clos.
 
 Types de tous les packages/dépôt et format/lint des cinq fichiers exécutables
 modifiés passent (`work/test-readiness/value-caret-types-60.log`).
+
+### Contrôle complet 18 — réussite sur 21b6652b
+
+`checks:local` termine avec le code **0** sur le commit exact
+`21b6652b77d8255daaa7a2d4ec870685e15454d6`, avec un arbre de travail propre.
+Log `work/test-readiness/checks-local-18.log`. Bun 1.4.2, règles de lint,
+budgets, seuils de couverture et de sécurité restent inchangés.
+
+| Contrôle | Résultat |
+| --- | --- |
+| Toolchain, shell, format/lint, types | Réussis |
+| Corpus sous couverture | 484 fichiers / 5 104 tests réussis ; deux exclusions Windows existantes sur macOS |
+| Couverture statements / branches / functions / lines | 91,72 / 86,33 / 94,37 / 92,81 % |
+| Performance sans instrumentation | Neuf suites / 22 tests réussis |
+| Intégration / migrations / contrats séparés | 375 / 13 / 1 871 tests réussis ; rejeux non additionnés au corpus sous couverture |
+| Desktop natif macOS ARM | Build, package, lancement installé et neuf parcours réussis |
+| Production et images | Builds réussis ; API/web AMD64 et ARM64 |
+| Restauration native ARM en image | Historique SQL, séquence, blobs, préfixe d'upload, répétition et activation réussis |
+| Audit dépendances | 427 packages, aucun problème au seuil HIGH/CRITICAL ; cinq alertes sous ce seuil |
+| Secrets / analyse statique / licences | 1 831 fichiers sans finding / 1 310 sources sans finding / 431 packages conformes |
+| Compose | Services, ports loopback, secrets, images et temps réel validés |
+
+La matrice web complète passe **cinq profils en 2 774 s**, avec **1 476
+réussites et 119 exclusions conditionnelles existantes**, aucune réussite après
+retry. Les rapports sont archivés immédiatement, avant le rejeu desktop natif,
+dans `work/test-readiness/checks-local-18-e2e-logs/`. Son `summary.json` associe
+les cinq résultats au commit exact, sans compter deux fois le profil Chromium.
+
+| Profil | Réussites | Exclusions conditionnelles |
+| --- | ---: | ---: |
+| Chromium desktop | 307 | 12 |
+| Firefox desktop | 293 | 26 |
+| WebKit desktop | 293 | 26 |
+| Chromium mobile | 295 | 24 |
+| WebKit mobile | 288 | 31 |
+
+Les parcours T059–T064 passent dans ce corpus, y compris preview/dépôt natifs
+avec éditeur masqué, création inline clair/sombre à 320/1280 px, dépôt rapide
+de dossier et convergence des entrées hors ligne. Les dernières corrections
+n'ajoutent aucune exclusion, aucun clic forcé, délai arbitraire, assouplissement
+de géométrie ni attente de synchronisation avant une action utile.
+
+Le scan Trivy 0.70.0 déjà vert sur l'image `69cec828` reste une preuve
+d'entrées inchangées selon `docs/development.md` : aucun manifeste, lockfile,
+Dockerfile ni digest de base ne change depuis ce scan. La CI doit confirmer
+le scan et les cibles natives Windows/Linux ainsi que la restauration AMD64.
+
+Le push de `21b6652b` est effectué seulement après ce résultat complet.
+La [PR #180](https://github.com/enzofrnt/MyOwnNotion/pull/180) est déjà attachée
+au chat. Le [run CI 37174588251](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37174588251)
+vise ce nouveau commit et reste en cours à cet enregistrement ; l'ancien run
+en échec sur `69cec828` ne constitue pas une preuve verte. T045/T059–T064
+restent ouverts jusqu'au résultat requis de ce run. Aucun merge ni
+réinitialisation de l'instance du propriétaire.
+
+### CI sur 21b6652b — ouverture du menu slash, T065
+
+Le run 37174588251 confirme les cinq cibles desktop, les suites unitaires avec
+couverture, contrats, performance, sécurité, images et restaurations. Chromium
+desktop termine cependant avec **305 réussites, 12 exclusions, un échec et
+un cas flaky** : le menu slash ne s'ouvre pas à 1 280 px en clair ; le sombre
+échoue puis passe seulement après retry. L'échec concerne la première attente
+de l'option Tableau simple, avant les contrôles de défilement. La CI globale
+reste en cours et ne constitue donc pas une preuve verte.
+
+Log du job téléchargé par son endpoint dédié :
+`work/test-readiness/ci-21b6652b-chromium-desktop-failure.log` ; contexte,
+captures et traces sous `ci-21b6652b-chromium-desktop-artifacts/`. Les captures
+clair/sombre sont revues : le texte précédent est intact, `/tab` apparaît dans
+le paragraphe final, et aucun menu n'est visible. La trace d'appels confirme
+Ctrl/Meta+End suivi immédiatement de la saisie native ; les attributs de
+settlement ne montrent aucune erreur d'application. Le journal réseau,
+cookies et clés ne sont pas lus. Ce constat ne prouve pas encore le mécanisme
+qui empêche l'ouverture : T065 le diagnostique dans le runtime Linux avant
+correction. Les tâches de publication restent ouvertes.
+
+Le run est désormais **terminé en échec** : 29 jobs réussissent ; Chromium
+desktop, WebKit mobile et l'agrégat échouent. Les cinq cibles desktop passent.
+WebKit mobile compte 286 réussites, 31 exclusions, un échec et un flaky :
+le dépôt natif à 320 px conserve l'ordre initial après une preview correcte
+(deux tentatives), et le clic de l'entrée 1000 dépasse sa limite native après
+une première visibilité (retry vert). T066/T067 suivent ces écarts ; aucun
+seuil, geste, virtualisation ou exclusion n'est affaibli. Log et artefacts
+`work/test-readiness/ci-21b6652b-webkit-mobile-{failure.log,artifacts/}`.
+Les captures sont revues : blocs toujours dans l'ordre initial, tableau
+revenu vers les entrées 0959–0976 après disparition de la dernière ligne.
+
+### T065 — fin du document et saisie slash immédiate
+
+Les probes Linux isolées passent 6 parcours inchangés, puis 20 parcours
+instrumentés et 10 sous charge CPU. Elles ne reproduisent pas l'échec CI,
+mais montrent le curseur DOM après le paragraphe (`DIV`, offset 2) suite à
+Ctrl+Fin, avant restauration par selectionchange. Les snapshots CI montrent
+un paragraphe supplémentaire `/tab` sans décorateur de suggestion ; les
+keymaps actuels ne possèdent pas ce raccourci. La protection du widget terminal
+ne concerne que Flèche droite/bas. Les probes temporaires sont retirées.
+
+Le raccourci Ctrl/Meta+Fin est désormais possédé par un plugin d'éditeur :
+sélection ProseMirror à la fin du document, remise à jour DOM synchrone,
+prévention du placement natif dans le widget ; lecture seule, composition,
+Fin simple, sélection étendue et autres raccourcis sont conservés. Aucun
+changement CSS ni ouverture automatique sur un collage/projection distante.
+
+Les tests rouges 69 montrent trois échecs et un cas de refus correct ; les
+tests verts 70/72 passent **19 tests dans trois fichiers**, y compris la
+sélection déjà en fin de document et une saisie immédiate sans ajout de bloc.
+Types de tous les packages verts (71). Le parcours natif conserve Ctrl/Meta+Fin
+et `/tab` sans attente intermédiaire ; il contrôle aussi l'absence de paragraphe
+parasite. Chromium Linux 71 passe **20 parcours, clair/sombre, 320/1280 px,
+sans retry**. Captures revues : menu borné au viewport, option finale visible,
+texte intact ; preuves `assets/validation-document-end-slash-chromium-linux-`
+`{dark-1280,light-320}.png`. La matrice 72 et le prochain contrôle complet/CI
+restent requis ; T065/T045 ne sont pas encore clos.
+
+La matrice 72 termine verte : **60 parcours, cinq profils, 190 s, sans retry**,
+trois répétitions des quatre variantes clair/sombre et 320/1280 px. Les gestes
+Ctrl/Meta+Fin, saisie rapide, flèches, Échap et clic natif restent inchangés.
+Logs archivés sous `work/test-readiness/e2e-slash-all-green-72-logs/` avant
+toute autre matrice. Le contrôle complet du prochain commit et sa CI sont
+encore requis, ainsi que les diagnostics T066/T067.

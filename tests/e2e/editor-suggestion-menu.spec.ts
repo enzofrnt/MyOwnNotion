@@ -28,6 +28,9 @@ for (const theme of ["light", "dark"] as const) {
       const menu = page.getByRole("listbox");
       const table = menu.getByRole("option", { name: /^Tableau simple/u });
       await expect(table).toBeVisible();
+      // Ctrl/Meta+End must stay inside the real paragraph, never let the
+      // trailing widget turn the next native input into a browser-only block.
+      await expect(editor.locator('[data-content-type="paragraph"]')).toHaveCount(1);
       await expect
         .poll(async () => {
           const box = await menu.boundingBox();
@@ -69,6 +72,7 @@ for (const theme of ["light", "dark"] as const) {
       for (let index = 0; index < 4; index += 1) await page.keyboard.press("Backspace");
       await page.keyboard.type("/tab");
       await expect(table).toBeVisible();
+      await expect(editor.locator('[data-content-type="paragraph"]')).toHaveCount(1);
       await expect(table).not.toHaveAttribute("aria-selected", "true");
       await table.click();
       await expect(menu).toBeHidden();

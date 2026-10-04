@@ -489,3 +489,38 @@ du tableau ne refocalise pas les inputs déjà gérés et la date native ne reç
 pas `setSelectionRange`. Le caret initial et l’adapter de brouillon natif sont
 conservés. Les 21 tests ciblés et 15 parcours natifs sur cinq profils passent,
 sans retry ; aucun changement CSS ni protocole de synchronisation.
+
+T065 examine le menu slash absent sous Chromium Linux dans la CI sur
+`21b6652b`, alors que le contrôle local complet est vert. Les captures montrent
+`/tab` saisi dans le paragraphe final et aucun menu ; le caractère déclencheur
+peut ne pas avoir atteint le plugin ou son état peut avoir été fermé ensuite.
+Reproduire la séquence native dans l'image Playwright Linux épinglée sur une
+base et une clé jetables, puis observer sélection, handleTextInput,
+transactions et projection avant de choisir une correction. Ne pas ajouter
+délai, clic forcé ni attente de synchronisation devant le geste rapide.
+Conserver le placement fixe, le défilement du menu, la recherche et la sélection
+clavier/pointeur ; appliquer ui-quality + lessons et garder les preuves.
+
+Les probes Linux T065 observent une sélection DOM `DIV, offset 2` après
+Ctrl+Fin, au-delà du paragraphe et dans la zone du widget terminal, alors que
+la sélection ProseMirror est encore dans le texte. Elle est restaurée avant
+la frappe dans ces probes vertes, contrairement à la capture CI qui contient
+un paragraphe supplémentaire. Le raccourci n'a aucun propriétaire dans les
+keymaps actuels ; le plugin terminal ne protège que Flèche droite/bas.
+Sécuriser Ctrl/Meta+Fin par une sélection ProseMirror à la fin du document,
+mise à jour du curseur DOM synchrone et prévention du déplacement natif dans
+le widget. Couvrir l'activation au clavier et la frappe slash immédiate en
+unitaire avant correction, ainsi que lecture seule, composition et raccourcis
+non concernés. Ne pas généraliser l'ouverture automatique du menu à du texte
+collé ou à une projection distante. La répétition isolée ne reproduit pas
+encore l'échec CI ; distinguer cette limite du défaut de frontière observé.
+
+T066/T067 suivent le run CI 37174588251 terminé : WebKit mobile échoue au
+dépôt natif à 320 px malgré une preview validée et signale un cas flaky sur
+le clic de la dernière ligne après pagination de 1 001 entrées. Les autres
+profils et les cinq cibles desktop réussissent. Avant correction, observer
+la destination du glisser jusqu'au drop/dragend et la géométrie/range du tableau
+avant et pendant le clic natif. Ne pas prendre le succès après retry pour une
+validation ni forcer l'action ou désactiver la virtualisation. Les reproductions
+utilisent les fixtures jetables et appliquent ui-quality + lessons. Aucun
+changement du modèle de contenu ou de l'instance du propriétaire.

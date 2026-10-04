@@ -160,6 +160,14 @@ formulaire composé, `NativeInput` apporte la même peinture sans imposer de wra
 de domaine. Les éditeurs de brouillon qui gèrent eux-mêmes leur ref peuvent employer
 `.ui-native-input`, sans changer leur protocole d’édition.
 
+Une saisie inline possède son focus et sa sélection : placer le caret initial
+une seule fois dans son layout, sans le rejouer au frame suivant ou dans une
+microtask du parent. Une sélection, une saisie native ou un focus pris ailleurs
+doivent survivre à la projection React ; les champs date natifs ne proposent
+pas l'API de sélection textuelle. Usages et garanties : `DraftTextInput` dans
+`databases/value-editor.tsx`, édition de titre dans `TableView`, tests
+`value-editor-caret.spec.tsx` et `database-table-accessibility.spec.tsx`.
+
 Une recherche avec icône ou des choix sélectionnés utilise `InputSurface` :
 
 ```tsx
