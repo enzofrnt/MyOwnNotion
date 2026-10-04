@@ -135,6 +135,47 @@ describe("database page interaction durability", () => {
     },
   );
 
+  it("sets a property icon from the schema panel without changing its type or views", async () => {
+    const value = database();
+    const replace = vi.fn();
+    act(() =>
+      root.render(
+        <MemoryRouter>
+          <DatabasePage
+            database={value}
+            entries={[]}
+            onReplaceDefinition={replace}
+            onCreateEntry={vi.fn()}
+            onOpenEntry={vi.fn()}
+          />
+        </MemoryRouter>,
+      ),
+    );
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Filtrer, trier et configurer"]')
+        ?.click(),
+    );
+    const trigger = document.querySelector<HTMLButtonElement>(
+      ".database-schema .property-icon-picker__trigger",
+    );
+    expect(trigger).not.toBeNull();
+    await act(async () => {
+      trigger?.click();
+      await new Promise((r) => setTimeout(r, 60));
+    });
+    const choice = document.querySelector<HTMLButtonElement>(
+      '[role="option"][aria-label="étoile"]',
+    );
+    expect(choice).not.toBeNull();
+    await act(async () => choice?.click());
+    expect(replace).toHaveBeenCalledOnce();
+    const definition = replace.mock.calls[0]?.[0] as DatabaseDefinition;
+    expect(definition.properties[0]).toEqual({ ...value.definition.properties[0], icon: "star" });
+    expect(definition.views).toEqual(value.definition.views);
+    expect(definition.taskRoles).toEqual(value.definition.taskRoles);
+  });
+
   it("submits the latest option text even before React commits its next render", async () => {
     const onReplaceDefinition = vi.fn();
     const initialDatabase = database();
@@ -151,26 +192,28 @@ describe("database page interaction durability", () => {
     );
     act(() => root.render(renderPage(initialDatabase)));
 
-    act(() => container.querySelector<HTMLButtonElement>(".database-page__header button")?.click());
-    const name = container.querySelector<HTMLInputElement>('[name="property-name"]');
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Ajouter une propriété"]')?.click(),
+    );
+    const name = document.querySelector<HTMLInputElement>('[name="property-name"]');
     expect(name).not.toBeNull();
     act(() => {
       if (name === null) return;
       input(name, "Status");
     });
 
-    const type = container.querySelector<HTMLSelectElement>('[name="property-type"]');
+    const type = document.querySelector<HTMLSelectElement>('[name="property-type"]');
     expect(type).not.toBeNull();
     act(() => {
       if (type === null) return;
-      type.value = "status";
+      type.value = "select";
       type.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
-    const options = container.querySelector<HTMLInputElement>(
-      '.property-editor input[placeholder="Prévu, En cours, Terminé"]',
+    const options = document.querySelector<HTMLInputElement>(
+      '.property-editor input[name^="option-label-"]',
     );
-    const save = container.querySelector<HTMLButtonElement>(
+    const save = document.querySelector<HTMLButtonElement>(
       '.property-editor button[type="submit"]',
     );
     expect(options).not.toBeNull();
@@ -183,7 +226,7 @@ describe("database page interaction durability", () => {
     // WebKit viewports; submission then created a status with zero options.
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
       options,
-      "To do, Done",
+      "To do",
     );
     act(() =>
       root.render(
@@ -193,7 +236,7 @@ describe("database page interaction durability", () => {
         }),
       ),
     );
-    expect(options.value).toBe("To do, Done");
+    expect(options.value).toBe("To do");
 
     await act(async () => {
       save.click();
@@ -203,9 +246,9 @@ describe("database page interaction durability", () => {
     expect(onReplaceDefinition).toHaveBeenCalledTimes(1);
     const submitted = onReplaceDefinition.mock.calls[0]?.[0] as DatabaseDefinition;
     const status = submitted.properties.find((property) => property.name === "Status");
-    expect(status?.type).toBe("status");
+    expect(status?.type).toBe("select");
     expect(status?.config).toMatchObject({
-      options: [{ label: "To do" }, { label: "Done" }],
+      options: [{ label: "To do", tone: "gray" }, { label: "En cours" }, { label: "Terminé" }],
     });
   });
 
@@ -402,9 +445,7 @@ describe("database page interaction durability", () => {
       );
       expect(query).toHaveBeenCalledTimes(2);
       expect(query).toHaveBeenLastCalledWith(viewId, "local.second");
-      expect(container.querySelector(".database-pagination")?.textContent).toContain(
-        "2 entrées chargées",
-      );
+      expect(container.textContent).toContain("Last");
       expect(document.activeElement?.getAttribute("data-entry-trigger")).toBe(target);
       expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", inline: "nearest" });
       expect(scrollIntoView.mock.instances[0]).toBe(document.activeElement);
@@ -416,54 +457,137 @@ describe("database page interaction durability", () => {
     }
   });
 
-  it("keeps a new entry title through a concurrent projection render", async () => {
-    const onCreateEntry = vi.fn().mockResolvedValue(undefined);
+  it.each(["pending", "refresh"] as const)(
+    "keeps a new draft focused through a %s entry return projection",
+    async (phase) => {
+      const originalScroll = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+      Object.defineProperty(Element.prototype, "scrollIntoView", {
+        configurable: true,
+        value: vi.fn(),
+      });
+      vi.stubGlobal(
+        "requestAnimationFrame",
+        vi.fn(() => 1),
+      );
+      vi.stubGlobal("cancelAnimationFrame", vi.fn());
+      const draft = document.createElement("input");
+      draft.value = "My next entry";
+      document.body.append(draft);
+      try {
+        const value = database();
+        const viewId = value.definition.views[0]?.id;
+        if (viewId === undefined) throw new Error("Missing view");
+        const target = generateUuidV7();
+        const page: DatabaseViewPage = {
+          databaseId: value.databaseId,
+          viewId,
+          definitionRevisionId: value.definitionRevisionId,
+          generation: 1,
+          coverage: "complete",
+          availableCount: 1,
+          expectedCount: 1,
+          rows: [
+            {
+              entryId: target,
+              revisionId: generateUuidV7(),
+              title: "Returned entry",
+              values: {},
+              relationTargets: {},
+              groupId: null,
+              syncState: "synced",
+            },
+          ],
+          groups: [],
+          nextCursor: null,
+          source: "local",
+          staleCursorRecovered: false,
+        };
+        const restored = vi.fn();
+        const render = (state: "ready" | "loading", returnId: typeof target | null = target) =>
+          root.render(
+            <MemoryRouter>
+              <DatabasePage
+                database={value}
+                entries={[]}
+                queryPage={page}
+                queryState={state}
+                returnFocusEntryId={returnId}
+                onReturnFocusRestored={restored}
+                onReplaceDefinition={vi.fn()}
+                onCreateEntry={vi.fn()}
+                onOpenEntry={vi.fn()}
+              />
+            </MemoryRouter>,
+          );
+        await act(async () => render(phase === "refresh" ? "ready" : "loading"));
+        if (phase === "refresh")
+          expect(document.activeElement?.getAttribute("data-entry-trigger")).toBe(target);
+        expect(restored).not.toHaveBeenCalled();
+        await act(async () => render("loading"));
+        act(() => draft.focus());
+        await act(async () => render("ready"));
+        expect(document.activeElement).toBe(draft);
+        expect(draft.value).toBe("My next entry");
+        expect(restored).toHaveBeenCalledOnce();
+        // An uncleared parent request must not steal focus on another refresh.
+        await act(async () => render("loading"));
+        await act(async () => render("ready"));
+        expect(document.activeElement).toBe(draft);
+        expect(restored).toHaveBeenCalledOnce();
+        // Clearing and opening the same entry again starts a distinct return.
+        await act(async () => render("ready", null));
+        await act(async () => render("ready"));
+        expect(document.activeElement?.getAttribute("data-entry-trigger")).toBe(target);
+      } finally {
+        draft.remove();
+        if (originalScroll === undefined)
+          Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+        else Object.defineProperty(Element.prototype, "scrollIntoView", originalScroll);
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
+  it("creates a page from the kind button and ignores a second click while that write is in flight", async () => {
+    let resolveCreate: (() => void) | undefined;
+    const onCreateEntry = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
     const initialDatabase = database();
-    const renderPage = (value: DatabaseDto) => (
-      <MemoryRouter initialEntries={[`/notes/${value.databaseId}`]}>
-        <DatabasePage
-          database={value}
-          entries={[]}
-          onReplaceDefinition={vi.fn()}
-          onCreateEntry={onCreateEntry}
-          onOpenEntry={vi.fn()}
-        />
-      </MemoryRouter>
-    );
-    act(() => root.render(renderPage(initialDatabase)));
-
-    const title = container.querySelector<HTMLInputElement>(".database-entry-create input");
-    const submit = container.querySelector<HTMLButtonElement>(
-      '.database-entry-create button[type="submit"]',
-    );
-    expect(title).not.toBeNull();
-    expect(submit).not.toBeNull();
-    if (title === null || submit === null) return;
-
-    // Model WebKit painting the final input just before a synchronization
-    // projection rerenders the parent. React has not observed an input event,
-    // so a controlled field would repaint the old empty value here.
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
-      title,
-      "Offline roadmap",
-    );
     act(() =>
       root.render(
-        renderPage({
-          ...initialDatabase,
-          definitionRevisionId: generateUuidV7(),
-        }),
+        <MemoryRouter initialEntries={[`/notes/${initialDatabase.databaseId}`]}>
+          <DatabasePage
+            database={initialDatabase}
+            entries={[]}
+            onReplaceDefinition={vi.fn()}
+            onCreateEntry={onCreateEntry}
+            onOpenEntry={vi.fn()}
+          />
+        </MemoryRouter>,
       ),
     );
-    expect(title.value).toBe("Offline roadmap");
+
+    const createPage = container.querySelector<HTMLButtonElement>(
+      '.database-entry-create button[aria-label="Nouvelle page"]',
+    );
+    expect(createPage).not.toBeNull();
+    if (createPage === null) return;
 
     await act(async () => {
-      submit.click();
+      createPage.click();
+      createPage.click();
       await Promise.resolve();
     });
-
     expect(onCreateEntry).toHaveBeenCalledOnce();
-    expect(onCreateEntry).toHaveBeenCalledWith("Offline roadmap");
-    expect(title.value).toBe("");
+    expect(onCreateEntry).toHaveBeenCalledWith("Nouvelle page");
+
+    await act(async () => {
+      resolveCreate?.();
+      await Promise.resolve();
+    });
   });
 });

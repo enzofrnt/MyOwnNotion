@@ -22,6 +22,10 @@ function isTextSelection(selection: EditorLinkCreation | null): selection is Edi
   return selection !== null && selection.from < selection.to && selection.text.trim().length > 0;
 }
 
+const toolbarFloatingOptions = {
+  elementProps: { className: "editor-formatting-toolbar-positioner" },
+};
+
 function MyOwnNotionFormattingToolbar({
   onPageLinkRequest,
   onWebBookmarkRequest,
@@ -39,7 +43,14 @@ function MyOwnNotionFormattingToolbar({
   useEffect(() => {
     if (isTextSelection(currentSelection)) preservedSelection.current = currentSelection;
   }, [currentSelection, preservedSelection]);
-  if (Toolbar === undefined) return null;
+  const cursorBlockType = ((): string | null => {
+    try {
+      return editor.getTextCursorPosition().block.type;
+    } catch {
+      return null;
+    }
+  })();
+  if (Toolbar === undefined || cursorBlockType === "databaseView") return null;
 
   const openPageLinkFlow = (): void => {
     if (selectedLink?.kind === "page") {
@@ -117,5 +128,10 @@ export function EditorFormattingToolbar({
     [onPageLinkRequest, onWebBookmarkRequest, preservedSelection],
   );
   if (components === undefined) return null;
-  return <FormattingToolbarController formattingToolbar={toolbar} />;
+  return (
+    <FormattingToolbarController
+      formattingToolbar={toolbar}
+      floatingUIOptions={toolbarFloatingOptions}
+    />
+  );
 }

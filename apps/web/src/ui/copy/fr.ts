@@ -305,6 +305,11 @@ export const FR_COPY = {
       title: "Pièces jointes",
       loadFailed:
         "Les pièces jointes n’ont pas pu être actualisées. Les fichiers déjà enregistrés restent conservés.",
+      usagesUnavailable: "Les utilisations de certains fichiers n’ont pas pu être chargées.",
+      usagesUnknown: "Usages non chargés",
+      unloadedTitle: "Contenu non chargé",
+      unloadedDescription: "Ouvrez la page pour afficher ses pièces jointes.",
+      openPage: "Ouvrir la page",
       add: "Ajouter un fichier à cette page",
       remove: "Retirer ce fichier de la page",
       removeAction: "Retirer",
@@ -312,7 +317,7 @@ export const FR_COPY = {
       previewAction: "Aperçu",
       closePreview: "Fermer l’aperçu",
       location: "cette page",
-      empty: "Aucune pièce jointe. Les fichiers ajoutés ici restent rattachés à cette page.",
+      empty: "Aucune pièce jointe. Déposez ou insérez un fichier dans le contenu de la page.",
       onDevice: "Sur cet appareil",
       onDeviceDetail: "Disponible sans connexion.",
       offloaded: "Non présent sur cet appareil",
@@ -639,9 +644,15 @@ export const FR_COPY = {
       redo: "Rétablir",
       redoTitle: "Rétablir (⇧⌘Z)",
     },
+    outline: {
+      label: "Sommaire",
+      emptyHeading: "Titre vide",
+    },
     slashMenu: {
       advancedGroup: "Blocs avancés",
-      navigationGroup: "Navigation",
+      organizationGroup: "Pages et dossiers",
+      linksGroup: "Liens",
+      databaseGroup: "Bases de données",
       toggle: {
         title: "Liste dépliable",
         description: "Masquer ou afficher des blocs imbriqués",
@@ -666,11 +677,32 @@ export const FR_COPY = {
         title: "Lien Web",
         description: "Ajouter une adresse Web sur une ligne dédiée",
       },
-      subpage: {
-        title: "Sous-page",
+      page: {
+        title: "Page",
         description: "Créer une page imbriquée et insérer son lien",
-        defaultTitle: "Sans titre",
-        creationFailed: "La sous-page n’a pas pu être créée.",
+        defaultTitle: "Nouvelle page",
+        creationFailed: "La page n’a pas pu être créée.",
+      },
+      folder: {
+        title: "Dossier",
+        description: "Créer un dossier imbriqué et insérer son lien",
+        defaultTitle: "Nouveau dossier",
+        creationFailed: "Le dossier n’a pas pu être créé.",
+      },
+      fullPageDatabase: {
+        title: "Base de données — pleine page",
+        description: "Créer une base enfant et ouvrir sa page",
+        defaultTitle: "Nouvelle base de données",
+        creationFailed: "La base n’a pas pu être créée.",
+      },
+      inlineDatabase: {
+        title: "Base de données — intégrée",
+        description: "Afficher une nouvelle base dans cette page",
+        creationFailed: "La base intégrée n’a pas pu être créée.",
+      },
+      linkedDatabase: {
+        title: "Vue liée de base de données",
+        description: "Afficher une base existante dans cette page",
       },
     },
     blocks: {
@@ -678,6 +710,7 @@ export const FR_COPY = {
       heading1: "Titre 1",
       heading2: "Titre 2",
       heading3: "Titre 3",
+      heading4: "Titre 4",
       bulletListItem: "Liste à puces",
       numberedListItem: "Liste numérotée",
       checkListItem: "Tâche",

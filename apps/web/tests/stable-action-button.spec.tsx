@@ -60,6 +60,46 @@ describe("semantic action controls", () => {
     expect(onActivate).toHaveBeenCalledWith(container.querySelector("button"));
   });
 
+  it("pins a live pointer target through remote layout changes and releases without activation", () => {
+    const onActivate = vi.fn();
+    let releaseFrame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      releaseFrame = callback;
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    try {
+      const render = (width: number) =>
+        root.render(
+          <div style={{ width }}>
+            <StableActionButton pinDuringPointer onActivate={onActivate}>
+              Open
+            </StableActionButton>
+          </div>,
+        );
+      act(() => render(260));
+      const button = container.querySelector("button");
+      if (button === null) throw new Error("Missing button");
+      vi.spyOn(button, "getBoundingClientRect").mockReturnValue(new DOMRect(80, 40, 32, 32));
+      act(() =>
+        button.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 })),
+      );
+      act(() => render(300));
+      expect(container.querySelector("button")).toBe(button);
+      expect(button.style.position).toBe("fixed");
+      expect(button.style.left).toBe("80px");
+      expect(button.style.top).toBe("40px");
+      act(() => window.dispatchEvent(new PointerEvent("pointerup")));
+      expect(button.style.position).toBe("fixed");
+      expect(onActivate).not.toHaveBeenCalled();
+      act(() => releaseFrame?.(0));
+      expect(button.style.position).toBe("");
+      expect(onActivate).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("owns submit-button clicks without also invoking the native form submit", () => {
     const onActivate = vi.fn();
     const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());

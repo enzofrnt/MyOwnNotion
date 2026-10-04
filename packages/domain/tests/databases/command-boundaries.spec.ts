@@ -43,6 +43,32 @@ const valueResolve = {
   relationTargets: {},
 };
 const commands: [string, Record<string, unknown>][] = [
+  [
+    "database.source.create",
+    {
+      ownerItemId: IDS.database,
+      sourceId: IDS.relationA,
+      name: "Owned source",
+      titlePropertyId: IDS.title,
+      initialViewId: IDS.view,
+      initialViewName: "Table",
+      baseRevisionId: IDS.revision,
+    },
+  ],
+  [
+    "database.source.delete",
+    { ownerItemId: IDS.database, sourceId: IDS.relationA, baseRevisionId: IDS.revision },
+  ],
+  [
+    "database_view.create",
+    {
+      id: IDS.entryA,
+      name: "Linked view",
+      sourceId: IDS.relationA,
+      placement,
+      initialViewId: IDS.view,
+    },
+  ],
   ["database.create", create],
   ["database.entry.create", entry],
   ["database.definition.replace", replace],
@@ -239,4 +265,17 @@ describe("external database mutation boundaries", () => {
             };
     refuses("database.definition.replace", { ...replace, definition: bad });
   });
+});
+
+describe("owned source labels at the external boundary", () => {
+  it.each(["name", "initialViewName"])(
+    "rejects malformed %s without mutating the payload",
+    (field) => {
+      const payload = commands.find(([type]) => type === "database.source.create")?.[1];
+      if (payload === undefined) throw new Error("Missing source command fixture");
+      for (const invalid of [null, 42, " ", "x".repeat(513)]) {
+        refuses("database.source.create", { ...payload, [field]: invalid });
+      }
+    },
+  );
 });

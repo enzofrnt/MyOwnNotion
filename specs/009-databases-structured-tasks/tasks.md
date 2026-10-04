@@ -1,5 +1,10 @@
 # Tasks: Bases de données et tâches structurées
 
+> Évolution 029 : cette liste cochée reste la trace de la livraison 009. La
+> [refonte des bases](../029-database-pages-views/spec.md) remplace son modèle
+> de sources et d'entrées ; ses nouvelles tâches seront suivies uniquement
+> dans `specs/029-database-pages-views/tasks.md` après planification.
+
 > Évolution 026 : les tâches cochées décrivent la livraison historique 009.
 > Le modèle page-capacité et la cascade de cycle de vie de T026/T102/T103/T105
 > sont remplacés par le registre indépendant, les emplacements et la conservation

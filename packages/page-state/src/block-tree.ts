@@ -22,6 +22,7 @@ import {
 import type { LoroDoc, LoroMap, LoroText, LoroTree, LoroTreeNode } from "loro-crdt";
 import { LoroList } from "loro-crdt";
 import { initialiseRichText, projectRichText } from "./rich-text.ts";
+import { tableRowIdentities as rowIdentities, tableCellIdentities } from "./table-identities.ts";
 
 const BLOCK_TREE_ROOT = "blocks";
 const PROPS_KEY = "props";
@@ -45,6 +46,7 @@ export type TransformableBlockType = Extract<
   | "divider"
   | "toggle"
   | "callout"
+  | "databaseView"
 >;
 
 export interface OperationalBlockPlacement {
@@ -261,13 +263,13 @@ function createCanonicalNode(
       const rowNode = node.createNode();
       setNodeHeader(rowNode, row.id, "tableRow");
       for (const [cellIndex, cell] of row.cells.entries()) {
-        const cellNode = rowNode.createNode();
-        setNodeHeader(cellNode, cell.id, "tableCell");
-        cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, block.columns[cellIndex]?.id ?? "");
-        initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
-        for (const child of cell.children ?? []) {
-          createCanonicalNode(tree, cellNode, undefined, child);
-        }
+        createCanonicalTableCell(
+          tree,
+          rowNode,
+          undefined,
+          block.columns[cellIndex]?.id ?? "",
+          cell,
+        );
       }
     }
     return node;
@@ -599,6 +601,17 @@ function materialiseCanonicalNode(node: LoroTreeNode): CanonicalBlockV3 {
         ...extra,
       };
       break;
+    case "databaseView":
+      if (children.length > 0)
+        throw new BlockTreeOperationError(`database view ${id} has children`);
+      candidate = {
+        type,
+        id,
+        containerItemId: requiredProperty(props, "containerItemId", `block ${id}`),
+        viewId: requiredProperty(props, "viewId", `block ${id}`),
+        ...extra,
+      };
+      break;
   }
   return candidate as unknown as CanonicalBlockV3;
 }
@@ -758,16 +771,6 @@ function assertNewIdentities(doc: LoroDoc, identities: readonly Uuid[]): void {
   }
 }
 
-function rowIdentities(row: TableRowV3): Uuid[] {
-  return [
-    row.id,
-    ...row.cells.flatMap((cell) => [
-      cell.id,
-      ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
-    ]),
-  ];
-}
-
 export function insertOperationalTableRow(
   doc: LoroDoc,
   tableId: Uuid,
@@ -795,11 +798,7 @@ export function insertOperationalTableRow(
   const rowNode = tableNode.createNode(index);
   setNodeHeader(rowNode, row.id, "tableRow");
   for (const [cellIndex, cell] of row.cells.entries()) {
-    const cellNode = rowNode.createNode(cellIndex);
-    setNodeHeader(cellNode, cell.id, "tableCell");
-    cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, columns[cellIndex]?.id ?? "");
-    initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
-    for (const child of cell.children ?? []) createCanonicalNode(tree, cellNode, undefined, child);
+    createCanonicalTableCell(tree, rowNode, cellIndex, columns[cellIndex]?.id ?? "", cell);
   }
   assertUniqueOperationalIdentities(tree);
 }
@@ -848,10 +847,7 @@ export function insertOperationalTableColumn(
     }
     return { rowNode, cell };
   });
-  const identities = cells.flatMap(({ cell }) => [
-    cell.id,
-    ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
-  ]);
+  const identities = cells.flatMap(({ cell }) => tableCellIdentities(cell));
   assertNewIdentities(doc, identities);
 
   const index =
@@ -887,11 +883,7 @@ export function insertOperationalTableColumn(
     width: column.width,
   });
   for (const { rowNode, cell } of rowsWithCells) {
-    const cellNode = rowNode.createNode(index);
-    setNodeHeader(cellNode, cell.id, "tableCell");
-    cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, column.id);
-    initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
-    for (const child of cell.children ?? []) createCanonicalNode(tree, cellNode, undefined, child);
+    createCanonicalTableCell(tree, rowNode, index, column.id, cell);
   }
   assertUniqueOperationalIdentities(tree);
 }
@@ -1204,6 +1196,7 @@ const TRANSFORMABLE_BLOCK_TYPES: ReadonlySet<KnownBlockTypeV3> = new Set([
   "divider",
   "toggle",
   "callout",
+  "databaseView",
 ]);
 
 export function isTransformableBlockType(value: unknown): value is TransformableBlockType {
@@ -1240,8 +1233,11 @@ export function transformOperationalBlockType(
   if ((node.children()?.length ?? 0) > 0 && !mayHaveChildrenV3(blockType)) {
     throw new BlockTreeOperationError(`${blockType} cannot retain the children of ${blockId}`);
   }
-  if (blockType === "divider" && node.data.ensureMergeableText(CONTENT_KEY).toString() !== "") {
-    throw new BlockTreeOperationError("a divider can only replace an empty text block");
+  if (
+    (blockType === "divider" || blockType === "databaseView") &&
+    node.data.ensureMergeableText(CONTENT_KEY).toString() !== ""
+  ) {
+    throw new BlockTreeOperationError(`${blockType} can only replace an empty text block`);
   }
   node.data.ensureMergeableText(CONTENT_KEY);
   node.data.set("type", blockType);
@@ -1296,4 +1292,18 @@ export function operationalTextForBlock(
 
 export function assertOperationalBlockTree(doc: LoroDoc): void {
   materialiseOperationalDocument(doc);
+}
+
+function createCanonicalTableCell(
+  tree: LoroTree,
+  rowNode: LoroTreeNode,
+  index: number | undefined,
+  columnId: string,
+  cell: TableCellV3,
+): void {
+  const cellNode = rowNode.createNode(index);
+  setNodeHeader(cellNode, cell.id, "tableCell");
+  cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, columnId);
+  initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
+  for (const child of cell.children ?? []) createCanonicalNode(tree, cellNode, undefined, child);
 }

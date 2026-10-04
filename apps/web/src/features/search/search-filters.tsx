@@ -1,7 +1,14 @@
 import type { ItemKind, Uuid } from "@myownnotion/domain";
 import { Button, FR_COPY } from "../../ui/index.ts";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 
-export const ALL_SEARCH_KINDS = ["page", "folder", "file"] as const satisfies readonly ItemKind[];
+export const ALL_SEARCH_KINDS = [
+  "page",
+  "folder",
+  "file",
+  "database",
+  "database_view",
+] as const satisfies readonly ItemKind[];
 
 export interface SearchBranchOption {
   readonly itemId: Uuid;
@@ -12,6 +19,8 @@ const KIND_LABELS: Readonly<Record<ItemKind, string>> = {
   page: FR_COPY.search.pages,
   folder: FR_COPY.search.folders,
   file: FR_COPY.search.files,
+  database: "Bases de données",
+  database_view: "Vues de bases de données",
 };
 
 export function SearchFilters({
@@ -57,7 +66,10 @@ export function SearchFilters({
 
       <label className="search-filters__branch">
         {FR_COPY.search.branch}
-        <select
+        <NativeSelect
+          density="compact"
+          className="ui-native-select"
+          data-size="compact"
           value={branchRootItemId ?? ""}
           onChange={(event) =>
             onBranchChange(event.target.value === "" ? null : (event.target.value as Uuid))
@@ -69,7 +81,7 @@ export function SearchFilters({
               {branch.label}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
 
       <Button type="button" size="compact" disabled={!hasActiveFilter} onClick={onReset}>

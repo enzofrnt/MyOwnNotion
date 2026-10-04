@@ -169,7 +169,10 @@ describe("structured task surfaces (T060)", () => {
     expect(markup).toContain("Statut de la tâche");
     expect(markup).toContain("Échéance de la tâche");
     expect(markup).toContain("Priorité de la tâche");
-    expect(markup).toContain('aria-label="Autres propriétés"');
+    expect(markup).toContain('aria-label="Propriété Notes"');
+    expect(markup.indexOf('aria-label="Propriété Notes"')).toBeLessThan(
+      markup.indexOf('aria-label="Propriété Workflow"'),
+    );
     expect(markup).toContain("Notes");
     expect(markup).toContain("Editorial checklist and notes");
     expect(markup.match(/>Workflow<\/label>/g)).toHaveLength(1);

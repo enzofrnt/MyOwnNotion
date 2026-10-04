@@ -1,60 +1,52 @@
 // @vitest-environment jsdom
-
 import type { DatabaseEntryDto } from "@myownnotion/contracts";
-import type { DatabaseDefinition, EntryValues } from "@myownnotion/domain";
-import { generateUuidV7 } from "@myownnotion/domain";
-import { act, useState } from "react";
+import { type DatabaseDefinition, generateUuidV7 } from "@myownnotion/domain";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type EntryDrafts, EntryPanel } from "../src/features/databases/entry-panel.tsx";
+import { EntryPanel } from "../src/features/databases/entry-panel.tsx";
 
-function typeInto(input: HTMLInputElement, value: string): void {
+function typeInto(input: HTMLInputElement, value: string) {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
-
-function entryFixture() {
-  const databaseId = generateUuidV7();
-  const entryId = generateUuidV7();
-  const titleId = generateUuidV7();
-  const notesId = generateUuidV7();
-  const ownerId = generateUuidV7();
+function fixture() {
+  const id = generateUuidV7(),
+    notes = generateUuidV7(),
+    owner = generateUuidV7(),
+    check = generateUuidV7(),
+    number = generateUuidV7();
   const definition: DatabaseDefinition = {
     format: "myownnotion.database-definition+json",
     formatVersion: 1,
-    databaseId,
+    databaseId: id,
     properties: [
       {
-        id: titleId,
+        id: generateUuidV7(),
         name: "Title",
         type: "title",
+        state: "active",
         positionKey: "a",
-        state: "active",
         config: {},
       },
+      { id: notes, name: "Notes", type: "text", state: "active", positionKey: "b", config: {} },
+      { id: owner, name: "Owner", type: "text", state: "active", positionKey: "c", config: {} },
       {
-        id: notesId,
-        name: "Notes",
-        type: "text",
-        positionKey: "b",
+        id: check,
+        name: "Checked",
+        type: "checkbox",
         state: "active",
+        positionKey: "d",
         config: {},
       },
-      {
-        id: ownerId,
-        name: "Owner",
-        type: "text",
-        positionKey: "c",
-        state: "active",
-        config: {},
-      },
+      { id: number, name: "Number", type: "number", state: "active", positionKey: "e", config: {} },
     ],
     views: [],
     taskRoles: null,
   };
   const entry: DatabaseEntryDto = {
-    databaseId,
-    entryId,
+    databaseId: id,
+    entryId: generateUuidV7(),
     revisionId: generateUuidV7(),
     lifecycle: "active",
     title: "Migration",
@@ -62,272 +54,312 @@ function entryFixture() {
     values: {},
     relationTargets: {},
   };
-  return { definition, entry, notesId, ownerId };
+  return { definition, entry, notes, owner, check, number };
 }
-
-describe("entry panel interaction durability", () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
+describe("entry autosave and native draft durability", () => {
+  let container: HTMLDivElement, root: Root;
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
   });
-
-  afterEach(() => {
-    act(() => root.unmount());
+  afterEach(async () => {
+    await act(async () => root.unmount());
     container.remove();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
-
-  it("distinguishes released properties from empty values and restores hydrated values", () => {
-    const { definition, entry, notesId } = entryFixture();
-    const save = vi.fn();
-    const render = (valuesAvailable: boolean, current = entry) =>
-      root.render(
-        <EntryPanel
-          entry={current}
-          definition={definition}
-          valuesAvailable={valuesAvailable}
-          pageContent={<p>Document conservé</p>}
-          onSaveValues={save}
-          onClose={vi.fn()}
-        />,
-      );
-    act(() => render(false));
-    expect(container.textContent).toContain("Migration");
-    expect(container.textContent).toContain("Document conservé");
-    expect(container.textContent).toContain(
-      "Ces propriétés ne sont pas présentes sur cet appareil",
-    );
-    expect(container.querySelector("input")).toBeNull();
-    expect(container.textContent).not.toContain("Enregistrer les propriétés");
-    act(() =>
-      render(true, {
-        ...entry,
-        values: { [notesId]: { kind: "text", value: "Valeur retrouvée" } },
-      }),
-    );
-    expect(container.querySelector<HTMLInputElement>(`#database-value-${notesId}`)?.value).toBe(
-      "Valeur retrouvée",
-    );
-    const notes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
-    if (notes === null) throw new Error("hydrated notes field missing");
-    act(() => typeInto(notes, "Brouillon conservé"));
-    act(() => render(false));
-    act(() =>
-      render(true, { ...entry, values: { [notesId]: { kind: "text", value: "Valeur distante" } } }),
-    );
-    expect(container.querySelector<HTMLInputElement>(`#database-value-${notesId}`)?.value).toBe(
-      "Brouillon conservé",
-    );
-    expect(save).not.toHaveBeenCalled();
-  });
-
-  it("keeps a native field edit through projection refresh before input delivery", async () => {
-    const { definition, entry, notesId } = entryFixture();
-    const saveValues = vi.fn().mockResolvedValue(undefined);
-    const render = (current: DatabaseEntryDto) =>
-      root.render(
-        <EntryPanel
-          entry={current}
-          definition={definition}
-          onSaveValues={saveValues}
-          onClose={vi.fn()}
-        />,
-      );
-    act(() => render(entry));
-    const notes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
-    if (notes === null) throw new Error("Missing property field");
-    notes.focus();
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
-      notes,
-      "native pending draft",
-    );
-    act(() => render({ ...entry, revisionId: generateUuidV7() }));
-    expect(notes.value).toBe("native pending draft");
+  const wait = async () => {
     await act(async () => {
-      notes.dispatchEvent(new Event("input", { bubbles: true }));
-      const save = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
-        (button) => button.textContent === "Enregistrer les propriétés",
-      );
-      if (save === undefined) throw new Error("Missing save control");
-      save.click();
+      await vi.advanceTimersByTimeAsync(400);
     });
-    expect(saveValues.mock.calls[0]?.[0]).toMatchObject({
-      [notesId]: { kind: "text", value: "native pending draft" },
-    });
-  });
-
-  it("does not carry an undelivered field edit into another entry", () => {
-    const { definition, entry, notesId } = entryFixture();
-    const render = (current: DatabaseEntryDto) =>
-      root.render(
-        <EntryPanel
-          entry={current}
-          definition={definition}
-          onSaveValues={vi.fn()}
-          onClose={vi.fn()}
-        />,
-      );
-    act(() => render(entry));
-    const notes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
-    if (notes === null) throw new Error("Missing property field");
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
-      notes,
-      "previous entry draft",
-    );
-    act(() =>
-      render({
-        ...entry,
-        entryId: generateUuidV7(),
-        values: { [notesId]: { kind: "text", value: "other entry" } },
-      }),
-    );
-    expect(container.querySelector<HTMLInputElement>(`#database-value-${notesId}`)?.value).toBe(
-      "other entry",
-    );
-  });
-
-  it("submits the final property input when save follows it in the same interaction turn", async () => {
-    const { definition, entry, notesId, ownerId } = entryFixture();
-    const onSaveValues = vi.fn().mockResolvedValue(undefined);
+  };
+  const field = (id: string) => {
+    const input = container.querySelector<HTMLInputElement>(`#database-value-${id}`);
+    if (input === null) throw new Error("field missing");
+    return input;
+  };
+  it("coalesces typing and automatically saves the final input without a save button", async () => {
+    const f = fixture(),
+      save = vi.fn().mockResolvedValue(undefined);
     act(() =>
       root.render(
         <EntryPanel
-          entry={entry}
-          definition={definition}
-          onSaveValues={onSaveValues}
-          onClose={vi.fn()}
+          entry={f.entry}
+          definition={f.definition}
+          onSaveValues={save}
+          onClose={() => {}}
         />,
       ),
     );
-
-    const notes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
-    const owner = container.querySelector<HTMLInputElement>(`#database-value-${ownerId}`);
-    const save = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
-      (button) => button.textContent === "Enregistrer les propriétés",
-    );
-    expect(notes).not.toBeNull();
-    expect(owner).not.toBeNull();
-    expect(save).not.toBeUndefined();
-    if (notes === null || owner === null || save === undefined) return;
-
-    act(() => typeInto(notes, "common note"));
-    await act(async () => {
-      typeInto(owner, "common owner");
-      save.click();
-      await Promise.resolve();
+    expect(container.textContent).not.toContain("Enregistrer les propriétés");
+    act(() => {
+      typeInto(field(f.notes), "one");
+      typeInto(field(f.notes), "last edit");
+      typeInto(field(f.owner), "owner");
     });
-
-    expect(onSaveValues).toHaveBeenCalledOnce();
-    expect(onSaveValues.mock.calls[0]?.[0] as EntryValues).toEqual({
-      [notesId]: { kind: "text", value: "common note" },
-      [ownerId]: { kind: "text", value: "common owner" },
+    expect(save).not.toHaveBeenCalled();
+    await wait();
+    expect(save).toHaveBeenCalledOnce();
+    expect(save.mock.calls[0]?.[0]).toEqual({
+      [f.notes]: { kind: "text", value: "last edit" },
+      [f.owner]: { kind: "text", value: "owner" },
     });
+    expect(save.mock.calls[0]?.[2].propertyIds).toEqual([f.notes, f.owner]);
   });
-
-  it("hydrates untouched fields without replacing an owner draft", () => {
-    const { definition, entry, notesId, ownerId } = entryFixture();
-    const onDraftsChange = vi.fn();
-    const render = (currentEntry: DatabaseEntryDto) =>
+  it("flushes the final native input on blur before the debounce", async () => {
+    const f = fixture(),
+      save = vi.fn().mockResolvedValue(undefined);
+    act(() =>
       root.render(
         <EntryPanel
-          entry={currentEntry}
-          definition={definition}
-          onDraftsChange={onDraftsChange}
-          onSaveValues={vi.fn()}
-          onClose={vi.fn()}
+          entry={f.entry}
+          definition={f.definition}
+          onSaveValues={save}
+          onClose={() => {}}
+        />,
+      ),
+    );
+    await act(async () => {
+      const input = field(f.notes);
+      input.focus();
+      typeInto(input, "final native draft");
+      input.blur();
+    });
+    expect(save).toHaveBeenCalledOnce();
+    expect(save.mock.calls[0]?.[0][f.notes].value).toBe("final native draft");
+  });
+  it("serializes a second edit received during an unfinished write", async () => {
+    const f = fixture();
+    let release: () => void = () => {};
+    const save = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            release = resolve;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    act(() =>
+      root.render(
+        <EntryPanel
+          entry={f.entry}
+          definition={f.definition}
+          onSaveValues={save}
+          onClose={() => {}}
+        />,
+      ),
+    );
+    act(() => typeInto(field(f.notes), "first"));
+    await wait();
+    expect(save).toHaveBeenCalledOnce();
+    act(() => typeInto(field(f.notes), "second"));
+    await wait();
+    expect(save).toHaveBeenCalledOnce();
+    await act(async () => release());
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save.mock.calls[1]?.[0][f.notes].value).toBe("second");
+    expect(save.mock.calls[1]?.[2].previousValues[f.notes].value).toBe("first");
+  });
+  it("keeps failed drafts and retries only on an explicit retry or new edit", async () => {
+    const f = fixture(),
+      save = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("storage unavailable"))
+        .mockResolvedValue(undefined);
+    act(() =>
+      root.render(
+        <EntryPanel
+          entry={f.entry}
+          definition={f.definition}
+          onSaveValues={save}
+          onClose={() => {}}
+        />,
+      ),
+    );
+    act(() => typeInto(field(f.notes), "retained"));
+    await wait();
+    expect(field(f.notes).value).toBe("retained");
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    await wait();
+    expect(save).toHaveBeenCalledOnce();
+    await act(async () => {
+      [...container.querySelectorAll("button")].find((b) => b.textContent === "Réessayer")?.click();
+    });
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+  it("hydrates untouched fields while retaining edited fields and their base", async () => {
+    const f = fixture(),
+      save = vi.fn().mockResolvedValue(undefined);
+    const render = (entry = f.entry) =>
+      root.render(
+        <EntryPanel
+          entry={entry}
+          definition={f.definition}
+          onSaveValues={save}
+          onClose={() => {}}
         />,
       );
-
-    act(() => render(entry));
-    const notes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
-    if (notes === null) throw new Error("notes field missing");
-    act(() => typeInto(notes, "owner draft"));
-
+    act(() => render());
+    act(() => typeInto(field(f.notes), "local"));
     act(() =>
       render({
-        ...entry,
-        revisionId: generateUuidV7(),
+        ...f.entry,
         values: {
-          [notesId]: { kind: "text", value: "synchronized note" },
-          [ownerId]: { kind: "text", value: "synchronized owner" },
+          [f.notes]: { kind: "text", value: "remote" },
+          [f.owner]: { kind: "text", value: "remote owner" },
         },
       }),
     );
-
-    expect(container.querySelector<HTMLInputElement>(`#database-value-${notesId}`)?.value).toBe(
-      "owner draft",
-    );
-    expect(container.querySelector<HTMLInputElement>(`#database-value-${ownerId}`)?.value).toBe(
-      "synchronized owner",
-    );
-    expect(onDraftsChange).toHaveBeenLastCalledWith({ [notesId]: "owner draft" });
-
-    act(() =>
-      render({
-        ...entry,
-        entryId: generateUuidV7(),
-        revisionId: generateUuidV7(),
-        values: {
-          [notesId]: { kind: "text", value: "next entry note" },
-          [ownerId]: { kind: "text", value: "next entry owner" },
-        },
-      }),
-    );
-    expect(container.querySelector<HTMLInputElement>(`#database-value-${notesId}`)?.value).toBe(
-      "next entry note",
-    );
-    expect(container.querySelector<HTMLInputElement>(`#database-value-${ownerId}`)?.value).toBe(
-      "next entry owner",
-    );
+    expect(field(f.notes).value).toBe("local");
+    expect(field(f.owner).value).toBe("remote owner");
+    await wait();
+    expect(save.mock.calls[0]?.[0]).toEqual({ [f.notes]: { kind: "text", value: "local" } });
+    expect(save.mock.calls[0]?.[2].previousValues[f.notes]).toBeUndefined();
   });
-
-  it("retains a property draft when projection churn remounts the entry surface", async () => {
-    const { definition, entry, notesId, ownerId } = entryFixture();
-    const onSaveValues = vi.fn().mockResolvedValue(undefined);
-
-    function Harness({ surface }: { readonly surface: number }) {
-      const [retainedDrafts, setRetainedDrafts] = useState<EntryDrafts>();
-      return (
+  it("preserves undelivered native input through a projection refresh", async () => {
+    const f = fixture(),
+      save = vi.fn().mockResolvedValue(undefined);
+    const render = () =>
+      root.render(
         <EntryPanel
-          key={surface}
-          entry={entry}
-          definition={definition}
-          {...(retainedDrafts === undefined ? {} : { initialDrafts: retainedDrafts })}
-          onDraftsChange={setRetainedDrafts}
-          onSaveValues={onSaveValues}
-          onClose={vi.fn()}
-        />
+          entry={{ ...f.entry, revisionId: generateUuidV7() }}
+          definition={f.definition}
+          onSaveValues={save}
+          onClose={() => {}}
+        />,
       );
-    }
-
-    act(() => root.render(<Harness surface={0} />));
-    const notes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
-    if (notes === null) throw new Error("notes field missing");
-    act(() => typeInto(notes, "survives projection churn"));
-
-    act(() => root.render(<Harness surface={1} />));
-    const retainedNotes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
-    const owner = container.querySelector<HTMLInputElement>(`#database-value-${ownerId}`);
-    const save = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
-      (button) => button.textContent === "Enregistrer les propriétés",
+    act(() => render());
+    const input = field(f.notes);
+    input.focus();
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+      input,
+      "undelivered",
     );
-    expect(retainedNotes?.value).toBe("survives projection churn");
-    if (owner === null || save === undefined) throw new Error("entry controls missing");
-
-    await act(async () => {
-      typeInto(owner, "still editable");
-      save.click();
-      await Promise.resolve();
+    act(() => render());
+    expect(input.value).toBe("undelivered");
+    act(() => input.dispatchEvent(new Event("input", { bubbles: true })));
+    await wait();
+    expect(save.mock.calls[0]?.[0][f.notes].value).toBe("undelivered");
+  });
+  it("does not block a valid field behind an invalid number", async () => {
+    const f = fixture(),
+      save = vi.fn().mockResolvedValue(undefined);
+    act(() =>
+      root.render(
+        <EntryPanel
+          entry={f.entry}
+          definition={f.definition}
+          onSaveValues={save}
+          onClose={() => {}}
+        />,
+      ),
+    );
+    act(() => {
+      typeInto(field(f.number), "12,5");
+      typeInto(field(f.notes), "valid");
     });
-
-    expect(onSaveValues.mock.calls[0]?.[0] as EntryValues).toEqual({
-      [notesId]: { kind: "text", value: "survives projection churn" },
-      [ownerId]: { kind: "text", value: "still editable" },
-    });
+    await wait();
+    expect(save).toHaveBeenCalledOnce();
+    expect(save.mock.calls[0]?.[0]).toEqual({ [f.notes]: { kind: "text", value: "valid" } });
+    expect(field(f.number).value).toBe("12,5");
+    expect(container.textContent).toContain("Utilisez un point");
+  });
+  it("saves discrete choices immediately and flushes pending text on unmount", async () => {
+    const f = fixture(),
+      save = vi.fn().mockResolvedValue(undefined);
+    act(() =>
+      root.render(
+        <EntryPanel
+          entry={f.entry}
+          definition={f.definition}
+          onSaveValues={save}
+          onClose={() => {}}
+        />,
+      ),
+    );
+    await act(async () => field(f.check).click());
+    expect(save.mock.calls[0]?.[0][f.check]).toEqual({ kind: "checkbox", checked: true });
+    act(() => typeInto(field(f.notes), "before leaving"));
+    await act(async () => root.render(<p>Another page</p>));
+    expect(save.mock.calls[1]?.[0][f.notes].value).toBe("before leaving");
+  });
+  it("distinguishes unavailable values from an empty entry and keeps its document", () => {
+    const f = fixture(),
+      save = vi.fn();
+    act(() =>
+      root.render(
+        <EntryPanel
+          entry={f.entry}
+          definition={f.definition}
+          valuesAvailable={false}
+          pageContent={<p>Document conservé</p>}
+          onSaveValues={save}
+          onClose={() => {}}
+        />,
+      ),
+    );
+    expect(container.querySelector("input")).toBeNull();
+    expect(container.textContent).toContain("Ces propriétés ne sont pas présentes");
+    expect(container.textContent).toContain("Document conservé");
+    expect(save).not.toHaveBeenCalled();
+  });
+  it("does not clear a reopened page's newer draft when the departed panel's write finishes", async () => {
+    const f = fixture();
+    let finishOld: (() => void) | undefined;
+    let retained: Readonly<Record<string, string | boolean | readonly string[]>> = {};
+    const save = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishOld = resolve;
+          }),
+      )
+      .mockImplementation(() => new Promise<void>(() => undefined));
+    const renderPanel = (key: string) =>
+      root.render(
+        <EntryPanel
+          key={key}
+          entry={f.entry}
+          definition={f.definition}
+          initialDrafts={retained}
+          onDraftsChange={(drafts) => {
+            retained = drafts;
+          }}
+          onSaveValues={save}
+          onClose={() => {}}
+        />,
+      );
+    act(() => renderPanel("original"));
+    act(() => typeInto(field(f.notes), "old write"));
+    await wait();
+    act(() => renderPanel("reopened"));
+    act(() => typeInto(field(f.notes), "new draft"));
+    await act(async () => finishOld?.());
+    expect(retained[f.notes]).toBe("new draft");
+    expect(field(f.notes).value).toBe("new draft");
+  });
+  it("supports the canonical header once without introducing a second title", () => {
+    const f = fixture();
+    act(() =>
+      root.render(
+        <EntryPanel
+          entry={f.entry}
+          definition={f.definition}
+          renderHeader={() => <h1>Migration</h1>}
+          pageContent={<p>Body</p>}
+          onSaveValues={() => {}}
+          onClose={() => {}}
+        />,
+      ),
+    );
+    expect(container.querySelectorAll("h1")).toHaveLength(1);
+    expect(container.querySelector("h2")).toBeNull();
+    expect(container.querySelector('[aria-label="Contenu de la page"]')?.textContent).toBe("Body");
   });
 });

@@ -13,9 +13,10 @@
  * fail the gate — we do not own their formatting/style and must not rewrite
  * them. Findings in every first-party script still fail the gate.
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
+import { trackedFiles as readTrackedFiles } from "./tracked-files.ts";
 
 const PINNED_SHELLCHECK = "0.11.0";
 const PINNED_SHFMT = "3.12.0";
@@ -24,11 +25,7 @@ const VENDORED_SPEC_KIT_PREFIX = ".specify/scripts/bash/";
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 
 function trackedShellScripts(): string[] {
-  const output = execFileSync("git", ["ls-files", "-z", "*.sh"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-  return output.split("\0").filter((entry) => entry.length > 0);
+  return readTrackedFiles(repoRoot, { pathspec: ["*.sh"] });
 }
 
 function toolVersion(command: string, args: string[], pattern: RegExp): string | null {

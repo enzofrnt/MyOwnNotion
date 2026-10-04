@@ -1,0 +1,140 @@
+/* Owner: conflict comparison layout. Common table/section/code paint lives in ui/primitives. */
+.conflict-columns {
+  table-layout: fixed;
+}
+
+.conflict-columns .ui-code-preview {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.conflict-columns fieldset {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.conflict-columns legend {
+  margin-bottom: var(--ui-space-2);
+  padding: 0;
+  font-size: var(--ui-text-xs);
+  overflow-wrap: anywhere;
+}
+
+.conflict-columns label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-2);
+  min-height: var(--ui-target-compact);
+  line-height: var(--ui-leading-normal);
+}
+
+.conflict-columns input[type="radio"] {
+  flex: none;
+  margin-top: 0.2em;
+}
+
+.conflict-resolution__order {
+  display: grid;
+  gap: var(--ui-space-3);
+  margin: 0;
+  padding-left: var(--ui-space-6);
+}
+
+.conflict-resolution__order > li > span {
+  display: block;
+  margin-bottom: var(--ui-space-2);
+  font-size: var(--ui-text-sm);
+  line-height: var(--ui-leading-normal);
+}
+
+.conflict-resolution__order .ui-button + .ui-button {
+  margin-left: var(--ui-space-2);
+}
+
+.revision-preview {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-3);
+}
+
+.revision-preview > p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.revision-preview > .ui-button {
+  justify-self: start;
+}
+
+.legacy-recovery-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legacy-recovery-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  padding: var(--ui-space-3) 0;
+  border-bottom: 1px solid var(--ui-color-border);
+}
+
+.legacy-recovery-list__content {
+  display: grid;
+  flex: 1 1 18rem;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.legacy-recovery-list .ui-button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+@media (max-width: 860px) {
+  .conflict-columns thead {
+    display: none;
+  }
+
+  .conflict-columns tr {
+    display: block;
+    margin-bottom: var(--ui-space-4);
+    border: 1px solid var(--ui-color-border);
+    border-radius: var(--ui-radius-md);
+    overflow: hidden;
+  }
+
+  .conflict-columns td,
+  .conflict-columns tbody th {
+    display: block;
+  }
+
+  .conflict-columns tr > :last-child {
+    border-bottom: 0;
+  }
+
+  .conflict-columns td::before {
+    display: block;
+    content: attr(data-column);
+    margin-bottom: var(--ui-space-2);
+    color: var(--ui-color-text-muted);
+    font-size: var(--ui-text-xs);
+    font-weight: 500;
+  }
+}
+
+@media (pointer: coarse) {
+  .conflict-columns label {
+    min-height: var(--ui-target);
+  }
+}

@@ -62,7 +62,7 @@ async function prepareReference(page: Page, theme: "light" | "dark"): Promise<vo
   expect(syncBox).not.toBeNull();
   expect(VIEWPORT.height - ((syncBox?.y ?? 0) + (syncBox?.height ?? 0))).toBeLessThanOrEqual(20);
   const pageTop = await page.getByTestId("active-item-title").boundingBox();
-  const editorTop = await page.getByTestId("block-editor").boundingBox();
+  const editorTop = await page.locator('[data-testid="block-editor"]:visible').boundingBox();
   expect(pageTop).not.toBeNull();
   expect(editorTop).not.toBeNull();
   expect((pageTop?.y ?? 0) + (pageTop?.height ?? 0)).toBeLessThanOrEqual(editorTop?.y ?? 0);
@@ -137,12 +137,19 @@ async function hoverContextualRowWithoutShift(page: Page): Promise<void> {
   const afterLayout = await readLayout();
   expect(after).not.toBeNull();
 
-  for (const key of ["x", "y", "width", "height"] as const) {
+  // FR-010 reserves the actual width of contextual actions on hover. The
+  // title truncates inside that space while the row and its text origin stay put.
+  for (const key of ["x", "y", "height"] as const) {
     expect(
       Math.abs((after?.[key] ?? 0) - (before?.[key] ?? 0)),
       `${key} layout shift: ${JSON.stringify({ beforeLayout, afterLayout })}`,
     ).toBeLessThanOrEqual(1);
   }
+  expect(afterLayout.row).toEqual(beforeLayout.row);
+  const actions = await page.getByTestId("item-actions-Feuille de route").boundingBox();
+  expect(actions).not.toBeNull();
+  expect((after?.x ?? 0) + (after?.width ?? 0)).toBeLessThanOrEqual(actions?.x ?? 0);
+  await expect(name).toHaveText("Feuille de route");
 }
 
 for (const theme of ["light", "dark"] as const) {

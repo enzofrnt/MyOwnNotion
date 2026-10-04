@@ -1,3 +1,5 @@
+import { decodePageOperationBytes as decode } from "./page-operation-crypto.ts";
+import { persistNewPageAmbiguities } from "./persist-ambiguities.ts";
 /**
  * Transactional import and bidirectional catch-up for active operational pages
  * (T139, US5).
@@ -14,7 +16,6 @@ import {
   buildItemSnapshot,
   confirmPageDeviceFrontier,
   type Database,
-  insertPageAmbiguity,
   insertPageOperationCheckpoint,
   insertRevision,
   listOpenPageAmbiguities,
@@ -25,7 +26,6 @@ import {
   type PageOperationStateRow,
   type PageOperationUpdateRow,
   promotePageOperationCheckpoint,
-  readPageAmbiguityByLogicalKey,
   readPageDeviceFrontier,
   readPageOperationCheckpoint,
   readPageOperationCheckpointAtSequence,
@@ -82,13 +82,6 @@ export interface PageOperationServiceDeps {
     | ((event: { readonly pageId: Uuid; readonly latestPageSequence: number }) => void)
     | undefined;
   readonly now?: () => Date;
-}
-
-function decode(value: string): Uint8Array<ArrayBuffer> {
-  const source = Buffer.from(value, "base64url");
-  const bytes = new Uint8Array(new ArrayBuffer(source.byteLength));
-  bytes.set(source);
-  return bytes;
 }
 
 function encode(value: Uint8Array): string {
@@ -1393,28 +1386,14 @@ export class PageOperationService {
             }),
           );
         }
-        for (const ambiguity of detectPageAmbiguities(records)) {
-          const existing = await readPageAmbiguityByLogicalKey(tx, {
-            pageId: input.pageId,
-            logicalKey: ambiguity.logicalKey,
-          });
-          if (existing !== null) continue;
-          const detailsEnvelopeId = await this.#deps.crypto.sealBytes(
-            tx,
-            "ambiguity",
-            new TextEncoder().encode(JSON.stringify(ambiguity)),
-          );
-          await insertPageAmbiguity(tx, {
-            ambiguityId: generateUuidV7(),
-            pageId: input.pageId,
-            workspaceId: this.#deps.workspaceId,
-            logicalKey: ambiguity.logicalKey,
-            kind: ambiguity.kind,
-            detailsEnvelopeId,
-            sourceUpdateIds: [...ambiguity.sourceUpdateIds],
-            openedAt: this.#deps.now(),
-          });
-        }
+        await persistNewPageAmbiguities(
+          tx,
+          input.pageId,
+          this.#deps.workspaceId,
+          detectPageAmbiguities(records),
+          this.#deps.crypto,
+          this.#deps.now,
+        );
       }
     }
 

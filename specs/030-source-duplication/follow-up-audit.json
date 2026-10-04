@@ -1,0 +1,2578 @@
+[
+  {
+    "number": 1,
+    "hash": "f2b8057d4b74",
+    "paths": [
+      "apps/web/src/services/local-content.ts",
+      "packages/client-core/src/page-sync/legacy-page-editing-session.ts",
+      "packages/client-core/src/page-sync/page-editing-session.ts",
+      "apps/api/src/realtime/page-advance-notifier.ts",
+      "apps/api/src/sync/change-notifier.ts"
+    ],
+    "decision": "idiom",
+    "rationale": "Souscription Set/add/delete élémentaire ; les canaux et cycles de vie restent différents.",
+    "originalGroup": 1,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      }
+    ]
+  },
+  {
+    "number": 2,
+    "hash": "ea12bcb5c3e9",
+    "paths": [
+      "apps/web/src/features/databases/database-conflict-resolution.tsx",
+      "packages/domain/src/databases/merge.ts"
+    ],
+    "decision": "idiom",
+    "rationale": "Prédicat de tableau identifié de quatre lignes ; types readonly et mutable propres aux appelants.",
+    "originalGroup": 2,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 3,
+    "hash": "4c111f354629",
+    "paths": [
+      "apps/web/src/features/databases/board-view.tsx",
+      "apps/web/src/features/databases/database-toolbar.tsx",
+      "apps/web/src/features/databases/view-columns.ts",
+      "packages/domain/src/databases/query.ts"
+    ],
+    "decision": "idiom",
+    "rationale": "Comparaison lexicographique et tie-breaker élémentaires ; clés différentes selon les collections.",
+    "originalGroup": 5,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 4,
+    "hash": "0bab41825b64",
+    "paths": [
+      "packages/client-core/src/reconciliation/reconcile.ts",
+      "apps/web/src/features/sync/conflict-resolution.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Adaptation de résultat validé vers body/null de cinq lignes ; aucune seconde règle de validation.",
+    "originalGroup": 13,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      }
+    ]
+  },
+  {
+    "number": 5,
+    "hash": "c584f213e162",
+    "paths": [
+      "packages/database/src/repositories/lifecycle-repository.ts",
+      "packages/domain/src/content/lifecycle.ts",
+      "packages/database/src/repositories/revision-repository.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Projections de placement de formes différentes : identités, snapshots et DTO de lecture.",
+    "originalGroup": 14,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/001-content-foundations/spec.md",
+        "requirements": ["FR-013", "FR-014", "FR-015"]
+      }
+    ]
+  },
+  {
+    "number": 6,
+    "hash": "ec6df5fd0190",
+    "paths": [
+      "packages/domain/src/databases/query.ts",
+      "apps/api/src/databases/database-query-service.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Le moteur métier clone et trie les relations, l’index serveur conserve leur ordre et leur référence.",
+    "originalGroup": 19,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 7,
+    "hash": "c54b02679285",
+    "paths": ["packages/test-utils/src/postgres.ts", "apps/api/src/backup/disposable-workspace.ts"],
+    "decision": "distinct",
+    "rationale": "Destruction de bases à ownership et cleanup différents ; test-utils ne doit pas devenir une dépendance de production.",
+    "originalGroup": 20,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008", "FR-013"]
+      },
+      {
+        "spec": "specs/024-full-server-backups/spec.md",
+        "requirements": ["FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-002", "FR-006", "FR-016"]
+      },
+      {
+        "spec": "specs/024-full-server-backups/spec.md",
+        "requirements": ["FR-005"]
+      }
+    ]
+  },
+  {
+    "number": 8,
+    "hash": "75ab5b2b2d05",
+    "paths": [
+      "packages/client-core/src/security/reauthorization.ts",
+      "apps/web/src/features/hierarchy/page-canvas-selection.ts",
+      "apps/web/src/features/workspace/folder-children-list.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Égalité ordonnée de tableaux d’identifiants en une ligne.",
+    "originalGroup": 21,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      },
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-014", "FR-017", "FR-018", "FR-019", "FR-020", "FR-021"]
+      },
+      {
+        "spec": "specs/023-ui-quality-skill/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 9,
+    "hash": "ca566da8b381",
+    "paths": [
+      "apps/web/src/features/editor/editor-menus/page-link-picker.tsx",
+      "apps/web/src/features/workspace/use-active-item.ts",
+      "apps/web/src/features/editor/page-link-inline-content.ts"
+    ],
+    "decision": "idiom",
+    "rationale": "Recherche élémentaire du placement parent ; les services portent déjà la règle hiérarchique.",
+    "originalGroup": 22,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-027", "FR-028"]
+      }
+    ]
+  },
+  {
+    "number": 10,
+    "hash": "c70ab048cf35",
+    "paths": [
+      "apps/web/src/features/editor/editor-menus/linked-database-picker.tsx",
+      "apps/web/src/features/hierarchy/hierarchy-explorer.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Filtre et projection des positions des frères ; pas de nouvelle règle à encapsuler.",
+    "originalGroup": 23,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-014", "FR-017", "FR-018", "FR-019", "FR-020", "FR-021"]
+      },
+      {
+        "spec": "specs/023-ui-quality-skill/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 11,
+    "hash": "aa3811fcbd02",
+    "paths": [
+      "apps/web/src/features/knowledge-graph/use-knowledge-graph.ts",
+      "apps/web/src/services/search.ts"
+    ],
+    "decision": "idiom",
+    "rationale": "Résolution courte de promesse RPC ; protocoles, queues et lifecycle des workers distincts.",
+    "originalGroup": 24,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/008-search/spec.md",
+        "requirements": ["FR-004", "FR-008", "FR-011", "FR-016"]
+      }
+    ]
+  },
+  {
+    "number": 12,
+    "hash": "7b45705f27d4",
+    "paths": [
+      "apps/web/src/features/databases/database-container-page.tsx",
+      "apps/web/src/features/editor/custom-blocks/database-view.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Effet React de refresh/souscription élémentaire ; autorités de chargement distinctes.",
+    "originalGroup": 25,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 13,
+    "hash": "aab0ac47ad7d",
+    "paths": [
+      "apps/web/src/features/save-state/conflict-notice.tsx",
+      "apps/web/src/features/sync/conflict-resolution.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Prédicat court d’identification d’une mutation page/document pour deux présentations.",
+    "originalGroup": 29,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      }
+    ]
+  },
+  {
+    "number": 14,
+    "hash": "6dd4000cfb72",
+    "paths": [
+      "apps/web/src/features/editor/blocknote-conversion.ts",
+      "packages/page-state/src/legacy-document-diff.ts"
+    ],
+    "decision": "idiom",
+    "rationale": "Présence de marque unknown via some ; conversion et diff ont des politiques de rejet différentes.",
+    "originalGroup": 30,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 15,
+    "hash": "366fb5e58551",
+    "paths": ["packages/database/src/repositories/item-reader.ts", "apps/api/src/routes/export.ts"],
+    "decision": "distinct",
+    "rationale": "DTO de lecteur et export incluent des ensembles de champs et lifecycle différents.",
+    "originalGroup": 31,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/001-content-foundations/spec.md",
+        "requirements": ["FR-009", "FR-012"]
+      }
+    ]
+  },
+  {
+    "number": 16,
+    "hash": "072b59007d28",
+    "paths": [
+      "packages/page-state/src/legacy-document-diff.ts",
+      "apps/api/src/page-state/page-history-service.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Le diff conserve unknown et remplace children par [], l’historique retire children.",
+    "originalGroup": 34,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 17,
+    "hash": "d4d93effad1e",
+    "paths": [
+      "packages/database/src/repositories/revision-repository.ts",
+      "packages/client-core/src/databases/local-database-repository.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Acquisition et regroupement relationnels de snapshots SQL et projections IndexedDB différents ; forme Map/record et regroupement par entrée distincts.",
+    "originalGroup": 35,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 18,
+    "hash": "c545945781b0",
+    "paths": [
+      "apps/web/src/services/local-content.ts",
+      "apps/web/src/features/hierarchy/hierarchy-explorer.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Égalité de Set d’identifiants en une ligne.",
+    "originalGroup": 36,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-014", "FR-017", "FR-018", "FR-019", "FR-020", "FR-021"]
+      },
+      {
+        "spec": "specs/023-ui-quality-skill/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 19,
+    "hash": "af782c4cf82b",
+    "paths": [
+      "packages/page-state/src/legacy-document-diff.ts",
+      "apps/api/src/page-state/page-history-service.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Le diff ignore les ranges vides, l’historique les préserve.",
+    "originalGroup": 37,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 20,
+    "hash": "1aa74206d7f1",
+    "paths": ["apps/api/src/backup/schedule.ts", "apps/api/src/security/rotation-scheduler.ts"],
+    "decision": "idiom",
+    "rationale": "Nettoyage timer clearInterval/null élémentaire dans des lifecycle distincts.",
+    "originalGroup": 42,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008", "FR-013"]
+      },
+      {
+        "spec": "specs/024-full-server-backups/spec.md",
+        "requirements": ["FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-002", "FR-006", "FR-016"]
+      },
+      {
+        "spec": "specs/024-full-server-backups/spec.md",
+        "requirements": ["FR-005"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 21,
+    "hash": "bd698d4df8e2",
+    "paths": [
+      "packages/domain/src/document/migrate-v3.ts",
+      "packages/client-core/src/page-sync/legacy-conflict-recovery.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Conversions directionnelles V2/V3 à ensembles de marques et politique de perte différents.",
+    "originalGroup": 43,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 22,
+    "hash": "45d0edc0f440",
+    "paths": [
+      "packages/client-core/src/outbox/apply-to-projection.ts",
+      "packages/database/src/mutations/execute-command.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Canonical page-link reconciliation writes revisioned PostgreSQL relationships and permits unavailable restored targets; local reconciliation rejects purged targets and uses nonrevisioned IndexedDB rows. The persistence and historical-link contracts differ.",
+    "originalGroup": 44,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      }
+    ]
+  },
+  {
+    "number": 23,
+    "hash": "657d3e41b0d6",
+    "paths": [
+      "apps/web/src/features/databases/page-databases.tsx",
+      "apps/web/src/features/editor/custom-blocks/database-view.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Thin createDatabaseEntry call adapters already delegate the domain command to one service. The embedded caller explicitly supplies sourceId while the page caller resolves its owner; extracting another call wrapper would conceal that distinction.",
+    "originalGroup": 46,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 24,
+    "hash": "4c1fde9c7977",
+    "paths": [
+      "packages/database/src/repositories/lifecycle-repository.ts",
+      "packages/client-core/src/search/local-search-source.ts"
+    ],
+    "decision": "idiom",
+    "rationale": "A three-part containment predicate on hierarchy placement is routine set membership, with different enclosing lifecycle/search responsibilities; no independent abstraction is justified.",
+    "originalGroup": 47,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/008-search/spec.md",
+        "requirements": ["FR-004", "FR-008", "FR-011", "FR-016"]
+      }
+    ]
+  },
+  {
+    "number": 25,
+    "hash": "88fb305aec62",
+    "paths": [
+      "apps/web/src/features/editor/editor-files.ts",
+      "apps/web/src/services/realtime-page-sync-transport.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Editor file subscription immediately emits its current states; realtime synchronization subscription only registers future notifications. Delivery-on-registration is observably different and the storage owners differ.",
+    "originalGroup": 49,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-007", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 26,
+    "hash": "12a0356de64c",
+    "paths": ["apps/api/src/plugins/errors.ts", "apps/api/src/routes/page-operations.ts"],
+    "decision": "distinct",
+    "rationale": "The global safe-error handler serialises full Problem Details via problemFromSafeError; page-operation routes expose their protocol-specific code/message payload and status. Sharing serialization would alter wire contracts.",
+    "originalGroup": 52,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-005"]
+      }
+    ]
+  },
+  {
+    "number": 27,
+    "hash": "678d2707db2e",
+    "paths": [
+      "packages/database/src/mutations/run-mutation.ts",
+      "packages/database/src/repositories/security/transaction.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "The security transaction file explicitly documents deliberate separation: security defaults to one attempt and surfaces SecurityConflictError, while content retries serialisation/deadlocks up to five times with SerializationRetryExceededError. Security conflict is sometimes the required result, so generic replay machinery is not warranted.",
+    "originalGroup": 53,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 28,
+    "hash": "116c8439d01b",
+    "paths": ["apps/web/src/services/local-content.ts"],
+    "decision": "distinct",
+    "rationale": "Revision loading for conflict recovery carries a problem code; the sync/reconciler adapter intentionally returns only offline status. These are tiny endpoint-specific result projections with distinct contracts.",
+    "originalGroup": 54,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-009"]
+      }
+    ]
+  },
+  {
+    "number": 29,
+    "hash": "08fceb7836f6",
+    "paths": [
+      "apps/web/src/features/knowledge-graph/use-knowledge-graph.ts",
+      "apps/web/src/services/search.ts"
+    ],
+    "decision": "idiom",
+    "rationale": "Deleting a pending worker request before rejection on timeout is a routine three-line guard. Worker ownership, messages and transports remain feature-specific.",
+    "originalGroup": 55,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/008-search/spec.md",
+        "requirements": ["FR-004", "FR-008", "FR-011", "FR-016"]
+      }
+    ]
+  },
+  {
+    "number": 30,
+    "hash": "325e6b96debe",
+    "paths": [
+      "apps/web/src/features/databases/update-database-cell.ts",
+      "apps/web/src/features/hierarchy/hierarchy-explorer.tsx"
+    ],
+    "decision": "distinct",
+    "rationale": "La règle valeurs/relations est désormais unique (T067). Le chemin hiérarchie garde trois retries sur stale-base, le contrôle du propriétaire, refresh et setProblem ; l’affichage intégré garde sa création implicite et ses propres erreurs. Ne pas fusionner ces orchestrations.",
+    "originalGroup": null,
+    "relatedTask": "T022",
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-014", "FR-017", "FR-018", "FR-019", "FR-020", "FR-021"]
+      },
+      {
+        "spec": "specs/023-ui-quality-skill/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 31,
+    "hash": "2281ef1141b7",
+    "paths": [
+      "apps/web/src/features/files/attachment-list.tsx",
+      "apps/web/src/features/attachments/attachment-panel.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Both are tiny optional mediaType accessors using an already shared fallback copy constant. The attachment row versus item input adapters require no additional abstraction.",
+    "originalGroup": 56,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/005-files-and-local-storage/spec.md",
+        "requirements": ["FR-002", "FR-004", "FR-005"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-005", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 32,
+    "hash": "f9cf8d0b882b",
+    "paths": [
+      "apps/web/src/features/databases/board-view.tsx",
+      "apps/web/src/features/databases/gallery-view.tsx",
+      "apps/web/src/features/databases/list-view.tsx",
+      "apps/web/src/features/databases/table-view.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "The six-line layout effect restores a supplied scroll offset on a ref with a one-pixel tolerance. It is a small React layout idiom, not duplicated database semantics.",
+    "originalGroup": 58,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 33,
+    "hash": "f982fc0e5524",
+    "paths": ["packages/domain/src/document/document.ts"],
+    "decision": "distinct",
+    "rationale": "The two named serializers deliberately choose includeCanonical true versus false. They share serialiseBlockV3 already; one-line map wrappers expose distinct format contracts.",
+    "originalGroup": 59,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 34,
+    "hash": "f84ed30b9c00",
+    "paths": ["apps/api/src/backup/archive-format.ts", "apps/api/src/backup/backup-service.ts"],
+    "decision": "idiom",
+    "rationale": "Both one-line functions call the standard SHA-256 primitive and prepend the same algorithm label. This is a small cryptographic API idiom, not substantial repeated hashing logic.",
+    "originalGroup": 60,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008", "FR-013"]
+      },
+      {
+        "spec": "specs/024-full-server-backups/spec.md",
+        "requirements": ["FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-002", "FR-006", "FR-016"]
+      },
+      {
+        "spec": "specs/024-full-server-backups/spec.md",
+        "requirements": ["FR-005"]
+      }
+    ]
+  },
+  {
+    "number": 35,
+    "hash": "ef2e9d8d3e2b",
+    "paths": ["apps/web/src/features/databases/database-toolbar.tsx"],
+    "decision": "idiom",
+    "rationale": "A repeated active-nontitle property predicate in one toolbar is routine membership filtering; the property collection and title exclusion are explicit and already local.",
+    "originalGroup": 61,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 36,
+    "hash": "d83d73257dfb",
+    "paths": ["apps/web/src/features/hierarchy/hierarchy-explorer.tsx"],
+    "decision": "idiom",
+    "rationale": "Two component adapters package the same folder placement request for the already shared handleTreeDrop. This is routine UI callback argument mapping.",
+    "originalGroup": 64,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-014", "FR-017", "FR-018", "FR-019", "FR-020", "FR-021"]
+      },
+      {
+        "spec": "specs/023-ui-quality-skill/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 37,
+    "hash": "c3d5cdc8cfe9",
+    "paths": ["packages/client-core/src/search/local-search-source.ts"],
+    "decision": "idiom",
+    "rationale": "Mapping revision IDs back to item IDs with flatMap and omission of missing IDs is a small data projection reused for different local search row classes.",
+    "originalGroup": 66,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/008-search/spec.md",
+        "requirements": ["FR-004", "FR-008", "FR-011", "FR-016"]
+      }
+    ]
+  },
+  {
+    "number": 38,
+    "hash": "c1a1062f5473",
+    "paths": ["scripts/ci/scan-secrets.ts", "scripts/ci/static-security.ts"],
+    "decision": "idiom",
+    "rationale": "The rule-to-SARIF descriptor is a trivial object literal prescribed by the SARIF shape. It does not justify a shared reporting abstraction on its own.",
+    "originalGroup": 67,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-033", "FR-034"]
+      },
+      {
+        "spec": "specs/019-bun-toolchain/spec.md",
+        "requirements": []
+      }
+    ]
+  },
+  {
+    "number": 39,
+    "hash": "c08bc82484da",
+    "paths": ["apps/web/src/features/databases/filter-editor.tsx"],
+    "decision": "idiom",
+    "rationale": "Removing a criterion by ID from immutable React draft state is a routine state updater. Both callbacks live in the same filter editor; the filter model is already shared.",
+    "originalGroup": 68,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 40,
+    "hash": "95adfb54ac90",
+    "paths": [
+      "apps/web/src/features/databases/board-view.tsx",
+      "apps/web/src/features/databases/calendar-view.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Both handlers assign an entry ID and standard HTML drag payload/effect. This small browser drag-start idiom has no shared board/calendar domain rule.",
+    "originalGroup": 70,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 41,
+    "hash": "77db24559a63",
+    "paths": [
+      "apps/web/src/features/databases/board-view.tsx",
+      "apps/web/src/features/databases/gallery-view.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Appending a focused index to an existing virtualizer range and sorting it is a four-line routine adapter around the already shared defaultRangeExtractor.",
+    "originalGroup": 71,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 42,
+    "hash": "690dfa0e37a0",
+    "paths": [
+      "apps/api/src/routes/authentication.ts",
+      "apps/api/src/routes/devices.ts",
+      "apps/api/src/routes/security-recovery.ts",
+      "apps/api/src/routes/security-rotation.ts"
+    ],
+    "decision": "idiom",
+    "rationale": "The three-field authenticated-owner audit context is routine request-specific field mapping. The canonical requestContext and audit event APIs are already shared.",
+    "originalGroup": 73,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 43,
+    "hash": "430dae520263",
+    "paths": ["packages/domain/src/document/document.ts"],
+    "decision": "distinct",
+    "rationale": "Legacy document link traversal and V3 traversal accept different models; V3 explicitly traverses table cell inline content and child blocks. Their traversal boundary must not erase model differences and each already uses its model helpers.",
+    "originalGroup": 74,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 44,
+    "hash": "2f71925a586c",
+    "paths": [
+      "apps/api/src/page-state/legacy-branch-service.ts",
+      "apps/api/src/page-state/page-activation-service.ts",
+      "apps/api/src/page-state/page-ambiguity-service.ts",
+      "apps/api/src/page-state/page-history-service.ts",
+      "apps/api/src/page-state/page-operation-service.ts"
+    ],
+    "decision": "idiom",
+    "rationale": "Constructor dependency spreading with an injected default clock is a three-line dependency-injection convention across distinct page services.",
+    "originalGroup": 75,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 45,
+    "hash": "2ae6f7f39448",
+    "paths": [
+      "apps/api/src/databases/database-query-service.ts",
+      "apps/api/src/search/search-service.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "The common promise cache/clear is an idiom; each rebuild has different state ownership and initialization: search delegates beginBuild to SearchState, database query resets its own counts, failure and source queue. A generic service lifecycle would cross feature ownership without a requirement.",
+    "originalGroup": 76,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      },
+      {
+        "spec": "specs/008-search/spec.md",
+        "requirements": ["FR-004", "FR-008", "FR-011", "FR-016"]
+      }
+    ]
+  },
+  {
+    "number": 46,
+    "hash": "289abaec36eb",
+    "paths": ["apps/web/src/features/editor/custom-blocks/table.tsx"],
+    "decision": "idiom",
+    "rationale": "A tiny guard constructs the existing EditorTableManager only when the selected block exists. The manager already centralises the actual table manipulation contract.",
+    "originalGroup": 77,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-003"]
+      }
+    ]
+  },
+  {
+    "number": 47,
+    "hash": "25e4c9643530",
+    "paths": [
+      "apps/api/src/page-state/persist-ambiguities.ts",
+      "apps/api/src/backup/page-operation-archive.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Création d’une nouvelle ambiguïté par clé logique/UUID/date courante versus restauration de son identité, état, octets et dates exacts. La restauration ne doit ni dédupliquer ni régénérer ces identités.",
+    "originalGroup": null,
+    "relatedTask": "T045",
+    "relatedSpecs": [
+      {
+        "spec": "specs/006-multi-device-sync/spec.md",
+        "requirements": ["FR-014", "FR-015", "FR-016"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-002", "FR-008", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 48,
+    "hash": "1de86ae1bacc",
+    "paths": ["apps/web/src/features/databases/filter-editor.tsx"],
+    "decision": "idiom",
+    "rationale": "This is the inner expression of group 68 and repeats only routine immutable criterion removal. No additional extraction is justified.",
+    "originalGroup": 81,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 49,
+    "hash": "0e52df0eb5b2",
+    "paths": [
+      "apps/web/src/features/backup/backup-panel.tsx",
+      "apps/web/src/features/backup/restore-rehearsal.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "The seven-line ISO date fallback wrapper delegates to shared formatDateTime and FR_COPY. It is a small presentation guard limited to two backup components, with no additional substantive date algorithm.",
+    "originalGroup": 84,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008", "FR-013"]
+      },
+      {
+        "spec": "specs/024-full-server-backups/spec.md",
+        "requirements": ["FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-002", "FR-006", "FR-016"]
+      },
+      {
+        "spec": "specs/024-full-server-backups/spec.md",
+        "requirements": ["FR-005"]
+      }
+    ]
+  },
+  {
+    "number": 50,
+    "hash": "04ee0106b7fe",
+    "paths": [
+      "apps/web/src/features/editor/editor-menus/block-context-menu.tsx",
+      "apps/web/src/features/editor/editor-menus/block-side-menu.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Both menus already call shared moveSelectedBlocks; the duplicated fragment only attaches direction-specific localized failure text inside each menu action executor. A second wrapper would add indirection around an existing shared action.",
+    "originalGroup": 85,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-003", "FR-017"]
+      }
+    ]
+  },
+  {
+    "number": 51,
+    "hash": "f859f9219728",
+    "paths": [
+      "apps/web/src/features/security/recovery-kit-panel.tsx",
+      "apps/web/src/features/security/recovery-replacement-panel.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "The expiry label wrapper validates a Date then calls the shared formatter with hour/minute options and shared fallback copy. It is a small presentation idiom, not repeated recovery policy.",
+    "originalGroup": 86,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 52,
+    "hash": "f79b064d9ac6",
+    "paths": ["packages/client-core/src/navigation/presentation-state.ts"],
+    "decision": "idiom",
+    "rationale": "Toggle et affectation explicite d’un booléen manipulent un Set de six lignes. Le déclencheur diffère et un setter générique n’apporte pas de règle métier supplémentaire.",
+    "originalGroup": 87,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/022-page-tabs-folder-view/spec.md",
+        "requirements": []
+      }
+    ]
+  },
+  {
+    "number": 53,
+    "hash": "d1d073c66672",
+    "paths": [
+      "packages/client-core/src/page-sync/legacy-page-editing-session.ts",
+      "packages/client-core/src/page-sync/page-editing-session.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "La récupération legacy conserve un branchId avec contexte d’échec nullable ; la session active conserve un updateId obligatoire. Les identités, reprises et rafraîchissements appartiennent à des protocoles différents. Partager ces transitions de classe imposerait une abstraction de session sans contrat commun suffisant.",
+    "originalGroup": 88,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      }
+    ]
+  },
+  {
+    "number": 54,
+    "hash": "b645dcfae565",
+    "paths": ["apps/api/src/backup/full/locks.ts"],
+    "decision": "distinct",
+    "rationale": "Les verrous advisory partagé et exclusif définissent précisément mutation concurrente versus maintenance isolée. Leur SQL doit rester explicite ; la garde de transition est déjà commune.",
+    "originalGroup": 89,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008", "FR-013"]
+      },
+      {
+        "spec": "specs/024-full-server-backups/spec.md",
+        "requirements": ["FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-002", "FR-006", "FR-016"]
+      },
+      {
+        "spec": "specs/024-full-server-backups/spec.md",
+        "requirements": ["FR-005"]
+      }
+    ]
+  },
+  {
+    "number": 55,
+    "hash": "ae9b90c3eace",
+    "paths": ["packages/database/src/repositories/change-repository.ts"],
+    "decision": "distinct",
+    "rationale": "Le minimum retenu et la position maximale changent volontairement le sens du tri. La construction de requête est un idiome repository de huit lignes ; abstraire la direction masque les deux bornes du protocole.",
+    "originalGroup": 91,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/006-multi-device-sync/spec.md",
+        "requirements": ["FR-005", "FR-007"]
+      }
+    ]
+  },
+  {
+    "number": 56,
+    "hash": "ad7318a80552",
+    "paths": ["apps/web/src/features/hierarchy/hierarchy-explorer.tsx"],
+    "decision": "idiom",
+    "rationale": "Les trois prédicats recherchent le parent hierarchy puis comparent son identité ; le troisième exclut en plus l’élément déplacé. Cette lecture de propriété en deux lignes ne justifie pas une nouvelle abstraction de filtrage.",
+    "originalGroup": 92,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-014", "FR-017", "FR-018", "FR-019", "FR-020", "FR-021"]
+      },
+      {
+        "spec": "specs/023-ui-quality-skill/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 57,
+    "hash": "8d1bdf12a131",
+    "paths": ["apps/web/src/features/editor/custom-blocks/table.tsx"],
+    "decision": "idiom",
+    "rationale": "Les branches affichent un déplacement selon X ou Y et un indicateur vertical ou horizontal. La taille commune du ghost est de deux lignes et les formules d’axes restent plus lisibles explicitement.",
+    "originalGroup": 93,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-003"]
+      }
+    ]
+  },
+  {
+    "number": 58,
+    "hash": "1c6dedf1aba6",
+    "paths": ["packages/domain/src/document/block.ts"],
+    "decision": "distinct",
+    "rationale": "V2 autorise les enfants via mayHaveChildren(type), V3 via la présence structurelle de children, avec unknown opaque dans les deux. Fusionner ces lecteurs changerait leur relation au schéma.",
+    "originalGroup": 97,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 59,
+    "hash": "0c84fd7846fc",
+    "paths": ["apps/web/src/features/editor/slash-menu.tsx"],
+    "decision": "idiom",
+    "rationale": "Trois callbacks d’une ligne appliquent des niveaux de titre distincts. Ce sont des déclarations de commandes, pas des algorithmes répétés.",
+    "originalGroup": 98,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-002"]
+      }
+    ]
+  },
+  {
+    "number": 60,
+    "hash": "f5ed9b23e92c",
+    "paths": ["packages/page-state/src/checkpoints.ts"],
+    "decision": "distinct",
+    "rationale": "Les métadonnées et digests sont partagés ; les wrappers conservent snapshot complet versus shallow-snapshot avec frontière de compaction explicite.",
+    "originalGroup": null,
+    "relatedTask": "T038",
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-004", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 61,
+    "hash": "f326e644748c",
+    "paths": ["apps/api/src/security/file-storage-migration.ts"],
+    "decision": "distinct",
+    "rationale": "Orchestration de publication des fichiers, protection des métadonnées et retraite des sources : phases, verrous, vérifications et effets différents. La vérification commune des métadonnées est déjà extraite.",
+    "originalGroup": null,
+    "relatedTask": "T040",
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-028", "FR-029"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009"]
+      },
+      {
+        "spec": "specs/005-files-and-local-storage/spec.md",
+        "requirements": ["FR-002", "FR-004", "FR-005"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-005", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 62,
+    "hash": "e0cd3706359f",
+    "paths": ["apps/web/src/features/editor/custom-blocks/table.tsx"],
+    "decision": "distinct",
+    "rationale": "Effacer une ligne parcourt les cellules d’une seule ligne et évite même la transaction si la ligne manque ; effacer une colonne parcourt toutes les lignes et ouvre la transaction. Axes et comportement à index absent diffèrent.",
+    "originalGroup": 101,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-003"]
+      }
+    ]
+  },
+  {
+    "number": 63,
+    "hash": "d0747ff960f4",
+    "paths": ["packages/domain/src/document/export-markdown.ts"],
+    "decision": "idiom",
+    "rationale": "Les renderers V2/V3 sont distincts et le seul corps réellement identique est join, compression des lignes vides, trim et newline final sur quatre lignes. Une fonction générique d’export fournirait surtout une indirection de boucle.",
+    "originalGroup": 102,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 64,
+    "hash": "ab0399ae91a3",
+    "paths": ["packages/database/src/repositories/security/device-repository.ts"],
+    "decision": "idiom",
+    "rationale": "Recherche verrouillée par id versus bindingId, avec owner imposé : le reste est la syntaxe SQL habituelle et toDevice est déjà partagé. Une abstraction de condition n’améliorerait pas le contrat de sécurité.",
+    "originalGroup": 106,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 65,
+    "hash": "8aadbe8cb703",
+    "paths": [
+      "packages/database/src/schema/index.ts",
+      "packages/database/src/schema/security/index.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Schemas d’upload temporaire et blob protégé utilisent identités/index distincts et contraintes de longueur différentes (>0 borné contre >=0), ainsi que des contraintes de versions exclusives à l’upload. Ne pas unifier les garde-fous.",
+    "originalGroup": 108,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 66,
+    "hash": "83b6263ddca4",
+    "paths": ["apps/web/src/services/security-api.ts"],
+    "decision": "idiom",
+    "rationale": "Les clients de répétition de restauration ont chacun une URL et un DTO distinct. Ils utilisent déjà le transport #authenticatedJson commun ; ces wrappers de cinq lignes ne contiennent aucun algorithme supplémentaire.",
+    "originalGroup": 109,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 67,
+    "hash": "83130b3e83df",
+    "paths": ["packages/test-utils/src/document-arbitrary.ts"],
+    "decision": "distinct",
+    "rationale": "Les générateurs property-based V2 et V3 décrivent des grammaires distinctes ; la table est une alternative V3 supplémentaire. L’idiome fc.letrec/oneof n’est pas une règle applicative dupliquée.",
+    "originalGroup": 110,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-005", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 68,
+    "hash": "7d53b54f93d2",
+    "paths": [
+      "apps/web/src/features/databases/view-settings-panel.tsx",
+      "apps/web/src/features/databases/database-page.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Listes JSX de présentation avec classes et contenu propres au panneau. La règle de visibilité, accessibilité et titre désactivé est partagée dans PropertyVisibilitySwitch.",
+    "originalGroup": null,
+    "relatedTask": "T043",
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      },
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-014", "FR-017", "FR-018", "FR-019", "FR-020", "FR-021"]
+      },
+      {
+        "spec": "specs/023-ui-quality-skill/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 69,
+    "hash": "68d43d6859bb",
+    "paths": [
+      "packages/database/src/repositories/search-source-repository.ts",
+      "packages/database/src/repositories/hierarchy-repository.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "La recherche filtre lifecycle active dès la racine et à chaque descendant, vérifie l’existence de la racine et trie ; la hiérarchie collecte aussi les items non actifs et inclut toujours le root transmis. UNION est volontairement partagé mais les ensembles diffèrent.",
+    "originalGroup": 113,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/008-search/spec.md",
+        "requirements": ["FR-016"]
+      }
+    ]
+  },
+  {
+    "number": 70,
+    "hash": "59ec76676426",
+    "paths": ["apps/web/src/app.tsx"],
+    "decision": "idiom",
+    "rationale": "Deux callbacks await une méthode distincte et lèvent le code du problème. Les méthodes cible et les résultats restent spécifiques ; la mécanique de propagation en trois lignes n’exige pas de wrapper.",
+    "originalGroup": 114,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-023"]
+      }
+    ]
+  },
+  {
+    "number": 71,
+    "hash": "5947b657ded4",
+    "paths": ["apps/web/src/services/security-api.ts"],
+    "decision": "distinct",
+    "rationale": "Petits adaptateurs password/passkey avec endpoints et corps distincts. L’adoption commune de session/CSRF est unique ; aucun intérêt à introduire une authentification générique à paramètres.",
+    "originalGroup": null,
+    "relatedTask": "T039",
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 72,
+    "hash": "4287ba52c6b0",
+    "paths": ["apps/web/src/features/editor/custom-blocks/table-ui-state.ts"],
+    "decision": "idiom",
+    "rationale": "Annuler le RAF enregistré et retirer sa clé est un idiome de cinq lignes pour deux canaux de hover distincts. Une abstraction de map/timer n’apporte pas une règle de domaine.",
+    "originalGroup": 118,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-003"]
+      }
+    ]
+  },
+  {
+    "number": 73,
+    "hash": "080e57c0b921",
+    "paths": ["packages/database/src/repositories/security/key-repository.ts"],
+    "decision": "distinct",
+    "rationale": "Clé wrapping actuelle unique, prochaine pending triée et lookup par version ont volontairement prédicats/ordre distincts. La projection de quatre champs est un petit idiome ; leur sécurité dépend de la requête explicite.",
+    "originalGroup": 119,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 74,
+    "hash": "f925f88628a3",
+    "paths": ["apps/api/src/routes/export.ts"],
+    "decision": "idiom",
+    "rationale": "Les deux branches marquent le même job pending en failed avec diagnostics différents ; update/set/where est un idiome SQL court. Le champ problem est la partie utile et reste précisément visible à chaque cause.",
+    "originalGroup": 121,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-001", "FR-002"]
+      }
+    ]
+  },
+  {
+    "number": 75,
+    "hash": "f9196797606a",
+    "paths": ["packages/database/src/repositories/content/usage-repository.ts"],
+    "decision": "distinct",
+    "rationale": "Une projection retourne FileUsage (id du fichier), l’autre le nom et id de son utilisateur. Les casts de colonnes communs sont de petits idiomes, les DTO appartiennent à deux lecteurs distincts.",
+    "originalGroup": 122,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/005-files-and-local-storage/spec.md",
+        "requirements": ["FR-005"]
+      }
+    ]
+  },
+  {
+    "number": 76,
+    "hash": "da6a6540c7ab",
+    "paths": ["packages/database/src/repositories/page-operation-repository.ts"],
+    "decision": "idiom",
+    "rationale": "Requêtes mono-ligne encadrées par workspace/page, avec lookup checkpoint par ID, checkpoint par position ou update par position. Tables et identifiants diffèrent ; abstraire un query builder générique masquerait la frontière des records.",
+    "originalGroup": 125,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-005", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 77,
+    "hash": "bc14a6d091a3",
+    "paths": ["apps/web/src/features/navigation/collapsible-region.tsx"],
+    "decision": "distinct",
+    "rationale": "Une courbe Bézier et sa dérivée sont des fonctions mathématiques distinctes nécessaires au solveur. Leur ressemblance algebraïque ne signifie aucune duplication d’algorithme.",
+    "originalGroup": 127,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-012", "FR-017"]
+      }
+    ]
+  },
+  {
+    "number": 78,
+    "hash": "78882bdec1cc",
+    "paths": ["packages/database/src/repositories/security/installation-repository.ts"],
+    "decision": "distinct",
+    "rationale": "Initial version registration, legacy backup update and full-backup update intentionally write different installation metadata. The full update preserves previous rollback references when fullBackupId is null; a generic update would obscure this retention rule.",
+    "originalGroup": 130,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 79,
+    "hash": "33131dd02ff5",
+    "paths": ["packages/database/src/repositories/security/repository-types.ts"],
+    "decision": "idiom",
+    "rationale": "The existing driverError helper already owns nested driver extraction. These two seven-line predicates only compare distinct SQLSTATE values plus an optional constraint; further abstraction merely replaces a tiny predicate with parameter plumbing.",
+    "originalGroup": 133,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 80,
+    "hash": "2d634589e80d",
+    "paths": ["packages/database/src/repositories/security/migration-checkpoint-repository.ts"],
+    "decision": "idiom",
+    "rationale": "Each query targets a different index/key or latest-sequence ordering. The remaining shared select/from/limit/toRecord is the repository query idiom, not duplicated domain policy.",
+    "originalGroup": 134,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-028", "FR-029"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009"]
+      }
+    ]
+  },
+  {
+    "number": 81,
+    "hash": "2d5461a2283d",
+    "paths": ["packages/page-state/src/legacy-offline-branch.ts"],
+    "decision": "distinct",
+    "rationale": "Table row/column insertion, removal, moves and width edits have different idempotency, shape proof and delete-edit/delete-move ambiguity rules. Column removal compares cells and row order whereas row removal compares one row; keep those convergent rebasing contracts explicit.",
+    "originalGroup": 135,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 82,
+    "hash": "18ea5286e0ec",
+    "paths": ["packages/page-state/src/document.ts"],
+    "decision": "distinct",
+    "rationale": "Both checkpoint operations validate the same metadata/tree through existing helpers, then deliberately call different checkpoint encoders. Ordinary and compacted causal histories must not be conflated for a four-line wrapper.",
+    "originalGroup": 137,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 83,
+    "hash": "feb5a8ae2d1e",
+    "paths": ["apps/web/src/features/search/search-dialog.tsx"],
+    "decision": "idiom",
+    "rationale": "The two filter callbacks retain different next filter values and otherwise repeat a short search-refresh UI idiom. runSearch already owns the search behavior; a six-line refresh helper would add indirection without centralizing substantive logic.",
+    "originalGroup": 138,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/008-search/spec.md",
+        "requirements": ["FR-004", "FR-008", "FR-011", "FR-016"]
+      }
+    ]
+  },
+  {
+    "number": 84,
+    "hash": "f52c55647285",
+    "paths": ["apps/api/src/routes/authentication.ts"],
+    "decision": "distinct",
+    "rationale": "Logout revokes the current session and clears its cookie; revoke-one targets a requested session without clearing the current cookie; revoke-all requires recent authentication and exempts the current session. Authorization and side effects are intentionally different.",
+    "originalGroup": 139,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 85,
+    "hash": "ec9a6b77be5f",
+    "paths": ["packages/test-utils/src/document-arbitrary.ts"],
+    "decision": "idiom",
+    "rationale": "The identical five-line unknown-block factory constructs a simple model record. The arbitrary domains/payload limits deliberately differ by document version; the useful generation semantics are already in those separate fast-check definitions.",
+    "originalGroup": 140,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-005"]
+      }
+    ]
+  },
+  {
+    "number": 86,
+    "hash": "db4c62cde9ec",
+    "paths": ["packages/client-core/src/outbox/outbox.ts"],
+    "decision": "idiom",
+    "rationale": "Decrypting a selected array then sorting by enqueueOrder is a three-line collection idiom. pending and all intentionally fetch different rows; no separate substantial queue rule is duplicated.",
+    "originalGroup": 141,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      }
+    ]
+  },
+  {
+    "number": 87,
+    "hash": "c404a58d34fe",
+    "paths": ["packages/domain/src/databases/commands.ts"],
+    "decision": "distinct",
+    "rationale": "Replace-definition parses one causal base plus optional sourceId; resolve-conflict parses a validated revision pair. Definition and impact parsing are already shared via parseDefinition and parseImpactConfirmation. Remaining repetition explicitly assembles distinct wire command shapes and exact-key allowlists.",
+    "originalGroup": 142,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 88,
+    "hash": "9bfcf986fd04",
+    "paths": ["apps/web/src/features/editor/editor-remote-apply.ts"],
+    "decision": "idiom",
+    "rationale": "These are mirror-image one-expression membership checks over before/after block indexes, intentionally reversing the compared map. Their brevity and direction-specific names are clearer than another helper.",
+    "originalGroup": 145,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-010", "FR-011"]
+      }
+    ]
+  },
+  {
+    "number": 89,
+    "hash": "97788bdccbc4",
+    "paths": ["packages/database/src/repositories/content/usage-repository.ts"],
+    "decision": "idiom",
+    "rationale": "Deux wrappers effacent le même index dérivé avant leur lecture V2/V3 propre. La persistance des usages trouvés est partagée ; ce petit préambule SQL conserve l’ordre effacement/lecture, y compris sur document V2 invalide.",
+    "originalGroup": null,
+    "relatedTask": "T051",
+    "relatedSpecs": [
+      {
+        "spec": "specs/005-files-and-local-storage/spec.md",
+        "requirements": ["FR-002", "FR-004", "FR-005"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-005", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 90,
+    "hash": "870943aaf62d",
+    "paths": ["packages/client-core/src/page-sync/legacy-conflict-recovery.ts"],
+    "decision": "distinct",
+    "rationale": "Recovery rows in converted versus converting state require different proofs and retry/quarantine transitions. Converted rows need active state and matching converted branch; converting rows may schedule pageIds, handle blocked bases, or require source conflicts. Shared local checks are short and state-specific.",
+    "originalGroup": 146,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      }
+    ]
+  },
+  {
+    "number": 91,
+    "hash": "6d585419b3c0",
+    "paths": ["apps/api/src/admin/admin-cli.ts"],
+    "decision": "distinct",
+    "rationale": "The first key loader intentionally returns null on deployment-key failure; the second retries and throws when unavailable, and clones returned buffers. These optional versus required key-custody contracts must stay different.",
+    "originalGroup": 147,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/007-backup-recovery-updates/spec.md",
+        "requirements": ["FR-027"]
+      }
+    ]
+  },
+  {
+    "number": 92,
+    "hash": "6af453206c96",
+    "paths": [
+      "apps/web/src/features/security/session-panel.tsx",
+      "apps/web/src/features/security/device-panel.tsx"
+    ],
+    "decision": "idiom",
+    "rationale": "Both use existing formatDateTime after a standard invalid-Date check, but last-use alone has a never-used null sentinel. A tiny sentinel/date wrapper adds no new formatting policy.",
+    "originalGroup": 148,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 93,
+    "hash": "608d41dd1ca5",
+    "paths": ["packages/database/src/repositories/security/recovery-kit-repository.ts"],
+    "decision": "distinct",
+    "rationale": "Active recovery-kit lookup relies on unique active authorization; provisional lookup deliberately chooses latest created provisional kit. They share only SQL query plumbing while state and ordering differ.",
+    "originalGroup": 149,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 94,
+    "hash": "51cc72237c89",
+    "paths": ["packages/database/src/repositories/database-repository.ts"],
+    "decision": "distinct",
+    "rationale": "One mapper returns the three-field relation identity projection; the other spreads complete rows including source identity. Widening the former output to reuse the latter would change information/shape contract; casts alone are an idiom.",
+    "originalGroup": 151,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 95,
+    "hash": "50ced71c4784",
+    "paths": [
+      "packages/client-core/src/page-sync/legacy-page-editing-session.ts",
+      "packages/client-core/src/page-sync/page-editing-session.ts"
+    ],
+    "decision": "distinct",
+    "rationale": "Legacy and convergent editing-session retry code have different durable-commit protocols, remote adoption, transaction identifiers and published document sources. Removing similar state resets would couple two transition models; commit helpers already encapsulate each persistence path.",
+    "originalGroup": 152,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      }
+    ]
+  },
+  {
+    "number": 96,
+    "hash": "4ec665c1022b",
+    "paths": ["packages/domain/src/databases/commands.ts"],
+    "decision": "distinct",
+    "rationale": "Entry replace and conflict resolution use different causal fields and exact-key allowlists. parseValues and parseRelationTargets already share the substantial value validation; remaining repetition builds different command DTOs.",
+    "originalGroup": 153,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 97,
+    "hash": "4d64fe5aa428",
+    "paths": ["packages/page-state/src/document.ts"],
+    "decision": "idiom",
+    "rationale": "Single and batch imports intentionally use different CRDT APIs, cloning and empty-batch behavior. Their repeated six-line status/vector result shaping is a small idiom; common metadata, byte cloning and version comparison are already helpers.",
+    "originalGroup": 154,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-004", "FR-005", "FR-006"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-006"]
+      }
+    ]
+  },
+  {
+    "number": 98,
+    "hash": "1b1225f5f56e",
+    "paths": ["apps/web/src/features/databases/database-page.tsx"],
+    "decision": "idiom",
+    "rationale": "These two short actions differ deliberately in preservation versus confirmed discard decision. replaceDefinition already owns impact application; the repeated dialog state reset is a trivial event-handler pattern.",
+    "originalGroup": 158,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 99,
+    "hash": "126b82918edc",
+    "paths": ["apps/api/src/plugins/protocol.ts"],
+    "decision": "distinct",
+    "rationale": "Read protocol accepts read-only clients; write protocol rejects them and reports readOnly=true plus a distinct fallback message. protocolAccessFor and describeProtocolRefusal already centralize shared policy. Keep the different authorization boundary predicates explicit.",
+    "originalGroup": 159,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/006-multi-device-sync/spec.md",
+        "requirements": ["FR-017", "FR-018"]
+      }
+    ]
+  },
+  {
+    "number": 100,
+    "hash": "0e2df6994263",
+    "paths": ["apps/web/src/app.tsx"],
+    "decision": "idiom",
+    "rationale": "Both are four-line Result-unwrapping callbacks around different backup APIs. They carry no common backup policy; introducing a generic unwrap helper solely for two tiny callbacks is unnecessary.",
+    "originalGroup": 161,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-023"]
+      }
+    ]
+  },
+  {
+    "number": 101,
+    "hash": "f0b891b9db58",
+    "paths": ["apps/web/src/ui/theme-provider.tsx"],
+    "decision": "idiom",
+    "rationale": "Effect and setter intentionally use different system preference sources and the setter updates React state. Persistence and DOM application are already named shared helpers; the remaining four-line orchestration is a lifecycle idiom.",
+    "originalGroup": 163,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-014", "FR-017", "FR-018", "FR-019", "FR-020", "FR-021"]
+      },
+      {
+        "spec": "specs/023-ui-quality-skill/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 102,
+    "hash": "cb85dcdd9bae",
+    "paths": ["apps/api/src/imports/notion/apply.ts", "apps/api/src/imports/notion/plan.ts"],
+    "decision": "distinct",
+    "rationale": "Apply is a trust boundary and additionally calls validatePageDocument for legacy envelopes; preview has built the envelope and checks body parse only. V3 envelope validation and legacy body parsing are already shared domain helpers. Retain the stricter application guard instead of a boolean-mode validation abstraction.",
+    "originalGroup": 164,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/028-notion-import/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-007"]
+      }
+    ]
+  },
+  {
+    "number": 103,
+    "hash": "c57584814190",
+    "paths": ["packages/database/src/repositories/security/key-repository.ts"],
+    "decision": "idiom",
+    "rationale": "Generation lookups select either the unique current state or a numbered historical generation. Generic select/limit/toGeneration plumbing is routine SQL and does not justify combining the security lifecycle contracts.",
+    "originalGroup": 165,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 104,
+    "hash": "c561d8133bda",
+    "paths": ["apps/web/src/features/hierarchy/hierarchy-explorer.tsx"],
+    "decision": "distinct",
+    "rationale": "Click schedules folder toggle/expand/open and toggles other branches; double-click ignores folders and expands others. The timed interaction policies are already in shared handleFolderRowPointerClick, resolveTreeRowPointerAction and applyTreeRowPointerAction helpers.",
+    "originalGroup": 166,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-014", "FR-017", "FR-018", "FR-019", "FR-020", "FR-021"]
+      },
+      {
+        "spec": "specs/023-ui-quality-skill/spec.md",
+        "requirements": ["FR-006", "FR-007", "FR-008"]
+      }
+    ]
+  },
+  {
+    "number": 105,
+    "hash": "91ae73e71b6b",
+    "paths": ["packages/database/src/mutations/database-commands.ts"],
+    "decision": "distinct",
+    "rationale": "Remplacement de valeurs versus résolution de conflit : disponibilité de l’appartenance/source, base courante versus parents revus, et préservation de l’enveloppe ne sont pas interchangeables. Validation de valeurs et commit partagés.",
+    "originalGroup": null,
+    "relatedTask": "T049",
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/006-multi-device-sync/spec.md",
+        "requirements": ["FR-014", "FR-015", "FR-016"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-002", "FR-008", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 106,
+    "hash": "874134231af2",
+    "paths": ["apps/api/src/realtime/page-sync-observability.ts"],
+    "decision": "distinct",
+    "rationale": "Session opened increments active and total-opened metrics; ready increments only ready metrics. Structured logging shape is a routine idiom; preserving event-specific counter accounting is more valuable than a generic event logger.",
+    "originalGroup": 168,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/003-core-workspace-experience/spec.md",
+        "requirements": ["FR-007", "FR-008", "FR-009", "FR-010"]
+      },
+      {
+        "spec": "specs/018-durable-realtime-sync/spec.md",
+        "requirements": ["FR-001", "FR-005", "FR-007", "FR-008", "FR-009", "FR-010"]
+      }
+    ]
+  },
+  {
+    "number": 107,
+    "hash": "6a0729aaf06e",
+    "paths": ["apps/web/src/features/databases/table-view.tsx"],
+    "decision": "idiom",
+    "rationale": "Two small conditional React state patches preserve edits only for matching cell key and intentionally write different error/saving fields. The match-and-patch expression is too small to centralize.",
+    "originalGroup": 169,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": [
+          "FR-008",
+          "FR-009",
+          "FR-013",
+          "FR-015",
+          "FR-028",
+          "FR-036",
+          "FR-037",
+          "FR-038"
+        ]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-005", "FR-009", "FR-010", "FR-015", "FR-017", "FR-018"]
+      },
+      {
+        "spec": "specs/009-databases-structured-tasks/spec.md",
+        "requirements": ["FR-018", "FR-021", "FR-034", "FR-035"]
+      },
+      {
+        "spec": "specs/029-database-pages-views/spec.md",
+        "requirements": ["FR-006", "FR-014"]
+      }
+    ]
+  },
+  {
+    "number": 108,
+    "hash": "6613fc841dbf",
+    "paths": ["packages/database/src/repositories/security/credential-repository.ts"],
+    "decision": "distinct",
+    "rationale": "Inventory deliberately never selects or returns publicKey, while credential authentication returns it. Combining via the full mapper would cross an explicit sensitive-data projection boundary. Remaining numeric/state casts and identity/date fields are routine mapping.",
+    "originalGroup": 171,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-024"]
+      },
+      {
+        "spec": "specs/025-storage-coherence-audit/spec.md",
+        "requirements": ["FR-001", "FR-002", "FR-008"]
+      },
+      {
+        "spec": "specs/002-owner-security-foundation/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-006", "FR-024"]
+      }
+    ]
+  },
+  {
+    "number": 109,
+    "hash": "50a32c2ad016",
+    "paths": ["apps/api/src/imports/notion/apply.ts", "apps/api/src/imports/notion/plan.ts"],
+    "decision": "distinct",
+    "rationale": "Overlap with 164: application performs validatePageDocument as well as block parsing, preview only parses its constructed legacy body. That extra fail-closed guard is intentional and should remain visible; common parsing already lives in readDocumentBody.",
+    "originalGroup": 172,
+    "relatedTask": null,
+    "relatedSpecs": [
+      {
+        "spec": "specs/028-notion-import/spec.md",
+        "requirements": ["FR-003", "FR-004", "FR-007"]
+      }
+    ]
+  }
+]

@@ -5,7 +5,6 @@ import path from "node:path";
 import { schema } from "@myownnotion/database";
 import {
   type DatabaseDefinition,
-  databaseEmbeddings,
   generateUuidV7,
   type Uuid,
   validateCanonicalExport,
@@ -69,146 +68,63 @@ async function readSource(id: Uuid): Promise<SourceDto> {
   expect(response.statusCode, response.body).toBe(200);
   return response.json() as SourceDto;
 }
-async function replace(source: SourceDto, definition: DatabaseDefinition): Promise<SourceDto> {
-  const response = await owner({
-    method: "PUT",
-    url: `/v1/databases/${source.databaseId}/definition`,
-    headers: idempotencyHeaders(),
-    payload: { baseRevisionId: source.definitionRevisionId, definition },
-  });
-  expect(response.statusCode, response.body).toBe(200);
-  return response.json().database as SourceDto;
-}
-
 describe("protected reusable database resources", () => {
-  it("keeps a source and canonical entries after deleting and purging every display host, then restores them", async () => {
-    const first = await host("First display");
-    const second = await host("Second display");
+  it("restores an owned source, its direct entry, and a linked presentation", async () => {
+    const first = await host("Owner page");
+    const second = await host("Linked page");
     const databaseId = generateUuidV7();
-    const create = await owner({
+    const created = await owner({
       method: "POST",
       url: "/v1/databases",
       headers: idempotencyHeaders(),
       payload: {
         id: databaseId,
         name: PRIVATE_NAME,
-        hostPageId: first.itemId,
-        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
+        placement: { id: generateUuidV7(), parentItemId: first.itemId, positionKey: "a" },
         titlePropertyId: generateUuidV7(),
         initialViewId: generateUuidV7(),
-        initialViewName: "First table",
+        initialViewName: "Table",
       },
     });
-    expect(create.statusCode, create.body).toBe(201);
-    let source = create.json().database as SourceDto;
-    const original = required(databaseEmbeddings(source.definition)[0]);
-    const secondView = generateUuidV7();
-    source = await replace(source, {
-      ...source.definition,
-      embeddings: [
-        ...databaseEmbeddings(source.definition),
-        {
-          id: generateUuidV7(),
-          hostPageId: second.itemId,
-          state: "active",
-          views: original.views.map((view) => ({
-            ...view,
-            id: secondView,
-            name: "Second list",
-            type: "list",
-            options: { density: "compact", secondaryPropertyIds: [] },
-          })),
-        },
-      ],
+    expect(created.statusCode, created.body).toBe(201);
+    const source = created.json().database as SourceDto & { sourceId: Uuid };
+    const linkedId = generateUuidV7();
+    const linked = await owner({
+      method: "POST",
+      url: "/v1/database-views",
+      headers: idempotencyHeaders(),
+      payload: {
+        id: linkedId,
+        name: "Linked table",
+        sourceId: source.sourceId,
+        placement: { id: generateUuidV7(), parentItemId: second.itemId, positionKey: "a" },
+        initialViewId: generateUuidV7(),
+      },
     });
+    expect(linked.statusCode, linked.body).toBe(201);
     const entryId = generateUuidV7();
     const entry = await owner({
       method: "POST",
       url: `/v1/databases/${databaseId}/entries`,
       headers: idempotencyHeaders(),
-      payload: {
-        id: entryId,
-        title: "Shared page",
-        document: {
-          format: "myownnotion.document+json",
-          formatVersion: 1,
-          body: { text: "Preserved editorial body" },
-        },
-        values: {},
-        relationTargets: {},
-      },
+      payload: { id: entryId, title: "Shared page", values: {}, relationTargets: {} },
     });
     expect(entry.statusCode, entry.body).toBe(201);
     const entryBefore = (
       await owner({ method: "GET", url: `/v1/databases/${databaseId}/entries/${entryId}` })
     ).json();
     expect((await owner({ method: "GET", url: `/v1/items/${entryId}` })).json().placements).toEqual(
-      [],
+      [expect.objectContaining({ parentItemId: databaseId })],
     );
-    await harness.built.context.search?.rebuild();
-    const searchable = await owner({
-      method: "POST",
-      url: "/v1/search",
-      payload: { query: "Shared page", limit: 20 },
-    });
-    expect(searchable.statusCode, searchable.body).toBe(200);
-    expect(searchable.json().results).toEqual(
-      expect.arrayContaining([expect.objectContaining({ itemId: entryId })]),
-    );
-    for (const page of [first, second]) {
-      const trashed = await owner({
-        method: "POST",
-        url: `/v1/items/${page.itemId}/trash`,
-        headers: idempotencyHeaders(),
-      });
-      expect(trashed.statusCode, trashed.body).toBe(200);
-      // Canonical purge state; the current product retains tombstone/journal IDs.
-      await harness.built.database.db
-        .update(schema.items)
-        .set({ lifecycle: "purged", trashedAt: null, purgeAfter: null })
-        .where(eq(schema.items.id, page.itemId));
-    }
-    const unchanged = await readSource(databaseId);
-    expect(unchanged).toEqual(source);
-    expect(
-      (
-        await owner({ method: "GET", url: `/v1/databases/${databaseId}/entries/${entryId}` })
-      ).json(),
-    ).toEqual(entryBefore);
-    source = await replace(unchanged, { ...unchanged.definition, embeddings: [] });
-    const catalog = await owner({ method: "GET", url: "/v1/databases" });
-    expect(catalog.json()).toEqual(
-      expect.arrayContaining([expect.objectContaining({ databaseId, name: PRIVATE_NAME })]),
-    );
-    const third = await host("Display again");
-    source = await replace(source, {
-      ...source.definition,
-      embeddings: [{ ...original, hostPageId: third.itemId }],
-    });
-    const query = await owner({
-      method: "POST",
-      url: `/v1/databases/${databaseId}/query`,
-      payload: { viewId: required(original.views[0]).id },
-    });
-    expect(query.statusCode, query.body).toBe(200);
-    expect(query.json().rows.map((row: { entryId: string }) => row.entryId)).toEqual([entryId]);
-
     const context = harness.built.context;
     const manifest = await context.db.transaction((tx) => buildManifestInTransaction(context, tx));
     expect(validateCanonicalExport(manifest)).toEqual([]);
-    for (const purgedHost of [first, second]) {
-      expect(manifest.items.find((item) => item.id === purgedHost.itemId)).toMatchObject({
-        lifecycle: "purged",
-        name: "Élément supprimé",
-        placements: [],
-        pageDocument: null,
-      });
-    }
-    expect(JSON.stringify(manifest)).not.toContain("First display");
-    expect(JSON.stringify(manifest)).not.toContain("Second display");
-    expect(manifest.items.find((item) => item.id === entryId)?.placements).toEqual([]);
-    const exportedSource = manifest.databases.find((row) => row.databaseId === databaseId);
-    expect(exportedSource?.definitionRevisionId).toBe(source.definitionRevisionId);
+    expect(manifest.databases.find((row) => row.databaseId === databaseId)?.sourceId).toBe(
+      source.sourceId,
+    );
+    expect(manifest.databasePresentations?.map((row) => row.containerItemId)).toEqual(
+      expect.arrayContaining([databaseId, linkedId]),
+    );
     await context.db.transaction(async (tx) => {
       await clearWorkspaceForRestore(tx, context.workspaceId);
       const target = createDatabaseRestoreTarget({
@@ -220,6 +136,8 @@ describe("protected reusable database resources", () => {
       for (const item of manifest.items) await target.writeItem(item);
       for (const revision of manifest.revisions) await target.writeRevision(revision);
       for (const database of manifest.databases) await required(target.writeDatabase)(database);
+      for (const presentation of manifest.databasePresentations ?? [])
+        await required(target.writeDatabasePresentation)(presentation);
       for (const value of manifest.databaseEntries)
         await required(target.writeDatabaseEntry)(value);
       for (const relation of manifest.relationships) await target.writeRelationship(relation);
@@ -231,14 +149,13 @@ describe("protected reusable database resources", () => {
         await owner({ method: "GET", url: `/v1/databases/${databaseId}/entries/${entryId}` })
       ).json(),
     ).toEqual(entryBefore);
+    expect(await context.db.select().from(schema.databasePresentations)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ itemId: linkedId })]),
+    );
     const persisted = await context.db.execute(
       sql`SELECT jsonb_agg(to_jsonb(d)) AS content FROM databases d`,
     );
     expect(JSON.stringify(persisted.rows)).not.toContain(PRIVATE_NAME);
-    const snapshots = await context.db
-      .select({ snapshot: schema.revisions.snapshot })
-      .from(schema.revisions);
-    expect(snapshots.every((row) => row.snapshot === null)).toBe(true);
   });
 
   it("requires the owner, rejects non-page hosts atomically and refuses old-client display erasure", async () => {
@@ -292,7 +209,7 @@ describe("protected reusable database resources", () => {
     expect(await readSource(id)).toEqual(source);
   });
 
-  it("preserves the old database identity and definition revision after its original host is purged", async () => {
+  it("marks an owned source unavailable after its owner is purged while retaining identity", async () => {
     const id = generateUuidV7();
     const created = await owner({
       method: "POST",
@@ -300,7 +217,7 @@ describe("protected reusable database resources", () => {
       headers: idempotencyHeaders(),
       payload: {
         id,
-        name: "Legacy host source",
+        name: "Owned source",
         placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
         titlePropertyId: generateUuidV7(),
         initialViewId: generateUuidV7(),
@@ -319,14 +236,17 @@ describe("protected reusable database resources", () => {
       .update(schema.items)
       .set({ lifecycle: "purged", trashedAt: null, purgeAfter: null })
       .where(eq(schema.items.id, id));
-    expect(await readSource(id)).toEqual(source);
+    expect(await readSource(id)).toMatchObject({
+      databaseId: id,
+      definitionRevisionId: source.definitionRevisionId,
+      lifecycle: "purged",
+    });
     const revision = await owner({
       method: "GET",
       url: `/v1/revisions/${source.definitionRevisionId}`,
     });
     expect(revision.statusCode, revision.body).toBe(200);
-    // Purge may remove the old host's private records. Source reads, edits and
-    // sync must use the live source envelope and never reopen those records.
+    // Purge can remove editorial envelopes while preserving the source tombstone.
     await harness.built.database.db
       .delete(schema.protectedEnvelopes)
       .where(
@@ -335,27 +255,14 @@ describe("protected reusable database resources", () => {
           inArray(schema.protectedEnvelopes.entityType, ["item.name", "page.body"]),
         ),
       );
-    expect(await readSource(id)).toEqual(source);
-    const another = await host("Recovered source display");
-    const displayed = await replace(source, {
-      ...source.definition,
-      embeddings: [
-        { ...required(databaseEmbeddings(source.definition)[0]), hostPageId: another.itemId },
-      ],
-    });
-    expect(displayed.databaseId).toBe(id);
-    const sourceSnapshot = await required(
-      harness.built.context.protectedContent,
-    ).readRevisionSnapshot(harness.built.context.db, displayed.definitionRevisionId);
-    expect(sourceSnapshot).not.toHaveProperty("name");
-    expect(sourceSnapshot).not.toHaveProperty("pageDocument");
+    expect(await readSource(id)).toMatchObject({ lifecycle: "purged" });
     const snapshot = await owner({ method: "GET", url: "/v1/snapshots/current" });
     expect(snapshot.statusCode, snapshot.body).toBe(200);
     expect(snapshot.json().databases).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           itemId: id,
-          definitionRevisionId: displayed.definitionRevisionId,
+          definitionRevisionId: source.definitionRevisionId,
         }),
       ]),
     );

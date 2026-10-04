@@ -9,6 +9,8 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../../ui/primitives/button.tsx";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
 function operators(property: DatabaseProperty): readonly FilterOperator[] {
@@ -178,7 +180,8 @@ function OperandEditor({
     property.type === "multi-select"
   ) {
     return (
-      <select
+      <NativeSelect
+        density="compact"
         aria-label={DATABASE_COPY.filter.valueFor(property.name)}
         value={value}
         onChange={(event) =>
@@ -193,12 +196,13 @@ function OperandEditor({
               {option.label}
             </option>
           ))}
-      </select>
+      </NativeSelect>
     );
   }
   if (property.type === "checkbox") {
     return (
-      <select
+      <NativeSelect
+        density="compact"
         aria-label={DATABASE_COPY.filter.valueFor(property.name)}
         value={value || "false"}
         onChange={(event) =>
@@ -207,7 +211,7 @@ function OperandEditor({
       >
         <option value="false">{DATABASE_COPY.filter.notChecked}</option>
         <option value="true">{DATABASE_COPY.filter.checked}</option>
-      </select>
+      </NativeSelect>
     );
   }
   return (
@@ -302,7 +306,8 @@ export function FilterEditor({
       <fieldset className="database-rule-controls" disabled={saving} aria-busy={saving}>
         <label>
           {DATABASE_COPY.filter.match}
-          <select
+          <NativeSelect
+            density="compact"
             aria-label={DATABASE_COPY.filter.combination}
             value={draft.mode}
             onChange={(event) =>
@@ -314,7 +319,7 @@ export function FilterEditor({
           >
             <option value="all">{DATABASE_COPY.filter.allRules}</option>
             <option value="any">{DATABASE_COPY.filter.anyRules}</option>
-          </select>
+          </NativeSelect>
         </label>
         <ol className="database-rules">
           {draft.criteria.map((criterion) => {
@@ -327,7 +332,9 @@ export function FilterEditor({
                   role="alert"
                 >
                   {DATABASE_COPY.filter.unavailable}
-                  <button
+                  <Button
+                    size="compact"
+                    variant="ghost"
                     type="button"
                     onClick={() =>
                       updateDraft((current) => ({
@@ -337,7 +344,7 @@ export function FilterEditor({
                     }
                   >
                     {DATABASE_COPY.filter.removeRule}
-                  </button>
+                  </Button>
                 </li>
               );
             }
@@ -345,7 +352,8 @@ export function FilterEditor({
               <li key={criterion.id} className="database-rule">
                 <label>
                   {DATABASE_COPY.filter.property}
-                  <select
+                  <NativeSelect
+                    density="compact"
                     value={property.id}
                     onChange={(event) => {
                       const next = activeProperties.find(({ id }) => id === event.target.value);
@@ -363,11 +371,12 @@ export function FilterEditor({
                         {candidate.name}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label>
                   {DATABASE_COPY.filter.operator}
-                  <select
+                  <NativeSelect
+                    density="compact"
                     value={criterion.operator}
                     onChange={(event) =>
                       update(criterion.id, {
@@ -381,14 +390,16 @@ export function FilterEditor({
                         {DATABASE_COPY.filter.operatorLabels[operator]}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <OperandEditor
                   property={property}
                   criterion={criterion}
                   onChange={(operand) => update(criterion.id, { operand })}
                 />
-                <button
+                <Button
+                  size="compact"
+                  variant="ghost"
                   type="button"
                   onClick={() =>
                     updateDraft((current) => ({
@@ -398,12 +409,14 @@ export function FilterEditor({
                   }
                 >
                   {DATABASE_COPY.filter.removeRule}
-                </button>
+                </Button>
               </li>
             );
           })}
         </ol>
-        <button
+        <Button
+          size="compact"
+          variant="ghost"
           type="button"
           disabled={activeProperties.length === 0}
           onClick={() => {
@@ -423,16 +436,20 @@ export function FilterEditor({
           }}
         >
           {DATABASE_COPY.filter.add}
-        </button>
+        </Button>
         {draft.criteria.length > 0 ? (
-          <button
+          <Button
+            size="compact"
+            variant="ghost"
             type="button"
             onClick={() => updateDraft((current) => ({ ...current, criteria: [] }))}
           >
             {DATABASE_COPY.filter.clear}
-          </button>
+          </Button>
         ) : null}
-        <button
+        <Button
+          size="compact"
+          variant="primary"
           type="button"
           onClick={() => {
             pendingSignature.current = JSON.stringify(draft);
@@ -445,7 +462,7 @@ export function FilterEditor({
           }}
         >
           {saving ? DATABASE_COPY.filter.saving : DATABASE_COPY.filter.save}
-        </button>
+        </Button>
       </fieldset>
     </details>
   );

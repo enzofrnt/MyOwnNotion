@@ -76,7 +76,7 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     // means to someone waiting for it.
     const started = Date.now();
     await selectItem(page, name);
-    const surface = page.getByTestId("block-editor").locator(".ProseMirror");
+    const surface = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await expect(surface).toContainText("Line 499", { timeout: 30_000 });
     const elapsed = Date.now() - started;
 
@@ -104,7 +104,7 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     await waitForSynchronized(page);
     await selectItem(page, name);
 
-    const surface = page.getByTestId("block-editor").locator(".ProseMirror");
+    const surface = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await expect(surface).toContainText("Line 0", { timeout: 30_000 });
     await surface.click();
 

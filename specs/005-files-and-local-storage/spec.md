@@ -70,6 +70,10 @@ and correct for each file.
 3. **Given** a file placed directly in the hierarchy, **When** the owner
    browses the tree, **Then** it appears at the same level as pages and
    folders and can be moved like them.
+4. **Given** the per-page sidebar attachment list, **When** the owner inserts
+   or removes an image/file block in the page, **Then** the list follows that
+   content, with one row per file and no independent add control. An attachment
+   placement without an embedded block is not listed; its data is preserved.
 
 ### User Story 2 - Moving, renaming, and deleting without losing references (Priority: P1)
 

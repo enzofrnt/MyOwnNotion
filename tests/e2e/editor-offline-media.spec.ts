@@ -32,7 +32,7 @@ test.describe("editor media offline", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", pageName);
     await selectItem(page, pageName);
-    const editor = page.getByTestId("block-editor").locator(".ProseMirror");
+    const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await expect(editor).toBeVisible({ timeout: 30_000 });
 
     // Server disconnected before anything is inserted: no upload can succeed.
@@ -77,7 +77,9 @@ test.describe("editor media offline", () => {
     const restarted = await context.newPage();
     await openWorkspace(restarted);
     await selectItem(restarted, pageName);
-    const remounted = restarted.getByTestId("block-editor").locator(".ProseMirror");
+    const remounted = restarted
+      .locator('[data-testid="block-editor"]:visible')
+      .locator(".ProseMirror");
     await expect(remounted).toBeVisible({ timeout: 30_000 });
     await expect(remounted.locator(".editor-image-block")).toBeVisible();
     await expect(remounted.locator(".editor-file-block")).toBeVisible();
@@ -157,7 +159,9 @@ test.describe("editor media offline", () => {
     await restarted.reload();
     await openWorkspace(restarted);
     await selectItem(restarted, pageName);
-    const serverBacked = restarted.getByTestId("block-editor").locator(".ProseMirror");
+    const serverBacked = restarted
+      .locator('[data-testid="block-editor"]:visible')
+      .locator(".ProseMirror");
     await expect(serverBacked).toBeVisible({ timeout: 30_000 });
     await expect(serverBacked.locator("img.editor-image-preview")).toBeVisible({ timeout: 30_000 });
     const fileBlock = serverBacked.locator(".editor-file-block");

@@ -1,18 +1,22 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { FR_COPY } from "../../ui/copy/index.ts";
 import { ItemEmojiPicker } from "../../ui/emoji-picker.tsx";
 import { AppIcon } from "../../ui/icons.tsx";
 import { itemKindIconName } from "../../ui/item-icon.tsx";
+import { Button } from "../../ui/primitives/index.ts";
+import { defaultItemTitle } from "./default-item-title.ts";
 import { WORKSPACE_HISTORY_SLOT_ID } from "./page-header.tsx";
 
-const UNTITLED_PAGE = "Sans titre";
 const TITLE_COMMIT_DELAY_MS = 450;
 const KIND_CAPTION = {
   page: "Page",
   folder: "Dossier",
+  database: "Base de données",
+  database_view: "Vue de base de données",
 } as const;
 
-function committedTitle(value: string): string {
-  return value.trim() || UNTITLED_PAGE;
+function committedTitle(value: string, fallback: string): string {
+  return value.trim() || fallback;
 }
 
 /**
@@ -28,6 +32,7 @@ export function PageTitleEditor({
   initialDraft,
   icon,
   kind = "page",
+  holdsContent = true,
   title,
   onCommit,
   onDraftStateChange,
@@ -47,7 +52,12 @@ export function PageTitleEditor({
   /** Route-level draft retained across a transient surface replacement. */
   readonly initialDraft?: string;
   readonly icon?: string | null;
-  readonly kind?: "page" | "folder";
+  readonly kind?: "page" | "folder" | "database" | "database_view";
+  /**
+   * For pages: whether the body holds editorial text. Empty / whitespace-only
+   * lines hide the text strokes on the kind caption glyph.
+   */
+  readonly holdsContent?: boolean;
   readonly title: string;
   readonly onCommit: (title: string) => Promise<void>;
   readonly onDraftStateChange?: (draft: string, focused: boolean) => void;
@@ -57,7 +67,8 @@ export function PageTitleEditor({
   /** False when this title belongs to a hidden keep-alive or graph-covered canvas. */
   readonly discoverable?: boolean;
 }) {
-  const startingDraft = initialDraft ?? (title || UNTITLED_PAGE);
+  const untitled = defaultItemTitle(kind);
+  const startingDraft = initialDraft ?? (title || untitled);
   const [draft, setDraft] = useState(startingDraft);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -66,12 +77,13 @@ export function PageTitleEditor({
   const mounted = useRef(true);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraft = useRef(draft);
-  const lastRequested = useRef<string | null>(title || UNTITLED_PAGE);
+  const lastRequested = useRef<string | null>(title || untitled);
   const pendingCommitCount = useRef(0);
   const onCommitRef = useRef(onCommit);
   const onDraftStateChangeRef = useRef(onDraftStateChange);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const autoFocusConsumed = useRef(false);
+  const userEdited = useRef(false);
   const retainedDraftNeedsFirstProjectionSkip = useRef(initialDraft !== undefined);
 
   onCommitRef.current = onCommit;
@@ -93,7 +105,7 @@ export function PageTitleEditor({
       return;
     }
     if (focused.current) return;
-    const next = title || UNTITLED_PAGE;
+    const next = title || untitled;
     // A projection refresh may still carry the pre-edit title while the local
     // rename is being committed. Blur deliberately ends focus before that
     // asynchronous boundary, so focus alone cannot protect the acknowledged
@@ -105,7 +117,19 @@ export function PageTitleEditor({
     latestDraft.current = next;
     if (textarea.current !== null) textarea.current.value = next;
     setDraft(next);
-  }, [title]);
+  }, [title, untitled]);
+
+  useEffect(() => {
+    // The route draft can arrive one frame after the durable title has already
+    // initialized the textarea. `defaultValue` does not update a mounted field,
+    // so adopt the blank creation draft before the owner starts typing.
+    if (initialDraft === undefined || userEdited.current) return;
+    if (latestDraft.current === initialDraft && textarea.current?.value === initialDraft) return;
+    retainedDraftNeedsFirstProjectionSkip.current = true;
+    latestDraft.current = initialDraft;
+    if (textarea.current !== null) textarea.current.value = initialDraft;
+    setDraft(initialDraft);
+  }, [initialDraft]);
 
   useEffect(() => resize(draft), [draft, resize]);
 
@@ -161,44 +185,47 @@ export function PageTitleEditor({
     };
   }, [restoreFocus]);
 
-  const commit = useCallback((value: string, reflectInEditor = true) => {
-    const next = committedTitle(value);
-    if (timer.current !== null) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    latestDraft.current = next;
-    if (reflectInEditor && mounted.current) {
-      if (textarea.current !== null) textarea.current.value = next;
-      setDraft(next);
-    }
-    onDraftStateChangeRef.current?.(next, focused.current);
-    if (next === lastRequested.current) return queue.current;
-    lastRequested.current = next;
-    if (mounted.current) {
-      setBusy(true);
-      setFailed(false);
-    }
-    pendingCommitCount.current += 1;
-    const operation = async (): Promise<void> => {
-      try {
-        await onCommitRef.current(next);
-        if (mounted.current) setFailed(false);
-      } catch (error) {
-        // A failed title stays retryable on the next blur instead of being
-        // mistaken for an acknowledged remote value.
-        if (lastRequested.current === next) lastRequested.current = null;
-        if (mounted.current) setFailed(true);
-        throw error;
-      } finally {
-        pendingCommitCount.current -= 1;
-        if (mounted.current) setBusy(false);
+  const commit = useCallback(
+    (value: string, reflectInEditor = true) => {
+      const next = committedTitle(value, untitled);
+      if (timer.current !== null) {
+        clearTimeout(timer.current);
+        timer.current = null;
       }
-    };
-    const pending = queue.current.then(operation, operation);
-    queue.current = pending.catch(() => undefined);
-    return pending;
-  }, []);
+      latestDraft.current = next;
+      if (reflectInEditor && mounted.current) {
+        if (textarea.current !== null) textarea.current.value = next;
+        setDraft(next);
+      }
+      onDraftStateChangeRef.current?.(next, focused.current);
+      if (next === lastRequested.current) return queue.current;
+      lastRequested.current = next;
+      if (mounted.current) {
+        setBusy(true);
+        setFailed(false);
+      }
+      pendingCommitCount.current += 1;
+      const operation = async (): Promise<void> => {
+        try {
+          await onCommitRef.current(next);
+          if (mounted.current) setFailed(false);
+        } catch (error) {
+          // A failed title stays retryable on the next blur instead of being
+          // mistaken for an acknowledged remote value.
+          if (lastRequested.current === next) lastRequested.current = null;
+          if (mounted.current) setFailed(true);
+          throw error;
+        } finally {
+          pendingCommitCount.current -= 1;
+          if (mounted.current) setBusy(false);
+        }
+      };
+      const pending = queue.current.then(operation, operation);
+      queue.current = pending.catch(() => undefined);
+      return pending;
+    },
+    [untitled],
+  );
 
   const scheduleCommit = useCallback(
     (value: string) => {
@@ -222,10 +249,10 @@ export function PageTitleEditor({
     return () => {
       mounted.current = false;
       if (timer.current !== null) clearTimeout(timer.current);
-      const pending = committedTitle(latestDraft.current);
+      const pending = committedTitle(latestDraft.current, untitled);
       if (pending !== lastRequested.current) void commit(pending, false).catch(() => undefined);
     };
-  }, [commit]);
+  }, [commit, untitled]);
 
   return (
     <>
@@ -235,7 +262,36 @@ export function PageTitleEditor({
             id={WORKSPACE_HISTORY_SLOT_ID}
             className="workspace-page-title__history"
             data-testid="workspace-history-slot"
-          />
+          >
+            {kind === "database" || kind === "database_view" ? (
+              <div
+                className="editor-history-controls"
+                role="toolbar"
+                aria-label={FR_COPY.editor.surface.historyLabel}
+              >
+                <Button
+                  type="button"
+                  size="square"
+                  variant="ghost"
+                  aria-label={FR_COPY.editor.surface.undo}
+                  title={FR_COPY.editor.surface.undoTitle}
+                  disabled
+                >
+                  <AppIcon name="undo" />
+                </Button>
+                <Button
+                  type="button"
+                  size="square"
+                  variant="ghost"
+                  aria-label={FR_COPY.editor.surface.redo}
+                  title={FR_COPY.editor.surface.redoTitle}
+                  disabled
+                >
+                  <AppIcon name="redo" />
+                </Button>
+              </div>
+            ) : null}
+          </div>
           <div className="workspace-page-title__path-crumbs">{breadcrumbs}</div>
           {pathActions === undefined ? null : (
             <div className="workspace-page-title__path-actions" data-testid="page-context-actions">
@@ -246,70 +302,75 @@ export function PageTitleEditor({
       )}
       <div className="workspace-page-title" data-kind={kind}>
         <div className="workspace-page-title__body">
-          {onIconChange === undefined ? null : (
-            <ItemEmojiPicker
-              kind={kind}
-              label={title || UNTITLED_PAGE}
-              value={icon ?? null}
-              variant="page"
-              onChange={onIconChange}
-            />
-          )}
-          <textarea
-            ref={textarea}
-            rows={1}
-            // Keep the browser's live value authoritative while the owner types.
-            // A controlled textarea lets an unrelated concurrent render project
-            // the previous React state back into the DOM between WebKit's native
-            // replacement and its input event. `defaultValue` initializes each
-            // route-bound editor; acknowledged remote changes are projected
-            // explicitly by the title effect above.
-            defaultValue={startingDraft}
-            aria-label={kind === "folder" ? "Nom du dossier" : "Titre de la page"}
-            aria-invalid={failed || undefined}
-            aria-busy={busy || undefined}
-            data-testid={discoverable ? "active-item-title" : undefined}
-            placeholder={UNTITLED_PAGE}
-            spellCheck
-            onFocus={() => {
-              focused.current = true;
-              onDraftStateChangeRef.current?.(latestDraft.current, true);
-            }}
-            // `input` is the browser event produced by typing, paste and
-            // Playwright's fill primitive. Reading it directly avoids WebKit's
-            // synthetic change-value tracking window while a newly-created page
-            // finishes replacing its loading surface.
-            onInput={(event) => {
-              const next = event.currentTarget.value;
-              latestDraft.current = next;
-              setDraft(next);
-              onDraftStateChangeRef.current?.(next, true);
-              scheduleCommit(next);
-            }}
-            onBlur={(event) => {
-              focused.current = false;
-              void commit(event.currentTarget.value).catch(() => undefined);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                event.currentTarget.blur();
-                onMoveToContent?.();
-              }
-              if (event.key === "Escape") {
-                event.preventDefault();
-                const restored = title || UNTITLED_PAGE;
-                latestDraft.current = restored;
-                event.currentTarget.value = restored;
-                setDraft(restored);
-                onDraftStateChangeRef.current?.(restored, false);
-                event.currentTarget.blur();
-              }
-            }}
-          />
+          <div className="workspace-page-title__heading">
+            {onIconChange === undefined ? null : (
+              <ItemEmojiPicker
+                kind={kind}
+                label={title || untitled}
+                value={icon ?? null}
+                variant="page"
+                onChange={onIconChange}
+              />
+            )}
+            <div className="workspace-page-title__stack">
+              <textarea
+                ref={textarea}
+                rows={1}
+                // Keep the browser's live value authoritative while the owner types.
+                // A controlled textarea lets an unrelated concurrent render project
+                // the previous React state back into the DOM between WebKit's native
+                // replacement and its input event. `defaultValue` initializes each
+                // route-bound editor; acknowledged remote changes are projected
+                // explicitly by the title effect above.
+                defaultValue={startingDraft}
+                aria-label={kind === "folder" ? "Nom du dossier" : "Titre de la page"}
+                aria-invalid={failed || undefined}
+                aria-busy={busy || undefined}
+                data-testid={discoverable ? "active-item-title" : undefined}
+                placeholder={untitled}
+                spellCheck
+                onFocus={() => {
+                  focused.current = true;
+                  onDraftStateChangeRef.current?.(latestDraft.current, true);
+                }}
+                // `input` is the browser event produced by typing, paste and
+                // Playwright's fill primitive. Reading it directly avoids WebKit's
+                // synthetic change-value tracking window while a newly-created page
+                // finishes replacing its loading surface.
+                onInput={(event) => {
+                  const next = event.currentTarget.value;
+                  userEdited.current = true;
+                  latestDraft.current = next;
+                  setDraft(next);
+                  onDraftStateChangeRef.current?.(next, true);
+                  scheduleCommit(next);
+                }}
+                onBlur={(event) => {
+                  focused.current = false;
+                  void commit(event.currentTarget.value).catch(() => undefined);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                    onMoveToContent?.();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    const restored = title || untitled;
+                    latestDraft.current = restored;
+                    event.currentTarget.value = restored;
+                    setDraft(restored);
+                    onDraftStateChangeRef.current?.(restored, false);
+                    event.currentTarget.blur();
+                  }
+                }}
+              />
+            </div>
+          </div>
           <div className="workspace-page-title__meta">
             <span className="workspace-page-title__kind" data-testid="active-item-kind">
-              <AppIcon name={itemKindIconName(kind)} size="small" />
+              <AppIcon name={itemKindIconName(kind, { holdsContent })} size="small" />
               {KIND_CAPTION[kind]}
             </span>
             {kindActions === undefined ? null : (

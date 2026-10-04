@@ -36,7 +36,7 @@ interface VisibleBlock {
 }
 
 function editor(page: Page): Locator {
-  return page.getByTestId("block-editor").locator(".ProseMirror");
+  return page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
 }
 
 function rootBlocks(page: Page): Locator {
@@ -247,11 +247,18 @@ for (const firstToReconnect of ["A", "B"] as const) {
       await reopenDevice(devices[returningName], pageName);
 
       const firstPage = devices[firstToReconnect].page;
-      await expect(firstPage.getByTestId("block-editor")).toContainText("voisin créé sur B", {
-        timeout: 30_000,
-      });
-      await expect(firstPage.getByTestId("block-editor")).toContainText("A_DEBUT");
-      await expect(firstPage.getByTestId("block-editor")).toContainText("B_FIN");
+      await expect(firstPage.locator('[data-testid="block-editor"]:visible')).toContainText(
+        "voisin créé sur B",
+        {
+          timeout: 30_000,
+        },
+      );
+      await expect(firstPage.locator('[data-testid="block-editor"]:visible')).toContainText(
+        "A_DEBUT",
+      );
+      await expect(firstPage.locator('[data-testid="block-editor"]:visible')).toContainText(
+        "B_FIN",
+      );
       await waitForPageSynchronized(firstPage);
 
       const firstResult = await visibleBlocks(firstPage);
@@ -386,9 +393,12 @@ test("a restarted device drains a closed page without reopening it", async ({
     // Device A keeps the edited page open. Device B must publish its durable
     // queue from boot discovery alone; no selection, reload or save-shaped
     // action may be needed on the page that owns the update.
-    await expect(page.getByTestId("block-editor")).toContainText("repris sans rouvrir la page", {
-      timeout: 30_000,
-    });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "repris sans rouvrir la page",
+      {
+        timeout: 30_000,
+      },
+    );
     await waitForPageSynchronized(page);
     await waitForSynchronized(second.page);
   } finally {

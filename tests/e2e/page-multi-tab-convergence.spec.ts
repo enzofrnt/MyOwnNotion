@@ -23,7 +23,7 @@ import {
 } from "./helpers.ts";
 
 function editor(page: Page): Locator {
-  return page.getByTestId("block-editor").locator(".ProseMirror");
+  return page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
 }
 
 function firstInline(page: Page): Locator {
@@ -199,14 +199,21 @@ test("same-origin tabs adopt offline edits and recover a crashed sender", async 
     await expect.poll(() => second.evaluate(() => navigator.onLine)).toBe(false);
 
     await typeAt(page, "end", " — visible hors ligne sur B");
-    await expect(second.getByTestId("block-editor")).toContainText("visible hors ligne sur B", {
-      timeout: 10_000,
-    });
+    await expect(second.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "visible hors ligne sur B",
+      {
+        timeout: 10_000,
+      },
+    );
 
     await Promise.all([typeAt(page, "start", "A — "), typeAt(second, "end", " — B")]);
     for (const tab of [page, second]) {
-      await expect(tab.getByTestId("block-editor")).toContainText("A —", { timeout: 10_000 });
-      await expect(tab.getByTestId("block-editor")).toContainText("— B", { timeout: 10_000 });
+      await expect(tab.locator('[data-testid="block-editor"]:visible')).toContainText("A —", {
+        timeout: 10_000,
+      });
+      await expect(tab.locator('[data-testid="block-editor"]:visible')).toContainText("— B", {
+        timeout: 10_000,
+      });
       await expect(tab.getByTestId("editor-sync-status")).toHaveAttribute("data-sync", "offline");
     }
 
@@ -227,9 +234,12 @@ test("same-origin tabs adopt offline edits and recover a crashed sender", async 
     const closing = sendingTab.close();
     await closed;
     await closing;
-    await expect(survivor.getByTestId("block-editor")).toContainText("repris après crash", {
-      timeout: 30_000,
-    });
+    await expect(survivor.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "repris après crash",
+      {
+        timeout: 30_000,
+      },
+    );
     await waitForPageSynced(survivor);
     expect(replacements).toEqual([]);
     const committed = await survivor.evaluate(async (title) => {

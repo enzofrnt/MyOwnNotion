@@ -49,6 +49,8 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
   visual evidence in the feature artifacts. Speckit `plan` / `tasks` /
   `implement` / `converge` phases that touch the interface MUST follow the
   skill's Speckit gates; a material UI/UX gap blocks convergence.
+  Use [the UI system guide](docs/design/ui-system.md) for current CSS owners,
+  exported primitives and real composition examples in `/__ui-lab`.
 - Read `docs/product/product-canvas.md` before specifying or planning a feature,
   and record the relevant canvas sections in that feature's artifacts.
 - Keep product requirements technology-agnostic in `spec.md`; put technical choices in `plan.md`.
@@ -57,16 +59,21 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
 - Treat user data, offline behavior, synchronization, permissions, and migrations as explicit design concerns.
 - Add tests for changed behavior and run the relevant checks before marking tasks complete.
 - Before every branch push, read the current gate inventory in
-  `docs/development.md`. For code, dependency, migration, build, deployment,
-  configuration, executable-schema, or mixed changes, run `bun run checks:local`
-  successfully. A host-runtime incompatibility (such as Playwright Firefox on
-  macOS) MUST use the documented equivalent container path; an unavailable
-  required gate blocks the push rather than being silently skipped.
+  `docs/development.md` and select checks from the changes since the last
+  validated publication (the branch base for a first push). Run targeted
+  format/static/type and behavioral checks for bounded code changes. Run
+  `bun run checks:local` for cross-cutting changes or uncertain executable
+  impact. Record the selection and evidence; resolve relevant failures before
+  pushing. A host-runtime incompatibility MUST use the documented equivalent
+  runtime for the required check rather than silently skipping it.
 - A documentation-only change does not run the application test, build, image,
   or container suites. It MUST be limited to maintained prose or Spec Kit
   artifacts with no executable consumer, and MUST pass the documentation-only
-  checks listed in `docs/development.md`. If path ownership or runtime impact is
-  uncertain, treat the change as mixed and run `bun run checks:local`.
+  checks listed in `docs/development.md`. Earlier validated code on the same
+  branch does not make a later documentation-only push mixed. Reuse recorded
+  successful application evidence when executable inputs are unchanged. A
+  document read by a test or runtime needs its consumer checks; if its impact
+  cannot be established, use the complete relevant gate.
 - Prefer small, reversible changes. Do not silently expand feature scope.
 - Do not hand-edit generated files under `.agents/skills/`, `.cursor/skills/`, or shared `.specify/` templates unless intentionally customizing Spec Kit. Refresh them with the Specify CLI instead.
 

@@ -1,5 +1,5 @@
 import type { CanonicalBlockV3, InlineV3, MarkV3, TableBlockV3, Uuid } from "@myownnotion/domain";
-import { isUuid, normaliseInlineV3 } from "@myownnotion/domain";
+import { isUuid, markKeyV3, normaliseInlineV3 } from "@myownnotion/domain";
 import type { PageCommand } from "@myownnotion/page-state";
 import { stableMoveChanges } from "./block-drag-drop.ts";
 import { blockNoteBlockToCanonical, blockNoteInlineToCanonical } from "./blocknote-conversion.ts";
@@ -59,22 +59,6 @@ function inlineOf(block: EditorBlock): readonly InlineV3[] {
   const canonical = blockNoteBlockToCanonical(block);
   if (canonical.type === "code" || !("content" in canonical)) return [];
   return canonical.content;
-}
-
-function markKey(mark: MarkV3): string {
-  switch (mark.type) {
-    case "link":
-      return `link:${mark.href}`;
-    case "pageLink":
-      return `pageLink:${mark.targetItemId}`;
-    case "textColor":
-    case "backgroundColor":
-      return `${mark.type}:${mark.color}`;
-    case "unknown":
-      return `unknown:${JSON.stringify(mark.raw)}`;
-    default:
-      return mark.type;
-  }
 }
 
 interface MarkSpan {
@@ -245,6 +229,13 @@ function typeCommand(before: EditorBlock, after: EditorBlock): PageCommand | nul
         blockType: "callout",
         properties: { icon: next.icon, tone: next.tone },
       };
+    case "databaseView":
+      return {
+        type: "set-block-type",
+        blockId: after.id as Uuid,
+        blockType: "databaseView",
+        properties: { containerItemId: next.containerItemId, viewId: next.viewId },
+      };
     case "table":
     case "image":
     case "fileEmbed":
@@ -349,6 +340,18 @@ function propertyCommands(before: EditorBlock, after: EditorBlock): PageCommand[
   }
   if (oldBlock.type === "embed" && newBlock.type === "embed") {
     for (const key of ["provider", "sourceUrl", "caption"] as const) {
+      if (oldBlock[key] !== newBlock[key]) {
+        commands.push({
+          type: "set-block-property",
+          blockId: after.id as Uuid,
+          key,
+          value: newBlock[key],
+        });
+      }
+    }
+  }
+  if (oldBlock.type === "databaseView" && newBlock.type === "databaseView") {
+    for (const key of ["containerItemId", "viewId"] as const) {
       if (oldBlock[key] !== newBlock[key]) {
         commands.push({
           type: "set-block-property",
@@ -656,10 +659,11 @@ export function commandsFromBlockNoteChanges(input: {
     // slash menu can expose `/div` and its final type change in one coalesced
     // browser batch, so remove the query before changing the block type.
     // Other text-capable transforms keep their type-first ordering.
-    const clearsTextForDivider =
-      changedType?.type === "set-block-type" && changedType.blockType === "divider";
+    const clearsTextForNonTextBlock =
+      changedType?.type === "set-block-type" &&
+      (changedType.blockType === "divider" || changedType.blockType === "databaseView");
     commands.push(...markPhases.beforeText);
-    if (clearsTextForDivider && replacement !== null) {
+    if (clearsTextForNonTextBlock && replacement !== null) {
       commands.push({
         type: "replace-text",
         blockId: change.block.id,
@@ -667,7 +671,7 @@ export function commandsFromBlockNoteChanges(input: {
       });
     }
     if (changedType !== null) commands.push(changedType);
-    if (!clearsTextForDivider && replacement !== null) {
+    if (!clearsTextForNonTextBlock && replacement !== null) {
       commands.push({
         type: "replace-text",
         blockId: change.block.id,
@@ -1016,4 +1020,8 @@ export class EditorChangeBatcher {
       }
     }
   }
+}
+
+function markKey(mark: MarkV3): string {
+  return markKeyV3(mark, JSON.stringify);
 }

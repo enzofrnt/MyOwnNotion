@@ -110,6 +110,10 @@ Web et API.
 4. **Given** les dépendances installées, **When** le développement est lancé,
    **Then** les applications Web et API démarrent, se rechargent après une
    modification pertinente et utilisent uniquement le runtime déclaré.
+5. **Given** une page ouverte sur le serveur de développement, **When** aucune
+   source ne change et aucun service ne redémarre, **Then** elle reste ouverte
+   sans rechargement périodique, y compris après une période d'inactivité ;
+   une modification de style compatible reste appliquée à chaud sans navigation.
 
 ---
 
@@ -260,7 +264,10 @@ qu'aucune procédure active ne dépend du système retiré.
 - **FR-005**: Tous les scripts internes TypeScript/JavaScript MUST être lancés
   directement par Bun et MUST fonctionner sans exécutable Node.js disponible.
 - **FR-006**: Les applications Web et API en développement MUST s'exécuter sous
-  Bun avec un rechargement adapté aux modifications pertinentes.
+  Bun avec un rechargement adapté aux modifications pertinentes. Sans changement
+  de source ni redémarrage de service, le client MUST rester stable au repos
+  sans rechargement périodique ; les changements compatibles MUST pouvoir
+  s'appliquer à chaud sans navigation complète.
 - **FR-007**: Les compilations de production Web et API MUST être produites par
   Bun et MUST retirer les anciens compilateurs de production du chemin actif.
 - **FR-008**: Les artefacts Web MUST conserver les ressources, workers,

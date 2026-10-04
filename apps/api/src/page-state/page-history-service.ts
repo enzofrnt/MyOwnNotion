@@ -1,3 +1,4 @@
+import { canonicalBlockText as inlineText } from "@myownnotion/domain";
 /**
  * Consolidated visible history for operational pages (T146, US5).
  *
@@ -113,12 +114,6 @@ export interface PageHistoryServiceDeps {
 
 function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function inlineText(block: CanonicalBlockV3): string | undefined {
-  if (block.type === "code") return block.text;
-  if ("content" in block) return block.content.map(({ text }) => text).join("");
-  return undefined;
 }
 
 function markRanges(block: CanonicalBlockV3): Array<{

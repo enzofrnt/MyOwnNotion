@@ -297,24 +297,27 @@ export class BackupService {
       return this.#build(backupId, createdAt, tx);
     });
     const name = archiveName(createdAt, backupId);
+    const outcomeMetadata = {
+      backupId,
+      name,
+      byteLength: built.byteLength,
+      digest: built.digest,
+      cursor: built.manifest.cursor,
+      applicationVersion: built.manifest.applicationVersion,
+      schemaVersion: built.manifest.schemaVersion,
+      recordFormatVersion: built.manifest.recordFormatVersion,
+      reason,
+      operationalCoverage: built.operationalCoverage,
+    };
 
     try {
       const verifiedAfterCreation = await this.#verifyLocal(built.stagedPath, built.digest);
       if (!verifiedAfterCreation) {
         return {
-          backupId,
-          name,
-          byteLength: built.byteLength,
-          digest: built.digest,
-          cursor: built.manifest.cursor,
-          applicationVersion: built.manifest.applicationVersion,
-          schemaVersion: built.manifest.schemaVersion,
-          recordFormatVersion: built.manifest.recordFormatVersion,
-          reason,
+          ...outcomeMetadata,
           verifiedAfterCreation: false,
           transferred: false,
           verifiedAfterTransfer: false,
-          operationalCoverage: built.operationalCoverage,
           detail: "the archive on disk does not match the digest it was written with",
         };
       }
@@ -330,19 +333,10 @@ export class BackupService {
         // that fact lets the command persist both verification rows and makes
         // a destination outage observable instead of rolling the run back.
         return {
-          backupId,
-          name,
-          byteLength: built.byteLength,
-          digest: built.digest,
-          cursor: built.manifest.cursor,
-          applicationVersion: built.manifest.applicationVersion,
-          schemaVersion: built.manifest.schemaVersion,
-          recordFormatVersion: built.manifest.recordFormatVersion,
-          reason,
+          ...outcomeMetadata,
           verifiedAfterCreation: true,
           transferred: false,
           verifiedAfterTransfer: false,
-          operationalCoverage: built.operationalCoverage,
           detail: "the destination could not store the locally verified backup",
         };
       }
@@ -355,37 +349,20 @@ export class BackupService {
         // read-back becomes unavailable. That lets an operator re-check or
         // prune the object later instead of leaving an orphan behind.
         return {
-          backupId,
-          name,
-          byteLength: built.byteLength,
-          digest: built.digest,
-          cursor: built.manifest.cursor,
-          applicationVersion: built.manifest.applicationVersion,
-          schemaVersion: built.manifest.schemaVersion,
-          recordFormatVersion: built.manifest.recordFormatVersion,
-          reason,
+          ...outcomeMetadata,
           verifiedAfterCreation: true,
           transferred: true,
           verifiedAfterTransfer: false,
-          operationalCoverage: built.operationalCoverage,
           detail: "the transferred backup could not be read back from the destination",
         };
       }
 
       return {
-        backupId,
-        name,
-        byteLength: built.byteLength,
-        digest: built.digest,
-        cursor: built.manifest.cursor,
-        applicationVersion: built.manifest.applicationVersion,
-        schemaVersion: built.manifest.schemaVersion,
-        recordFormatVersion: built.manifest.recordFormatVersion,
-        reason,
+        ...outcomeMetadata,
         verifiedAfterCreation: true,
         transferred: true,
         verifiedAfterTransfer,
-        operationalCoverage: built.operationalCoverage,
+
         ...(verifiedAfterTransfer
           ? {}
           : { detail: "what the destination returned does not match what was sent" }),

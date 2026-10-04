@@ -12,17 +12,18 @@ import { expectPrivateCanonicalStorage } from "./canonical-storage.ts";
 import { expect, test } from "./fixtures.ts";
 import {
   closeMobileNavigation,
+  createRootDatabase,
   ensureNavigationVisible,
-  openRootDatabaseCreation,
+  entryTrigger,
   openSecondDevice,
   openWorkspace,
   openWorkspaceDiagnostics,
   returnToWorkspace,
-  saveEntryProperties,
   selectItem,
   uniqueName,
   waitForDatabaseDefinitionIdle,
   waitForDatabaseDefinitionSaved,
+  waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -47,11 +48,7 @@ async function goOnline(page: Page): Promise<void> {
 
 async function createDatabase(page: Page, name: string): Promise<void> {
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const form = page.getByRole("form", { name: "Créer une base de données" });
-  await form.getByLabel("Créer une base de données").fill(name);
-  await form.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(name, { timeout: 15_000 });
+  await createRootDatabase(page, name);
   await waitForSynchronized(page);
 }
 
@@ -69,24 +66,26 @@ async function addTextProperty(
   await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
   if (options.online === false) await waitForDatabaseDefinitionIdle(page);
   else await waitForDatabaseDefinitionSaved(page);
+  await page.keyboard.press("Escape");
 }
 
 async function createEntry(page: Page, title: string): Promise<void> {
   const form = page.locator(".database-entry-create");
-  const titleInput = form.getByLabel("Nouvelle entrée");
-  await titleInput.fill(title);
-  await expect(titleInput).toHaveValue(title);
-  await form.getByRole("button", { name: "Nouvelle entrée" }).click();
-  await expect(page.locator("[data-entry-trigger]").filter({ hasText: title }).first()).toBeVisible(
-    {
-      timeout: 15_000,
-    },
-  );
+  const button = form.getByRole("button", { name: "Nouvelle page" });
+  await expect(button).toBeEnabled({ timeout: 15_000 });
+  await button.click();
+  const editor = page.locator(".database-cell-title-input");
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.fill(title);
+  await editor.press("Enter");
+  await expect(entryTrigger(page, title).first()).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 async function openEntry(page: Page, title: string): Promise<void> {
-  await page.locator("[data-entry-trigger]").filter({ hasText: title }).first().click();
-  await expect(page.locator(".entry-panel").getByRole("heading", { name: title })).toBeVisible({
+  await entryTrigger(page, title).first().click();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(title, {
     timeout: 15_000,
   });
 }
@@ -105,7 +104,7 @@ async function saveEntryValues(
     await input.pressSequentially(value);
     await expect(input).toHaveValue(value);
   }
-  await saveEntryProperties(page);
+  await waitForEntryAutosave(page);
 }
 
 async function closeEntry(page: Page): Promise<void> {
@@ -124,10 +123,10 @@ async function updateTextCell(
     .getByRole("gridcell", { name: new RegExp(`^${propertyName},`) });
   await cell.focus();
   await cell.press("F2");
-  await cell.getByLabel(propertyName, { exact: true }).fill(value);
-  await cell
-    .getByRole("button", { name: `Enregistrer ${propertyName} pour ${entryTitle}` })
-    .click();
+  const input = cell.getByLabel(propertyName, { exact: true });
+  await input.fill(value);
+  await expect(input).toHaveValue(value);
+  await input.press("Enter");
   await expect(cell).toHaveAttribute("aria-label", `${propertyName}, ${value}`, {
     timeout: 15_000,
   });
@@ -174,9 +173,9 @@ async function releaseEntryValuesFromDevice(page: Page, entryId: string): Promis
         opening.onerror = () => reject(opening.error ?? new Error("IndexedDB did not open"));
         opening.onsuccess = () => {
           const database = opening.result;
-          const transaction = database.transaction("databaseEntries", "readwrite");
-          const store = transaction.objectStore("databaseEntries");
-          const reading = store.get(id);
+          const transaction = database.transaction("databaseEntryPairs", "readwrite");
+          const store = transaction.objectStore("databaseEntryPairs");
+          const reading = store.index("entryItemId").get(id);
           reading.onerror = () =>
             reject(reading.error ?? new Error("Entry values were unreadable"));
           reading.onsuccess = () => {
@@ -241,7 +240,7 @@ test.describe("structured offline convergence (US5)", () => {
     page,
     browser,
     baseURL,
-  }) => {
+  }, testInfo) => {
     test.setTimeout(120_000);
     await openWorkspace(page);
     const databaseName = uniqueName("Offline projects");
@@ -260,9 +259,7 @@ test.describe("structured offline convergence (US5)", () => {
     try {
       await openWorkspace(second.page);
       await selectItem(second.page, databaseName);
-      await expect(
-        second.page.locator("[data-entry-trigger]").filter({ hasText: entryName }),
-      ).toBeVisible({
+      await expect(entryTrigger(second.page, entryName)).toBeVisible({
         timeout: 15_000,
       });
 
@@ -297,9 +294,6 @@ test.describe("structured offline convergence (US5)", () => {
 
       await second.page.reload();
       await openDatabaseAfterReload(second.page, databaseName);
-      await expect(
-        second.page.locator(".database-schema").getByText(offlineProperty, { exact: true }),
-      ).toBeVisible();
       await expect(
         second.page.locator(".database-grid").getByRole("columnheader", {
           name: new RegExp(offlineProperty),
@@ -421,6 +415,7 @@ test.describe("structured offline convergence (US5)", () => {
         "local divergent note",
         "remote divergent note",
       ]);
+      await second.page.screenshot({ path: testInfo.outputPath("offline-entry-converged.png") });
     } finally {
       await second.context.close();
     }
@@ -457,17 +452,13 @@ test.describe("structured offline convergence (US5)", () => {
       await editingCell.press("F2");
       await editingCell.getByLabel("Details", { exact: true }).fill("propagated value");
       const startedAt = Date.now();
-      await editingCell
-        .getByRole("button", { name: `Enregistrer Details pour ${entryName}` })
-        .click();
+      await editingCell.getByLabel("Details", { exact: true }).press("Enter");
       await expect(watchingCell).toHaveAttribute("aria-label", "Details, propagated value", {
         timeout: 15_000,
       });
       await attachPropagationMeasurement(testInfo, Date.now() - startedAt);
 
-      const entryId = await second.page
-        .locator("[data-entry-trigger]")
-        .filter({ hasText: entryName })
+      const entryId = await entryTrigger(second.page, entryName)
         .first()
         .getAttribute("data-entry-trigger");
       expect(entryId).not.toBeNull();
@@ -476,10 +467,15 @@ test.describe("structured offline convergence (US5)", () => {
       await second.page.reload();
       await openDatabaseAfterReload(second.page, databaseName);
 
-      // Membership survives without inventing a sidebar placement. Values and
-      // completeness remain explicitly partial while the server cannot fill the gap.
+      // Its canonical child page remains navigable even when the recoverable
+      // property values are absent from this device.
       await ensureNavigationVisible(second.page);
-      await expect(second.page.getByTestId(`tree-item-${entryName}`)).toHaveCount(0);
+      const ownerRow = second.page.getByTestId(`tree-item-${databaseName}`);
+      if ((await ownerRow.getAttribute("aria-expanded")) !== "true")
+        await ownerRow
+          .getByRole("button", { name: `Déplier ${databaseName}`, exact: true })
+          .click();
+      await expect(second.page.getByTestId(`tree-item-${entryName}`)).toBeVisible();
       await closeMobileNavigation(second.page);
       await expect(second.page.getByText("Données locales partielles : 0 sur 1")).toBeVisible();
       await expect(
@@ -487,9 +483,7 @@ test.describe("structured offline convergence (US5)", () => {
       ).toBeVisible();
       await second.page.goto(`/notes/${entryId}`);
       await expect(second.page.locator(".entry-panel")).toBeVisible();
-      await expect(
-        second.page.locator(".entry-panel").getByRole("heading", { name: entryName, exact: true }),
-      ).toBeVisible();
+      await expect(second.page.getByTestId("active-item-title")).toHaveValue(entryName);
       await expect(
         second.page.getByText(/Ces propriétés ne sont pas présentes sur cet appareil/),
       ).toBeVisible();

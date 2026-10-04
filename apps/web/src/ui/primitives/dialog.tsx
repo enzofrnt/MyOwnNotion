@@ -1,5 +1,4 @@
 import {
-  Dialog as AriakitDialog,
   DialogDescription as AriakitDialogDescription,
   type DialogDescriptionProps as AriakitDialogDescriptionProps,
   DialogDisclosure as AriakitDialogDisclosure,
@@ -16,7 +15,7 @@ import { forwardRef } from "react";
 import { classNames } from "../class-names.ts";
 import { FR_COPY } from "../copy/index.ts";
 import { AppIcon } from "../icons.tsx";
-import { useModalAriaRef } from "./modal-aria.ts";
+import { ModalContent } from "./modal-content.tsx";
 
 export type DialogRootProps = AriakitDialogProviderProps;
 
@@ -47,37 +46,18 @@ export type DialogContentProps = Omit<AriakitDialogProps, "className"> & {
 };
 
 export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(function DialogContent(
-  {
-    autoFocusOnHide = true,
-    autoFocusOnShow = true,
-    backdrop,
-    className,
-    hideOnEscape = true,
-    modal = true,
-    portal = true,
-    size = "medium",
-    ...props
-  },
+  { className, size = "medium", ...props },
   ref,
 ) {
-  const modalRef = useModalAriaRef(ref, modal);
   return (
-    <AriakitDialog
+    <ModalContent
       {...props}
-      ref={modalRef}
-      autoFocusOnHide={autoFocusOnHide}
-      autoFocusOnShow={autoFocusOnShow}
+      ref={ref}
       className={classNames("ui-dialog", className)}
       data-size={size}
-      backdrop={backdrop ?? <div className="ui-dialog__backdrop" />}
-      hideOnEscape={hideOnEscape}
-      modal={modal}
-      portal={portal}
-      aria-modal={modal || undefined}
     />
   );
 });
-
 export type DialogHeadingProps = Omit<AriakitDialogHeadingProps, "className"> & {
   readonly className?: string;
 };

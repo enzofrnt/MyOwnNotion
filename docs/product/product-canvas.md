@@ -176,7 +176,7 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - espace de travail cohérent et qualitatif, avec une structure et un système visuel communs ;
 - authentification mono-utilisateur par passkey et mot de passe ;
 - gestion des appareils et sessions ;
-- pages, dossiers et hiérarchie ;
+- pages, dossiers, bases de données, vues liées et hiérarchie ;
 - navigation latérale ;
 - éditeur par blocs proche de Notion, avec insertion contextuelle, poignée de bloc, glisser-déposer, menus adaptés et barre de mise en forme sur la sélection ;
 - fichiers et pièces jointes ;
@@ -205,7 +205,7 @@ La V1 n'est livrable que si chacun de ces domaines possède des scénarios d'acc
 
 Les capacités suivantes appartiennent à la cible complète, mais peuvent être livrées après la V1 :
 
-- bases de données avancées et toutes leurs vues ;
+- fonctions avancées des bases de données et formats de vue au-delà des cinq formats initiaux ;
 - tâches structurées avancées ;
 - tableaux blancs ;
 - partage public et annotations publiques ;
@@ -373,13 +373,27 @@ interne peut donc viser une page située ailleurs dans l'arborescence, y compris
 un descendant, sans modifier l'arborescence. Les déplacements, renommages et
 conversions doivent conserver l'identité de la cible et la résolution du lien.
 
+Les pages de base ont aussi une identité canonique dans la hiérarchie. Une
+source de données appartient à exactement une page d'origine ; cette page peut
+en posséder plusieurs. Les vues qui montrent une source ont leur propre
+identité et configuration sans devenir propriétaires de ses entrées. Le type
+d'un élément, son placement, son lien éditorial et la source d'une vue sont
+des relations distinctes.
+
 ---
 
-## 11. Pages, dossiers et hiérarchie
+## 11. Pages, dossiers, bases, vues liées et hiérarchie
 
 Les pages et les dossiers ne sont pas deux objets de natures différentes. Ils
 partagent un socle commun, et la page ajoute une capacité que le dossier n'a
 pas.
+
+Les pages de base ajoutent un type d'élément à cette hiérarchie. Une page de
+base possède zéro, une ou plusieurs sources et accueille directement les pages
+ou dossiers de ses sources ; elle n'a pas de corps éditorial. Une page de base
+qui n'affiche qu'une source existante ne possède aucune source, peut se nommer
+« Vue de [nom de la source] » et porte une flèche sur son icône. Les règles de
+conversion de 11.4 concernent les pages et dossiers seulement.
 
 Cette section disait auparavant « les pages et les dossiers sont deux objets
 distincts ». C'était trompeur : cela laissait croire à deux familles séparées
@@ -389,7 +403,7 @@ décrite en 11.4.
 
 ### 11.1 Socle commun
 
-Tout élément de la hiérarchie, page comme dossier, possède :
+Chaque page et chaque dossier possède :
 
 - un titre ;
 - une position choisie par le propriétaire parmi ses frères ;
@@ -436,6 +450,7 @@ soit.
 Le propriétaire doit pouvoir :
 
 - créer une page ou un dossier ;
+- créer un conteneur de base ou une vue liée depuis les commandes prévues ;
 - les renommer ;
 - les déplacer où il veut dans la hiérarchie ;
 - les réordonner librement parmi leurs frères ;
@@ -479,12 +494,14 @@ La barre latérale gauche doit permettre :
 
 - de parcourir l'arborescence ;
 - d'ouvrir et fermer les branches ;
-- de créer une page ou un dossier au bon emplacement ;
+- de créer une page, un dossier ou une base au bon emplacement ;
 - de déplacer les éléments ;
 - de rechercher ;
 - d'accéder aux réglages ;
 
-Elle peut afficher au même niveau des pages, dossiers et fichiers autonomes.
+Elle peut afficher au même niveau des pages, dossiers, bases et fichiers
+autonomes. Une page de base qui possède au moins une source garde l'icône de
+base. Une page de base sans source propre porte une flèche sur cette icône.
 
 La hiérarchie principale porte le libellé « Notes ». Les sections de raccourcis
 Favoris et Récents ainsi que le statut de synchronisation ne sont pas affichés
@@ -531,8 +548,8 @@ immédiate de repli ou de dépli. Un glissement emporte un
 fantôme de la ligne, révèle les destinations avant, dans et après, et conserve
 le curseur de prise en cours même au-dessus d'autres commandes. Les actions à droite restent compactes : pièces jointes lorsqu'elles
 existent, création d'un enfant, puis menu complémentaire. La création d'une
-page ou d'un dossier enfant se choisit dans une surface intégrée à la ligne qui
-ne décale ni son titre ni ses voisines.
+page, d'un dossier ou d'une base enfant se choisit dans une surface intégrée à
+la ligne ; le titre cède sa largeur par troncature, sans déplacer ses voisines.
 
 L'arborescence rend visuellement le lien entre un parent et ses descendants par
 une indentation et un guide sobres. Lorsqu'une branche ouverte est vide, son
@@ -548,8 +565,14 @@ le canevas, au-dessus de son titre, et peut y être modifié ou retiré.
 
 Une page révèle ses pièces jointes dans une continuation compacte de sa ligne,
 distincte de ses enfants hiérarchiques. Cette continuation ne redimensionne
-pas la ligne sélectionnée ; elle affiche un nombre, des lignes nom/taille ou un
-seul état vide. Sous-éléments et surfaces contextuelles s'ouvrent et se ferment
+pas la ligne sélectionnée ; elle affiche des lignes nom/taille ou un seul
+état vide ; les compteurs de pièces jointes restent petits et discrets.
+Tant qu'elle est ouverte, le trombone, « + » et
+le menu de ligne restent visibles ensemble. Le trombone d'une autre page permet
+d'inspecter ses fichiers dans la sidebar en conservant la page active. Ces
+inspections indépendantes se ferment à la navigation vers une autre vue ; leur
+bascule évite de recalculer les autres lignes et éditeurs.
+Sous-éléments et surfaces contextuelles s'ouvrent et se ferment
 progressivement sans laisser d'espace résiduel. Un dossier ouvert présente
 dans la zone principale son emoji et son titre modifiables avec les mêmes
 composants d'identité qu'une page, puis, à la place d'un contenu éditorial,
@@ -564,11 +587,14 @@ est trop long pour la largeur disponible, les ancêtres intermédiaires sont
 regroupés dans un unique « … » qui reste consultable et permet d'ouvrir
 chacun d'eux.
 
-Au-dessus du canevas, une bande d'onglets liste les pages, dossiers et vues
-dérivées ouvertes sur l'appareil pendant la session, dans l'ordre d'ouverture.
-Un onglet de page ou de dossier montre l'emoji et le titre de l'élément, coupé
-par « … » s'il est trop long ; un onglet de graphe montre l'icône de graphe et
-le libellé « Graphe ». La bande défile horizontalement quand elle déborde.
+Au-dessus du canevas, une bande d'onglets liste les pages, dossiers, bases de
+données, vues liées de base de données et vues dérivées ouvertes sur l'appareil
+pendant la session, dans l'ordre d'ouverture. Chaque élément canonique ouvert
+possède son propre onglet, y compris une base et une vue liée ; les fichiers
+autonomes n'en créent pas. L'onglet montre l'emoji éventuel, l'icône de type et
+le titre de l'élément, coupé par « … » s'il est trop long ; un onglet de graphe
+montre l'icône de graphe et le libellé « Graphe ». La bande défile
+horizontalement quand elle déborde.
 Cette bande est une préférence de présentation de l'appareil, restaurée
 localement et jamais synchronisée.
 
@@ -647,6 +673,15 @@ indicateur de lien superposé à l'icône de la cible. La référence créée pa
 commande `/page` vers l'enfant hiérarchique direct de la page courante n'utilise
 pas cet indicateur : elle représente la sous-page créée à cet emplacement.
 
+Les commandes de base suivent la même distinction. « Base de données - pleine
+page » crée une page de base enfant. Le propriétaire y crée une nouvelle source
+ou affiche une source existante. La commande insère le lien d'enfant, sans
+flèche de raccourci, puis ouvre la page. « Base de données - intégrée » crée
+une page de base enfant et sa source, puis insère dans la page classique
+l'affichage des vues de cette page enfant. « Vue liée de base de données »
+affiche une source existante, sans créer ni copier cette source.
+Le bouton permanent d'ajout de base sous le contenu d'une page disparaît.
+
 La création utilise deux actions visibles et deux outils compacts distincts.
 « Lien vers une page » recherche uniquement les pages et dossiers par nom ou
 chemin et se pilote entièrement au clavier. « Lien Web » valide uniquement une
@@ -661,6 +696,11 @@ contextuel et le clic droit. Retirer une référence interne ne supprime, ne
 déplace et ne renomme jamais la page cible.
 
 Les blocs peuvent être sélectionnés, déplacés, transformés, dupliqués, regroupés et supprimés. Le bloc actif expose une poignée contextuelle, les déplacements affichent leur destination et les actions associées restent disponibles au clavier. Une sélection de plusieurs blocs conserve leur ordre lorsqu'elle est déplacée ou dupliquée. Les actions d'édition courantes doivent être annulables et rétablissables.
+
+La surface de la poignée à six points suit les proportions du dessin, avec
+un espace identique autour des points et un léger intervalle avant le texte.
+La poignée et l'ajout adjacent sont centrés face à la première ligne du texte,
+y compris pour les titres et leurs différents espacements.
 
 Une sélection de texte expose une barre de mise en forme contextuelle. Les
 mises en forme minimales comprennent le gras, l'italique, le souligné, le
@@ -682,31 +722,75 @@ fermeture de la page ne doit pas être la stratégie principale de persistance.
 
 ## 14. Bases de données et tâches
 
-Une base est une ressource indépendante de ses pages d'affichage. La feature
-026 complète la 009 : une page ordinaire peut intégrer plusieurs bases et une
-même source peut apparaître dans plusieurs pages. Chaque emplacement conserve
-ses propres vues, filtres, tris et regroupements ; le schéma et les entrées
-restent communs. Retirer un emplacement, supprimer ou purger sa page conserve
-la source et ses entrées. Une source sans affichage reste sélectionnable.
-La migration conserve les identifiants, contenus, liens et historiques
-existants, avec sauvegarde complète préalable vérifiée. Sources et emplacements
-suivent les garanties de chiffrement, hors ligne, synchronisation,
-export et restauration des autres données canoniques.
+Une page de base est un élément canonique de la hiérarchie, sans corps
+éditorial. Elle possède zéro, une ou plusieurs sources. Chaque source a une
+page d'origine, qui la suit lorsqu'elle est déplacée. La page présente
+plusieurs onglets de vues. Avec une seule source affichée, le titre est celui
+de la source. Avec plusieurs sources, le nom de la page est le premier titre
+et le nom de la source de la vue sélectionnée apparaît en dessous. Une seule
+vue ne peut pas changer de source ; dès qu'il y en a plusieurs, la source de
+chaque vue peut être choisie séparément. Ajouter une vue permet d'afficher une
+source existante ou d'en créer une, rattachée à la page courante. Retirer une
+vue ne supprime pas sa source. Retirer la dernière vue d'une source depuis sa
+page d'origine demande de supprimer seulement la vue, ou la vue et la source.
+Une vue d'une source née ailleurs ne propose jamais de supprimer la source.
+Supprimer la page d'origine indique le nombre de sources rattachées et, après
+confirmation, supprime ces sources. Les vues ailleurs restent et affichent
+« Aucun résultat : la source de données demandée n'existe plus. »
 
-Une entrée créée depuis une vue est une page canonique sans placement hiérarchique automatique. Elle reste indexable, recherchable et ouvrable depuis chaque affichage de sa source ; la création de nombreuses entrées ne remplit pas la racine de navigation. Les placements explicitement fournis par le propriétaire, un client ou un import sont conservés, ainsi que les placements existants dont l'origine manuelle ne peut pas être distinguée sûrement. L'appartenance à une base ne confère aucun accès implicite aux pages qui l'affichent.
+Une page classique peut contenir une base intégrée : l'affichage des vues de
+la page de base enfant créée sous elle. Une page de base qui ne possède aucune
+source porte une flèche sur son icône et peut se nommer « Vue de [nom de la
+source] ». Retirer une vue ne supprime pas la source qu'elle affichait. Les
+formats initiaux sont table, Kanban, galerie, liste et calendrier. Chaque vue
+conserve ses filtres, tris, regroupements et propriétés visibles ; les
+propriétés définies par la source et leurs valeurs sont communes à toutes les
+vues qui l'affichent.
 
-Les bases de données suivent le modèle mental de Notion. Une entrée est une page possédant des propriétés, par exemple :
+Chaque entrée d'une source est une page ou un dossier canonique placé
+directement sous la page d'origine de la source, même si elle est créée
+depuis une vue affichée ailleurs. Une page de base n'accueille directement que
+des pages et dossiers, jamais une autre base. Les descendants d'un
+dossier entrée ne deviennent pas automatiquement des entrées. Une page ou un
+dossier entrée peut lui-même contenir une base. Si une entrée quitte sa source
+puis y revient, elle retrouve les valeurs de propriétés qu'elle avait dans
+cette source. L'appartenance à une base ne confère aucun accès implicite aux
+pages qui l'affichent.
+
+Une entrée ouverte garde la présentation d'une page canonique : titre et
+icône éditables, chemin et colonne de lecture partagés. Les propriétés sont
+compactes et lisibles sous le titre, avec les mêmes couleurs d'options dans
+les vues et dans la page ; le contenu suit dans cette même colonne. Une prise
+de largeur de colonne ne peint que son repère d'accent, sans fond supplémentaire.
+Les valeurs s’enregistrent automatiquement sans bouton de validation. Le clic
+sur le nom et son menu contextuel permettent de configurer, renommer, dupliquer
+ou supprimer la propriété avec les confirmations d’impact nécessaires.
+Les options se choisissent, se créent et se configurent dans des panneaux
+compacts. Les poignées à six points réordonnent les propriétés des entrées
+partageant cette source, sans changer l’ordre propre aux colonnes des vues.
+Une erreur conserve la saisie et propose une reprise locale.
+Chaque propriété peut porter une icône personnalisée choisie dans le même
+catalogue que les vues. Ce choix appartient à la propriété de la source et
+se retrouve dans ses pages et affichages ; le retirer rétablit le symbole de
+son type. Changer l’icône ne change ni le type ni les valeurs.
+
+Avant la première V1, les bases, entrées et migrations de développement
+peuvent être réinitialisées explicitement pour remplacer l'ancien modèle.
+Cette opération est annoncée et bornée ; elle n'est pas déclenchée par une
+simple ouverture du client. Les données créées sous le nouveau modèle suivent
+les garanties de chiffrement, hors ligne, synchronisation, export, sauvegarde
+et restauration des autres données canoniques.
+
+Les bases de données suivent le modèle mental de Notion. Une entrée est une page ou un dossier possédant des propriétés, par exemple :
 
 - texte ;
 - nombre ;
 - date ;
-- statut ;
-- sélection ;
-- sélection multiple ;
+- sélection multiple, chaque option ayant une couleur ;
 - case à cocher ;
 - relation.
 
-Les vues peuvent inclure :
+Les vues initiales incluent :
 
 - table ;
 - Kanban ;
@@ -755,6 +839,12 @@ Un bouton discret sur une page affiche la liste complète de ses pièces jointes
 - état de disponibilité locale ;
 - état de synchronisation ;
 - actions disponibles.
+
+Cette liste reflète les fichiers et images intégrés dans le contenu de la
+page, une ligne par fichier, et se met à jour avec ce contenu. Elle ne propose
+pas d'ajout indépendant par un bouton « + » : déposer ou insérer un fichier
+se fait dans la page. Un ancien rattachement sans bloc dans cette page n'y
+apparaît pas ; ce filtrage ne supprime ni le fichier ni ses autres usages.
 
 Déplacer ou renommer un fichier ne doit pas casser ses références. La suppression d'un fichier encore utilisé doit afficher ses utilisations et demander une confirmation explicite.
 
@@ -1205,7 +1295,9 @@ La V1 comprend un import local Notion en ligne de commande, spécifié séparém
 par028. Il accepte les exports Markdown/CSV natifs, leurs archives ZIP et un
 dossier local converti pour Obsidian. L'aperçu est le comportement par défaut ;
 il décrit exhaustivement contenus, hiérarchie, liens, fichiers, propriétés et
-membres des sources de données026. Les configurations absentes de l'export sont
+membres des sources de données. L'import doit représenter les bases et leurs
+entrées selon le modèle de propriétaire et de hiérarchie de la section 14 ; les
+configurations absentes de l'export sont
 signalées, sans inventer les vues, aperçus ou automatismes d'origine.
 
 L'application explicite protège une cible déjà occupée par une sauvegarde
@@ -1867,6 +1959,21 @@ Les plateformes serveur officiellement prises en charge doivent disposer d'image
 
 Tous les comportements essentiels et tous ceux dont l'échec peut causer une perte de données, un accès non autorisé, une incompatibilité ou une restauration impossible doivent être couverts par des tests automatisés adaptés.
 
+Les contrôles locaux doivent être proportionnés aux modifications à publier et
+à leurs dépendances. Une correction délimitée exécute les tests et contrôles
+pertinents ; une modification transversale ou d'impact exécutable incertain
+exécute la validation complète. Le périmètre choisi et ses résultats doivent
+être consignés. La validation complète de `main` et des versions reste requise.
+
+Une mise à jour de prose ou de spécifications sans consommateur exécutable
+nécessite la vérification des documents, liens et cohérence, sans tests de
+l'application, builds ou conteneurs. Une suite documentaire après un commit de
+code déjà validé réutilise ces preuves tant que les entrées exécutables restent
+inchangées. Un document utilisé par un test ou par l'application nécessite les
+contrôles de ses consommateurs. La sélection se fait sur les changements depuis
+la dernière publication validée, ou la base de branche pour une première
+publication ; les contrôles requis de la PR continuent de porter sur son candidat.
+
 ### 42.1 Tests unitaires
 
 Ils couvrent notamment :
@@ -2009,6 +2116,12 @@ La V1 doit fournir une interface française cohérente et préparer l'externalis
 ### 43.6 Qualité visuelle et ergonomique
 
 - Les surfaces V1 utilisent un langage commun pour la typographie, les espacements, les couleurs, les états, les menus, les boutons, les champs, les dialogues et les notifications.
+- Les chargements réservent les repères du contenu avec des placeholders
+  neutres ; les informations et états vides restent sobres en texte principal.
+  Le focus clavier est lisible et discret, sans halo coloré. Les confirmations
+  destructives utilisent texte et contour rouges sur fond neutre, et les menus
+  réservent cet accent à l’interaction. La palette des propriétés reste distincte
+  des couleurs d’accent des commandes.
 - Les actions courantes apparaissent dans leur contexte ; les informations techniques et diagnostics secondaires ne concurrencent pas le contenu principal.
 - Le workspace ne rend pas les panneaux de configuration ou d'exploitation à
   la suite du document courant. Il garde seulement les états compacts utiles à
@@ -2030,7 +2143,9 @@ Une fonctionnalité ou modification n'est terminée que si :
 - ses critères d'acceptation sont vérifiables ;
 - les cas d'erreur, hors ligne et reprise sont couverts ou marqués non applicables avec justification ;
 - les impacts sur données, synchronisation, permissions, chiffrement, sauvegarde et migration sont traités ;
-- les tests appropriés sont ajoutés et réussissent localement ;
+- les tests appropriés au comportement modifié sont ajoutés et réussissent
+  localement, ou les seuls contrôles documentaires pertinents pour une mise à
+  jour de prose sans impact exécutable ;
 - la CI de pull request réussit ;
 - la documentation utilisateur et d'exploitation est mise à jour ;
 - les changements de configuration et migrations sont documentés ;

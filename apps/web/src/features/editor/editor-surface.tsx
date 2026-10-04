@@ -1,7 +1,7 @@
 import type { ProjectedItem } from "@myownnotion/client-core";
 import type { BlockDocument, Uuid } from "@myownnotion/domain";
 import { memo } from "react";
-import type { CreateSubpage } from "./editor-menus/slash-menu.tsx";
+import type { CreateInlineDatabase, CreateSubpage } from "./editor-menus/slash-menu.tsx";
 import { PageEditor, type PageEditorHandle } from "./page-editor.tsx";
 
 export type EditorSurfaceHandle = PageEditorHandle;
@@ -21,6 +21,9 @@ export const EditorSurface = memo(function EditorSurface({
   currentItemId,
   items,
   onCreateSubpage,
+  onCreateSubfolder,
+  onCreateFullPageDatabase,
+  onCreateInlineDatabase,
   onOpenPage,
   onSettlementChange,
   session,
@@ -32,6 +35,9 @@ export const EditorSurface = memo(function EditorSurface({
   readonly currentItemId: string;
   readonly items: readonly ProjectedItem[];
   readonly onCreateSubpage?: CreateSubpage | undefined;
+  readonly onCreateSubfolder?: CreateSubpage | undefined;
+  readonly onCreateFullPageDatabase?: CreateSubpage | undefined;
+  readonly onCreateInlineDatabase?: CreateInlineDatabase | undefined;
   readonly onOpenPage?: ((itemId: string) => void) | undefined;
   readonly onSettlementChange?: ((settled: boolean) => void) | undefined;
   readonly session?: import("./editor-sync-status.tsx").EditorDurableSession | undefined;
@@ -45,6 +51,9 @@ export const EditorSurface = memo(function EditorSurface({
       handleRef={handleRef}
       items={items}
       onCreateSubpage={onCreateSubpage}
+      onCreateSubfolder={onCreateSubfolder}
+      onCreateFullPageDatabase={onCreateFullPageDatabase}
+      onCreateInlineDatabase={onCreateInlineDatabase}
       onOpenPage={onOpenPage}
       onSettlementChange={onSettlementChange}
       session={session}

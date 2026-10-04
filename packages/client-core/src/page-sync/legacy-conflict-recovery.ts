@@ -1,3 +1,5 @@
+import { readStoredDocumentV3 as documentV3 } from "@myownnotion/domain";
+import { openStoredConflict } from "../security/open-stored-conflict.ts";
 /** Idempotent recovery of historical whole-document page conflicts. */
 
 import type { RevisionDto } from "@myownnotion/contracts";
@@ -15,7 +17,6 @@ import {
   type Mark,
   type MarkV3,
   migrateDocumentV2ToV3,
-  migrateStoredPageDocumentToV3,
   normaliseDocument,
   normaliseDocumentV3,
   readDocumentBody,
@@ -65,17 +66,6 @@ export interface LegacyConflictRecoveryPass {
   readonly quarantined: number;
   readonly offline: boolean;
   readonly pageIds: readonly Uuid[];
-}
-
-function documentV3(envelope: unknown): BlockDocumentV3 | null {
-  if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope)) return null;
-  const record = envelope as Record<string, unknown>;
-  if (typeof record["formatVersion"] !== "number") return null;
-  const migrated = migrateStoredPageDocumentToV3({
-    formatVersion: record["formatVersion"],
-    body: record["body"],
-  });
-  return migrated.ok ? normaliseDocumentV3(migrated.document) : null;
 }
 
 function losslessLegacyMark(mark: MarkV3): Mark | null {
@@ -254,10 +244,7 @@ export class LegacyConflictRecovery {
   }
 
   async #openConflict(stored: unknown): Promise<ConflictRecordRow> {
-    if (typeof stored === "object" && stored !== null && "payload" in stored) {
-      return stored as ConflictRecordRow;
-    }
-    return await this.#codec.openConflict(stored as SealedConflictRecordRow);
+    return await openStoredConflict(stored, this.#codec);
   }
 
   async #fallbackPageId(row: ConflictRecordRow | SealedConflictRecordRow): Promise<Uuid | null> {

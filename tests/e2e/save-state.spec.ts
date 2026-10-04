@@ -42,7 +42,9 @@ async function openPage(page: import("@playwright/test").Page, name: string): Pr
   await createRootItem(page, "page", name);
   await waitForSynchronized(page);
   await selectItem(page, name);
-  await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+    timeout: 30_000,
+  });
 }
 
 test.describe("the honest states", () => {
@@ -144,9 +146,12 @@ test.describe("what survives an unexpected close", () => {
     await waitForSynchronized(page);
     await selectItem(page, name);
 
-    await expect(page.getByTestId("block-editor")).toContainText("typed before the crash", {
-      timeout: 30_000,
-    });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "typed before the crash",
+      {
+        timeout: 30_000,
+      },
+    );
   });
 });
 
@@ -195,7 +200,9 @@ test.describe("when the server refuses the write", () => {
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
     await selectItem(page, name);
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+      timeout: 30_000,
+    });
     await setDataKeyWriteBlock(true);
   }
 
@@ -210,7 +217,7 @@ test.describe("when the server refuses the write", () => {
     // and the server has not confirmed them.
     await expect(indicator(page)).toHaveAttribute("data-durable", "true", { timeout: 30_000 });
     await expect(indicator(page)).not.toHaveAttribute("data-sync", "synced");
-    await expect(page.getByTestId("block-editor")).toContainText(
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
       "Notes taken while saving was paused",
     );
     await expect(page.getByTestId("editor-sync-label")).not.toHaveText("Synchronisé");

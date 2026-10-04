@@ -1000,7 +1000,7 @@ components:
         - { type: string, minLength: 1, maxLength: 64 }
         - { type: 'null' }
     ItemKind:
-      enum: [page, folder, file]
+      enum: [page, folder, file, database, database_view]
     Lifecycle:
       enum: [active, trashed, purged]
     PlacementKind:
@@ -1276,6 +1276,9 @@ components:
         databases:
           type: array
           items: { $ref: '#/components/schemas/CanonicalExportDatabase' }
+        databasePresentations:
+          type: array
+          items: { $ref: '#/components/schemas/CanonicalExportDatabasePresentation' }
         databaseEntries:
           type: array
           items: { $ref: '#/components/schemas/CanonicalExportDatabaseEntry' }
@@ -1296,6 +1299,7 @@ components:
             relationships: { type: integer, minimum: 0, maximum: 9007199254740991 }
             revisions: { type: integer, minimum: 0, maximum: 9007199254740991 }
             databases: { type: integer, minimum: 0, maximum: 9007199254740991 }
+            databasePresentations: { type: integer, minimum: 0, maximum: 9007199254740991 }
             databaseEntries: { type: integer, minimum: 0, maximum: 9007199254740991 }
           additionalProperties: false
       additionalProperties: false
@@ -1360,9 +1364,19 @@ components:
       required: [databaseId, definitionVersion, definition]
       properties:
         databaseId: { $ref: '#/components/schemas/Uuid' }
+        sourceId: { $ref: '#/components/schemas/Uuid' }
         definitionRevisionId: { $ref: '#/components/schemas/Uuid' }
         definitionVersion: { type: integer, minimum: 1, maximum: 9007199254740991 }
         definition: { type: object }
+      additionalProperties: false
+    CanonicalExportDatabasePresentation:
+      type: object
+      required: [containerItemId, presentationRevisionId, presentationVersion, presentation]
+      properties:
+        containerItemId: { $ref: '#/components/schemas/Uuid' }
+        presentationRevisionId: { $ref: '#/components/schemas/Uuid' }
+        presentationVersion: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        presentation: { type: object }
       additionalProperties: false
     CanonicalExportDatabaseEntry:
       type: object
@@ -1372,6 +1386,7 @@ components:
         databaseId: { $ref: '#/components/schemas/Uuid' }
         valueVersion: { type: integer, minimum: 1, maximum: 9007199254740991 }
         addedRevisionId: { $ref: '#/components/schemas/Uuid' }
+        valueRevisionId: { $ref: '#/components/schemas/Uuid' }
         values: { type: object }
       additionalProperties: false
     CanonicalExportRevision:

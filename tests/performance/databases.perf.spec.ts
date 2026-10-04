@@ -380,14 +380,18 @@ describe("structured database reference performance (T093)", () => {
 
       const operationCount = STRESS_ENTRY_COUNT + STRESS_ENTRY_COUNT * STRESS_CYCLES * 4;
       expect(operationCount).toBeGreaterThanOrEqual(10_000);
-      expect(await db.databaseEntries.count()).toBe(STRESS_ENTRY_COUNT);
+      const memberships = await db.databaseEntryPairs.toArray();
+      expect(memberships).toHaveLength(STRESS_ENTRY_COUNT);
       expect(await db.items.count()).toBe(STRESS_ENTRY_COUNT + 1);
       expect((await db.items.toArray()).every(({ lifecycle }) => lifecycle === "active")).toBe(
         true,
       );
-      expect(
-        new Set((await db.databaseEntries.toArray()).map(({ entryItemId }) => entryItemId)).size,
-      ).toBe(STRESS_ENTRY_COUNT);
+      expect(memberships.map(({ entryItemId }) => entryItemId).sort()).toEqual(
+        [...entryIds].sort(),
+      );
+      // New memberships are keyed by source/entry, with no duplicate legacy
+      // membership retained alongside the canonical pair projection.
+      expect(await db.databaseEntries.count()).toBe(0);
       const p95 = percentile(commitSamples, 0.95);
       console.info(
         `[perf] database local commits p95=${p95.toFixed(1)}ms operations=${operationCount}`,

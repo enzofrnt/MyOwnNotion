@@ -1,0 +1,70 @@
+[
+  {
+    "theme": "light",
+    "width": 1280,
+    "overlay": "dialog",
+    "focus": "Fermer",
+    "pageScrollWidth": 1280
+  },
+  {
+    "theme": "light",
+    "width": 1280,
+    "afterEscape": "Ouvrir le dialogue"
+  },
+  {
+    "theme": "light",
+    "width": 1280,
+    "afterDrawerEscape": "Ouvrir le panneau"
+  },
+  {
+    "theme": "light",
+    "width": 320,
+    "overlay": "dialog",
+    "focus": "Fermer",
+    "pageScrollWidth": 320
+  },
+  {
+    "theme": "light",
+    "width": 320,
+    "afterEscape": "Ouvrir le dialogue"
+  },
+  {
+    "theme": "light",
+    "width": 320,
+    "afterDrawerEscape": "Ouvrir le panneau"
+  },
+  {
+    "theme": "dark",
+    "width": 1280,
+    "overlay": "dialog",
+    "focus": "Fermer",
+    "pageScrollWidth": 1280
+  },
+  {
+    "theme": "dark",
+    "width": 1280,
+    "afterEscape": "Ouvrir le dialogue"
+  },
+  {
+    "theme": "dark",
+    "width": 1280,
+    "afterDrawerEscape": "Ouvrir le panneau"
+  },
+  {
+    "theme": "dark",
+    "width": 320,
+    "overlay": "dialog",
+    "focus": "Fermer",
+    "pageScrollWidth": 320
+  },
+  {
+    "theme": "dark",
+    "width": 320,
+    "afterEscape": "Ouvrir le dialogue"
+  },
+  {
+    "theme": "dark",
+    "width": 320,
+    "afterDrawerEscape": "Ouvrir le panneau"
+  }
+]

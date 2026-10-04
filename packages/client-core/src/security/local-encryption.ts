@@ -43,6 +43,7 @@ export const LOCAL_ENTITY_TYPES = {
   conflictPayload: "local.conflict.payload",
   conflictStructured: "local.conflict.structured",
   databaseDefinition: "local.database.definition",
+  databasePresentation: "local.database.presentation",
   databaseEntryValues: "local.database.entry-values",
   pageOperationState: "local.page-operation.state",
   pageOperationUpdate: "local.page-operation.update",

@@ -28,6 +28,7 @@ import type {
   SealedLocalDatabaseRow,
   SealedLocalItemRow,
 } from "../local-store/schema.ts";
+import { databaseEntryPairKey } from "../local-store/schema.ts";
 import { LOCAL_ENTITY_TYPES, type LocalCipher, type LocalEnvelope } from "./local-encryption.ts";
 
 /** The workspace an envelope binds to. Supplied once, per store. */
@@ -162,33 +163,59 @@ export class LocalRecordCodec {
   }
 
   async sealDatabase(row: LocalDatabaseRow): Promise<SealedLocalDatabaseRow> {
-    const { definition, ...rest } = row;
+    const { definition, presentation, ...rest } = row;
     return {
       ...rest,
       sealedDefinition: await this.#cipher.seal(
         this.#binding(LOCAL_ENTITY_TYPES.databaseDefinition, row.itemId, row.definitionVersion),
         definition,
       ),
+      ...(presentation === undefined
+        ? {}
+        : {
+            sealedPresentation: await this.#cipher.seal(
+              this.#binding(
+                LOCAL_ENTITY_TYPES.databasePresentation,
+                row.itemId,
+                row.presentationVersion ?? 1,
+              ),
+              presentation,
+            ),
+          }),
     };
   }
 
   async openDatabase(row: SealedLocalDatabaseRow): Promise<LocalDatabaseRow> {
-    const { sealedDefinition, ...rest } = row;
+    const { sealedDefinition, sealedPresentation, ...rest } = row;
     return {
       ...rest,
       definition: (await this.#cipher.open(
         this.#binding(LOCAL_ENTITY_TYPES.databaseDefinition, row.itemId, row.definitionVersion),
         sealedDefinition,
       )) as LocalDatabaseRow["definition"],
+      ...(sealedPresentation === undefined
+        ? {}
+        : {
+            presentation: (await this.#cipher.open(
+              this.#binding(
+                LOCAL_ENTITY_TYPES.databasePresentation,
+                row.itemId,
+                row.presentationVersion ?? 1,
+              ),
+              sealedPresentation,
+            )) as NonNullable<LocalDatabaseRow["presentation"]>,
+          }),
     };
   }
 
   async sealDatabaseEntry(row: LocalDatabaseEntryRow): Promise<SealedLocalDatabaseEntryRow> {
     const { values, ...rest } = row;
+    const key = databaseEntryPairKey(row.databaseId, row.entryItemId);
     return {
       ...rest,
+      key,
       sealedValues: await this.#cipher.seal(
-        this.#binding(LOCAL_ENTITY_TYPES.databaseEntryValues, row.entryItemId, row.valueVersion),
+        this.#binding(LOCAL_ENTITY_TYPES.databaseEntryValues, key, row.valueVersion),
         values,
       ),
     };
@@ -209,11 +236,7 @@ export class LocalRecordCodec {
               preserved: [],
             }
           : ((await this.#cipher.open(
-              this.#binding(
-                LOCAL_ENTITY_TYPES.databaseEntryValues,
-                row.entryItemId,
-                row.valueVersion,
-              ),
+              this.#binding(LOCAL_ENTITY_TYPES.databaseEntryValues, row.key, row.valueVersion),
               sealedValues,
             )) as LocalDatabaseEntryRow["values"]),
     };

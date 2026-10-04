@@ -12,7 +12,7 @@
 
 **Dependencies**: feature 002 owns the secure delivery foundation and the single exact-commit quality gate. This feature refines its performance and selection policy without weakening that gate.
 
-**Exclusions**: application behavior, user data, production runtime caching, branch-protection policy, release identity, security-check coverage, and the complete local pre-push gate do not change.
+**Exclusions**: application behavior, user data, production runtime caching, branch-protection policy, release identity, security-check coverage, and the implementation of the complete local gate do not change. The owner's 2026-10-04 governance clarification selects local checks by impact; it does not change the PR planner's comparison scope or its implementation.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -104,9 +104,9 @@ A contributor can see why each suite ran or did not run, which cache scopes were
 - **FR-015**: The impact policy MUST have automated contract tests covering documentation-only, direct source, transitive source, changed test, test-consumed document, shared/global, unknown-path, missing-base, `main`, release, and manual execution scenarios.
 - **FR-016**: CI MUST cancel an obsolete in-progress pull-request execution when a newer candidate for the same pull request starts, without cancelling `main`, release, manual, or unrelated pull-request executions.
 - **FR-017**: Selected browser journeys MUST execute across every required browser and viewport variant in isolated environments, and each variant MUST retain distinct diagnostics.
-- **FR-018**: The complete local pre-push gate MUST remain the required pre-push evidence and MUST NOT silently adopt pull-request-only selective behavior.
+- **FR-018**: Local pre-push validation MUST follow Constitution III and the impact policy in `docs/development.md`: document checks for maintained prose without an executable consumer, relevant targeted checks for bounded executable changes, and the complete local gate for cross-cutting or uncertain impact. A prose-only follow-up MAY reuse successful evidence for unchanged executable inputs. The PR planner MUST retain its own exact-candidate/base comparison; local selection MUST NOT silently change that implementation.
 - **FR-019**: Container build, scan, and publication paths MAY reuse compatible layers, but every scan and published image MUST still be attributable to and verified for the exact candidate commit.
-- **FR-020**: Formatting, lint, type, migration, build, Compose, security, and publication gates MUST remain required unless a future specification explicitly defines their own affected-scope policy.
+- **FR-020**: Formatting, lint, type, migration, build, Compose, security, and publication gates MUST remain required where applicable under the governing impact policy. Documentation-only local updates MUST NOT launch application tests, builds or containers. Required PR, main and release gates remain blocking; their workflow behavior is not changed by this documentary amendment.
 - **FR-021**: The repository MUST validate that every maintained end-to-end journey and every non-executable exception is represented by the impact policy before selection can pass.
 - **FR-022**: Performance benchmarks MUST execute outside coverage instrumentation, MUST remain part of every complete trusted and local gate, and MUST run as an independently observable required CI job that supports the same affected/full/no-op plan contract as the other Vitest groups.
 

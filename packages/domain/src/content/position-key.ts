@@ -42,3 +42,29 @@ export function keyBetween(before: string | null, after: string | null): string 
 export function initialKeys(count: number): string[] {
   return generateNKeysBetween(undefined, undefined, count);
 }
+
+/**
+ * A key that sorts after every existing sibling.
+ *
+ * Fractional keys use the shared generator. Keys such as `view-000003`,
+ * written when a view is reordered, are not fractional keys: appending a
+ * digit keeps string order without asking the generator to accept them.
+ */
+export function keyAfterAll(keys: readonly string[]): string {
+  if (keys.length === 0) return keyBetween(null, null);
+  const fractional = keys.every((key) => {
+    if (!isValidPositionKey(key)) return false;
+    try {
+      keyBetween(key, null);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  const max = [...keys].sort((left, right) => left.localeCompare(right)).at(-1);
+  if (fractional) return keyBetween(max ?? null, null);
+  const used = new Set(keys);
+  let candidate = `${max ?? ""}0`;
+  while (used.has(candidate)) candidate = `${candidate}0`;
+  return candidate;
+}

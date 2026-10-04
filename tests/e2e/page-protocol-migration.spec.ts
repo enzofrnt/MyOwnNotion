@@ -33,7 +33,7 @@ interface QueuedLegacyReplacement {
 }
 
 function surface(page: Page): Locator {
-  return page.getByTestId("block-editor").locator(".ProseMirror");
+  return page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
 }
 
 function rootBlocks(editor: Locator): Locator {

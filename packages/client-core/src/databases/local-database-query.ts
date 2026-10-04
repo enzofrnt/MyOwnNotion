@@ -1,4 +1,5 @@
 import type { DatabaseQueryDto, DatabaseQueryPageDto } from "@myownnotion/contracts";
+import { presentDatabaseQuery } from "@myownnotion/contracts";
 import {
   type DatabaseDefinition,
   type DatabaseQueryEntry,
@@ -84,24 +85,6 @@ function decodeCursor(
   return offset;
 }
 
-type QueryRowValue = DatabaseQueryPageDto["rows"][number]["values"][string];
-
-function responseValue(value: NonRelationPropertyValue): QueryRowValue {
-  if (value.kind === "multi-select") {
-    return { kind: "multi-select", optionIds: [...value.optionIds] };
-  }
-  return { ...value } as QueryRowValue;
-}
-
-function groupLabel(definition: DatabaseDefinition, propertyId: Uuid, groupId: string): string {
-  if (groupId === "missing") return "Sans valeur";
-  if (groupId === "checked") return "Coché";
-  if (groupId === "unchecked") return "Non coché";
-  const property = definition.properties.find(({ id }) => id === propertyId);
-  if (property?.type !== "status" && property?.type !== "select") return groupId;
-  return property.config.options.find(({ id }) => id === groupId)?.label ?? "Option indisponible";
-}
-
 export function queryLocalDatabase(
   source: LocalDatabaseQuerySource,
   request: DatabaseQueryDto,
@@ -132,13 +115,6 @@ export function queryLocalDatabase(
     source.entries.every(({ availability }) => availability === "present")
       ? "complete"
       : "partial";
-  const visiblePropertyIds = new Set(
-    view.properties.filter(({ visible }) => visible).map(({ propertyId }) => propertyId),
-  );
-  const entryGroups = new Map<Uuid, string>();
-  for (const group of evaluated.value.groups) {
-    for (const entryId of group.entryIds) entryGroups.set(entryId, group.id);
-  }
   const nextOffset = offset + pageRows.length;
   const last = pageRows.at(-1);
   return {
@@ -149,30 +125,13 @@ export function queryLocalDatabase(
     coverage,
     availableCount: availableEntries.length,
     expectedCount: source.expectedCount,
-    rows: pageRows.map((entry) => ({
-      entryId: entry.entryId,
-      revisionId: entry.revisionId,
-      title: entry.title,
-      values: Object.fromEntries(
-        Object.entries(entry.values)
-          .filter(([propertyId]) => visiblePropertyIds.has(propertyId as Uuid))
-          .map(([propertyId, value]) => [propertyId, responseValue(value)]),
-      ),
-      relationTargets: Object.fromEntries(
-        Object.entries(entry.relationTargets)
-          .filter(([propertyId]) => visiblePropertyIds.has(propertyId as Uuid))
-          .map(([propertyId, targetIds]) => [propertyId, [...targetIds]]),
-      ),
-      groupId: entryGroups.get(entry.entryId) ?? null,
-    })),
-    groups:
-      coverage === "partial" || view.group === null
-        ? []
-        : evaluated.value.groups.map((group) => ({
-            id: group.id,
-            label: groupLabel(source.definition, view.group?.propertyId as Uuid, group.id),
-            count: group.entryIds.length,
-          })),
+    ...presentDatabaseQuery({
+      definition: source.definition,
+      view,
+      entries: pageRows,
+      groups: evaluated.value.groups,
+      includeGroups: coverage !== "partial",
+    }),
     nextCursor:
       nextOffset < evaluated.value.totalCount && last !== undefined
         ? encodeCursor({

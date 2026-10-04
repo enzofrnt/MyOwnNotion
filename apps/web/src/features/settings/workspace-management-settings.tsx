@@ -109,7 +109,11 @@ export function WorkspaceManagementSettings({
   }
 
   return (
-    <section aria-labelledby="page-settings-heading" data-testid="page-details-settings">
+    <section
+      className="settings-page-details"
+      aria-labelledby="page-settings-heading"
+      data-testid="page-details-settings"
+    >
       <h2 id="page-settings-heading">{activeItem.name}</h2>
       <p className="muted">
         Les identifiants, relations techniques et restaurations restent ici afin de ne pas

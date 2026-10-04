@@ -1,3 +1,4 @@
+import { canonicalBlockText, canonicalBlockProperties as propertiesOf } from "@myownnotion/domain";
 /**
  * Verified semantic recovery of a historical whole-document page edit.
  *
@@ -94,40 +95,12 @@ function shallowBlock(block: CanonicalBlockV3): CanonicalBlockV3 {
   return { ...structuredClone(block), children: [] } as CanonicalBlockV3;
 }
 
-function propertiesOf(block: CanonicalBlockV3): JsonObject {
-  switch (block.type) {
-    case "heading":
-      return { level: block.level };
-    case "checkbox":
-      return { checked: block.checked };
-    case "code":
-      return { language: block.language };
-    case "callout":
-      return { icon: block.icon, tone: block.tone };
-    case "image":
-      return {
-        fileItemId: block.fileItemId,
-        caption: block.caption,
-        altText: block.altText,
-        displayWidth: block.displayWidth,
-      };
-    case "fileEmbed":
-      return { fileItemId: block.fileItemId, caption: block.caption };
-    case "embed":
-      return { provider: block.provider, sourceUrl: block.sourceUrl, caption: block.caption };
-    default:
-      return {};
-  }
-}
-
 function rawProperties(block: CanonicalBlockV3): JsonObject | undefined {
   return block.type === "unknown" ? block.raw : block.rawExtraProperties;
 }
 
 function plainText(block: CanonicalBlockV3): string | null {
-  if (hasInlineContentV3(block)) return block.content.map(({ text }) => text).join("");
-  if (block.type === "code") return block.text;
-  return null;
+  return canonicalBlockText(block) ?? null;
 }
 
 function containsUnknownMarks(content: readonly InlineV3[]): boolean {

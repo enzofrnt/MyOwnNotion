@@ -14,14 +14,16 @@ export function pageLinkHrefFor(targetItemId: Uuid): string {
   return `${PAGE_LINK_HASH_PREFIX}${targetItemId}`;
 }
 
-/** Reads both the current browser-safe form and already stored legacy links. */
+/** Reads the browser-safe hash, an absolute URL that contains it, and legacy links. */
 export function pageLinkTargetFromHref(href: unknown): Uuid | null {
   if (typeof href !== "string") return null;
-  const candidate = href.startsWith(PAGE_LINK_HASH_PREFIX)
-    ? href.slice(PAGE_LINK_HASH_PREFIX.length)
-    : href.startsWith(LEGACY_PAGE_LINK_PREFIX)
-      ? href.slice(LEGACY_PAGE_LINK_PREFIX.length)
-      : null;
+  const hashIndex = href.lastIndexOf(PAGE_LINK_HASH_PREFIX);
+  const candidate =
+    hashIndex >= 0
+      ? href.slice(hashIndex + PAGE_LINK_HASH_PREFIX.length).split(/[?&#]/u)[0]
+      : href.startsWith(LEGACY_PAGE_LINK_PREFIX)
+        ? href.slice(LEGACY_PAGE_LINK_PREFIX.length)
+        : null;
   return isUuid(candidate) ? candidate : null;
 }
 

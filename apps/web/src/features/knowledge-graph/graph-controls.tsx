@@ -9,6 +9,7 @@ import {
   type StructuredGraphFilter,
 } from "@myownnotion/graph";
 import { Button } from "../../ui/primitives/index.ts";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { GRAPH_KIND_LABELS } from "./graph-copy.ts";
 
 export interface GraphControlState {
@@ -107,7 +108,8 @@ export function GraphControls({
     <div className="knowledge-graph-controls__grid">
       <label>
         Périmètre
-        <select
+        <NativeSelect
+          density="compact"
           value={state.scope.kind}
           onChange={(event) => {
             const kind = event.currentTarget.value;
@@ -127,12 +129,13 @@ export function GraphControls({
           <option value="branch">Branche et descendants</option>
           <option value="neighborhood">Voisinage</option>
           <option value="selection">Sélection</option>
-        </select>
+        </NativeSelect>
       </label>
       {scope.kind === "branch" || scope.kind === "neighborhood" ? (
         <label>
           Élément de départ
-          <select
+          <NativeSelect
+            density="compact"
             value={selectedScopeId}
             onChange={(event) => {
               const itemId = event.currentTarget.value as ProjectedItem["id"];
@@ -150,7 +153,7 @@ export function GraphControls({
                 {item.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       ) : null}
       {scope.kind === "selection" ? (
@@ -184,7 +187,8 @@ export function GraphControls({
       {scope.kind === "neighborhood" ? (
         <label>
           Profondeur
-          <select
+          <NativeSelect
+            density="compact"
             value={scope.depth}
             onChange={(event) =>
               onChange({
@@ -200,7 +204,7 @@ export function GraphControls({
             <option value={1}>1 niveau</option>
             <option value={2}>2 niveaux</option>
             <option value={3}>3 niveaux</option>
-          </select>
+          </NativeSelect>
         </label>
       ) : null}
       <fieldset>
@@ -317,7 +321,8 @@ export function GraphControls({
         ) : (
           <label key={dimension.field}>
             {dimension.label}
-            <select
+            <NativeSelect
+              density="compact"
               value={String(equals?.value ?? "")}
               onChange={(event) =>
                 onChange({
@@ -332,13 +337,14 @@ export function GraphControls({
                   {value}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         );
       })}
       <label>
         Format de fichier
-        <select
+        <NativeSelect
+          density="compact"
           value={state.mediaTypes[0] ?? ""}
           onChange={(event) =>
             onChange({
@@ -352,7 +358,7 @@ export function GraphControls({
           <option value="audio/">Audio</option>
           <option value="video/">Vidéos</option>
           <option value="application/pdf">PDF</option>
-        </select>
+        </NativeSelect>
       </label>
       <label>
         <input

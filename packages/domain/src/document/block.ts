@@ -79,10 +79,16 @@ export interface ParagraphBlock {
   readonly content: readonly Inline[];
 }
 
+export type HeadingLevel = 1 | 2 | 3 | 4;
+
+export function isHeadingLevel(value: unknown): value is HeadingLevel {
+  return value === 1 || value === 2 || value === 3 || value === 4;
+}
+
 export interface HeadingBlock {
   readonly type: "heading";
   readonly id: Uuid;
-  readonly level: 1 | 2 | 3;
+  readonly level: HeadingLevel;
   readonly content: readonly Inline[];
 }
 
@@ -341,7 +347,7 @@ export interface ParagraphBlockV3 extends KnownBlockV3Base {
 
 export interface HeadingBlockV3 extends KnownBlockV3Base {
   readonly type: "heading";
-  readonly level: 1 | 2 | 3;
+  readonly level: HeadingLevel;
   readonly content: readonly InlineV3[];
 }
 
@@ -441,6 +447,13 @@ export interface EmbedBlockV3 extends KnownBlockV3Base {
   readonly caption: string | null;
 }
 
+/** A single saved view inserted at its editorial position in a page. */
+export interface DatabaseViewBlockV3 extends KnownBlockV3Base {
+  readonly type: "databaseView";
+  readonly containerItemId: Uuid;
+  readonly viewId: Uuid;
+}
+
 export type KnownBlockV3 =
   | ParagraphBlockV3
   | HeadingBlockV3
@@ -455,7 +468,8 @@ export type KnownBlockV3 =
   | TableBlockV3
   | ImageBlockV3
   | FileEmbedBlockV3
-  | EmbedBlockV3;
+  | EmbedBlockV3
+  | DatabaseViewBlockV3;
 
 export type UnknownBlockV3 = UnknownBlock;
 export type CanonicalBlockV3 = KnownBlockV3 | UnknownBlockV3;
@@ -476,6 +490,7 @@ export const KNOWN_BLOCK_TYPES_V3: readonly KnownBlockTypeV3[] = [
   "image",
   "fileEmbed",
   "embed",
+  "databaseView",
 ];
 
 /** Wire-field order for known blocks; opaque properties are appended afterwards. */
@@ -494,6 +509,7 @@ export const BLOCK_FIELD_ORDER_V3: Readonly<Record<KnownBlockTypeV3, readonly st
   image: ["type", "id", "fileItemId", "caption", "altText", "displayWidth"],
   fileEmbed: ["type", "id", "fileItemId", "caption"],
   embed: ["type", "id", "provider", "sourceUrl", "caption"],
+  databaseView: ["type", "id", "containerItemId", "viewId"],
 };
 
 const KNOWN_BLOCK_TYPE_V3_SET: ReadonlySet<string> = new Set(KNOWN_BLOCK_TYPES_V3);

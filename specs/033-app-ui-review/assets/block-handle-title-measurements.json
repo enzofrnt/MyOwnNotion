@@ -1,0 +1,613 @@
+[
+  {
+    "theme": "initial",
+    "width": 1280,
+    "title": "Une page de référence",
+    "block": {
+      "center": 313.25,
+      "firstLine": {
+        "bottom": 341.5,
+        "height": 56.5,
+        "left": 96,
+        "right": 130.3125,
+        "top": 285,
+        "width": 34.3125,
+        "x": 96,
+        "y": 285
+      },
+      "inline": {
+        "bottom": 349.5,
+        "height": 72,
+        "left": 96,
+        "right": 594.2578125,
+        "top": 277.5,
+        "width": 498.2578125,
+        "x": 96,
+        "y": 277.5
+      },
+      "level": null,
+      "text": "Une page de référence",
+      "type": "heading"
+    },
+    "controls": [
+      {
+        "center": 313.5,
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 329.5,
+          "height": 32,
+          "left": 34,
+          "right": 66,
+          "top": 297.5,
+          "width": 32,
+          "x": 34,
+          "y": 297.5
+        }
+      },
+      {
+        "center": 313.5,
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 329.5,
+          "height": 32,
+          "left": 67,
+          "right": 91.6640625,
+          "top": 297.5,
+          "width": 24.6640625,
+          "x": 67,
+          "y": 297.5
+        }
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "initial",
+    "width": 1280,
+    "title": "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+    "block": {
+      "center": 568.234375,
+      "firstLine": {
+        "bottom": 578.234375,
+        "height": 20,
+        "left": 96,
+        "right": 108.015625,
+        "top": 558.234375,
+        "width": 12.015625,
+        "x": 96,
+        "y": 558.234375
+      },
+      "inline": {
+        "bottom": 583.734375,
+        "height": 25.5,
+        "left": 96,
+        "right": 778.4453125,
+        "top": 558.234375,
+        "width": 682.4453125,
+        "x": 96,
+        "y": 558.234375
+      },
+      "level": "2",
+      "text": "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+      "type": "heading"
+    },
+    "controls": [
+      {
+        "center": 568,
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 584,
+          "height": 32,
+          "left": 34,
+          "right": 66,
+          "top": 552,
+          "width": 32,
+          "x": 34,
+          "y": 552
+        }
+      },
+      {
+        "center": 568,
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 584,
+          "height": 32,
+          "left": 67,
+          "right": 91.6640625,
+          "top": 552,
+          "width": 24.6640625,
+          "x": 67,
+          "y": 552
+        }
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "initial",
+    "width": 1280,
+    "title": "Un titre de niveau trois",
+    "block": {
+      "center": 631.484375,
+      "firstLine": {
+        "bottom": 643.734375,
+        "height": 24.5,
+        "left": 96,
+        "right": 111.0546875,
+        "top": 619.234375,
+        "width": 15.0546875,
+        "x": 96,
+        "y": 619.234375
+      },
+      "inline": {
+        "bottom": 648.9296875,
+        "height": 31.1953125,
+        "left": 96,
+        "right": 314.7265625,
+        "top": 617.734375,
+        "width": 218.7265625,
+        "x": 96,
+        "y": 617.734375
+      },
+      "level": "3",
+      "text": "Un titre de niveau trois",
+      "type": "heading"
+    },
+    "controls": [
+      {
+        "center": 631,
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 647,
+          "height": 32,
+          "left": 34,
+          "right": 66,
+          "top": 615,
+          "width": 32,
+          "x": 34,
+          "y": 615
+        }
+      },
+      {
+        "center": 631,
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 647,
+          "height": 32,
+          "left": 67,
+          "right": 91.6640625,
+          "top": 615,
+          "width": 24.6640625,
+          "x": 67,
+          "y": 615
+        }
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "initial",
+    "width": 1280,
+    "title": "Un titre de niveau quatre",
+    "block": {
+      "center": 674.4296875,
+      "firstLine": {
+        "bottom": 684.4296875,
+        "height": 20,
+        "left": 96,
+        "right": 108.4296875,
+        "top": 664.4296875,
+        "width": 12.4296875,
+        "x": 96,
+        "y": 664.4296875
+      },
+      "inline": {
+        "bottom": 688.4296875,
+        "height": 25.5,
+        "left": 96,
+        "right": 293.890625,
+        "top": 662.9296875,
+        "width": 197.890625,
+        "x": 96,
+        "y": 662.9296875
+      },
+      "level": "4",
+      "text": "Un titre de niveau quatre",
+      "type": "heading"
+    },
+    "controls": [
+      {
+        "center": 674,
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 690,
+          "height": 32,
+          "left": 34,
+          "right": 66,
+          "top": 658,
+          "width": 32,
+          "x": 34,
+          "y": 658
+        }
+      },
+      {
+        "center": 674,
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 690,
+          "height": 32,
+          "left": 67,
+          "right": 91.6640625,
+          "top": 658,
+          "width": 24.6640625,
+          "x": 67,
+          "y": 658
+        }
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "initial",
+    "width": 1280,
+    "title": "",
+    "block": {
+      "center": 724.6296875,
+      "inline": {
+        "bottom": 739.9296875,
+        "height": 25.5,
+        "left": 96,
+        "right": 98,
+        "top": 714.4296875,
+        "width": 2,
+        "x": 96,
+        "y": 714.4296875
+      },
+      "level": "2",
+      "text": "",
+      "type": "heading"
+    },
+    "controls": [
+      {
+        "center": 725,
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 741,
+          "height": 32,
+          "left": 34,
+          "right": 66,
+          "top": 709,
+          "width": 32,
+          "x": 34,
+          "y": 709
+        }
+      },
+      {
+        "center": 725,
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 741,
+          "height": 32,
+          "left": 67,
+          "right": 91.6640625,
+          "top": 709,
+          "width": 24.6640625,
+          "x": 67,
+          "y": 709
+        }
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "dark",
+    "width": 1280,
+    "title": "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+    "block": {
+      "center": 568.234375,
+      "firstLine": {
+        "bottom": 578.234375,
+        "height": 20,
+        "left": 96,
+        "right": 108.015625,
+        "top": 558.234375,
+        "width": 12.015625,
+        "x": 96,
+        "y": 558.234375
+      },
+      "inline": {
+        "bottom": 583.734375,
+        "height": 25.5,
+        "left": 96,
+        "right": 778.4453125,
+        "top": 558.234375,
+        "width": 682.4453125,
+        "x": 96,
+        "y": 558.234375
+      },
+      "level": "2",
+      "text": "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+      "type": "heading"
+    },
+    "controls": [
+      {
+        "center": 568,
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 584,
+          "height": 32,
+          "left": 34,
+          "right": 66,
+          "top": 552,
+          "width": 32,
+          "x": 34,
+          "y": 552
+        }
+      },
+      {
+        "center": 568,
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 584,
+          "height": 32,
+          "left": 67,
+          "right": 91.6640625,
+          "top": 552,
+          "width": 24.6640625,
+          "x": 67,
+          "y": 552
+        }
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "dark",
+    "width": 320,
+    "title": "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+    "block": {
+      "center": 536.328125,
+      "firstLine": {
+        "bottom": 546.328125,
+        "height": 20,
+        "left": 40,
+        "right": 52.015625,
+        "top": 526.328125,
+        "width": 12.015625,
+        "x": 40,
+        "y": 526.328125
+      },
+      "inline": {
+        "bottom": 607.921875,
+        "height": 81.59375,
+        "left": 40,
+        "right": 296,
+        "top": 526.328125,
+        "width": 256,
+        "x": 40,
+        "y": 526.328125
+      },
+      "level": "2",
+      "text": "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+      "type": "heading"
+    },
+    "controls": [
+      {
+        "center": 536.09375,
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 552.09375,
+          "height": 32,
+          "left": -22,
+          "right": 10,
+          "top": 520.09375,
+          "width": 32,
+          "x": -22,
+          "y": 520.09375
+        }
+      },
+      {
+        "center": 536.09375,
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 552.09375,
+          "height": 32,
+          "left": 11,
+          "right": 35.6640625,
+          "top": 520.09375,
+          "width": 24.6640625,
+          "x": 11,
+          "y": 520.09375
+        }
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "light",
+    "width": 1280,
+    "title": "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+    "block": {
+      "center": 568.234375,
+      "firstLine": {
+        "bottom": 578.234375,
+        "height": 20,
+        "left": 96,
+        "right": 108.015625,
+        "top": 558.234375,
+        "width": 12.015625,
+        "x": 96,
+        "y": 558.234375
+      },
+      "inline": {
+        "bottom": 583.734375,
+        "height": 25.5,
+        "left": 96,
+        "right": 778.4453125,
+        "top": 558.234375,
+        "width": 682.4453125,
+        "x": 96,
+        "y": 558.234375
+      },
+      "level": "2",
+      "text": "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+      "type": "heading"
+    },
+    "controls": [
+      {
+        "center": 568,
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 584,
+          "height": 32,
+          "left": 34,
+          "right": 66,
+          "top": 552,
+          "width": 32,
+          "x": 34,
+          "y": 552
+        }
+      },
+      {
+        "center": 568,
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 584,
+          "height": 32,
+          "left": 67,
+          "right": 91.6640625,
+          "top": 552,
+          "width": 24.6640625,
+          "x": 67,
+          "y": 552
+        }
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "light",
+    "width": 320,
+    "title": "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+    "block": {
+      "center": 536.328125,
+      "firstLine": {
+        "bottom": 546.328125,
+        "height": 20,
+        "left": 40,
+        "right": 52.015625,
+        "top": 526.328125,
+        "width": 12.015625,
+        "x": 40,
+        "y": 526.328125
+      },
+      "inline": {
+        "bottom": 607.921875,
+        "height": 81.59375,
+        "left": 40,
+        "right": 296,
+        "top": 526.328125,
+        "width": 256,
+        "x": 40,
+        "y": 526.328125
+      },
+      "level": "2",
+      "text": "Un titre de niveau deux suffisamment long pour vérifier l’alignement sur sa première ligne",
+      "type": "heading"
+    },
+    "controls": [
+      {
+        "center": 536.09375,
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 552.09375,
+          "height": 32,
+          "left": -22,
+          "right": 10,
+          "top": 520.09375,
+          "width": 32,
+          "x": -22,
+          "y": 520.09375
+        }
+      },
+      {
+        "center": 536.09375,
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 552.09375,
+          "height": 32,
+          "left": 11,
+          "right": 35.6640625,
+          "top": 520.09375,
+          "width": 24.6640625,
+          "x": 11,
+          "y": 520.09375
+        }
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "light",
+    "width": 1280,
+    "touch": true,
+    "title": "Un titre de niveau quatre",
+    "block": {
+      "center": 674.4296875,
+      "firstLine": {
+        "bottom": 684.4296875,
+        "height": 20,
+        "left": 96,
+        "right": 108.4296875,
+        "top": 664.4296875,
+        "width": 12.4296875,
+        "x": 96,
+        "y": 664.4296875
+      },
+      "inline": {
+        "bottom": 688.4296875,
+        "height": 25.5,
+        "left": 96,
+        "right": 293.890625,
+        "top": 662.9296875,
+        "width": 197.890625,
+        "x": 96,
+        "y": 662.9296875
+      },
+      "level": "4",
+      "text": "Un titre de niveau quatre",
+      "type": "heading"
+    },
+    "controls": [
+      {
+        "center": 674,
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 696,
+          "height": 44,
+          "left": 10,
+          "right": 54,
+          "top": 652,
+          "width": 44,
+          "x": 10,
+          "y": 652
+        }
+      },
+      {
+        "center": 674,
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 696,
+          "height": 44,
+          "left": 55,
+          "right": 91.6640625,
+          "top": 652,
+          "width": 36.6640625,
+          "x": 55,
+          "y": 652
+        }
+      }
+    ],
+    "overflow": false
+  }
+]

@@ -1,3 +1,4 @@
+import { Section } from "../../ui/primitives/index.ts";
 /**
  * Explicit per-mutation feedback (T076, US4, FR-018/FR-043).
  *
@@ -52,9 +53,9 @@ function isConflict(row: ConflictRecordRow): boolean {
 }
 
 const QUEUE_HINTS: Record<QueueState, string> = {
-  pending: "saved locally, awaiting submission",
-  sending: "in flight",
-  retrying: "recovered after an interrupted attempt, will submit again",
+  pending: "enregistré sur cet appareil, en attente d’envoi",
+  sending: "envoi en cours",
+  retrying: "repris après une tentative interrompue, sera renvoyé",
 };
 
 export function MutationStatus({ service }: { readonly service: LocalContentService }) {
@@ -75,7 +76,7 @@ export function MutationStatus({ service }: { readonly service: LocalContentServ
   if (queued.length === 0 && conflicts.length === 0) {
     return (
       <p className="muted" data-testid="mutation-status-empty">
-        All local changes are accepted.
+        Tous les changements locaux sont acceptés.
       </p>
     );
   }
@@ -84,20 +85,26 @@ export function MutationStatus({ service }: { readonly service: LocalContentServ
   const rejected = conflicts.filter((row) => !isConflict(row));
 
   return (
-    <section className="panel" aria-label="Local change queue" data-testid="mutation-status">
-      <h2>Local changes</h2>
+    <Section aria-label="Changements locaux" data-testid="mutation-status">
+      <h2>Changements locaux</h2>
       {queued.length > 0 ? (
-        <ul className="tree" data-testid="pending-mutations">
+        <ul className="mutation-status__list" data-testid="pending-mutations">
           {queued.map((row) => {
             const state = queueStateOf(row);
             return (
-              <li key={row.mutationId} className="tree-row" data-mutation-state={state}>
-                <span className="tree-kind">{state}</span>
-                <span className="tree-name">{row.commandType}</span>
+              <li key={row.mutationId} data-mutation-state={state}>
+                <span className="mutation-status__state">
+                  {state === "pending"
+                    ? "En attente"
+                    : state === "sending"
+                      ? "Envoi"
+                      : "Nouvelle tentative"}
+                </span>
+                <span className="mutation-status__command">{row.commandType}</span>
                 <span className="muted">
-                  {QUEUE_HINTS[state]} — queued {new Date(row.createdAt).toLocaleTimeString()}
+                  {QUEUE_HINTS[state]} — ajouté le {new Date(row.createdAt).toLocaleTimeString()}
                   {row.lastAttemptAt !== null
-                    ? `, last attempt ${new Date(row.lastAttemptAt).toLocaleTimeString()}`
+                    ? `, dernière tentative le ${new Date(row.lastAttemptAt).toLocaleTimeString()}`
                     : ""}
                 </span>
               </li>
@@ -109,12 +116,13 @@ export function MutationStatus({ service }: { readonly service: LocalContentServ
         <ul className="tree" data-testid="conflict-records">
           {unresolved.map((row) => (
             <li key={row.mutationId} className="tree-row" data-mutation-state="conflict">
-              <span className="tree-kind">conflict</span>
+              <span className="tree-kind">Décision attendue</span>
               <span className="tree-name">{row.commandType}</span>
               <span className="muted" data-testid={`conflict-${row.mutationId}`}>
-                {row.errorCode} — local work kept safe with {row.competingRevisionIds.length}{" "}
-                competing revision
-                {row.competingRevisionIds.length > 1 ? "s" : ""}
+                {row.errorCode} — travail local conservé, {row.competingRevisionIds.length}{" "}
+                {row.competingRevisionIds.length > 1
+                  ? "versions concurrentes"
+                  : "version concurrente"}
               </span>
             </li>
           ))}
@@ -124,16 +132,16 @@ export function MutationStatus({ service }: { readonly service: LocalContentServ
         <ul className="tree" data-testid="rejected-mutations">
           {rejected.map((row) => (
             <li key={row.mutationId} className="tree-row" data-mutation-state="rejected">
-              <span className="tree-kind">rejected</span>
+              <span className="tree-kind">Refusé</span>
               <span className="tree-name">{row.commandType}</span>
               <span className="muted" data-testid={`rejected-${row.mutationId}`}>
-                {row.errorCode} — the server refused this change; it is kept locally and will not be
-                resubmitted as-is
+                {row.errorCode} — le serveur a refusé ce changement. Il reste conservé localement et
+                ne sera pas renvoyé en l’état
               </span>
             </li>
           ))}
         </ul>
       ) : null}
-    </section>
+    </Section>
   );
 }

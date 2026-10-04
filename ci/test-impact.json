@@ -301,7 +301,10 @@
       "owners": {
         "exact": [
           "apps/api/src/routes/backups.ts",
+          "apps/web/src/features/hierarchy/hierarchy-explorer.tsx",
+          "apps/web/src/features/workspace/workspace.css",
           "apps/web/src/services/security-api.ts",
+          "apps/web/src/ui/tokens.css",
           "packages/database/src/repositories/backup-repository.ts"
         ],
         "prefixes": [
@@ -383,6 +386,25 @@
           "apps/web/src/features/connection/",
           "apps/api/src/security/cookie-",
           "apps/api/src/security/csrf"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/databases-pages-views.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/databases.ts",
+          "apps/web/src/services/local-content.ts",
+          "packages/domain/src/content/hierarchy.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/"
         ],
         "suffixes": []
       }
@@ -535,6 +557,20 @@
         "exact": [],
         "prefixes": [
           "apps/web/src/features/editor/",
+          "packages/domain/src/document/",
+          "packages/page-state/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/editor-suggestion-menu.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/global.css", "apps/web/src/main.tsx"],
+        "prefixes": [
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/workspace/",
+          "apps/web/src/ui/",
           "packages/domain/src/document/",
           "packages/page-state/"
         ],
@@ -1221,6 +1257,18 @@
           "apps/web/src/features/update/desktop-update-panel.tsx"
         ],
         "prefixes": ["apps/desktop/src/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/database-entry-properties.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/ui/stable-action-button.tsx"],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/",
+          "apps/api/src/databases/"
+        ],
         "suffixes": []
       }
     },

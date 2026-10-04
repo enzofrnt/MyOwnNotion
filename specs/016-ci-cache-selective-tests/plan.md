@@ -8,7 +8,9 @@
 Introduce a deterministic, fail-closed impact planner that turns a CI event and
 an exact Git change set into explicit Vitest and Playwright selections. Pull
 requests may use the affected selection; trusted pushes, releases, manual runs,
-and the local pre-push gate remain full. Add reusable dependency, browser, and
+and explicit complete local gates remain full. Local pre-push selection follows
+the governing impact policy in development.md; a documentation-only follow-up
+does not run the application corpus. Add reusable dependency, browser, and
 BuildKit caches whose keys include every compatibility input and whose trust
 scopes prevent pull requests from feeding trusted publication runs. Required
 jobs remain visible and successful when no test is selected.
@@ -41,7 +43,7 @@ browser/viewport projects, and two production images
 |-----------|------|--------|
 | I. User Ownership and Local Resilience | CI selection changes no product data or offline behavior; the complete local gate remains available. | PASS |
 | II. One Spec, Any Agent | Feature 016 is the canonical directory and identifies the governing product-canvas sections. | PASS |
-| III. Incremental, Verifiable Delivery | Selection logic has contract tests; conservative fallbacks and full trusted/local gates detect mapping drift. | PASS |
+| III. Incremental, Verifiable Delivery | Selection logic has contract tests; conservative fallbacks, full trusted gates and complete local checks when impact requires them detect mapping drift. | PASS |
 | IV. Privacy and Security by Default | Untrusted PR caches are isolated from trusted main/release scopes, contain no secrets, and fail closed. | PASS |
 | V. Simple, Modular Architecture | One declarative policy and two existing CI scripts provide selection without another service or runtime dependency. | PASS |
 | VI. Accessible and Predictable Experience | Required jobs never disappear, summaries explain every selection, and performance budgets remain measurable without instrumentation. | PASS |
@@ -115,8 +117,10 @@ logic in YAML.
    imports cannot fully represent.
 5. Represent empty selections as successful no-op executions in required jobs.
    This preserves branch protection and makes the optimization observable.
-6. Restrict selective execution to pull requests. Main, release, manual, and
-   local pre-push gates are full drift detectors and safety nets.
+6. Restrict the automated planner's selective execution to pull requests. Main,
+   release, manual and explicit complete local gates remain full drift detectors.
+   Local targeted validation is selected by impact under Constitution 4.0.0;
+   this documentary rule does not change the planner or `checks:local` script.
 7. Cancel superseded pull-request runs using a stable PR concurrency group;
    trusted runs are not canceled by unrelated refs.
 

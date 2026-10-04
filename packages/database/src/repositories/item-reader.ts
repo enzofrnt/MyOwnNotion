@@ -4,14 +4,14 @@
  * OpenAPI `Item` schema.
  */
 
-import type { Uuid } from "@myownnotion/domain";
+import type { ItemKind, Uuid } from "@myownnotion/domain";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import { items, logicalFiles, pageDocuments, placements } from "../schema/index.ts";
 
 export interface ItemReadModel {
   readonly id: Uuid;
-  readonly kind: "page" | "folder" | "file";
+  readonly kind: ItemKind;
   readonly name: string;
   readonly icon: string | null;
   readonly lifecycle: "active" | "trashed" | "purged";

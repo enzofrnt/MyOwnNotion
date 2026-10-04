@@ -1,0 +1,37 @@
+/* Owner: ui/base.css. See docs/design/ui-system.md before extending. */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  /* A fixed layout floor keeps 200% text zoom from turning 20rem into 640px. */
+  min-width: 320px;
+  background: var(--ui-color-canvas);
+  accent-color: var(--ui-color-accent);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--ui-color-canvas);
+  color: var(--ui-color-text);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-text-md);
+  line-height: var(--ui-leading-normal);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  color: var(--ui-color-text);
+  background: color-mix(in srgb, var(--ui-color-surface-active) 85%, transparent);
+}
+
+/* Native controls inherit typography; their appearance belongs to a primitive or compatibility. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}

@@ -5,6 +5,14 @@ description: "Implementation tasks for CI cache and selective test execution"
 
 # Tasks: CI Cache and Selective Tests
 
+**Current local policy — 2026-10-04**: Constitution 4.0.0 and
+`docs/development.md` select pre-push checks by actual impact. Documentation-only
+follow-ups reuse validated executable evidence and run document checks only;
+bounded code changes run targeted checks, and broad/uncertain changes run the
+complete gate. Earlier completed tasks retain their historical full-run evidence.
+The explicit `checks:local` command and the PR planner still execute their
+existing complete/affected contracts.
+
 **Input**: Design documents from `/specs/016-ci-cache-selective-tests/`
 
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`,
@@ -194,3 +202,7 @@ obsolete PR run continues consuming runners.
 - [x] T032 Extend the impact-plan schema and workflow/selection contract tests for performance full, affected, direct, and no-op behavior.
 - [x] T033 Stabilize the WebKit session-reload and offline catch-up journeys from retained traces without increasing timeouts or accepting flaky retries.
 - [x] T034 Run targeted contract, performance, WebKit, and Chromium-mobile regressions, then the exact complete pre-push gate and append the evidence to `validation.md`.
+
+## Governance maintenance — 2026-10-04
+
+- [x] T035 Align FR-018/020, plan and quickstart with Constitution 4.0.0 and the owner's impact-based local validation policy; retain the existing planner/full-command behavior and verify documents without application suites. Evidence: 033 verification, section “Validation proportionnée et publication documentaire”.

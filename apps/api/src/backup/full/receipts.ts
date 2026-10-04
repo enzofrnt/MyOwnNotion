@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { mkdir, open, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { isUuid } from "@myownnotion/domain";
+import { isCanonicalTimestamp as date, isUuid } from "@myownnotion/domain";
 import { open as decrypt, seal } from "@myownnotion/domain/security";
 
 import { authenticateWithBackupKeys } from "./read-keys.ts";
@@ -34,10 +34,7 @@ export function fullArchiveName(backupId: string): string {
 function receipt(value: unknown): FullBackupReceipt {
   if (value === null || typeof value !== "object") throw new Error("Invalid full-backup receipt.");
   const row = value as Record<string, unknown>;
-  const date = (value: unknown) =>
-    typeof value === "string" &&
-    Number.isFinite(Date.parse(value)) &&
-    new Date(value).toISOString() === value;
+
   if (
     row["formatVersion"] !== 1 ||
     !isUuid(row["backupId"]) ||

@@ -14,6 +14,7 @@ import {
 import { calloutBlockSpec } from "./custom-blocks/callout.tsx";
 import { codeBlockSpec } from "./custom-blocks/code-block.tsx";
 import { embedBlockSpec } from "./custom-blocks/embed.tsx";
+import { databaseViewBlockSpec } from "./custom-blocks/embedded-database-block.tsx";
 import { fileEmbedBlockSpec } from "./custom-blocks/file-embed.tsx";
 import { imageBlockSpec } from "./custom-blocks/image.tsx";
 import { tableBlockSpec, tableCellBlockSpec, tableRowBlockSpec } from "./custom-blocks/table.tsx";
@@ -30,7 +31,7 @@ type NonToggleHeadingProps = Omit<
 // when toggles are disabled. Removing that impossible key makes the concrete
 // community schema compatible with `exactOptionalPropertyTypes`.
 const headingBlockSpec = createHeadingBlockSpec({
-  levels: [1, 2, 3],
+  levels: [1, 2, 3, 4],
   allowToggleHeadings: false,
 }) as unknown as BlockSpec<"heading", NonToggleHeadingProps, "inline">;
 
@@ -61,6 +62,7 @@ export const blockNoteSchema = BlockNoteSchema.create({
     image: imageBlockSpec(),
     fileEmbed: fileEmbedBlockSpec(),
     embed: embedBlockSpec(),
+    databaseView: databaseViewBlockSpec(),
     unknown: unknownBlockSpec(),
   },
   inlineContentSpecs: {
@@ -90,7 +92,15 @@ interface OpaqueEditorPartialBlock {
 
 interface RichEditorBlock {
   readonly id: string;
-  readonly type: "callout" | "table" | "tableRow" | "tableCell" | "image" | "fileEmbed" | "embed";
+  readonly type:
+    | "callout"
+    | "table"
+    | "tableRow"
+    | "tableCell"
+    | "image"
+    | "fileEmbed"
+    | "embed"
+    | "databaseView";
   readonly props: Record<string, boolean | number | string | undefined>;
   readonly content: unknown;
   readonly children: readonly EditorBlock[];

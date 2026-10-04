@@ -80,7 +80,7 @@ describe("page title editor", () => {
     expect(disconnect).toHaveBeenCalledOnce();
   });
 
-  it("is the first large editable line and commits an empty draft as Sans titre", async () => {
+  it("is the first large editable line and commits an empty draft as Nouvelle page", async () => {
     const onCommit = vi.fn(async () => undefined);
     await act(async () => {
       root.render(<PageTitleEditor title="Projet Atlas" onCommit={onCommit} />);
@@ -97,7 +97,7 @@ describe("page title editor", () => {
       title.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
     });
 
-    expect(onCommit).toHaveBeenCalledWith("Sans titre");
+    expect(onCommit).toHaveBeenCalledWith("Nouvelle page");
   });
 
   it("captures a replacement input before an immediate Enter commit", async () => {
@@ -136,6 +136,26 @@ describe("page title editor", () => {
     expect(onDraftStateChange).toHaveBeenCalledWith("Titre immédiat", true);
     expect(onCommit).toHaveBeenCalledWith("Titre immédiat");
     expect(title.value).toBe("Titre immédiat");
+  });
+
+  it("replaces the durable title when the blank creation draft arrives late", async () => {
+    const onCommit = vi.fn(async () => undefined);
+    await act(async () => {
+      root.render(<PageTitleEditor title="Sans titre" onCommit={onCommit} />);
+    });
+    const title = container.querySelector<HTMLTextAreaElement>('[data-testid="active-item-title"]');
+    if (title === null) throw new Error("title editor missing");
+    expect(title.value).toBe("Sans titre");
+
+    await act(async () => {
+      root.render(
+        <PageTitleEditor initialDraft="" restoreFocus title="Sans titre" onCommit={onCommit} />,
+      );
+    });
+
+    expect(title.value).toBe("");
+    expect(document.activeElement).toBe(title);
+    expect(onCommit).not.toHaveBeenCalled();
   });
 
   it("keeps a native replacement through a concurrent projection render", async () => {
@@ -295,8 +315,8 @@ describe("page title editor", () => {
       title.blur();
       await Promise.resolve();
     });
-    expect(onCommit).toHaveBeenCalledWith("Sans titre");
-    expect(title.value).toBe("Sans titre");
+    expect(onCommit).toHaveBeenCalledWith("Nouvelle page");
+    expect(title.value).toBe("Nouvelle page");
   });
 
   it("opens every newly created identity on one focused blank title", async () => {
@@ -335,7 +355,26 @@ describe("page title editor", () => {
     const title = container.querySelector('[data-testid="active-item-title"]');
     expect(kind?.textContent).toContain("Page");
     expect(kind?.querySelector('[data-icon="fileText"]')).not.toBeNull();
-    expect(title?.nextElementSibling?.querySelector('[data-testid="active-item-kind"]')).toBe(kind);
+    expect(
+      title
+        ?.closest(".workspace-page-title__body")
+        ?.lastElementChild?.querySelector('[data-testid="active-item-kind"]'),
+    ).toBe(kind);
+  });
+
+  it("hides page text lines on the kind caption until the body holds content", async () => {
+    await act(async () => {
+      root.render(
+        <PageTitleEditor
+          holdsContent={false}
+          title="Sans titre"
+          onCommit={async () => undefined}
+        />,
+      );
+    });
+    const kind = container.querySelector('[data-testid="active-item-kind"]');
+    expect(kind?.querySelector('[data-icon="file"]')).not.toBeNull();
+    expect(kind?.querySelector('[data-icon="fileText"]')).toBeNull();
   });
 
   it("pins folder create actions to the right of the centered kind caption", async () => {

@@ -1,3 +1,5 @@
+import { canonicalJson, findNulPath } from "@myownnotion/domain";
+import { decodePageOperationBytes as decoded } from "../page-state/page-operation-crypto.ts";
 /** Portable, verified operational page state carried inside a sealed backup. */
 
 import {
@@ -154,48 +156,12 @@ function encoded(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString("base64url");
 }
 
-function decoded(value: string): Uint8Array<ArrayBuffer> {
-  const source = Buffer.from(value, "base64url");
-  const bytes = new Uint8Array(new ArrayBuffer(source.byteLength));
-  bytes.set(source);
-  return bytes;
-}
-
 function archiveFrontier(frontier: ProtectedOperationalFrontier): ArchivedFrontier {
   return { versionVector: encoded(frontier.versionVector), frontiers: encoded(frontier.frontiers) };
 }
 
 function openArchivedFrontier(frontier: ArchivedFrontier): ProtectedOperationalFrontier {
   return { versionVector: decoded(frontier.versionVector), frontiers: decoded(frontier.frontiers) };
-}
-
-function findNulPath(value: unknown): string | null {
-  const pending: Array<{ readonly value: unknown; readonly path: string }> = [{ value, path: "$" }];
-  const visited = new WeakSet<object>();
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (current === undefined) continue;
-    if (typeof current.value === "string") {
-      if (current.value.includes("\u0000")) return current.path;
-      continue;
-    }
-    if (typeof current.value !== "object" || current.value === null) continue;
-    if (visited.has(current.value)) continue;
-    visited.add(current.value);
-    if (Array.isArray(current.value)) {
-      for (let index = current.value.length - 1; index >= 0; index -= 1) {
-        pending.push({ value: current.value[index], path: `${current.path}[${index}]` });
-      }
-      continue;
-    }
-    const entries = Object.entries(current.value);
-    for (let index = entries.length - 1; index >= 0; index -= 1) {
-      const [key, child] = entries[index] as [string, unknown];
-      if (key.includes("\u0000")) return `${current.path}.<object-key-with-U+0000>`;
-      pending.push({ value: child, path: `${current.path}.${key}` });
-    }
-  }
-  return null;
 }
 
 function rejectNul(value: unknown): void {
@@ -211,24 +177,13 @@ function mergeVersionVectorBytes(left: Uint8Array, right: Uint8Array): Uint8Arra
   return VersionVector.parseJSON(merged).encode();
 }
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value !== null && typeof value === "object") {
-    return `{${Object.keys(value as Record<string, unknown>)
-      .sort()
-      .map(
-        (key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`,
-      )
-      .join(",")}}`;
-  }
-  const serialized = JSON.stringify(value);
-  if (serialized === undefined) throw new TypeError("operational backup is not serializable");
-  return serialized;
-}
-
 export function pageOperationArchiveString(archive: PageOperationArchive): string {
   rejectNul(archive);
-  return canonicalJson(archive);
+  return canonicalJson(archive, (value) => {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) throw new TypeError("operational backup is not serializable");
+    return serialized;
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

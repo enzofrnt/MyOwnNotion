@@ -21,6 +21,20 @@
   color: var(--ui-color-text-muted);
 }
 
+.ui-lab__preview-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-4);
+  border-bottom: 1px solid var(--ui-color-border);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+
+.ui-lab__preview-navigation a {
+  color: var(--ui-color-text);
+}
+
 .ui-lab__eyebrow {
   color: var(--ui-color-accent);
   font-size: var(--ui-text-xs);
@@ -34,9 +48,20 @@
   border-top: 1px solid var(--ui-color-border);
 }
 
-.ui-lab__section h2 {
+.ui-lab__section > h2 {
   margin: 0 0 var(--ui-space-4);
   font-size: var(--ui-text-lg);
+}
+
+.ui-lab__attachment-navigation {
+  width: min(var(--workspace-sidebar-width, 16rem), 100%);
+  height: auto;
+  padding: var(--ui-space-1);
+}
+
+.ui-lab__attachment-navigation .workspace-attachment-panel h2 {
+  margin: 0;
+  font-size: var(--ui-text-xs);
 }
 
 .ui-lab__row {
@@ -70,6 +95,40 @@
   background: var(--ui-content-gray-soft);
   border: 1px solid var(--ui-content-gray);
   border-radius: var(--ui-radius-md);
+}
+
+.ui-lab__color-picker {
+  min-width: 0;
+  margin: var(--ui-space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.ui-lab__color-choice.ui-button {
+  position: relative;
+  flex: none;
+}
+
+.ui-lab__color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ui-lab__color-check {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 10px;
+  height: 10px;
+  color: var(--ui-color-text);
+}
+
+.ui-lab__color-selection {
+  margin: var(--ui-space-2) 0 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
 }
 
 .ui-lab__swatch[data-content-color="brown"] > span {
@@ -133,4 +192,36 @@
 
 .ui-lab__facts dd {
   margin: var(--ui-space-1) 0 0;
+}
+
+/* Layout only: the recipes use the actual feature styles, without a lab reskin. */
+.ui-lab__composition {
+  min-width: 0;
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+}
+
+.ui-lab__composition-title {
+  margin: 0 0 var(--ui-space-3);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+}
+
+.ui-lab__hint {
+  margin: 0 0 var(--ui-space-4);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+}
+
+.ui-lab__recipes {
+  margin-top: var(--ui-space-4);
+}
+
+.ui-lab__navigation-frame {
+  height: 8rem;
+}
+
+.ui-lab__view-preview {
+  min-height: 8rem;
 }

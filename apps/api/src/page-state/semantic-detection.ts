@@ -1,3 +1,4 @@
+import { canonicalBlockProperties as extractProps } from "@myownnotion/domain";
 /**
  * Server-side semantic deltas for accepted operational updates (T143).
  *
@@ -61,32 +62,6 @@ function flattenBlocks(blocks: readonly CanonicalBlockV3[], parent: Uuid | null)
     result.push(...flattenBlocks(nested ?? [], block.id));
   }
   return result;
-}
-
-function extractProps(block: CanonicalBlockV3): Record<string, unknown> {
-  switch (block.type) {
-    case "heading":
-      return { level: block.level };
-    case "checkbox":
-      return { checked: block.checked };
-    case "code":
-      return { language: block.language };
-    case "callout":
-      return { icon: block.icon, tone: block.tone };
-    case "image":
-      return {
-        fileItemId: block.fileItemId,
-        caption: block.caption,
-        altText: block.altText,
-        displayWidth: block.displayWidth,
-      };
-    case "fileEmbed":
-      return { fileItemId: block.fileItemId, caption: block.caption };
-    case "embed":
-      return { provider: block.provider, sourceUrl: block.sourceUrl, caption: block.caption };
-    default:
-      return {};
-  }
 }
 
 function placementOf(signature: BlockSignature): {

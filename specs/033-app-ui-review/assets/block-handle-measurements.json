@@ -1,0 +1,117 @@
+{
+  "desktopAndNarrow": [
+    {
+      "theme": "dark",
+      "width": 1280,
+      "button": {
+        "bottom": 382.5,
+        "height": 32,
+        "left": 67,
+        "right": 91.6640625,
+        "top": 350.5,
+        "width": 24.6640625,
+        "x": 67,
+        "y": 350.5
+      },
+      "documentOverflow": false,
+      "gap": 4.3359375,
+      "insets": {
+        "bottom": 7.818750000000023,
+        "left": 7.813541666666666,
+        "right": 7.821354166666666,
+        "top": 7.818750000000023
+      },
+      "touch": false
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "button": {
+        "bottom": 642.59375,
+        "height": 32,
+        "left": 11,
+        "right": 35.6640625,
+        "top": 610.59375,
+        "width": 24.6640625,
+        "x": 11,
+        "y": 610.59375
+      },
+      "documentOverflow": false,
+      "gap": 4.3359375,
+      "insets": {
+        "bottom": 7.818750000000023,
+        "left": 7.813541666666666,
+        "right": 7.821354166666666,
+        "top": 7.818750000000023
+      },
+      "touch": false
+    },
+    {
+      "theme": "light",
+      "width": 1280,
+      "button": {
+        "bottom": 382.5,
+        "height": 32,
+        "left": 67,
+        "right": 91.6640625,
+        "top": 350.5,
+        "width": 24.6640625,
+        "x": 67,
+        "y": 350.5
+      },
+      "documentOverflow": false,
+      "gap": 4.3359375,
+      "insets": {
+        "bottom": 7.818750000000023,
+        "left": 7.813541666666666,
+        "right": 7.821354166666666,
+        "top": 7.818750000000023
+      },
+      "touch": false
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "button": {
+        "bottom": 642.59375,
+        "height": 32,
+        "left": 11,
+        "right": 35.6640625,
+        "top": 610.59375,
+        "width": 24.6640625,
+        "x": 11,
+        "y": 610.59375
+      },
+      "documentOverflow": false,
+      "gap": 4.3359375,
+      "insets": {
+        "bottom": 7.818750000000023,
+        "left": 7.813541666666666,
+        "right": 7.821354166666666,
+        "top": 7.818750000000023
+      },
+      "touch": false
+    }
+  ],
+  "touch": {
+    "button": {
+      "bottom": 412.5,
+      "height": 44,
+      "left": 55,
+      "right": 91.6640625,
+      "top": 368.5,
+      "width": 36.6640625,
+      "x": 55,
+      "y": 368.5
+    },
+    "documentOverflow": false,
+    "gap": 4.3359375,
+    "insets": {
+      "bottom": 13.818750000000025,
+      "left": 13.813541666666666,
+      "right": 13.821354166666666,
+      "top": 13.818750000000025
+    },
+    "touch": true
+  }
+}

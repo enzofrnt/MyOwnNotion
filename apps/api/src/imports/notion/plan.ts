@@ -3,12 +3,14 @@ import {
   createInitialDatabaseDefinition,
   type DatabaseDefinition,
   type DatabaseProperty,
+  migrateDocumentV2ToV3,
   type NonRelationPropertyValue,
   normalizeCivilDate,
   normalizeDisplayName,
   readDocumentBody,
   type Uuid,
   validateDatabaseDefinition,
+  validatePageDocumentEnvelopeV3,
 } from "@myownnotion/domain";
 import { parse } from "csv-parse/sync";
 import {
@@ -420,6 +422,7 @@ export function planNotionImport(
       ],
     };
     const id = importId(jobId, `database:${source.key}`),
+      sourceId = importId(id, "source"),
       titlePropertyId = importId(id, "title"),
       initialViewId = importId(id, "view"),
       embeddingId = importId(id, "embedding");
@@ -433,7 +436,8 @@ export function planNotionImport(
         typeof source.view?.["name"] === "string"
           ? source.view["name"]
           : "Import — table par défaut",
-      placement: { id: embeddingId, parentItemId: null, positionKey: "a" },
+      sourceId,
+      placement: { id: embeddingId, parentItemId: source.host.id, positionKey: "a" },
     });
     const properties: DatabaseProperty[] = [...initial.properties];
     const fields = [...new Set(source.members.flatMap((page) => Object.keys(page.properties)))]
@@ -453,6 +457,7 @@ export function planNotionImport(
           representation: "database-membership",
         });
       page.databaseId = id;
+      page.parentId = id;
       page.values = {};
       page.relationTargets = {};
     }
@@ -572,30 +577,37 @@ export function planNotionImport(
       ...view,
       properties: displayedProperties(source.view),
     }));
-    const embeddings = displays.map((display, index) => ({
-      id: index === 0 ? embeddingId : importId(id, `embedding:${display.path}:${display.host.id}`),
-      hostPageId: display.host.id,
-      state: "active" as const,
-      views: views.map((view) => ({
-        ...view,
-        id: index === 0 ? initialViewId : importId(id, `view:${display.path}:${display.host.id}`),
-        name:
-          typeof display.view?.["name"] === "string"
-            ? display.view["name"]
-            : "Import — table par défaut",
-        properties: displayedProperties(display.view),
-      })),
-    }));
-    for (const display of displays) byPath.set(display.path, { id, kind: "base" });
     const definition: DatabaseDefinition = {
       ...initial,
       name: source.name,
       properties,
       views,
-      embeddings,
     };
+    const initialView = views[0];
+    if (initialView === undefined) throw new NotionImportError("import.invalid-definition");
+    const linkedDisplays = displays.slice(1).map((display) => {
+      const viewId = importId(id, `view:${display.path}:${display.host.id}`);
+      const name =
+        typeof display.view?.["name"] === "string"
+          ? display.view["name"]
+          : "Import — table par défaut";
+      return {
+        id: importId(id, `linked:${display.path}:${display.host.id}`),
+        hostPageId: display.host.id,
+        viewId,
+        name,
+        view: {
+          ...initialView,
+          id: viewId,
+          name,
+          properties: displayedProperties(display.view),
+        },
+      };
+    });
+    for (const display of displays) byPath.set(display.path, { id, kind: "base" });
     databases.push({
       id,
+      sourceId,
       path: source.path,
       name: source.name,
       hostPageId: source.host.id,
@@ -604,6 +616,7 @@ export function planNotionImport(
       embeddingId,
       definition,
       memberIds: source.members.map((page) => page.id),
+      linkedDisplays,
     });
     for (const [index, display] of displays.entries())
       report.databases.push({
@@ -612,7 +625,7 @@ export function planNotionImport(
         hostPageId: display.host.id,
         members: source.members.length,
         memberIds: source.members.map((page) => page.id),
-        embeddingId: embeddings[index]?.id ?? embeddingId,
+        embeddingId: index === 0 ? embeddingId : (linkedDisplays[index - 1]?.id ?? embeddingId),
         membershipReference: source.key,
         retained: display.view ? ["first-table-name", "first-table-property-order"] : [],
         presentation: display.view ? "exported-table" : "default-table",
@@ -669,7 +682,25 @@ export function planNotionImport(
       jobId,
       path: page.path,
       markdown: bodies.get(page.id) ?? "",
-      resolve: (target) => resolveLink(page.path, target),
+      resolve: (target) => {
+        const link = resolveLink(page.path, target);
+        if (link.kind !== "base" || link.id === null) return link;
+        const database = databases.find((candidate) => candidate.id === link.id);
+        if (database === undefined) return link;
+        const view =
+          database.hostPageId === page.id
+            ? { containerItemId: database.id, viewId: database.initialViewId }
+            : database.linkedDisplays.find((display) => display.hostPageId === page.id);
+        return view === undefined
+          ? link
+          : {
+              ...link,
+              databaseView:
+                "containerItemId" in view
+                  ? view
+                  : { containerItemId: view.id, viewId: view.viewId },
+            };
+      },
       issues,
       links: report.links,
     });
@@ -686,6 +717,41 @@ export function planNotionImport(
           name,
           representation: "preserved-metadata",
         });
+    }
+    const rawBlocks = page.document.body["blocks"] as Array<Record<string, unknown>>;
+    if (rawBlocks.some((block) => block["type"] === "databaseView")) {
+      // v2 validation knows no databaseView block. Preserve its ordinal slot
+      // while migrating the surrounding Markdown blocks, then restore it in v3.
+      const parsed = readDocumentBody({
+        blocks: rawBlocks.map((block) =>
+          block["type"] === "databaseView"
+            ? { type: "paragraph", id: block["id"], content: [] }
+            : block,
+        ),
+      });
+      if (parsed.kind !== "blocks" || !parsed.result.ok) {
+        // Preview must report malformed Markdown as a blocking issue. It must
+        // still return the rest of the import inventory to the user.
+        issues.push({ code: "import.invalid-document", sourcePath: page.path, blocking: true });
+        continue;
+      }
+      const migrated = migrateDocumentV2ToV3(parsed.result.document);
+      page.document = {
+        format: "myownnotion.document+json",
+        formatVersion: 3,
+        body: {
+          blocks: migrated.blocks.map((block, index) => {
+            const raw = rawBlocks[index];
+            if (raw?.["type"] !== "databaseView") return block;
+            return {
+              type: "databaseView",
+              id: raw["id"],
+              containerItemId: raw["containerItemId"],
+              viewId: raw["viewId"],
+            };
+          }),
+        },
+      };
     }
   }
   report.pages = pages.map((page) => ({
@@ -712,8 +778,14 @@ export function planNotionImport(
     issues: issues.length,
   };
   for (const page of pages) {
-    const parsed = readDocumentBody(page.document.body);
-    if (parsed.kind !== "blocks" || !parsed.result.ok)
+    const valid =
+      page.document.formatVersion === 3
+        ? validatePageDocumentEnvelopeV3(page.document).ok
+        : (() => {
+            const parsed = readDocumentBody(page.document.body);
+            return parsed.kind === "blocks" && parsed.result.ok;
+          })();
+    if (!valid)
       issues.push({ code: "import.invalid-document", sourcePath: page.path, blocking: true });
   }
   const invalidNamePaths = new Set<string>();

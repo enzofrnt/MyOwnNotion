@@ -49,7 +49,9 @@ export function PageAmbiguityNotice({
           <ul className="ambiguity-list">
             {records.map((record) => (
               <li key={record.ambiguityId}>
-                <button
+                <Button
+                  variant="ghost"
+                  size="compact"
                   type="button"
                   data-testid={`ambiguity-item-${record.ambiguityId}`}
                   aria-expanded={expandedId === record.ambiguityId}
@@ -60,7 +62,7 @@ export function PageAmbiguityNotice({
                   }
                 >
                   {KIND_LABELS[record.kind]}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -122,7 +124,7 @@ export function PageAmbiguityResolution({
         </Button>
         <Button
           type="button"
-          variant="ghost"
+          variant="danger"
           size="compact"
           disabled={busy || !deletable}
           title={deletable ? undefined : "Cette ambiguïté ne porte pas de suppression."}

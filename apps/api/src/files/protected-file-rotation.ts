@@ -9,6 +9,10 @@ import {
 } from "@myownnotion/database";
 import { and, eq, lt } from "drizzle-orm";
 import { lockFullFileMaintenance } from "../backup/full/locks.ts";
+import {
+  protectedChunkManifestEntry,
+  protectedChunksMatchManifest,
+} from "./protected-chunk-manifest.ts";
 import { queueProtectedFileGarbage } from "./protected-file-cleanup.ts";
 import {
   type ProtectedFileService,
@@ -51,20 +55,7 @@ export async function rotateProtectedFileBatch(
         : await new ProtectedUploadService(files).state(tx, upload);
   if (manifest === null) throw new ProtectedFileUnavailableError();
   const chunks = [...(await listProtectedFileChunks(tx, scope))];
-  if (
-    chunks.length !== manifest.chunks.length ||
-    chunks.some((chunk, index) => {
-      const trusted = manifest.chunks[index];
-      return (
-        trusted === undefined ||
-        trusted.index !== chunk.chunkIndex ||
-        trusted.storageKey !== chunk.storageKey ||
-        trusted.byteLength !== chunk.byteLength ||
-        trusted.keyGeneration !== chunk.keyGeneration ||
-        trusted.recordVersion !== chunk.recordVersion
-      );
-    })
-  )
+  if (!protectedChunksMatchManifest(chunks, manifest.chunks))
     throw new ProtectedFileUnavailableError();
   const nextVersion = manifest.recordVersion + 1;
   const store = files.chunkStore(tx);
@@ -104,13 +95,7 @@ export async function rotateProtectedFileBatch(
   await files.deps.content.writeFileManifest(tx, {
     ...manifest,
     recordVersion: nextVersion,
-    chunks: chunks.map((chunk) => ({
-      index: chunk.chunkIndex,
-      byteLength: chunk.byteLength,
-      storageKey: chunk.storageKey,
-      keyGeneration: chunk.keyGeneration,
-      recordVersion: chunk.recordVersion,
-    })),
+    chunks: chunks.map(protectedChunkManifestEntry),
   });
   if (object.kind === "content") {
     await tx

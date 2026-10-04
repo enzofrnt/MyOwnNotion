@@ -1,5 +1,29 @@
 <!--
 Sync Impact Report
+- Version change: 3.4.0 -> 4.0.0
+- Modified principles:
+  - III. Incremental, Verifiable Delivery -> local validation is selected from
+    the actual changes and their impact; unchanged validated executable inputs
+    may reuse their recorded evidence.
+  - VII. Reproducible Toolchains and Enforced Quality -> required checks remain
+    blocking, with application tests selected only when applicable.
+- Modified sections:
+  - Development Workflow and Quality Gates -> documentation-only follow-ups
+    require document checks, not another application test/build/container run.
+- Added sections: none
+- Removed sections: none
+- Aligned in the same change:
+  - `AGENTS.md` and `docs/development.md`
+  - `docs/product/product-canvas.md` sections 42 and 44; publication section 41
+    reviewed with its complete release validation retained
+  - directly affected artifacts in features 002, 016, 019 and 033
+- Shared templates reviewed: they do not mandate an unconditional local suite.
+- Follow-up TODOs: none
+- Rationale: MAJOR. The owner explicitly replaces the unconditional complete
+  local pre-push policy with impact-based validation. Product acceptance,
+  protected-branch CI and complete release validation remain mandatory.
+
+Previous report (3.3.0 -> 3.4.0)
 - Version change: 3.3.0 -> 3.4.0
 - Modified principles: none
 - Modified sections:
@@ -189,6 +213,17 @@ updated in the same change.
 
 Features MUST be divided into independently useful user stories that can be implemented and verified incrementally. Changed behavior MUST have automated tests at the appropriate level. Domain and backend behavior MUST be covered by focused unit, property, integration, or contract tests as appropriate. Every changed user-visible interactive flow MUST have a Playwright journey covering the relevant responsive viewport and browser behavior. A task is complete only when its acceptance criteria pass, relevant checks pass, and the shared task list reflects reality. A numeric coverage target MUST NOT be treated as a substitute for testing required behavior and failure paths.
 
+Local validation MUST be proportionate to the changes being published and their
+dependency impact. Focused checks MUST cover affected behavior and failure paths;
+the complete local gate MUST run for cross-cutting changes or when the affected
+scope cannot be established. Maintained prose and specification changes with no
+executable consumer MUST receive document and consistency checks, without running
+application tests, builds, image or container suites. A documentation-only
+follow-up MUST NOT repeat application validation solely because earlier commits
+on the branch contain code. Recorded successful checks MAY be reused when their
+executable inputs are unchanged; their validated commit and scope MUST remain
+identifiable. Known relevant failures MUST be resolved before publication.
+
 Every change MUST follow this delivery sequence: implementation on a dedicated
 branch, required local checks passing, branch push, pull request creation,
 pull-request CI passing, review, and merge. Continuous integration runs on pull
@@ -245,7 +280,7 @@ are forbidden. Every other first-party language introduced later MUST likewise
 use a pinned, reproducible toolchain and committed dependency lock where its
 ecosystem supports one.
 
-Every maintained first-party language MUST have a current formatter, linter or equivalent static analyzer, and automated tests appropriate to its role. Continuous integration MUST check formatting without modifying files, lint/static analysis, types where applicable, tests, migrations where applicable, and production builds. Continuous integration MUST execute on every pull request and on every push to `main`, and MUST NOT be required on the push of a work branch. Protected branches MUST reject pull-request merges while any required quality check fails or is missing. Generated or AI-authored code is held to the same gates as human-authored code.
+Every maintained first-party language MUST have a current formatter, linter or equivalent static analyzer, and automated tests appropriate to its role. Continuous integration MUST check formatting without modifying files, lint/static analysis, types where applicable, and the tests, migrations and production builds applicable to the change. Impact-based selection MUST be explicit and fall back to the complete affected corpus when scope is uncertain. Continuous integration MUST execute on every pull request and on every push to `main`, and MUST NOT be required on the push of a work branch. Protected branches MUST reject pull-request merges while any required quality check fails or is missing. Generated or AI-authored code is held to the same gates as human-authored code.
 
 Continuous integration MUST also validate the official Compose configuration,
 its documented environment-variable contract, a real stack startup, and
@@ -297,7 +332,7 @@ than letting documentation drift behind the code.
 3. Generate `tasks.md`; tasks MUST map back to user stories or supporting foundations.
 4. Run cross-artifact analysis before implementation and resolve high-impact inconsistencies.
 5. Implement in task order, keeping the checklist current and preserving independently testable increments.
-6. Run formatting checks, lint/static analysis, type checks, relevant automated tests, migration checks, Compose validation, and production builds locally before pushing.
+6. Classify the changes since the last validated publication (or the branch base for a first publication). Run document checks for documentation-only changes; otherwise run the formatting, static analysis, types, automated tests, migration, Compose and build checks required by their impact. Run the complete local gate for cross-cutting or uncertain executable impact. Record the selection and the validated commit; reuse earlier successful application evidence only when its executable inputs are unchanged.
 7. Push the feature branch. Continuous integration does not run on a work-branch push; opening the pull request is what executes the required quality gate.
 8. Open a pull request and require the same or stricter checks on the exact proposed merge commit. A pull request MUST NOT merge until every required check passes and review is complete.
 9. Run convergence after implementation; append and complete remaining tasks until code and artifacts agree.
@@ -315,4 +350,4 @@ product invariant MUST amend the constitution in the same change. Feature-level
 detail MUST remain in the relevant feature directory rather than being copied
 into the constitution.
 
-**Version**: 3.4.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-09-03
+**Version**: 4.0.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-10-04

@@ -8,4 +8,5 @@
 export * from "./document-text.ts";
 export * from "./normalise.ts";
 export * from "./search-index.ts";
+export * from "./snippet.ts";
 export * from "./types.ts";

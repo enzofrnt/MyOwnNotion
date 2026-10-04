@@ -106,6 +106,32 @@ describe("BlockNote changes → page commands", () => {
     ]);
   });
 
+  it("persists an inline database view in place of the slash paragraph", () => {
+    const before = paragraph(FIRST, "/base intégrée");
+    const after = {
+      id: FIRST,
+      type: "databaseView",
+      props: { containerItemId: SECOND, viewId: THIRD },
+      content: undefined,
+      children: [],
+    } as EditorBlock;
+
+    expect(
+      commandsFromBlockNoteChanges({
+        changes: [{ type: "update", block: after, prevBlock: before, source: { type: "local" } }],
+        document: [after],
+      }),
+    ).toEqual([
+      { type: "replace-text", blockId: FIRST, from: 0, to: 14, text: "" },
+      {
+        type: "set-block-type",
+        blockId: FIRST,
+        blockType: "databaseView",
+        properties: { containerItemId: SECOND, viewId: THIRD },
+      },
+    ]);
+  });
+
   it("translates a whole new table as one insert-block, never row-by-row", () => {
     // BlockNote announces a created table together with its rows and cells.
     // Re-translating those rows targeted a table the authority did not hold

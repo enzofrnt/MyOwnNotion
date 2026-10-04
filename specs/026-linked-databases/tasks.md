@@ -1,5 +1,10 @@
 # Tasks: Bases réutilisables intégrées
 
+> Évolution 029 : cette liste cochée reste la trace de la livraison 026. La
+> [refonte des bases](../029-database-pages-views/spec.md) remplace son modèle
+> de sources et d'entrées ; ses nouvelles tâches seront suivies uniquement
+> dans `specs/029-database-pages-views/tasks.md` après planification.
+
 ## Phase 1 — Spécification et fondations
 
 - [x] T001 Aligner le canevas et la 009 ; produire spec, plan et analyse de cohérence dans `specs/026-linked-databases/`.

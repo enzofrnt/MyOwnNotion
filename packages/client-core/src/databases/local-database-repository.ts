@@ -6,6 +6,7 @@ import type {
   SealedLocalDatabaseEntryRow,
   SealedLocalDatabaseRow,
 } from "../local-store/schema.ts";
+import { databaseEntryPairKey } from "../local-store/schema.ts";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 
 export interface LocalDatabaseCoverage {
@@ -36,32 +37,122 @@ export class LocalDatabaseRepository {
 
   async putDatabase(row: LocalDatabaseRow): Promise<void> {
     const sealed = await this.sealDatabase(row);
-    await this.db.transaction("rw", [this.db.databases], async () => {
+    await this.db.transaction("rw", [this.db.databases, this.db.databaseSources], async () => {
       await this.db.databases.put(sealed);
+      if (sealed.sourceId !== undefined) await this.db.databaseSources.put(sealed);
     });
   }
 
   async getDatabase(databaseId: Uuid): Promise<LocalDatabaseRow | null> {
-    const row = await this.db.databases.get(databaseId);
-    return row === undefined ? null : await this.#codec.openDatabase(row);
+    const container = await this.db.databases.get(databaseId);
+    if (container !== undefined) return await this.#codec.openDatabase(container);
+    const source = await this.db.databaseSources.get(databaseId);
+    if (source === undefined) return null;
+    const opened = await this.#codec.openDatabase(source);
+    const owner = await this.db.databases.get(opened.itemId);
+    if (owner === undefined) return opened;
+    const ownerOpened = await this.#codec.openDatabase(owner);
+    return {
+      ...opened,
+      ...(ownerOpened.presentation === undefined ? {} : { presentation: ownerOpened.presentation }),
+      ...(ownerOpened.presentationRevisionId === undefined
+        ? {}
+        : { presentationRevisionId: ownerOpened.presentationRevisionId }),
+      ...(ownerOpened.presentationVersion === undefined
+        ? {}
+        : { presentationVersion: ownerOpened.presentationVersion }),
+    };
   }
 
   async listDatabases(): Promise<LocalDatabaseRow[]> {
-    return Promise.all(
-      (await this.db.databases.toArray()).map((row) => this.#codec.openDatabase(row)),
-    );
+    const [containers, sources] = await Promise.all([
+      Promise.all((await this.db.databases.toArray()).map((row) => this.#codec.openDatabase(row))),
+      Promise.all(
+        (await this.db.databaseSources.toArray()).map((row) => this.#codec.openDatabase(row)),
+      ),
+    ]);
+    const merged = new Map<string, LocalDatabaseRow>();
+    for (const row of containers) merged.set(row.sourceId ?? row.itemId, row);
+    for (const row of sources) {
+      const key = row.sourceId ?? row.itemId;
+      const existing = merged.get(key);
+      const owner = containers.find((candidate) => candidate.itemId === row.itemId);
+      merged.set(key, {
+        ...row,
+        ...(existing?.presentation !== undefined
+          ? { presentation: existing.presentation }
+          : owner?.presentation !== undefined
+            ? { presentation: owner.presentation }
+            : {}),
+        ...(existing?.presentationRevisionId !== undefined
+          ? { presentationRevisionId: existing.presentationRevisionId }
+          : owner?.presentationRevisionId !== undefined
+            ? { presentationRevisionId: owner.presentationRevisionId }
+            : {}),
+        ...(existing?.presentationVersion !== undefined
+          ? { presentationVersion: existing.presentationVersion }
+          : owner?.presentationVersion !== undefined
+            ? { presentationVersion: owner.presentationVersion }
+            : {}),
+      });
+    }
+    return [...merged.values()];
+  }
+
+  async countOwnedSources(ownerItemId: Uuid): Promise<number> {
+    const stored = await this.db.databaseSources.where("itemId").equals(ownerItemId).count();
+    if (stored > 0) return stored;
+    const [item, container] = await Promise.all([
+      this.db.items.get(ownerItemId),
+      this.db.databases.get(ownerItemId),
+    ]);
+    return item?.kind === "database" && container !== undefined ? 1 : 0;
   }
 
   async putEntry(row: LocalDatabaseEntryRow): Promise<void> {
     const sealed = await this.sealEntry(row);
-    await this.db.transaction("rw", [this.db.databaseEntries], async () => {
-      await this.db.databaseEntries.put(sealed);
+    await this.db.transaction("rw", [this.db.databaseEntryPairs], async () => {
+      await this.db.databaseEntryPairs.put(sealed);
     });
   }
 
   async getEntry(entryId: Uuid): Promise<LocalDatabaseEntryRow | null> {
-    const row = await this.db.databaseEntries.get(entryId);
-    return row === undefined ? null : await this.#codec.openDatabaseEntry(row);
+    const placement = (await this.db.placements.where("itemId").equals(entryId).toArray()).find(
+      (candidate) => candidate.kind === "hierarchy" && candidate.parentItemId !== null,
+    );
+    const owner =
+      placement?.parentItemId === undefined || placement.parentItemId === null
+        ? undefined
+        : await this.db.items.get(placement.parentItemId);
+    const row =
+      placement?.parentItemId === undefined || placement.parentItemId === null
+        ? undefined
+        : await this.db.databaseEntryPairs.get(
+            databaseEntryPairKey(placement.parentItemId, entryId),
+          );
+    const entry = await this.db.items.get(entryId);
+    if (
+      owner?.lifecycle !== "active" ||
+      entry?.lifecycle !== "active" ||
+      (await this.db.databases.get(owner.id)) === undefined
+    )
+      return null;
+    if (row !== undefined) return await this.#codec.openDatabaseEntry(row);
+    return {
+      key: databaseEntryPairKey(owner.id, entryId),
+      entryItemId: entryId,
+      databaseId: owner.id,
+      valueVersion: 0,
+      availability: "present",
+      values: {
+        format: "myownnotion.database-entry-values+json",
+        formatVersion: 1,
+        databaseId: owner.id,
+        entryId,
+        values: {},
+        preserved: [],
+      },
+    };
   }
 
   /**
@@ -72,20 +163,57 @@ export class LocalDatabaseRepository {
    * or an ordinary page.
    */
   async classifyStructuredHost(itemId: Uuid): Promise<"database" | "entry" | "page"> {
-    const entry = await this.db.databaseEntries.get(itemId);
-    if (entry !== undefined) return "entry";
+    const placement = (await this.db.placements.where("itemId").equals(itemId).toArray()).find(
+      (candidate) => candidate.kind === "hierarchy" && candidate.parentItemId !== null,
+    );
+    if (
+      placement?.parentItemId !== undefined &&
+      placement.parentItemId !== null &&
+      (await this.db.databases.get(placement.parentItemId)) !== undefined
+    )
+      return "entry";
     return "page";
   }
 
   async listEntries(databaseId: Uuid): Promise<LocalDatabaseEntryRow[]> {
-    const rows = await this.db.databaseEntries.where("databaseId").equals(databaseId).toArray();
+    const placements = (
+      await this.db.placements.where("parentKey").equals(databaseId).toArray()
+    ).filter(
+      (placement) => placement.kind === "hierarchy" && placement.parentItemId === databaseId,
+    );
+    const items = await this.db.items.bulkGet(placements.map((placement) => placement.itemId));
     const opened: LocalDatabaseEntryRow[] = [];
-    for (let offset = 0; offset < rows.length; offset += 64)
-      opened.push(
-        ...(await Promise.all(
-          rows.slice(offset, offset + 64).map((row) => this.#codec.openDatabaseEntry(row)),
-        )),
+    for (const [index, placement] of placements.entries()) {
+      const item = items[index];
+      if (
+        item === undefined ||
+        item.lifecycle !== "active" ||
+        (item.kind !== "page" && item.kind !== "folder")
+      )
+        continue;
+      const row = await this.db.databaseEntryPairs.get(
+        databaseEntryPairKey(databaseId, placement.itemId),
       );
+      opened.push(
+        row === undefined
+          ? {
+              key: databaseEntryPairKey(databaseId, placement.itemId),
+              entryItemId: placement.itemId,
+              databaseId,
+              valueVersion: 0,
+              availability: "present",
+              values: {
+                format: "myownnotion.database-entry-values+json",
+                formatVersion: 1,
+                databaseId,
+                entryId: placement.itemId,
+                values: {},
+                preserved: [],
+              },
+            }
+          : await this.#codec.openDatabaseEntry(row),
+      );
+    }
     return opened;
   }
 
@@ -97,21 +225,36 @@ export class LocalDatabaseRepository {
    * across restart without storing a second private count.
    */
   async coverage(databaseId: Uuid, expectedCount?: number): Promise<LocalDatabaseCoverage> {
-    const [definition, host, entries] = await Promise.all([
+    const [definition, host, placements] = await Promise.all([
       this.db.databases.get(databaseId),
       this.db.items.get(databaseId),
-      this.db.databaseEntries.where("databaseId").equals(databaseId).toArray(),
+      this.db.placements.where("parentKey").equals(databaseId).toArray(),
     ]);
-    const expected = expectedCount ?? entries.length;
+    const direct = placements.filter(
+      (placement) => placement.kind === "hierarchy" && placement.parentItemId === databaseId,
+    );
+    const items = await this.db.items.bulkGet(direct.map((placement) => placement.itemId));
+    const activeIds = direct.flatMap((placement, index) => {
+      const item = items[index];
+      return item?.lifecycle === "active" && (item.kind === "page" || item.kind === "folder")
+        ? [placement.itemId]
+        : [];
+    });
+    const entries = await this.db.databaseEntryPairs.bulkGet(
+      activeIds.map((entryId) => databaseEntryPairKey(databaseId, entryId)),
+    );
+    const expected = expectedCount ?? activeIds.length;
     const availableCount = entries.filter(
-      ({ availability, sealedValues }) => availability === "present" && sealedValues !== null,
+      (entry) =>
+        entry === undefined || (entry.availability === "present" && entry.sealedValues !== null),
     ).length;
     const complete =
       definition !== undefined &&
-      entries.length === expected &&
+      activeIds.length === expected &&
       availableCount === expected &&
       entries.every(
-        ({ availability, sealedValues }) => availability === "present" && sealedValues !== null,
+        (entry) =>
+          entry === undefined || (entry.availability === "present" && entry.sealedValues !== null),
       );
     return {
       coverage: complete ? "complete" : "partial",
@@ -132,7 +275,15 @@ export class LocalDatabaseRepository {
    * Pinned bases and unsynchronized entry/database work are never released.
    */
   async offloadEntryValues(entryId: Uuid): Promise<boolean> {
-    const entry = await this.db.databaseEntries.get(entryId);
+    const placement = (await this.db.placements.where("itemId").equals(entryId).toArray()).find(
+      (candidate) => candidate.kind === "hierarchy" && candidate.parentItemId !== null,
+    );
+    const entry =
+      placement?.parentItemId === undefined || placement.parentItemId === null
+        ? undefined
+        : await this.db.databaseEntryPairs.get(
+            databaseEntryPairKey(placement.parentItemId, entryId),
+          );
     if (entry === undefined || entry.availability !== "present" || entry.sealedValues === null) {
       return false;
     }
@@ -140,7 +291,7 @@ export class LocalDatabaseRepository {
     if (host?.offlineIntent === true || (await this.#hasLocalWork(entry.databaseId, entryId))) {
       return false;
     }
-    await this.db.databaseEntries.update(entryId, {
+    await this.db.databaseEntryPairs.update(entry.key, {
       availability: "offloaded",
       sealedValues: null,
     });

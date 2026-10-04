@@ -1,0 +1,42 @@
+/* Owner: features/save-state/save-state.css. See docs/design/ui-system.md before extending. */
+/* ---------------------------------------------------------------------------
+   Save state (feature 003, US2)
+   ------------------------------------------------------------------------ */
+
+/* Four visually distinct states (SC-010). Colour is not the only difference —
+   the wording differs too — because an owner who cannot distinguish the colours
+   still needs to know whether their work is safe. */
+.save-state {
+  margin: 0.5rem 0;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid var(--ui-color-text-muted);
+  font-size: 0.85rem;
+}
+
+.save-state[data-state="saved"] {
+  border-left-color: var(--ui-color-success);
+  color: var(--ui-color-success);
+}
+
+.save-state[data-state="sending"] {
+  border-left-color: var(--ui-color-accent);
+  color: var(--ui-color-accent);
+}
+
+.save-state[data-state="unsaved"] {
+  border-left-color: var(--ui-color-warning);
+  color: var(--ui-color-warning);
+}
+
+.save-state[data-state="blocked"] {
+  border-left-color: var(--ui-color-danger);
+  color: var(--ui-color-danger);
+}
+
+/* The `pre`/`code` overflow floors that serve this section live beside the
+   editor's code-block rules (which they must not out-rank), earlier in this
+   file. */
+
+.connection-status {
+  margin-bottom: 1rem;
+}

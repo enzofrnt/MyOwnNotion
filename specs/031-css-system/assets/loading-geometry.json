@@ -1,0 +1,47 @@
+[
+  {
+    "state": "loading",
+    "button": {
+      "height": 32,
+      "width": 99.390625
+    },
+    "doc": 320,
+    "frame": {
+      "height": 128,
+      "top": 3396.1875
+    },
+    "next": 3557.1875,
+    "scroll": 2925,
+    "width": 320
+  },
+  {
+    "state": "content",
+    "button": {
+      "height": 32,
+      "width": 99.390625
+    },
+    "doc": 320,
+    "frame": {
+      "height": 128,
+      "top": 3396.1875
+    },
+    "next": 3557.1875,
+    "scroll": 2925,
+    "width": 320
+  },
+  {
+    "state": "loading-restored",
+    "button": {
+      "height": 32,
+      "width": 99.390625
+    },
+    "doc": 320,
+    "frame": {
+      "height": 128,
+      "top": 3396.1875
+    },
+    "next": 3557.1875,
+    "scroll": 2925,
+    "width": 320
+  }
+]

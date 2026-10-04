@@ -349,10 +349,7 @@ export class LocalContentService {
       quarantinedRecoveryCount: 0,
       storagePersisted: null,
     };
-    subscribeLocalKeyStorageCleared(async () => {
-      this.#keys.lock();
-      await this.#emitProjection({ kind: "clear" });
-    });
+    subscribeLocalKeyStorageCleared(() => this.lockLocalData());
   }
 
   configurePageOperationAuthorization(csrfToken: () => string | null): void {
@@ -1366,6 +1363,19 @@ export class LocalContentService {
    * ambiguities from one IndexedDB snapshot, so a second state decrypt here
    * would only delay the first paint.
    */
+  #publishDurablePageUpdate(
+    itemId: Uuid,
+    notice: DurablePageUpdateNotice,
+    channel: PageTabChannel | null,
+    reconciler: PageReconciler,
+  ): void {
+    channel?.publishUpdate(notice);
+    void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
+    // Fire-and-forget, after durable commit: pending derives from queues.
+    void this.#notify();
+    void reconciler.synchronize();
+  }
+
   async #openActivePageSession(
     itemId: Uuid,
     online: boolean,
@@ -1377,15 +1387,8 @@ export class LocalContentService {
       log: this.pageOperationLog,
       store: this.pageStateStore,
       online,
-      publishDurableUpdate: (notice: DurablePageUpdateNotice) => {
-        tabChannel?.publishUpdate(notice);
-        void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
-        // Derive pending from the durable queues. This callback is deliberately
-        // fire-and-forget; forcing the state before its IndexedDB reads finish
-        // can otherwise overwrite a newer server-confirmed `synced` state.
-        void this.#notify();
-        void reconciler.synchronize();
-      },
+      publishDurableUpdate: (notice: DurablePageUpdateNotice) =>
+        this.#publishDurablePageUpdate(itemId, notice, tabChannel, reconciler),
     });
     if (session === null) {
       return {
@@ -1483,12 +1486,8 @@ export class LocalContentService {
       // Backing for the in-place upgrade once the branch converts.
       activeStore: this.pageStateStore,
       online,
-      publishDurableUpdate: (notice: DurablePageUpdateNotice) => {
-        tabChannel?.publishUpdate(notice);
-        void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
-        void this.#notify();
-        void reconciler.synchronize();
-      },
+      publishDurableUpdate: (notice: DurablePageUpdateNotice) =>
+        this.#publishDurablePageUpdate(itemId, notice, tabChannel, reconciler),
       publishDurableBranch: () => {
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
         void this.#notify();
@@ -1564,11 +1563,21 @@ export class LocalContentService {
     return this.databases.getEntry(entryId);
   }
 
-  async previewTrashImpact(
-    _itemId: Uuid,
-  ): Promise<{ readonly isDatabase: boolean; readonly activeEntryCount: number }> {
+  async previewTrashImpact(itemId: Uuid): Promise<{
+    readonly isDatabase: boolean;
+    readonly activeEntryCount: number;
+    readonly ownedSourceCount: number;
+  }> {
     await this.#unlock();
-    return { isDatabase: false, activeEntryCount: 0 };
+    const item = await this.getItem(itemId);
+    if (item?.kind !== "database")
+      return { isDatabase: false, activeEntryCount: 0, ownedSourceCount: 0 };
+    const entries = await this.databases.listEntries(itemId);
+    return {
+      isDatabase: true,
+      activeEntryCount: entries.length,
+      ownedSourceCount: await this.databases.countOwnedSources(itemId),
+    };
   }
 
   async getDatabaseEntryRelations(databaseId: Uuid, entryIds: readonly Uuid[]) {

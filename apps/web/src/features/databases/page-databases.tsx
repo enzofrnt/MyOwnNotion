@@ -3,7 +3,6 @@ import type {
   DatabaseDto,
   DatabaseEntryDto,
   ReplaceDefinitionRequestDto,
-  ReplaceEntryValuesRequestDto,
 } from "@myownnotion/contracts";
 import {
   type DatabaseDefinition,
@@ -18,9 +17,10 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DatabaseViewService } from "../../services/databases.ts";
 import type { LocalContentService } from "../../services/local-content.ts";
-import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 import { DatabasePage, type DefinitionConfirmation } from "./database-page.tsx";
 import type { DatabaseCellUpdate } from "./table-view.tsx";
+import { updateDatabaseCell } from "./update-database-cell.ts";
 import type { RelationOption } from "./value-editor.tsx";
 
 interface Source {
@@ -54,6 +54,8 @@ async function readSource(
     entries.push({
       databaseId: row.itemId,
       entryId: item.id,
+      kind: item.kind === "folder" ? "folder" : "page",
+      icon: item.icon ?? null,
       revisionId: item.currentRevisionId,
       lifecycle: item.lifecycle,
       title: item.name,
@@ -129,37 +131,11 @@ function EmbeddedDatabase({
       }),
     [views, source.row.itemId],
   );
-  const updateEntry = async (entryId: Uuid, update: DatabaseCellUpdate): Promise<void> => {
-    const item = await service.getItem(entryId);
-    if (item === null) throw new Error("Cette entrée n'est pas disponible sur cet appareil.");
-    if (update.kind === "title") {
-      const result = await service.mutate("item.rename", { itemId: entryId, name: update.title }, [
-        item.currentRevisionId,
-      ]);
-      if (!result.ok) throw new Error(result.error.title);
-      return;
-    }
-    const entry = await service.getDatabaseEntry(entryId);
-    if (entry === null) throw new Error("Les valeurs de cette entrée ne sont pas disponibles.");
-    const values = { ...entry.values.values };
-    const relations = {
-      ...(await service.getDatabaseEntryRelationTargets(source.row.itemId, entryId)),
-    };
-    if (update.relationTargets !== undefined) {
-      relations[update.propertyId] = update.relationTargets;
-      delete values[update.propertyId];
-    } else {
-      delete relations[update.propertyId];
-      if (update.value === undefined) delete values[update.propertyId];
-      else values[update.propertyId] = update.value;
-    }
-    const result = await service.replaceDatabaseEntryValues(source.row.itemId, entryId, {
-      baseRevisionId: item.currentRevisionId,
-      values,
-      relationTargets: relations,
-    } as unknown as ReplaceEntryValuesRequestDto);
-    if (!result.ok) throw new Error(result.error.title);
-  };
+  const updateEntry = (entryId: Uuid, update: DatabaseCellUpdate): Promise<void> =>
+    updateDatabaseCell(service, source.row.itemId, entryId, update, {
+      missingItemMessage: "Cette entrée n'est pas disponible sur cet appareil.",
+      missingEntryMessage: "Les valeurs de cette entrée ne sont pas disponibles.",
+    });
   if (definition === null) return null;
   return (
     <section
@@ -210,13 +186,15 @@ function EmbeddedDatabase({
           )
         }
         onCreateEntry={async (title) => {
+          const id = generateUuidV7();
           const result = await service.createDatabaseEntry(source.row.itemId, {
-            id: generateUuidV7(),
+            id,
             title,
             values: {},
             relationTargets: {},
           });
           if (!result.ok) throw new Error(result.error.title);
+          return id;
         }}
         onOpenEntry={(entryId) =>
           onOpenEntry(
@@ -260,10 +238,6 @@ export function PageDatabases({
   readonly onReturnFocusRestored?: () => void;
 }) {
   const [sources, setSources] = useState<readonly Source[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [selectedSource, setSelectedSource] = useState("");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const views = useMemo(() => new DatabaseViewService(service), [service]);
   useEffect(() => () => views.dispose(), [views]);
@@ -312,19 +286,6 @@ export function PageDatabases({
       unsubscribe();
     };
   }, [service, hostPageId, active]);
-  const run = async (operation: () => Promise<void>): Promise<void> => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await operation();
-      setPickerOpen(false);
-    } catch {
-      setError("La base n'a pas pu être ajoutée. Votre saisie est conservée ; réessayez.");
-    } finally {
-      setBusy(false);
-    }
-  };
   if (!active) return null;
   return (
     <div className="page-databases">
@@ -349,96 +310,6 @@ export function PageDatabases({
             />
           )),
       )}
-      <Button
-        size="compact"
-        variant="ghost"
-        onClick={() => setPickerOpen((value) => !value)}
-        aria-expanded={pickerOpen}
-      >
-        Ajouter une base
-      </Button>
-      {pickerOpen ? (
-        <div className="database-source-picker">
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void run(async () => {
-                const source = sources.find((value) => value.row.itemId === selectedSource);
-                if (source === undefined) throw new Error("Select a source");
-                const template =
-                  databaseEmbeddings(source.row.definition).find(
-                    (value) => value.state === "active",
-                  )?.views ?? source.row.definition.views;
-                await replaceSource(service, source, {
-                  ...source.row.definition,
-                  embeddings: [
-                    ...databaseEmbeddings(source.row.definition),
-                    {
-                      id: generateUuidV7(),
-                      hostPageId,
-                      state: "active",
-                      views: template.map((view) => ({ ...view, id: generateUuidV7() })),
-                    },
-                  ],
-                });
-              });
-            }}
-          >
-            <label>
-              Base existante
-              <select
-                aria-label="Base existante"
-                value={selectedSource}
-                disabled={busy}
-                onChange={(event) => setSelectedSource(event.target.value)}
-              >
-                <option value="">Choisir une source</option>
-                {sources.map((source) => (
-                  <option key={source.row.itemId} value={source.row.itemId}>
-                    {source.database.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button type="submit" size="compact" disabled={busy || selectedSource === ""}>
-              Insérer cette base
-            </Button>
-          </form>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void run(async () => {
-                const result = await service.createDatabase({
-                  id: generateUuidV7(),
-                  name: name.trim(),
-                  hostPageId,
-                  placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
-                  titlePropertyId: generateUuidV7(),
-                  titlePropertyName: "Titre",
-                  initialViewId: generateUuidV7(),
-                  initialViewName: "Table",
-                });
-                if (!result.ok) throw new Error(result.error.title);
-                setName("");
-              });
-            }}
-          >
-            <Field
-              label="Nouvelle base"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              disabled={busy}
-              placeholder="Projets, lectures…"
-            />
-            <Button type="submit" size="compact" disabled={busy || name.trim() === ""}>
-              Créer et insérer
-            </Button>
-          </form>
-          <p className="muted">
-            Les entrées sont partagées. Les vues sont propres à chaque affichage.
-          </p>
-        </div>
-      ) : null}
       {error === null ? null : <AsyncState compact kind="error" description={error} />}
     </div>
   );

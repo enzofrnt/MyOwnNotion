@@ -10,17 +10,23 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "./fixtures.ts";
 import {
+  addDatabaseProperty,
+  chooseEntryOptions,
   closeMobileNavigation,
   convertItem,
+  createDatabaseView,
+  createRootDatabase,
   createRootItem,
+  databaseViewButton,
+  dropEditorFile,
   ensureNavigationRowVisible,
   ensureNavigationVisible,
+  entryTrigger,
   openAttachmentDetails,
   openItemActions,
   openNoteInformation,
   openPageAttachments,
   openRootCreation,
-  openRootDatabaseCreation,
   openSettingsSection,
   openWorkspace,
   openWorkspaceDiagnostics,
@@ -30,6 +36,7 @@ import {
   typeIntoEditor,
   uniqueName,
   waitForDatabaseDefinitionSaved,
+  waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -62,7 +69,9 @@ test.describe("accessibility (all viewports/browsers)", () => {
 
     // The page information control announces its own save state.
     await createRootItem(page, "page", uniqueName("A11yStatus"));
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByTestId("editor-sync-status")).toHaveAttribute("aria-live", "polite");
   });
 
@@ -159,8 +168,7 @@ test.describe("automated accessibility audit", () => {
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .analyze();
     return results.violations.filter(
-      (violation: { id: string; help: string; impact?: string | null | undefined }) =>
-        violation.impact === "critical" || violation.impact === "serious",
+      (violation) => violation.impact === "critical" || violation.impact === "serious",
     );
   }
 
@@ -169,8 +177,8 @@ test.describe("automated accessibility audit", () => {
     const found = await violations(page);
     expect(
       found.map(
-        (violation: { id: string; help: string; impact?: string | null | undefined }) =>
-          `${violation.id}: ${violation.help}`,
+        (violation) =>
+          `${violation.id}: ${violation.help} (${violation.nodes.map((node) => `${JSON.stringify(node.target)}: ${node.html}`).join("; ")})`,
       ),
     ).toEqual([]);
   });
@@ -181,13 +189,15 @@ test.describe("automated accessibility audit", () => {
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
     await selectItem(page, name);
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+      timeout: 30_000,
+    });
 
     const found = await violations(page);
     expect(
       found.map(
-        (violation: { id: string; help: string; impact?: string | null | undefined }) =>
-          `${violation.id}: ${violation.help}`,
+        (violation) =>
+          `${violation.id}: ${violation.help} (${violation.nodes.map((node) => `${JSON.stringify(node.target)}: ${node.html}`).join("; ")})`,
       ),
     ).toEqual([]);
   });
@@ -202,13 +212,15 @@ test.describe("automated accessibility audit", () => {
     const found = await violations(page);
     expect(
       found.map(
-        (violation: { id: string; help: string; impact?: string | null | undefined }) =>
-          `${violation.id}: ${violation.help}`,
+        (violation) =>
+          `${violation.id}: ${violation.help} (${violation.nodes.map((node) => `${JSON.stringify(node.target)}: ${node.html}`).join("; ")})`,
       ),
     ).toEqual([]);
   });
 
-  test("the conversion confirmation has no critical or serious violations", async ({ page }) => {
+  test("the conversion confirmation has no critical or serious violations", async ({
+    page,
+  }, testInfo) => {
     // Audited deliberately: a dialog is not on screen at load, so an audit that
     // only visits pages never sees it — and a destructive confirmation is
     // exactly where an owner using assistive technology must not be stranded.
@@ -224,13 +236,21 @@ test.describe("automated accessibility audit", () => {
     await convertItem(page, name);
     await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
 
-    const found = await violations(page);
-    expect(
-      found.map(
-        (violation: { id: string; help: string; impact?: string | null | undefined }) =>
-          `${violation.id}: ${violation.help}`,
-      ),
-    ).toEqual([]);
+    for (const state of ["open", "hover"] as const) {
+      await test.step(`audits the ${state} confirmation`, async () => {
+        if (state === "hover") await page.getByTestId("confirm-convert").hover();
+        const found = await violations(page);
+        expect(
+          found.map(
+            (violation) =>
+              `${violation.id}: ${violation.help} (${violation.nodes.map((node) => `${JSON.stringify(node.target)}: ${node.html}`).join("; ")})`,
+          ),
+        ).toEqual([]);
+      });
+    }
+    const path = testInfo.outputPath("conversion-confirmation-hover.png");
+    await page.getByTestId("convert-confirmation").screenshot({ path });
+    await testInfo.attach("conversion-confirmation-hover", { path, contentType: "image/png" });
   });
 
   test("the backup status and restoration invitation have no critical or serious violations", async ({
@@ -253,8 +273,8 @@ test.describe("automated accessibility audit", () => {
       const found = await violations(page);
       expect(
         found.map(
-          (violation: { id: string; help: string; impact?: string | null | undefined }) =>
-            `${violation.id}: ${violation.help}`,
+          (violation) =>
+            `${violation.id}: ${violation.help} (${violation.nodes.map((node) => `${JSON.stringify(node.target)}: ${node.html}`).join("; ")})`,
         ),
       ).toEqual([]);
     }
@@ -288,7 +308,7 @@ test.describe("the file surfaces (feature 005)", () => {
     await selectSettledPage(page, pageName);
     await openPageAttachments(page, pageName);
     const fileName = `${uniqueName("a11y")}.txt`;
-    await page.getByTestId("attachment-upload").setInputFiles({
+    await dropEditorFile(page, {
       name: fileName,
       mimeType: "text/plain",
       buffer: Buffer.from("bytes for the audit"),
@@ -391,59 +411,31 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await ensureNavigationVisible(page);
     const databaseName = uniqueName("Accessible planning");
     const entryName = uniqueName("Keyboard card");
-    await openRootDatabaseCreation(page);
-    const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-    await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-    const createDatabaseButton = createDatabase.getByRole("button", {
-      name: "Créer la base de données",
-    });
-    await createDatabaseButton.click();
-    await expect(createDatabase).toBeHidden({ timeout: 15_000 });
-    await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+    await createRootDatabase(page, databaseName);
     await waitForSynchronized(page);
 
-    const addProperty = async (name: string, type: "status" | "date"): Promise<void> => {
-      await page.getByRole("button", { name: "Ajouter une propriété" }).click();
-      const editor = page.getByRole("form", { name: "Éditeur de propriété" });
-      await editor.getByLabel("Nom").fill(name);
-      await editor.getByLabel("Type").selectOption(type);
-      if (type === "status") {
-        const options = editor.getByLabel("Options séparées par des virgules");
-        await options.fill("To do, Done");
-        await expect(options).toHaveValue("To do, Done");
-      }
-      await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
-      await expect(editor).toBeHidden({ timeout: 15_000 });
-      await waitForDatabaseDefinitionSaved(page);
-    };
-    await addProperty("Status", "status");
-    await addProperty("Due", "date");
+    await addDatabaseProperty(page, "Status", "select", ["To do", "Done"]);
+    await addDatabaseProperty(page, "Due", "date");
 
     const entryForm = page.locator(".database-entry-create");
-    await entryForm.getByLabel("Nouvelle entrée").fill(entryName);
-    await entryForm.getByRole("button", { name: "Nouvelle entrée" }).click();
-    const entryTrigger = page
-      .locator("[data-entry-trigger]")
-      .filter({ hasText: entryName })
-      .first();
-    await expect(entryTrigger).toBeVisible({ timeout: 15_000 });
-    await entryTrigger.click();
+    await entryForm.getByRole("button", { name: "Nouvelle page" }).click();
+    const titleEditor = page.locator(".database-cell-title-input");
+    await expect(titleEditor).toBeVisible({ timeout: 15_000 });
+    await titleEditor.fill(entryName);
+    await titleEditor.press("Enter");
+    const openEntryButton = entryTrigger(page, entryName);
+    await expect(openEntryButton).toBeVisible({ timeout: 15_000 });
+    await openEntryButton.click();
     const panel = page.locator(".entry-panel");
     const status = panel.getByLabel("Status", { exact: true });
-    await status.selectOption({ label: "To do" });
-    await expect(status.locator("option:checked")).toHaveText("To do");
+    await chooseEntryOptions(page, "Status", ["To do"]);
+    await expect(status).toContainText("To do");
     const due = panel.getByLabel("Due", { exact: true });
     const now = new Date();
     const currentMonthDate = `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, "0")}-15`;
     await due.fill(currentMonthDate);
     await expect(due).toHaveValue(currentMonthDate);
-    const saveProperties = panel.getByRole("button", { name: "Enregistrer les propriétés" });
-    await saveProperties.click();
-    await expect(page.getByTestId("entry-properties-saved")).toHaveText(
-      "Propriétés enregistrées localement.",
-      { timeout: 15_000 },
-    );
-    await waitForSynchronized(page);
+    await waitForEntryAutosave(page);
     await page.getByRole("button", { name: "Fermer l'entrée" }).click();
     await expect(panel).toBeHidden();
     // The entry projection can still refresh after its durable write is
@@ -452,36 +444,46 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await page.reload();
     await closeMobileNavigation(page);
     await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
-    await expect(entryTrigger).toBeVisible();
+    await expect(openEntryButton).toBeVisible();
     await expect(page.locator(".database-grid").getByText("To do", { exact: true })).toBeVisible();
     await waitForSynchronized(page);
 
     const createView = async (buttonName: string, tabName: RegExp): Promise<void> => {
-      await page.getByRole("button", { name: buttonName }).click();
-      const tab = page.getByRole("tab", { name: tabName });
+      await createDatabaseView(
+        page,
+        (
+          {
+            "Nouvelle vue liste": "Liste",
+            "Nouvelle vue Kanban": "Kanban",
+            "Nouvelle vue galerie": "Galerie",
+            "Nouvelle vue calendrier": "Calendrier",
+          } as Record<string, string>
+        )[buttonName] ?? buttonName,
+      );
+      const tab = databaseViewButton(page, tabName);
       await expect(tab).toBeVisible({ timeout: 15_000 });
-      await expect(tab).toHaveAttribute("aria-selected", "true");
+      await expect(tab).toHaveAttribute("aria-current", "page");
       await waitForDatabaseDefinitionSaved(page);
     };
-    await createView("Nouvelle vue liste", /Liste 2/);
-    await createView("Nouvelle vue Kanban", /Kanban 3/);
-    await createView("Nouvelle vue galerie", /Galerie 4/);
-    await createView("Nouvelle vue calendrier", /Calendrier 5/);
+    await createView("Nouvelle vue liste", /Liste/);
+    await createView("Nouvelle vue Kanban", /Kanban/);
+    await createView("Nouvelle vue galerie", /Galerie/);
+    await createView("Nouvelle vue calendrier", /Calendrier/);
 
-    for (const viewName of [/Tableau/, /Liste 2/, /Kanban 3/, /Galerie 4/, /Calendrier 5/]) {
-      const tab = page.getByRole("tab", { name: viewName });
+    for (const viewName of [/Tableau/, /Liste/, /Kanban/, /Galerie/, /Calendrier/]) {
+      const tab = databaseViewButton(page, viewName);
       await expect(tab).toBeVisible({ timeout: 15_000 });
       await tab.click();
-      await expect(tab).toHaveAttribute("aria-selected", "true");
+      await expect(tab).toHaveAttribute("aria-current", "page");
       expect(await seriousViolations(page)).toEqual([]);
     }
 
-    await page.getByRole("tab", { name: /Kanban 3/ }).click();
+    await databaseViewButton(page, /Kanban/).click();
     await expect(page.getByLabel(`Déplacer ${entryName} dans une autre colonne`)).toBeVisible();
     await expect(
       page.getByRole("button", { name: `Déplacer ${entryName} dans la colonne suivante` }),
     ).toBeVisible();
-    await page.getByRole("tab", { name: /Calendrier 5/ }).click();
+    await databaseViewButton(page, /Calendrier/).click();
     await expect(page.getByLabel(`Planifier ${entryName}`)).toBeVisible();
     await expect(
       page.getByRole("button", { name: `Déplacer ${entryName} au jour suivant` }),

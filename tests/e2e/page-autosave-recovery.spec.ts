@@ -25,7 +25,7 @@ test.describe("autosave under abrupt exit", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", name);
     await selectItem(page, name);
-    const editor = page.getByTestId("block-editor").locator(".ProseMirror");
+    const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await expect(editor).toBeVisible({ timeout: 30_000 });
     const beforeSequence = await editorChangeSequence(page);
     await editor.click();
@@ -42,9 +42,12 @@ test.describe("autosave under abrupt exit", () => {
 
     await openWorkspace(page);
     await selectItem(page, name);
-    await expect(page.getByTestId("block-editor")).toContainText("premier jet durable", {
-      timeout: 30_000,
-    });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "premier jet durable",
+      {
+        timeout: 30_000,
+      },
+    );
   });
 
   test("edits from a closed tab reappear when the workspace reopens", async ({ page, context }) => {
@@ -52,7 +55,7 @@ test.describe("autosave under abrupt exit", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", name);
     await selectItem(page, name);
-    const editor = page.getByTestId("block-editor").locator(".ProseMirror");
+    const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await expect(editor).toBeVisible({ timeout: 30_000 });
     const beforeSequence = await editorChangeSequence(page);
     await editor.click();
@@ -72,8 +75,11 @@ test.describe("autosave under abrupt exit", () => {
     const second = await context.newPage();
     await openWorkspace(second);
     await selectItem(second, name);
-    await expect(second.getByTestId("block-editor")).toContainText("écrit puis fermé brutalement", {
-      timeout: 30_000,
-    });
+    await expect(second.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "écrit puis fermé brutalement",
+      {
+        timeout: 30_000,
+      },
+    );
   });
 });

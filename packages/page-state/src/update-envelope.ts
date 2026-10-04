@@ -1,4 +1,5 @@
 import type { Uuid } from "@myownnotion/domain";
+import { copyBytes as arrayBufferBytes } from "@myownnotion/domain";
 import {
   decodeFrontiers,
   decodeImportBlobMeta,
@@ -11,12 +12,6 @@ export const OPERATIONAL_FORMAT = "myownnotion.page-operations+loro" as const;
 export const OPERATIONAL_FORMAT_VERSION = 1 as const;
 
 export type VersionVectorOrder = "before" | "equal" | "after" | "concurrent";
-
-function arrayBufferBytes(source: Uint8Array): Uint8Array<ArrayBuffer> {
-  const copy = new Uint8Array(new ArrayBuffer(source.byteLength));
-  copy.set(source);
-  return copy;
-}
 
 export function versionVectorFromBytes(bytes: Uint8Array): VersionVector {
   return VersionVector.decode(bytes);

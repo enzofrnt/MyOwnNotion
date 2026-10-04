@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { localContent } from "../../services/local-content.ts";
 import type { UpdateState } from "../../types/desktop-runtime.d.ts";
 import { FR_COPY } from "../../ui/copy/fr.ts";
-import { AsyncState, Button } from "../../ui/primitives/index.ts";
+import { AsyncState, Button, Section } from "../../ui/primitives/index.ts";
 
 export function DesktopUpdatePanel() {
   const [state, setState] = useState<UpdateState | null>(null);
@@ -43,7 +43,6 @@ export function DesktopUpdatePanel() {
     };
   }, []);
   if (!desktop) return null;
-  const copy = FR_COPY.desktop.update;
   const action = async (operation: () => Promise<UpdateState>) => {
     setBusy(true);
     setError(false);
@@ -55,13 +54,42 @@ export function DesktopUpdatePanel() {
       setBusy(false);
     }
   };
+  return (
+    <DesktopUpdateSurface
+      state={state}
+      busy={busy}
+      error={error}
+      onCheck={() => void action(desktop.update.check)}
+      onDefer={() => void action(desktop.update.defer)}
+      onInstall={() => void action(desktop.update.install)}
+    />
+  );
+}
+
+/** Presentation shared with the isolated review; the native bridge stays above. */
+export function DesktopUpdateSurface({
+  state,
+  busy,
+  error,
+  onCheck,
+  onDefer,
+  onInstall,
+}: {
+  readonly state: UpdateState | null;
+  readonly busy: boolean;
+  readonly error: boolean;
+  readonly onCheck: () => void;
+  readonly onDefer: () => void;
+  readonly onInstall: () => void;
+}) {
+  const copy = FR_COPY.desktop.update;
   const canInstall =
     state &&
     ["available", "downloaded", "deferred", "download-failed", "install-failed"].includes(
       state.phase,
     );
   return (
-    <section aria-label={copy.label} data-testid="desktop-update-panel" aria-busy={busy}>
+    <Section aria-label={copy.label} data-testid="desktop-update-panel" aria-busy={busy}>
       <h2>{copy.label}</h2>
       <p role="status" data-testid="desktop-update-phase" data-phase={state?.phase}>
         {state?.message ?? copy.idle}
@@ -72,25 +100,25 @@ export function DesktopUpdatePanel() {
       {state?.pendingLocalChanges ? (
         <AsyncState compact kind="error" title={copy.pendingChanges} />
       ) : null}
-      <div>
-        <Button disabled={busy} onClick={() => void action(desktop.update.check)}>
+      <div className="ui-actions">
+        <Button disabled={busy} onClick={onCheck}>
           Vérifier les mises à jour
         </Button>
         {canInstall ? (
           <>
-            <Button disabled={busy} onClick={() => void action(desktop.update.defer)}>
+            <Button disabled={busy} onClick={onDefer}>
               {copy.defer}
             </Button>
             <Button
               variant="primary"
               disabled={busy || state.pendingLocalChanges || state.migrationActive}
-              onClick={() => void action(desktop.update.install)}
+              onClick={onInstall}
             >
               {busy ? "Vérification de l’installateur…" : copy.install}
             </Button>
           </>
         ) : null}
       </div>
-    </section>
+    </Section>
   );
 }

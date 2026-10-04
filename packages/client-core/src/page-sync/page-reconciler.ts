@@ -234,6 +234,16 @@ export class PageReconciler {
     this.#onBackgroundError = options.onBackgroundError;
   }
 
+  async #releaseSendingUpdates(
+    batch: readonly { readonly updateId: Uuid }[],
+    status: "pending" | "blocked",
+  ): Promise<void> {
+    for (const update of batch) {
+      const current = await this.#log.getUpdate(update.updateId);
+      if (current?.status === "sending") await this.#log.transitionUpdate(update.updateId, status);
+    }
+  }
+
   synchronize(): Promise<PageReconcileOutcome> {
     return this.#requestSynchronization(false);
   }
@@ -767,12 +777,7 @@ export class PageReconciler {
         exchanges += 1;
         if (!result.ok) {
           const blocking = !result.offline && BLOCKING_PROBLEMS.has(result.problem.code);
-          for (const update of batch) {
-            const current = await this.#log.getUpdate(update.updateId);
-            if (current?.status === "sending") {
-              await this.#log.transitionUpdate(update.updateId, blocking ? "blocked" : "pending");
-            }
-          }
+          await this.#releaseSendingUpdates(batch, blocking ? "blocked" : "pending");
           return {
             kind: result.offline ? "offline" : blocking ? "blocked" : "pending",
             exchanges,
@@ -797,12 +802,7 @@ export class PageReconciler {
         const ambiguities = await this.#prepareAmbiguities(response.ambiguities);
         if (!ambiguities.ok) {
           const blocked = !ambiguities.offline;
-          for (const update of batch) {
-            const current = await this.#log.getUpdate(update.updateId);
-            if (current?.status === "sending") {
-              await this.#log.transitionUpdate(update.updateId, blocked ? "blocked" : "pending");
-            }
-          }
+          await this.#releaseSendingUpdates(batch, blocked ? "blocked" : "pending");
           return {
             kind: ambiguities.offline ? "offline" : "blocked",
             exchanges,
@@ -825,12 +825,7 @@ export class PageReconciler {
             error instanceof ConcurrentPageReconciliationError
           ) {
             const blocked = error instanceof InvalidPageSyncResponseError;
-            for (const update of batch) {
-              const current = await this.#log.getUpdate(update.updateId);
-              if (current?.status === "sending") {
-                await this.#log.transitionUpdate(update.updateId, blocked ? "blocked" : "pending");
-              }
-            }
+            await this.#releaseSendingUpdates(batch, blocked ? "blocked" : "pending");
             return {
               kind: blocked ? "blocked" : "pending",
               exchanges,

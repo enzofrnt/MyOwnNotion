@@ -7,7 +7,7 @@
  */
 import type { Uuid } from "../ids/uuid.ts";
 
-export const ITEM_KINDS = ["page", "folder", "file"] as const;
+export const ITEM_KINDS = ["page", "folder", "file", "database", "database_view"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 
 export const LIFECYCLES = ["active", "trashed", "purged"] as const;
@@ -58,7 +58,7 @@ export interface CanonicalItem {
   readonly workspaceId: Uuid;
   readonly kind: ItemKind;
   readonly name: string;
-  /** One optional Unicode emoji grapheme used consistently as this item's icon. */
+  /** One optional Unicode emoji, or a `symbol:` id from the shared icon catalog. */
   readonly icon: string | null;
   readonly lifecycle: Lifecycle;
   readonly trashedAt: string | null;
@@ -137,6 +137,8 @@ export const SAFE_ERROR_CODES = [
   "database.cursor-stale",
   "database.projection-unavailable",
   "database.invalid-view",
+  "database.view-source-locked",
+  "database.source-unavailable",
   "database.invalid-cursor",
   "database.projection-building",
   "database.projection-degraded",
@@ -211,21 +213,24 @@ export function normalizeDisplayName(raw: string): DomainResult<string> {
  * Validates the owner-selected icon without depending on an emoji vendor.
  *
  * Unicode grapheme segmentation keeps joined families, skin tones, flags and
- * keycaps as one visible icon. The property checks then reject ordinary text,
- * lone regional indicators and plain digits that merely participate in some
- * emoji sequences.
+ * keycaps as one visible icon. A `symbol:` id is the shared catalog used by
+ * property and view icons. The checks reject ordinary text, lone regional
+ * indicators and plain digits that merely participate in some emoji sequences.
  */
+const PAGE_SYMBOL_ICON = /^symbol:[a-z0-9-]{1,40}$/;
+
 export function normalizeItemIcon(raw: string | null): DomainResult<string | null> {
   if (raw === null) {
     return ok(null);
   }
   const icon = raw.trim();
+  if (PAGE_SYMBOL_ICON.test(icon)) return ok(icon);
   const graphemes = [...new Intl.Segmenter("und", { granularity: "grapheme" }).segment(icon)];
   const isFlag = /^\p{Regional_Indicator}{2}$/u.test(icon);
   const isKeycap = /^[0-9#*]\uFE0F?\u20E3$/u.test(icon);
   const isPictograph = /\p{Extended_Pictographic}/u.test(icon);
   if (graphemes.length !== 1 || (!isFlag && !isKeycap && !isPictograph)) {
-    return err("validation.invalid-icon", "Item icon must be one Unicode emoji");
+    return err("validation.invalid-icon", "Item icon must be one Unicode emoji or a symbol id");
   }
   return ok(icon);
 }
@@ -243,6 +248,9 @@ export function canContain(
     // Only pages own attachment collections; only files can be attached.
     return parentKind === "page" && childKind === "file";
   }
-  // Hierarchy: root, pages, and folders may contain anything; files never contain.
+  // A source owns only its direct page/folder entries. Linked views are leaves.
+  if (parentKind === "database") {
+    return childKind === "page" || childKind === "folder";
+  }
   return parentKind === null || parentKind === "page" || parentKind === "folder";
 }

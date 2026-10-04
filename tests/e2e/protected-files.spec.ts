@@ -3,6 +3,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   apiOrigin,
   createRootItem,
+  dropEditorFile,
   openAttachmentDetails,
   openPageAttachments,
   openWorkspace,
@@ -29,16 +30,7 @@ test("protects a UI attachment and preserves its loaded preview through offline 
   await waitForSynchronized(page);
   await selectSettledPage(page, host);
   await openPageAttachments(page, host);
-  const uploaded = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" && new URL(response.url()).pathname === "/v1/files",
-  );
-  await page
-    .getByTestId("attachment-upload")
-    .setInputFiles({ name, mimeType: "image/svg+xml", buffer: bytes });
-  const response = await uploaded;
-  expect(response.status()).toBe(201);
-  const itemId = (await response.json()).item.id as string;
+  const itemId = await dropEditorFile(page, { name, mimeType: "image/svg+xml", buffer: bytes });
   await expect(page.getByTestId(`attachment-${name}`)).toBeVisible();
   await waitForSynchronized(page);
   const storage = await withBoundedDatabaseClient(

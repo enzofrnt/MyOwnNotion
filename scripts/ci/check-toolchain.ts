@@ -19,9 +19,10 @@
  *    `\r` as part of the token).
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { trackedFiles as readTrackedFiles } from "./tracked-files.ts";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 
@@ -42,15 +43,14 @@ if (process.argv.includes("--version-only")) {
 }
 
 function trackedFiles(): string[] {
-  const output = execFileSync("git", ["ls-files", "-z"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  return output.split("\0").filter((entry) => entry.length > 0);
+  return readTrackedFiles(repoRoot, { maxBuffer: 64 * 1024 * 1024 });
 }
 
-const files = trackedFiles().filter((file) => existsSync(path.join(repoRoot, file)));
+// Agent-directory symlinks are tracked entries, not text files to read.
+const files = trackedFiles().filter((file) => {
+  const absolutePath = path.join(repoRoot, file);
+  return existsSync(absolutePath) && statSync(absolutePath).isFile();
+});
 
 // Policy 1a: exact Bun pin in root package metadata.
 const rootPackageJson = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {

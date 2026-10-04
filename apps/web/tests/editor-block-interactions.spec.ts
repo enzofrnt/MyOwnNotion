@@ -2,6 +2,11 @@ import type { Uuid } from "@myownnotion/domain";
 import { describe, expect, it, vi } from "vitest";
 import { stableMoveChanges, validateBlockDrop } from "../src/features/editor/block-drag-drop.ts";
 import {
+  atomicDropHostId,
+  dropPlacementFromPoint,
+  isAdjacentNoOpPlacement,
+} from "../src/features/editor/block-drag-reorder.ts";
+import {
   deleteSelectedBlocks,
   duplicateSelectedBlocks,
   resolveContiguousBlockSelection,
@@ -21,6 +26,10 @@ import {
 const FIRST = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056" as Uuid;
 const SECOND = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2057" as Uuid;
 const THIRD = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2058" as Uuid;
+const TABLE = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2059" as Uuid;
+const COLUMN_A = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2060" as Uuid;
+const ROW_A = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2062" as Uuid;
+const CELL_A1 = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2064" as Uuid;
 
 function paragraph(id: Uuid, text: string, children: readonly EditorBlock[] = []): EditorBlock {
   return {
@@ -29,6 +38,33 @@ function paragraph(id: Uuid, text: string, children: readonly EditorBlock[] = []
     props: { backgroundColor: "default", textColor: "default", textAlignment: "left" },
     content: text === "" ? [] : [{ type: "text", text, styles: {} }],
     children,
+  } as EditorBlock;
+}
+
+function tableCell(id: Uuid, text: string): EditorBlock {
+  return {
+    id,
+    type: "tableCell",
+    props: {},
+    content: text === "" ? [] : [{ type: "text", text, styles: {} }],
+    children: [],
+  } as EditorBlock;
+}
+
+function tableRow(id: Uuid, cells: readonly EditorBlock[]): EditorBlock {
+  return { id, type: "tableRow", props: {}, content: undefined, children: cells } as EditorBlock;
+}
+
+function table(
+  columns: readonly { readonly id: Uuid; readonly width: number | null }[],
+  rows: readonly EditorBlock[],
+): EditorBlock {
+  return {
+    id: TABLE,
+    type: "table",
+    props: { columnsJson: JSON.stringify(columns) },
+    content: undefined,
+    children: rows,
   } as EditorBlock;
 }
 
@@ -166,6 +202,62 @@ describe("stable block drag translation", () => {
     ] as EditorBlocksChanged;
 
     expect(validateBlockDrop(changes, [first, duplicate])).toContain("même identité");
+  });
+
+  it("refuses dropping a page mention into a table", () => {
+    const mention = paragraph(FIRST, "Sans titre");
+    const host = table(
+      [{ id: COLUMN_A, width: 120 }],
+      [tableRow(ROW_A, [tableCell(CELL_A1, "cell")])],
+    );
+    const afterDrop = { ...host, children: [mention, ...(host.children as EditorBlock[])] };
+    const changes = [
+      {
+        type: "move",
+        block: mention,
+        prevBlock: mention,
+        currentParent: afterDrop,
+        source: { type: "drop" },
+      },
+    ] as EditorBlocksChanged;
+
+    expect(validateBlockDrop(changes, [afterDrop])).toContain("intérieur d’un tableau");
+  });
+
+  it("treats a hovered table cell as the enclosing table for drop targeting", () => {
+    const host = table(
+      [{ id: COLUMN_A, width: 120 }],
+      [tableRow(ROW_A, [tableCell(CELL_A1, "cell")])],
+    );
+    const byId = new Map<string, EditorBlock>([
+      [host.id, host],
+      [ROW_A, host.children[0] as EditorBlock],
+      [CELL_A1, (host.children[0] as EditorBlock).children[0] as EditorBlock],
+    ]);
+    expect(
+      atomicDropHostId(
+        (id) => byId.get(id),
+        (id) => (id === CELL_A1 ? byId.get(ROW_A) : id === ROW_A ? host : undefined),
+        CELL_A1,
+      ),
+    ).toBe(TABLE);
+  });
+
+  it("splits a drop before or after a block from the pointer’s half", () => {
+    expect(dropPlacementFromPoint(10, { top: 0, height: 40 })).toBe("before");
+    expect(dropPlacementFromPoint(30, { top: 0, height: 40 })).toBe("after");
+  });
+
+  it("refuses the slot immediately above or below the dragged block", () => {
+    const { editor } = fakeEditor(
+      [paragraph(FIRST, "first"), paragraph(SECOND, "second"), paragraph(THIRD, "third")],
+      [SECOND],
+    );
+
+    expect(isAdjacentNoOpPlacement(editor, SECOND, FIRST, "after")).toBe(true);
+    expect(isAdjacentNoOpPlacement(editor, SECOND, THIRD, "before")).toBe(true);
+    expect(isAdjacentNoOpPlacement(editor, SECOND, FIRST, "before")).toBe(false);
+    expect(isAdjacentNoOpPlacement(editor, SECOND, THIRD, "after")).toBe(false);
   });
 });
 

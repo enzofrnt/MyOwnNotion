@@ -1,13 +1,15 @@
 import { expect, test } from "./fixtures.ts";
 import {
+  addDatabaseProperty,
   createDatabaseEntry,
-  openRootDatabaseCreation,
+  createRootDatabase,
+  entryTrigger,
   openSecondDevice,
   openWorkspace,
-  saveEntryProperties,
   selectItem,
   uniqueName,
   waitForDatabaseDefinitionSaved,
+  waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -16,11 +18,7 @@ test("cancels a pressed property action outside its button and activates exactly
 }) => {
   await openWorkspace(page);
   const databaseName = uniqueName("Interaction lifecycle");
-  await openRootDatabaseCreation(page);
-  const creation = page.getByRole("form", { name: "Créer une base de données" });
-  await creation.getByLabel("Créer une base de données").fill(databaseName);
-  await creation.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
   await page.getByRole("button", { name: "Ajouter une propriété" }).click();
   const form = page.getByRole("form", { name: "Éditeur de propriété" });
@@ -51,36 +49,24 @@ test("preserves a composing dirty field while another device updates an untouche
   browser,
   baseURL,
 }) => {
+  test.slow();
   await openWorkspace(page);
   const databaseName = uniqueName("Draft synchronization");
   const entryName = uniqueName("Current entry");
-  await openRootDatabaseCreation(page);
-  const creation = page.getByRole("form", { name: "Créer une base de données" });
-  await creation.getByLabel("Créer une base de données").fill(databaseName);
-  await creation.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
-  for (const name of ["Notes", "Shared"]) {
-    await page.getByRole("button", { name: "Ajouter une propriété" }).click();
-    const form = page.getByRole("form", { name: "Éditeur de propriété" });
-    await form.getByLabel("Nom", { exact: true }).fill(name);
-    await form.getByLabel("Type", { exact: true }).selectOption("text");
-    await form.getByRole("button", { name: "Enregistrer la propriété" }).click();
-    await waitForDatabaseDefinitionSaved(page);
-  }
+  for (const name of ["Notes", "Shared"]) await addDatabaseProperty(page, name, "text");
+
   const entry = await createDatabaseEntry(page, entryName);
   await waitForSynchronized(page);
   await entry.click();
-  const second = await openSecondDevice(browser, baseURL);
+  const second = await test.step("Authorize a second browser device", () =>
+    openSecondDevice(browser, baseURL));
   try {
     await second.page.goto(baseURL ?? "http://127.0.0.1:5873");
     await openWorkspace(second.page);
     await selectItem(second.page, databaseName);
-    await second.page
-      .locator("[data-entry-trigger]")
-      .filter({ hasText: entryName })
-      .first()
-      .click();
+    await entryTrigger(second.page, entryName).first().click();
     const local = page.locator(".entry-panel");
     const remote = second.page.locator(".entry-panel");
     const notes = local.getByLabel("Notes", { exact: true });
@@ -91,7 +77,7 @@ test("preserves a composing dirty field while another device updates an untouche
     await notes.dispatchEvent("compositionupdate", { data: "日本語の下書き" });
     const original = await notes.elementHandle();
     await remote.getByLabel("Shared", { exact: true }).fill("Updated on another device");
-    await saveEntryProperties(second.page);
+    await waitForEntryAutosave(second.page);
     await waitForSynchronized(second.page);
     await expect(local.getByLabel("Shared", { exact: true })).toHaveValue(
       "Updated on another device",
@@ -100,7 +86,7 @@ test("preserves a composing dirty field while another device updates an untouche
     await expect(notes).toHaveValue("日本語の下書き");
     expect(await original?.evaluate((element) => element.isConnected)).toBe(true);
     await notes.dispatchEvent("compositionend", { data: "日本語の下書き" });
-    await saveEntryProperties(page);
+    await waitForEntryAutosave(page);
     await waitForSynchronized(page);
     await expect(remote.getByLabel("Notes", { exact: true })).toHaveValue("日本語の下書き", {
       timeout: 15_000,

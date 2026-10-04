@@ -1,14 +1,21 @@
 import type { MouseEvent } from "react";
 import { classNames } from "./class-names.ts";
 import { AppIcon, type AppIconName } from "./icons.tsx";
+import { symbolIconChoice } from "./symbol-icons.ts";
 
-export type ItemIconKind = "page" | "folder" | "file" | "database";
+export type ItemIconKind = "page" | "folder" | "file" | "database" | "database_view";
 export type ItemIconSize = "tree" | "inline" | "page";
 
 export interface ItemIdentityPresentation {
   readonly kind: ItemIconKind;
   readonly icon?: string | null;
   readonly name: string;
+  /**
+   * For pages without a custom emoji: whether the body holds editorial text.
+   * Empty / whitespace-only lines count as no content, so the tree glyph stays
+   * a blank page until the owner types something.
+   */
+  readonly holdsContent?: boolean;
 }
 
 export interface ItemIconProps {
@@ -17,13 +24,18 @@ export interface ItemIconProps {
   readonly reference?: boolean;
   readonly size?: ItemIconSize;
   readonly className?: string;
+  /** When false on a page, the fallback glyph hides its text lines. */
+  readonly holdsContent?: boolean;
 }
 
-export function itemKindIconName(kind: ItemIconKind): AppIconName {
+export function itemKindIconName(
+  kind: ItemIconKind,
+  options: { readonly holdsContent?: boolean } = {},
+): AppIconName {
   if (kind === "folder") return "folder";
   if (kind === "file") return "file";
-  if (kind === "database") return "table";
-  return "fileText";
+  if (kind === "database" || kind === "database_view") return "layers";
+  return options.holdsContent === false ? "file" : "fileText";
 }
 
 /**
@@ -36,23 +48,38 @@ export function ItemIcon({
   className,
   icon,
   kind,
+  holdsContent = true,
   reference = false,
   size = "inline",
 }: ItemIconProps) {
   const canonicalIcon = kind === "file" ? null : (icon ?? null);
+  const symbol = symbolIconChoice(canonicalIcon);
   const showKindBadge = canonicalIcon !== null && kind !== "file" && size !== "page";
+  const kindIcon = itemKindIconName(kind, { holdsContent });
+  const symbolSize = size === "page" ? 40 : size === "tree" ? 16 : 18;
   return (
     <span
       className={classNames("item-icon", className)}
       data-item-icon-size={size}
-      data-item-reference={reference || undefined}
+      data-item-reference={reference || kind === "database_view" || undefined}
+      data-holds-content={kind === "page" ? holdsContent : undefined}
       aria-hidden="true"
     >
-      {canonicalIcon === null ? (
-        <AppIcon name={itemKindIconName(kind)} size={size === "tree" ? "small" : "medium"} />
-      ) : (
+      {canonicalIcon === null || (symbol === null && canonicalIcon.startsWith("symbol:")) ? (
+        <AppIcon name={kindIcon} size={size === "tree" ? "small" : "medium"} />
+      ) : symbol === null ? (
         <span className="item-icon__emoji" data-item-emoji="true">
           {canonicalIcon}
+        </span>
+      ) : (
+        <span className="item-icon__emoji" data-item-emoji="symbol">
+          <symbol.Icon
+            className="ui-icon"
+            size={symbolSize}
+            focusable="false"
+            aria-hidden="true"
+            data-icon={symbol.id}
+          />
         </span>
       )}
       {showKindBadge ? (
@@ -60,7 +87,7 @@ export function ItemIcon({
           <AppIcon name={itemKindIconName(kind)} size="small" />
         </span>
       ) : null}
-      {reference ? (
+      {reference || kind === "database_view" ? (
         <span className="item-icon__reference-badge">
           <AppIcon name="reference" size="small" />
         </span>
@@ -101,6 +128,7 @@ export function TreeItemIdentitySlot({
         className="workspace-tree-item-icon"
         kind={item.kind}
         icon={item.icon ?? null}
+        holdsContent={item.holdsContent ?? true}
         size="tree"
       />
       {branch ? (

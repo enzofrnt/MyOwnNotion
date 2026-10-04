@@ -57,6 +57,8 @@ describe("versioned local schema (T020)", () => {
     expect(tables).toEqual([
       "conflicts",
       "databaseEntries",
+      "databaseEntryPairs",
+      "databaseSources",
       "databases",
       "items",
       "legacyOfflineBranches",
@@ -190,8 +192,20 @@ describe("projection reads and writes (T039)", () => {
       schemaVersion: 1,
       cursor: "structured-42",
       items: [
-        itemDto({ id: databaseId, name: "Synced database" }),
-        itemDto({ id: entryId, name: "Synced entry" }),
+        itemDto({ id: databaseId, name: "Synced database", kind: "database" }),
+        itemDto({
+          id: entryId,
+          name: "Synced entry",
+          placements: [
+            {
+              id: generateUuidV7(),
+              itemId: entryId,
+              kind: "hierarchy",
+              parentItemId: databaseId,
+              positionKey: "V",
+            },
+          ],
+        }),
         itemDto({ id: targetId, name: "Target" }),
       ],
       relationships: [

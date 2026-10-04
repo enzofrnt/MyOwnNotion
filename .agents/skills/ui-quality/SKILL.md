@@ -49,6 +49,10 @@ Avant d’ajuster espacements ou couleurs, répondre :
 
 ## Partir du système existant
 
+Commencer par le [guide du système UI](../../../docs/design/ui-system.md) :
+carte des propriétaires CSS, API réellement exportée, recettes et exceptions.
+Ouvrir `/__ui-lab` pour essayer les composants et compositions sans données utilisateur.
+
 Depuis la racine du repo, consulter `apps/web/src/ui/tokens.css`,
 `apps/web/src/global.css`, `apps/web/src/ui/primitives/`, `apps/web/src/ui/icons.tsx` et les composants voisins.
 Vérifier depuis le point d’entrée quelle feuille de styles est effectivement chargée ;

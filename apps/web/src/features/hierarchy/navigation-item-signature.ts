@@ -1,5 +1,16 @@
 import type { ProjectedItem } from "@myownnotion/client-core";
-import type { Uuid } from "@myownnotion/domain";
+import { pageBodyHoldsEditorialContent, type Uuid } from "@myownnotion/domain";
+
+/**
+ * Tree-visible identity of an item. Page body text and revision ids change on
+ * every keystroke; the sidebar must not treat those as a new catalog. The one
+ * body signal that *is* tree-visible is whether the page holds any editorial
+ * content at all — that flips the blank-page vs lined-page glyph.
+ */
+export function pageHoldsTreeContent(item: ProjectedItem): boolean {
+  if (item.kind !== "page") return true;
+  return pageBodyHoldsEditorialContent(item.pageDocument?.body);
+}
 
 /**
  * Tree-visible identity of an item. Page bodies and revision ids change on
@@ -22,6 +33,7 @@ export function navigationIdentityKey(item: ProjectedItem): string {
     item.offlineIntent ? "1" : "0",
     item.localAvailability,
     item.trashedAt ?? "",
+    pageHoldsTreeContent(item) ? "1" : "0",
     placements,
   ].join("\u001f");
 }

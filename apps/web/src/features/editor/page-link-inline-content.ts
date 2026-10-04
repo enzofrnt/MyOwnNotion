@@ -8,7 +8,7 @@ import {
 import type { ProjectedItem } from "@myownnotion/client-core";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { ItemIcon } from "../../ui/item-icon.tsx";
+import { ItemIcon, type ItemIconKind } from "../../ui/item-icon.tsx";
 import {
   type PageLinkTargetState,
   pageLinkStatePresentation,
@@ -45,7 +45,7 @@ export interface ResolvedPageLinkPresentation {
   readonly state: PageLinkTargetState;
   readonly label: string;
   readonly icon: string | null;
-  readonly kind: "page" | "folder";
+  readonly kind: ItemIconKind;
   readonly reference: boolean;
 }
 
@@ -70,7 +70,7 @@ export function resolvePageLinkPresentation(
     state,
     label: target?.name.trim() || fallbackLabel.trim() || "Sans titre",
     icon: target?.icon ?? null,
-    kind: target?.kind === "folder" ? "folder" : "page",
+    kind: target?.kind ?? "page",
     // A direct child is part of the current page. Every other occurrence is an
     // explicit reference and receives the small relation badge.
     reference: target === undefined || hierarchyParentId(target) !== currentPageId,
@@ -132,16 +132,55 @@ export function updatePageLinkPresentations(
   for (const binding of bindingsByEditor.get(editor) ?? []) applyPresentation(editor, binding);
 }
 
+export function pageLinkFallbackLabel(inlineContent: {
+  readonly content: readonly { readonly text: string }[];
+}): string {
+  return (
+    inlineContent.content
+      .map((content) => content.text)
+      .join("")
+      .trim() || "Sans titre"
+  );
+}
+
+/** Recovers the stored label from live, clipboard or export HTML. */
+export function pageLinkLabelFromElement(element: HTMLElement): string {
+  const labeled = element.querySelector(".page-link__label")?.textContent?.trim();
+  if (labeled !== undefined && labeled !== "") return labeled;
+  const aria = element.getAttribute("aria-label")?.trim();
+  if (aria !== undefined && aria !== "") {
+    return aria.replace(/\s*\([^)]*\)\s*$/u, "").trim() || "Sans titre";
+  }
+  const text = element.textContent?.trim();
+  return text !== undefined && text !== "" ? text : "Sans titre";
+}
+
+function serializePageLink(inlineContent: PageLinkInlineContent): {
+  readonly dom: HTMLAnchorElement;
+  readonly contentDOM: HTMLSpanElement;
+} {
+  const targetItemId = inlineContent.props.targetItemId;
+  const target = pageLinkTargetFromHref(`#page=${targetItemId}`);
+  const anchor = document.createElement("a");
+  if (target !== null) {
+    anchor.setAttribute("href", pageLinkHrefFor(target));
+    anchor.dataset["pageLinkTarget"] = target;
+  } else {
+    anchor.setAttribute("href", "#");
+  }
+  anchor.className = "page-link";
+  const contentDOM = document.createElement("span");
+  contentDOM.className = "page-link__label";
+  anchor.append(contentDOM);
+  return { dom: anchor, contentDOM };
+}
+
 function renderPageLink(
   inlineContent: PageLinkInlineContent,
   editor: object,
 ): { dom: HTMLAnchorElement; destroy: () => void } {
   const targetItemId = inlineContent.props.targetItemId;
-  const fallbackLabel =
-    inlineContent.content
-      .map((content) => content.text)
-      .join("")
-      .trim() || "Sans titre";
+  const fallbackLabel = pageLinkFallbackLabel(inlineContent);
   const target = pageLinkTargetFromHref(`#page=${targetItemId}`);
   const anchor = document.createElement("a");
   anchor.href = target === null ? "#" : pageLinkHrefFor(target);
@@ -188,22 +227,21 @@ export const pageLinkInlineContentSpec = createInlineContentSpec(pageLinkConfig,
     if (element.tagName !== "A") return undefined;
     const target =
       pageLinkTargetFromHref(element.getAttribute("href")) ??
-      pageLinkTargetFromHref(`#page=${element.getAttribute("data-page-link-target") ?? ""}`);
+      pageLinkTargetFromHref(`#page=${element.getAttribute("data-page-link-target") ?? ""}`) ??
+      pageLinkTargetFromHref(`#page=${element.getAttribute("data-target-item-id") ?? ""}`);
     if (target === null) return undefined;
     return { targetItemId: target };
   },
-  render: (inlineContent, _updateInlineContent, editor) =>
-    renderPageLink(inlineContent as PageLinkInlineContent, editor),
-  toExternalHTML: (inlineContent) => {
-    const targetItemId = inlineContent.props.targetItemId;
-    const target = pageLinkTargetFromHref(`#page=${targetItemId}`);
-    if (target === null) return undefined;
-    const anchor = document.createElement("a");
-    anchor.href = pageLinkHrefFor(target);
-    anchor.dataset["pageLinkTarget"] = target;
-    anchor.className = "page-link";
-    const contentDOM = document.createElement("span");
-    anchor.append(contentDOM);
-    return { dom: anchor, contentDOM };
+  parseContent: ({ el, schema }) => {
+    const label = pageLinkLabelFromElement(el);
+    return schema.nodes["paragraph"]?.create(null, schema.text(label)).content;
   },
+  render: (inlineContent, _updateInlineContent, editor, _node, getPos) => {
+    const pageLink = inlineContent as PageLinkInlineContent;
+    // Clipboard and export call render() without a live position. React roots
+    // there produce an empty <a> that drop/parse then lose.
+    if (getPos === undefined || getPos() === undefined) return serializePageLink(pageLink);
+    return renderPageLink(pageLink, editor);
+  },
+  toExternalHTML: (inlineContent) => serializePageLink(inlineContent as PageLinkInlineContent),
 });

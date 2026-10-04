@@ -14,6 +14,10 @@ interface follow the skill's Speckit gates. These conventions complement the
 canonical specification and existing primitives; they do not attest that
 unchanged screens have passed a new review.
 
+Start with the [UI system guide](design/ui-system.md) for the current CSS loading
+order, owners, token contract and exported primitives. `/__ui-lab` provides real
+page/database/navigation/settings compositions with synthetic in-memory data.
+
 | Concern | Tool | Where it is pinned |
 | --- | --- | --- |
 | Runtime, package manager and bundler | Bun 1.4.2 exactly | `packageManager` and `engines.bun` in `package.json` |
@@ -269,6 +273,19 @@ do not rebuild or restart containers; Bun `--watch` and Vite HMR pick them up
 inside the running processes. This helper is not the official deployment;
 `compose.yaml` still publishes HTTP only.
 
+If the page reloads every 75 seconds without source edits, inspect the Vite
+console for `server connection lost. Polling for restart...`. The HMR WebSocket
+can stay idle indefinitely; a proxy I/O deadline makes Vite mistake that idle
+connection for a server restart and reload the page. The development Caddy
+route to `web:5173` therefore uses the default unlimited I/O and stream
+lifetimes. Keep the 75-second deadlines on the API route, where SSE heartbeats
+keep live streams active. After changing the Caddyfile, validate and reload
+only Caddy with `docker compose -f compose.dev.yaml exec -T caddy caddy validate
+--config /etc/caddy/Caddyfile --adapter caddyfile` followed by the same command
+with `reload` in place of `validate`; include the same project and override
+arguments used to start your stack. Existing HMR connections close once during
+that reload, so one final browser refresh is expected. No data reset is needed.
+
 For a reproducible Knowledge Graph acceptance workspace, run
 `bun run dev:stack:demo`. It performs the same destructive local reset, creates
 the dummy owner/password and a verified 240-item forest corpus (243 relationships),
@@ -279,6 +296,28 @@ cookies or service-worker caches.
 
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.
+
+### Reset before the database page/view refactor (feature 029)
+
+Migration `0019_database_pages_views` refuses to run when the installation still
+contains databases from the former page-backed/linked model. It does not delete
+them. This is a pre-V1 breaking change: older structured data and backups are
+not migrated by opening the app.
+
+For an **isolated, disposable development profile**, first inventory the pages,
+databases, entries, uploaded files and local backups in that profile. Export or
+copy anything that must survive. Then, and only after deciding to discard the
+entire profile, run `bun run dev:stack:reset` and recreate test data under the
+new model. The command deletes the profile's PostgreSQL data, encrypted file
+store and local backup store; it is broader than a database-only reset. It does
+not clear a browser's IndexedDB or service-worker cache, which must also be
+cleared for that test profile before reconnecting a new server identity.
+
+For a profile with data to preserve, leave the migration refusal in place and
+use a separate fresh test profile. Do not edit historical migrations or remove
+the guard to force startup. The new-model export/backup and restore journey is
+validated on a fresh installation as described in
+[`specs/029-database-pages-views/quickstart.md`](../specs/029-database-pages-views/quickstart.md).
 
 ### Notion import CLI
 
@@ -434,7 +473,7 @@ without it.
 
 ```bash
 bun run test:e2e:local                       # fast feedback: two projects at a time
-bun run test:e2e:gate                        # pre-push: complete matrix, two at a time
+bun run test:e2e:gate                        # complete validation: matrix, two at a time
 bun run test:e2e:local -- --grep "live sync" # arguments pass through
 MYOWNNOTION_E2E_JOBS=5 bun run test:e2e:local -- tests/e2e/databases-views.spec.ts
 ```
@@ -510,9 +549,10 @@ entry point because it allocates a database, ports, blob root and deployment key
 per project, then builds one immutable web bundle before starting them. Keep its
 default width of two on a small runner.
 
-This parallel feedback does not replace `bun run checks:local`. The full gate owns
-its resource ordering and must run once, without a competing test process,
-against the exact commit that will be pushed.
+This parallel feedback can provide the required evidence for a bounded change,
+according to the impact policy below. When complete validation is required,
+`bun run checks:local` owns its resource ordering and must run without a competing
+test process against the executable candidate being validated.
 
 **Every browser project runs at once, each on its own stack.** The matrix used
 to run one project after another, and the reason was not the browsers: every
@@ -686,7 +726,8 @@ identity and converge without a whole-document replacement.
 
 Search spans the shared domain engine, canonical source reads, the API, the
 local worker and browser journeys. These commands give focused feedback while
-working on that feature; they do not replace `bun run checks:local` before a push.
+working on that feature. Select the relevant checks from the actual impact;
+cross-cutting or uncertain changes still require `bun run checks:local`.
 
 ```bash
 bun run --bun vitest run --project domain \
@@ -720,7 +761,8 @@ reference figures live in `docs/architecture/search.md`.
 
 Feature 009 spans the domain evaluator, PostgreSQL mutation path, protected API,
 local projection and five browser views. Use these focused commands while
-editing; they do not replace the full pre-push gate:
+editing and for bounded pre-push validation. Changes spanning these boundaries
+or whose impact is uncertain require the complete gate:
 
 ```bash
 bun run --bun vitest run --project domain packages/domain/tests/databases
@@ -790,14 +832,28 @@ substitute for it.
 
 ## Before you push
 
-First classify the complete diff against its merge base.
+Select checks from the changes being published and their dependency impact.
+For a follow-up push, compare against the last published commit with recorded
+successful validation; for a first publication, use the branch's merge base.
+Include any earlier executable changes that have no adequate validation evidence.
+The complete PR diff remains the input to GitHub's PR impact planner.
+
+Earlier validated code on a branch does not turn a later documentation-only
+follow-up into a mixed change. Keep the earlier validated commit and its checks
+identifiable. Reuse that evidence only while the relevant executable inputs are
+unchanged; do not claim an interrupted run as a successful full gate.
 
 A change is **documentation-only** when every changed file is maintained prose
 or a Spec Kit artifact with no executable consumer. Typical examples are
 Markdown under `docs/` or `specs/`, plus repository guidance such as
 `AGENTS.md`, `README.md`, or `CONTRIBUTING.md`. OpenAPI documents, security
 schemas, fixtures, generated templates, scripts, workflow files, configuration,
-and documentation consumed by tests are not documentation-only.
+and documents consumed as executable test inputs are not documentation-only.
+
+Reading prose for link, terminology or toolchain-command hygiene checks does
+not make it an executable input: those are document checks. Documents that
+define runtime behavior, schemas, fixtures or executable test expectations
+require their affected consumer checks.
 
 For a documentation-only change, run all of the following that apply:
 
@@ -812,26 +868,40 @@ Do not start application tests, browser suites, builds, image builds, security
 scans, or Compose checks for a documentation-only change. Record the checks
 performed in the pull request.
 
-For code, dependency, migration, build, deployment, configuration,
-executable-schema, or mixed changes, run:
+For a bounded code change, run the checks that can detect its regressions:
+
+| Impact | Required local evidence |
+| --- | --- |
+| Maintained prose or Spec Kit artifacts with no executable consumer | Diff, links, terminology and applicable Spec Kit consistency checks; no application tests/builds/containers |
+| Bounded source or test change | Targeted formatting/static analysis, affected types and the relevant unit/property/integration/contract tests; a changed test runs directly |
+| Changed user-visible interaction | Relevant Playwright journeys on the affected required browser/viewport variants, plus applicable component tests and actual UI review |
+| Changed executable document, schema or bounded configuration | Its consumer/contract checks and the affected runtime/build validation |
+| Shared foundations, dependencies/toolchain, migrations, security/storage/sync boundaries, broad build/deployment changes, or uncertain executable impact | Complete `checks:local` gate, including the documented equivalent runtime when needed |
+
+Record the changed paths, selected checks, why their scope covers the impact,
+results and validated commit in the feature evidence or PR. Broaden validation
+when a concrete remaining risk requires it. Do not run the entire suite after
+every small edit or documentary follow-up merely to reproduce existing evidence.
+If the scope cannot be established, use the complete gate:
 
 ```bash
 bun run checks:local
 ```
 
-This is the hard pre-push gate for executable or potentially executable
-changes, not a suggested smoke test. It runs the local equivalents of every
+This is the required pre-push gate for cross-cutting or uncertain executable
+changes, and the available complete diagnostic. It runs the local equivalents of every
 repository-controlled PR job: toolchain policy, shell, format/lint, strict
 types, aggregate coverage, uninstrumented performance budgets, the separately
 observable database/migration and contract suites, the complete browser/viewport matrix, production and
 multi-architecture image builds, dependency/secret/static/license security
 checks, and Compose boundaries. Every command must finish successfully against
-the exact commit that will be pushed. If classification is uncertain, fail
-closed to this full gate.
+the executable commit being validated. A later prose-only commit can reference
+that success without repeating the application checks. Unknown executable
+impact selects this full gate.
 
-Targeted tests are still the fastest feedback while editing, but they are not
-pre-push evidence. Do not push with a known failure, an interrupted gate, or a
-required check silently skipped. If a local runtime cannot execute a check, use
+Targeted tests are valid pre-push evidence when their scope covers a bounded
+change. Do not push with a known relevant failure, an interrupted required gate,
+or a required check silently skipped. If a local runtime cannot execute a check, use
 the documented equivalent runtime. If no equivalent is available, stop and
 report the blocker instead of delegating discovery of it to the pull request.
 
@@ -936,11 +1006,14 @@ they live under `specs/`. Unit, integration, contract, and E2E jobs remain
 present when their selection is empty and report a successful explicit no-op;
 branch protection therefore never relies on a skipped or missing check.
 
-Selection is intentionally limited to pull requests. Pushes to `main`, version
+The automated impact planner is intentionally limited to pull requests. Pushes
+to `main`, version
 tags through the reusable gate, manual diagnostics, and `bun run checks:local`
-always run the full corpus. Documentation-only work branches use the targeted
-local policy above; executable or mixed work branches still run
-`bun run checks:local` in full before push. Full runs are both release evidence and
+always run the full corpus. Local pre-push checks use the impact policy above:
+documentation-only updates run document checks, bounded executable changes run
+relevant targeted checks, and cross-cutting or uncertain changes run
+`bun run checks:local`. The planner's PR scope is not silently redefined by local
+selection. Full runs are both release evidence and
 the safety net that exposes an incomplete ownership map.
 
 Useful local diagnostics:
@@ -992,12 +1065,18 @@ scripts. A pull request may instead run the equivalent affected subset through
 fails when any complete or selective entry point is missing from
 `package.json`, so the gate cannot silently lose a check.
 
+For local publication, each responsibility is selected only when applicable
+under the impact policy above. A prose-only follow-up runs document checks;
+the inventory does not require every listed application/build/security process
+for that update. Required GitHub jobs and full main/release validation retain
+their existing workflow contract.
+
 | Script | Stage | Blocking rule | Artifact |
 | --- | --- | --- | --- |
 | `toolchain:check` | local, PR, main | Unpinned toolchain, foreign lockfile, or a missing gate script blocks | — |
 | `shell:check` `format:check` `lint:ci` `typecheck` | local, PR, main | Any finding blocks | — |
-| `test:unit` `test:property` `test:integration` `test:contract` `test:migration` `test:performance` `test:security` | full locally/main; affected subset or explicit no-op on PR | Any selected failure blocks; unknown impact selects the full suites; performance budgets run without coverage instrumentation | — |
-| `test:e2e` (`test:e2e:local` on macOS) | full locally/main; owned journeys or explicit no-op on PR | Any selected journey blocks; unknown impact selects every journey | Playwright report per browser/viewport |
+| `test:unit` `test:property` `test:integration` `test:contract` `test:migration` `test:performance` `test:security` | affected/full locally by impact; full on main; affected subset or explicit no-op on PR | Any selected failure blocks; unknown impact selects the full suites; performance budgets run without coverage instrumentation | — |
+| `test:e2e` (`test:e2e:local` on macOS) | affected/full locally by impact; full on main; owned journeys or explicit no-op on PR | Any selected journey blocks; unknown impact selects every journey | Playwright report per browser/viewport |
 | `security:audit` | local, PR, main | Any high/critical vulnerability or an unavailable audit blocks | `dependency-audit.json` |
 | `security:secrets` | local, PR, main | Any detected secret or a scanner failure blocks | `secret-scan.sarif` |
 | `security:static` | local, PR, main | Any high-confidence finding or an analyzer failure blocks | `static-security.sarif` |

@@ -43,7 +43,7 @@
   padding-inline-end: var(--editor-table-pad-end);
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  background: var(--ui-color-canvas, var(--color-canvas));
+  background: var(--ui-color-canvas);
   scrollbar-width: thin;
 }
 
@@ -77,9 +77,24 @@
   background: transparent;
 }
 
+/* No node-selection wash on tables — neither BlockNote's ::after overlay nor
+   our own outline. A selected table keeps its grid borders only. */
+.page-editor .bn-block-outer:has(> .bn-block > .node-table) .ProseMirror-selectednode::after,
+.page-editor .bn-block:has(> .node-table) .ProseMirror-selectednode::after,
+.page-editor .bn-block:has(> .node-table) > .bn-block-content.ProseMirror-selectednode > *::after,
+.page-editor .bn-block:has(> .node-table).ProseMirror-selectednode > .bn-block-content > *::after,
+.page-editor .ProseMirror-selectednode > .bn-block-content > .editor-table-chrome::after,
+.page-editor .node-table.ProseMirror-selectednode::after,
+.page-editor .node-table.ProseMirror-selectednode > .bn-block-content > *::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  box-shadow: none !important;
+}
+
 .page-editor .node-table.ProseMirror-selectednode ~ .bn-block-group {
-  outline: 2px solid var(--ui-color-focus);
-  outline-offset: 1px;
+  outline: none;
+  background: transparent;
 }
 
 /* BlockNote nests groups with an indent + guide line; a table is not an
@@ -159,8 +174,8 @@
 }
 
 .editor-table-cell:focus-within {
-  background: var(--ui-color-accent-soft);
-  box-shadow: inset 0 0 0 1px var(--ui-color-focus);
+  background: var(--ui-color-surface-hover);
+  box-shadow: inset 0 0 0 1px var(--ui-color-border-strong);
 }
 
 /* ---- Column resize (AFFiNE `.column-resize` on the right edge) ------------ */
@@ -178,17 +193,24 @@
   background: transparent;
   cursor: col-resize;
   touch-action: none;
-  transition: background-color 0.12s ease;
-}
-
-/* Full-height column edge: every row's handle lights up together. */
-.editor-table-resize[data-highlight],
-.editor-table-resize:focus-visible {
-  background: var(--ui-color-accent);
 }
 
 .editor-table-resize:focus-visible {
   outline: 0;
+}
+
+/* Continuous column-edge stroke (viewport-fixed). Never paint per-cell
+   backgrounds — horizontal borders would notch the accent line. */
+.editor-table-column-stroke {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  width: 2px;
+  background: var(--ui-color-accent);
+  border-radius: 0;
+  pointer-events: none;
+  will-change: transform;
 }
 
 .editor-table-chrome[data-resizing],
@@ -320,7 +342,9 @@
 
 .editor-table-drag__indicator {
   background: var(--ui-color-accent);
-  border-radius: 1px;
+  border-radius: 0;
+  /* Solid stroke — no anti-aliased gaps where it crosses grid borders. */
+  box-shadow: 0 0 0 0.5px var(--ui-color-accent);
 }
 
 /* ---- + rails (AFFiNE AddButton) ------------------------------------------ */
@@ -459,4 +483,100 @@
     position: absolute;
     inset: -0.875rem;
   }
+}
+
+/* Side-menu drag clones the table outer onto document.body. Page-editor
+   layout (100cqi scrollport, display:contents grid) does not apply there,
+   so the ghost would stack cells into a full-viewport smear. Reconstruct a
+   compact table and hide rails/handles. */
+.bn-drag-preview {
+  position: absolute;
+  top: 0;
+  left: -10000px;
+  box-sizing: border-box;
+  max-width: 28rem;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--ui-color-text);
+  background: var(--ui-color-canvas);
+  border-radius: var(--ui-radius-md);
+  box-shadow: var(--ui-shadow-menu);
+  opacity: 0.92;
+}
+
+.bn-drag-preview:has(a.page-link):not(:has(.node-table)) {
+  max-width: 20rem;
+}
+
+.bn-drag-preview .bn-block-outer:has(> .bn-block > .node-table) {
+  width: max-content;
+  max-width: 28rem;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.bn-drag-preview .bn-block:has(> .node-table) {
+  display: grid;
+  grid-template-columns: max-content;
+  width: max-content;
+  max-width: 28rem;
+  margin: 0;
+  padding: 0;
+}
+
+.bn-drag-preview .node-table,
+.bn-drag-preview .node-table > .bn-block-content,
+.bn-drag-preview .editor-table-chrome {
+  display: contents;
+}
+
+.bn-drag-preview .node-table ~ .bn-block-group {
+  grid-area: 1 / 1;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--ui-color-border);
+  border-left: 1px solid var(--ui-color-border);
+}
+
+.bn-drag-preview .node-tableRow,
+.bn-drag-preview .node-tableRow > .bn-block-content {
+  height: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.bn-drag-preview .node-tableRow ~ .bn-block-group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 7.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+.bn-drag-preview .node-tableCell,
+.bn-drag-preview .node-tableCell > .bn-block-content {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.4375rem;
+  padding: 0;
+}
+
+.bn-drag-preview .editor-table-cell {
+  flex: 1 1 auto;
+  min-height: 2.4375rem;
+  border-right: 1px solid var(--ui-color-border);
+  border-bottom: 1px solid var(--ui-color-border);
+}
+
+.bn-drag-preview .editor-table-chrome,
+.bn-drag-preview .editor-table-rail,
+.bn-drag-preview .editor-table-handle-slot,
+.bn-drag-preview .editor-table-resize,
+.bn-drag-preview .editor-table-column-stroke,
+.bn-drag-preview .editor-table-menu {
+  display: none;
 }

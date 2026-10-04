@@ -5,7 +5,7 @@ import type {
 } from "@myownnotion/client-core";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
-import { AsyncState, Button } from "../../ui/primitives/index.ts";
+import { AsyncState, Button, Section } from "../../ui/primitives/index.ts";
 
 const REASON_COPY: Record<LegacySyncRecoveryReasonCode, string> = {
   "legacy-recovery.payload-unreadable":
@@ -118,7 +118,7 @@ export function LegacyRecoveryList({ service }: { readonly service: LocalContent
   };
 
   return (
-    <section className="panel" aria-labelledby="legacy-recovery-heading">
+    <Section aria-labelledby="legacy-recovery-heading">
       <h2 id="legacy-recovery-heading">Anciens brouillons récupérables</h2>
       <p className="muted">
         Ils ne bloquent pas la synchronisation actuelle. MyOwnNotion les conserve ici lorsqu’une
@@ -132,10 +132,10 @@ export function LegacyRecoveryList({ service }: { readonly service: LocalContent
           Aucun ancien brouillon ne demande d’intervention.
         </p>
       ) : (
-        <ul className="tree" data-testid="legacy-recovery-list">
+        <ul className="legacy-recovery-list" data-testid="legacy-recovery-list">
           {recoveries.map(({ row, pageName }) => (
-            <li className="tree-row" key={row.mutationId}>
-              <span className="tree-name">
+            <li key={row.mutationId}>
+              <span className="legacy-recovery-list__content">
                 <strong>{pageName ?? "Page locale non identifiée"}</strong>
                 <span className="muted">
                   {new Date(row.capturedAt).toLocaleString("fr-FR")} —{" "}
@@ -156,6 +156,6 @@ export function LegacyRecoveryList({ service }: { readonly service: LocalContent
           ))}
         </ul>
       )}
-    </section>
+    </Section>
   );
 }

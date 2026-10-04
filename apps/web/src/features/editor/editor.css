@@ -1,0 +1,1404 @@
+/* Owner: features/editor/editor.css. See docs/design/ui-system.md before extending. */
+/* ---------------------------------------------------------------------------
+   Notion-like block editor (feature 017, US2)
+   ------------------------------------------------------------------------ */
+
+.page-editor {
+  /* Contain the toolbar margin so hydration cannot shift controls below it. */
+  display: flow-root;
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.editor-history-controls {
+  --editor-history-target: 1.375rem;
+  display: flex;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: 100%;
+  min-height: var(--editor-history-target);
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+}
+
+.workspace-page-header .editor-history-controls {
+  height: 100%;
+}
+
+.workspace-page-header .editor-history-controls .ui-button,
+.workspace-page-title__history .editor-history-controls .ui-button {
+  width: var(--editor-history-target);
+  min-width: var(--editor-history-target);
+  min-height: var(--editor-history-target);
+  padding: 0;
+}
+
+.workspace-page-header .editor-history-controls .ui-icon,
+.workspace-page-title__history .editor-history-controls .ui-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.editor-sync-status {
+  position: fixed;
+  right: var(--ui-space-3);
+  bottom: var(--ui-space-3);
+  z-index: var(--ui-layer-menu);
+  display: flex;
+  margin: 0;
+  padding: 0;
+  justify-content: flex-end;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+
+.editor-sync-status details {
+  position: relative;
+}
+
+/* Icon-only affordance — no card, shadow, or hover chrome. */
+.editor-sync-status summary {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-height: 0;
+  padding: 0;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  box-shadow: none;
+  opacity: 0.42;
+  cursor: pointer;
+  list-style: none;
+}
+
+.editor-sync-status summary::-webkit-details-marker {
+  display: none;
+}
+
+.editor-sync-status summary:hover,
+.editor-sync-status summary:focus-visible {
+  color: var(--ui-color-text);
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.85;
+  outline: none;
+}
+
+.editor-sync-status summary:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 2px;
+}
+
+.editor-sync-status__label strong {
+  font-weight: 520;
+}
+
+.editor-sync-status .editor-sync-status__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.editor-sync-status__details {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--ui-space-1));
+  z-index: var(--ui-layer-menu);
+  display: none;
+  width: min(24rem, calc(100vw - 2 * var(--ui-space-4)));
+  padding: var(--ui-space-3);
+  gap: var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  box-shadow: var(--ui-shadow-menu);
+}
+
+.editor-sync-status details[open] .editor-sync-status__details {
+  display: grid;
+}
+
+.editor-sync-status__details p {
+  margin: 0;
+}
+
+.editor-sync-status[data-requires-action="true"] {
+  color: var(--ui-color-danger);
+}
+
+.editor-sync-status[data-requires-action="true"] summary {
+  opacity: 0.9;
+}
+
+@media (pointer: fine) {
+  .workspace-page-header .editor-history-controls,
+  .workspace-page-title__history .editor-history-controls {
+    opacity: 0.55;
+    transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
+  }
+
+  .workspace-page-header:hover .editor-history-controls,
+  .workspace-page-header .editor-history-controls:focus-within,
+  .workspace-page-title__path:hover .editor-history-controls,
+  .workspace-page-title__history .editor-history-controls:focus-within {
+    opacity: 1;
+  }
+}
+
+.editor-history-controls .ui-button {
+  width: var(--editor-history-target);
+  min-width: var(--editor-history-target);
+  min-height: var(--editor-history-target);
+}
+
+/* BlockNote Community supplies the editing interactions; these variables make
+   every native toolbar, menu and content colour part of the product system. */
+.page-editor .bn-root,
+.page-editor .bn-root[data-color-scheme] {
+  --bn-font-family: var(--ui-font-sans);
+  --bn-border-radius: var(--ui-radius-md);
+  --bn-colors-editor-text: var(--ui-color-text);
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-text: var(--ui-color-text);
+  --bn-colors-menu-background: var(--ui-color-surface-raised);
+  --bn-colors-tooltip-text: var(--ui-color-text);
+  --bn-colors-tooltip-background: var(--ui-color-surface-raised);
+  --bn-colors-hovered-text: var(--ui-color-text);
+  --bn-colors-hovered-background: var(--ui-color-surface-hover);
+  --bn-colors-selected-text: var(--ui-color-text);
+  /* Quiet node selection — never the accent wash BlockNote paints by default. */
+  --bn-colors-selected-background: var(--ui-color-surface-active);
+  --bn-colors-disabled-text: var(--ui-color-text-disabled);
+  --bn-colors-disabled-background: var(--ui-color-surface-sunken);
+  --bn-colors-shadow: transparent;
+  --bn-colors-border: var(--ui-color-border);
+  --bn-colors-side-menu: var(--ui-color-text-muted);
+  --bn-colors-highlights-gray-text: var(--ui-content-gray);
+  --bn-colors-highlights-gray-background: var(--ui-content-gray-soft);
+  --bn-colors-highlights-brown-text: var(--ui-content-brown);
+  --bn-colors-highlights-brown-background: var(--ui-content-brown-soft);
+  --bn-colors-highlights-red-text: var(--ui-content-red);
+  --bn-colors-highlights-red-background: var(--ui-content-red-soft);
+  --bn-colors-highlights-orange-text: var(--ui-content-orange);
+  --bn-colors-highlights-orange-background: var(--ui-content-orange-soft);
+  --bn-colors-highlights-yellow-text: var(--ui-content-yellow);
+  --bn-colors-highlights-yellow-background: var(--ui-content-yellow-soft);
+  --bn-colors-highlights-green-text: var(--ui-content-green);
+  --bn-colors-highlights-green-background: var(--ui-content-green-soft);
+  --bn-colors-highlights-blue-text: var(--ui-content-blue);
+  --bn-colors-highlights-blue-background: var(--ui-content-blue-soft);
+  --bn-colors-highlights-purple-text: var(--ui-content-purple);
+  --bn-colors-highlights-purple-background: var(--ui-content-purple-soft);
+  --bn-colors-highlights-pink-text: var(--ui-content-pink);
+  --bn-colors-highlights-pink-background: var(--ui-content-pink-soft);
+  --bn-shadow-medium: var(--ui-shadow-menu);
+  --bn-shadow-light: var(--ui-shadow-menu);
+}
+
+.page-editor .bn-container,
+.page-editor .bn-editor {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.page-editor .bn-editor.editor-surface {
+  min-height: 18rem;
+  padding: var(--ui-space-2) var(--workspace-page-inline-end, var(--ui-space-2)) var(--ui-space-12)
+    var(--workspace-page-inline-start, var(--ui-space-6));
+  /* Clip by default so long lines do not widen the page; unlock when a table
+     needs to break out over the canvas (see editor-table.css). */
+  overflow-x: clip;
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  font-family: var(--ui-font-sans);
+  font-size: 1rem;
+  line-height: var(--ui-leading-relaxed);
+  caret-color: var(--ui-color-text);
+}
+
+.page-editor .bn-editor.editor-surface:has(.node-table),
+.page-editor .bn-editor.editor-surface:has(.editor-database-view-block) {
+  overflow-x: visible;
+}
+
+/* Drop strokes follow the reading column. Tables break out to 100cqi; the
+   line must not inherit that width. JS also pins left/width on dragover. */
+.page-editor .prosemirror-dropcursor-block-horizontal,
+.page-editor .prosemirror-dropcursor-block {
+  box-sizing: border-box;
+  max-width: min(100%, var(--workspace-reading-width, var(--ui-reading-width, 48rem)));
+  /* The preview must show the validated destination before a rapid release.
+     BlockNote's 150 ms top transition otherwise paints the previous edge. */
+  transition: none;
+}
+
+.page-editor .bn-editor.editor-surface:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.page-editor .bn-block-content {
+  min-height: 1.875rem;
+  padding-block: 0.125rem;
+}
+
+.page-editor .bn-inline-content {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 1.5em;
+  overflow-wrap: anywhere;
+  caret-color: var(--ui-color-text);
+}
+
+/* BlockNote transitions every property. While the sidebar width animates,
+   a table then eases its own width and margin and lands after the text. */
+.page-editor .bn-block,
+.page-editor .bn-block-outer,
+.page-editor .bn-block-group {
+  transition: none;
+}
+
+.page-editor .ProseMirror,
+.page-editor .ProseMirror-focused,
+.page-editor [contenteditable="true"] {
+  caret-color: var(--ui-color-text);
+}
+
+/* Chromium, Firefox and WebKit disagree on the width of a line whose only DOM
+   child is ProseMirror's trailing break. Give that line a real caret box while
+   keeping it visually empty. */
+.page-editor .bn-inline-content:empty,
+.page-editor .bn-inline-content:has(> br.ProseMirror-trailingBreak:only-child) {
+  display: inline-block;
+  min-width: 0.125rem;
+  min-height: 1.5em;
+}
+
+.page-editor a[href] {
+  cursor: pointer;
+}
+
+.page-editor .bn-block-content[data-content-type="heading"][data-level="1"] {
+  padding-top: var(--ui-space-8);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  line-height: var(--ui-leading-tight);
+  letter-spacing: -0.025em;
+}
+
+.page-editor .bn-block-content[data-content-type="heading"][data-level="2"] {
+  padding-top: var(--ui-space-6);
+  font-size: 1.5rem;
+  line-height: var(--ui-leading-tight);
+  letter-spacing: -0.015em;
+}
+
+.page-editor .bn-block-content[data-content-type="heading"][data-level="3"] {
+  padding-top: var(--ui-space-4);
+  font-size: 1.1875rem;
+  line-height: 1.35;
+}
+
+.page-editor
+  .bn-block-outer
+  > .bn-block
+  > .bn-block-content[data-content-type="heading"][data-level="4"] {
+  --level: 1.0625rem;
+  padding-top: var(--ui-space-3);
+  font-size: 1.0625rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.page-editor .bn-block-content[data-content-type="quote"] blockquote {
+  color: var(--ui-color-text-muted);
+  border-color: var(--ui-color-border-strong);
+}
+
+.page-editor .bn-block-content[data-content-type="divider"] hr {
+  border-color: var(--ui-color-border);
+}
+
+.page-editor .bn-block-content[data-content-type="codeBlock"] {
+  display: block;
+  min-width: 0;
+  padding: 0;
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+}
+
+/* A true preformatted block may scroll horizontally. Inline `code` must not
+   become its own scroll region: identifiers already wrap below, and Firefox
+   otherwise exposes a tiny keyboard-inaccessible scroller for some UUIDs. */
+pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Long unbroken strings — a URL, an identifier — break rather than push.
+   `.tree-name` needs no entry: it only ever appears inside `.tree-row`,
+   which already breaks words. */
+code,
+.save-state {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.editor-code-block pre {
+  margin: 0;
+  padding: var(--ui-space-4);
+  border: 0;
+}
+
+/* Each version stays legible without becoming the whole screen. */
+.conflict-columns pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.editor-surface pre,
+.page-editor .bn-block-content[data-content-type="codeBlock"] pre {
+  max-width: 100%;
+  overflow-x: auto;
+  font-family: var(--ui-font-mono);
+}
+
+.page-editor .bn-inline-content code {
+  padding: 0.1em 0.28em;
+  background: var(--ui-color-surface-sunken);
+  border-radius: var(--ui-radius-xs);
+  font-family: var(--ui-font-mono);
+  font-size: 0.9em;
+}
+
+.bn-suggestion-menu .bn-ak-suggestion-menu-item-section[data-position="right"] {
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: var(--ui-text-xs);
+  letter-spacing: 0.01em;
+}
+
+.page-editor .bn-ak-toolbar,
+.page-editor .bn-ak-menu,
+.page-editor .bn-suggestion-menu,
+.page-editor .bn-dropdown {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-menu);
+}
+
+.page-editor .bn-ak-toolbar {
+  gap: var(--ui-space-1);
+  max-width: min(40rem, calc(100vw - 2 * var(--ui-space-3)));
+  padding: var(--ui-space-1);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.page-editor .bn-page-link-action {
+  display: contents;
+}
+
+.page-editor .bn-ak-button {
+  min-width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  box-shadow: none;
+}
+
+.page-editor .bn-ak-button:hover,
+.page-editor .bn-ak-button[data-active],
+.page-editor .bn-ak-button[data-selected] {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+  box-shadow: none;
+}
+
+.page-editor .bn-ak-button[data-focus-visible],
+.page-editor .bn-ak-menu-item[data-focus-visible] {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.page-editor .bn-ak-menu-item[aria-selected="true"],
+.page-editor .bn-ak-menu-item[data-active-item],
+.page-editor .bn-ak-menu-item:hover {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+
+.page-editor .bn-side-menu {
+  --editor-block-handle-icon-size: 22px;
+  --editor-block-handle-height: var(--ui-target-compact);
+  gap: 1px;
+  padding-inline-end: var(--ui-space-1);
+  /* Keep handles above the reading surface; never paint under the sidebar. */
+  z-index: 2;
+}
+
+.page-editor .bn-side-menu .bn-ak-button {
+  width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  padding: 0;
+  color: var(--ui-color-text-muted);
+}
+
+.page-editor .bn-side-menu .editor-block-handle {
+  /* GripVertical's painted height exceeds its width by 8 / 24 icon units.
+     Removing that difference keeps the ink-to-edge inset equal on all sides. */
+  width: calc(var(--editor-block-handle-height) - var(--editor-block-handle-icon-size) / 3);
+  min-width: 0;
+  height: var(--editor-block-handle-height);
+  cursor: grab;
+}
+
+.page-editor .editor-block-handle__icon {
+  width: var(--editor-block-handle-icon-size);
+  height: var(--editor-block-handle-icon-size);
+}
+
+.page-editor .bn-side-menu .editor-block-handle:active {
+  cursor: grabbing;
+}
+
+@media (pointer: coarse) {
+  .page-editor .bn-side-menu {
+    --editor-block-handle-height: var(--ui-target);
+  }
+}
+
+html[data-block-grabbing="true"],
+html[data-block-grabbing="true"] * {
+  /* biome-ignore lint/complexity/noImportantStyles: grabbing must outrank the editor caret and buttons */
+  cursor: grabbing !important;
+}
+
+/* Block selection may open this floating toolbar over the insertion edge.
+   Keep its layout stable, but let the native block drop reach the editor. */
+html[data-block-grabbing="true"] .editor-formatting-toolbar-positioner,
+html[data-block-grabbing="true"] .bn-formatting-toolbar {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Page mentions read as content, not hyperlinks: same ink as the note, quiet
+   hover chip. Accent blue belongs to actions/focus, not inline references. */
+.page-editor a.page-link {
+  display: inline-flex;
+  padding: 0.05em 0.2em;
+  align-items: center;
+  gap: 0.3em;
+  color: var(--ui-color-text);
+  background: transparent;
+  border-radius: var(--ui-radius-xs);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.page-editor a.page-link:hover {
+  background: var(--ui-color-surface-hover);
+}
+
+.page-editor a.page-link:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+.page-link__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--ui-color-text-muted);
+}
+
+.page-link__icon .item-icon {
+  color: inherit;
+}
+
+.page-link__label {
+  pointer-events: none;
+}
+
+/* Side-menu ghosts live on document.body, outside .page-editor. Keep the
+   mention chip instead of a full-width raw paragraph. */
+.bn-drag-preview a.page-link {
+  display: inline-flex;
+  padding: 0.05em 0.2em;
+  align-items: center;
+  gap: 0.3em;
+  color: var(--ui-color-text);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: var(--ui-radius-xs);
+}
+
+.bn-drag-preview .bn-block-outer:has(a.page-link) {
+  width: max-content;
+  max-width: 20rem;
+  padding-block: 0.15rem;
+  padding-inline: 0.4rem;
+}
+
+.page-link-picker,
+.web-bookmark-dialog {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+
+.page-link-picker__query,
+.web-bookmark-dialog input {
+  width: 100%;
+  min-height: var(--ui-target);
+  padding: 0 var(--ui-space-3);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-sm);
+  outline: 0;
+}
+
+.page-link-picker__query:focus-visible,
+.web-bookmark-dialog input:focus-visible {
+  border-color: var(--ui-color-focus);
+  box-shadow: var(--ui-focus-ring);
+}
+
+.page-link-picker__results {
+  display: grid;
+  max-height: min(20rem, 48vh);
+  gap: 1px;
+  overflow-y: auto;
+}
+
+.page-link-picker__results > button {
+  display: grid;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--ui-space-2);
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  text-align: left;
+}
+
+.page-link-picker__results > button:hover,
+.page-link-picker__results > button[aria-selected="true"] {
+  background: var(--ui-color-surface-hover);
+}
+
+.page-link-picker__results > button:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: -2px;
+}
+
+.page-link-picker__results > button > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.page-link-picker__results small {
+  overflow: hidden;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-link-picker__results > p,
+.page-link-picker__error,
+.web-bookmark-dialog__error {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+}
+
+.page-link-picker__error,
+.web-bookmark-dialog__error {
+  color: var(--ui-color-danger);
+}
+
+.page-link-picker__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ui-space-1);
+}
+
+.page-editor a.page-link-deleted,
+.page-editor a.page-link-unknown {
+  color: var(--ui-color-danger);
+  background: transparent;
+  text-decoration: underline wavy;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.16em;
+}
+
+.page-editor a.page-link-deleted:hover,
+.page-editor a.page-link-unknown:hover {
+  background: var(--ui-color-danger-soft);
+}
+
+.page-editor a.page-link-deleted .page-link__icon,
+.page-editor a.page-link-unknown .page-link__icon {
+  color: inherit;
+}
+
+.page-editor a.page-link-unavailable {
+  color: var(--ui-color-warning);
+  background: transparent;
+  text-decoration: underline dashed;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.16em;
+}
+
+.page-editor a.page-link-unavailable:hover {
+  background: var(--ui-color-warning-soft);
+}
+
+.page-editor a.page-link-unavailable .page-link__icon {
+  color: inherit;
+}
+
+/* Replace BlockNote's hardcoded blue node-selection wash with quiet surface
+   chrome (same family as sidebar selection — content first, accent for focus).
+   Tables opt out entirely in editor-table.css. */
+.page-editor .bn-block-content.ProseMirror-selectednode > *::after,
+.page-editor .ProseMirror-selectednode > .bn-block-content > *::after,
+.page-editor .bn-block-content .ProseMirror-selectednode::after,
+.page-editor .bn-inline-content .ProseMirror-selectednode::after {
+  background-color: color-mix(in srgb, var(--ui-color-surface-active) 70%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--ui-color-border-strong);
+}
+
+.page-editor
+  .bn-block-outer:has(> .bn-block > .node-table)
+  .bn-block-content.ProseMirror-selectednode
+  > *::after,
+.page-editor
+  .bn-block-outer:has(> .bn-block > .node-table)
+  .ProseMirror-selectednode
+  > .bn-block-content
+  > *::after,
+.page-editor
+  .bn-block-outer:has(> .bn-block > .node-table)
+  .bn-block-content
+  .ProseMirror-selectednode::after,
+.page-editor .bn-block:has(> .node-table) .bn-block-content.ProseMirror-selectednode > *::after,
+.page-editor .bn-block:has(> .node-table) .ProseMirror-selectednode > .bn-block-content > *::after,
+.page-editor .bn-block:has(> .node-table) .bn-block-content .ProseMirror-selectednode::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  box-shadow: none !important;
+}
+
+/* An unrenderable block must look present and deliberate, never like an empty
+   gap — a block that renders as nothing is indistinguishable from one that was
+   lost, which is the failure FR-006 exists to prevent. */
+.editor-unknown-block {
+  display: grid;
+  width: 100%;
+  gap: var(--ui-space-1);
+  margin-block: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  color: var(--ui-color-text-muted);
+  background: var(--ui-color-surface-subtle);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  font-size: var(--ui-text-sm);
+}
+
+.editor-unknown-block > .ui-button {
+  width: fit-content;
+  max-width: 100%;
+  white-space: normal;
+  margin-top: var(--ui-space-1);
+}
+
+/* Rich V3 blocks keep the same quiet, content-first hierarchy as the rest of
+   the editor. Controls appear as part of the block instead of as a second app
+   chrome, and wide content owns its own horizontal scroll on narrow screens. */
+.editor-callout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--ui-space-3);
+  margin-block: var(--ui-space-1);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  background: var(--ui-color-surface-sunken);
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-callout[data-tone="gray"] {
+  background: var(--ui-content-gray-soft);
+}
+
+.editor-callout[data-tone="brown"] {
+  background: var(--ui-content-brown-soft);
+}
+
+.editor-callout[data-tone="orange"] {
+  background: var(--ui-content-orange-soft);
+}
+
+.editor-callout[data-tone="yellow"] {
+  background: var(--ui-content-yellow-soft);
+}
+
+.editor-callout[data-tone="green"] {
+  background: var(--ui-content-green-soft);
+}
+
+.editor-callout[data-tone="blue"] {
+  background: var(--ui-content-blue-soft);
+}
+
+.editor-callout[data-tone="purple"] {
+  background: var(--ui-content-purple-soft);
+}
+
+.editor-callout[data-tone="pink"] {
+  background: var(--ui-content-pink-soft);
+}
+
+.editor-callout[data-tone="red"] {
+  background: var(--ui-content-red-soft);
+}
+
+.editor-callout-icon {
+  width: 2rem;
+  min-height: var(--ui-target-compact);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  font: inherit;
+  line-height: var(--ui-leading-relaxed);
+  text-align: center;
+}
+
+.editor-callout-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-1);
+}
+
+@media (max-width: 600px) {
+  .editor-callout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.editor-callout-controls select {
+  width: 5rem;
+  min-height: var(--ui-target-compact);
+  padding: 0;
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .editor-callout-icon,
+  .editor-callout-controls select {
+    min-height: var(--ui-target);
+  }
+}
+
+.editor-callout-controls select:hover,
+.editor-callout-controls select:focus-visible,
+.editor-callout-icon:hover,
+.editor-callout-icon:focus-visible {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+
+.editor-callout-controls :focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+.editor-callout-content {
+  min-width: 0;
+}
+
+.editor-toggle-content {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--ui-target-compact);
+  margin: 0;
+}
+
+.editor-code-block {
+  width: 100%;
+  min-width: 0;
+  margin-block: var(--ui-space-2);
+  overflow: hidden;
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-code-block code.bn-inline-content {
+  display: block;
+  min-width: max-content;
+  max-width: none;
+  min-height: 1.65em;
+  padding: 0;
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-sm);
+  font-weight: 400;
+  line-height: var(--ui-leading-relaxed);
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  tab-size: 2;
+  caret-color: var(--ui-color-text);
+}
+
+/* Decorations follow the application theme without changing the document or
+   rebuilding contentDOM when the owner switches themes. */
+.editor-code-block code span[style*="--shiki-light"] {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style, normal);
+  font-weight: var(--shiki-light-font-weight, inherit);
+  text-decoration: var(--shiki-light-text-decoration, none);
+}
+
+:root[data-theme="dark"] .editor-code-block code span[style*="--shiki-dark"] {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style, normal);
+  font-weight: var(--shiki-dark-font-weight, inherit);
+  text-decoration: var(--shiki-dark-text-decoration, none);
+}
+
+.editor-code-toolbar {
+  display: flex;
+  min-height: var(--ui-target-compact);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border-bottom: 1px solid var(--ui-color-border);
+}
+
+.editor-code-language.ui-button,
+.editor-code-language.ui-button[data-size="square"] {
+  display: inline-flex;
+  width: auto;
+  max-width: min(12rem, 100%);
+  height: var(--ui-target-compact);
+  min-width: 0;
+  min-height: var(--ui-target-compact);
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--ui-space-1);
+  padding: 0 var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  font-size: var(--ui-text-xs);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.editor-code-language.ui-button:hover:not(:disabled),
+.editor-code-language.ui-button[aria-expanded="true"] {
+  color: var(--ui-color-text);
+  background: color-mix(in srgb, var(--ui-color-text) 6%, transparent);
+}
+
+.editor-code-language.ui-button:disabled {
+  color: var(--ui-color-text-muted);
+  opacity: 1;
+  cursor: default;
+}
+
+.editor-code-language__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-code-language-menu.ui-menu {
+  min-width: 9.5rem;
+  max-width: min(14rem, calc(100vw - 2rem));
+  max-height: min(16rem, 45vh);
+  padding: 0.2rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-code-language-option.ui-menu__item {
+  min-height: 1.625rem;
+  gap: var(--ui-space-1);
+  padding: 0.15rem 0.4rem;
+  font-size: var(--ui-text-xs);
+  line-height: 1.2;
+}
+
+.editor-code-language-option.ui-menu__item .ui-menu__item-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--ui-space-1);
+}
+
+.editor-code-language-option__check {
+  display: inline-flex;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 0.75rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-color-accent);
+}
+
+.editor-code-language-option__check .ui-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.editor-code-language-option__label {
+  min-width: 0;
+}
+
+.editor-code-language-option[data-selected] .editor-code-language-option__label {
+  font-weight: 600;
+}
+
+.editor-code-copy {
+  flex-shrink: 0;
+}
+
+.editor-code-copy .ui-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+}
+
+.editor-code-feedback {
+  display: block;
+  padding: var(--ui-space-2) var(--ui-space-4) 0;
+  color: var(--ui-color-success);
+  font-size: var(--ui-text-xs);
+}
+
+.editor-code-feedback:empty {
+  display: none;
+}
+
+.editor-code-feedback[data-state="failed"] {
+  color: var(--ui-color-danger);
+}
+
+.editor-code-toolbar select,
+.editor-code-toolbar button {
+  flex: 0 0 auto;
+  min-height: var(--ui-target-compact);
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  font: inherit;
+  font-size: var(--ui-text-xs);
+  white-space: nowrap;
+}
+
+.editor-code-toolbar select:hover,
+.editor-code-toolbar button:hover {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+
+.editor-code-toolbar :focus-visible,
+.editor-image-block input:focus-visible,
+.editor-file-block input:focus-visible,
+.editor-file-block a:focus-visible,
+.editor-embed-block :focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+/* Tables: see features/editor/editor-table.css (imported at the top). */
+
+.editor-image-block,
+.editor-file-block,
+.editor-embed-block {
+  width: 100%;
+  margin-block: var(--ui-space-2);
+}
+
+.editor-web-bookmark {
+  width: 100%;
+  margin-block: var(--ui-space-2);
+}
+
+.web-bookmark-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.web-bookmark-context-menu {
+  position: fixed;
+  display: grid;
+  width: 13.5rem;
+}
+
+.web-bookmark-context-menu .ui-menu__item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.web-bookmark-context-menu .ui-menu__item:focus-visible {
+  background: var(--ui-color-surface-hover);
+  outline: none;
+}
+
+.web-bookmark-card > a {
+  display: grid;
+  min-width: 0;
+  min-height: 4.25rem;
+  padding: var(--ui-space-3);
+  flex: 1;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-3);
+  color: var(--ui-color-text);
+  text-decoration: none;
+}
+
+.web-bookmark-card > a:hover {
+  background: var(--ui-color-surface-hover);
+}
+
+.web-bookmark-card__mark {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--ui-color-text-muted);
+  background: var(--ui-color-surface);
+  border-radius: var(--ui-radius-sm);
+  place-items: center;
+}
+
+.web-bookmark-card__content {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.web-bookmark-card__content strong,
+.web-bookmark-card__content small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.web-bookmark-card__content small {
+  color: var(--ui-color-text-muted);
+}
+
+.web-bookmark-card__actions {
+  position: absolute;
+  top: var(--ui-space-2);
+  right: var(--ui-space-2);
+  display: flex;
+  padding: var(--ui-space-1);
+  gap: var(--ui-space-1);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--ui-shadow-menu);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.web-bookmark-card:hover .web-bookmark-card__actions,
+.web-bookmark-card:focus-within .web-bookmark-card__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.editor-image-block {
+  display: grid;
+  justify-items: center;
+  gap: var(--ui-space-2);
+}
+
+.editor-image-placeholder {
+  display: grid;
+  width: min(100%, 42rem);
+  min-height: 12rem;
+  place-content: center;
+  justify-items: center;
+  gap: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-image-preview {
+  display: block;
+  width: auto;
+  max-width: min(100%, 42rem);
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-image-fields {
+  display: grid;
+  width: min(100%, 42rem);
+  gap: var(--ui-space-1);
+}
+
+.editor-image-block label,
+.editor-image-block input,
+.editor-file-block label,
+.editor-file-block input {
+  width: 100%;
+}
+
+.editor-image-block input,
+.editor-file-block input {
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  text-align: center;
+}
+
+.editor-file-block {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-3);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-file-icon {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xl);
+}
+
+.editor-file-description {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.editor-file-description .editor-file-state {
+  margin: 0;
+}
+
+.editor-file-download {
+  min-height: var(--ui-target-compact);
+  align-content: center;
+  padding-inline: var(--ui-space-2);
+  border-radius: var(--ui-radius-sm);
+  white-space: nowrap;
+}
+
+.editor-file-download:hover {
+  background: var(--ui-color-surface-hover);
+}
+
+.editor-file-block input {
+  text-align: left;
+}
+
+.editor-embed-block {
+  display: grid;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-3);
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-embed-preview > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+}
+
+.editor-embed-fields {
+  display: grid;
+  grid-template-columns: auto minmax(10rem, 1fr) minmax(8rem, 0.5fr);
+  gap: var(--ui-space-2);
+}
+
+.editor-embed-fields input,
+.editor-embed-fields select {
+  width: 100%;
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-sm);
+  font: inherit;
+}
+
+.editor-embed-preview {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+
+.editor-embed-block iframe {
+  width: 100%;
+  min-height: 22rem;
+  background: var(--ui-color-surface);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+}
+
+.editor-embed-block button {
+  width: fit-content;
+  min-height: var(--ui-target);
+  padding-inline: var(--ui-space-3);
+  color: var(--ui-color-text-inverse);
+  background: var(--ui-color-accent);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+}
+
+@media (max-width: 40rem) {
+  .editor-embed-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-file-block {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .editor-file-download {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (pointer: coarse) {
+  .editor-history-controls {
+    --editor-history-target: var(--ui-target-compact);
+  }
+  .workspace-page-header .editor-history-controls,
+  .workspace-page-title__history .editor-history-controls {
+    --editor-history-target: 1.5rem;
+  }
+
+  .page-editor .bn-ak-button,
+  .editor-code-toolbar select,
+  .editor-code-toolbar button,
+  .editor-callout-controls input,
+  .editor-callout-controls select {
+    min-width: var(--ui-target);
+    min-height: var(--ui-target);
+  }
+
+  .web-bookmark-card__actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.block-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.block-controls button {
+  /* Reachable by thumb at 320 pixels (FR-021). */
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0 0.6rem;
+}
+
+.slash-menu ul {
+  list-style: none;
+  margin: 0.25rem 0;
+  padding: 0.25rem;
+  border: 1px solid var(--ui-color-border);
+  border-radius: 0.25rem;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.slash-menu li {
+  padding: 0.5rem;
+  cursor: pointer;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.slash-menu li[aria-selected="true"] {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+
+@media (max-width: 400px) {
+  .tree-actions button,
+  .block-controls button {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}

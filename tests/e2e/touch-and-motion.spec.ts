@@ -59,7 +59,7 @@ test.describe("touch and non-hover alternatives", () => {
     await waitForSynchronized(page);
     await selectItem(page, name);
     await waitForEditor(page);
-    const editor = page.getByTestId("block-editor").locator(".ProseMirror");
+    const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await editor.click();
     await editor.pressSequentially("Actions accessibles");
 

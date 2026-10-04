@@ -1,0 +1,29 @@
+/* Owner: local mutation inventory; section/control paint stays in primitives. */
+.mutation-status__list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mutation-status__list > li {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.3fr) minmax(0, 1fr);
+  min-width: 0;
+  gap: var(--ui-space-2) var(--ui-space-3);
+  padding: var(--ui-space-3) 0;
+  border-bottom: 1px solid var(--ui-color-border);
+}
+.mutation-status__command {
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-xs);
+  overflow-wrap: anywhere;
+}
+.mutation-status__list .muted {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .mutation-status__list > li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

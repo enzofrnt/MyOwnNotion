@@ -162,6 +162,7 @@ export interface RestoreTarget {
   readonly writeRelationship: (relationship: unknown) => Promise<void>;
   readonly writeRevision: (revision: unknown) => Promise<void>;
   readonly writeDatabase?: (database: unknown) => Promise<void>;
+  readonly writeDatabasePresentation?: (presentation: unknown) => Promise<void>;
   readonly writeDatabaseEntry?: (entry: unknown) => Promise<void>;
   readonly writeFile: (digest: string, bytes: Buffer) => Promise<void>;
   /** Verifies causal state against the canonical projection before any write. */
@@ -201,9 +202,11 @@ export async function applyArchive(archive: Buffer, target: RestoreTarget): Prom
     relationships: unknown[];
     revisions: unknown[];
     databases?: unknown[];
+    databasePresentations?: unknown[];
     databaseEntries?: unknown[];
   };
   const databases = exported.databases ?? [];
+  const databasePresentations = exported.databasePresentations ?? [];
   const databaseEntries = exported.databaseEntries ?? [];
   let operationalState: unknown = null;
   if (body.operationalState !== null) {
@@ -241,6 +244,12 @@ export async function applyArchive(archive: Buffer, target: RestoreTarget): Prom
       throw new Error("the restore target cannot write structured databases");
     }
     await target.writeDatabase(database);
+  }
+  for (const presentation of databasePresentations) {
+    if (target.writeDatabasePresentation === undefined) {
+      throw new Error("the restore target cannot write database presentations");
+    }
+    await target.writeDatabasePresentation(presentation);
   }
   for (const entry of databaseEntries) {
     if (target.writeDatabaseEntry === undefined) {
