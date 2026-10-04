@@ -239,10 +239,13 @@
 
 /* Drop strokes follow the reading column. Tables break out to 100cqi; the
    line must not inherit that width. JS also pins left/width on dragover. */
-.prosemirror-dropcursor-block-horizontal,
-.prosemirror-dropcursor-block {
+.page-editor .prosemirror-dropcursor-block-horizontal,
+.page-editor .prosemirror-dropcursor-block {
   box-sizing: border-box;
   max-width: min(100%, var(--workspace-reading-width, var(--ui-reading-width, 48rem)));
+  /* The preview must show the validated destination before a rapid release.
+     BlockNote's 150 ms top transition otherwise paints the previous edge. */
+  transition: none;
 }
 
 .page-editor .bn-editor.editor-surface:focus-visible {
@@ -497,6 +500,14 @@ html[data-block-grabbing="true"],
 html[data-block-grabbing="true"] * {
   /* biome-ignore lint/complexity/noImportantStyles: grabbing must outrank the editor caret and buttons */
   cursor: grabbing !important;
+}
+
+/* Block selection may open this floating toolbar over the insertion edge.
+   Keep its layout stable, but let the native block drop reach the editor. */
+html[data-block-grabbing="true"] .editor-formatting-toolbar-positioner,
+html[data-block-grabbing="true"] .bn-formatting-toolbar {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Page mentions read as content, not hyperlinks: same ink as the note, quiet

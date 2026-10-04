@@ -24,6 +24,74 @@ function fixtureElement(root: Element, selector: string): HTMLElement {
 
 const originalElementsFromPoint = Object.getOwnPropertyDescriptor(document, "elementsFromPoint");
 
+function blockDropFixture() {
+  const ids = [generateUuidV7(), generateUuidV7(), generateUuidV7()];
+  const model = BlockNoteEditor.create({
+    schema: blockNoteSchema,
+    initialContent: ids.map((id, index) => ({
+      id,
+      type: "paragraph",
+      content: `Block ${index}`,
+    })) as unknown as PartialBlock[],
+  }) as unknown as EditorInstance;
+  const positions: number[] = [];
+  model.prosemirrorState.doc.descendants((node, pos) => {
+    if (node.type.name === "blockContainer") positions.push(pos);
+    return true;
+  });
+  const host = document.createElement("section");
+  host.innerHTML = `<div class="bn-editor"><div class="bn-block-group">${ids.map((id) => `<div class="bn-block-outer" data-id="${id}"></div>`).join("")}</div></div><div class="prosemirror-dropcursor-block-horizontal"></div>`;
+  document.body.append(host);
+  const editorDOM = fixtureElement(host, ".bn-editor");
+  const cursor = fixtureElement(host, ".prosemirror-dropcursor-block-horizontal");
+  Object.defineProperty(editorDOM, "offsetParent", { value: host });
+  vi.spyOn(cursor, "getClientRects").mockReturnValue([
+    new DOMRect(80, 254, 220, 2),
+  ] as unknown as DOMRectList);
+  const nodes = Array.from(editorDOM.querySelectorAll<HTMLElement>(".bn-block-outer"));
+  nodes.forEach((node, index) => {
+    vi.spyOn(node, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(80, 255 + index * 30, 220, 30),
+    );
+  });
+  Object.defineProperty(document, "elementsFromPoint", {
+    configurable: true,
+    value: () => [nodes[0], editorDOM],
+  });
+  const transact = vi.fn(model.transact.bind(model));
+  const editor = {
+    get prosemirrorState() {
+      return model.prosemirrorState;
+    },
+    prosemirrorView: {
+      dom: editorDOM,
+      nodeDOM: (pos: number) => nodes[positions.indexOf(pos)] ?? editorDOM,
+    },
+    getBlock: (id: string) => model.getBlock(id),
+    getParentBlock: (id: string) => model.getParentBlock(id),
+    get document() {
+      return model.document;
+    },
+    transact,
+  } as unknown as EditorInstance;
+  const preview = () => {
+    const placement = computeEditorDropCursor({
+      editor,
+      event: new MouseEvent("dragover", { clientX: 190, clientY: 255 }) as DragEvent,
+      defaultPosition: { pos: positions[0] as number },
+    });
+    alignDropCursorToReadingColumn();
+    return placement;
+  };
+  const drop = (clientX = 190, clientY = 255, target: HTMLElement = editorDOM) => {
+    const event = new MouseEvent("drop", { clientX, clientY, bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: { types: ["blocknote/html"] } });
+    target.dispatchEvent(event);
+    return event;
+  };
+  return { ids, model, host, editor, cursor, transact, preview, drop };
+}
+
 describe("side-menu block reorder", () => {
   afterEach(() => {
     endSideMenuBlockReorder();
@@ -33,6 +101,68 @@ describe("side-menu block reorder", () => {
       Object.defineProperty(document, "elementsFromPoint", originalElementsFromPoint);
     else Reflect.deleteProperty(document, "elementsFromPoint");
   });
+
+  it.each([255, 258])("commits the validated drop once after dragleave, at y=%i", (clientY) => {
+    vi.stubGlobal("DragEvent", class extends Event {});
+    const fixture = blockDropFixture();
+    try {
+      beginSideMenuBlockReorder(fixture.editor, fixture.ids[2] as string);
+      expect(fixture.preview()).not.toBeNull();
+      expect(fixture.transact).not.toHaveBeenCalled();
+      // BlockNote removes its overlay on a native dragleave with no relatedTarget.
+      fixture.cursor.remove();
+      expect(fixture.drop(190, clientY).defaultPrevented).toBe(true);
+      expect(fixture.model.document.map((block) => block.id)).toEqual([
+        fixture.ids[2],
+        fixture.ids[0],
+        fixture.ids[1],
+      ]);
+      expect(fixture.transact).toHaveBeenCalledTimes(1);
+      fixture.drop();
+      expect(fixture.transact).toHaveBeenCalledTimes(1);
+      expect(document.documentElement.hasAttribute("data-block-grabbing")).toBe(false);
+    } finally {
+      endSideMenuBlockReorder();
+      fixture.host.remove();
+    }
+  });
+
+  it.each(["outside editor", "invalid destination", "cancelled", "invalid dragover"])(
+    "does not reuse a valid preview after a %s",
+    (reason) => {
+      vi.stubGlobal("DragEvent", class extends Event {});
+      const fixture = blockDropFixture();
+      try {
+        beginSideMenuBlockReorder(fixture.editor, fixture.ids[2] as string);
+        expect(fixture.preview()).not.toBeNull();
+        if (reason === "invalid destination") {
+          expect(
+            computeEditorDropCursor({
+              editor: fixture.editor,
+              event: new MouseEvent("dragover") as DragEvent,
+              defaultPosition: null,
+            }),
+          ).toBeNull();
+        } else if (reason === "cancelled") {
+          window.dispatchEvent(new Event("dragend"));
+        } else if (reason === "invalid dragover") {
+          const event = new MouseEvent("dragover", { clientX: 800, clientY: 800, bubbles: true });
+          Object.defineProperty(event, "dataTransfer", { value: { types: ["blocknote/html"] } });
+          window.dispatchEvent(event);
+        }
+        fixture.drop(
+          reason === "outside editor" ? 800 : 190,
+          reason === "outside editor" ? 800 : 255,
+          reason === "outside editor" ? fixture.host : undefined,
+        );
+        expect(fixture.transact).not.toHaveBeenCalled();
+        expect(fixture.model.document.map((block) => block.id)).toEqual(fixture.ids);
+      } finally {
+        endSideMenuBlockReorder();
+        fixture.host.remove();
+      }
+    },
+  );
 
   it("aligns the preview to the active tab even when a hidden editor comes first", () => {
     vi.stubGlobal("DragEvent", class extends Event {});

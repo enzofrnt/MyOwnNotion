@@ -423,11 +423,11 @@ function setBlockGrabCursor(active: boolean): void {
   else document.documentElement.removeAttribute(BLOCK_GRABBING_ATTRIBUTE);
 }
 
-function dropCursorIsVisible(): boolean {
-  if (typeof document === "undefined") return false;
-  const cursor = activeDropCursor();
-  if (cursor === null || cursor.style.display === "none") return false;
-  return cursor.getClientRects().length > 0;
+function isActiveEditorTarget(event: DragEvent): boolean {
+  return (
+    event.target instanceof Node &&
+    activeReorder?.editor.prosemirrorView.dom.contains(event.target) === true
+  );
 }
 
 function isSideMenuBlockDrag(event: DragEvent): boolean {
@@ -438,6 +438,9 @@ function onWindowDragOver(event: DragEvent): void {
   if (activeReorder === null || !isSideMenuBlockDrag(event)) return;
   event.preventDefault();
   if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "move";
+  // The editor's bubbling dragover validates its destination. Leaving that
+  // editor invalidates the earlier preview, including a drop into another tab.
+  if (!isActiveEditorTarget(event)) pendingDropCursor = null;
   scheduleDropCursorAlign();
 }
 
@@ -448,10 +451,13 @@ function onWindowDrop(event: DragEvent): void {
   // stacks mentions on the same line instead of moving the whole block.
   event.preventDefault();
   event.stopImmediatePropagation();
-  const cursor = pendingDropCursor;
+  const preview = pendingDropCursor;
   const target =
-    cursor !== null && dropCursorIsVisible()
-      ? blockDropTargetAtCursor(current.editor.prosemirrorState.doc, cursor.pos)
+    // A native dragleave can remove BlockNote's painted overlay before drop.
+    // Firefox may also report different dragover/drop coordinates at an edge.
+    // The active editor owns the validated destination, never the overlay's DOM.
+    preview !== null && isActiveEditorTarget(event)
+      ? blockDropTargetAtCursor(current.editor.prosemirrorState.doc, preview.pos)
       : null;
   if (target !== null && target.referenceId !== current.blockId) {
     moveEditorBlock(current.editor, current.blockId, target.referenceId, target.placement);

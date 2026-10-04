@@ -45,6 +45,7 @@ import { displayDatabaseValue } from "./database-value.ts";
 import { isChoiceProperty, OptionValueMenu, PropertyOptionsEditor } from "./option-appearance.tsx";
 import { DatabasePropertyIcon } from "./property-icon.tsx";
 import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
+import { observeTableScrollOffset } from "./table-scroll-observer.ts";
 import { useTableViewport } from "./use-table-viewport.ts";
 import {
   type RelationOption,
@@ -613,6 +614,7 @@ export function TableView({
     enabled: viewport.element !== null,
     count: rows.length,
     getScrollElement: () => viewport.element,
+    observeElementOffset: observeTableScrollOffset,
     initialOffset: () => viewport.element?.scrollTop ?? scrollTop,
     scrollMargin: viewport.scrollMargin,
     estimateSize: () => 44,

@@ -1435,3 +1435,99 @@ Ctrl/Meta+Fin, saisie rapide, flèches, Échap et clic natif restent inchangés.
 Logs archivés sous `work/test-readiness/e2e-slash-all-green-72-logs/` avant
 toute autre matrice. Le contrôle complet du prochain commit et sa CI sont
 encore requis, ainsi que les diagnostics T066/T067.
+
+### T066/T067 — lifecycle du dépôt et arrêt du défilement
+
+Les probes WebKit 74 passent six parcours natifs (trois glissers à 320 px et
+trois grandes bases) ; les probes de pagination 75/79 passent respectivement
+trois et deux parcours. Elles ne reproduisent pas les deux échecs CI. La probe
+73 est invalide : son sélecteur de diagnostic absent provoque une erreur de
+ResizeObserver ; elle est corrigée avant les suivantes et ne compte pas comme
+preuve rouge produit. Toutes les probes sont retirées du corpus maintenu.
+
+Le code épinglé BlockNote retire son overlay au dragleave sans relatedTarget.
+Le dépôt applicatif exigeait encore cette peinture : le test rouge 76 reproduit
+le déplacement perdu. Les trois cas rouges 77 révèlent aussi la réutilisation
+d'une preview périmée. La protection initiale par égalité de coordonnées passe
+les 16 tests unitaires (78), mais échoue sur le geste Firefox : la matrice 82
+est interrompue après ce constat et ne valide aucun profil complet. La probe
+84 confirme dragover y=255/258 et drop y=255 pour le même pos=1. Le correctif
+retient la destination de l'éditeur actif ; sortie vers un autre élément,
+destination invalide et annulation la rendent inutilisable. Il ne dépend plus
+de la présence de la peinture ni de coordonnées strictement identiques.
+
+La probe 79 relève un offset virtuel 40 363, 1 380 px de corrections négatives
+différées et un scrollport réel déjà en bas à 40 389. L'observateur épinglé
+utilise au repos le dernier offset événementiel, qui peut précéder un nouveau
+geste ou layout. Les deux tests rouges 80 exécutent cet observateur et le
+virtualiseur réels : iOS ramène une intention courante à 1 000 vers 492.
+L'adapter de tableau relit uniquement le scrollTop réel au repos, avant la
+décision de compensation ; geste, estimation, pagination et DOM borné restent
+inchangés. Déconnexion et observation native sont aussi testées.
+
+La suite ciblée 85 passe **24 tests dans trois fichiers** : 17 pour le glisser,
+cinq pour la géométrie/lifecycle du viewport et deux pour l'observation.
+Types de tous les packages verts (83), contrôles de format/lint ciblés verts.
+La matrice native 86, les preuves visuelles, le prochain contrôle complet et
+sa CI restent requis. Aucun délai, retry validant, clic forcé, seuil ou exclusion
+n'est ajouté aux parcours maintenus. L'instance du propriétaire reste intacte.
+
+Diagnostics et logs isolés sous `work/test-readiness/` :
+`unit-drop-{red-76,red-77,green-78}.log`, `unit-scroll-red-80.log`,
+`unit-drop-scroll-green-85.log`, `e2e-pagination-{probe-75,idle-probe-79}.log`,
+`e2e-drop-firefox-probe-84.log` et `e2e-drop-scroll-all-green-82.log` (interrompu).
+
+La matrice 86 passe les trois profils desktop et les deux grandes bases
+Chromium mobile, mais échoue aux glissers mobiles ; elle est arrêtée avant
+fin de WebKit mobile. La probe 88 relève au point de dépôt la cible native
+`.bn-formatting-toolbar`, tandis que pos=1 reste validé. Cette superposition
+explique l'interception et la sortie du DOM texte. Le contrôle 89, qui attendait
+la disparition du toolbar, passe et ne constitue pas une preuve rouge :
+cette attente est retirée. L'observation immédiate avant relâchement (90)
+échoue **trois fois**, avec une barre visible au lieu de zéro, sans retry.
+
+Le propriétaire CSS chargé `editor.css` conserve la géométrie de la barre,
+mais la masque et désactive son hit testing uniquement pendant le glisser de
+bloc. Le test natif observe cet état sans attendre, puis confirme la fin de
+grabbing au dépôt et à Échap. Aucun réglage, style de texte ou interaction
+normale de la barre n'est retiré. La matrice 91 rejoue les cinq profils avant
+preuve visuelle et contrôle complet ; elle ne constitue pas encore une clôture.
+
+La matrice 91 passe les trois desktop, mais le glisser mobile reste en échec
+(matrice interrompue). La probe 92 confirme le DIV positioner encore visible
+et interactif alors que son contenu est caché. Le controller reçoit désormais
+une classe via `floatingUIOptions.elementProps`, sans modifier le placement
+ou les dimensions ; la règle de grabbing masque ce positioner et son contenu.
+L'observation immédiate contrôle les deux surfaces. La suite 93 passe
+**25 tests dans quatre fichiers**, menus compris ; la matrice 94 reprend les
+cinq profils et aucune réussite de la matrice interrompue n'est présentée comme
+un contrôle complet.
+
+La matrice 94 est interrompue après les échecs de géométrie desktop : le
+positioner n'intercepte plus le geste, mais le trait se trouve encore à
+l'ancienne limite, environ 30 px plus bas. La probe native 95 reproduit cet
+écart et confirme pos=1 valide, DOM cible correct et barre entièrement cachée.
+Le contrôle 96 échoue trois fois : la règle non scopée ne gagne pas la cascade.
+La probe 97 relève la transition SDK réelle `top/bottom 0.15s`, le trait à
+y=320 et le premier bloc à y=291. La règle chargée dans `editor.css` est
+désormais scopée à `.page-editor`, sans `!important`, et retire uniquement
+l'animation du trait : la preview doit correspondre immédiatement à la
+destination validée, même avant un relâchement rapide. Probes retirées ; le
+contrôle natif 98 conserve ses assertions et trois répétitions sans retry.
+
+Le contrôle 98 termine vert : **trois parcours Chromium mobile à 320 px**.
+La matrice 99 termine ensuite verte : **30 parcours, cinq profils, 348 s,
+sans retry**, soit deux répétitions des deux glissers et du retour après
+1 001 entrées (clair/sombre conservés). Logs archivés sous
+`work/test-readiness/e2e-drop-scroll-all-green-99-logs/` avant les contrôles
+suivants. La suite 100 passe **25 tests dans quatre fichiers** ; tous les
+types et le contrôle ciblé de format/lint passent (101).
+
+Captures finales revues : trait immédiatement aligné sur le premier bloc,
+colonne de lecture respectée à 320 px, menu absent pendant le geste ; entrée
+1000 entière et accessible après retour, tableau borné, thèmes clair/sombre.
+Preuves Chromium dark-320/light-1280 et WebKit dark-320/light-390/dark-390 :
+`assets/validation-native-block-drop-lifecycle-{chromium,webkit}-dark-320.png`
+et `assets/validation-table-idle-scroll-{chromium-light-1280,webkit-light-390,`
+`webkit-dark-390}.png`. Ces résultats ne remplacent pas le contrôle complet
+du commit à publier ni la CI du dernier head ; T045/T065–T067 restent ouverts.

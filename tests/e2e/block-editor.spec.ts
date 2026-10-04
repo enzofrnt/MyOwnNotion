@@ -643,7 +643,15 @@ for (const width of [undefined, 320]) {
         path: testInfo.outputPath("native-block-drop-preview.png"),
         contentType: "image/png",
       });
+      // Observe immediately before release; waiting for it to disappear would
+      // hide the race where the text toolbar intercepts a native block drop.
+      expect(
+        await page
+          .locator(".editor-formatting-toolbar-positioner:visible, .bn-formatting-toolbar:visible")
+          .count(),
+      ).toBe(0);
       await page.mouse.up();
+      await expect(page.locator("html")).not.toHaveAttribute("data-block-grabbing", "true");
       await expect
         .poll(() =>
           blocks.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-id"))),
@@ -674,6 +682,7 @@ for (const width of [undefined, 320]) {
       await expect(cursor).toBeVisible();
       await page.keyboard.press("Escape");
       await page.mouse.up();
+      await expect(page.locator("html")).not.toHaveAttribute("data-block-grabbing", "true");
       await expect(cursor).toHaveCount(0);
       expect(await editorApplyCount(page)).toBe(applied);
       expect(

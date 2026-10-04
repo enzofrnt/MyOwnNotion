@@ -524,3 +524,61 @@ avant et pendant le clic natif. Ne pas prendre le succès après retry pour une
 validation ni forcer l'action ou désactiver la virtualisation. Les reproductions
 utilisent les fixtures jetables et appliquent ui-quality + lessons. Aucun
 changement du modèle de contenu ou de l'instance du propriétaire.
+
+T066 identifie une dépendance incorrecte à la peinture de la preview :
+BlockNote retire son overlay au dragleave natif sans relatedTarget ;
+le dépôt actuel exige pourtant que ce DOM soit encore visible. Trois tests
+unitaires rouges reproduisent dépôt perdu et réutilisation d'une preview périmée.
+La première protection par égalité de coordonnées échoue dans Firefox :
+dragover alterne y=255/258 pour la même destination, puis drop rapporte 255.
+Conserver la destination validée et son éditeur propriétaire ; une sortie de
+celui-ci invalide la preview. Le drop doit cibler cet éditeur, sans exiger
+l'égalité des coordonnées ou la présence de l'overlay. Annulation, destination
+invalide et absence d'écriture avant dépôt restent protégées. Les probes
+natives locales passent encore sans reproduire l'échec CI exact ; distinguer
+ce défaut de lifecycle démontré de la cause CI qui reste à confirmer.
+
+T067 observe dans une probe WebKit un offset virtuel à 40 363 avec
+1 380 px de corrections négatives différées, alors que le scrollport réel est
+déjà en bas à 40 389. Le debounce d'observation transmet encore le dernier
+offset reçu ; son callback d'arrêt peut arriver avant le nouvel événement
+natif. Deux tests unitaires rouges utilisent l'observateur et le virtualiseur
+réels : une correction iOS repart de cette ancienne position au lieu de
+conserver le bas courant. Adapter uniquement l'observation des tableaux pour
+relire scrollTop à l'arrêt, avant que le virtualiseur décide de rejouer ses
+corrections. Garder les événements pendant le geste, la virtualisation bornée,
+le scrollport canonique et les estimations existantes. Les probes natives sont
+vertes et ne reproduisent pas encore l'échec CI complet ; le défaut de course
+est démontré en unitaire. Aucun délai, budget ou clic E2E ne change.
+
+Propriétaires : `block-drag-reorder.ts` garde le cycle et la transaction de
+bloc ; `table-scroll-observer.ts` adapte l'observation utilisée par
+`table-view.tsx`. Les régressions utilisent les modèles ProseMirror et
+TanStack réels dans `editor-block-reorder.spec.ts` et
+`table-scroll-observer.spec.ts`, avec la géométrie existante de
+`table-viewport.spec.tsx`. Aucune nouvelle primitive visuelle ni feuille CSS.
+
+La probe mobile 88 confirme la barre `.bn-formatting-toolbar` comme cible
+native du drop au-dessus du premier bloc : elle couvre le point pendant que
+la preview garde pos=1. Le contrôle ciblé 86 passe les trois profils desktop
+et les grandes bases Chromium mobile, mais échoue aux glissers mobiles ;
+il est interrompu pour traiter cette superposition. `editor.css`, propriétaire
+chargé par `global.css`, masque seulement cette barre pendant
+`data-block-grabbing=true`, sans retirer sa géométrie ou modifier ProseMirror.
+Le parcours maintenu observe son absence immédiatement avant le relâchement,
+sans attendre sa disparition, et confirme la fin du mode grabbing au dépôt
+et à l'annulation. Appliquer ui-quality + lessons et revoir les vraies captures.
+
+Masquer seulement le contenu ne suffit pas : la probe 92 montre le DIV flottant
+resté visible avec hit testing actif comme cible native. Le controller de
+mise en forme reçoit une classe de positioner via son API publique existante ;
+la même règle CSS masque sa surface entière, y compris pendant sa fermeture,
+sans changer dimensions, placement ni animations normales. Le parcours vérifie
+immédiatement l'absence du positioner et de son contenu avant le drop.
+
+Les probes 95/97 montrent ensuite le trait encore animé vers la destination :
+pos=1 et premier bloc à y=291, mais peinture à y=320, avec transition SDK de
+150 ms sur top/bottom. `editor.css` possède déjà la largeur de cette preview ;
+scoper ce même bloc à `.page-editor` et retirer sa transition garantit la
+position courante avant relâchement, sans dépendre de l'ordre d'import SDK.
+Garder les mesures E2E immédiates, tolérances, couleur, gestes et transactions.
