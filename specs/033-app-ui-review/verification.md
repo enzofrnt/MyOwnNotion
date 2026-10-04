@@ -1531,3 +1531,55 @@ Preuves Chromium dark-320/light-1280 et WebKit dark-320/light-390/dark-390 :
 et `assets/validation-table-idle-scroll-{chromium-light-1280,webkit-light-390,`
 `webkit-dark-390}.png`. Ces résultats ne remplacent pas le contrôle complet
 du commit à publier ni la CI du dernier head ; T045/T065–T067 restent ouverts.
+
+### Contrôle complet 19 — arrêt aux contrats, T068
+
+Sur le commit propre `060e928d4ae6c63fa2ddf7b300bcd2efd5090267`, outillage,
+shell, format/lint, types passent. La couverture passe **486 fichiers,
+5 116 tests**, avec les deux exclusions Windows existantes ; couverture
+91,72 % statements, 86,33 % branches, 94,37 % functions, 92,82 % lines.
+Les neuf groupes de performance passent, puis **375 tests d'intégration**
+et **13 tests de migration**. Les contrats s'arrêtent avec **1 869 réussites
+et deux échecs** : l'identité folder d'import reçoit un échec pg_dump après
+15,5 s ; le cas V1 backup mismatch dépasse 120 s. Ces deux cas passent dans
+la couverture précédente du même contrôle (764/446 ms). Le scénario longue
+absence de 10 000 changements passe à environ 146 s dans les deux suites.
+
+Ce contrôle est **en échec**, pas une validation de publication. La matrice
+complète web, les étapes desktop/build/images/sécurité restantes ne démarrent
+pas ; le collecteur de logs web est arrêté. Log ignoré
+`work/test-readiness/checks-local-19.log`. T068 suit la cause avant toute
+correction : observation PostgreSQL sans SQL privé, codes de sortie classifiés
+sans credentials et rejeu des trois fichiers avec la même concurrence.
+
+### T068 — diagnostic des connexions, sans changement des budgets
+
+Le rejeu 102 des trois fichiers concernés passe **51 tests** (143,14 s,
+dont 141,89 s pour la longue absence). L'observation PostgreSQL ne voit
+ni bloqueur ni requête de plus de cinq secondes. Le rejeu complet 103
+reproduit **trois échecs / 1 868 réussites** : deux autres cas d'import
+reçoivent `timeout expired` après 15,37/15,58 s, et le refus V1 d'identité
+d'installation dépasse 120 s. Aucun bloqueur n'est observé. L'outil pg_dump
+ne signale alors qu'une base temporaire absente, sans expiration de connexion ;
+cet événement ne démontre pas la cause des trois échecs. Ne pas assimiler
+tout code non nul d'un scénario négatif à un défaut de sauvegarde.
+
+Le message `timeout expired` correspond au délai d'ouverture du client pg,
+avant la vérification d'import attendue. Le diagnostic 104 observe les étapes
+TCP/SASL et la fermeture des clients sans lire les requêtes ou leur contenu.
+Il passe **154 fichiers / 1 871 tests** (148,29 s, longue absence 146,95 s) :
+aucune connexion pendante de plus de deux secondes et aucune expiration ;
+les refus de connexion attendus des tests de restauration restent couverts.
+Ce rejeu ne reproduit donc pas la panne et ne prouve aucune correction.
+Logs ignorés `work/test-readiness/contract-diagnostic-{102,103,104}.log`.
+Les probes externes ne changent ni code produit, ni assertions, ni budgets,
+ni chiffrement, et ne constituent pas le contrôle de publication.
+
+Le second rejeu complet instrumenté 105 passe également **154 fichiers /
+1 871 tests** (157,64 s, longue absence 156,42 s), sans connexion pendante
+de plus de deux secondes ni expiration. La cause initiale n'est pas démontrée :
+les probes peuvent changer le timing. Aucune correction produit ou relaxation
+du contrôle n'est donc justifiée par ces observations. Le contrôle complet 20
+doit utiliser les outils PostgreSQL réels et la configuration maintenue,
+sans wrapper ou setup de diagnostic, sur un commit figé. Tout nouvel échec
+reste bloquant et sera diagnostiqué ; les échecs 19/103 restent consignés.

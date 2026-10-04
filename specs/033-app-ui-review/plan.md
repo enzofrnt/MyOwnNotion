@@ -582,3 +582,25 @@ pos=1 et premier bloc à y=291, mais peinture à y=320, avec transition SDK de
 scoper ce même bloc à `.page-editor` et retirer sa transition garantit la
 position courante avant relâchement, sans dépendre de l'ordre d'import SDK.
 Garder les mesures E2E immédiates, tolérances, couleur, gestes et transactions.
+
+## T068 — contrats PostgreSQL après le contrôle complet 19
+
+Le contrôle 19 sur `060e928d` s'arrête aux contrats : refus d'identité d'import
+remplacé par l'échec de pg_dump, puis reprise V1 dépassant 120 s. Ces mêmes
+cas passent auparavant dans la couverture du même contrôle. Ne pas modifier
+leurs budgets, assertions, sauvegarde réelle ou chiffrement pour obtenir un
+résultat vert. Observer d'abord les trois fichiers import, migration et longue
+absence dans la même invocation, avec des fixtures PostgreSQL séparées.
+Les diagnostics ignorés ne collectent que code de sortie/catégories d'erreur
+de l'outil et état/attente/blocage des connexions, jamais SQL privé ou clés.
+Une correction maintenue doit viser le mécanisme démontré et disposer de son
+contrôle pertinent ; le contrôle complet et la CI du dernier commit restent
+obligatoires. L'instance du propriétaire reste intacte.
+
+Les diagnostics 102/104/105 passent (51 puis deux fois 1 871 tests) ; 103
+reproduit les expirations d'ouverture de connexion et un autre refus V1,
+sans bloqueur observé. Les probes n'établissent aucun mécanisme produit et
+peuvent modifier le timing. Conserver ces échecs et ne pas ajouter de patch
+spéculatif, retry ou budget accru. Le prochain contrôle normal utilise la
+configuration maintenue sans instrumentation ; il reste bloquant jusqu'au
+succès complet, puis la CI du dernier commit confirme les runtimes de livraison.

@@ -159,3 +159,7 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 
 - [ ] T066 Diagnostiquer le dépôt WebKit mobile absent malgré une preview valide dans la CI : observer événements natifs, types de transfert, destination retenue et visibilité de la ligne au relâchement ; préserver annulation, destinations interdites, éditeur masqué, absence d'écriture avant dépôt et ordre durable ; tests rouge/vert, cinq profils et contrôle complet/CI avec ui-quality + lessons et preuves, selon FR-005/008/012, US2/AC2 et Constitution III/VI/VII (partial).
 - [ ] T067 Stabiliser l'accès natif à la dernière entrée d'un tableau virtualisé après 1 001 entrées chargées : diagnostiquer déplacement du scrollport et remesure au clic WebKit mobile, conserver virtualisation bornée, pagination, focus et retour d'entrée ; tests ciblés puis cinq profils et contrôle complet/CI, preuves ui-quality + lessons selon 026 SC-005, 033 FR-005/008, US2/AC2 et Constitution III/VI/VII (partial).
+
+## Phase 15: Convergence
+
+- [ ] T068 Diagnostiquer l'échec du contrôle complet 19 sur les contrats d'import et de migration de fichiers : distinguer disponibilité des outils PostgreSQL, attente de connexion/verrou, contention des fixtures et défaut produit ; conserver sauvegarde réelle, refus d'identité, reprise V1 et budgets existants ; observer les trois suites concernées sous charge sans exposer SQL privé ni clés, corriger le mécanisme démontré puis repasser le contrôle complet sur le commit exact et sa CI, selon FR-008, plan: validation isolée et Constitution III/VII (partial, HIGH).
