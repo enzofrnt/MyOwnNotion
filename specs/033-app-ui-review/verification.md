@@ -1198,3 +1198,61 @@ Le prochain contrôle complet reste requis sur le commit corrigé.
 
 Le typage de tous les packages et du dépôt passe après correction
 (`work/test-readiness/inline-scroll-types-50.log`).
+
+### Contrôle complet 16 — dépôt clavier de dossier
+
+Sur `49981e2b36934109c795c22e11d9c6f2c33609e2`, politique, shell,
+format/lint/types, couverture et suites précédant les navigateurs passent :
+483 fichiers, 5 094 tests réussis et deux exclusions Windows existantes ;
+couverture 91,72 % statements / 86,33 % branches / 94,37 % functions /
+92,82 % lines. Performance : 22 tests ; intégrations : 375 ; migrations :
+13 ; contrats : 1 871 dans 154 fichiers.
+
+Chromium desktop finit avec **306 réussites, 12 exclusions et un échec**
+sur le dernier parcours de dossier : le dépôt Espace après Flèche haut
+conserve l’ordre précédent. Le contrôle est interrompu pour diagnostiquer
+ce défaut. Firefox compte 220 réussites, 17 exclusions et un test interrompu
+(saisie d’une page longue), sans échec produit observé avant l’arrêt.
+WebKit desktop est partiel ; les deux profils mobiles et les gates suivantes
+ne sont pas exécutés. Cette tentative ne constitue pas un contrôle complet
+réussi et aucun push n’est fait. Log `work/test-readiness/checks-local-16.log`,
+trace/capture Chromium préservées dans `e2e-folder-order-failure-16/`.
+
+### T063 — collision courante au dépôt de dossier
+
+Le diagnostic temporaire 51 reproduit deux échecs sur dix gestes natifs
+Chromium. Dans les deux cas, `event.over.id` désigne encore l’enfant déplacé,
+alors que `event.collisions[0].id` désigne déjà la bonne destination. Les
+huit réussites ne présentent pas cette divergence. L’implémentation locale
+dnd-kit calcule les collisions avant d’actualiser `over` par effet passif ;
+le dépôt immédiat peut lire les deux états à des instants différents.
+Le probe est retiré des sources et du parcours maintenu.
+
+`FolderChildrenList` utilise la collision courante pour son placement
+canonique, sans changer le CSS ni la mutation de hiérarchie. Les trois
+nouveaux cas unitaires échouent avant le correctif (52), puis les neuf tests
+du fichier passent (53) : destination précédente égale au déplacement,
+destination précédente différente, refus d’une collision absente/inconnue/
+inchangée. La mutation positive est unique et l’ordre optimiste vérifié.
+Le typage complet passe (54).
+
+Le parcours 54 passe **25 tests, cinq profils, 222 s, sans retry**. Le dépôt
+rapide d’origine reste inchangé ; Échap annule une autre destination réelle
+en sombre, rend le focus et conserve les ordres du canevas et de la sidebar.
+Le second appareil, le glisser au pointeur et les onglets mobiles restent
+vérifiés. Logs unitaires `work/test-readiness/folder-drop-unit-*.log`,
+diagnostic `folder-drop-diagnostic-51-full.log`, matrice
+`e2e-folder-drop-green-54.log` et `e2e-folder-drop-green-54-logs/`.
+
+Les captures initiales prennent une transition en cours. Le parcours 55
+attend uniquement la fin des animations réelles du canevas avant chaque
+capture d’annulation ; aucun délai arbitraire ni attente supplémentaire
+avant le dépôt rapide. Ce rejeu passe **cinq tests, cinq profils, 78 s, sans
+retry** (`e2e-folder-drop-captures-55.log` et son dossier de logs).
+Les quatre preuves sombres Chromium desktop à 1 024 px et WebKit mobile à
+320 px sont revues selon ui-quality + lessons : preview sur la destination,
+ordre initial après Échap, poignée focalisée, titres longs tronqués et
+contenu sans débordement. Captures
+`assets/validation-folder-keyboard-{preview|cancel}-{profil}-dark-{largeur}.png`.
+T063 et T045 restent ouverts jusqu’au contrôle complet et à la CI du nouveau
+commit. Les données de dev sont intactes.

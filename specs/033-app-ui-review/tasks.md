@@ -141,3 +141,8 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 ## Phase 10: Convergence
 
 - [ ] T062 Diagnostiquer la mesure intermittente de débordement de création inline sur WebKit mobile ; comparer ligne, surface et contrôles dans un même repère, conserver stabilité des dimensions, tolérances et gestes natifs, couvrir ouverture animée et thèmes avec ui-quality + lessons et preuve réelle, puis contrôle complet et CI, selon FR-008/010, US2/AC2 et Constitution III/VI/VII (partial).
+
+
+## Phase 11: Convergence
+
+- [ ] T063 Diagnostiquer le dépôt clavier intermittent des enfants de dossier : distinguer transformation visuelle, collision retenue et destination persistée, conserver Espace/flèches/Échap, gestes natifs, ordre sidebar/second appareil et annulation ; preuve rouge/verte, cinq profils et contrôle complet/CI, avec ui-quality + lessons selon 022 FR-023/024, 033 FR-005/008, US2/AC2 et Constitution III/VI/VII (partial).

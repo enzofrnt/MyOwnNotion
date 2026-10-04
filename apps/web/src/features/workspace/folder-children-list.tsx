@@ -76,7 +76,11 @@ export function reorderRequestFromIndexes(
   const moved = items[from];
   const target = items[to];
   if (moved === undefined || target === undefined) return null;
-  return { itemId: moved.id, targetId: target.id, edge: from < to ? "after" : "before" };
+  return {
+    itemId: moved.id,
+    targetId: target.id,
+    edge: from < to ? "after" : "before",
+  };
 }
 
 function sameOrder(left: readonly string[], right: readonly string[]): boolean {
@@ -256,7 +260,9 @@ export function FolderChildrenList({
 }: FolderChildrenListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
   const { ordered, reorder } = useOptimisticOrder(items);
 
@@ -268,11 +274,14 @@ export function FolderChildrenList({
   };
 
   const onDragEnd = (event: DragEndEvent): void => {
-    const over = event.over;
-    if (over === null || over.id === event.active.id) return;
+    // dnd-kit computes collisions before updating `over` in a passive effect.
+    // An immediate keyboard drop must use the current sensor destination,
+    // rather than the previous effect's cached target (possibly itself).
+    const targetId = event.collisions?.[0]?.id;
+    if (targetId === undefined || targetId === event.active.id) return;
     place(
       ordered.findIndex((child) => child.id === event.active.id),
-      ordered.findIndex((child) => child.id === over.id),
+      ordered.findIndex((child) => child.id === targetId),
     );
   };
 

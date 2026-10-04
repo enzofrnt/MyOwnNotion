@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { act } from "react";
+import type { DndContextProps, DragEndEvent } from "@dnd-kit/core";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -9,6 +10,44 @@ import {
   reorderRequestFromIndexes,
   useOptimisticOrder,
 } from "../src/features/workspace/folder-children-list.tsx";
+
+const dnd = vi.hoisted(() => ({
+  onDragEnd: undefined as DndContextProps["onDragEnd"],
+}));
+vi.mock("@dnd-kit/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@dnd-kit/core")>();
+  return {
+    ...actual,
+    DndContext: (props: DndContextProps) => {
+      dnd.onDragEnd = props.onDragEnd;
+      return createElement(actual.DndContext, props);
+    },
+  };
+});
+
+function dropEvent(active: string, collision: string | null, cachedOver: string): DragEndEvent {
+  const rect = {
+    x: 0,
+    y: 0,
+    left: 0,
+    right: 100,
+    top: 0,
+    bottom: 44,
+    width: 100,
+    height: 44,
+  };
+  return {
+    active: {
+      id: active,
+      data: { current: {} },
+      rect: { current: { initial: rect, translated: rect } },
+    },
+    over: { id: cachedOver, data: { current: {} }, rect, disabled: false },
+    collisions: collision === null ? null : [{ id: collision }],
+    delta: { x: 0, y: -44 },
+    activatorEvent: new KeyboardEvent("keydown", { code: "Space" }),
+  };
+}
 
 function OrderProbe({
   items,
@@ -81,6 +120,7 @@ describe("folder children list", () => {
   let root: Root;
 
   beforeEach(() => {
+    dnd.onDragEnd = undefined;
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement("div");
     document.body.append(container);
@@ -165,6 +205,80 @@ describe("folder children list", () => {
     const elsewhere = [children[2], children[0], children[1], children[3]] as FolderChild[];
     await render(elsewhere);
     expect(order()).toBe("c,a,b,d");
+  });
+
+  it("drops at the current collision when the cached over item still names the dragged child", async () => {
+    const onReorder = vi.fn();
+    await act(async () => {
+      root.render(
+        <FolderChildrenList
+          folderName="Projets"
+          items={children}
+          onOpen={vi.fn()}
+          onReorder={onReorder}
+        />,
+      );
+    });
+    expect(dnd.onDragEnd).toBeTypeOf("function");
+    await act(async () => dnd.onDragEnd?.(dropEvent("b", "a", "b")));
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith({
+      itemId: "b",
+      targetId: "a",
+      edge: "before",
+    });
+    expect(
+      Array.from(container.querySelectorAll('[data-testid="folder-child"]'), (row) =>
+        row.getAttribute("data-item-id"),
+      ),
+    ).toEqual(["b", "a", "c", "d"]);
+  });
+
+  it("keeps the latest downward destination when a different over item is cached", async () => {
+    const onReorder = vi.fn();
+    await act(async () => {
+      root.render(
+        <FolderChildrenList
+          folderName="Projets"
+          items={children}
+          onOpen={vi.fn()}
+          onReorder={onReorder}
+        />,
+      );
+    });
+    await act(async () => dnd.onDragEnd?.(dropEvent("a", "c", "b")));
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith({
+      itemId: "a",
+      targetId: "c",
+      edge: "after",
+    });
+    expect(
+      Array.from(container.querySelectorAll('[data-testid="folder-child"]'), (row) =>
+        row.getAttribute("data-item-id"),
+      ),
+    ).toEqual(["b", "c", "a", "d"]);
+  });
+
+  it("does not persist a stale, missing or unchanged collision", async () => {
+    const onReorder = vi.fn();
+    await act(async () => {
+      root.render(
+        <FolderChildrenList
+          folderName="Projets"
+          items={children}
+          onOpen={vi.fn()}
+          onReorder={onReorder}
+        />,
+      );
+    });
+    for (const collision of [null, "removed-child", "b"]) {
+      await act(async () => dnd.onDragEnd?.(dropEvent("b", collision, "a")));
+    }
+    expect(onReorder).not.toHaveBeenCalled();
+    expect(
+      Array.from(container.querySelectorAll('[data-testid="folder-child"]'), (row) =>
+        row.getAttribute("data-item-id"),
+      ),
+    ).toEqual(["a", "b", "c", "d"]);
   });
 
   it("explains an empty folder", async () => {

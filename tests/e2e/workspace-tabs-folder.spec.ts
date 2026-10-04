@@ -29,7 +29,7 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   browser,
   page,
   isMobile,
-}) => {
+}, testInfo) => {
   test.slow();
   await page.setViewportSize({ width: 1024, height: 800 });
   await openWorkspace(page);
@@ -96,7 +96,10 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
 
   const renamedLeaf = `${leaf} renommée`;
   await renameItem(page, leaf, renamedLeaf);
-  const renamedLeafTab = strip.getByRole("button", { name: renamedLeaf, exact: true });
+  const renamedLeafTab = strip.getByRole("button", {
+    name: renamedLeaf,
+    exact: true,
+  });
   await expect(renamedLeafTab).toHaveAttribute("aria-current", "page");
   await waitForSynchronized(page);
 
@@ -183,8 +186,13 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   } else {
     await secondMenu.click();
   }
-  const childActions = page.getByRole("menu", { name: `Actions pour ${second}` });
-  const moveUp = childActions.getByRole("menuitem", { name: "Monter", exact: true });
+  const childActions = page.getByRole("menu", {
+    name: `Actions pour ${second}`,
+  });
+  const moveUp = childActions.getByRole("menuitem", {
+    name: "Monter",
+    exact: true,
+  });
   await expect(moveUp).toBeVisible();
   if (isMobile === true) {
     await moveUp.tap();
@@ -203,7 +211,10 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
 
   // The sortable handle exposes the dnd-kit keyboard sensor on every profile.
   // Space lifts/drops the child and ArrowUp selects the same "before" intent.
-  const firstHandle = folderCanvas.getByRole("button", { name: `Déplacer ${first}`, exact: true });
+  const firstHandle = folderCanvas.getByRole("button", {
+    name: `Déplacer ${first}`,
+    exact: true,
+  });
   const firstRow = folderCanvas.locator(
     `[data-testid="folder-child"][data-item-id="${firstId as string}"]`,
   );
@@ -234,10 +245,61 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   await expectTreeOrder(page, first, second);
   await waitForSynchronized(page);
 
+  // Cancel a real pending destination in the other theme. The fast drop
+  // above intentionally does not wait for dnd-kit's passive `over` effect.
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await firstHandle.focus();
+  await page.keyboard.press("Space");
+  await expect(firstRow).toHaveAttribute("data-dragging", "true");
+  await page.keyboard.press("ArrowDown");
+  await expect(
+    page.locator('[id^="DndLiveRegion-"][role="status"]').filter({
+      hasText: `Draggable item ${firstId as string} was moved over droppable area ${secondId as string}.`,
+    }),
+  ).toHaveCount(1);
+  const expectSettledFolder = async () => {
+    await expect
+      .poll(() =>
+        folderCanvas.evaluate(
+          (canvas) =>
+            !canvas
+              .getAnimations({ subtree: true })
+              .some((animation) => animation.playState === "running"),
+        ),
+      )
+      .toBe(true);
+  };
+  await expectSettledFolder();
+  await page.screenshot({
+    path: testInfo.outputPath("folder-keyboard-cancel-preview.png"),
+  });
+  await page.keyboard.press("Escape");
+  await expect(firstRow).not.toHaveAttribute("data-dragging", "true");
+  await expect(firstHandle).toBeFocused();
+  await expect
+    .poll(async () =>
+      folderCanvas
+        .getByTestId("folder-child")
+        .evaluateAll((rows) => rows.slice(0, 2).map((row) => row.getAttribute("data-item-id"))),
+    )
+    .toEqual([firstId, secondId]);
+  await expectTreeOrder(page, first, second);
+  await waitForSynchronized(page);
+  await expectSettledFolder();
+  await page.screenshot({
+    path: testInfo.outputPath("folder-keyboard-cancel-kept.png"),
+  });
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
   // Fine-pointer profiles exercise the actual drag sensor as well as the
   // touch alternative above. Both paths emit the same placement command.
   if (isMobile !== true) {
-    const source = folderCanvas.getByRole("button", { name: `Déplacer ${second}`, exact: true });
+    const source = folderCanvas.getByRole("button", {
+      name: `Déplacer ${second}`,
+      exact: true,
+    });
     const sourceRow = folderCanvas.locator(
       `[data-testid="folder-child"][data-item-id="${secondId as string}"]`,
     );

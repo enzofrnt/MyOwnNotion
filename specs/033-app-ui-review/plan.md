@@ -453,3 +453,21 @@ Le parcours renforcé lit tous les rectangles dans le même frame, exige une
 origine stable sans scroll horizontal, conserve les tolérances et gestes, puis
 relit les enfants après rechargement. Clair/sombre × 320/1 280 px restent dans
 le corpus ; captures réelles revues selon ui-quality + lessons.
+
+
+T063 examine le réordonnancement clavier dnd-kit de `FolderChildrenList` :
+la transformation CSS est une intention visuelle, et ne prouve pas à elle
+seule la collision retenue par le sensor. Observer annonces et rectangles
+pendant le geste avant de choisir une correction du cycle ou du test. Conserver
+la mutation canonique de placement, l’ordre optimiste, les autres appareils et
+l’annulation ; éviter sleeps, budgets augmentés et marqueurs visuels arbitraires.
+Appliquer ui-quality + lessons et garder la preuve réelle du parcours.
+
+Le diagnostic T063 reproduit un `over` périmé au dépôt clavier : les collisions
+du sensor contiennent déjà la cible courante, mais l’effet passif dnd-kit n’a
+pas encore actualisé `over`. Le dépôt utilise désormais la première collision
+de `closestCenter`, et refuse cible absente/inconnue/inchangée. Trois tests
+unitaires vérifient destination, mutation unique, ordre optimiste et absence
+d’écriture ; le parcours natif garde le dépôt rapide, ajoute Échap vers une
+cible réelle, retour du focus et preuves sombres après animation terminée.
+Aucun CSS ni protocole canonique de placement ne change.
