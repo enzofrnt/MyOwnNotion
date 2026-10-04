@@ -946,8 +946,10 @@ bun run test:e2e:browser-container -- --project=webkit-desktop
 bun run test:e2e:browser-container -- --project=webkit-mobile
 ```
 
-A complete WebKit lane is split into three sequential shards inside the
-container. Each shard starts a fresh WebKit process, which bounds the engine's
+A complete WebKit lane is split into three sequential shards, both in the
+local Linux container and on the Linux CI runner. Both invoke
+`scripts/e2e/run-container-project.sh` with the exact selected journey files.
+Each shard starts a fresh WebKit process, which bounds the engine's
 long-corpus resource accumulation while preserving `--fail-on-flaky-tests`.
 WebKit projects use a 120-second total watchdog because the Linux engine can
 occasionally spend more than 60 seconds inside `browser.newPage()` before any

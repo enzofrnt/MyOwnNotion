@@ -2066,3 +2066,95 @@ Diagnostics ignorés : `work/ci-181/local-property-order-before.log`,
 aucune donnée de l'instance du propriétaire n'est touchée. La dernière révision
 publiée doit encore être confirmée par la CI, consultée toutes les cinq minutes
 et suivie dans la PR 181 ; cette preuve locale n'est pas déclarée CI verte.
+
+## Lanceur Linux partagé et déplacement à la racine — 2026-10-04
+
+Le [run de `697d9bbb`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37225613460)
+confirme la séquence clavier sur les cinq profils. Il passe Firefox, les deux
+Chromium, WebKit mobile et tous les contrôles hors navigateur. WebKit bureau
+refuse un résultat flaky du parcours des fichiers protégés, avant toute action
+sur une pièce jointe : le shell initial reste absent pendant 30 s. La trace
+montre les réponses 200 de HTML/modules/Wasm, puis une page blanche sans requête
+d'authentification. Le retry dans un nouveau worker passe en 4,2 s.
+
+Cette trace ne localise pas l'instruction bloquée et ne suffit pas à attribuer
+un bug à l'application. Elle expose une différence d'exécution concrète : la CI
+enchaînait toute la lane dans un seul processus WebKit, tandis que le lanceur
+Linux local existant la borne déjà en trois shards. La CI appelle maintenant ce
+même lanceur avec les fichiers du plan d'impact. Le script, les budgets, les
+assertions et les règles de retry/skip ne changent pas ; chaque invocation
+conserve `--fail-on-flaky-tests`. Chromium/Firefox et les diagnostics explicites
+restent en une seule invocation. Cette isolation ne promet pas d'éliminer tout
+incident interne du moteur ; la publication doit obtenir sa propre CI verte.
+
+La première passe locale complète termine WebKit mobile, mais WebKit bureau
+échoue dans le deuxième shard après un déplacement à la racine. La trace observe
+encore `aria-level=2` après retour du clic ; le test tente de défiler jusqu'à cette
+ancienne ligne pendant que l'écriture locale la remonte au niveau 1. Playwright
+perd l'élément pendant son contrôle de stabilité. Le helper `moveItemToRoot`
+attend maintenant son résultat visible, `aria-level=1`, avant de continuer.
+Le scroll natif, les attentes de dépliement/viewport, les clics et leurs
+assertions restent inchangés. Ce post-état ajoute une garantie ; aucun délai,
+retry ou geste forcé n'est ajouté.
+
+Validation proportionnée du changement depuis `697d9bbb` :
+
+- **52/52 contrats** réussis dans quatre fichiers : exécution réelle du lanceur
+  avec un substitut de Bun, transmission exacte des sélections/flags, trois
+  processus WebKit, arrêt immédiat et propagation d'erreur, diagnostics uniques,
+  câblage CI, artefacts Bun et invariants de publication. Le substitut ne lance
+  ni navigateur ni API et n'entre jamais dans l'application.
+- **30/30 parcours hiérarchiques** réussis, trois répétitions de chacun des deux
+  consommateurs du helper sur les cinq profils, sans retry ; 136 s. Création,
+  déplacement, descendants, refus des cycles et retour à une page feuille gardent
+  leurs assertions. Aucun rendu produit modifié ; les preuves ui-quality et les
+  sources UI validées précédemment restent applicables.
+- **WebKit bureau complet** : trois shards, **294 réussites et 26 exclusions
+  existantes**, sans retry ; 1071 s. Les trois parties couvrent 108 + 111 + 101
+  tests, donc toute la lane de 320 cas. Le parcours des fichiers protégés passe
+  en 3,6 s et le parcours hiérarchique précédemment bloqué en 4,0 s.
+- **WebKit mobile complet** : trois shards, **289 réussites et 31 exclusions
+  existantes**, sans retry ; 108 + 111 + 101 cas. Le parcours des fichiers
+  protégés passe en 5,0 s. Cette passe précède le seul post-état ajouté au helper :
+  ses deux consommateurs sont ensuite revalidés parmi les 30 parcours ci-dessus ;
+  tous les autres inputs de cette lane restent identiques.
+- Biome ciblé, types racine, politique de toolchain et shell réussis. Le premier
+  essai shell refuse shfmt 3.14.1 présent sur l'hôte ; il n'est pas compté comme
+  réussi. Le contrôle suivant utilise shfmt **3.12.0** dans un répertoire local
+  ignoré, avec ShellCheck **0.11.0** ; les 13 scripts passent. Aucune installation
+  globale ni version du dépôt n'est changée.
+- Prérequis/cohérence Spec Kit, liens et diff contrôlés avant publication.
+  Les sources produit/build/sécurité/stockage et leurs gates réussis dans la CI
+  de `697d9bbb` ne changent pas : ils sont réutilisés sans refaire une passe complète
+  locale sans impact. Le changement exécutable est borné au point d'entrée du
+  workflow et au post-état d'un helper consommé par deux parcours identifiés.
+
+```bash
+bun run --bun vitest run --project workspace-contract \
+tests/contract/e2e-project-runner.spec.ts \
+tests/contract/bun-production-artifacts.spec.ts \
+tests/contract/bun-quality-gate.spec.ts tests/contract/release-gates.spec.ts
+
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+--project=webkit-desktop --project=webkit-mobile --retries=0
+
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/hierarchy.spec.ts --grep 'creates, nests, reorders|turns a page back into a leaf' \
+--retries=0 --repeat-each=3
+
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=1 bun scripts/e2e/run-local-matrix.ts \
+--project=webkit-desktop --retries=0
+```
+
+Logs et trace ignorés sous `work/ci-181/` :
+`webkit-desktop-697d9bbb.log`, `local-webkit-recycled-full.log`,
+`local-webkit-recycled-{desktop,mobile}-detail.log`,
+`local-navigation-remount-before.zip`, `local-root-move-after.log`,
+`local-webkit-desktop-recycled-after{,-detail}.log` et `local-shell-runner.log`.
+Le premier run des deux lanes est **1/2**, pas une réussite complète. La base
+jetable est arrêtée et les données propriétaire restent intactes. La confirmation
+CI de la dernière révision est un gate distinct, suivi dans la PR 181 avec un
+minuteur de cinq minutes ; aucune fusion n'est effectuée par cet agent.

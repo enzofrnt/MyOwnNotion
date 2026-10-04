@@ -92,6 +92,35 @@ moteur, retry ou assertion assouplie. Vérifier le diagnostic puis retirer les
 probes et rejouer plusieurs fois le parcours sur les cinq profils, en conservant
 preview, annonce, annulation, dépôt durable et indépendance des colonnes.
 
+Le run de `697d9bbb` valide les deux Chromium et tous les contrôles hors
+navigateur, mais WebKit bureau bloque une fois à l'ouverture initiale de
+l'application dans le parcours des fichiers protégés, après environ 238 tests.
+HTML, modules et Wasm répondent 200 ; aucune requête d'authentification n'est
+émise et la page reste vide. Le retry dans un nouveau worker passe en 4,2 s.
+Cette trace ne localise pas l'instruction bloquée et ne démontre pas un défaut
+produit. La CI utilise pourtant un processus long alors que le lanceur Linux
+local existant borne déjà WebKit en trois shards, sans changer les attentes.
+Partager ce lanceur dans la CI, vérifier transmission exacte des sélections,
+shards, arrêt en erreur et maintien du refus des flakies ; conserver une exécution
+unique pour les diagnostics explicites et les autres moteurs. Exécuter les deux
+lanes WebKit complètes en local, contrôler les consommateurs du workflow et
+conserver les preuves/limites avant publication. Impact borné au point d'entrée
+E2E du workflow ; aucune source produit, build, dépendance ou donnée modifiée.
+Les gates inchangées confirmées sur `697d9bbb` restent réutilisables.
+
+La vérification complète de T077 termine les trois shards WebKit mobile, mais
+WebKit bureau révèle une autre course dans le parcours hiérarchique : juste
+après « déplacer à la racine », le test continue sur la ligne encore au niveau 2.
+L'écriture locale la remonte au niveau 1 pendant l'attente interne de stabilité
+du scroll Playwright, qui perd son élément. La trace observe encore le niveau 2
+après retour du clic. Faire attendre au helper de déplacement son résultat
+visible (`aria-level=1`), puis conserver le scroll natif et tous les contrôles
+de dépliement/viewport/sélection existants. Aucun changement produit ou retry.
+Rejouer ses deux consommateurs sur les cinq profils, puis terminer une lane
+WebKit bureau complète en trois shards. Les parcours WebKit mobile inchangés
+réutilisent la passe complète déjà réussie ; ses deux consommateurs sont
+revalidés avec le nouveau post-état avant publication.
+
 ## Technical Context
 
 TypeScript strict/Bun 1.4.2/React/Ariakit/BlockNote existants. Frameworks conservés ;
@@ -109,8 +138,9 @@ I/IV : données/chiffrement/hors ligne/permissions conservés. II/VIII : dossier
 unique lié au canevas. V : système existant, abstraction seulement répétée.
 VI : clic sémantique/labels/focus/clavier/tactile. VII : Bun et vérification
 types/lint/tests/build. III : le propriétaire réactive la validation automatisée
-complète et autorise push/PR le 2026-10-03. Toutes les gates de docs/development.md
-s’appliquent avant chaque push, puis la CI est suivie jusqu’au succès.
+complète et autorise push/PR le 2026-10-03. Depuis Constitution 4.0.0, les gates
+locales de docs/development.md sont sélectionnées selon l'impact de chaque
+publication ; la CI de la dernière révision reste suivie jusqu'au succès.
 
 ## Phase 0 — Research
 

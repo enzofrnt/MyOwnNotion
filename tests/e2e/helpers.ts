@@ -807,6 +807,9 @@ export async function trashItem(
 
 export async function moveItemToRoot(page: Page, itemName: string): Promise<void> {
   await clickItemAction(page, itemName, `move-root-${itemName}`);
+  // The click returns before the local move remounts this row at the root.
+  // Observe that result before a later scroll or selection uses the old branch.
+  await expect(page.getByTestId(`tree-item-${itemName}`)).toHaveAttribute("aria-level", "1");
 }
 
 export async function moveItemUp(page: Page, itemName: string): Promise<void> {
