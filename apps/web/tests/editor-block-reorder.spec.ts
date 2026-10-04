@@ -6,6 +6,7 @@ import {
   alignDropCursorToReadingColumn,
   beginSideMenuBlockReorder,
   blockDropTargetAtCursor,
+  computeEditorDropCursor,
   endSideMenuBlockReorder,
   hideEditorDropCursors,
   isNoOpDropPosition,
@@ -21,11 +22,16 @@ function fixtureElement(root: Element, selector: string): HTMLElement {
   return element;
 }
 
+const originalElementsFromPoint = Object.getOwnPropertyDescriptor(document, "elementsFromPoint");
+
 describe("side-menu block reorder", () => {
   afterEach(() => {
     endSideMenuBlockReorder();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    if (originalElementsFromPoint)
+      Object.defineProperty(document, "elementsFromPoint", originalElementsFromPoint);
+    else Reflect.deleteProperty(document, "elementsFromPoint");
   });
 
   it("aligns the preview to the active tab even when a hidden editor comes first", () => {
@@ -190,6 +196,90 @@ describe("side-menu block reorder", () => {
     });
   });
 
+  it("resolves the outer block-group boundaries to the first and last block", () => {
+    const first = generateUuidV7();
+    const last = generateUuidV7();
+    const editor = BlockNoteEditor.create({
+      schema: blockNoteSchema,
+      initialContent: [
+        { id: first, type: "paragraph", content: "First" },
+        { id: last, type: "paragraph", content: "Last" },
+      ] as unknown as PartialBlock[],
+    }) as unknown as EditorInstance;
+    const doc = editor.prosemirrorState.doc;
+    expect(blockDropTargetAtCursor(doc, 0)).toEqual({ referenceId: first, placement: "before" });
+    expect(blockDropTargetAtCursor(doc, doc.content.size)).toEqual({
+      referenceId: last,
+      placement: "after",
+    });
+  });
+
+  it.each(["group boundary", "following block boundary", "group boundary without a hit element"])(
+    "uses the hovered block edge when the browser reports a %s",
+    (reported) => {
+      vi.stubGlobal("DragEvent", class extends Event {});
+      const ids = [generateUuidV7(), generateUuidV7(), generateUuidV7()];
+      const model = BlockNoteEditor.create({
+        schema: blockNoteSchema,
+        initialContent: ids.map((id, index) => ({
+          id,
+          type: "paragraph",
+          content: `Block ${index}`,
+        })) as unknown as PartialBlock[],
+      }) as unknown as EditorInstance;
+      const doc = model.prosemirrorState.doc;
+      const positions: number[] = [];
+      doc.descendants((node, pos) => {
+        if (node.type.name === "blockContainer") positions.push(pos);
+        return true;
+      });
+      const host = document.createElement("section");
+      host.innerHTML = `<div class="bn-editor"><div class="bn-block-group">${ids.map((id) => `<div class="bn-block-outer" data-id="${id}"></div>`).join("")}</div></div>`;
+      document.body.append(host);
+      const editorDOM = fixtureElement(host, ".bn-editor");
+      Object.defineProperty(editorDOM, "offsetParent", { value: host });
+      const nodes = Array.from(editorDOM.querySelectorAll<HTMLElement>(".bn-block-outer"));
+      nodes.forEach((node, index) => {
+        vi.spyOn(node, "getBoundingClientRect").mockReturnValue(
+          new DOMRect(80, 255 + index * 30, 220, 30),
+        );
+      });
+      Object.defineProperty(document, "elementsFromPoint", {
+        configurable: true,
+        value: () =>
+          reported === "group boundary without a hit element" ? [] : [nodes[0], editorDOM],
+      });
+      const editor = {
+        prosemirrorState: { doc },
+        prosemirrorView: {
+          dom: editorDOM,
+          nodeDOM: (pos: number) => nodes[positions.indexOf(pos)] ?? editorDOM,
+        },
+        getBlock: (id: string) => model.getBlock(id),
+        getParentBlock: (id: string) => model.getParentBlock(id),
+        document: model.document,
+      } as unknown as EditorInstance;
+      try {
+        beginSideMenuBlockReorder(editor, ids[2] as string);
+        const preview = computeEditorDropCursor({
+          editor,
+          event: new MouseEvent("dragover", { clientX: 190, clientY: 255 }) as DragEvent,
+          defaultPosition: {
+            pos: reported.startsWith("group boundary") ? 0 : (positions[1] as number),
+          },
+        });
+        expect(preview).toEqual({ pos: positions[0], orientation: "block-horizontal" });
+        expect(blockDropTargetAtCursor(doc, preview?.pos ?? -1)).toEqual({
+          referenceId: ids[0],
+          placement: "before",
+        });
+      } finally {
+        endSideMenuBlockReorder();
+        host.remove();
+      }
+    },
+  );
+
   it("treats a drop immediately before or after the dragged block as a no-op", () => {
     const first = generateUuidV7();
     const second = generateUuidV7();
@@ -214,6 +304,8 @@ describe("side-menu block reorder", () => {
       return true;
     });
 
+    expect(isNoOpDropPosition(doc, 0, first)).toBe(true);
+    expect(isNoOpDropPosition(doc, doc.content.size, second)).toBe(true);
     expect(isNoOpDropPosition(doc, firstPos, first)).toBe(true);
     expect(isNoOpDropPosition(doc, firstPos + firstSize, first)).toBe(true);
     expect(isNoOpDropPosition(doc, afterSecond, first)).toBe(false);

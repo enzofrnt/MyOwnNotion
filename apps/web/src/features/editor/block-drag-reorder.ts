@@ -149,11 +149,13 @@ export function blockDropTargetAtCursor(
 ): EditorDropPlacement | null {
   const clamped = Math.max(0, Math.min(pos, doc.content.size));
   const resolved = doc.resolve(clamped);
-  const after = resolved.nodeAfter;
+  const next = resolved.nodeAfter;
+  const after = next?.type.name === "blockGroup" ? next.firstChild : next;
   if (after?.type.name === "blockContainer" && typeof after.attrs["id"] === "string") {
     return { referenceId: after.attrs["id"], placement: "before" };
   }
-  const before = resolved.nodeBefore;
+  const previous = resolved.nodeBefore;
+  const before = previous?.type.name === "blockGroup" ? previous.lastChild : previous;
   if (before?.type.name === "blockContainer" && typeof before.attrs["id"] === "string") {
     return { referenceId: before.attrs["id"], placement: "after" };
   }
@@ -183,7 +185,10 @@ export function isNoOpDropPosition(
 ): boolean {
   const source = findBlockContainer(doc, draggedBlockId);
   if (source === null) return false;
-  return pos >= source.pos && pos <= source.pos + source.node.nodeSize;
+  return (
+    (pos >= source.pos && pos <= source.pos + source.node.nodeSize) ||
+    blockDropTargetAtCursor(doc, pos)?.referenceId === draggedBlockId
+  );
 }
 
 function blockContainerIdAtSelection(editor: EditorInstance): string | null {
@@ -316,17 +321,58 @@ export function computeEditorDropCursor(context: {
   readonly event: DragEvent;
   readonly defaultPosition: { readonly pos: number; readonly orientation?: string } | null;
 }): DropCursorRemap | null {
+  if (activeReorder !== null && activeReorder.editor !== context.editor) return null;
   if (context.defaultPosition === null) {
     pendingDropCursor = null;
     return null;
   }
   const doc = context.editor.prosemirrorState.doc;
-  const remapped = snapDropCursorToBlockEdge(
-    doc,
-    context.defaultPosition.pos,
-    context.event.clientY,
-    hostRectForPos(context.editor, context.defaultPosition.pos),
-  );
+  // At an outer edge, WebKit's caret position can point to the following block
+  // or to the whole group. A side-menu move follows the hovered block geometry;
+  // preview and commit then share that same document position.
+  const host =
+    activeReorder === null ? null : dropHostElement(context.event.clientX, context.event.clientY);
+  const rawId = host === null ? null : blockIdFromOuter(host);
+  const referenceId =
+    rawId === null
+      ? null
+      : atomicDropHostId(
+          (id) => context.editor.getBlock(id),
+          (id) => context.editor.getParentBlock(id),
+          rawId,
+        );
+  const reference =
+    referenceId === null || host === null || !context.editor.prosemirrorView.dom.contains(host)
+      ? null
+      : findBlockContainer(doc, referenceId);
+  const candidate: DropCursorRemap =
+    reference !== null && host !== null
+      ? {
+          pos:
+            dropPlacementFromPoint(context.event.clientY, host.getBoundingClientRect()) === "before"
+              ? reference.pos
+              : reference.pos + reference.node.nodeSize,
+          orientation: "block-horizontal",
+        }
+      : snapDropCursorToBlockEdge(
+          doc,
+          context.defaultPosition.pos,
+          context.event.clientY,
+          hostRectForPos(context.editor, context.defaultPosition.pos),
+        );
+  const placement = blockDropTargetAtCursor(doc, candidate.pos);
+  const destination = placement === null ? null : findBlockContainer(doc, placement.referenceId);
+  if (destination === null || placement === null) {
+    pendingDropCursor = null;
+    return null;
+  }
+  const remapped: DropCursorRemap = {
+    pos:
+      placement.placement === "before"
+        ? destination.pos
+        : destination.pos + destination.node.nodeSize,
+    orientation: "block-horizontal",
+  };
   const draggedId = draggedBlockIdForCursor(context.editor);
   if (draggedId !== null && isNoOpDropPosition(doc, remapped.pos, draggedId)) {
     pendingDropCursor = null;

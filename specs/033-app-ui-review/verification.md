@@ -1034,3 +1034,69 @@ principale conserve sa hiérarchie. La preuve avant correction est
 [avis natif Linux ARM](assets/ci-180-notice-contrast-before.png).
 Les résultats ciblés ne remplacent pas le prochain `checks:local` complet sur
 le nouveau commit exact. T059/T060 et T045 restent ouverts à cette étape.
+
+
+### Contrôle complet 12 — interrompu sur 444c6ef8
+
+Format/lint/types et couverture passent : 483 fichiers, 5 090 tests réussis,
+deux cas Windows exclus localement ; 91,72/86,33/94,37/92,82 %. Neuf suites de
+performance, 375 intégrations, 13 migrations et 1 871 contrats passent. La
+matrice est interrompue pendant ses premiers profils après réception d'un
+autre échec réel de CI ; aucun profil complet ni gate ultérieure n'est validé
+par cette tentative, aucun push de ce commit. L'instance du propriétaire reste
+saine et intacte.
+
+CI initiale : WebKit mobile termine avec 283 réussites, 31 exclusions et un
+échec, répété au retry. Le parcours de glisser natif affiche bien la preview
+bleue à la largeur de lecture, mais le relâchement ne change pas l'ordre des
+blocs. Les deux captures avant relâchement/après échec et la trace sont
+examinées ; l'assertion concernée est le déplacement immédiat, avant sauvegarde.
+Les quatre autres profils web de cette CI sont verts. T061 est ajouté pour
+FR-005/012 et US2/AC2 ; la cause reste à établir. Logs et traces sous
+`work/test-readiness/ci-180-webkit-mobile-artifacts/`, sans lecture des réseaux
+ni données du propriétaire. Le prochain contrôle complet reste obligatoire.
+
+
+### T061 — position de caret, géométrie et destination canonique
+
+Les diagnostics 38/39 passent trois répétitions locales chacun, même avec le
+titre exact de la CI ; ils ne reproduisent pas son absence de déplacement.
+Le diagnostic 40 échoue deux fois à 320 px : dépôt après le premier bloc au
+lieu d'avant. Les diagnostics 41/42 relèvent une position de caret à la
+frontière du deuxième bloc alors que la géométrie du pointeur désigne le
+premier. Leurs traces sont conservées, puis tous les listeners/loggers et le
+titre forcé sont retirés des sources et tests maintenus.
+
+Le test unitaire expose également l'absence de destination aux limites
+externes du groupe de blocs. `block-drop-geometry-red-03.log` : trois nouveaux
+cas échouent, sept précédents passent. Après correction et ajout du cas sans
+élément sous le pointeur, `block-drop-geometry-green-05.log` : 22 tests de
+réordonnancement/interactions passent. Les limites de groupe, absence de
+placement utile, mentions et géométrie de l'éditeur actif restent contrôlées.
+Les types de tous les packages passent (`block-drop-types-06.log`).
+
+Le rejeu `e2e-native-drop-final-43.log` passe **30 parcours sur les cinq profils**,
+140 s, zéro retry : largeur habituelle de chaque profil et 320 px, trois
+répétitions. Une assertion verticale vérifie désormais le trait au-dessus du
+premier bloc, en plus de sa couleur/largeur et de l'absence d'écriture avant
+dépôt ; ordre immédiat, persistance après rechargement et annulation restent
+requis. Le rejeu sombre 44 échoue sur une préparation de test qui vérifiait
+le thème avant le chargement de l'app ; il est interrompu. Cette assertion
+est déplacée après ouverture. `e2e-native-drop-dark-45.log` passe les **dix
+parcours à 320 px sombre**, deux par profil, sans retry, 71 s. Aucun clic forcé,
+délai accru, seuil assoupli ou exclusion supplémentaire. Le scénario étroit
+sombre reste dans le corpus maintenu, avec le parcours clair habituel.
+
+Preuves finales examinées : WebKit mobile clair 390 px, Chromium et WebKit
+sombres 320 px, sous `assets/validation-block-drop-<profil>-<thème>-<largeur>.png`.
+Le trait bleu est à la largeur de lecture et au-dessus de la destination ;
+contrôles et textes restent lisibles, les onglets masqués ne pilotent pas la
+preview. Le bureau conserve son rendu, vérifié par ses parcours à la largeur
+habituelle ; seul le calcul de destination change. Les traces CI ne permettent
+pas d'affirmer que son échec avait exactement la même origine ; le prochain
+run requis reste la confirmation de cette correction sur son runtime.
+
+La CI initiale est terminée en échec : 26 jobs réussis, quatre plateformes
+desktop sur le contraste et WebKit mobile sur le dépôt ; `quality-gate`
+répercute ces échecs. La PR reste ouverte, sans fusion. T045/T059–061 restent
+ouverts jusqu'au prochain contrôle complet et à la CI du nouveau commit.

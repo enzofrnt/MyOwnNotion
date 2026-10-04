@@ -419,3 +419,20 @@ d'ouverture de la sidebar desktop ni réduction de sa cible cliquable.
 La place reste réservée derrière le tiroir mobile pour éviter un déplacement
 de l'en-tête pendant son ouverture. Vérifier géométrie du contrôle et des deux
 textes, ouverture native du tiroir et retour, sans changer les pages desktop.
+
+
+T061 traite le dépôt natif sans déplacement révélé par la CI WebKit mobile :
+distinguer cycle du navigateur, transfert et destination de la preview avant
+de modifier le code. Les diagnostics temporaires restent isolés et sont
+retirés du parcours maintenu ; conserver gestes natifs, ordre durable,
+annulation et seuils. Appliquer ui-quality + lessons et garder les preuves.
+
+
+Le diagnostic T061 confirme à 320 px que la position de caret WebKit peut
+désigner la frontière du bloc suivant alors que le pointeur est sur le premier.
+La preview utilise maintenant la géométrie du bloc survolé de l'éditeur actif,
+avec les tables conservées comme blocs atomiques. Les limites externes d'un
+groupe sont normalisées vers le premier/dernier bloc ; une preview sans cible
+de dépôt est refusée et les placements sans effet restent masqués. Le commit
+de déplacement conserve exactement cette position, sans modifier le CSS ni
+utiliser un collage HTML. Les diagnostics temporaires sont retirés.

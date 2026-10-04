@@ -132,3 +132,8 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 - [ ] T059 Corriger le contraste du résumé d'alertes partagé révélé par Electron Linux/Windows en thème clair : conserver l'accent et un fond neutre, contrôler les avis fermés/ouverts au clavier en clair/sombre et 320/1280 px ; audit sur une vraie sauvegarde périmée et sur les deux thèmes natifs, preuves visuelles selon ui-quality + lessons, puis contrôle complet et CI (FR-005/006/007/008, US1/AC3, Constitution III/VI/VII, partial).
 
 - [ ] T060 Préserver la place du contrôle de navigation dans l'en-tête d'accueil à 320 px, indépendamment de l'état desktop : éviter le chevauchement de l'icône avec le libellé/titre, conserver les en-têtes compacts et l'ouverture du tiroir ; preuve de géométrie rouge/verte, captures clair/sombre et gestes natifs avec ui-quality + lessons (FR-005/006, US1/AC2, partial).
+
+
+## Phase 9: Convergence
+
+- [ ] T061 Préserver le dépôt natif d'un bloc à la destination de sa preview sur WebKit mobile, avec un autre éditeur masqué : diagnostiquer l'échec CI avant toute correction, conserver déplacement durable/annulation/mentions et contrôles de géométrie, rejouer les cinq profils sans retry et appliquer ui-quality + lessons avec preuves, selon FR-005/012, US2/AC2 et Constitution III/VI/VII (partial).

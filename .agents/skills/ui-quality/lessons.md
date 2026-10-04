@@ -306,3 +306,19 @@ validation explicite du propriétaire (correction vue ensemble).
   la fermeture et le retour du focus ; ne pas réduire la cible pour faire tenir.
 - Preuve : géométrie rouge/verte, cinq profils, références et onglets mobiles,
   captures clair/sombre ; `specs/033-app-ui-review/verification.md`, T060.
+
+
+### L-023 — Une preview de dépôt partage une destination réelle avec l'action
+- Statut : validée
+- Surface : glisser de blocs, bords de lecture et éditeurs conservés dans des onglets.
+- Anti-pattern : déduire toute la destination d'une position de caret fournie
+  par le moteur ; un trait bleu peut alors désigner le bloc suivant ou une
+  limite de groupe que l'action ne sait pas résoudre.
+- Règle : privilégier la géométrie du bloc survolé de l'éditeur actif, normaliser
+  ses limites vers une destination atomique valide et partager cette position
+  entre preview et dépôt. Refuser une preview sans action possible. Contrôler
+  l'alignement vertical, l'absence d'écriture avant dépôt, la persistance et
+  l'annulation avec des gestes natifs, y compris à largeur étroite.
+- Preuve : diagnostic de caret différent du pointeur, tests unitaires rouge/vert,
+  30 parcours sur cinq profils puis dix parcours sombres à 320 px, captures
+  réelles ; `specs/033-app-ui-review/verification.md`, T061.
