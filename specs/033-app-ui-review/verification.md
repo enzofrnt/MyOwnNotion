@@ -1905,3 +1905,56 @@ PATH="/opt/homebrew/opt/libpq/bin:$PATH" bun run test:coverage
 Logs locaux ignorés : `work/ci-181/local-coverage-routing-pg18.log` ; diagnostic
 CI dans `work/ci-181/unit-46427ada.log`. La confirmation CI du correctif de
 collecte reste à obtenir sur sa révision publiée et est suivie dans la PR 181.
+
+## Attente du dépliement et zoom — 2026-10-04
+
+Le [run de `e7e69ad7`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37217351997)
+passe tous les contrôles hors E2E, dont la couverture. Les cinq profils E2E
+échouent au zoom à 200 % sur l'attente introduite par T072 ; WebKit bureau
+échoue aussi sur une ligne de fichier enfant. Le ratio horizontal de la ligne
+reste environ 0,99, même après défilement et retry : l'exigence d'une ligne
+décorative intégralement dans le viewport n'observe pas seulement le dépliement.
+Le screenshot CI du zoom montre bien le libellé exposé et les réglages visibles.
+Le même échec est reproduit localement sur Chromium et Firefox, sans retry.
+
+`ensureNavigationRowVisible` attend maintenant que chaque région ancêtre soit
+ouverte et que ses animations natives soient terminées, puis fait défiler la
+ligne et vérifie sa présence dans le viewport. Il ne désactive ni n'accélère
+l'animation produit. Le clic réel et sa sélection restent contrôlés ; le
+parcours zoom conserve son assertion de débordement horizontal. Aucun budget,
+retry, skip, code produit, dépendance ou configuration n'est modifié.
+
+Validation locale avant publication :
+
+- **60/60 parcours** : zoom, pagination après 1000 entrées, sidebar bornée et
+  propriétaire de base/Source, trois répétitions sur chacun des cinq profils,
+  sans retry ; matrice réussie en 590 s.
+- **15/15 parcours supplémentaires** : fichier hiérarchique distinct des PJ de
+  sa page, trois répétitions sur les cinq profils, sans retry ; 69 s.
+- Biome ciblé et types racine réussis. Prérequis Spec Kit, liens locaux, diff
+  et cohérence FR-008/022–plan–T074 vérifiés.
+- La couverture complète de T073 reste applicable aux sources produit et
+  unitaires inchangées. Le helper Playwright n'est pas une entrée Vitest.
+
+Commandes avec PostgreSQL jetable sur 55432, distinct de l'instance propriétaire :
+
+```bash
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/narrow-viewport.spec.ts tests/e2e/linked-databases.spec.ts \
+tests/e2e/workspace-shell.spec.ts tests/e2e/databases-pages-views.spec.ts \
+--grep 'core writing surface|loads beyond 1000|keeps settings visible|a database is a navigable owner' \
+--retries=0 --repeat-each=3
+
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/files.spec.ts --grep 'keeps a hierarchy file under a page distinct' \
+--retries=0 --repeat-each=3
+```
+
+Logs ignorés : `work/ci-181/local-zoom-before.log`,
+`local-navigation-zoom-after.log`, `local-navigation-files-after.log` et les
+rapports CI `*-e7e69ad7.log`. La CI doit encore confirmer la dernière révision
+publiée ; les références et sa conclusion restent dans la PR 181. Le suivi
+automatique consulte son état toutes les cinq minutes, selon la demande du
+propriétaire, et traite un nouvel échec avant de déclarer la livraison terminée.

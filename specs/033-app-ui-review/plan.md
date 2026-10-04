@@ -42,7 +42,7 @@ pagination de 1001 entrées échoue de manière intermittente sur Chromium mobil
 avant toute pagination : le clic vise une ligne montée dont la branche animée
 masque encore le contenu. La trace CI et une répétition locale sans retry
 reproduisent le même refus de sélection. Le helper de navigation doit observer
-la ligne entièrement dans la zone visible après défilement natif, en conservant
+la fin du dépliement des régions ancêtres puis exposer la cible par défilement natif, en conservant
 les assertions de sélection et les budgets fonctionnels. Pas de temporisation
 fixe, de clic forcé ni de changement du rendu ou de l'animation produit.
 
@@ -58,6 +58,16 @@ Importer `App` statiquement dans la phase normale de collecte de Vitest ;
 conserver les délais fonctionnels, la couverture et les assertions. Vérifier
 les tests web et la couverture complète sur la base de test isolée, puis
 publier et confirmer la CI sans relancer les preuves produit inchangées.
+
+Le run de `e7e69ad7` révèle une attente trop large introduite dans T072 : à
+200 % de zoom, la ligne dépasse légèrement le bord horizontal du tiroir,
+donc son ratio de viewport ne peut jamais atteindre 1. Le cas échoue aussi
+localement sur Chromium et Firefox. L'attente doit viser le mécanisme initial :
+chaque région ancêtre est ouverte et ses animations de dépliement sont terminées,
+puis le défilement natif expose la cible. Ne pas imposer une largeur intégrale
+à la ligne décorative ; conserver les assertions fonctionnelles et le contrôle
+de débordement du parcours zoom. Rejouer zoom, dépliement/pagination et accès
+sidebar/Source sur les cinq profils, sans retry ni augmentation des budgets.
 
 ## Technical Context
 
