@@ -2158,3 +2158,82 @@ Le premier run des deux lanes est **1/2**, pas une réussite complète. La base
 jetable est arrêtée et les données propriétaire restent intactes. La confirmation
 CI de la dernière révision est un gate distinct, suivi dans la PR 181 avec un
 minuteur de cinq minutes ; aucune fusion n'est effectuée par cet agent.
+
+## Navigation conservée pendant la restauration — T079
+
+Le run [37231049654](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37231049654)
+de `671f6869` passe tous les contrôles hors navigateur et les quatre autres
+profils, dont les deux lanes WebKit complètes. Firefox signale un seul flaky :
+la base supprimée ne réapparaît pas après le clic Restaurer ; le retry passe.
+Ce flaky reste bloquant et n'est pas traité comme une réussite.
+
+La trace native montre le mécanisme avant toute correction : une requête de
+snapshot part pendant la suppression, avec l'état serveur antérieur. Sa réponse
+réaffiche brièvement la base et vide la corbeille pendant le clic Restaurer ;
+le rattrapage serveur réapplique ensuite la suppression. Aucune mutation
+`item.restore` n'est envoyée. Tous les transports observés répondent 200 ; ce
+n'est donc pas simplement une ligne masquée ou un budget trop court. Les images
+de la trace ont été relues pour distinguer la disparition du contrôle de sa
+présentation normale ; aucune donnée propriétaire n'est utilisée.
+
+Le callback `navigate` du routeur déclaratif change avec l'adresse ; il renouvelle
+`navigateSafely`, puis `onOpenItem`, puis le callback de sélection dont dépend
+l'initialisation de l'explorateur conservé. Quand tout est dans la corbeille,
+cette initialisation relancée considère l'espace comme vide et le seed remplace
+sa projection. Le parcours local Firefox enrichi d'un compteur de snapshot
+échoue **avant correction : 3 requêtes au lieu de la seule requête initiale**.
+Deux tests du vrai App échouent aussi sur le renouvellement du callback ; les
+18 tests de routage précédents passent.
+
+La correction reste à la frontière impérative de navigation d'App : sa ref lit
+le handler courant, et son callback stable conserve la durée de vie des effets
+du workspace. Le routeur courant ou un nouveau handler injecté continue d'être
+appelé ; les refus de navigation, remplacements, retour de réglages, historique
+et générations de sélection ne changent pas. Aucun code de stockage, seed,
+transport, synchronisation, protocole, dépendance ou CSS n'est modifié.
+Le parcours attend aussi le message de restauration locale avant de quitter
+les réglages, en conservant toutes ses assertions d'identité et d'entrées.
+
+Validation proportionnée depuis `671f6869` :
+
+- **27/27 tests web** passent après correction et formatage final : 20 de routage
+  et 7 de hiérarchie. Les deux nouveaux cas vérifient les changements de route
+  et le remplacement du handler injecté, sans retenir une closure périmée.
+- **75/75 parcours natifs**, sans retry, sur les cinq profils, trois répétitions
+  de cinq scénarios : base et deux entrées restaurées avec les mêmes identités,
+  branche restaurée, cinq destinations arrière/avant, rechargement local sans
+  API et retour des réglages avec note/focus/scroll conservés. **244 s** ; les
+  moteurs Firefox/WebKit utilisent le runtime Linux documenté. Le compteur
+  prouve que les routes ne relancent plus de snapshot dans ce parcours.
+- Biome des trois fichiers exécutables et types racine passent. La seule
+  modification après la matrice est le formatage sans changement de logique ;
+  les 27 tests sont relancés sur cet état final.
+- ui-quality + lessons L-010/020 : mêmes composants, géométrie, états vide et
+  corbeille, clics natifs et retour/focus conservés. Les preuves de rendu de la
+  passe restent applicables : aucune modification visuelle ne demande une
+  nouvelle palette ou composition. La revue de trace et les assertions natives
+  couvrent ici le remplacement intempestif de la surface sous le clic.
+- Prérequis/cohérence Spec Kit, liens et diff vérifiés avant publication.
+  Les gates serveur, stockage, sécurité, build et configuration réussies sur
+  `671f6869` restent réutilisables pour leurs inputs inchangés. Le correctif est
+  borné à l'identité d'une frontière de callback dans App, avec ses parcours de
+  navigation réels et tests de refus ; la CI de la dernière révision reste requise.
+
+```bash
+bun run --bun vitest run --project web apps/web/tests/app-routing.spec.tsx \
+apps/web/tests/hierarchy-explorer.spec.tsx
+
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/databases-schema.spec.ts tests/e2e/hierarchy.spec.ts \
+tests/e2e/routing.spec.ts tests/e2e/workspace-settings-boundary.spec.ts \
+--grep 'trashes and restores|trashes a branch|browser history restores|a direct local note|settings stay outside|keeps settings in front' \
+--retries=0 --repeat-each=3
+```
+
+Logs/trace ignorés : `work/ci-181/firefox-restore/`,
+`local-restore-before.log`, `local-routing-lifecycle-{before,after,final}.log`,
+`local-restore-routing-after.log` et ses cinq logs de profil. La base jetable
+est arrêtée ; les instances et volumes propriétaire restent intacts.
+La CI publiée est suivie à intervalles de cinq minutes, selon la demande du
+propriétaire, jusqu'à la réussite sur le commit exact. Aucune fusion automatique.

@@ -121,6 +121,23 @@ WebKit bureau complète en trois shards. Les parcours WebKit mobile inchangés
 réutilisent la passe complète déjà réussie ; ses deux consommateurs sont
 revalidés avec le nouveau post-état avant publication.
 
+Le run de `671f6869` valide tous les autres contrôles, y compris les deux lanes
+WebKit complètes. Firefox révèle une restauration perdue : une réponse de seed
+précédant la suppression réaffiche brièvement la base et vide la corbeille pendant
+le clic ; la convergence serveur la remet ensuite en corbeille. Aucune commande
+de restauration n'est envoyée. L'effet d'initialisation dépend du callback de
+sélection, lui-même renouvelé par la navigation du routeur. Vérifier cette
+causalité avant correction avec un compteur des requêtes de snapshot dans le
+parcours isolé. Stabiliser la frontière impérative de navigation dans App en lisant
+le handler du routeur courant par ref ; garder la génération de sélection, le routage
+et tous les mécanismes de synchronisation existants. La navigation seule ne
+doit pas réhydrater l'espace conservé. Vérifier l'initialisation unique et le
+nouveau callback, puis restauration avec identités, branche, retour et routage
+sur les cinq profils sans retry. Observer le résultat de restauration avant
+de quitter ses réglages. Impact attendu borné au cycle de vie du composant,
+sans changer stockage, transport ou schéma ; ui-quality + lessons s'appliquent
+aux états réels conservés. La sélection des gates sera confirmée par le diagnostic.
+
 ## Technical Context
 
 TypeScript strict/Bun 1.4.2/React/Ariakit/BlockNote existants. Frameworks conservés ;

@@ -157,6 +157,11 @@ export function App(props: AppProps = {}) {
   locationRef.current = location;
   const browserNavigate = useNavigate();
   const routeNavigate = props.navigate ?? browserNavigate;
+  // Declarative routing renews navigate on path changes. Keep the imperative
+  // boundary stable so retained workspace effects do not hydrate again, while
+  // every action still uses the current router (or injected host handler).
+  const routeNavigateRef = useRef(routeNavigate);
+  routeNavigateRef.current = routeNavigate;
   const destination = useMemo(() => recognizeDestination(location.pathname), [location.pathname]);
 
   const [api] = useState(() => props.api);
@@ -191,26 +196,23 @@ export function App(props: AppProps = {}) {
     [destination],
   );
 
-  const navigateSafely = useCallback(
-    (path: string, options?: NavigateOptions): void => {
-      const reportRefusal = (): void => {
-        setNavigationProblem(
-          "Le navigateur a refusé ce changement d’adresse. Le contenu actuel reste ouvert.",
-        );
-      };
-      try {
-        const result = routeNavigate(path, options);
-        if (result instanceof Promise) {
-          void result.then(() => setNavigationProblem(null)).catch(reportRefusal);
-          return;
-        }
-        setNavigationProblem(null);
-      } catch {
-        reportRefusal();
+  const navigateSafely = useCallback((path: string, options?: NavigateOptions): void => {
+    const reportRefusal = (): void => {
+      setNavigationProblem(
+        "Le navigateur a refusé ce changement d’adresse. Le contenu actuel reste ouvert.",
+      );
+    };
+    try {
+      const result = routeNavigateRef.current(path, options);
+      if (result instanceof Promise) {
+        void result.then(() => setNavigationProblem(null)).catch(reportRefusal);
+        return;
       }
-    },
-    [routeNavigate],
-  );
+      setNavigationProblem(null);
+    } catch {
+      reportRefusal();
+    }
+  }, []);
 
   const loadBackupStatus = useCallback(async () => {
     const result = await securityApi.fullBackupStatus();

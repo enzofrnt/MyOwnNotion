@@ -101,7 +101,12 @@ test("creates a typed database whose entry and relations keep canonical page ide
 });
 
 test("trashes and restores the owner with the same direct entry pages", async ({ page }) => {
+  let snapshotRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/v1/snapshots/current") snapshotRequests += 1;
+  });
   await openWorkspace(page);
+  const initialSnapshotRequests = snapshotRequests;
 
   const databaseName = uniqueName("Trash preview");
   const entryNames = [uniqueName("First entry"), uniqueName("Second entry")];
@@ -128,10 +133,16 @@ test("trashes and restores the owner with the same direct entry pages", async ({
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
   await trashItem(page, databaseName);
   await openSettingsSection(page, "trash");
+  // Routing must retain the initialized workspace even when every item is in
+  // the trash. Re-seeding here can replace the live projection under Restore.
+  expect(snapshotRequests).toBe(initialSnapshotRequests);
   await page
     .getByTestId(`trash-item-${databaseName}`)
     .getByRole("button", { name: "Restaurer" })
     .click();
+  await expect(page.getByTestId("trash-settings")).toContainText(
+    `« ${databaseName} » a été restauré.`,
+  );
   await returnToWorkspace(page);
   await selectItem(page, databaseName);
   await expect(page.locator("[data-entry-trigger]")).toHaveCount(2);
