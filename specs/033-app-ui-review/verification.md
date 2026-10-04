@@ -1256,3 +1256,62 @@ contenu sans débordement. Captures
 `assets/validation-folder-keyboard-{preview|cancel}-{profil}-dark-{largeur}.png`.
 T063 et T045 restent ouverts jusqu’au contrôle complet et à la CI du nouveau
 commit. Les données de dev sont intactes.
+
+### Contrôle complet 17 — sélection de texte avant convergence hors ligne
+
+Sur `7fb03b45f9b229cc1f80c1ad3223dc307a6b191d`, les gates précédant
+les navigateurs passent : 483 fichiers / 5 097 tests réussis, deux exclusions
+Windows existantes ; couverture 91,72 / 86,33 / 94,37 / 92,82 %
+(statements/branches/functions/lines). Les 22 benchmarks, 375 intégrations,
+13 migrations et 1 871 contrats passent également.
+
+Chromium desktop finit entièrement vert (**307 réussites / 12 exclusions**),
+y compris le dépôt rapide T063. Son rapport est archivé immédiatement dans
+`work/test-readiness/checks-local-17-e2e-logs/` avec le commit exact.
+WebKit desktop révèle dans sa première tranche une valeur concaténée par
+`fill` : `local compatible notelocal divergent note` au lieu du remplacement
+attendu, avant le test de synchronisation. Le scénario passe après retry,
+ce qui reste interdit comme preuve verte. La tentative est arrêtée : Firefox
+compte 267 réussites, 18 exclusions et un test interrompu ; WebKit est partiel,
+les profils mobiles et gates suivantes ne sont pas exécutés. Aucun push.
+
+Trace, contexte, deux captures et log WebKit sont conservés sous
+`work/test-readiness/e2e-offline-convergence-failure-17/`. Seuls les fichiers
+de trace d’appels/snapshots sont lus, sans journal réseau ni données de dev.
+L’arrêt utilise uniquement les stacks de tests identifiées ; les cinq
+conteneurs de l’instance du propriétaire restent sains et inchangés.
+
+### T064 — le caret initial ne reprend pas une sélection déjà faite
+
+Le champ inline et l’édition de titre rejouent leur focus/caret dans un
+`requestAnimationFrame`. Le tableau répète aussi le caret de l’input dans
+une microtask. Ces placements peuvent écraser la sélection native réalisée
+après ouverture du champ, ce qui permet à une insertion de texte de concaténer
+les deux valeurs. Les tests 56 puis 57 reproduisent le mécanisme : six cas
+échouent sur la sélection choisie, la saisie native avant événement React,
+le focus choisi ailleurs et le champ date natif ; le caret initial reste vert.
+
+Le placement a maintenant lieu une seule fois dans le layout du champ/titre.
+Les valeurs natives sans événement React restent protégées par l’adapter
+existant, les dates n’utilisent pas l’API de sélection textuelle, et la
+microtask du tableau garde uniquement le focus initial des contrôles select.
+Aucun style, schéma, sauvegarde ou protocole de convergence ne change.
+Le rejeu 58 passe **21 tests dans deux fichiers**, dont les sept nouvelles
+garanties. Logs `work/test-readiness/value-caret-unit-{red|green}-*.log`.
+
+Le parcours natif conserve F2 → `fill` immédiat, ajoute le contrôle du brouillon
+avant Entrée, et garde redémarrage, fusion compatible, trois versions du conflit,
+résolution explicite, deux parents de révision et stockage canonique privé.
+La matrice 59 passe **15 tests, cinq profils, 165 s, sans retry** : trois
+répétitions complètes de ce scénario, avec toutes ses assertions. Logs sous
+`work/test-readiness/e2e-value-caret-green-59.log` et son dossier de rapports.
+Captures finales revues selon ui-quality + lessons, en clair à 1 280 px sur
+Chromium desktop et 390 px sur WebKit mobile : valeurs de résolution exactes,
+propriétés lisibles et actions accessibles sans débordement. Preuves
+`assets/validation-offline-entry-converged-{profil}-light-{largeur}.png`.
+Le CSS et les rendus sombres précédemment vérifiés restent inchangés.
+Le contrôle complet du prochain commit et sa CI restent requis ; T064/T045
+ne sont pas encore clos.
+
+Types de tous les packages/dépôt et format/lint des cinq fichiers exécutables
+modifiés passent (`work/test-readiness/value-caret-types-60.log`).

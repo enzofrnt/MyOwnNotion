@@ -665,18 +665,13 @@ export function TableView({
       input.selectionStart === end &&
       input.selectionEnd === end;
     if (caretReady) return;
-    const placeCaret = () => {
-      if (!input.isConnected) return;
-      input.focus();
-      const caret = input.value.length;
-      input.setSelectionRange(caret, caret);
-    };
-    placeCaret();
-    const frame = requestAnimationFrame(placeCaret);
+    // Initial focus belongs to this mount. Do not repeat it after the owner
+    // has selected text or moved to another control in the next frame.
+    input.focus();
+    input.setSelectionRange(end, end);
     if (typeof input.scrollIntoView === "function") {
       input.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
-    return () => cancelAnimationFrame(frame);
   }, [titleEdit]);
   const startTitleEdit = (entryId: string, seed: string | null): void => {
     titleEditClosed.current = null;
@@ -776,12 +771,9 @@ export function TableView({
     setAnnouncement(DATABASE_COPY.table.editing(property.name, row.title));
     queueMicrotask(() => {
       const field = refs.current.get(refKey(position))?.querySelector<HTMLElement>("input, select");
-      if (field instanceof HTMLInputElement && field.type !== "checkbox") {
-        field.focus();
-        const end = field.value.length;
-        field.setSelectionRange(end, end);
-        return;
-      }
+      // ValueEditor owns initial input focus and the caret in its layout
+      // effect. Repeating it here can undo a replacement selection.
+      if (field instanceof HTMLInputElement) return;
       field?.focus();
     });
   };

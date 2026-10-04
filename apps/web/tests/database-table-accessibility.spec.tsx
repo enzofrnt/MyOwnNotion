@@ -462,6 +462,63 @@ describe("database table accessibility (T042)", () => {
     }
   });
 
+  it.each(["title", "text"])(
+    "preserves a replacement selection in a %s cell before queued focus settles",
+    async (kind) => {
+      (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+      const frames = new Map<number, FrameRequestCallback>();
+      let nextFrame = 0;
+      vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+        const id = ++nextFrame;
+        frames.set(id, callback);
+        return id;
+      });
+      vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+      const container = document.createElement("div");
+      document.body.append(container);
+      const root = createRoot(container);
+      try {
+        act(() =>
+          root.render(
+            <TableView
+              properties={properties}
+              view={view}
+              page={page}
+              onOpenEntry={vi.fn()}
+              onUpdateEntry={vi.fn()}
+              onResize={vi.fn()}
+            />,
+          ),
+        );
+        const cell =
+          container.querySelectorAll<HTMLTableCellElement>("tbody td")[kind === "title" ? 0 : 1];
+        if (cell === undefined) throw new Error("Missing editable cell");
+        act(() => {
+          cell.focus();
+          cell.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "F2", bubbles: true, cancelable: true }),
+          );
+        });
+        const input = cell.querySelector<HTMLInputElement>("input");
+        if (input === null) throw new Error("Missing editor");
+        input.select();
+        await act(async () => {
+          await Promise.resolve();
+          const pending = [...frames.values()];
+          frames.clear();
+          for (const frame of pending) frame(16);
+        });
+        expect(document.activeElement).toBe(input);
+        expect([input.selectionStart, input.selectionEnd]).toEqual([0, input.value.length]);
+        expect(input.value).toBe(kind === "title" ? "Alpha" : "First");
+      } finally {
+        act(() => root.unmount());
+        container.remove();
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
   it("renames a title from a cell click and opens the entry from the hover control", async () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const container = document.createElement("div");

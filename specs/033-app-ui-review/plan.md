@@ -471,3 +471,21 @@ unitaires vérifient destination, mutation unique, ordre optimiste et absence
 d’écriture ; le parcours natif garde le dépôt rapide, ajoute Échap vers une
 cible réelle, retour du focus et preuves sombres après animation terminée.
 Aucun CSS ni protocole canonique de placement ne change.
+
+T064 examine la sélection dans `DraftTextInput` et le cycle de focus du tableau,
+après une concaténation ancienne/nouvelle valeur avant synchronisation dans
+WebKit desktop. Le placement initial doit conserver le caret attendu ; sa
+répétition différée ne doit pas modifier une sélection, un nouveau texte ou
+un focus déjà choisi par l’utilisateur. Les champs date natifs n’exposent pas
+de sélection textuelle. Vérifier ces courses en unitaire avant correction,
+conserver le remplissage natif et les assertions de convergence/conflict/parents
+de révision en E2E, sans sleeps, retry validant ni changement de schéma.
+Appliquer ui-quality + lessons ; rendu et sauvegarde restent ceux existants.
+
+Les tests rouges T064 confirment six courses/erreurs, y compris la sélection
+des titres et textes avant microtask/frame. Le correctif supprime les placements
+différés du caret : le layout du champ est son unique propriétaire, la microtask
+du tableau ne refocalise pas les inputs déjà gérés et la date native ne reçoit
+pas `setSelectionRange`. Le caret initial et l’adapter de brouillon natif sont
+conservés. Les 21 tests ciblés et 15 parcours natifs sur cinq profils passent,
+sans retry ; aucun changement CSS ni protocole de synchronisation.

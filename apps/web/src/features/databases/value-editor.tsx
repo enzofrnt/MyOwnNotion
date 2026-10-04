@@ -135,15 +135,13 @@ function DraftTextInput({
     const element = elementRef.current;
     if (element === null || props.autoFocus !== true || caretPlaced.current) return;
     caretPlaced.current = true;
-    const placeCaret = () => {
-      if (!element.isConnected) return;
-      element.focus();
+    // Place the initial caret once. A later frame would undo a selection
+    // or native edit made before React receives the next input event.
+    element.focus();
+    if (element.selectionStart !== null) {
       const end = element.value.length;
       element.setSelectionRange(end, end);
-    };
-    placeCaret();
-    const frame = requestAnimationFrame(placeCaret);
-    return () => cancelAnimationFrame(frame);
+    }
   }, [props.autoFocus]);
   return <input {...props} ref={elementRef} defaultValue={value} />;
 }

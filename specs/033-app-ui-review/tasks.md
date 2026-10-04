@@ -146,3 +146,7 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 ## Phase 11: Convergence
 
 - [ ] T063 Diagnostiquer le dépôt clavier intermittent des enfants de dossier : distinguer transformation visuelle, collision retenue et destination persistée, conserver Espace/flèches/Échap, gestes natifs, ordre sidebar/second appareil et annulation ; preuve rouge/verte, cinq profils et contrôle complet/CI, avec ui-quality + lessons selon 022 FR-023/024, 033 FR-005/008, US2/AC2 et Constitution III/VI/VII (partial).
+
+## Phase 12: Convergence
+
+- [ ] T064 Diagnostiquer le remplacement de texte concaténé sous WebKit dans le parcours de convergence hors ligne ; préserver la sélection, la saisie et le focus déjà pris par l’utilisateur face au placement différé du caret, garder focus initial/Entrée/Échap et champs natifs sans sélection textuelle ; tests unitaires rouge/vert et parcours natifs sur cinq profils sans retry, preuve selon ui-quality + lessons, puis contrôle complet et CI (009 FR-015/047, 033 FR-005/008/017, US2/AC2, Constitution III/VI/VII, partial).

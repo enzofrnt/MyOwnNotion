@@ -125,6 +125,7 @@ async function updateTextCell(
   await cell.press("F2");
   const input = cell.getByLabel(propertyName, { exact: true });
   await input.fill(value);
+  await expect(input).toHaveValue(value);
   await input.press("Enter");
   await expect(cell).toHaveAttribute("aria-label", `${propertyName}, ${value}`, {
     timeout: 15_000,
@@ -239,7 +240,7 @@ test.describe("structured offline convergence (US5)", () => {
     page,
     browser,
     baseURL,
-  }) => {
+  }, testInfo) => {
     test.setTimeout(120_000);
     await openWorkspace(page);
     const databaseName = uniqueName("Offline projects");
@@ -414,6 +415,7 @@ test.describe("structured offline convergence (US5)", () => {
         "local divergent note",
         "remote divergent note",
       ]);
+      await second.page.screenshot({ path: testInfo.outputPath("offline-entry-converged.png") });
     } finally {
       await second.context.close();
     }
