@@ -35,6 +35,22 @@ complète), types web et contrôles statiques des fichiers modifiés. Preuves du
 cas réel, clair/sombre et bureau/320 px, défilement et Échap/clavier. Source,
 synchronisation, stockage, migrations et dépendances restent inchangés.
 
+## Stabilisation du parcours de navigation CI — 2026-10-04
+
+FR-008/022, Constitution III/VII et validation proportionnée. Le parcours de
+pagination de 1001 entrées échoue de manière intermittente sur Chromium mobile
+avant toute pagination : le clic vise une ligne montée dont la branche animée
+masque encore le contenu. La trace CI et une répétition locale sans retry
+reproduisent le même refus de sélection. Le helper de navigation doit observer
+la ligne entièrement dans la zone visible après défilement natif, en conservant
+les assertions de sélection et les budgets fonctionnels. Pas de temporisation
+fixe, de clic forcé ni de changement du rendu ou de l'animation produit.
+
+Vérifier le parcours reproduit plusieurs fois, les accès Source/sidebar et les
+parcours de navigation concernés sur les cinq profils. Garder les données de
+test isolées de l'instance du propriétaire ; suivre ensuite tous les contrôles
+de la PR jusqu'à leur réussite sur la dernière révision publiée.
+
 ## Technical Context
 
 TypeScript strict/Bun 1.4.2/React/Ariakit/BlockNote existants. Frameworks conservés ;

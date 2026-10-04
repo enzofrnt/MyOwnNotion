@@ -658,6 +658,11 @@ export async function ensureNavigationRowVisible(page: Page, itemName: string): 
   await ensureNavigationVisible(page);
   const row = page.getByTestId(`tree-item-${itemName}`);
   await expect(row).toBeVisible({ timeout: 15_000 });
+  // A mounted row has a stable box before its expanding branch has exposed
+  // it. Visibility alone ignores that clipping and can click the animation
+  // mask. Observe the complete painted row before using its pointer targets.
+  await row.scrollIntoViewIfNeeded();
+  await expect(row).toBeInViewport({ ratio: 1 });
   return row;
 }
 

@@ -1802,3 +1802,61 @@ tronquées : le web a été recréé et ces six fichiers ont été actualisés d
 montage. Les données et services API/PostgreSQL/Caddy sont conservés. Les sources
 lues dans le conteneur correspondent aux fichiers locaux corrigés. La vérification
 applicative de la CI précédente n'est pas annoncée comme une CI de ces correctifs.
+
+## Stabilisation de la navigation pendant le dépliement — 2026-10-04
+
+### Échec reproduit et correction
+
+La [CI initiale de PR 181](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37213675030)
+sur `abf78d5e` termine avec 30 contrôles réussis ; Chromium mobile est refusé
+pour un parcours flaky, puis quality-gate refuse sa conclusion. Les autres
+profils Playwright réussissent. Le parcours concerné est
+`linked-databases.spec.ts`, « loads beyond 1000 canonical entries using a
+visible cursor action ». Il échoue avant le chargement de la première page :
+`Large reusable source` conserve `aria-selected=false` après le clic.
+
+La trace CI montre le clic pendant l'animation du groupe de navigation. La
+ligne et son texte sont montés et possèdent une boîte stable, mais leur parent
+`collapsible-region__inner` masque encore cette boîte avec `overflow: clip`.
+`toBeVisible` ne vérifie pas ce masque. La même erreur est reproduite en local
+sur Chromium mobile : **deux réussites et un échec sur trois**, sans retry.
+Les traces et logs restent dans les sorties locales ignorées (`work/ci-181`,
+`test-results` et `.e2e-logs`) et dans le rapport de la CI initiale.
+
+`ensureNavigationRowVisible` effectue maintenant le défilement natif nécessaire
+puis attend une intersection complète de la ligne (`toBeInViewport`, ratio 1).
+L'attente observe la géométrie réellement exposée au pointeur, sans durée fixe,
+nouveau retry, clic forcé, budget augmenté ou assertion de sélection supprimée.
+Le code produit, les données et les animations restent ceux de `abf78d5e`.
+
+### Validation locale avant publication
+
+Changement exécutable délimité à cinq lignes de `tests/e2e/helpers.ts`.
+Les types TypeScript racine et Biome sur ce fichier réussissent ; le build E2E
+est effectué par le runner. La preuve antérieure de 33 tests composants et
+des types web reste applicable aux sources produit inchangées.
+
+Matrice isolée : trois parcours (pagination de 1001 entrées, sidebar longue,
+accès Source verrouillé/déverrouillé), **trois répétitions chacun sur les cinq
+profils**, **45/45 réussites**, **zéro retry**, 532 s. Chromium desktop/mobile
+s'exécutent sur l'hôte ; Firefox et WebKit desktop/mobile dans le runtime Linux
+documenté. Les assertions de pagination, virtualisation, ouverture/retour,
+focus, source et géométrie sont conservées.
+
+Commande reproductible avec PostgreSQL de test sur 55432 et deux stacks :
+
+```bash
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/linked-databases.spec.ts tests/e2e/workspace-shell.spec.ts \
+tests/e2e/databases-pages-views.spec.ts \
+--grep 'loads beyond 1000|keeps settings visible|a database is a navigable owner' \
+--retries=0 --repeat-each=3
+```
+
+Prérequis Spec Kit 033, cohérence FR-008/022–plan–T072, liens locaux des documents
+modifiés et diff contrôlés. Aucune donnée du workspace du propriétaire utilisée
+pour les fixtures. La publication doit encore recevoir la confirmation de tous
+les contrôles GitHub ; cette preuve locale ne constitue pas une CI verte. La
+révision publiée, son run et sa conclusion sont suivis dans la
+[PR 181](https://github.com/enzofrnt/MyOwnNotion/pull/181).

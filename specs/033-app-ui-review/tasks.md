@@ -172,3 +172,7 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 
 - [x] T070 Garder Réglages visible dans la sidebar avec un arbre long, défilement local bureau/tiroir mobile, selon FR-022 et canevas §12 ; correction dans les propriétaires CSS existants, parcours ciblé et preuves ui-quality + lessons. Preuve : verification, section « Sidebar et accès Source après fusion ».
 - [x] T071 Griser et désactiver Source dans le menu clic/clic droit et les paramètres en réutilisant le verrou existant, selon FR-023 et 029 ; raison accessible, déverrouillage conservé, tests ciblés et preuves ui-quality + lessons. Preuve : verification, section « Sidebar et accès Source après fusion ».
+
+## Phase 18: Diagnostic et stabilisation de la CI de PR 181
+
+- [x] T072 Reproduire l'échec intermittent Chromium mobile avant la pagination de 1001 entrées, corriger l'attente de visibilité complète d'une ligne en dépliement sans affaiblir les assertions/budgets et vérifier les parcours ciblés en local sur les cinq profils, selon FR-008/022 et le plan de stabilisation CI. Preuve : verification, section « Stabilisation de la navigation pendant le dépliement ». La confirmation CI de publication reste un gate distinct, suivi dans la PR 181.
