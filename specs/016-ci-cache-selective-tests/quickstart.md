@@ -68,12 +68,17 @@ confirm:
 5. a superseding commit cancels the obsolete PR run;
 6. main/release runs remain full and use only trusted cache scopes.
 
-## Required local gate
+## Local checks selected by impact
 
-Before pushing:
+Before pushing, apply the policy in [development.md](../../docs/development.md).
+Maintained prose without an executable consumer receives document/consistency
+checks only, including a follow-up after already validated code. A bounded code
+change receives the relevant targeted checks. Cross-cutting or uncertain
+executable impact requires the complete gate with the current pinned toolchain:
 
 ```bash
-pnpm checks:local
+bun run checks:local
 ```
 
-Selective execution never replaces this full documented gate.
+The complete command remains a full gate. Local impact selection does not change
+the PR planner, and all required checks still block merge or publication.

@@ -110,7 +110,11 @@ severity, allowlist, fixable-vulnerability or artifact requirements.
 - A work-branch push runs no required CI.
 - The pull request is the first automated gate and MUST pass on its latest
   candidate.
-- The branch is pushed only after `bun run checks:local` succeeds.
+- The branch is pushed after the impact-appropriate local checks succeed,
+  according to Constitution III and `docs/development.md`. Bounded changes use
+  relevant targeted checks; cross-cutting or uncertain executable impact uses
+  `bun run checks:local`. Prose-only follow-ups receive document checks and may
+  reuse recorded successful evidence for unchanged executable inputs.
 - A push to `main` publishes commit-addressable API/Web images only after the
   same aggregate succeeds.
 - A release tag proves the gate ran on the exact tag commit before publishing

@@ -1682,12 +1682,12 @@ pour cet incident. Journal ignoré :
 
 Les critères de T045/T059–T068 sont ainsi satisfaits par le contrôle complet
 20 et la CI du même commit, avec les diagnostics et limites conservés. La
-clôture documentaire garde la PR ouverte, sans fusion. Conformément à la
-classification de la branche complète dans `docs/development.md`, le commit
-de clôture doit encore passer son propre contrôle complet avant push et sa CI
-avant livraison. Les références du dernier head sont ajoutées au
-[corps de la PR 180](https://github.com/enzofrnt/MyOwnNotion/pull/180) après ces
-contrôles, pour éviter un commit de preuve qui requiert son propre successeur.
+clôture documentaire garde la PR ouverte, sans fusion. La clarification suivante
+du propriétaire remplace la classification de toute la branche pour ce suivi :
+les preuves applicatives de `782f7618` restent valides tant que leurs entrées
+exécutables ne changent pas. Les contrôles documentaires et les références de
+publication sont consignés dans le [corps de la PR 180](https://github.com/enzofrnt/MyOwnNotion/pull/180).
+La CI requise du candidat de fusion reste bloquante avant toute fusion.
 
 La convergence finale du 4 octobre examine **21 FR + cinq SC + huit scénarios
 d'acceptation = 34 éléments d'intention**, huit choix du plan et les huit
@@ -1700,3 +1700,38 @@ est identique avant/après cette phase : aucune réécriture ni phase vide de
 convergence. Ce compte rendu est ajouté après la revue, dans la mise à jour
 de suivi d'implémentation. Les liens locaux de spec/plan/tasks/preuves/guide
 ont été vérifiés ; les prérequis Spec Kit et `git diff --check` réussissent.
+
+### Validation proportionnée et publication documentaire — 2026-10-04
+
+Le propriétaire demande explicitement d'arrêter la répétition des suites pour
+la clôture documentaire, d'assouplir la règle et de publier après les contrôles
+nécessaires. Le contrôle 21 de `6402ed83` est donc **interrompu**, avec code de
+sortie 1 après arrêt de son seul conteneur WebKit mobile. Il avait validé la
+couverture (5 116 réussites / deux exclusions), 22 benchmarks, 375 intégrations,
+13 migrations, 1 871 contrats et quatre profils web (1 188 réussites). Il ne
+constitue pas un contrôle complet réussi et ses résultats partiels ne remplacent
+pas le contrôle 20 / la CI verte de `782f7618`.
+
+La Constitution 4.0.0, le canevas §§42/44, AGENTS, development et les artefacts
+directement concernés de 002/016/019/033 sont alignés : sélectionner les contrôles
+sur les changements depuis la dernière publication validée ; documents et
+cohérence pour la prose sans impact exécutable, tests pertinents pour les
+corrections délimitées, contrôle complet pour les changements transversaux ou
+d'impact incertain. Les documents utilisés comme schémas, fixtures ou entrées
+exécutables nécessitent leurs contrôles consommateurs ; les vérifications de
+liens et d'hygiène documentaire restent des contrôles de documents. Les gates
+requis avant fusion, `main` et release conservent leur contrat.
+
+Les changements depuis `782f7618` se limitent à **15 fichiers Markdown**. Aucun
+code, test, workflow, manifeste, lockfile, migration, configuration ou entrée de
+build ne change ; la validation applicative complète et les 32 jobs verts de ce
+commit sont réutilisés. Vérifications documentaires : **175 liens locaux valides**,
+absence de commandes retirées dans le guide de développement, metadata/version
+et absence de placeholders de Constitution, prérequis Spec Kit 033 et diff sans
+erreur. La revue de cohérence confirme FR-018/020 de 016 et FR-008 de 033 face aux
+principes III/VII et à la sélection documentée. T035 (016) et T069 (033) sont clos.
+
+L'instance du propriétaire conserve Caddy `125a1a04c051`, web `d21f7c000c58`, API
+`9805c10c811b` et PostgreSQL `8c1a3325af0b`, tous sains. Les références du commit
+publié sont ajoutées au corps de la PR 180 ; aucune fusion et aucune nouvelle
+suite applicative lancée pour cette mise à jour documentaire.

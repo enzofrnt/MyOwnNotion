@@ -113,9 +113,10 @@ Exécuter la matrice locale isolée : Chromium desktop/mobile sur l’hôte,
 Firefox et WebKit desktop/mobile dans les conteneurs Linux documentés sur macOS.
 Chaque projet a sa base, ses ports, fichiers et clés jetables ; ne pas réinitialiser
 l’instance myownnotion-ui-dev. Corriger les échecs pertinents, revoir les captures
-avant toute actualisation de référence, puis exécuter checks:local sur le commit
-publié. Ouvrir/attacher la PR, inspecter les logs de sa CI et répéter les
-corrections/gates avant chaque nouveau push. Aucune fusion automatique.
+avant toute actualisation de référence, puis exécuter checks:local sur le candidat
+applicatif de cette passe complète. Ouvrir/attacher la PR, inspecter les logs de
+sa CI et valider les corrections suivantes selon leur impact, conformément à
+la politique de publication dans development.md. Aucune fusion automatique.
 
 ## Retours du propriétaire — 2026-10-03
 
@@ -617,8 +618,27 @@ les jobs requis. La relance isolée Windows x64 passe la compilation, le
 packaging, le lancement installé et les parcours natifs sur une nouvelle
 machine, sans changement produit. La cause de l'initialisation de DLL initiale
 reste inconnue ; elle n'est pas présentée comme un défaut produit corrigé.
-Le commit de clôture ne change que les artefacts de suivi. La branche complète
-reste mixte : `checks:local` doit passer sur ce nouveau commit exact avant son
-push, puis la CI confirme ce dernier head. Les références de cette validation
-de clôture sont consignées dans le corps de la PR, sans boucle de commits
-contenant leur propre identifiant. La PR reste ouverte, aucune fusion.
+Le commit de clôture ne change que les artefacts de suivi. Le propriétaire
+précise ensuite le 4 octobre que cette suite documentaire doit réutiliser les
+preuves du code déjà validé. Constitution 4.0.0 et development.md sélectionnent
+désormais les contrôles sur les changements depuis la dernière publication
+validée : documents/cohérence pour la prose, contrôles ciblés pour un changement
+délimité, contrôle complet pour un impact transversal ou incertain. Les références
+de publication restent dans le corps de la PR, sans boucle de commits contenant
+leur propre identifiant. La PR reste ouverte ; sa CI requise bloque la fusion.
+
+## Validation proportionnée — clarification du propriétaire, 2026-10-04
+
+Le contrôle supplémentaire 21 de `6402ed83` est arrêté sur demande explicite
+du propriétaire pendant WebKit mobile, après quatre profils réussis. Il n'est
+pas une preuve de contrôle complet réussi. Le code de l'application reste celui
+de `782f7618`, validé par le contrôle 20 et les 32 jobs requis de sa CI. Le suivi
+documentaire et l'amendement de gouvernance n'ont aucun consommateur exécutable
+identifié ; vérifier leur diff, liens, terminologie, prérequis et cohérence Spec
+Kit avant commit/push. Aucun nouveau test, build, conteneur ou reset applicatif.
+
+Aligner les règles partagées et les artefacts 016/033 sans modifier les scripts
+de tests ni le périmètre du plan d'impact GitHub. Les critères de T069 sont :
+exception documentaire applicable aussi après du code déjà validé, sélection
+ciblée motivée pour les corrections délimitées, fallback complet pour les impacts
+transversaux/incertains, et conservation des gates requis avant fusion/release.

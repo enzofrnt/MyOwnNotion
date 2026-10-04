@@ -103,7 +103,7 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 - [x] T042 Couvrir configuration directe clic/clic droit/clavier, choix/retrait de symboles, champ composé et ordre des propriétés indépendant des colonnes ; appliquer ui-quality + lessons avec preuves visuelles dans verification.md, selon FR-018/019/020/021 (partial).
 - [x] T043 Confirmer la preview et le dépôt/annulation natifs de blocs dans l’éditeur actif avec un autre onglet masqué ; appliquer ui-quality + lessons et conserver la preuve permettant de clore T021, selon FR-012/013/014 (missing).
 - [x] T044 Corriger tous les échecs unitaires/E2E et contrôles de la matrice complète sans affaiblir les garanties ; enregistrer les suites et résultats dans verification.md, selon FR-008 et Constitution III/VII (partial).
-- [x] T045 Publier après checks:local réussi sur le commit exact, ouvrir/attacher la PR et corriger sa CI jusqu’au succès du dernier commit ; consigner les références et limites, selon FR-008 et Constitution III/VII (missing).
+- [x] T045 Publier la passe applicative après checks:local réussi sur son commit exact, ouvrir/attacher la PR et corriger sa CI jusqu’au succès ; consigner les références et limites, puis sélectionner les contrôles des suites documentaires selon leur impact, selon FR-008 et Constitution III/VII (missing).
 
 - [x] T046 Rétablir l’action de réordonner les colonnes dans les paramètres de visibilité avec les primitives existantes ; préserver largeur/visibilité et ordre du schéma, couvrir les limites en unitaire et la persistance en E2E (régression de 009 FR-018 découverte en convergence ; ui-quality + lessons).
 
@@ -163,3 +163,7 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 ## Phase 15: Convergence
 
 - [x] T068 Diagnostiquer l'échec du contrôle complet 19 sur les contrats d'import et de migration de fichiers : distinguer disponibilité des outils PostgreSQL, attente de connexion/verrou, contention des fixtures et défaut produit ; conserver sauvegarde réelle, refus d'identité, reprise V1 et budgets existants ; observer les trois suites concernées sous charge sans exposer SQL privé ni clés, corriger le mécanisme démontré puis repasser le contrôle complet sur le commit exact et sa CI, selon FR-008, plan: validation isolée et Constitution III/VII (partial, HIGH).
+
+## Phase 16: Maintenance des règles de validation — demande du propriétaire
+
+- [x] T069 Aligner FR-008, plan, quickstart et preuves avec la validation proportionnée de Constitution 4.0.0 ; appliquer l'exception documentaire après le code déjà validé, conserver les contrôles requis avant fusion/release, vérifier documents et cohérence puis préparer la publication sans nouvelles suites applicatives. Preuve : verification, section « Validation proportionnée et publication documentaire ».

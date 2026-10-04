@@ -84,7 +84,13 @@ Observer sur l’instance courante et disposer de règles réellement vérifiée
 - **FR-008** : Instance, preuves, tâches et guide reflètent la passe. Après la
   sauvegarde de l’état UI validé, toutes les suites unitaires et E2E sont remises
   en cohérence avec les parcours actuels. Les contrôles locaux complets puis la
-  CI de la PR doivent réussir avant livraison ; les données de dev sont préservées.
+  CI de la PR doivent réussir pour cette passe applicative ; les données de dev
+  sont préservées. Les suites suivantes sélectionnent leurs contrôles selon
+  l'impact réel : une correction délimitée reçoit ses tests pertinents, une
+  modification transversale ou incertaine une validation complète, et un suivi
+  documentaire sans impact exécutable les contrôles de documents uniquement.
+  Les preuves applicatives réussies restent réutilisables lorsque le code et
+  ses entrées exécutables sont inchangés ; la CI requise bloque toujours la fusion.
 - **FR-009** : La liste de pièces jointes de la sidebar suit
   les fichiers/images intégrés au contenu local courant, y compris imbriqués,
   sans doublon ni bouton d'ajout indépendant. Les fichiers historiques sans

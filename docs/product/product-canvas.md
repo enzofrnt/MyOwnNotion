@@ -1959,6 +1959,21 @@ Les plateformes serveur officiellement prises en charge doivent disposer d'image
 
 Tous les comportements essentiels et tous ceux dont l'échec peut causer une perte de données, un accès non autorisé, une incompatibilité ou une restauration impossible doivent être couverts par des tests automatisés adaptés.
 
+Les contrôles locaux doivent être proportionnés aux modifications à publier et
+à leurs dépendances. Une correction délimitée exécute les tests et contrôles
+pertinents ; une modification transversale ou d'impact exécutable incertain
+exécute la validation complète. Le périmètre choisi et ses résultats doivent
+être consignés. La validation complète de `main` et des versions reste requise.
+
+Une mise à jour de prose ou de spécifications sans consommateur exécutable
+nécessite la vérification des documents, liens et cohérence, sans tests de
+l'application, builds ou conteneurs. Une suite documentaire après un commit de
+code déjà validé réutilise ces preuves tant que les entrées exécutables restent
+inchangées. Un document utilisé par un test ou par l'application nécessite les
+contrôles de ses consommateurs. La sélection se fait sur les changements depuis
+la dernière publication validée, ou la base de branche pour une première
+publication ; les contrôles requis de la PR continuent de porter sur son candidat.
+
 ### 42.1 Tests unitaires
 
 Ils couvrent notamment :
@@ -2128,7 +2143,9 @@ Une fonctionnalité ou modification n'est terminée que si :
 - ses critères d'acceptation sont vérifiables ;
 - les cas d'erreur, hors ligne et reprise sont couverts ou marqués non applicables avec justification ;
 - les impacts sur données, synchronisation, permissions, chiffrement, sauvegarde et migration sont traités ;
-- les tests appropriés sont ajoutés et réussissent localement ;
+- les tests appropriés au comportement modifié sont ajoutés et réussissent
+  localement, ou les seuls contrôles documentaires pertinents pour une mise à
+  jour de prose sans impact exécutable ;
 - la CI de pull request réussit ;
 - la documentation utilisateur et d'exploitation est mise à jour ;
 - les changements de configuration et migrations sont documentés ;

@@ -237,17 +237,20 @@ blob remnants.
 
 ## 12. Validate delivery and release gates
 
-Run the complete local gate:
+Select the local checks from the impact policy in `docs/development.md`.
+Cross-cutting security/delivery changes or uncertain executable impact require
+the complete local gate:
 
 ```sh
-pnpm checks:local
+bun run checks:local
 ```
 
-This command is required before every branch push and mirrors all
-repository-controlled pull-request jobs. Targeted tests do not replace it. A
-local runtime incompatibility must use the equivalent path documented in
-`docs/development.md` (including containerized Firefox on macOS); an
-unavailable required gate blocks the push.
+This command mirrors the complete repository-controlled pull-request checks.
+Bounded changes use the relevant targeted checks; prose-only follow-ups use
+document checks and reuse the existing successful application evidence while
+executable inputs stay unchanged. A required local runtime check must use the
+equivalent path documented in `docs/development.md` (including containerized
+Firefox on macOS); an unavailable required check blocks the push.
 
 Inspect `.github/workflows/ci.yml` and `.github/workflows/release.yml`. `ci.yml`
 must be the single quality-gate workflow. It triggers directly on every
