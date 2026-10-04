@@ -1100,3 +1100,24 @@ La CI initiale est terminée en échec : 26 jobs réussis, quatre plateformes
 desktop sur le contraste et WebKit mobile sur le dépôt ; `quality-gate`
 répercute ces échecs. La PR reste ouverte, sans fusion. T045/T059–061 restent
 ouverts jusqu'au prochain contrôle complet et à la CI du nouveau commit.
+
+### Contrôle complet 13 — timeouts non reproduits
+
+Le contrôle 13 sur `d8d537b082cb355f5ae92f06f36f6c7a3cf2925b` s'arrête
+à la couverture, après format/lint/types : 481 fichiers passent, deux suites
+échouent et deux cas Windows restent exclus localement. 5 093 tests passent ;
+le test d'équité des sauvegardes échoue sur le délai de connexion `pg.Client`
+de 15 s. Les quatre assertions de synchronisation temps réel passent, mais
+le nettoyage de sa suite dépasse les 180 s du hook. Les gates suivantes
+ne sont pas exécutées et aucun push n'est fait sur cette preuve.
+
+Les six tests des deux suites passent inchangés au rejeu avec instrumentation
+Istanbul (`backup-realtime-timeout-replay-07.log`, 7 s). Ce rejeu ciblé ne
+valide pas le seuil global de couverture : il échoue normalement sur la dette
+des modules non exercés. Cinq nouveaux processus sans couverture passent
+les six tests chacun (`backup-realtime-timeout-replay-08.log`), sans retry
+interne. Les connexions du serveur de fixtures sont libérées. Ces rejeux
+n'établissent pas la cause des deux timeouts du contrôle complet ; aucun
+correctif produit, hausse de délai ou exclusion n'est introduit. Le prochain
+contrôle doit réussir intégralement sur son commit exact. Les quatre
+conteneurs de l'instance du propriétaire et leurs données restent intacts.
