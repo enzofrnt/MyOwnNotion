@@ -2012,3 +2012,57 @@ Diagnostics ignorés sous `work/ci-181/` : `local-inline-before.log`,
 La base jetable est séparée des données propriétaire. La dernière révision
 publiée doit encore obtenir sa CI verte, suivie toutes les cinq minutes dans
 la PR 181 ; cet échec n'est pas présenté comme une livraison réussie.
+
+## Activation clavier avant la flèche des propriétés — 2026-10-04
+
+Le [run de `1f370935`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37222965472)
+bloque sur un parcours Chromium bureau flaky : après Espace puis Flèche bas,
+la transformation reste nulle. Le retry passe, mais le gate refuse ce résultat.
+La trace montre déjà des rectangles et transformations d'identité avant la
+flèche : attendre seulement leur mesure ne corrigerait pas cette séquence.
+
+Cinq répétitions normales passent. Deux séries de vingt répétitions avec
+observation reproduisent chacune un blocage, sur le second déplacement après
+annulation. La seconde capture observe Espace à 3639,9 ms, Flèche bas à
+3648,4 ms puis l'installation de l'écoute clavier à 3649,9 ms. Aucun appel au
+calcul des coordonnées ne reçoit cette flèche. Les essais qui reçoivent la
+commande observent trois rectangles corrects et la destination de Team.
+L'état visuel actif est publié avant le listener que KeyboardSensor installe
+par un timer différé ; il ne garantit donc pas la réception de la touche suivante.
+
+Le changement maintenu se limite au parcours : après Espace et le contrôle de
+`data-dragging`, un timer natif sans durée ajoutée laisse s'exécuter le tour
+déjà en file, avant Flèche bas. Cette séquence est partagée entre annulation
+et dépôt. Il n'y a ni pause à durée arbitraire, ni flèche répétée, ni clic forcé,
+ni changement du moteur produit, du CSS, des assertions, des budgets ou des
+retries. Le parcours vérifie toujours transformation réelle, preview et annonce,
+annulation sans écriture, ordre durable après rechargement, valeurs et colonnes
+indépendantes. Aucun parcours n'est exclu.
+
+- **20/20 répétitions avec observation après correction**, 98 s : chaque flèche
+  est reçue après installation. Les probes sont ensuite intégralement retirées.
+- **25/25 parcours normaux réussis**, sans retry, cinq répétitions sur chacun
+  des cinq profils ; matrice en 169 s. Firefox et les deux WebKit utilisent le
+  runtime Linux documenté sur cet hôte macOS.
+- Biome ciblé et types racine réussis. Diff, prérequis/cohérence Spec Kit et
+  liens locaux vérifiés avant publication. Les sources produit et les entrées
+  unitaires restent identiques à la révision dont la CI confirme la couverture.
+- Revue ui-quality + lessons des captures réelles : ordre Team/Brief/Estimate,
+  Research conservé, poignée de Brief et focus visibles, valeurs lisibles en
+  [bureau](assets/validation-property-keyboard-webkit-desktop.png) et en
+  [mobile](assets/validation-property-keyboard-webkit-mobile.png). Le rendu
+  produit n'est pas modifié par cette maintenance de test.
+
+```bash
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/database-entry-properties.spec.ts --retries=0 --repeat-each=5
+```
+
+Diagnostics ignorés : `work/ci-181/local-property-order-before.log`,
+`local-property-order-{probe,second-probe,probe-after}.log`,
+`property-order-{probe,second-probe,probe-after}-detail.log` et
+`local-property-order-after.log`. La base de test jetable sur 55432 est arrêtée ;
+aucune donnée de l'instance du propriétaire n'est touchée. La dernière révision
+publiée doit encore être confirmée par la CI, consultée toutes les cinq minutes
+et suivie dans la PR 181 ; cette preuve locale n'est pas déclarée CI verte.

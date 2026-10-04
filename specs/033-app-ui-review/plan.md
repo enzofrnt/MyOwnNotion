@@ -80,6 +80,18 @@ Vérifier le même frame contrôlé puis retirer toute instrumentation et rejoue
 la composition clair/sombre, 320/1280 px sur les cinq profils. Aucun rendu produit
 ne change ; appliquer ui-quality + lessons aux preuves de la vraie composition.
 
+Le run de `1f370935` révèle une flèche perdue au démarrage du déplacement
+clavier des propriétés. Deux séries de vingt répétitions avec observation
+reproduisent le blocage après annulation. La seconde capture montre la flèche
+à 3648,4 ms puis l'installation de l'écoute clavier à 3649,9 ms : l'état
+`data-dragging` est déjà vrai, mais le listener différé de KeyboardSensor ne
+reçoit pas la touche. Les mesures de collision sont correctes quand il la reçoit.
+Le parcours doit laisser s'exécuter le timer natif déjà en file après activation,
+avant d'envoyer la flèche ; aucune durée de pause arbitraire, modification du
+moteur, retry ou assertion assouplie. Vérifier le diagnostic puis retirer les
+probes et rejouer plusieurs fois le parcours sur les cinq profils, en conservant
+preview, annonce, annulation, dépôt durable et indépendance des colonnes.
+
 ## Technical Context
 
 TypeScript strict/Bun 1.4.2/React/Ariakit/BlockNote existants. Frameworks conservés ;
