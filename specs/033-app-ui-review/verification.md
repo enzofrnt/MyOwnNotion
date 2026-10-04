@@ -1860,3 +1860,48 @@ pour les fixtures. La publication doit encore recevoir la confirmation de tous
 les contrôles GitHub ; cette preuve locale ne constitue pas une CI verte. La
 révision publiée, son run et sa conclusion sont suivis dans la
 [PR 181](https://github.com/enzofrnt/MyOwnNotion/pull/181).
+
+## Collecte du test de routage sous couverture — 2026-10-04
+
+Le [run de `46427ada`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37216046150)
+révèle un autre échec, dans `Unit, property & coverage` : le `beforeAll` de
+`app-routing.spec.tsx` expire à **10 000 ms** en chargeant le graphe complet de
+modules de `App`. Les 18 tests de routage sont alors non exécutés ; les 5098
+autres assertions réussissent. Le test ciblé sur l'hôte passe avant correction
+(18/18, 7,10 s pour le fichier) : ce dépassement du délai de préparation n'est
+pas reproduit dans cet essai isolé.
+
+Le test importe maintenant `App` statiquement lors de la collecte de Vitest,
+comme ses autres composants. Il ne mesure plus la transformation/chargement
+du code dans un hook de préparation fonctionnelle. Les 18 assertions, les
+délais des tests, les hooks de montage/nettoyage, l'isolation, les quatre
+workers et les seuils de couverture restent inchangés. Aucun code produit ni
+configuration de test n'est modifié.
+
+Validation du même code avant publication :
+
+- **Couverture complète réussie** : 487 fichiers, **5117 assertions réussies**,
+  deux exclusions existantes, 210,81 s. Les 18 tests de routage passent en
+  5,32 s, y compris authentification, retour protégé, réglages, graphe et reprise
+  hors ligne. Le fournisseur Istanbul et tous les seuils sont conservés.
+- Couverture globale observée : statements 91,72 %, branches 86,33 %, fonctions
+  94,37 %, lignes 92,82 % ; le gate des nombres absolus non couverts réussit.
+- Types web, types racine, Biome ciblé, prérequis Spec Kit, cohérence
+  FR-008–plan–T073, liens des trois documents modifiés et diff vérifiés.
+- Les 45 parcours ciblés sans retry de `46427ada` restent une preuve applicable
+  aux entrées E2E et aux sources produit inchangées. Le test unitaire de routage
+  n'est pas une entrée du bundle produit ni de ces parcours.
+
+Le premier lancement local de la couverture a été interrompu (sortie 130)
+après des refus de sauvegarde : les clients PG18 n'étaient pas sur PATH.
+Il n'est pas compté comme une réussite. La commande suivante utilise le chemin
+Homebrew documenté et le PostgreSQL jetable du runner ; aucun reset de la base
+ou des données du propriétaire :
+
+```bash
+PATH="/opt/homebrew/opt/libpq/bin:$PATH" bun run test:coverage
+```
+
+Logs locaux ignorés : `work/ci-181/local-coverage-routing-pg18.log` ; diagnostic
+CI dans `work/ci-181/unit-46427ada.log`. La confirmation CI du correctif de
+collecte reste à obtenir sur sa révision publiée et est suivie dans la PR 181.

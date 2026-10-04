@@ -51,6 +51,14 @@ parcours de navigation concernés sur les cinq profils. Garder les données de
 test isolées de l'instance du propriétaire ; suivre ensuite tous les contrôles
 de la PR jusqu'à leur réussite sur la dernière révision publiée.
 
+Le run suivant révèle un second défaut de préparation du test de routage :
+le `beforeAll` attend l'import froid du graphe complet de l'application et
+expire à 10 s sous instrumentation/concurrence, avant ses 18 assertions.
+Importer `App` statiquement dans la phase normale de collecte de Vitest ;
+conserver les délais fonctionnels, la couverture et les assertions. Vérifier
+les tests web et la couverture complète sur la base de test isolée, puis
+publier et confirmer la CI sans relancer les preuves produit inchangées.
+
 ## Technical Context
 
 TypeScript strict/Bun 1.4.2/React/Ariakit/BlockNote existants. Frameworks conservés ;

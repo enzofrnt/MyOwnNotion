@@ -3,7 +3,8 @@ import { generateUuidV7 } from "@myownnotion/domain";
 import { act, type ComponentType } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, type NavigateOptions, useLocation } from "react-router-dom";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { App } from "../src/app.tsx";
 import type { BootstrapPageProps } from "../src/features/auth/bootstrap-page.tsx";
 import type { HierarchyExplorerProps } from "../src/features/hierarchy/hierarchy-explorer.tsx";
 import type { SecurityApi } from "../src/services/security-api.ts";
@@ -72,12 +73,6 @@ function RoutedBootstrap({ onReady }: BootstrapPageProps) {
     </button>
   );
 }
-
-let App: typeof import("../src/app.tsx")["App"];
-
-beforeAll(async () => {
-  ({ App } = await import("../src/app.tsx"));
-});
 
 afterAll(() => {
   vi.resetModules();
