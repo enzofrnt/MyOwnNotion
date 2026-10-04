@@ -37,8 +37,12 @@ export function PageContentSkeleton({
         <span className="workspace-skeleton workspace-skeleton--crumb" />
       </div>
       <div className="workspace-page-title__body" aria-hidden="true">
-        {hasIcon ? <span className="workspace-skeleton workspace-skeleton--emoji" /> : null}
-        <span className="workspace-skeleton workspace-skeleton--title" />
+        <div className="workspace-page-title__heading">
+          {hasIcon ? <span className="workspace-skeleton workspace-skeleton--emoji" /> : null}
+          <div className="workspace-page-title__stack">
+            <span className="workspace-skeleton workspace-skeleton--title" />
+          </div>
+        </div>
         <span className="workspace-skeleton workspace-skeleton--kind" />
       </div>
       {lines}

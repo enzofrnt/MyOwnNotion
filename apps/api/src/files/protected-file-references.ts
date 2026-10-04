@@ -1,6 +1,7 @@
 import { getUpload, listProtectedFileChunks, type Transaction } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
+import { protectedChunksMatchManifest } from "./protected-chunk-manifest.ts";
 import {
   type ProtectedFileService,
   ProtectedFileUnavailableError,
@@ -65,20 +66,7 @@ export async function countVerifiedFileGenerationReferences(
             : await uploads.state(tx, upload);
       if (manifest === null) throw new ProtectedFileUnavailableError();
       const chunks = await listProtectedFileChunks(tx, files.scope(object.kind, object.id));
-      if (
-        chunks.length !== manifest.chunks.length ||
-        chunks.some((chunk, index) => {
-          const trusted = manifest.chunks[index];
-          return (
-            trusted === undefined ||
-            chunk.chunkIndex !== trusted.index ||
-            chunk.storageKey !== trusted.storageKey ||
-            chunk.byteLength !== trusted.byteLength ||
-            chunk.keyGeneration !== trusted.keyGeneration ||
-            chunk.recordVersion !== trusted.recordVersion
-          );
-        })
-      )
+      if (!protectedChunksMatchManifest(chunks, manifest.chunks))
         throw new ProtectedFileUnavailableError();
       references += manifest.chunks.filter(
         (chunk) => chunk.keyGeneration === input.generation,

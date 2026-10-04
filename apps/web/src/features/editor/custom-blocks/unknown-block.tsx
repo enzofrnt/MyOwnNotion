@@ -1,5 +1,6 @@
 import { createReactBlockSpec } from "@blocknote/react";
 import { useState } from "react";
+import { Button } from "../../../ui/primitives/index.ts";
 
 function UnknownBlockView({
   blockId,
@@ -31,9 +32,9 @@ function UnknownBlockView({
       <strong>Bloc non pris en charge</strong>
       <span>{declaredType}</span>
       <small>Son contenu est conservé sans modification.</small>
-      <button type="button" onClick={() => void copyRawJson()}>
+      <Button size="compact" variant="ghost" onClick={() => void copyRawJson()}>
         Copier les données du bloc
-      </button>
+      </Button>
       <small role="status" aria-live="polite">
         {copyState === "copied"
           ? "Données copiées."

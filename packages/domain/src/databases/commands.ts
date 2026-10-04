@@ -8,14 +8,24 @@ import {
   type PageDocument,
 } from "../content/types.ts";
 import { isUuid, type Uuid } from "../ids/uuid.ts";
-import { validateDatabaseDefinition } from "./schema.ts";
-import type { DatabaseDefinition, NonRelationPropertyValue, RelationTargets } from "./types.ts";
+import { validateDatabaseDefinition, validateDatabasePresentation } from "./schema.ts";
+import type {
+  DatabaseDefinition,
+  DatabasePresentationDefinition,
+  NonRelationPropertyValue,
+  RelationTargets,
+} from "./types.ts";
+import { databaseEntryPlacementId } from "./types.ts";
 import { normalizeCivilDate, normalizeDecimal, normalizeInstant } from "./values.ts";
 
 export const DATABASE_COMMAND_TYPES = [
   "database.create",
+  "database.source.create",
+  "database.source.delete",
+  "database_view.create",
   "database.definition.replace",
   "database.definition.resolve-conflict",
+  "database.presentation.replace",
   "database.entry.create",
   "database.entry.values.replace",
   "database.entry.values.resolve-conflict",
@@ -38,6 +48,7 @@ export type DatabaseMutationCommand =
   | {
       readonly type: "database.create";
       readonly id: Uuid;
+      readonly sourceId?: Uuid;
       readonly name: string;
       readonly hostPageId?: Uuid;
       readonly placement: DatabasePlacementInput;
@@ -47,8 +58,33 @@ export type DatabaseMutationCommand =
       readonly initialViewName: string;
     }
   | {
+      readonly type: "database.source.create";
+      readonly ownerItemId: Uuid;
+      readonly sourceId: Uuid;
+      readonly name: string;
+      readonly titlePropertyId: Uuid;
+      readonly initialViewId: Uuid;
+      readonly initialViewName: string;
+      readonly baseRevisionId: Uuid;
+    }
+  | {
+      readonly type: "database.source.delete";
+      readonly ownerItemId: Uuid;
+      readonly sourceId: Uuid;
+      readonly baseRevisionId: Uuid;
+    }
+  | {
+      readonly type: "database_view.create";
+      readonly id: Uuid;
+      readonly name: string;
+      readonly sourceId: Uuid;
+      readonly placement: DatabasePlacementInput;
+      readonly initialViewId: Uuid;
+    }
+  | {
       readonly type: "database.definition.replace";
       readonly databaseId: Uuid;
+      readonly sourceId?: Uuid;
       readonly baseRevisionId: Uuid;
       readonly definition: DatabaseDefinition;
       readonly impactConfirmation?: DatabaseImpactConfirmation;
@@ -61,10 +97,18 @@ export type DatabaseMutationCommand =
       readonly impactConfirmation?: DatabaseImpactConfirmation;
     }
   | {
+      readonly type: "database.presentation.replace";
+      readonly containerItemId: Uuid;
+      readonly baseRevisionId: Uuid;
+      readonly presentation: DatabasePresentationDefinition;
+    }
+  | {
       readonly type: "database.entry.create";
       readonly databaseId: Uuid;
+      readonly sourceId?: Uuid;
       readonly id: Uuid;
       readonly title: string;
+      readonly kind?: "page" | "folder";
       readonly placement?: DatabasePlacementInput;
       readonly document?: PageDocument;
       readonly values: Readonly<Record<Uuid, NonRelationPropertyValue>>;
@@ -318,16 +362,87 @@ export function parseDatabaseMutationCommand(
   payload: Payload,
 ): DomainResult<DatabaseMutationCommand> {
   switch (commandType) {
+    case "database.source.create": {
+      if (
+        !hasExactKeys(payload, [
+          "ownerItemId",
+          "sourceId",
+          "name",
+          "titlePropertyId",
+          "initialViewId",
+          "initialViewName",
+          "baseRevisionId",
+        ]) ||
+        !isUuid(payload["ownerItemId"]) ||
+        !isUuid(payload["sourceId"]) ||
+        !isUuid(payload["titlePropertyId"]) ||
+        !isUuid(payload["initialViewId"]) ||
+        !isUuid(payload["baseRevisionId"]) ||
+        typeof payload["name"] !== "string" ||
+        typeof payload["initialViewName"] !== "string"
+      )
+        return invalid();
+      const name = normalizeDisplayName(payload["name"]);
+      const initialViewName = normalizeDisplayName(payload["initialViewName"]);
+      if (!name.ok || !initialViewName.ok) return invalid();
+      return ok({
+        type: commandType,
+        ownerItemId: payload["ownerItemId"],
+        sourceId: payload["sourceId"],
+        name: name.value,
+        titlePropertyId: payload["titlePropertyId"],
+        initialViewId: payload["initialViewId"],
+        initialViewName: initialViewName.value,
+        baseRevisionId: payload["baseRevisionId"],
+      });
+    }
+    case "database.source.delete": {
+      if (
+        !hasExactKeys(payload, ["ownerItemId", "sourceId", "baseRevisionId"]) ||
+        !isUuid(payload["ownerItemId"]) ||
+        !isUuid(payload["sourceId"]) ||
+        !isUuid(payload["baseRevisionId"])
+      )
+        return invalid();
+      return ok({
+        type: commandType,
+        ownerItemId: payload["ownerItemId"],
+        sourceId: payload["sourceId"],
+        baseRevisionId: payload["baseRevisionId"],
+      });
+    }
+    case "database_view.create": {
+      if (
+        !hasExactKeys(payload, ["id", "name", "sourceId", "placement", "initialViewId"]) ||
+        !isUuid(payload["id"]) ||
+        !isUuid(payload["sourceId"]) ||
+        !isUuid(payload["initialViewId"]) ||
+        typeof payload["name"] !== "string"
+      )
+        return invalid();
+      const name = normalizeDisplayName(payload["name"]);
+      const placement = parsePlacement(payload["placement"]);
+      if (!name.ok || placement === null) return invalid();
+      return ok({
+        type: commandType,
+        id: payload["id"],
+        name: name.value,
+        sourceId: payload["sourceId"],
+        placement,
+        initialViewId: payload["initialViewId"],
+      });
+    }
     case "database.create": {
       if (
         !hasExactKeys(
           payload,
           ["id", "name", "placement", "titlePropertyId", "initialViewId", "initialViewName"],
-          ["titlePropertyName", "hostPageId"],
+          ["titlePropertyName", "hostPageId", "sourceId"],
         ) ||
         !isUuid(payload["id"]) ||
         !isUuid(payload["titlePropertyId"]) ||
         !isUuid(payload["initialViewId"]) ||
+        (payload["sourceId"] !== undefined && !isUuid(payload["sourceId"])) ||
         (payload["hostPageId"] !== undefined && !isUuid(payload["hostPageId"])) ||
         typeof payload["name"] !== "string" ||
         typeof payload["initialViewName"] !== "string" ||
@@ -346,6 +461,7 @@ export function parseDatabaseMutationCommand(
       return ok({
         type: commandType,
         id: payload["id"],
+        ...(payload["sourceId"] === undefined ? {} : { sourceId: payload["sourceId"] as Uuid }),
         name: name.value,
         ...(payload["hostPageId"] === undefined
           ? {}
@@ -362,8 +478,9 @@ export function parseDatabaseMutationCommand(
         !hasExactKeys(
           payload,
           ["databaseId", "baseRevisionId", "definition"],
-          ["impactConfirmation"],
+          ["impactConfirmation", "sourceId"],
         ) ||
+        (payload["sourceId"] !== undefined && !isUuid(payload["sourceId"])) ||
         !isUuid(payload["databaseId"]) ||
         !isUuid(payload["baseRevisionId"])
       ) {
@@ -371,12 +488,14 @@ export function parseDatabaseMutationCommand(
       }
       const definition = parseDefinition(payload["definition"], payload["databaseId"]);
       if (definition === null) return invalid();
+      const sourceId = payload["sourceId"] === undefined ? {} : { sourceId: payload["sourceId"] };
       if (payload["impactConfirmation"] === undefined) {
         return ok({
           type: commandType,
           databaseId: payload["databaseId"],
           baseRevisionId: payload["baseRevisionId"],
           definition,
+          ...sourceId,
         });
       }
       const impactConfirmation = parseImpactConfirmation(payload["impactConfirmation"]);
@@ -388,6 +507,7 @@ export function parseDatabaseMutationCommand(
             baseRevisionId: payload["baseRevisionId"],
             definition,
             impactConfirmation,
+            ...sourceId,
           });
     }
     case "database.definition.resolve-conflict": {
@@ -423,15 +543,60 @@ export function parseDatabaseMutationCommand(
             impactConfirmation,
           });
     }
+    case "database.presentation.replace": {
+      if (
+        !hasExactKeys(payload, ["containerItemId", "baseRevisionId", "presentation"]) ||
+        !isUuid(payload["containerItemId"]) ||
+        !isUuid(payload["baseRevisionId"])
+      ) {
+        return invalid();
+      }
+      const raw = payload["presentation"];
+      if (
+        typeof raw !== "object" ||
+        raw === null ||
+        !Array.isArray((raw as { views?: unknown }).views) ||
+        (raw as { views: unknown[] }).views.some(
+          (view) =>
+            typeof view !== "object" ||
+            view === null ||
+            !Array.isArray((view as { properties?: unknown }).properties) ||
+            !Array.isArray((view as { sorts?: unknown }).sorts),
+        )
+      )
+        return invalid();
+      let presentation: DomainResult<DatabasePresentationDefinition>;
+      try {
+        presentation = validateDatabasePresentation(
+          raw as DatabasePresentationDefinition,
+          "database",
+        );
+      } catch {
+        return invalid();
+      }
+      if (!presentation.ok || presentation.value.containerItemId !== payload["containerItemId"]) {
+        return invalid();
+      }
+      return ok({
+        type: commandType,
+        containerItemId: payload["containerItemId"],
+        baseRevisionId: payload["baseRevisionId"],
+        presentation: presentation.value,
+      });
+    }
     case "database.entry.create": {
       if (
         !hasExactKeys(
           payload,
           ["databaseId", "id", "title", "values", "relationTargets"],
-          ["document", "placement"],
+          ["document", "placement", "kind", "sourceId"],
         ) ||
         !isUuid(payload["databaseId"]) ||
         !isUuid(payload["id"]) ||
+        (payload["kind"] !== undefined &&
+          payload["kind"] !== "page" &&
+          payload["kind"] !== "folder") ||
+        (payload["sourceId"] !== undefined && !isUuid(payload["sourceId"])) ||
         typeof payload["title"] !== "string"
       ) {
         return invalid();
@@ -439,6 +604,13 @@ export function parseDatabaseMutationCommand(
       const title = normalizeDisplayName(payload["title"]);
       const placement =
         payload["placement"] === undefined ? undefined : parsePlacement(payload["placement"]);
+      if (
+        placement !== undefined &&
+        placement !== null &&
+        placement.parentItemId !== payload["databaseId"]
+      ) {
+        return invalid();
+      }
       const values = parseValues(payload["values"]);
       const relationTargets = parseRelationTargets(payload["relationTargets"]);
       const document =
@@ -450,9 +622,15 @@ export function parseDatabaseMutationCommand(
       const command: DatabaseMutationCommand = {
         type: commandType,
         databaseId: payload["databaseId"],
+        ...(payload["sourceId"] === undefined ? {} : { sourceId: payload["sourceId"] as Uuid }),
         id: payload["id"],
         title: title.value,
-        ...(placement === undefined ? {} : { placement }),
+        kind: (payload["kind"] ?? "page") as "page" | "folder",
+        placement: placement ?? {
+          id: databaseEntryPlacementId(payload["id"]),
+          parentItemId: payload["databaseId"],
+          positionKey: `a${payload["id"].replaceAll("-", "")}`,
+        },
         ...(document === undefined ? {} : { document }),
         values,
         relationTargets,

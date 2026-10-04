@@ -3,6 +3,15 @@
 **Feature Branch**: `codex/028-notion-import`
 **Created**: 2026-09-05
 **Status**: Implemented and validated locally/PR; main CI finalization pending
+
+**Evolution 029 (2026-09-27)**: The database ownership and entry-placement
+contract for a V1 import is now defined by the [database redesign](../029-database-pages-views/spec.md).
+The 026 source/embedding references below describe the historical import
+implementation. Before an import can be treated as V1-compatible, its apply
+path and preview must be reconciled with owner database pages, their direct
+page/folder entries, and linked views; that work belongs to 029 planning and
+tasks. Source immutability, preview-first behavior, backup, encryption, and
+resumability requirements remain in force.
 **Input**: Import native Notion Markdown/CSV exports and an Obsidian-converted local folder through a preview-first local CLI.
 
 ## Product direction and clarifications

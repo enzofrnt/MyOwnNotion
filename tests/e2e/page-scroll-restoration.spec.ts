@@ -14,7 +14,7 @@ import { createRootItem, openWorkspace, selectItem, uniqueName } from "./helpers
 const PARAGRAPHS = 32;
 
 async function fillLongPage(page: import("@playwright/test").Page): Promise<void> {
-  const editor = page.getByTestId("block-editor").locator(".ProseMirror");
+  const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
   await expect(editor).toBeVisible({ timeout: 30_000 });
   await editor.click();
   await page.keyboard.press("ControlOrMeta+a");
@@ -94,7 +94,9 @@ test.describe("scroll restoration", () => {
     // Leave and come back.
     await selectItem(page, otherName);
     await selectItem(page, pageName);
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+      timeout: 30_000,
+    });
 
     await expect
       .poll(() => scroller.evaluate((element) => element.scrollTop), { timeout: 10_000 })

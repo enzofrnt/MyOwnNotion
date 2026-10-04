@@ -7,6 +7,32 @@ import {
 import { definition, IDS, values } from "./fixtures.ts";
 
 describe("three-way database definition merge", () => {
+  it("merges an icon selection with a concurrent rename and preserves removal", () => {
+    const original = definition();
+    const ancestor = {
+      ...original,
+      properties: original.properties.map((p) => ({ ...p, icon: "star" })),
+    };
+    for (const icon of ["lightbulb", null]) {
+      const local = {
+        ...ancestor,
+        properties: ancestor.properties.map((p) => (p.id === IDS.text ? { ...p, icon } : p)),
+      };
+      const remote = {
+        ...ancestor,
+        properties: ancestor.properties.map((p) =>
+          p.id === IDS.text ? { ...p, name: "Remote description" } : p,
+        ),
+      };
+      const outcome = mergeDatabaseDefinitions(ancestor, local, remote);
+      expect(outcome.kind).toBe("merged");
+      if (outcome.kind === "merged")
+        expect(outcome.value.properties.find((p) => p.id === IDS.text)).toMatchObject({
+          icon,
+          name: "Remote description",
+        });
+    }
+  });
   it("merges compatible edits to distinct stable identities", () => {
     const ancestor = definition();
     const local = {
@@ -51,6 +77,45 @@ describe("three-way database definition merge", () => {
 });
 
 describe("three-way entry value merge", () => {
+  it.each(["ancestorDefinition", "localDefinition", "remoteDefinition"] as const)(
+    "requires all three schemas when only %s is available",
+    (field) => {
+      const ancestor = values(IDS.entryA, { [IDS.text]: { kind: "text", value: "Before" } });
+      const local = values(IDS.entryA, { [IDS.text]: { kind: "text", value: "Local" } });
+      const result = mergeEntryValues({ ancestor, local, remote: ancestor, [field]: definition() });
+      expect(result).toMatchObject({
+        kind: "needs-owner",
+        conflicts: [{ path: "definition", reason: "definition-missing" }],
+        ancestor,
+        local,
+        remote: ancestor,
+      });
+    },
+  );
+
+  it("preserves every version when a remote property disappears while its local value changes", () => {
+    const original = definition();
+    const ancestor = values(IDS.entryA, { [IDS.text]: { kind: "text", value: "Before" } });
+    const local = values(IDS.entryA, { [IDS.text]: { kind: "text", value: "Local" } });
+    const remote = values(IDS.entryA, {});
+    const result = mergeEntryValues({
+      ancestor,
+      local,
+      remote,
+      ancestorDefinition: original,
+      localDefinition: original,
+      remoteDefinition: {
+        ...original,
+        properties: original.properties.filter((p) => p.id !== IDS.text),
+      },
+    });
+    expect(result).toMatchObject({ kind: "needs-owner", ancestor, local, remote });
+    if (result.kind === "needs-owner")
+      expect(result.conflicts).toContainEqual({
+        path: `values.${IDS.text}`,
+        reason: "type-value-incompatible",
+      });
+  });
   it("merges different property values and identical edits", () => {
     const ancestor = values(IDS.entryA, {
       [IDS.text]: { kind: "text", value: "before" },

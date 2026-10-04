@@ -1,0 +1,114 @@
+/* Owner: features/auth/auth.css. See docs/design/ui-system.md before extending. */
+/* First-run setup (T033). Sized in relative units and single-column by
+   default so the flow works at a phone width without horizontal scrolling. */
+.bootstrap-page {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.bootstrap-counts {
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* Reserves its line whether or not a message is present, so an announcement
+   does not shift the controls under the pointer or the focus ring. */
+.bootstrap-message {
+  min-height: 1.5rem;
+  margin: 0;
+}
+
+.bootstrap-message:not(:empty) {
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid currentColor;
+}
+
+.login-page {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: clamp(var(--ui-space-8), 10vh, 6rem) var(--ui-space-4) var(--ui-space-12);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* The security document is styled by settings.css + settings-security.css
+   only (scoped on `.settings-content[data-section="security"]`). Do not add
+   `.security-settings` rules here: two owners produced conflicting layouts. */
+
+/* Reserves its line whether or not a message is present, so an announcement
+   does not shift the control under the pointer or the focus ring. */
+.login-message {
+  min-height: 1.5rem;
+  margin: 0;
+}
+
+.login-message:not(:empty) {
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid currentColor;
+}
+
+.login-page form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  align-items: flex-start;
+}
+
+.login-page .ui-field {
+  width: 100%;
+}
+
+/* Every control stays reachable by thumb: these screens are used under
+   stress, often on a phone. */
+.ui-auth-surface > h1 {
+  margin: 0;
+  font-size: var(--ui-text-2xl);
+  font-weight: 650;
+  line-height: var(--ui-leading-tight);
+}
+
+.ui-auth-surface .ui-auth-card {
+  padding: var(--ui-space-5) 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.ui-auth-surface .ui-auth-card > h2 {
+  margin: 0;
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+}
+
+.ui-auth-surface .ui-auth-card > p {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+  line-height: var(--ui-leading-normal);
+}
+
+.login-page button.link,
+.app-header button.link {
+  min-height: 2.75rem;
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.desktop-connection-page {
+  display: grid;
+  gap: var(--ui-space-4);
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: clamp(var(--ui-space-8), 10vh, 6rem) var(--ui-space-4) var(--ui-space-12);
+}
+
+.desktop-connection-page > p {
+  color: var(--ui-color-text-muted);
+}

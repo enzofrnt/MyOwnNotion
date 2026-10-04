@@ -132,16 +132,6 @@ export const RECOVERY_STATE_PAIRS = DOMAIN_RECOVERY_STATE_PAIRS;
 
 export type RecoveryStatePair = (typeof RECOVERY_STATE_PAIRS)[number];
 
-export function isLegalRecoveryStatePair(
-  authorizationState: string,
-  deliveryState: string,
-): boolean {
-  return RECOVERY_STATE_PAIRS.some(
-    (pair) =>
-      pair.authorizationState === authorizationState && pair.deliveryState === deliveryState,
-  );
-}
-
 export const RECOVERY_KDF_ALGORITHM = "scrypt" as const;
 /** Permitted scrypt cost parameters; the schema admits no other value. */
 export const RECOVERY_KDF_COST_OPTIONS = [8192, 16384, 32768, 65536, 131072] as const;
@@ -361,3 +351,5 @@ export const SecurityArtifactSchema = Type.Union([
   MigrationCheckpointSchema,
 ]);
 export type SecurityArtifact = Static<typeof SecurityArtifactSchema>;
+
+export { isLegalRecoveryStatePair } from "@myownnotion/domain";

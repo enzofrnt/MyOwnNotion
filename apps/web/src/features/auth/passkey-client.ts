@@ -1,3 +1,4 @@
+import { encodeBase64Url as toBase64Url } from "@myownnotion/client-core";
 /**
  * The browser half of the passkey ceremony (T033, feature 002).
  *
@@ -24,15 +25,6 @@ function fromBase64Url(value: string): Uint8Array {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/");
   const binary = atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, "="));
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
-
-function toBase64Url(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 /**

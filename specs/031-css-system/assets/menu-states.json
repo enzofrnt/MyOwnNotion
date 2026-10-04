@@ -1,0 +1,38 @@
+{
+  "rest": [
+    {
+      "active": false,
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "rect": {
+        "bottom": 628.5,
+        "height": 36,
+        "left": 21,
+        "right": 203,
+        "top": 592.5,
+        "width": 182,
+        "x": 21,
+        "y": 592.5
+      },
+      "text": "Placer dans la corbeille"
+    }
+  ],
+  "hover": [
+    {
+      "active": true,
+      "bg": "rgb(48, 48, 45)",
+      "color": "rgb(213, 108, 94)",
+      "rect": {
+        "bottom": 628.5,
+        "height": 36,
+        "left": 21,
+        "right": 203,
+        "top": 592.5,
+        "width": 182,
+        "x": 21,
+        "y": 592.5
+      },
+      "text": "Placer dans la corbeille"
+    }
+  ]
+}

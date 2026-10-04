@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { type FileHandle, mkdir, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { isUuid } from "@myownnotion/domain";
+import { isCanonicalTimestamp as date, isUuid } from "@myownnotion/domain";
 import { open as decrypt, seal } from "@myownnotion/domain/security";
 
 import { authenticateWithBackupKeys } from "./read-keys.ts";
@@ -19,10 +19,7 @@ type ActivityKind = "backup" | "rehearsal";
 function activity(value: unknown): FullBackupActivity {
   if (value === null || typeof value !== "object") throw new Error("Invalid backup activity.");
   const row = value as Record<string, unknown>;
-  const date = (input: unknown) =>
-    typeof input === "string" &&
-    Number.isFinite(Date.parse(input)) &&
-    new Date(input).toISOString() === input;
+
   if (
     !date(row["startedAt"]) ||
     !(row["finishedAt"] === null || date(row["finishedAt"])) ||

@@ -1,14 +1,33 @@
 import type { DatabaseDto, DatabaseEntryDto } from "@myownnotion/contracts";
-import type { DatabaseDefinition, DefinitionImpact, Uuid } from "@myownnotion/domain";
+import type {
+  DatabaseDefinition,
+  DatabaseProperty,
+  DatabaseView,
+  DefinitionImpact,
+  PropertyOption,
+  Uuid,
+} from "@myownnotion/domain";
 import {
   evaluateDatabaseView,
   extractSearchableDocumentText,
+  generateUuidV7,
+  pageBodyHoldsEditorialContent,
   readDocumentBody,
 } from "@myownnotion/domain";
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { DatabaseViewPage, DatabaseViewResult } from "../../services/databases.ts";
-import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
+import { AppIcon } from "../../ui/icons.tsx";
+import {
+  AsyncState,
+  Button,
+  PopoverContent,
+  PopoverHeading,
+  PopoverRoot,
+  PopoverTrigger,
+} from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
+import { defaultItemTitle } from "../workspace/default-item-title.ts";
 import { BoardView } from "./board-view.tsx";
 import { CalendarView } from "./calendar-view.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
@@ -17,18 +36,51 @@ import { FilterEditor } from "./filter-editor.tsx";
 import { type GalleryPreview, GalleryView } from "./gallery-view.tsx";
 import { ListView } from "./list-view.tsx";
 import {
+  isChoiceProperty,
+  PropertyOptionsEditor,
+  replaceChoiceOptions,
+} from "./option-appearance.tsx";
+import {
   type DatabasePropertyDraft,
   PropertyEditor,
   propertyFromDraft,
   validatePropertyDraft,
 } from "./property-editor.tsx";
+import { PropertyIconPicker } from "./property-icon.tsx";
+import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
 import { SortGroupEditor } from "./sort-group-editor.tsx";
 import { type DatabaseCellUpdate, TableView } from "./table-view.tsx";
 import { TaskConfiguration } from "./task-configuration.tsx";
 import { useDatabaseView } from "./use-database-view.ts";
 import type { RelationOption } from "./value-editor.tsx";
+import { columnPresentations, viewColumns } from "./view-columns.ts";
 
 const EMPTY_PROPERTY_DRAFT: DatabasePropertyDraft = { name: "", type: "text" };
+
+function withEntryPresentation(
+  page: DatabaseViewPage,
+  entries: readonly DatabaseEntryDto[],
+): DatabaseViewPage {
+  if (entries.length === 0) return page;
+  const byId = new Map(
+    entries.map((entry) => [
+      entry.entryId,
+      {
+        itemKind: entry.kind === "folder" ? ("folder" as const) : ("page" as const),
+        icon: entry.icon ?? null,
+        holdsContent:
+          entry.kind !== "folder" && pageBodyHoldsEditorialContent(entry.document?.body),
+      },
+    ]),
+  );
+  return {
+    ...page,
+    rows: page.rows.map((row) => {
+      const presentation = byId.get(row.entryId);
+      return presentation === undefined ? row : { ...row, ...presentation };
+    }),
+  };
+}
 
 export interface DefinitionConfirmation {
   readonly digest: string;
@@ -38,10 +90,13 @@ export interface DefinitionConfirmation {
 export function DatabasePage({
   database,
   embeddingId,
+  formatPlacement = "panel",
+  toolsSlotId,
   entries,
   onReplaceDefinition,
   onPreviewDefinitionImpact,
   onCreateEntry,
+  onCreateFolder,
   onOpenEntry,
   onUpdateEntry,
   relationOptions = [],
@@ -53,6 +108,10 @@ export function DatabasePage({
 }: {
   readonly database: DatabaseDto;
   readonly embeddingId?: Uuid;
+  /** The container page owns the format control, so this panel does not repeat it. */
+  readonly formatPlacement?: "panel" | "chrome";
+  /** When set, the filter trigger is placed in this already-mounted element. */
+  readonly toolsSlotId?: string;
   readonly entries: readonly DatabaseEntryDto[];
   readonly onReplaceDefinition: (
     definition: DatabaseDefinition,
@@ -61,7 +120,8 @@ export function DatabasePage({
   readonly onPreviewDefinitionImpact?: (
     definition: DatabaseDefinition,
   ) => DefinitionImpact | null | Promise<DefinitionImpact | null>;
-  readonly onCreateEntry: (title: string) => void | Promise<void>;
+  readonly onCreateEntry: (title: string) => void | Promise<void | Uuid>;
+  readonly onCreateFolder?: (title: string) => void | Promise<void | Uuid>;
   readonly onOpenEntry: (entryId: Uuid, trigger?: HTMLElement | null) => void;
   readonly onUpdateEntry?: (entryId: Uuid, update: DatabaseCellUpdate) => void | Promise<void>;
   readonly relationOptions?: readonly RelationOption[];
@@ -72,16 +132,28 @@ export function DatabasePage({
   readonly onReturnFocusRestored?: () => void;
 }) {
   const sectionRef = useRef<HTMLElement>(null);
+  const entryReturnAttempt = useRef<{
+    entryId: Uuid;
+    initialFocus: Element | null;
+    lastFocusedTrigger: HTMLElement | null;
+    attempts: number;
+    completed: boolean;
+  } | null>(null);
   const [editingProperty, setEditingProperty] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [toolsSlot, setToolsSlot] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    setToolsSlot(toolsSlotId === undefined ? null : document.getElementById(toolsSlotId));
+  }, [toolsSlotId]);
   const [propertyDraft, setPropertyDraft] = useState<DatabasePropertyDraft>(EMPTY_PROPERTY_DRAFT);
   const propertyDraftRef = useRef<DatabasePropertyDraft>(EMPTY_PROPERTY_DRAFT);
   const [propertyError, setPropertyError] = useState<string | null>(null);
   const [savingProperty, setSavingProperty] = useState(false);
   const propertySubmissionInFlight = useRef(false);
   const [pendingDefinitionMutations, setPendingDefinitionMutations] = useState(0);
-  const entryTitleRef = useRef("");
-  const entryInputRef = useRef<HTMLInputElement>(null);
   const [entryError, setEntryError] = useState<string | null>(null);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
+  const [renameEntryId, setRenameEntryId] = useState<Uuid | null>(null);
   const [savingEntry, setSavingEntry] = useState(false);
   const entrySubmissionInFlight = useRef(false);
   const [pendingDefinition, setPendingDefinition] = useState<DatabaseDefinition | null>(null);
@@ -104,8 +176,13 @@ export function DatabasePage({
     confirmation?: DefinitionConfirmation,
   ): Promise<void> => {
     setPendingDefinitionMutations((current) => current + 1);
+    setSchemaError(null);
     try {
       await onReplaceDefinition(next, confirmation);
+    } catch (cause) {
+      setSchemaError(
+        cause instanceof Error ? cause.message : "La modification n’a pas pu être enregistrée.",
+      );
     } finally {
       setPendingDefinitionMutations((current) => Math.max(0, current - 1));
     }
@@ -215,12 +292,13 @@ export function DatabasePage({
     };
   }, [activeViewId, database.definitionRevisionId, entryRevisionKey, onQueryView]);
   const effectiveQueryState = queryState ?? loadedState;
-  const page =
+  const resolvedPage =
     queryPage !== undefined && queryPage !== null && queryPage.viewId === activeView?.id
       ? queryPage
       : effectiveQueryState === "ready" && loadedPage?.viewId === activeView?.id
         ? loadedPage
         : fallbackPage;
+  const page = resolvedPage === null ? null : withEntryPresentation(resolvedPage, entries);
   const loadMore = useCallback(async (): Promise<void> => {
     if (
       loadingMore ||
@@ -293,21 +371,32 @@ export function DatabasePage({
     loadMore,
   ]);
   useEffect(() => {
-    if (returnFocusEntryId === undefined || returnFocusEntryId === null || !canRestoreEntryFocus) {
+    if (returnFocusEntryId == null) {
+      entryReturnAttempt.current = null;
       return;
     }
+    // A projection refresh can interrupt this effect after focus was restored.
+    // Keep the same attempt so its successor still recognizes a new owner draft.
+    if (entryReturnAttempt.current?.entryId !== returnFocusEntryId) {
+      entryReturnAttempt.current = {
+        entryId: returnFocusEntryId,
+        initialFocus: document.activeElement,
+        lastFocusedTrigger: null,
+        attempts: 0,
+        completed: false,
+      };
+    }
+    const attempt = entryReturnAttempt.current;
+    if (!canRestoreEntryFocus || attempt.completed) return;
     let frame: number | undefined;
-    let attempts = 0;
-    let completed = false;
-    let lastFocusedTrigger: HTMLElement | null = null;
 
     // Clear the saved selection now, never from a delayed callback that could
     // land after the owner has started another controlled-input draft.
     viewContext.finishEntryReturn();
 
     const complete = (): void => {
-      if (completed) return;
-      completed = true;
+      if (attempt.completed) return;
+      attempt.completed = true;
       onReturnFocusRestored?.();
     };
 
@@ -317,10 +406,11 @@ export function DatabasePage({
       );
       const activeElement = document.activeElement;
       const userMovedFocus =
-        lastFocusedTrigger !== null &&
         activeElement instanceof HTMLElement &&
         activeElement !== document.body &&
-        activeElement !== lastFocusedTrigger &&
+        activeElement !== trigger &&
+        activeElement !== attempt.lastFocusedTrigger &&
+        activeElement !== attempt.initialFocus &&
         activeElement.isConnected;
       if (userMovedFocus) {
         complete();
@@ -332,15 +422,15 @@ export function DatabasePage({
       // owner has moved to another connected control.
       if (trigger != null) {
         if (activeElement !== trigger) trigger.focus();
-        // The table has its own scroll container inside the workspace canvas.
-        // WebKit can focus a virtual row while leaving the outer canvas scrolled
+        // The table follows the workspace's vertical scroll in page flow.
+        // WebKit can focus a virtual row while leaving the canvas scrolled
         // below the viewport. Center the returned trigger in both ancestors so
         // subpixel scroll rounding does not leave its bottom edge clipped.
         trigger.scrollIntoView({ block: "center", inline: "nearest" });
-        lastFocusedTrigger = trigger;
+        attempt.lastFocusedTrigger = trigger;
       }
-      attempts += 1;
-      if (attempts < 20) {
+      attempt.attempts += 1;
+      if (attempt.attempts < 20) {
         frame = requestAnimationFrame(restore);
       } else {
         complete();
@@ -359,6 +449,129 @@ export function DatabasePage({
 
   const saveView = async (view: NonNullable<typeof activeView>): Promise<void> => {
     await replaceDefinition(replaceSavedView(definition, view));
+  };
+  const setColumnVisible = (propertyId: Uuid, visible: boolean): void => {
+    if (activeView === undefined) return;
+    const columns = viewColumns(definition.properties, activeView.properties).map((column) =>
+      column.property.id === propertyId && column.property.type !== "title"
+        ? { ...column, visible }
+        : column,
+    );
+    void saveView({
+      ...activeView,
+      properties: columnPresentations(activeView.properties, columns),
+    });
+  };
+
+  const sortProperty = (propertyId: Uuid, direction: "ascending" | "descending" | null): void => {
+    if (activeView === undefined) return;
+    const sorts = activeView.sorts.filter((sort) => sort.propertyId !== propertyId);
+    void saveView({
+      ...activeView,
+      sorts:
+        direction === null
+          ? sorts
+          : [...sorts, { propertyId, direction, missing: "last" as const }],
+    });
+  };
+
+  const filterProperty = (propertyId: Uuid): void => {
+    if (activeView === undefined) return;
+    const active = activeView.filter.criteria.some(
+      (criterion) => criterion.propertyId === propertyId && criterion.operator === "is-not-empty",
+    );
+    void saveView({
+      ...activeView,
+      filter: {
+        ...activeView.filter,
+        criteria: active
+          ? activeView.filter.criteria.filter(
+              (criterion) =>
+                criterion.propertyId !== propertyId || criterion.operator !== "is-not-empty",
+            )
+          : [
+              ...activeView.filter.criteria,
+              { id: generateUuidV7(), propertyId, operator: "is-not-empty" as const },
+            ],
+      },
+    });
+  };
+
+  const placeProperty = (
+    property: DatabaseProperty,
+    anchorId: Uuid,
+    side: "before" | "after",
+  ): void => {
+    if (activeView === undefined) return;
+    const columns = viewColumns(definition.properties, activeView.properties).filter(
+      (column) => column.property.id !== property.id,
+    );
+    const index = columns.findIndex((column) => column.property.id === anchorId);
+    const at = index < 0 ? columns.length : side === "before" ? Math.max(index, 1) : index + 1;
+    const ordered = [...columns];
+    ordered.splice(at, 0, { property, visible: true });
+    const presentations = ordered.map((column, position) => {
+      const previous = activeView.properties.find((item) => item.propertyId === column.property.id);
+      const positionKey = `col-${String(position + 1).padStart(6, "0")}`;
+      return {
+        propertyId: column.property.id,
+        visible: column.property.type === "title" ? true : column.visible,
+        positionKey,
+        ...(previous?.width === undefined ? {} : { width: previous.width }),
+      };
+    });
+    const placed = presentations.find((item) => item.propertyId === property.id);
+    const stored =
+      placed === undefined ? property : { ...property, positionKey: placed.positionKey };
+    const candidate: DatabaseDefinition = {
+      ...definition,
+      properties: [...definition.properties, stored],
+      views: definition.views.map((view) =>
+        view.id === activeView.id
+          ? ({ ...view, properties: presentations } as DatabaseView)
+          : {
+              ...view,
+              properties: [
+                ...view.properties,
+                {
+                  propertyId: stored.id,
+                  visible: true,
+                  positionKey: `z-${String(view.properties.length + 1).padStart(6, "0")}`,
+                },
+              ],
+            },
+      ),
+    };
+    void replaceDefinition(candidate);
+  };
+
+  const insertProperty = (anchorId: Uuid, side: "before" | "after"): void => {
+    const names = new Set(definition.properties.map((property) => property.name));
+    let name = "Texte";
+    for (let index = 2; names.has(name); index += 1) name = `Texte ${index}`;
+    const validated = validatePropertyDraft({ name, type: "text" });
+    if (!validated.ok) return;
+    placeProperty(propertyFromDraft(validated, "col-new"), anchorId, side);
+  };
+
+  const duplicateProperty = (propertyId: Uuid): void => {
+    const source = definition.properties.find((property) => property.id === propertyId);
+    if (source === undefined || source.type === "title") return;
+    const id = generateUuidV7();
+    const copy = {
+      ...source,
+      id,
+      name: `${source.name} (copie)`,
+      positionKey: `${source.positionKey}-copie`,
+      ...(source.type === "status" || source.type === "select" || source.type === "multi-select"
+        ? {
+            config: {
+              options: source.config.options.map((option) => ({ ...option, id: generateUuidV7() })),
+            },
+          }
+        : {}),
+    } as DatabaseProperty;
+    placeProperty(copy, propertyId, "after");
   };
 
   const openEntryFromView = (entryId: Uuid, trigger: HTMLElement | null): void => {
@@ -455,45 +668,56 @@ export function DatabasePage({
     await replaceDefinition(candidate);
   };
 
-  const submitEntry = async (): Promise<void> => {
-    // Pointer activation and the form submit can both reach this function. The
-    // ref closes that gap synchronously, before React has rendered `disabled`,
-    // so one physical gesture can never create two entries.
-    if (entrySubmissionInFlight.current) return;
-    // The DOM owns this short-lived draft. A synchronization projection can
-    // rerender this page between the browser's input event and React's state
-    // commit on constrained WebKit runners; reading the mounted field keeps
-    // exactly what the owner can still see instead of an older render value.
-    const submittedTitle = entryInputRef.current?.value ?? entryTitleRef.current;
-    entryTitleRef.current = submittedTitle;
-    const title = submittedTitle.trim();
-    if (title.length === 0) {
-      setEntryError(DATABASE_COPY.page.titleRequired);
+  const renameProperty = async (propertyId: Uuid, name: string): Promise<void> => {
+    const current = definition.properties.find((property) => property.id === propertyId);
+    if (current === undefined || current.name === name) return;
+    const candidate: DatabaseDefinition = {
+      ...definition,
+      properties: definition.properties.map((property) =>
+        property.id === propertyId ? { ...property, name } : property,
+      ),
+    };
+    await replaceDefinition(candidate);
+  };
+
+  const savePropertyOptions = async (
+    propertyId: Uuid,
+    options: readonly PropertyOption[],
+  ): Promise<void> => {
+    const candidate: DatabaseDefinition = {
+      ...definition,
+      properties: replaceChoiceOptions(definition.properties, propertyId, options),
+    };
+    const preview = await onPreviewDefinitionImpact?.(candidate);
+    if (preview?.destructive) {
+      setPendingDefinition(candidate);
+      setImpact(preview);
       return;
     }
+    await replaceDefinition(candidate);
+  };
+
+  const createKind = async (kind: "page" | "folder"): Promise<void> => {
+    // The ref closes the gap synchronously, before React has rendered
+    // `disabled`, so one physical gesture can never create two entries.
+    if (entrySubmissionInFlight.current) return;
     entrySubmissionInFlight.current = true;
     setEntryError(null);
-    // Clear and lock the visible field before the asynchronous write. If
-    // the clear waited until the write completed, that older render could
-    // erase the next title a user had already started typing under load.
-    entryTitleRef.current = "";
-    if (entryInputRef.current !== null) entryInputRef.current.value = "";
     setSavingEntry(true);
     try {
-      await onCreateEntry(title);
+      const created =
+        kind === "folder"
+          ? await onCreateFolder?.(defaultItemTitle("folder"))
+          : await onCreateEntry(defaultItemTitle("page"));
+      if (typeof created === "string") setRenameEntryId(created);
     } catch {
-      entryTitleRef.current = submittedTitle;
-      if (entryInputRef.current !== null) entryInputRef.current.value = submittedTitle;
       setEntryError(DATABASE_COPY.page.entryCreateFailed);
     } finally {
       entrySubmissionInFlight.current = false;
       setSavingEntry(false);
     }
   };
-  const createEntry = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    void submitEntry();
-  };
+  const clearRename = useCallback(() => setRenameEntryId(null), []);
 
   return (
     <section
@@ -504,7 +728,7 @@ export function DatabasePage({
       data-definition-state={pendingDefinitionMutations > 0 ? "saving" : "idle"}
     >
       <header className="database-page__header">
-        <div>
+        <div className="visually-hidden">
           <p className="muted">
             {embeddingId === undefined ? DATABASE_COPY.page.eyebrow : "Base de données"}
           </p>
@@ -512,85 +736,167 @@ export function DatabasePage({
             {embeddingId === undefined ? DATABASE_COPY.page.contents : database.name}
           </h2>
         </div>
-        <Button
-          type="button"
-          size="compact"
-          disabled={savingProperty}
-          onClick={() => setEditingProperty(true)}
-        >
-          {DATABASE_COPY.page.addProperty}
-        </Button>
+        {activeView?.type === "table" ? null : (
+          <div className="database-page__actions">
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              disabled={savingProperty}
+              onClick={() => {
+                setSettingsOpen(true);
+                setEditingProperty(true);
+              }}
+            >
+              <AppIcon name="add" size="small" />
+              {DATABASE_COPY.page.addProperty}
+            </Button>
+          </div>
+        )}
       </header>
 
-      {editingProperty ? (
-        <PropertyEditor
-          draft={propertyDraft}
-          error={propertyError}
-          onChange={(draft) => {
-            propertyDraftRef.current = draft;
-            setPropertyDraft(draft);
-            setPropertyError(null);
-          }}
-          onSubmit={addProperty}
-          onCancel={() => setEditingProperty(false)}
-          submitting={savingProperty}
-        />
-      ) : null}
+      <div className="database-settings">
+        <PopoverRoot open={settingsOpen} setOpen={setSettingsOpen}>
+          {(() => {
+            const trigger = (
+              <PopoverTrigger
+                className="database-chrome-trigger"
+                aria-label="Filtrer, trier et configurer"
+                title="Filtrer, trier et configurer"
+              >
+                <AppIcon name="filter" size="small" />
+              </PopoverTrigger>
+            );
+            return toolsSlot === null ? trigger : createPortal(trigger, toolsSlot);
+          })()}
+          <PopoverContent className="database-settings-panel">
+            <PopoverHeading>{DATABASE_COPY.page.display}</PopoverHeading>
+            {activeView === undefined ? (
+              <AsyncState compact kind="error" description={DATABASE_COPY.common.noUsableView} />
+            ) : formatPlacement === "chrome" && embeddingId !== undefined ? null : (
+              <DatabaseToolbar
+                definition={definition}
+                singleView={embeddingId !== undefined}
+                activeViewId={activeView.id}
+                onSelectView={viewContext.selectView}
+                onChange={replaceDefinition}
+              />
+            )}
+            {editingProperty ? (
+              <PropertyEditor
+                draft={propertyDraft}
+                error={propertyError}
+                onChange={(draft) => {
+                  propertyDraftRef.current = draft;
+                  setPropertyDraft(draft);
+                  setPropertyError(null);
+                }}
+                onSubmit={addProperty}
+                onCancel={() => setEditingProperty(false)}
+                submitting={savingProperty}
+              />
+            ) : null}
 
-      {activeView === undefined ? (
-        <AsyncState compact kind="error" description={DATABASE_COPY.common.noUsableView} />
-      ) : (
-        <>
-          <DatabaseToolbar
-            definition={definition}
-            activeViewId={activeView.id}
-            onSelectView={viewContext.selectView}
-            onChange={replaceDefinition}
-          />
-          <div className="database-view-config">
-            <FilterEditor
-              properties={definition.properties}
-              view={activeView}
-              onChange={saveView}
-            />
-            <SortGroupEditor
-              properties={definition.properties}
-              view={activeView}
-              onChange={saveView}
-            />
-          </div>
-        </>
+            {activeView === undefined ? null : (
+              <div className="database-view-config">
+                <FilterEditor
+                  properties={definition.properties}
+                  view={activeView}
+                  onChange={saveView}
+                />
+                <SortGroupEditor
+                  properties={definition.properties}
+                  view={activeView}
+                  onChange={saveView}
+                />
+              </div>
+            )}
+
+            {activeView === undefined || embeddingId === undefined ? null : (
+              <section
+                className="database-panel-section"
+                aria-labelledby="database-columns-heading"
+              >
+                <h3 id="database-columns-heading">{DATABASE_COPY.page.columns}</h3>
+                <p className="muted">{DATABASE_COPY.page.columnsHint}</p>
+                <ul className="database-column-list">
+                  {viewColumns(definition.properties, activeView.properties).map((column) => (
+                    <li key={column.property.id} className="database-column-row">
+                      <span>
+                        {column.property.name}
+                        <span className="muted">
+                          {DATABASE_COPY.property.typeLabels[column.property.type]}
+                        </span>
+                      </span>
+                      <PropertyVisibilitySwitch
+                        property={column.property}
+                        visible={column.visible}
+                        onToggle={setColumnVisible}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <section
+              className="database-schema database-panel-section"
+              aria-labelledby={`database-schema-heading-${embeddingId ?? database.databaseId}`}
+            >
+              <h3 id={`database-schema-heading-${embeddingId ?? database.databaseId}`}>
+                {DATABASE_COPY.page.properties}
+              </h3>
+              <ul>
+                {activeProperties.map((property) => (
+                  <li key={property.id} className="database-schema__property">
+                    <div className="database-schema__summary">
+                      <PropertyIconPicker
+                        property={property}
+                        onChange={(icon) => {
+                          void replaceDefinition({
+                            ...definition,
+                            properties: definition.properties.map((p) =>
+                              p.id === property.id ? { ...p, icon } : p,
+                            ),
+                          });
+                        }}
+                      />
+                      <span>{property.name}</span>
+                      <span className="muted">
+                        {DATABASE_COPY.property.typeLabels[property.type]}
+                      </span>
+                      {property.type !== "title" ? (
+                        <Button
+                          type="button"
+                          size="compact"
+                          variant="ghost"
+                          onClick={() => void retireProperty(property.id)}
+                        >
+                          {DATABASE_COPY.common.remove}
+                        </Button>
+                      ) : null}
+                    </div>
+                    {isChoiceProperty(property) ? (
+                      <PropertyOptionsEditor
+                        options={property.config.options}
+                        onChange={(options) => void savePropertyOptions(property.id, options)}
+                      />
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <TaskConfiguration definition={definition} onChange={replaceDefinition} />
+          </PopoverContent>
+        </PopoverRoot>
+      </div>
+
+      {schemaError === null ? null : (
+        <p className="database-field__error" role="alert">
+          {schemaError}
+        </p>
       )}
-
-      <section
-        className="database-schema"
-        aria-labelledby={`database-schema-heading-${embeddingId ?? database.databaseId}`}
-      >
-        <h3 id={`database-schema-heading-${embeddingId ?? database.databaseId}`}>
-          {DATABASE_COPY.page.properties}
-        </h3>
-        <ul>
-          {activeProperties.map((property) => (
-            <li key={property.id}>
-              <span>{property.name}</span>
-              <span className="muted">{DATABASE_COPY.property.typeLabels[property.type]}</span>
-              {property.type !== "title" ? (
-                <Button
-                  type="button"
-                  size="compact"
-                  variant="ghost"
-                  onClick={() => void retireProperty(property.id)}
-                >
-                  {DATABASE_COPY.common.remove}
-                </Button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <TaskConfiguration definition={definition} onChange={replaceDefinition} />
-
       {impact !== null && pendingDefinition !== null ? (
         <section
           className="database-impact"
@@ -644,32 +950,40 @@ export function DatabasePage({
         </section>
       ) : null}
 
-      <form className="database-entry-create" onSubmit={createEntry}>
-        <div className="field-row">
-          <Field
-            ref={entryInputRef}
-            id={`new-entry-${embeddingId ?? database.databaseId}`}
-            label={DATABASE_COPY.page.newEntry}
-            error={entryError ?? undefined}
-            defaultValue=""
-            placeholder={DATABASE_COPY.page.untitledPage}
+      <div className="database-entry-create">
+        {/* biome-ignore lint/a11y/useSemanticElements: Action choices are a labelled button group, not form controls. */}
+        <div className="database-entry-kind" role="group" aria-label="Type du nouvel élément">
+          <Button
+            type="button"
+            size="compact"
+            variant="ghost"
+            aria-label="Nouvelle page"
             disabled={savingEntry}
-            onChange={(event) => {
-              entryTitleRef.current = event.currentTarget.value;
-              setEntryError(null);
-            }}
-          />
-          <StableActionButton
-            type="submit"
-            variant="primary"
-            busy={savingEntry}
-            disabled={savingEntry}
-            onActivate={() => void submitEntry()}
+            onClick={() => void createKind("page")}
           >
-            {DATABASE_COPY.page.newEntry}
-          </StableActionButton>
+            <AppIcon name="fileAdd" size="small" />
+            Page
+          </Button>
+          {onCreateFolder === undefined ? null : (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              aria-label="Nouveau dossier"
+              disabled={savingEntry}
+              onClick={() => void createKind("folder")}
+            >
+              <AppIcon name="folderAdd" size="small" />
+              Dossier
+            </Button>
+          )}
         </div>
-      </form>
+        {entryError === null ? null : (
+          <p className="database-field__error" role="alert">
+            {entryError}
+          </p>
+        )}
+      </div>
 
       <div className="database-view-status" aria-live="polite">
         {effectiveQueryState === "loading" ? (
@@ -687,13 +1001,8 @@ export function DatabasePage({
         {pageError === null ? null : <AsyncState compact kind="error" description={pageError} />}
         {page === null ||
         effectiveQueryState === "loading" ||
-        effectiveQueryState === "degraded" ? null : page.coverage === "complete" ? (
-          <AsyncState
-            compact
-            kind="success"
-            description={DATABASE_COPY.page.completeResult(page.expectedCount)}
-          />
-        ) : (
+        effectiveQueryState === "degraded" ||
+        page.coverage === "complete" ? null : (
           <AsyncState
             compact
             kind="offline"
@@ -702,7 +1011,9 @@ export function DatabasePage({
         )}
       </div>
 
-      {page === null ? null : (
+      {page === null ||
+      onQueryView === undefined ||
+      (page.nextCursor === null && page.rows.length <= 100) ? null : (
         <section
           className="database-pagination"
           aria-label="Chargement des entrées"
@@ -741,6 +1052,8 @@ export function DatabasePage({
         ) : activeView.type === "table" ? (
           <TableView
             {...(returnFocusEntryId === undefined ? {} : { returnFocusEntryId })}
+            renameEntryId={renameEntryId}
+            onRenameStarted={clearRename}
             properties={definition.properties}
             view={activeView}
             page={page}
@@ -749,6 +1062,20 @@ export function DatabasePage({
             scrollTop={viewContext.context.scrollTop}
             onScroll={viewContext.rememberScroll}
             onOpenEntry={openEntryFromView}
+            onAddProperty={() => {
+              setSettingsOpen(true);
+              setEditingProperty(true);
+            }}
+            onRenameProperty={(propertyId, name) => void renameProperty(propertyId, name)}
+            onRetireProperty={(propertyId) => void retireProperty(propertyId)}
+            onChangePropertyOptions={(propertyId, options) =>
+              void savePropertyOptions(propertyId, options)
+            }
+            onToggleColumn={setColumnVisible}
+            onSortProperty={sortProperty}
+            onFilterProperty={filterProperty}
+            onInsertProperty={insertProperty}
+            onDuplicateProperty={duplicateProperty}
             onResize={(propertyId, width) =>
               saveView({
                 ...activeView,

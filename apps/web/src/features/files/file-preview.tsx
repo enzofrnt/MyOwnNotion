@@ -39,7 +39,7 @@ export function canPreview(mediaType: string): boolean {
   return PREVIEWABLE.has(mediaType.split(";")[0]?.trim().toLowerCase() ?? "");
 }
 
-type Load =
+export type FilePreviewLoad =
   | { readonly kind: "loading" }
   | { readonly kind: "ready"; readonly url: string }
   | { readonly kind: "failed"; readonly reason: string };
@@ -69,7 +69,7 @@ export function FilePreview({
   /** Called once the bytes are here, so the projection can record it. */
   readonly onFetched?: () => void;
 }) {
-  const [load, setLoad] = useState<Load>({ kind: "loading" });
+  const [load, setLoad] = useState<FilePreviewLoad>({ kind: "loading" });
   // Held in a ref so the fetch effect never re-runs because the callback's
   // identity changed. See the note on the effect's dependency list.
   const notifyFetched = useRef(onFetched);
@@ -126,6 +126,27 @@ export function FilePreview({
     // reason.
   }, [fileItemId, mediaType]);
 
+  return (
+    <FilePreviewSurface {...{ fileItemId, fileName, mediaType, byteLength, availability, load }} />
+  );
+}
+
+/** Shared preview rendering; byte fetching and blob ownership stay in FilePreview. */
+export function FilePreviewSurface({
+  fileItemId,
+  fileName,
+  mediaType,
+  byteLength,
+  availability = "present",
+  load,
+}: {
+  readonly fileItemId: string;
+  readonly fileName: string;
+  readonly mediaType: string;
+  readonly byteLength: number;
+  readonly availability?: "present" | "offloaded" | "never-fetched";
+  readonly load: FilePreviewLoad;
+}) {
   if (!canPreview(mediaType)) {
     return (
       <UnsupportedFile
@@ -140,12 +161,18 @@ export function FilePreview({
   if (load.kind === "failed") {
     return (
       <AsyncState
+        className="file-preview-state"
         kind="error"
         title={fileName}
         description={
           availability === "present" ? load.reason : FR_COPY.files.preview.remoteOnlyFailed
         }
         testId="preview-failed"
+        action={
+          <LinkButton href={`/v1/files/${fileItemId}/content`} download={fileName}>
+            {FR_COPY.files.preview.download}
+          </LinkButton>
+        }
       />
     );
   }
@@ -163,7 +190,14 @@ export function FilePreview({
             ? FR_COPY.files.preview.fetchingReleased
             : FR_COPY.files.preview.fetchingFirst;
     return (
-      <AsyncState kind="loading" title={fileName} description={because} testId="preview-loading" />
+      <AsyncState
+        className="file-preview-state file-preview-state--loading"
+        kind="loading"
+        loadingLayout="media"
+        title={fileName}
+        description={because}
+        testId="preview-loading"
+      />
     );
   }
 

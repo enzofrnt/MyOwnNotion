@@ -97,6 +97,8 @@ describe("page-operation local schema v10", () => {
     expect(upgraded.tables.map(({ name: tableName }) => tableName).sort()).toEqual([
       "conflicts",
       "databaseEntries",
+      "databaseEntryPairs",
+      "databaseSources",
       "databases",
       "items",
       "legacyOfflineBranches",

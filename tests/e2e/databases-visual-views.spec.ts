@@ -1,36 +1,22 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
+  addDatabaseProperty,
+  chooseEntryOptions,
   createDatabaseEntry,
+  createDatabaseView,
+  createRootDatabase,
+  databaseViewButton,
   ensureNavigationVisible,
-  openRootDatabaseCreation,
+  entryTrigger,
   openSecondDevice,
   openWorkspace,
-  saveEntryProperties,
   selectItem,
   uniqueName,
   waitForDatabaseDefinitionSaved,
+  waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
-
-async function addProperty(
-  page: Page,
-  name: string,
-  type: "status" | "date" | "text",
-): Promise<void> {
-  await page.getByRole("button", { name: "Ajouter une propriété" }).click();
-  const editor = page.getByRole("form", { name: "Éditeur de propriété" });
-  await editor.getByLabel("Nom").fill(name);
-  await editor.getByLabel("Type").selectOption(type);
-  if (type === "status") {
-    const options = editor.getByLabel("Options séparées par des virgules");
-    await options.fill("To do, Done");
-    await expect(options).toHaveValue("To do, Done");
-  }
-  await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
-  await expect(editor).toBeHidden({ timeout: 15_000 });
-  await waitForDatabaseDefinitionSaved(page);
-}
 
 async function createEntry(
   page: Page,
@@ -43,8 +29,8 @@ async function createEntry(
   const panel = page.locator(".entry-panel");
   await expect(panel).toBeVisible();
   const status = panel.getByLabel("Status", { exact: true });
-  await status.selectOption({ label: "To do" });
-  await expect(status.locator("option:checked")).toHaveText("To do");
+  await chooseEntryOptions(page, "Status", ["To do"]);
+  await expect(status).toContainText("To do");
   const summary = panel.getByLabel("Summary", { exact: true });
   await summary.fill(values.summary);
   await expect(summary).toHaveValue(values.summary);
@@ -53,16 +39,26 @@ async function createEntry(
     await due.fill(values.due);
     await expect(due).toHaveValue(values.due);
   }
-  await saveEntryProperties(page);
+  await waitForEntryAutosave(page);
   await page.getByRole("button", { name: "Fermer l'entrée" }).click();
   await expect(trigger).toBeFocused({ timeout: 15_000 });
 }
 
 async function createView(page: Page, buttonName: string, tabName: RegExp): Promise<void> {
-  await page.getByRole("button", { name: buttonName }).click();
-  const tab = page.getByRole("tab", { name: tabName });
+  await createDatabaseView(
+    page,
+    (
+      {
+        "Nouvelle vue liste": "Liste",
+        "Nouvelle vue Kanban": "Kanban",
+        "Nouvelle vue galerie": "Galerie",
+        "Nouvelle vue calendrier": "Calendrier",
+      } as Record<string, string>
+    )[buttonName] ?? buttonName,
+  );
+  const tab = databaseViewButton(page, tabName);
   await expect(tab).toBeVisible({ timeout: 15_000 });
-  await expect(tab).toHaveAttribute("aria-selected", "true");
+  await expect(tab).toHaveAttribute("aria-current", "page");
   await waitForDatabaseDefinitionSaved(page);
 }
 
@@ -76,13 +72,9 @@ test("preserves native property input across a remote projection before input de
   const databaseName = uniqueName("Draft projection");
   const title = uniqueName("Draft entry");
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(createDatabase).toBeHidden();
+  await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
-  await addProperty(page, "Summary", "text");
+  await addDatabaseProperty(page, "Summary", "text");
   const trigger = await createDatabaseEntry(page, title);
   await waitForSynchronized(page);
   await trigger.click();
@@ -98,11 +90,11 @@ test("preserves native property input across a remote projection before input de
         "Native pending summary",
       );
     });
-    await addProperty(second.page, "Extra", "text");
+    await addDatabaseProperty(second.page, "Extra", "text");
     await expect(page.locator(".entry-panel").getByLabel("Extra", { exact: true })).toBeVisible();
     await expect(summary).toHaveValue("Native pending summary");
     await summary.dispatchEvent("input");
-    await saveEntryProperties(page);
+    await waitForEntryAutosave(page);
     await page.getByRole("button", { name: "Fermer l'entrée" }).click();
     await trigger.click();
     await expect(summary).toHaveValue("Native pending summary");
@@ -124,25 +116,17 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   const secondDate = `${month}-11`;
 
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-  const createDatabaseButton = createDatabase.getByRole("button", {
-    name: "Créer la base de données",
-  });
-  await createDatabaseButton.click();
-  await expect(createDatabase).toBeHidden({ timeout: 15_000 });
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
-  await addProperty(page, "Status", "status");
-  await addProperty(page, "Due", "date");
-  await addProperty(page, "Summary", "text");
+  await addDatabaseProperty(page, "Status", "select", ["To do", "Done"]);
+  await addDatabaseProperty(page, "Due", "date");
+  await addDatabaseProperty(page, "Summary", "text");
   await createEntry(page, alpha, { summary: "Alpha gallery summary", due: firstDate });
   await createEntry(page, beta, { summary: "Beta gallery summary" });
 
-  await createView(page, "Nouvelle vue liste", /Liste 2/);
-  await createView(page, "Nouvelle vue Kanban", /Kanban 3/);
-  const alphaBoardTrigger = page.locator("[data-entry-trigger]").filter({ hasText: alpha }).first();
+  await createView(page, "Nouvelle vue liste", /Liste/);
+  await createView(page, "Nouvelle vue Kanban", /Kanban/);
+  const alphaBoardTrigger = entryTrigger(page, alpha).first();
   const canonicalEntryId = await alphaBoardTrigger.getAttribute("data-entry-trigger");
   expect(canonicalEntryId).not.toBeNull();
 
@@ -163,7 +147,7 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
     timeout: 15_000,
   });
 
-  await createView(page, "Nouvelle vue galerie", /Galerie 4/);
+  await createView(page, "Nouvelle vue galerie", /Galerie/);
   const alphaGalleryCard = page.locator(".database-gallery__card").filter({ hasText: alpha });
   await expect(alphaGalleryCard).toContainText("Alpha gallery summary");
   await expect(alphaGalleryCard).toContainText("Aucun aperçu sûr disponible");
@@ -172,11 +156,11 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
     canonicalEntryId as string,
   );
   await alphaGalleryCard.locator("[data-entry-trigger]").click();
-  await expect(page.locator(".entry-panel").getByRole("heading", { name: alpha })).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(alpha);
   await page.getByRole("button", { name: "Fermer l'entrée" }).click();
   await expect(page.locator(`[data-entry-trigger="${canonicalEntryId as string}"]`)).toBeFocused();
 
-  await createView(page, "Nouvelle vue calendrier", /Calendrier 5/);
+  await createView(page, "Nouvelle vue calendrier", /Calendrier/);
   const alphaCalendarCard = page.locator(".database-calendar__card").filter({ hasText: alpha });
   await expect(alphaCalendarCard).toBeVisible();
   await page.getByRole("button", { name: `Déplacer ${alpha} au jour suivant` }).click();
@@ -198,7 +182,7 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   ).toHaveAttribute("data-entry-trigger", canonicalEntryId as string);
   await waitForSynchronized(page);
 
-  await page.getByRole("tab", { name: /Table/ }).click();
+  await databaseViewButton(page, /Table/).click();
   const alphaRow = page.locator(".database-grid tbody tr").filter({ hasText: alpha });
   await expect(alphaRow.getByRole("gridcell", { name: "Status, Done" })).toBeVisible();
   await expect(alphaRow.getByRole("gridcell", { name: `Due, ${secondDate}` })).toBeVisible();
@@ -207,11 +191,8 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
     canonicalEntryId as string,
   );
 
-  await page.getByRole("tab", { name: /Galerie 4/ }).click();
-  await expect(page.getByRole("tab", { name: /Galerie 4/ })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await databaseViewButton(page, /Galerie/).click();
+  await expect(databaseViewButton(page, /Galerie/)).toHaveAttribute("aria-current", "page");
   // 200% zoom on a 640px viewport produces the same 320 CSS-pixel reflow
   // target without accidentally testing an unsupported effective width of
   // 160px.
@@ -219,7 +200,7 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   await page.evaluate(() => {
     document.documentElement.style.zoom = "200%";
   });
-  await expect(page.getByRole("tab", { name: /Galerie 4/ })).toBeVisible();
+  await expect(databaseViewButton(page, /Galerie/)).toBeVisible();
   await expect(page.locator(".database-gallery__card").filter({ hasText: alpha })).toBeVisible();
   const documentOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -231,5 +212,5 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
     .getByRole("button");
   await narrowCardTrigger.focus();
   await narrowCardTrigger.press("Enter");
-  await expect(page.locator(".entry-panel").getByRole("heading", { name: alpha })).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(alpha);
 });

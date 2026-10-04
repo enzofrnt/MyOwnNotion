@@ -845,3 +845,23 @@ bascule de données partielle.
 | Update log, checkpoints et frontières par appareil | Longue déconnexion, idempotence, compaction sûre, sauvegarde et restauration avec travail local plus récent | Un dernier snapshot serveur ou une rétention temporelle peut rendre un appareil autorisé incapable de fusionner |
 | Adaptateur BlockNote ↔ état opérationnel | Obtenir l'UX Notion-like sans faire du format ProseMirror/Yjs une autorité de données | La collaboration Yjs native est simple mais le prototype move+edit a rattaché l'édition à un bloc voisin |
 | Migration de protocole v3 paresseuse | Empêcher anciens remplacements complets et nouveaux updates de s'écraser, sans réécrire 100 000 pages au déploiement | Une migration globale augmente durée, espace, risque de panne et rollback sans bénéfice pour les pages jamais éditées |
+
+## Maintenance UI — inspection des PJ sans navigation
+
+Le retour traité dans [033](../033-app-ui-review/plan.md) affine FR-092 :
+la continuation se rattache à la ligne inspectée, même non sélectionnée.
+Le bouton trombone ne sélectionne plus la page ; son état vit dans
+`TreeAttachmentDisclosure`, avec `activeViewId` uniquement pour fermer à une
+vraie navigation. Les détails/actions de fichier compact se montent à la demande
+dans leur popover. Jonction, sessions d'édition, fichiers et stockage restent
+conservés ; les preuves et contrôles de cette maintenance sont dans
+[la vérification 033](../033-app-ui-review/verification.md).
+
+FR-012 est précisé par la correction de poignée dans 033 : `editor.css` possède
+la géométrie rectangulaire et le retrait au texte ; AppIcon et les gestionnaires
+de menu/drag restent partagés. Appliquer ui-quality et lessons.md, avec mesures
+des quatre retraits peints et captures réelles dans la vérification 033.
+Le centrage sur la première ligne est lu par `block-side-menu-layout.ts`
+dans le middleware du BlockPopover, avec sa hauteur réelle. Les titres longs
+et vides ont leurs preuves/tests dans 033, sans offsets fixes par niveau ni
+écriture dans le DOM éditorial.

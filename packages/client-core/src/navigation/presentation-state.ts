@@ -334,7 +334,7 @@ export function neighbourTab(ids: readonly string[], itemId: string): string | n
   return ids[index + 1] ?? ids[index - 1] ?? null;
 }
 
-/** Drops tabs whose item is no longer openable (trashed, deleted, not a page/folder). */
+/** Drops tabs whose item is no longer openable (trashed, deleted or a standalone file). */
 export function pruneTabs(
   ids: readonly string[],
   openable: ReadonlySet<string>,

@@ -23,19 +23,21 @@ export function MenuRoot(props: MenuRootProps) {
 
 export type MenuTriggerProps = Omit<AriakitMenuButtonProps, "className"> & {
   readonly className?: string;
+  /** Drop the square icon-button chrome when the trigger is the content itself. */
+  readonly bare?: boolean;
 };
 
 export const MenuTrigger = forwardRef<HTMLButtonElement, MenuTriggerProps>(function MenuTrigger(
-  { className, ...props },
+  { bare = false, className, ...props },
   ref,
 ) {
   return (
     <AriakitMenuButton
       {...props}
       ref={ref}
-      className={classNames("ui-button", "ui-menu__trigger", className)}
-      data-size="square"
-      data-variant="ghost"
+      className={classNames(bare ? undefined : "ui-button", "ui-menu__trigger", className)}
+      data-size={bare ? undefined : "square"}
+      data-variant={bare ? undefined : "ghost"}
     />
   );
 });

@@ -822,7 +822,7 @@ describe("validateCanonicalExport", () => {
     );
   });
 
-  it("requires database hosts and entries to be pages and forbids self-entry", () => {
+  it("requires a valid owner, accepts folder entries and forbids self-entry", () => {
     const manifest = structuredFixture();
     const database = manifest.databases[0];
     const entry = manifest.databaseEntries[0];
@@ -844,7 +844,7 @@ describe("validateCanonicalExport", () => {
         item.id === entry.entryId ? { ...item, kind: "folder", pageDocument: null } : item,
       ),
     };
-    expect(validateCanonicalExport(entryFolder as never).map((issue) => issue.code)).toContain(
+    expect(validateCanonicalExport(entryFolder as never).map((issue) => issue.code)).not.toContain(
       "database-entry.item-kind",
     );
 
@@ -1587,5 +1587,168 @@ describe("validateCanonicalExport", () => {
   ] as const)("reports useful cross-record incoherence: %s", (_name, build, expected) => {
     const codes = validateCanonicalExport(build() as never).map((issue) => issue.code);
     expect(codes).toEqual(expect.arrayContaining([...expected]));
+  });
+});
+
+describe("modern database source and presentation export integrity", () => {
+  function fixture() {
+    const legacy = structuredFixture();
+    const database = legacy.databases[0];
+    const entry = legacy.databaseEntries[0];
+    const host = legacy.items.find((row) => row.id === database?.databaseId);
+    if (database === undefined || host === undefined || entry === undefined)
+      throw new Error("Missing database export fixture");
+    const sourceId = generateUuidV7();
+    return buildCanonicalExport({
+      ...legacy,
+      items: legacy.items.map((row) =>
+        row.id === host.id ? { ...row, kind: "database" as const, pageDocument: null } : row,
+      ),
+      databases: [{ ...database, sourceId, definitionRevisionId: host.currentRevisionId }],
+      databasePresentations: [
+        {
+          containerItemId: host.id,
+          presentationVersion: 1,
+          presentationRevisionId: host.currentRevisionId,
+          presentation: {
+            format: "myownnotion.database-presentation+json",
+            formatVersion: 1,
+            containerItemId: host.id,
+            views: database.definition.views.map((view) => ({ ...view, sourceId })),
+          },
+        },
+      ],
+      databaseEntries: [{ ...entry, sourceId, valueRevisionId: entry.addedRevisionId }],
+    });
+  }
+
+  function change(path: string, replacement: unknown) {
+    const manifest = structuredClone(fixture());
+    const parts = path.split(".");
+    let target = manifest as unknown as Record<string, unknown>;
+    for (const key of parts.slice(0, -1)) target = target[key] as Record<string, unknown>;
+    const key = parts.at(-1);
+    if (key === undefined) throw new Error("Empty test path");
+    target[key] = replacement;
+    return manifest;
+  }
+
+  it("round trips source identities, canonical entries and independently saved views", () => {
+    const manifest = fixture();
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+    const restored = JSON.parse(canonicalExportString(manifest));
+    expect(restored.databasePresentations).toEqual(manifest.databasePresentations);
+    expect(validateCanonicalExport(restored)).toEqual([]);
+  });
+
+  it.each([
+    ["databases.0.sourceId", "not-a-source", "shape.database"],
+    ["databases.0.definitionRevisionId", null, "shape.database"],
+    ["databasePresentations", {}, "shape.database-presentation"],
+    ["databasePresentations.0", null, "shape.database-presentation"],
+    ["databasePresentations.0.containerItemId", "bad", "shape.database-presentation"],
+    ["databasePresentations.0.presentationRevisionId", null, "shape.database-presentation"],
+    ["databasePresentations.0.presentationVersion", 0, "shape.database-presentation"],
+    ["databasePresentations.0.presentation", null, "shape.database-presentation"],
+    ["databasePresentations.0.presentation.views", {}, "shape.database-presentation"],
+    ["databaseEntries.0.sourceId", "bad", "shape.database-entry"],
+    ["databaseEntries.0.valueRevisionId", false, "shape.database-entry"],
+    ["databaseEntries.0.values.preserved", [{ propertyId: "bad" }], "shape.database-entry"],
+  ])("refuses malformed persisted fields: %s", (path, replacement, code) => {
+    expect(
+      validateCanonicalExport(change(path as string, replacement)).map((issue) => issue.code),
+    ).toContain(code);
+  });
+
+  it.each([
+    ["databases.0.definitionRevisionId", "database.revision-missing"],
+    ["databasePresentations.0.presentationRevisionId", "database-presentation.revision"],
+    ["databasePresentations.0.containerItemId", "database-presentation.item-kind"],
+    ["databasePresentations.0.presentation.containerItemId", "database-presentation.invalid"],
+    ["databasePresentations.0.presentation.views.0.sourceId", "database-presentation.invalid"],
+    ["databaseEntries.0.valueRevisionId", "database-entry.value-revision"],
+  ])("diagnoses missing references at %s", (path, code) => {
+    expect(
+      validateCanonicalExport(change(path, generateUuidV7())).map((issue) => issue.code),
+    ).toContain(code);
+  });
+
+  it("refuses source self-ownership and foreign revision ownership", () => {
+    const manifest = fixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("Missing fixture");
+    for (const [path, value, code] of [
+      ["databases.0.sourceId", database.databaseId, "database.source-identity"],
+      [
+        "databases.0.definitionRevisionId",
+        entry.addedRevisionId,
+        "database.revision-owner-mismatch",
+      ],
+      [
+        "databasePresentations.0.presentationRevisionId",
+        entry.addedRevisionId,
+        "database-presentation.revision",
+      ],
+      [
+        "databaseEntries.0.valueRevisionId",
+        database.definitionRevisionId,
+        "database-entry.value-revision",
+      ],
+    ] as const) {
+      // IDs must come from the same manifest, not another freshly generated fixture.
+      const copy = structuredClone(manifest) as unknown as Record<string, unknown>;
+      const parts = path.split(".");
+      let target = copy;
+      for (const key of parts.slice(0, -1)) target = target[key] as Record<string, unknown>;
+      const key = parts.at(-1);
+      if (key === undefined) throw new Error("Missing field");
+      target[key] = value;
+      expect(
+        validateCanonicalExport(copy as unknown as typeof manifest).map((issue) => issue.code),
+      ).toContain(code);
+    }
+  });
+
+  it("requires one saved presentation for each owned source and detects duplicate presentations", () => {
+    const manifest = fixture();
+    expect(
+      validateCanonicalExport({ ...manifest, databasePresentations: [] }).map(
+        (issue) => issue.code,
+      ),
+    ).toContain("database-presentation.missing");
+    const presentations = manifest.databasePresentations ?? [];
+    expect(
+      validateCanonicalExport({
+        ...manifest,
+        databasePresentations: [...presentations, ...presentations],
+      }).map((issue) => issue.code),
+    ).toEqual(
+      expect.arrayContaining(["database-presentation.duplicate", "counts.database-presentations"]),
+    );
+  });
+
+  it("accepts a linked database page with its own presentation and no independently owned source", () => {
+    const manifest = fixture();
+    const source = manifest.databases[0];
+    const view = manifest.databasePresentations?.[0];
+    if (source?.sourceId === undefined || view === undefined)
+      throw new Error("Missing source view");
+    const linked = item({ kind: "database_view", pageDocument: null });
+    const extended = buildCanonicalExport({
+      ...manifest,
+      items: [...manifest.items, linked],
+      revisions: [...manifest.revisions, revisionFor(linked.id, linked.currentRevisionId)],
+      databasePresentations: [
+        ...(manifest.databasePresentations ?? []),
+        {
+          ...view,
+          containerItemId: linked.id,
+          presentationRevisionId: linked.currentRevisionId,
+          presentation: { ...view.presentation, containerItemId: linked.id },
+        },
+      ],
+    });
+    expect(validateCanonicalExport(extended)).toEqual([]);
   });
 });

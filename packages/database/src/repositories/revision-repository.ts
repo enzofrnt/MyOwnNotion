@@ -369,6 +369,15 @@ export async function buildItemSnapshot(
       valueVersion: databaseEntries.valueVersion,
     })
     .from(databaseEntries)
+    .innerJoin(
+      placements,
+      and(
+        eq(placements.itemId, databaseEntries.entryItemId),
+        eq(placements.parentItemId, databaseEntries.databaseId),
+        eq(placements.kind, "hierarchy"),
+        isNull(placements.removedAt),
+      ),
+    )
     .where(eq(databaseEntries.entryItemId, itemId))
     .limit(1);
   if (databaseRow !== undefined || entryRow !== undefined) {
@@ -388,7 +397,12 @@ export async function buildItemSnapshot(
     if (entryRow !== undefined) {
       snapshot["databaseId"] = entryRow.databaseId;
       snapshot["databaseEntryValueVersion"] = entryRow.valueVersion;
-      if (previousSnapshot?.["databaseEntryValues"] !== undefined) {
+      if (
+        typeof previousSnapshot?.["databaseEntryValues"] === "object" &&
+        previousSnapshot["databaseEntryValues"] !== null &&
+        (previousSnapshot["databaseEntryValues"] as { databaseId?: string }).databaseId ===
+          entryRow.databaseId
+      ) {
         snapshot["databaseEntryValues"] = previousSnapshot["databaseEntryValues"];
       }
       const relationRows = await tx

@@ -57,17 +57,8 @@ async function hasLegacyPlaintextPlaceholder(
       (await content.readFileMetadata(tx, { kind: "file", id })) === null
     );
   }
-  if (category === "revision") {
-    if ((await content.readRevisionSnapshot(tx, id)) !== null) return false;
-    const [row] = await tx.select().from(schema.revisions).where(eq(schema.revisions.id, id));
-    if (row === undefined) throw new Error("Historical revision is unavailable.");
-    return (
-      row.snapshot !== null &&
-      typeof row.snapshot === "object" &&
-      !Array.isArray(row.snapshot) &&
-      snapshotHasPlaintextPlaceholder(row.snapshot as Record<string, unknown>)
-    );
-  }
+  if (category === "revision")
+    return inspectUnprotectedRevision(tx, content, id, snapshotHasPlaintextPlaceholder);
   return false;
 }
 
@@ -91,17 +82,8 @@ async function hasLegacyPlaintextPayload(
       isProtectedPayload(raw.pageDocument?.body) && (await content.readPageBody(tx, id)) === null
     );
   }
-  if (category === "revision") {
-    if ((await content.readRevisionSnapshot(tx, id)) !== null) return false;
-    const [row] = await tx.select().from(schema.revisions).where(eq(schema.revisions.id, id));
-    if (row === undefined) throw new Error("Historical revision is unavailable.");
-    return (
-      row.snapshot !== null &&
-      typeof row.snapshot === "object" &&
-      !Array.isArray(row.snapshot) &&
-      snapshotHasPlaintextPayload(row.snapshot as Record<string, unknown>)
-    );
-  }
+  if (category === "revision")
+    return inspectUnprotectedRevision(tx, content, id, snapshotHasPlaintextPayload);
   if (category === "relationship") {
     if ((await content.readRelationshipMetadata(tx, id)) !== null) return false;
     const [row] = await tx
@@ -467,4 +449,21 @@ export async function protectCanonicalMetadata(
     source.digest
   )
     throw new Error("Protected canonical metadata does not match its source.");
+}
+
+async function inspectUnprotectedRevision(
+  tx: Transaction,
+  content: ProtectedContent,
+  id: string,
+  predicate: (snapshot: Record<string, unknown>) => boolean,
+): Promise<boolean> {
+  if ((await content.readRevisionSnapshot(tx, id)) !== null) return false;
+  const [row] = await tx.select().from(schema.revisions).where(eq(schema.revisions.id, id));
+  if (row === undefined) throw new Error("Historical revision is unavailable.");
+  return (
+    row.snapshot !== null &&
+    typeof row.snapshot === "object" &&
+    !Array.isArray(row.snapshot) &&
+    predicate(row.snapshot as Record<string, unknown>)
+  );
 }

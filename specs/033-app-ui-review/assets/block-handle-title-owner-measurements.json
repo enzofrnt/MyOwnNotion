@@ -1,0 +1,56 @@
+{
+  "paragraph": {
+    "controls": [
+      {
+        "label": "Ajouter un bloc",
+        "rect": {
+          "bottom": 350,
+          "height": 32,
+          "left": 418.5,
+          "right": 450.5,
+          "top": 318,
+          "width": 32,
+          "x": 418.5,
+          "y": 318
+        }
+      },
+      {
+        "label": "Ouvrir le menu du bloc",
+        "rect": {
+          "bottom": 350,
+          "height": 32,
+          "left": 451.5,
+          "right": 476.1640625,
+          "top": 318,
+          "width": 24.6640625,
+          "x": 451.5,
+          "y": 318
+        }
+      }
+    ],
+    "line": {
+      "bottom": 343.5,
+      "height": 19,
+      "left": 480,
+      "right": 491.140625,
+      "top": 324.5,
+      "width": 11.140625,
+      "x": 480,
+      "y": 324.5
+    }
+  },
+  "heading": {
+    "expanded": "false",
+    "line": {
+      "bottom": 308,
+      "height": 38,
+      "left": 480,
+      "right": 500.1328125,
+      "top": 270,
+      "width": 20.1328125,
+      "x": 480,
+      "y": 270
+    },
+    "url": "http://localhost:8080/notes/01a0fea8-bcd7-7017-99b4-bb90600769e5"
+  }
+}

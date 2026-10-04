@@ -1,3 +1,5 @@
+import { canonicalJson, readStoredDocumentV3 as migrateEnvelope } from "@myownnotion/domain";
+import { persistNewPageAmbiguities } from "./persist-ambiguities.ts";
 /** One-time, idempotent conversion of pre-activation offline page edits. */
 
 import { createHash } from "node:crypto";
@@ -13,12 +15,10 @@ import {
   type Database,
   getRevision,
   insertLegacyBranchConversion,
-  insertPageAmbiguity,
   listOpenPageAmbiguities,
   listPageOperationUpdatesAfter,
   lockItemRevisionHead,
   lockLegacyBranchConversion,
-  readPageAmbiguityByLogicalKey,
   readPageOperationCheckpoint,
   recordChange,
   revisionDescendsFrom,
@@ -31,7 +31,6 @@ import {
   documentDigestV3,
   generateUuidV7,
   migrateDocumentV2ToV3,
-  migrateStoredPageDocumentToV3,
   normaliseDocument,
   normaliseDocumentV3,
   readDocumentBody,
@@ -72,19 +71,6 @@ export interface LegacyBranchServiceDeps {
     | ((event: { readonly pageId: Uuid; readonly latestPageSequence: number }) => void)
     | undefined;
   readonly now?: () => Date;
-}
-
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value !== null && typeof value === "object") {
-    return `{${Object.keys(value)
-      .sort()
-      .map(
-        (key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`,
-      )
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
 }
 
 function requestDigest(request: LegacyOfflineBranchSyncRequestDto): string {
@@ -138,17 +124,6 @@ function snapshotPageDocument(snapshot: unknown): unknown {
   if (snapshot === null || typeof snapshot !== "object" || Array.isArray(snapshot))
     return undefined;
   return (snapshot as Record<string, unknown>)["pageDocument"];
-}
-
-function migrateEnvelope(envelope: unknown) {
-  if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope)) return null;
-  const record = envelope as Record<string, unknown>;
-  if (typeof record["formatVersion"] !== "number") return null;
-  const migrated = migrateStoredPageDocumentToV3({
-    formatVersion: record["formatVersion"],
-    body: record["body"],
-  });
-  return migrated.ok ? normaliseDocumentV3(migrated.document) : null;
 }
 
 function encode(bytes: Uint8Array): string {
@@ -575,28 +550,14 @@ export class LegacyBranchService {
         });
       }
 
-      for (const ambiguity of conversion.ambiguities) {
-        const prior = await readPageAmbiguityByLogicalKey(tx, {
-          pageId: input.pageId,
-          logicalKey: ambiguity.logicalKey,
-        });
-        if (prior !== null) continue;
-        const detailsEnvelopeId = await this.#deps.crypto.sealBytes(
-          tx,
-          "ambiguity",
-          Buffer.from(JSON.stringify(ambiguity), "utf8"),
-        );
-        await insertPageAmbiguity(tx, {
-          ambiguityId: generateUuidV7(),
-          pageId: input.pageId,
-          workspaceId: this.#deps.workspaceId,
-          logicalKey: ambiguity.logicalKey,
-          kind: ambiguity.kind,
-          detailsEnvelopeId,
-          sourceUpdateIds: ambiguity.sourceUpdateIds,
-          openedAt: this.#deps.now(),
-        });
-      }
+      await persistNewPageAmbiguities(
+        tx,
+        input.pageId,
+        this.#deps.workspaceId,
+        conversion.ambiguities,
+        this.#deps.crypto,
+        this.#deps.now,
+      );
 
       const converted = await this.#response(tx, {
         pageId: input.pageId,

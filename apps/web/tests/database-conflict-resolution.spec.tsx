@@ -85,6 +85,14 @@ describe("structured database conflict resolution (T082)", () => {
     expect(markup).toContain("Shared table");
     expect(markup).toContain("Remote table");
     expect(markup).toContain(`views.${viewId}.name`);
+    // The scroll surface has its own name: assistive users and the real
+    // resolution journey must identify exactly one enclosing conflict region.
+    expect(
+      markup.match(/aria-label="Résoudre un conflit structuré de base de données"/g),
+    ).toHaveLength(1);
+    expect(markup).toContain(
+      'aria-label="Structure, vue ou valeurs de propriété nécessitant votre choix."',
+    );
   });
 
   it("keeps compatible changes from both devices while applying the owner's field choice", () => {

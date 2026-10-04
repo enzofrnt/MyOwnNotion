@@ -15,6 +15,7 @@ import {
   childrenOfV3,
   EMBED_PROVIDERS,
   generateUuidV7,
+  isHeadingLevel,
   normaliseDocument,
   normaliseDocumentV3,
   normaliseInlineV3,
@@ -250,6 +251,12 @@ function blockToBlockNote(block: CanonicalBlockV3): EditorPartialBlock {
           caption: block.caption ?? "",
         },
       });
+    case "databaseView":
+      return partialBlock({
+        id: block.id,
+        type: "databaseView",
+        props: { containerItemId: block.containerItemId, viewId: block.viewId },
+      });
     case "unknown":
       return opaqueBlock(block);
   }
@@ -322,6 +329,7 @@ export function blockNoteInlineToCanonical(content: unknown): readonly InlineV3[
       );
       if (pageTarget === null) continue;
       const linkedContent = "content" in entry && Array.isArray(entry.content) ? entry.content : [];
+      let emitted = false;
       for (const child of linkedContent) {
         if (child === null || typeof child !== "object" || !("text" in child)) continue;
         const text = typeof child.text === "string" ? child.text : "";
@@ -330,7 +338,18 @@ export function blockNoteInlineToCanonical(content: unknown): readonly InlineV3[
           ...marksFromStyles(styles),
           { type: "pageLink", targetItemId: pageTarget },
         ];
-        if (text !== "") result.push({ text, marks });
+        if (text !== "") {
+          result.push({ text, marks });
+          emitted = true;
+        }
+      }
+      // Side-menu drag serializes the node view (no contentDOM). An empty
+      // mention would otherwise vanish after drop.
+      if (!emitted) {
+        result.push({
+          text: "Sans titre",
+          marks: [{ type: "pageLink", targetItemId: pageTarget }],
+        });
       }
     }
   }
@@ -435,7 +454,7 @@ export function blockNoteBlockToCanonical(block: VisibleBlock): CanonicalBlockV3
       return {
         type: "heading",
         id,
-        level: level === 2 || level === 3 ? level : 1,
+        level: isHeadingLevel(level) ? level : 1,
         content,
       };
     }
@@ -520,6 +539,15 @@ export function blockNoteBlockToCanonical(block: VisibleBlock): CanonicalBlockV3
         sourceUrl: String(props["sourceUrl"] ?? ""),
         caption:
           typeof props["caption"] === "string" && props["caption"] !== "" ? props["caption"] : null,
+      };
+    }
+    case "databaseView": {
+      const props = propsOf(block);
+      return {
+        type: "databaseView",
+        id,
+        containerItemId: String(props["containerItemId"] ?? "") as Uuid,
+        viewId: String(props["viewId"] ?? "") as Uuid,
       };
     }
     case "unknown":
@@ -613,6 +641,7 @@ function blockV3ToV2(block: CanonicalBlockV3): BlockDocument["blocks"][number] {
     case "table":
     case "image":
     case "embed":
+    case "databaseView":
       return {
         type: "unknown",
         id: block.id,

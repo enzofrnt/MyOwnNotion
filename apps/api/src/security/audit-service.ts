@@ -64,8 +64,8 @@ export class AuditService {
    * *happened*: a confirmed bootstrap, a revoked session, a completed
    * rotation.
    */
-  async recordInTransaction(
-    tx: Transaction,
+  async #append(
+    tx: Database | Transaction,
     context: AuditContext,
     input: RecordEventInput,
   ): Promise<void> {
@@ -89,6 +89,14 @@ export class AuditService {
     );
   }
 
+  async recordInTransaction(
+    tx: Transaction,
+    context: AuditContext,
+    input: RecordEventInput,
+  ): Promise<void> {
+    await this.#append(tx, context, input);
+  }
+
   /**
    * Best-effort write outside any transaction, for events that describe an
    * *attempt* rather than a committed change: a rate-limited request, a failed
@@ -101,24 +109,7 @@ export class AuditService {
    */
   async record(context: AuditContext, input: RecordEventInput): Promise<void> {
     try {
-      await appendAuditEvent(
-        this.#db,
-        {
-          installationId: context.installationId,
-          ...(context.workspaceId === undefined ? {} : { workspaceId: context.workspaceId }),
-        },
-        {
-          id: randomUUID(),
-          eventType: input.eventType,
-          outcome: input.outcome,
-          actorClass: context.actorClass,
-          correlationId: context.correlationId,
-          ...(input.safeCode === undefined ? {} : { safeCode: input.safeCode }),
-          ...(input.objectKind === undefined ? {} : { objectKind: input.objectKind }),
-          ...(input.objectId === undefined ? {} : { objectId: input.objectId }),
-          ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
-        },
-      );
+      await this.#append(this.#db, context, input);
     } catch (error) {
       // The payload is redacted before it reaches the log, for the same reason
       // it is redacted before it reaches the table.

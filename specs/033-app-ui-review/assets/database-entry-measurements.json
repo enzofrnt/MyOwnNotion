@@ -1,0 +1,218 @@
+[
+  {
+    "headings": ["32px", "32px"],
+    "rows": [
+      {
+        "height": 40,
+        "label": "État",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "Date",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "AaTexte",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "#Valeur",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "Validé",
+        "valueWidth": 32
+      },
+      {
+        "height": 40,
+        "label": "Catégories",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "Priorité",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "Échéance précise",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "Pages liées",
+        "valueWidth": 532
+      }
+    ],
+    "scrollWidth": 1280,
+    "theme": "dark",
+    "width": 1280
+  },
+  {
+    "headings": ["32px", "32px"],
+    "rows": [
+      {
+        "height": 40,
+        "label": "État",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "Date",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "AaTexte",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "#Valeur",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "Validé",
+        "valueWidth": 32
+      },
+      {
+        "height": 40,
+        "label": "Catégories",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "Priorité",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "Échéance précise",
+        "valueWidth": 532
+      },
+      {
+        "height": 40,
+        "label": "Pages liées",
+        "valueWidth": 532
+      }
+    ],
+    "scrollWidth": 1280,
+    "theme": "light",
+    "width": 1280
+  },
+  {
+    "headingSize": "32px",
+    "height": 900,
+    "rows": [
+      {
+        "height": 73.5,
+        "label": "État",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "Date",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "AaTexte",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "#Valeur",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "Validé",
+        "valueWidth": 32
+      },
+      {
+        "height": 73.5,
+        "label": "Catégories",
+        "valueWidth": 204
+      },
+      {
+        "height": 73.5,
+        "label": "Priorité",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "Échéance précise",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "Pages liées",
+        "valueWidth": 204
+      }
+    ],
+    "scrollWidth": 320,
+    "scrollY": 550,
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "headingSize": "32px",
+    "height": 900,
+    "rows": [
+      {
+        "height": 73.5,
+        "label": "État",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "Date",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "AaTexte",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "#Valeur",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "Validé",
+        "valueWidth": 32
+      },
+      {
+        "height": 73.5,
+        "label": "Catégories",
+        "valueWidth": 204
+      },
+      {
+        "height": 73.5,
+        "label": "Priorité",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "Échéance précise",
+        "valueWidth": 204
+      },
+      {
+        "height": 71.5,
+        "label": "Pages liées",
+        "valueWidth": 204
+      }
+    ],
+    "scrollWidth": 320,
+    "scrollY": 550,
+    "theme": "light",
+    "width": 320
+  }
+]

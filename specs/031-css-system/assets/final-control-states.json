@@ -1,0 +1,38 @@
+{
+  "normal": {
+    "bg": "rgb(68, 129, 216)",
+    "border": "rgb(68, 129, 216)",
+    "color": "rgb(255, 255, 255)",
+    "geometry": {
+      "bottom": 472,
+      "height": 44,
+      "left": 72,
+      "right": 223.96875,
+      "top": 428,
+      "width": 151.96875,
+      "x": 72,
+      "y": 428
+    }
+  },
+  "focus": {
+    "keyboard": true,
+    "label": "Action secondaire",
+    "outline": "rgb(89, 87, 80) solid 1px",
+    "shadow": "none"
+  },
+  "hover": {
+    "bg": "rgb(85, 146, 230)",
+    "border": "rgb(85, 146, 230)",
+    "color": "rgb(255, 255, 255)",
+    "geometry": {
+      "bottom": 472,
+      "height": 44,
+      "left": 72,
+      "right": 223.96875,
+      "top": 428,
+      "width": 151.96875,
+      "x": 72,
+      "y": 428
+    }
+  }
+}

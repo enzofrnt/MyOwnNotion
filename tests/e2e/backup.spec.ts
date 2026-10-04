@@ -10,6 +10,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { AxeBuilder } from "@axe-core/playwright";
 import {
   asUuid,
   BACKUP_FORMAT,
@@ -24,7 +25,7 @@ import { encodeBackupArchive } from "../../apps/api/src/backup/archive-format.ts
 import { FullBackupReceipts } from "../../apps/api/src/backup/full/receipts.ts";
 import { FullBackupService } from "../../apps/api/src/backup/full/service.ts";
 import { expect, test } from "./fixtures.ts";
-import { openSettingsSection, openWorkspace } from "./helpers.ts";
+import { closeMobileNavigation, openSettingsSection, openWorkspace } from "./helpers.ts";
 
 function connectionString(): string {
   return (
@@ -143,7 +144,7 @@ async function makeLastVerificationStale(): Promise<void> {
 
 test("a verified backup is visible, and becomes a plain warning after 26 hours", async ({
   page,
-}) => {
+}, testInfo) => {
   await seedVerifiedBackup(new Date());
   await (await fullBackupSetup()).service.run("manual");
   await openWorkspace(page);
@@ -159,8 +160,66 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
   const notices = page.getByTestId("workspace-notices-summary");
   await expect(notices).toBeVisible();
   await expect(notices).toContainText("1 alerte");
-  await notices.click();
   const workspaceWarning = page.getByTestId("workspace-backup-stale");
+  for (const theme of ["light", "dark"] as const) {
+    for (const width of [320, 1280]) {
+      await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+      await page.setViewportSize({ width, height: 720 });
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      const navigation = page.getByTestId("toggle-sidebar");
+      if (width === 320) await expect(navigation).toBeVisible();
+      for (const label of [
+        page.locator(".workspace-page-header__kind"),
+        page.getByTestId("active-item-heading"),
+      ]) {
+        await expect
+          .poll(async () => {
+            if (!(await navigation.isVisible())) return true;
+            const control = await navigation.boundingBox();
+            const text = await label.boundingBox();
+            return (
+              control !== null &&
+              text !== null &&
+              (control.x + control.width <= text.x ||
+                text.x + text.width <= control.x ||
+                control.y + control.height <= text.y ||
+                text.y + text.height <= control.y)
+            );
+          })
+          .toBe(true);
+      }
+      if (width === 320) {
+        await navigation.click();
+        await expect(page.getByTestId("close-mobile-nav")).toBeVisible();
+        await closeMobileNavigation(page);
+        await expect(page.getByTestId("close-mobile-nav")).toBeHidden();
+        await expect(navigation).toBeFocused();
+        await expect(notices).toBeVisible();
+      }
+      for (const open of [false, true]) {
+        if (open) {
+          await notices.focus();
+          await page.keyboard.press("Enter");
+          await expect(workspaceWarning).toBeVisible();
+        } else {
+          await expect(workspaceWarning).toBeHidden();
+        }
+        const report = await new AxeBuilder({ page }).include(".workspace-notices").analyze();
+        expect(
+          report.violations.filter((violation) =>
+            ["serious", "critical"].includes(violation.impact ?? ""),
+          ),
+          `${theme}, ${width}px, ${open ? "open" : "closed"}`,
+        ).toEqual([]);
+        await page.screenshot({
+          path: testInfo.outputPath(`notices-${theme}-${width}-${open ? "open" : "closed"}.png`),
+        });
+      }
+      await notices.click();
+      await expect(workspaceWarning).toBeHidden();
+    }
+  }
+  await notices.click();
   await expect(workspaceWarning).toBeVisible();
   await expect(workspaceWarning).toContainText("Aucune sauvegarde vérifiée depuis plus d’un jour");
   await workspaceWarning.getByRole("button", { name: "Vérifier les sauvegardes" }).click();

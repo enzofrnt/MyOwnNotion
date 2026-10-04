@@ -4,7 +4,7 @@
  * canonical schema with its deferred constraints.
  */
 
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { applyMigrations, startDisposablePostgres } from "@myownnotion/test-utils";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -31,7 +31,48 @@ describe("reviewed SQL migrations", () => {
     expect(applied).toContain("0012_upload_attachment_parent");
     expect(applied).toContain("0013_item_icons");
     expect(applied).toContain("0018_bootstrap_password_setup");
+    expect(applied).toContain("0019_database_pages_views");
   });
+
+  it("refuses an old source without deleting it or recording migration 0019", async () => {
+    const legacy = await startDisposablePostgres();
+    const client = new pg.Client({ connectionString: legacy.connectionString });
+    await client.connect();
+    try {
+      const migrationNames = (await readdir(new URL("../migrations/", import.meta.url)))
+        .filter((name) => name.endsWith(".sql") && name < "0019_database_pages_views.sql")
+        .sort();
+      for (const name of migrationNames) {
+        await client.query(
+          await readFile(new URL(`../migrations/${name}`, import.meta.url), "utf8"),
+        );
+      }
+      const workspaceId = "00000000-0000-7000-8000-0000000e0101";
+      const oldSourceId = "00000000-0000-7000-8000-0000000e0102";
+      await client.query("INSERT INTO workspaces (id, schema_version) VALUES ($1, 1)", [
+        workspaceId,
+      ]);
+      await client.query(
+        "INSERT INTO databases (item_id, workspace_id, definition_version) VALUES ($1, $2, 1)",
+        [oldSourceId, workspaceId],
+      );
+      await expect(applyMigrations(legacy.connectionString)).rejects.toThrow(
+        "Legacy databases require an explicit development reset",
+      );
+      const retained = await client.query<{ item_id: string }>(
+        "SELECT item_id FROM databases WHERE item_id = $1",
+        [oldSourceId],
+      );
+      expect(retained.rows).toEqual([{ item_id: oldSourceId }]);
+      const migrated = await client.query<{ version: string }>(
+        "SELECT version FROM schema_migrations WHERE version = '0019_database_pages_views'",
+      );
+      expect(migrated.rows).toHaveLength(0);
+    } finally {
+      await client.end();
+      await legacy.stop();
+    }
+  }, 180_000);
 
   it("adds a nullable item icon with file and length guards", async () => {
     const client = new pg.Client({ connectionString: database.connectionString });
@@ -354,6 +395,8 @@ describe("reviewed SQL migrations", () => {
         "0016_linked_databases",
         "0017_mcp_access",
         "0018_bootstrap_password_setup",
+        "0019_database_pages_views",
+        "0020_database_sources_per_origin",
       ]);
       const { rows } = await client.query<{
         format_version: number;
@@ -397,7 +440,7 @@ describe("reviewed SQL migrations", () => {
       );
       await client.query(
         `INSERT INTO items (id, workspace_id, kind, name, current_revision_id)
-         VALUES ($1, $2, 'page', 'Database host', $3)`,
+         VALUES ($1, $2, 'database', 'Database host', $3)`,
         [itemId, workspaceId, revisionId],
       );
       await client.query(
@@ -406,16 +449,16 @@ describe("reviewed SQL migrations", () => {
         [revisionId, itemId, mutationId],
       );
       await client.query(
-        `INSERT INTO databases (item_id, workspace_id, definition_version)
-         VALUES ($1, $2, 1)`,
-        [itemId, workspaceId],
+        `INSERT INTO databases (item_id, source_id, workspace_id, definition_version)
+         VALUES ($1, $3, $2, 1)`,
+        [itemId, workspaceId, "00000000-0000-7000-8000-0000000e0030"],
       );
 
       await expect(
         client.query(
           `INSERT INTO database_entries
-             (entry_item_id, database_id, workspace_id, value_version, added_revision_id)
-           VALUES ($1, $1, $2, 1, $3)`,
+             (entry_item_id, database_id, workspace_id, value_version, added_revision_id, value_revision_id)
+           VALUES ($1, $1, $2, 1, $3, $3)`,
           [itemId, workspaceId, revisionId],
         ),
       ).rejects.toThrow();

@@ -10,7 +10,15 @@ import type { ProjectedItem } from "@myownnotion/client-core";
 import { generateUuidV7, isUuid, type Uuid } from "@myownnotion/domain";
 import { useCallback, useMemo, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
-import { AsyncState, Button, Field, FR_COPY, formatDateTime } from "../../ui/index.ts";
+import {
+  AsyncState,
+  Button,
+  CodePreview,
+  Field,
+  FR_COPY,
+  formatDateTime,
+  Section,
+} from "../../ui/index.ts";
 
 interface RevisionView {
   id: string;
@@ -53,11 +61,14 @@ function describeAuthor(revision: RevisionView): string {
 export function RevisionRestore({
   item,
   onRestored,
+  api: suppliedApi,
 }: {
   readonly item: ProjectedItem;
   readonly onRestored?: () => void;
+  readonly api?: Pick<ContentApi, "getRevision" | "getItem" | "restoreRevision">;
 }) {
-  const api = useMemo(() => new ContentApi(), []);
+  const defaultApi = useMemo(() => new ContentApi(), []);
+  const api = suppliedApi ?? defaultApi;
   const [revisionId, setRevisionId] = useState("");
   const [preview, setPreview] = useState<RevisionRestorePlan | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -134,11 +145,7 @@ export function RevisionRestore({
   const displayedCurrentHead = preview?.expectedCurrentRevisionId ?? item.currentRevisionId;
 
   return (
-    <section
-      className="ui-settings-panel"
-      aria-label={FR_COPY.history.label}
-      data-testid="revision-restore"
-    >
+    <Section aria-label={FR_COPY.history.label} data-testid="revision-restore">
       <h2>{FR_COPY.history.title}</h2>
       <p className="muted">
         {FR_COPY.history.currentHead} :{" "}
@@ -159,7 +166,7 @@ export function RevisionRestore({
         </Button>
       </div>
       {preview !== null ? (
-        <div data-testid="revision-preview">
+        <div className="revision-preview" data-testid="revision-preview">
           {/* Date, device and nature, in that order and in one sentence: they
               are the three things an owner needs to recognise an entry, and
               splitting them across three lines makes a list of entries harder
@@ -179,9 +186,9 @@ export function RevisionRestore({
             {preview.revision.parentRevisionIds.length > 1 ? ` — ${FR_COPY.history.joined}` : ""}
           </p>
           <p className="muted">{FR_COPY.history.snapshot}</p>
-          <pre className="muted" data-testid="revision-snapshot">
+          <CodePreview data-testid="revision-snapshot">
             {JSON.stringify(preview.revision.snapshot, null, 2)}
-          </pre>
+          </CodePreview>
           <Button type="button" data-testid="restore-revision" onClick={() => void restore()}>
             {FR_COPY.history.restore}
           </Button>
@@ -190,6 +197,6 @@ export function RevisionRestore({
       {message !== null ? (
         <AsyncState compact kind={messageState} description={message} testId="restore-feedback" />
       ) : null}
-    </section>
+    </Section>
   );
 }

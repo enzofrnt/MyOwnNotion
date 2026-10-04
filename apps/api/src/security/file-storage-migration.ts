@@ -108,6 +108,22 @@ export class FileStorageMigration {
     }
   }
 
+  private async assertProtectedMetadataSource(
+    tx: Transaction,
+    entry: { readonly id: string; readonly objectId: string | null },
+    message: string,
+  ): Promise<void> {
+    const source = await this.read<CanonicalMetadataSource>(tx, "file.transition-source", entry.id);
+    if (
+      source.kind !== "metadata" ||
+      source.objectId !== entry.objectId ||
+      (await canonicalMetadataDigest(tx, this.deps.files.deps.content, source, {
+        requireProtected: true,
+      })) !== source.digest
+    )
+      throw new Error(message);
+  }
+
   private async read<T>(tx: Transaction, type: string, id: string): Promise<T> {
     const payload = await this.deps.records.read(tx, {
       entityType: type,
@@ -755,19 +771,11 @@ export class FileStorageMigration {
         ),
       );
     for (const entry of entries) {
-      const source = await this.read<CanonicalMetadataSource>(
+      await this.assertProtectedMetadataSource(
         tx,
-        "file.transition-source",
-        entry.id,
+        entry,
+        "Protected canonical metadata changed during the transition.",
       );
-      if (
-        source.kind !== "metadata" ||
-        source.objectId !== entry.objectId ||
-        (await canonicalMetadataDigest(tx, this.deps.files.deps.content, source, {
-          requireProtected: true,
-        })) !== source.digest
-      )
-        throw new Error("Protected canonical metadata changed during the transition.");
     }
   }
 
@@ -857,19 +865,11 @@ export class FileStorageMigration {
         return false;
       }
       if (entry.kind === "metadata") {
-        const source = await this.read<CanonicalMetadataSource>(
+        await this.assertProtectedMetadataSource(
           tx,
-          "file.transition-source",
-          entry.id,
+          entry,
+          "Canonical metadata changed before source retirement.",
         );
-        if (
-          source.kind !== "metadata" ||
-          source.objectId !== entry.objectId ||
-          (await canonicalMetadataDigest(tx, this.deps.files.deps.content, source, {
-            requireProtected: true,
-          })) !== source.digest
-        )
-          throw new Error("Canonical metadata changed before source retirement.");
       } else {
         const source = await this.verifyFileReplacement(tx, entry);
         await shareFullBlobDeletion(tx);

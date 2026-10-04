@@ -1,0 +1,21 @@
+/* Owner: features/navigation/convert.css. See docs/design/ui-system.md before extending. */
+/* ---------------------------------------------------------------------------
+   Page ↔ folder conversion (feature 004)
+   ------------------------------------------------------------------------ */
+
+/* The shared dialog primitive owns positioning, portal, backdrop and focus.
+   Conversion only defines the content rhythm and action layout. */
+.convert-dialog {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+.convert-dialog > p {
+  margin: 0;
+}
+
+.convert-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}

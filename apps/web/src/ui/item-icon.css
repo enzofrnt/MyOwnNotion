@@ -6,7 +6,7 @@
   height: 1.25rem;
   flex: 0 0 1.25rem;
   place-items: center;
-  color: var(--color-text-muted);
+  color: var(--ui-color-text-muted);
   line-height: 1;
 }
 
@@ -24,24 +24,24 @@
 }
 
 .item-icon[data-item-icon-size="page"] {
-  width: 5rem;
-  height: 5rem;
-  flex-basis: 5rem;
+  width: 2.8rem;
+  height: 2.8rem;
+  flex-basis: 2.8rem;
 }
 
 .item-icon[data-item-icon-size="page"] .item-icon__emoji {
-  font-size: 4.75rem;
+  font-size: 2.15rem;
 }
 
 @media (max-width: 47.999rem) {
   .item-icon[data-item-icon-size="page"] {
-    width: 3.5rem;
-    height: 3.5rem;
-    flex-basis: 3.5rem;
+    width: 2.24rem;
+    height: 2.24rem;
+    flex-basis: 2.24rem;
   }
 
   .item-icon[data-item-icon-size="page"] .item-icon__emoji {
-    font-size: 3.25rem;
+    font-size: 1.75rem;
   }
 }
 
@@ -54,10 +54,10 @@
   width: 0.625rem;
   height: 0.625rem;
   place-items: center;
-  color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-canvas) 78%, transparent);
+  color: var(--ui-color-text-muted);
+  background: color-mix(in srgb, var(--ui-color-canvas) 94%, transparent);
   border-radius: 0.12rem;
-  opacity: 0.68;
+  opacity: 1;
   pointer-events: none;
 }
 
@@ -76,9 +76,9 @@
   width: 0.75rem;
   height: 0.75rem;
   place-items: center;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border-radius: var(--radius-pill);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border-radius: var(--ui-radius-round);
 }
 
 .item-icon[data-item-reference] .item-icon__reference-badge {
@@ -91,23 +91,100 @@
   height: 0.625rem;
 }
 
-.emoji-picker-popover,
-.emoji-picker-dialog {
-  width: min(22rem, calc(100vw - 2 * var(--space-3)));
-  padding: var(--space-2);
+.emoji-picker-popover.ui-popover,
+.emoji-picker-dialog.ui-dialog {
+  width: min(22rem, calc(100vw - 2 * var(--ui-space-3)));
+  padding: var(--ui-space-2);
+  overflow: hidden;
 }
 
 .emoji-picker-panel {
   display: grid;
   min-width: 0;
-  gap: var(--space-2);
+  gap: var(--ui-space-2);
+}
+
+.emoji-picker-panel__kinds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  background: var(--ui-color-surface);
+  border-radius: var(--ui-radius-md);
+}
+
+.emoji-picker-panel__kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-1);
+  min-height: var(--ui-target-compact);
+  padding: 0 var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--ui-radius-md) - 2px);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+  cursor: pointer;
+}
+
+.emoji-picker-panel__kind[aria-selected="true"] {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-raised);
+}
+
+.emoji-picker-panel__kind:hover,
+.emoji-picker-panel__kind:focus-visible {
+  color: var(--ui-color-text);
+}
+
+.emoji-picker-panel__kind:focus-visible {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: -1px;
 }
 
 .emoji-picker-panel__mart,
-.emoji-picker-panel__mart > em-emoji-picker {
-  display: block;
+.emoji-picker-panel__symbols {
+  height: min(435px, calc(100dvh - 10rem));
+  min-height: 12rem;
+  min-width: 0;
+}
+
+/* The host must stay a flex column with a definite height. `display: block`
+   lets every category grow the scroll box, so a category click changes
+   scrollTop without moving anything the owner can see. */
+.emoji-picker-panel__mart,
+.emoji-picker-panel__mart > div,
+.emoji-picker-panel__mart > div > em-emoji-picker {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 100%;
+  min-height: 0;
+}
+
+.emoji-picker-panel__mart > div,
+.emoji-picker-panel__mart > div > em-emoji-picker {
+  height: 100%;
+}
+
+.emoji-picker-panel__symbols {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.emoji-picker-panel__symbols .database-view-icon-picker__grid {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+@media (pointer: coarse) {
+  .emoji-picker-panel__kind {
+    min-height: var(--ui-target);
+  }
 }
 
 .emoji-picker-panel__remove {
@@ -120,11 +197,16 @@
 }
 
 .item-emoji-picker[data-picker-variant="page"] {
-  margin: 0 0 var(--space-2);
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 .item-emoji-picker[data-picker-variant="page"][data-empty] {
-  opacity: 0.72;
+  position: absolute;
+  bottom: calc(100% + var(--ui-space-1));
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .workspace-page-title__body:hover .item-emoji-picker[data-picker-variant="page"][data-empty],
@@ -155,9 +237,9 @@
   width: 1.5rem;
   min-width: 1.5rem;
   min-height: 1.5rem;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border-radius: var(--radius-pill);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border-radius: var(--ui-radius-round);
   opacity: 0;
   pointer-events: none;
 }
@@ -177,17 +259,17 @@
 .item-emoji-picker__empty {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  gap: var(--ui-space-1);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
 }
 
 .workspace-page-title__body .item-emoji-picker__empty {
-  color: var(--color-text);
+  color: var(--ui-color-text);
 }
 
 .emoji-picker-dialog .ui-overlay__dismiss {
   position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
+  top: var(--ui-space-2);
+  right: var(--ui-space-2);
 }

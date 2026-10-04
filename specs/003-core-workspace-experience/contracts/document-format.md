@@ -76,7 +76,7 @@ and dependency-free.
 | Block | Markdown |
 |-------|----------|
 | `paragraph` | the text |
-| `heading` | `#`, `##`, `###` by level |
+| `heading` | `#`, `##`, `###`, `####` by level |
 | `bulletedListItem` | `- `, children indented two spaces |
 | `numberedListItem` | `1. `, renumbered per level |
 | `checkbox` | `- [ ] ` / `- [x] ` |

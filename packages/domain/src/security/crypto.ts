@@ -276,3 +276,8 @@ export function open(key: Uint8Array, sealed: SealedBytes, additionalData: Uint8
     throw new EnvelopeDecryptionError();
   }
 }
+
+/** Compare UTF-8 secrets without data-dependent equality on equal-length bytes. */
+export function sameSecretValue(left: string, right: string): boolean {
+  return bytesEqual(Buffer.from(left), Buffer.from(right));
+}

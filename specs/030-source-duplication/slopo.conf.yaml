@@ -1,0 +1,38 @@
+# Run from the MyOwnNotion repository root.
+# Local source analysis; generated code, dependencies and tests are excluded.
+source_dir: .
+source_dir_exclude:
+  - .git/
+  - node_modules/
+  - dist/
+  - build/
+  - out/
+  - coverage/
+  - .vite/
+  - .next/
+  - work/
+  - outputs/
+  - tests/
+  - test/
+  - fixtures/
+  - '*.spec.ts'
+  - '*.spec.tsx'
+  - '*.test.ts'
+  - '*.test.tsx'
+  - '*.d.ts'
+include_file_extensions:
+  - .ts
+  - .tsx
+  - .js
+
+db_file: work/slopo/slopo.db
+report_dir: work/slopo/reports
+ignore_file: work/slopo/slopo.ignore.txt
+agent_log_file: work/slopo/slopo.agent.log
+
+embedding_model: ollama/unclemusclez/jina-embeddings-v2-base-code
+embedding_dimensions: 768
+embedding_params:
+  api_base: http://localhost:11434
+embedding_batch_size: 16
+embedding_batch_chars: 20000

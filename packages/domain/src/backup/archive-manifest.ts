@@ -1,3 +1,4 @@
+import { isCanonicalTimestamp } from "../validation/json.ts";
 /**
  * What a backup archive claims about itself (T005, FR-002, FR-003).
  *
@@ -69,15 +70,6 @@ export interface ManifestProblem {
 }
 
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
-
-function isCanonicalTimestamp(value: unknown): value is string {
-  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return false;
-  try {
-    return new Date(value).toISOString() === value;
-  } catch {
-    return false;
-  }
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

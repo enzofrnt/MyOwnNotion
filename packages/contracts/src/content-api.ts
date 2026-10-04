@@ -18,6 +18,8 @@ export const ItemKindSchema = Type.Union([
   Type.Literal("page"),
   Type.Literal("folder"),
   Type.Literal("file"),
+  Type.Literal("database"),
+  Type.Literal("database_view"),
 ]);
 export const LifecycleSchema = Type.Union([
   Type.Literal("active"),
@@ -167,9 +169,20 @@ export const CanonicalExportItemSchema = Type.Object(
 export const CanonicalExportDatabaseSchema = Type.Object(
   {
     databaseId: UuidSchema,
+    sourceId: Type.Optional(UuidSchema),
     definitionRevisionId: Type.Optional(UuidSchema),
     definitionVersion: Type.Integer({ minimum: 1, maximum: SAFE_INTEGER_MAX }),
     definition: Type.Object({}, { additionalProperties: true }),
+  },
+  { additionalProperties: false },
+);
+
+export const CanonicalExportDatabasePresentationSchema = Type.Object(
+  {
+    containerItemId: UuidSchema,
+    presentationRevisionId: UuidSchema,
+    presentationVersion: Type.Integer({ minimum: 1, maximum: SAFE_INTEGER_MAX }),
+    presentation: Type.Object({}, { additionalProperties: true }),
   },
   { additionalProperties: false },
 );
@@ -180,6 +193,7 @@ export const CanonicalExportDatabaseEntrySchema = Type.Object(
     databaseId: UuidSchema,
     valueVersion: Type.Integer({ minimum: 1, maximum: SAFE_INTEGER_MAX }),
     addedRevisionId: UuidSchema,
+    valueRevisionId: Type.Optional(UuidSchema),
     values: Type.Object({}, { additionalProperties: true }),
   },
   { additionalProperties: false },
@@ -224,6 +238,7 @@ export const CanonicalExportManifestSchema = Type.Object(
     changeCursor: Type.String(),
     items: Type.Array(CanonicalExportItemSchema),
     databases: Type.Array(CanonicalExportDatabaseSchema),
+    databasePresentations: Type.Optional(Type.Array(CanonicalExportDatabasePresentationSchema)),
     databaseEntries: Type.Array(CanonicalExportDatabaseEntrySchema),
     relationships: Type.Array(CanonicalExportRelationshipSchema),
     revisions: Type.Array(CanonicalExportRevisionSchema),
@@ -236,6 +251,9 @@ export const CanonicalExportManifestSchema = Type.Object(
         relationships: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
         revisions: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
         databases: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+        databasePresentations: Type.Optional(
+          Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
+        ),
         databaseEntries: Type.Integer({ minimum: 0, maximum: SAFE_INTEGER_MAX }),
       },
       { additionalProperties: false },
@@ -635,6 +653,12 @@ export const DatabasePropertyOptionSchema = Type.Object(
 const DatabasePropertyBase = {
   id: UuidSchema,
   name: DisplayNameSchema,
+  icon: Type.Optional(
+    Type.Union([
+      Type.String({ minLength: 1, maxLength: 40, pattern: "^[a-z0-9-]+$" }),
+      Type.Null(),
+    ]),
+  ),
   positionKey: Type.String({ minLength: 1, maxLength: 255 }),
   state: DatabaseStateSchema,
 };
@@ -812,6 +836,12 @@ export const DatabaseViewSchema = Type.Object(
       Type.Null(),
     ]),
     options: Type.Object({}, { additionalProperties: true }),
+    icon: Type.Optional(
+      Type.Union([
+        Type.String({ minLength: 1, maxLength: 40, pattern: "^[a-z0-9-]+$" }),
+        Type.Null(),
+      ]),
+    ),
   },
   { additionalProperties: false },
 );
@@ -821,6 +851,45 @@ export const DatabaseTaskRoleMappingSchema = Type.Object(
     statusPropertyId: UuidSchema,
     dueDatePropertyId: NullableUuid,
     priorityPropertyId: NullableUuid,
+  },
+  { additionalProperties: false },
+);
+
+export const DatabasePresentationSchema = Type.Object(
+  {
+    format: Type.Literal("myownnotion.database-presentation+json"),
+    formatVersion: Type.Literal(1),
+    containerItemId: UuidSchema,
+    views: Type.Array(
+      Type.Object(
+        {
+          ...DatabaseViewSchema.properties,
+          sourceId: UuidSchema,
+        },
+        { additionalProperties: false },
+      ),
+      { minItems: 1 },
+    ),
+  },
+  { additionalProperties: false },
+);
+export type DatabasePresentationDto = Static<typeof DatabasePresentationSchema>;
+
+export const ReplaceDatabasePresentationRequestSchema = Type.Object(
+  {
+    baseRevisionId: UuidSchema,
+    presentation: DatabasePresentationSchema,
+  },
+  { additionalProperties: false },
+);
+export type ReplaceDatabasePresentationRequestDto = Static<
+  typeof ReplaceDatabasePresentationRequestSchema
+>;
+
+export const DatabasePresentationResponseSchema = Type.Object(
+  {
+    revisionId: UuidSchema,
+    presentation: DatabasePresentationSchema,
   },
   { additionalProperties: false },
 );
@@ -857,6 +926,7 @@ export const CreateDatabaseRequestSchema = Type.Object(
     id: UuidSchema,
     name: DisplayNameSchema,
     hostPageId: Type.Optional(UuidSchema),
+    sourceId: Type.Optional(UuidSchema),
     placement: DatabasePlacementInputSchema,
     titlePropertyId: UuidSchema,
     titlePropertyName: Type.Optional(DisplayNameSchema),
@@ -866,6 +936,20 @@ export const CreateDatabaseRequestSchema = Type.Object(
   { additionalProperties: false },
 );
 export type CreateDatabaseRequestDto = Static<typeof CreateDatabaseRequestSchema>;
+
+export const CreateLinkedDatabaseViewRequestSchema = Type.Object(
+  {
+    id: UuidSchema,
+    name: DisplayNameSchema,
+    sourceId: UuidSchema,
+    placement: DatabasePlacementInputSchema,
+    initialViewId: UuidSchema,
+  },
+  { additionalProperties: false },
+);
+export type CreateLinkedDatabaseViewRequestDto = Static<
+  typeof CreateLinkedDatabaseViewRequestSchema
+>;
 
 export const DefinitionImpactSchema = Type.Object(
   {
@@ -893,6 +977,7 @@ export const ReplaceDefinitionCandidateSchema = Type.Object(
 export const ReplaceDefinitionRequestSchema = Type.Object(
   {
     baseRevisionId: UuidSchema,
+    sourceId: Type.Optional(UuidSchema),
     definition: DatabaseDefinitionSchema,
     impactConfirmation: Type.Optional(
       Type.Object(
@@ -914,7 +999,9 @@ export type ReplaceDefinitionRequestDto = Static<typeof ReplaceDefinitionRequest
 export const CreateEntryRequestSchema = Type.Object(
   {
     id: UuidSchema,
+    sourceId: Type.Optional(UuidSchema),
     title: DisplayNameSchema,
+    kind: Type.Optional(Type.Union([Type.Literal("page"), Type.Literal("folder")])),
     placement: Type.Optional(DatabasePlacementInputSchema),
     document: Type.Optional(PageDocumentSchema),
     values: DatabaseValuesMapSchema,
@@ -937,7 +1024,10 @@ export type ReplaceEntryValuesRequestDto = Static<typeof ReplaceEntryValuesReque
 export const DatabaseSchema = Type.Object(
   {
     databaseId: UuidSchema,
+    sourceId: Type.Optional(UuidSchema),
     definitionRevisionId: UuidSchema,
+    presentationRevisionId: Type.Optional(UuidSchema),
+    presentation: Type.Optional(DatabasePresentationSchema),
     lifecycle: LifecycleSchema,
     name: Type.String(),
     definition: DatabaseDefinitionSchema,
@@ -950,6 +1040,9 @@ export const DatabaseEntrySchema = Type.Object(
   {
     databaseId: UuidSchema,
     entryId: UuidSchema,
+    kind: Type.Optional(Type.Union([Type.Literal("page"), Type.Literal("folder")])),
+    /** Page or folder mark. Absent or null keeps the default glyph. */
+    icon: Type.Optional(ItemIconSchema),
     revisionId: UuidSchema,
     lifecycle: LifecycleSchema,
     title: Type.String(),
@@ -1006,9 +1099,13 @@ export type DatabaseEntryValuesPayloadDto = Static<typeof DatabaseEntryValuesPay
 export const DatabaseProjectionSchema = Type.Object(
   {
     itemId: UuidSchema,
+    sourceId: Type.Optional(UuidSchema),
     definitionVersion: Type.Integer({ minimum: 1 }),
     definitionRevisionId: Type.Optional(UuidSchema),
     definition: DatabaseDefinitionSchema,
+    presentationVersion: Type.Optional(Type.Integer({ minimum: 1 })),
+    presentationRevisionId: Type.Optional(UuidSchema),
+    presentation: Type.Optional(DatabasePresentationSchema),
   },
   { additionalProperties: false },
 );
@@ -1018,6 +1115,7 @@ export const DatabaseEntryProjectionSchema = Type.Object(
   {
     entryItemId: UuidSchema,
     databaseId: UuidSchema,
+    sourceId: Type.Optional(UuidSchema),
     valueVersion: Type.Integer({ minimum: 1 }),
     values: DatabaseEntryValuesPayloadSchema,
   },

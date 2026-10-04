@@ -369,7 +369,7 @@ describe("protected canonical Notion apply", () => {
     });
     expect(await readFile(join(imported.directory, "Child.md"))).toEqual(before);
   }, 180_000);
-  it("imports one reusable source for two exported Bases displays and retains membership/property values", async () => {
+  it("imports one owner and a linked view for two Bases displays with direct members", async () => {
     const imported = await plan({
       "First.md": "# First\n![[First.base]]\n",
       "Second.md": "# Second\n![[Second.base]]\n",
@@ -381,6 +381,33 @@ describe("protected canonical Notion apply", () => {
         '---\nbase: "[[Shared]]"\nStatus: Done\nOwner: [Person]\n---\n# Entry\nEntry paragraph\n',
     });
     expect(imported.value.databases).toHaveLength(1);
+    const plannedSource = imported.value.databases[0];
+    const firstHost = imported.value.pages.find((page) => page.title === "First");
+    const secondHost = imported.value.pages.find((page) => page.title === "Second");
+    expect(firstHost?.document).toMatchObject({
+      formatVersion: 3,
+      body: {
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            type: "databaseView",
+            containerItemId: plannedSource?.id,
+            viewId: plannedSource?.initialViewId,
+          }),
+        ]),
+      },
+    });
+    expect(secondHost?.document).toMatchObject({
+      formatVersion: 3,
+      body: {
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            type: "databaseView",
+            containerItemId: plannedSource?.linkedDisplays[0]?.id,
+            viewId: plannedSource?.linkedDisplays[0]?.viewId,
+          }),
+        ]),
+      },
+    });
     await applyNotionImport(imported.value, target);
     const source = imported.value.databases[0];
     const response = await harness.api.built.app.inject({
@@ -389,11 +416,21 @@ describe("protected canonical Notion apply", () => {
       headers,
     });
     expect(response.statusCode, response.body).toBe(200);
-    expect(response.json().definition.embeddings).toHaveLength(2);
+    expect(response.json().sourceId).toBe(source?.sourceId);
+    expect(source?.linkedDisplays).toHaveLength(1);
+    expect(await target.context.db.select().from(schema.databasePresentations)).toHaveLength(2);
     const rows = await target.context.db.select().from(schema.databaseEntries);
     expect(rows).toHaveLength(1);
     const entry = imported.value.pages.find((page) => page.databaseId);
     expect((await item(entry?.id ?? "")).name).toBe("Entry");
+    expect(
+      (
+        await target.context.db
+          .select()
+          .from(schema.placements)
+          .where(eq(schema.placements.itemId, entry?.id ?? ""))
+      )[0]?.parentItemId,
+    ).toBe(source?.id);
     const values = await harness.api.built.app.inject({
       method: "GET",
       url: `/v1/databases/${source?.id}/entries/${entry?.id}`,

@@ -1,7 +1,7 @@
 import type { Uuid } from "@myownnotion/domain";
 
-export type CanonicalGraphItemKind = "page" | "folder" | "file";
-export type GraphNodeKind = CanonicalGraphItemKind | "database" | "task";
+export type CanonicalGraphItemKind = "page" | "folder" | "file" | "database" | "database_view";
+export type GraphNodeKind = CanonicalGraphItemKind | "task";
 export type GraphLifecycle = "active" | "trashed" | "purged";
 export type GraphEdgeOrigin = "relationship" | "hierarchy" | "attachment";
 export type GraphEdgeLayer = "knowledge" | "hierarchy" | "attachment";

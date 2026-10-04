@@ -209,8 +209,9 @@ async function tryAutomaticMerge(
 
   if (row.commandType === "database.entry.values.replace") {
     const entryId = row.payload["entryId"];
-    if (typeof entryId !== "string") return null;
-    const stored = await db.databaseEntries.get(entryId as Uuid);
+    const databaseId = row.payload["databaseId"];
+    if (typeof entryId !== "string" || typeof databaseId !== "string") return null;
+    const stored = await db.databaseEntryPairs.get(`${databaseId}:${entryId}`);
     if (stored === undefined || stored.sealedValues === null) return null;
     const local = (await codec.openDatabaseEntry(stored)).values;
     const ancestor = ancestorSnapshot?.["databaseEntryValues"] as EntryValues | undefined;

@@ -35,7 +35,7 @@ async function submit(command: MutationCommand) {
   });
 }
 
-async function createDatabaseWithMovedEntries(entryCount: number) {
+async function createDatabaseWithEntries(entryCount: number) {
   const databaseId = generateUuidV7();
   const create = await submit({
     type: "database.create",
@@ -55,10 +55,8 @@ async function createDatabaseWithMovedEntries(entryCount: number) {
       type: "database.entry.create",
       databaseId,
       id: entryId,
-      title: `Moved entry ${index + 1}`,
-      // Membership deliberately differs from hierarchy: this is the case a
-      // normal branch traversal cannot discover.
-      placement: { id: generateUuidV7(), parentItemId: null, positionKey: `e${index}` },
+      title: `Entry ${index + 1}`,
+      placement: { id: generateUuidV7(), parentItemId: databaseId, positionKey: `e${index}` },
       values: {},
       relationTargets: {},
     });
@@ -75,9 +73,9 @@ async function lifecycles(itemIds: readonly Uuid[]) {
   return new Map(rows.map(({ id, lifecycle }) => [id as Uuid, lifecycle]));
 }
 
-describe("database source membership is independent of display lifecycle (026)", () => {
-  it("trashes and restores the former host while preserving moved entry identities", async () => {
-    const { databaseId, entryIds } = await createDatabaseWithMovedEntries(3);
+describe("database owner lifecycle includes its direct entries (029)", () => {
+  it("trashes and restores the owner branch while preserving entry identities", async () => {
+    const { databaseId, entryIds } = await createDatabaseWithEntries(3);
     const alreadyTrashed = entryIds[2] as Uuid;
     expect((await submit({ type: "item.trash", itemId: alreadyTrashed })).result.status).toBe(
       "accepted",
@@ -86,7 +84,7 @@ describe("database source membership is independent of display lifecycle (026)",
     const impact = await context.handle.db.transaction((tx) =>
       previewDatabaseTrashImpact(tx, databaseId),
     );
-    expect(impact).toEqual({ isDatabase: false, activeEntryCount: 0 });
+    expect(impact).toEqual({ isDatabase: true, activeEntryCount: 2 });
 
     const definitionBefore = await readCurrentDatabaseDefinition(context.handle.db, databaseId);
     const valuesBefore = await Promise.all(
@@ -94,16 +92,16 @@ describe("database source membership is independent of display lifecycle (026)",
     );
     const trash = await submit({ type: "item.trash", itemId: databaseId });
     expect(trash.result.status).toBe("accepted");
-    expect(trash.result.revisionIds).toHaveLength(1);
+    expect(trash.result.revisionIds).toHaveLength(3);
     const afterTrash = await lifecycles([databaseId, ...entryIds]);
     expect(afterTrash.get(databaseId)).toBe("trashed");
-    expect(afterTrash.get(entryIds[0] as Uuid)).toBe("active");
-    expect(afterTrash.get(entryIds[1] as Uuid)).toBe("active");
+    expect(afterTrash.get(entryIds[0] as Uuid)).toBe("trashed");
+    expect(afterTrash.get(entryIds[1] as Uuid)).toBe("trashed");
     expect(afterTrash.get(alreadyTrashed)).toBe("trashed");
 
     const restore = await submit({ type: "item.restore", itemId: databaseId });
     expect(restore.result.status).toBe("accepted");
-    expect(restore.result.revisionIds).toHaveLength(1);
+    expect(restore.result.revisionIds).toHaveLength(3);
     const afterRestore = await lifecycles([databaseId, ...entryIds]);
     expect(afterRestore.get(databaseId)).toBe("active");
     expect(afterRestore.get(entryIds[0] as Uuid)).toBe("active");
@@ -127,7 +125,7 @@ describe("database source membership is independent of display lifecycle (026)",
   });
 
   it("rolls back display lifecycle on trash and restore faults", async () => {
-    const { databaseId, entryIds } = await createDatabaseWithMovedEntries(2);
+    const { databaseId, entryIds } = await createDatabaseWithEntries(2);
     const itemIds = [databaseId, ...entryIds];
     const revisionCountBefore = (await context.handle.db.select().from(schema.revisions)).length;
     const mutationContext = (): MutationContext => ({
@@ -142,7 +140,7 @@ describe("database source membership is independent of display lifecycle (026)",
           type: "item.trash",
           itemId: databaseId,
         });
-        expect(result.ok && result.value.revisionIds).toHaveLength(1);
+        expect(result.ok && result.value.revisionIds).toHaveLength(3);
         throw new Error("database-trash-boundary-fault");
       }),
     ).rejects.toThrow("database-trash-boundary-fault");
@@ -163,13 +161,13 @@ describe("database source membership is independent of display lifecycle (026)",
           type: "item.restore",
           itemId: databaseId,
         });
-        expect(result.ok && result.value.revisionIds).toHaveLength(1);
+        expect(result.ok && result.value.revisionIds).toHaveLength(3);
         throw new Error("database-restore-boundary-fault");
       }),
     ).rejects.toThrow("database-restore-boundary-fault");
     const afterRollback = await lifecycles(itemIds);
     expect(afterRollback.get(databaseId)).toBe("trashed");
-    for (const entryId of entryIds) expect(afterRollback.get(entryId)).toBe("active");
+    for (const entryId of entryIds) expect(afterRollback.get(entryId)).toBe("trashed");
     expect((await context.handle.db.select().from(schema.revisions)).length).toBe(
       revisionCountTrashed,
     );

@@ -30,7 +30,7 @@ COPY packages/domain/package.json packages/domain/package.json
 COPY packages/graph/package.json packages/graph/package.json
 COPY packages/page-state/package.json packages/page-state/package.json
 COPY packages/test-utils/package.json packages/test-utils/package.json
-COPY scripts/ci/check-toolchain.ts scripts/ci/check-toolchain.ts
+COPY scripts/ci/check-toolchain.ts scripts/ci/tracked-files.ts scripts/ci/
 COPY scripts/e2e/bootstrap-container.sh scripts/e2e/bootstrap-container.sh
 
 RUN --mount=type=cache,id=bun-install,target=/root/.bun/install/cache \

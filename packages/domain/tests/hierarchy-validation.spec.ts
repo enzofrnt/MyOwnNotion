@@ -36,7 +36,7 @@ describe("validatePageDocument", () => {
 
   it("accepts the highest supported format version", () => {
     const result = validatePageDocument(
-      document({ formatVersion: SUPPORTED_PAGE_DOCUMENT_VERSION }),
+      document({ formatVersion: SUPPORTED_PAGE_DOCUMENT_VERSION, body: { blocks: [] } }),
     );
     expect(result.ok).toBe(true);
   });

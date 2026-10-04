@@ -1,3 +1,4 @@
+import { isQuotaError } from "../local-store/storage-errors.ts";
 /**
  * Encrypted, crash-recoverable staging for files referenced by editor blocks.
  *
@@ -98,15 +99,6 @@ export interface PendingFileReadyListing {
 
 function chunkId(fileItemId: Uuid, chunkIndex: number): string {
   return `${fileItemId}:${chunkIndex}`;
-}
-
-function isQuotaError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    ((error as { name?: string }).name === "QuotaExceededError" ||
-      (error as { inner?: { name?: string } }).inner?.name === "QuotaExceededError")
-  );
 }
 
 function bytesToHex(bytes: Uint8Array): string {

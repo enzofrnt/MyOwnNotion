@@ -53,10 +53,9 @@
 			header_up X-Forwarded-Proto {scheme}
 			header_up X-Forwarded-For {remote_host}
 			flush_interval -1
-			transport http {
-				read_timeout 75s
-				write_timeout 75s
-			}
+			# Vite's HMR WebSocket can stay idle while no source files change.
+			# Keep the default unlimited I/O and stream lifetimes here: an idle
+			# timeout disconnects HMR and makes Vite reload the healthy page.
 		}
 	}
 }

@@ -11,6 +11,7 @@ import {
   convertItem,
   createChildItem,
   createRootItem,
+  dropEditorFile,
   ensureNavigationVisible,
   moveSelectedItemInto,
   openPageAttachments,
@@ -70,7 +71,7 @@ test.describe("workspace search (US1)", () => {
     await waitForSynchronized(page);
     await openPageAttachments(page, bodyPage);
 
-    await page.getByTestId("attachment-upload").setInputFiles({
+    await dropEditorFile(page, {
       name: fileName,
       mimeType: "text/plain",
       buffer: Buffer.from("search fixture"),
@@ -99,7 +100,11 @@ test.describe("workspace search (US1)", () => {
     await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
     dialog = await searchFor(page, fileName);
-    const fileResult = dialog.getByRole("listitem").filter({ hasText: fileName });
+    // The file block also makes its host page searchable. Select the file's
+    // identity by its title, rather than accidentally matching the page snippet.
+    const fileResult = dialog.getByRole("listitem").filter({
+      has: page.getByText(fileName, { exact: true }),
+    });
     await expect(fileResult).toBeVisible();
     await expect(fileResult).toContainText("Fichiers");
     await dialog.getByRole("button", { name: "Fermer la recherche" }).click();

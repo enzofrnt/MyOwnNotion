@@ -21,6 +21,7 @@ import type {
   SealedConflictRecordRow,
   SealedOutboxMutationRow,
 } from "../security/local-record-codec.ts";
+import { openStoredConflict } from "../security/open-stored-conflict.ts";
 import { withProjectionWrite } from "./projection-write-coordinator.ts";
 
 export function remapPayloadRevisionReferences(
@@ -71,13 +72,7 @@ export class Outbox {
   }
 
   async #openConflict(stored: unknown): Promise<ConflictRecordRow> {
-    if (typeof stored === "object" && stored !== null && "payload" in stored) {
-      return stored as ConflictRecordRow;
-    }
-    if (this.#codec === undefined) {
-      throw new Error("A local record codec is required to open sealed conflicts");
-    }
-    return await this.#codec.openConflict(stored as SealedConflictRecordRow);
+    return await openStoredConflict(stored, this.#codec);
   }
 
   async #storeConflict(
@@ -187,7 +182,13 @@ export class Outbox {
         let retry = false;
         await this.#db.transaction(
           "rw",
-          [this.#db.items, this.#db.databases, this.#db.outbox, this.#db.revisionHeaders],
+          [
+            this.#db.items,
+            this.#db.databases,
+            this.#db.databaseSources,
+            this.#db.outbox,
+            this.#db.revisionHeaders,
+          ],
           async () => {
             const current = await this.#db.outbox.toArray();
             const currentFingerprint = JSON.stringify(
@@ -208,6 +209,24 @@ export class Outbox {
                     : revisions.get(source.definitionRevisionId);
                 if (canonicalRevisionId !== undefined)
                   await this.#db.databases.update(source.itemId, {
+                    definitionRevisionId: canonicalRevisionId,
+                  });
+                const canonicalPresentationRevisionId =
+                  source.presentationRevisionId === undefined
+                    ? undefined
+                    : revisions.get(source.presentationRevisionId);
+                if (canonicalPresentationRevisionId !== undefined)
+                  await this.#db.databases.update(source.itemId, {
+                    presentationRevisionId: canonicalPresentationRevisionId,
+                  });
+              }
+              for (const source of await this.#db.databaseSources.toArray()) {
+                const canonicalRevisionId =
+                  source.definitionRevisionId === undefined
+                    ? undefined
+                    : revisions.get(source.definitionRevisionId);
+                if (canonicalRevisionId !== undefined && source.sourceId !== undefined)
+                  await this.#db.databaseSources.update(source.sourceId, {
                     definitionRevisionId: canonicalRevisionId,
                   });
               }

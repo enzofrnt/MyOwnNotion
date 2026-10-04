@@ -111,9 +111,11 @@ describe("database board view (T088)", () => {
       }),
     );
     expect(markup).toContain('aria-label="Vue Kanban Delivery board"');
-    expect(markup).toContain("Done · 0");
-    expect(markup).toContain("To do · 1");
-    expect(markup).toContain("Sans status · 0");
+    expect(markup).toContain('option-pill__label">Done');
+    expect(markup).toContain('option-pill__label">To do');
+    expect(markup).toContain("> · 0</span>");
+    expect(markup).toContain("> · 1</span>");
+    expect(markup).toContain("Sans status");
     expect(markup).toContain('draggable="true"');
     expect(markup).toContain('aria-posinset="1"');
     expect(markup).toContain('aria-setsize="1"');

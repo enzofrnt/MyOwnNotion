@@ -1,0 +1,68 @@
+/* Owner: features/files/files.css. See docs/design/ui-system.md before extending. */
+/* File previews (feature 005, FR-010, FR-013).
+   Sized generously but bounded: a preview is a look at a file, not a reader,
+   and an unbounded frame pushes everything else off the screen. */
+.file-preview,
+.file-preview-state {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: 60vh;
+  min-height: 240px;
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-color-surface);
+}
+
+.file-preview-state--loading {
+  padding: 0;
+}
+
+.file-preview-state--loading .ui-status__content,
+.file-preview-state--loading .ui-skeleton {
+  height: 100%;
+}
+
+.file-preview-state--loading .ui-status__title {
+  position: absolute;
+}
+
+.file-preview-state--loading .ui-status__detail {
+  height: 100%;
+}
+
+.file-preview-state--loading .ui-status__content {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.file-preview-state .ui-async-state__action .ui-button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.storage-panel__breakdown {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.storage-panel__breakdown > li {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) 0;
+  border-bottom: 1px solid var(--ui-color-border);
+  font-size: var(--ui-text-sm);
+}
+
+.storage-panel__breakdown > li > :first-child {
+  overflow-wrap: anywhere;
+}
+
+.storage-panel__breakdown > li > :last-child {
+  font-variant-numeric: tabular-nums;
+}

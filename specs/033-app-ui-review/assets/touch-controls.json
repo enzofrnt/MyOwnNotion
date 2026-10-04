@@ -1,0 +1,167 @@
+{
+  "coarse": true,
+  "controls": [
+    {
+      "height": 44,
+      "label": "Composants",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "Conflits",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "Fichiers",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "Historique",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "Bases de données",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "Propriétés",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "Éditeur",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "Récupération",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "Client desktop",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "Sauvegardes",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "États de l’app",
+      "tag": "A"
+    },
+    {
+      "height": 44,
+      "label": "property-name",
+      "tag": "INPUT"
+    },
+    {
+      "height": 44,
+      "label": "property-type",
+      "tag": "SELECT"
+    },
+    {
+      "height": 44,
+      "label": "Nom de l'option",
+      "tag": "INPUT"
+    },
+    {
+      "height": 44,
+      "label": "Enregistrer la propriété",
+      "tag": "BUTTON"
+    },
+    {
+      "height": 44,
+      "label": "État",
+      "tag": "LABEL"
+    },
+    {
+      "height": 44,
+      "label": "Aucune valeurPas commencéEn co",
+      "tag": "SELECT"
+    },
+    {
+      "height": 44,
+      "label": "Date",
+      "tag": "LABEL"
+    },
+    {
+      "height": 44,
+      "label": "",
+      "tag": "INPUT"
+    },
+    {
+      "height": 44,
+      "label": "Texte",
+      "tag": "LABEL"
+    },
+    {
+      "height": 44,
+      "label": "",
+      "tag": "INPUT"
+    },
+    {
+      "height": 44,
+      "label": "Valeur",
+      "tag": "LABEL"
+    },
+    {
+      "height": 44,
+      "label": "",
+      "tag": "INPUT"
+    },
+    {
+      "height": 44,
+      "label": "Validé",
+      "tag": "LABEL"
+    },
+    {
+      "height": 44,
+      "label": "Catégories",
+      "tag": "LABEL"
+    },
+    {
+      "height": 82,
+      "label": "Une option au nom particulière",
+      "tag": "SELECT"
+    },
+    {
+      "height": 44,
+      "label": "Priorité",
+      "tag": "LABEL"
+    },
+    {
+      "height": 44,
+      "label": "Aucune valeurHaute",
+      "tag": "SELECT"
+    },
+    {
+      "height": 44,
+      "label": "Échéance précise",
+      "tag": "LABEL"
+    },
+    {
+      "height": 44,
+      "label": "",
+      "tag": "INPUT"
+    },
+    {
+      "height": 44,
+      "label": "Pages liées",
+      "tag": "LABEL"
+    },
+    {
+      "height": 82,
+      "label": "Un dossier lié à cette entrée",
+      "tag": "SELECT"
+    }
+  ],
+  "documentWidth": 320,
+  "reduce": true
+}

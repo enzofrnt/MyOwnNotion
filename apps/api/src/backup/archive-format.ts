@@ -623,6 +623,13 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
         canonicalStructuredDataString({
           databases: canonical.databases as never[],
           databaseEntries: canonical.databaseEntries as never[],
+          ...(!Array.isArray((canonical as Record<string, unknown>)["databasePresentations"])
+            ? {}
+            : {
+                databasePresentations: (canonical as Record<string, unknown>)[
+                  "databasePresentations"
+                ] as never[],
+              }),
         }),
         "utf8",
       ),

@@ -171,4 +171,19 @@ describe("local HTTPS development stack", () => {
     expect(caddyfile).not.toContain("redir https://localhost:8443");
     expect(caddyfile).toContain("http://localhost:8080");
   });
+
+  it("keeps idle HMR connections open while retaining API transport deadlines", () => {
+    const apiProxyStart = caddyfile.indexOf("reverse_proxy api:3001");
+    const webProxyStart = caddyfile.indexOf("reverse_proxy web:5173");
+    expect(apiProxyStart).toBeGreaterThan(-1);
+    expect(webProxyStart).toBeGreaterThan(apiProxyStart);
+    const apiProxy = caddyfile.slice(apiProxyStart, caddyfile.indexOf("handle /mcp*"));
+    const webProxy = caddyfile.slice(webProxyStart);
+
+    // An idle Vite socket has no application frames to reset an I/O deadline.
+    // Closing it makes the client poll the healthy server and reload the page.
+    expect(webProxy).not.toMatch(/\b(?:read_timeout|write_timeout|stream_timeout)\b/);
+    expect(apiProxy).toMatch(/read_timeout\s+75s/);
+    expect(apiProxy).toMatch(/write_timeout\s+75s/);
+  });
 });

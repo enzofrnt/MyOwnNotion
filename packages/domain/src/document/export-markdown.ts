@@ -23,8 +23,6 @@ import {
   childrenOfV3,
   type Inline,
   type InlineV3,
-  isUnknownBlock,
-  isUnknownBlockV3,
   type Mark,
   type MarkV3,
 } from "./block.ts";
@@ -48,78 +46,18 @@ interface ListContext {
 }
 
 function renderBlock(block: Block, depth: number, lines: string[], list: ListContext): void {
-  const indent = "  ".repeat(depth);
-
-  if (isUnknownBlock(block)) {
-    // Labelled with the type so a reader can tell what they are looking at, and
-    // emitted in full so nothing is lost to a format that cannot hold it.
-    lines.push(`${indent}\`\`\`json unknown-block:${block.declaredType}`);
-    lines.push(`${indent}${JSON.stringify(block.raw, null, 2)}`);
-    lines.push(`${indent}\`\`\``);
-    lines.push("");
-    return;
-  }
-
-  switch (block.type) {
-    case "paragraph":
-      lines.push(indent + renderInline(block.content));
-      lines.push("");
-      break;
-
-    case "heading":
-      lines.push(`${indent}${"#".repeat(block.level)} ${renderInline(block.content)}`);
-      lines.push("");
-      break;
-
-    case "bulletedListItem":
-      lines.push(`${indent}- ${renderInline(block.content)}`);
-      renderChildren(block, depth, lines);
-      break;
-
-    case "numberedListItem":
-      // Numbering restarts per level: a nested list is its own sequence, which
-      // is what a reader expects and what a Markdown renderer will produce.
-      list.counter += 1;
-      lines.push(`${indent}${list.counter}. ${renderInline(block.content)}`);
-      renderChildren(block, depth, lines);
-      break;
-
-    case "checkbox":
-      lines.push(`${indent}- [${block.checked ? "x" : " "}] ${renderInline(block.content)}`);
-      renderChildren(block, depth, lines);
-      break;
-
-    case "quote":
-      lines.push(`${indent}> ${renderInline(block.content)}`);
-      renderChildren(block, depth, lines);
-      lines.push("");
-      break;
-
-    case "code":
-      lines.push(`${indent}\`\`\`${block.language ?? ""}`);
-      for (const line of block.text.split("\n")) {
-        lines.push(indent + line);
-      }
-      lines.push(`${indent}\`\`\``);
-      lines.push("");
-      break;
-
-    case "divider":
-      lines.push(`${indent}---`);
-      lines.push("");
-      break;
-  }
+  renderCommonBlock(
+    block,
+    depth,
+    lines,
+    list,
+    () => ("content" in block ? renderInline(block.content) : ""),
+    () => renderChildren(block, depth, lines),
+  );
 }
 
 function renderChildren(block: Block, depth: number, lines: string[]): void {
-  const children = childrenOf(block);
-  if (children.length === 0) {
-    return;
-  }
-  const nested: ListContext = { counter: 0 };
-  for (const child of children) {
-    renderBlock(child, depth + 1, lines, nested);
-  }
+  renderNestedBlocks(childrenOf(block), depth, lines, renderBlock);
 }
 
 function renderInline(content: readonly Inline[]): string {
@@ -147,7 +85,7 @@ function renderNode(node: Inline): string {
   return wrapLink(text, marks);
 }
 
-function wrapLink(text: string, marks: readonly Mark[]): string {
+function wrapLink(text: string, marks: readonly (Mark | MarkV3)[]): string {
   const link = marks.find((mark): mark is Extract<Mark, { type: "link" }> => mark.type === "link");
   if (link !== undefined) {
     return `[${text}](${link.href})`;
@@ -180,47 +118,18 @@ function renderBlockV3(
   list: ListContext,
 ): void {
   const indent = "  ".repeat(depth);
-  if (isUnknownBlockV3(block)) {
-    lines.push(`${indent}\`\`\`json unknown-block:${block.declaredType}`);
-    lines.push(`${indent}${JSON.stringify(block.raw, null, 2)}`);
-    lines.push(`${indent}\`\`\``);
-    lines.push("");
+  if (
+    renderCommonBlock(
+      block,
+      depth,
+      lines,
+      list,
+      () => ("content" in block ? renderInlineV3(block.content) : ""),
+      () => renderChildrenV3(block, depth, lines),
+    )
+  )
     return;
-  }
-
   switch (block.type) {
-    case "paragraph":
-      lines.push(indent + renderInlineV3(block.content), "");
-      break;
-    case "heading":
-      lines.push(`${indent}${"#".repeat(block.level)} ${renderInlineV3(block.content)}`, "");
-      break;
-    case "bulletedListItem":
-      lines.push(`${indent}- ${renderInlineV3(block.content)}`);
-      renderChildrenV3(block, depth, lines);
-      break;
-    case "numberedListItem":
-      list.counter += 1;
-      lines.push(`${indent}${list.counter}. ${renderInlineV3(block.content)}`);
-      renderChildrenV3(block, depth, lines);
-      break;
-    case "checkbox":
-      lines.push(`${indent}- [${block.checked ? "x" : " "}] ${renderInlineV3(block.content)}`);
-      renderChildrenV3(block, depth, lines);
-      break;
-    case "quote":
-      lines.push(`${indent}> ${renderInlineV3(block.content)}`);
-      renderChildrenV3(block, depth, lines);
-      lines.push("");
-      break;
-    case "code":
-      lines.push(`${indent}\`\`\`${block.language ?? ""}`);
-      lines.push(...block.text.split("\n").map((line) => indent + line));
-      lines.push(`${indent}\`\`\``, "");
-      break;
-    case "divider":
-      lines.push(`${indent}---`, "");
-      break;
     case "toggle":
       lines.push(
         `${indent}<details>`,
@@ -260,8 +169,7 @@ function renderBlockV3(
 }
 
 function renderChildrenV3(block: CanonicalBlockV3, depth: number, lines: string[]): void {
-  const nested: ListContext = { counter: 0 };
-  for (const child of childrenOfV3(block)) renderBlockV3(child, depth + 1, lines, nested);
+  renderNestedBlocks(childrenOfV3(block), depth, lines, renderBlockV3);
 }
 
 function escapeTableCell(value: string): string {
@@ -311,7 +219,7 @@ function renderNodeV3(node: InlineV3): string {
   text = wrapColorV3(text, marks, "textColor", "data-text-color");
   text = wrapColorV3(text, marks, "backgroundColor", "data-background-color");
   text = wrapUnknownMarksV3(text, marks);
-  return wrapLinkV3(text, marks);
+  return wrapLink(text, marks);
 }
 
 function wrapColorV3(
@@ -344,13 +252,85 @@ function wrapUnknownMarksV3(text: string, marks: readonly MarkV3[]): string {
     );
 }
 
-function wrapLinkV3(text: string, marks: readonly MarkV3[]): string {
-  const external = marks.find(
-    (mark): mark is Extract<MarkV3, { type: "link" }> => mark.type === "link",
-  );
-  if (external !== undefined) return `[${text}](${external.href})`;
-  const internal = marks.find(
-    (mark): mark is Extract<MarkV3, { type: "pageLink" }> => mark.type === "pageLink",
-  );
-  return internal === undefined ? text : `[${text}](myownnotion://page/${internal.targetItemId})`;
+function renderCommonBlock(
+  block: Block | CanonicalBlockV3,
+  depth: number,
+  lines: string[],
+  list: ListContext,
+  content: () => string,
+  children: () => void,
+): boolean {
+  const indent = "  ".repeat(depth);
+
+  if (block.type === "unknown") {
+    // Labelled with the type so a reader can tell what they are looking at, and
+    // emitted in full so nothing is lost to a format that cannot hold it.
+    lines.push(`${indent}\`\`\`json unknown-block:${block.declaredType}`);
+    lines.push(`${indent}${JSON.stringify(block.raw, null, 2)}`);
+    lines.push(`${indent}\`\`\``);
+    lines.push("");
+    return true;
+  }
+
+  switch (block.type) {
+    case "paragraph":
+      lines.push(indent + content());
+      lines.push("");
+      break;
+
+    case "heading":
+      lines.push(`${indent}${"#".repeat(block.level)} ${content()}`);
+      lines.push("");
+      break;
+
+    case "bulletedListItem":
+      lines.push(`${indent}- ${content()}`);
+      children();
+      break;
+
+    case "numberedListItem":
+      // Numbering restarts per level: a nested list is its own sequence, which
+      // is what a reader expects and what a Markdown renderer will produce.
+      list.counter += 1;
+      lines.push(`${indent}${list.counter}. ${content()}`);
+      children();
+      break;
+
+    case "checkbox":
+      lines.push(`${indent}- [${block.checked ? "x" : " "}] ${content()}`);
+      children();
+      break;
+
+    case "quote":
+      lines.push(`${indent}> ${content()}`);
+      children();
+      lines.push("");
+      break;
+
+    case "code":
+      lines.push(`${indent}\`\`\`${block.language ?? ""}`);
+      for (const line of block.text.split("\n")) {
+        lines.push(indent + line);
+      }
+      lines.push(`${indent}\`\`\``);
+      lines.push("");
+      break;
+
+    case "divider":
+      lines.push(`${indent}---`);
+      lines.push("");
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+function renderNestedBlocks<T>(
+  children: readonly T[],
+  depth: number,
+  lines: string[],
+  render: (block: T, depth: number, lines: string[], list: ListContext) => void,
+): void {
+  const nested: ListContext = { counter: 0 };
+  for (const child of children) render(child, depth + 1, lines, nested);
 }

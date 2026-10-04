@@ -32,7 +32,7 @@ COPY packages/domain/package.json packages/domain/
 COPY packages/graph/package.json packages/graph/
 COPY packages/page-state/package.json packages/page-state/
 COPY packages/test-utils/package.json packages/test-utils/
-COPY scripts/ci/check-toolchain.ts scripts/ci/
+COPY scripts/ci/check-toolchain.ts scripts/ci/tracked-files.ts scripts/ci/
 
 RUN --mount=type=cache,id=bun-install,target=/root/.bun/install/cache \
     bun ci

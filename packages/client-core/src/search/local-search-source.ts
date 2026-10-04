@@ -152,7 +152,7 @@ export class LocalSearchSource {
     active: ReadonlyMap<Uuid, ProjectedItem>,
   ): Promise<ReadonlyMap<Uuid, readonly SearchPropertyText[]>> {
     if (this.#databases === undefined) return new Map();
-    const storedEntries = await this.#databases.db.databaseEntries.toArray();
+    const storedEntries = await this.#databases.db.databaseEntryPairs.toArray();
     const definitionByDatabase = new Map<
       Uuid,
       Awaited<ReturnType<LocalDatabaseRepository["getDatabase"]>>
@@ -248,7 +248,7 @@ export class LocalSearchSource {
   async read(itemIds: readonly Uuid[], sourceVersion: number): Promise<LocalSearchEntry[]> {
     const requested = new Set(itemIds);
     if (this.#databases !== undefined && itemIds.length > 0) {
-      const dependentEntries = await this.#databases.db.databaseEntries
+      const dependentEntries = await this.#databases.db.databaseEntryPairs
         .where("databaseId")
         .anyOf(itemIds)
         .toArray();

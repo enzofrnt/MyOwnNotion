@@ -21,7 +21,9 @@ import {
   canonicalLineageString,
   type ExportedDatabase,
   type ExportedDatabaseEntry,
+  type ExportedDatabasePresentation,
   type ExportedItem,
+  ownedSourceIdFromItemId,
   type RevisionHeader,
   type Uuid,
 } from "@myownnotion/domain";
@@ -101,6 +103,7 @@ export async function clearWorkspaceForRestore(tx: Transaction, workspaceId: Uui
   await tx.execute(sql`DELETE FROM exports WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM relationships WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM database_entries WHERE workspace_id = ${workspaceId}`);
+  await tx.execute(sql`DELETE FROM database_presentations WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM databases WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM file_usages WHERE used_by_item_id IN
     (SELECT id FROM items WHERE workspace_id = ${workspaceId})`);
@@ -135,7 +138,28 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
   const pages: Array<{ id: Uuid; body: unknown }> = [];
   const itemsById = new Map<Uuid, ExportedItem>();
   const restoredDatabases = new Map<Uuid, ExportedDatabase>();
-  const restoredEntries = new Map<Uuid, ExportedDatabaseEntry>();
+  const restoredPresentations = new Map<Uuid, ExportedDatabasePresentation>();
+  const restoredEntries = new Map<string, ExportedDatabaseEntry>();
+  const writeRevisionFields = async (
+    revisionId: Uuid,
+    fields: Record<string, unknown>,
+  ): Promise<void> => {
+    const [row] = await options.tx
+      .select({ snapshot: schema.revisions.snapshot })
+      .from(schema.revisions)
+      .where(eq(schema.revisions.id, revisionId))
+      .limit(1);
+    const existing =
+      (row?.snapshot as Record<string, unknown> | null) ??
+      (await options.protectedContent?.readRevisionSnapshot(options.tx, revisionId)) ??
+      {};
+    const snapshot = { ...existing, ...fields };
+    await options.tx
+      .update(schema.revisions)
+      .set({ snapshot: options.protectedContent === undefined ? snapshot : null })
+      .where(eq(schema.revisions.id, revisionId));
+    await options.protectedContent?.writeRevisionSnapshot(options.tx, { revisionId, snapshot });
+  };
   const pageOperationArchive =
     options.pageOperationCrypto === undefined
       ? null
@@ -315,6 +339,7 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       restoredDatabases.set(database.databaseId, database);
       await options.tx.insert(schema.databases).values({
         itemId: database.databaseId,
+        sourceId: database.sourceId ?? ownedSourceIdFromItemId(database.databaseId),
         definitionRevisionId: database.definitionRevisionId ?? journalItem.currentRevisionId,
         workspaceId: options.workspaceId,
         definitionVersion: database.definitionVersion,
@@ -326,18 +351,37 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       });
     },
 
+    writeDatabasePresentation: async (raw) => {
+      const row = raw as ExportedDatabasePresentation;
+      const item = itemsById.get(row.containerItemId);
+      if (item === undefined || (item.kind !== "database" && item.kind !== "database_view")) {
+        throw new Error("a restored presentation has no container");
+      }
+      restoredPresentations.set(row.containerItemId, row);
+      await options.tx.insert(schema.databasePresentations).values({
+        itemId: row.containerItemId,
+        workspaceId: options.workspaceId,
+        presentationRevisionId: row.presentationRevisionId,
+        presentationVersion: row.presentationVersion,
+      });
+    },
+
     writeDatabaseEntry: async (raw) => {
       const entry = raw as ExportedDatabaseEntry;
       if (!itemsById.has(entry.entryId) || !restoredDatabases.has(entry.databaseId)) {
         throw new Error("a restored database entry has no page or database");
       }
-      restoredEntries.set(entry.entryId, entry);
+      restoredEntries.set(`${entry.databaseId}:${entry.entryId}`, entry);
+      const restoredDatabase = restoredDatabases.get(entry.databaseId);
       await options.tx.insert(schema.databaseEntries).values({
         entryItemId: entry.entryId,
         databaseId: entry.databaseId,
+        sourceId:
+          entry.sourceId ?? restoredDatabase?.sourceId ?? ownedSourceIdFromItemId(entry.databaseId),
         workspaceId: options.workspaceId,
         valueVersion: entry.valueVersion,
         addedRevisionId: entry.addedRevisionId,
+        valueRevisionId: entry.valueRevisionId ?? entry.addedRevisionId,
       });
       await options.protectedContent?.writeDatabaseEntryValues(options.tx, {
         entryId: entry.entryId,
@@ -401,14 +445,28 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       }
       for (const [itemId, item] of itemsById) {
         const database = restoredDatabases.get(itemId);
-        const entry = restoredEntries.get(itemId);
-        if (database === undefined && entry === undefined && options.protectedContent === undefined)
+        const presentation = restoredPresentations.get(itemId);
+        const activeParent = item.placements.find(
+          (placement) => placement.kind === "hierarchy",
+        )?.parentItemId;
+        const entry =
+          activeParent === null || activeParent === undefined
+            ? undefined
+            : restoredEntries.get(`${activeParent}:${itemId}`);
+        if (
+          database === undefined &&
+          presentation === undefined &&
+          entry === undefined &&
+          options.protectedContent === undefined
+        )
           continue;
         let snapshot = await buildItemSnapshot(options.tx, itemId);
         if (database !== undefined) {
           snapshot["databaseDefinition"] = database.definition;
           snapshot["databaseDefinitionVersion"] = database.definitionVersion;
         }
+        if (presentation !== undefined)
+          snapshot["databasePresentation"] = presentation.presentation;
         if (entry !== undefined) {
           snapshot["databaseId"] = entry.databaseId;
           snapshot["databaseEntryValues"] = entry.values;
@@ -433,21 +491,24 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
           database?.definitionRevisionId !== undefined &&
           database.definitionRevisionId !== item.currentRevisionId
         ) {
-          const sourceSnapshot = {
+          await writeRevisionFields(database.definitionRevisionId, {
             databaseDefinition: database.definition,
             databaseDefinitionVersion: database.definitionVersion,
-          };
-          await options.tx
-            .update(schema.revisions)
-            .set({ snapshot: options.protectedContent === undefined ? sourceSnapshot : null })
-            .where(eq(schema.revisions.id, database.definitionRevisionId));
-          await options.protectedContent?.writeRevisionSnapshot(options.tx, {
-            revisionId: database.definitionRevisionId,
-            snapshot: sourceSnapshot,
           });
         }
         if (options.protectedContent !== undefined)
           await protectCurrentItem(options.tx, options.protectedContent, itemId);
+      }
+      for (const presentation of restoredPresentations.values()) {
+        await writeRevisionFields(presentation.presentationRevisionId, {
+          databasePresentation: presentation.presentation,
+        });
+      }
+      for (const entry of restoredEntries.values()) {
+        await writeRevisionFields(entry.valueRevisionId ?? entry.addedRevisionId, {
+          databaseEntryValues: entry.values,
+          databaseEntryValueVersion: entry.valueVersion,
+        });
       }
     },
   };

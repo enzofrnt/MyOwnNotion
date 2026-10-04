@@ -1,5 +1,11 @@
 # Implementation Plan: Bases de données et tâches structurées
 
+**Évolution 029 (2026-09-27)** : ce plan décrit l'architecture historique de
+la livraison 009. La [spécification 029](../029-database-pages-views/spec.md)
+remplace ses choix sur la source indépendante, les emplacements et les entrées
+sans parent ; un nouveau plan sera établi avant toute implémentation de la
+refonte. Les choix techniques ci-dessous ne prévalent pas sur cette direction.
+
 **Évolution 026 (2026-09-05)** : le [plan des bases réutilisables](../026-linked-databases/plan.md)
 remplace le couplage page-capacité et la suppression des entrées par appartenance.
 Les sources ont une révision indépendante et des emplacements aux vues propres.

@@ -5,6 +5,7 @@ import type {
   Uuid,
 } from "@myownnotion/domain";
 import { useState } from "react";
+import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
 function activeProperties(
@@ -41,7 +42,8 @@ function RoleSelect({
   return (
     <label className="database-field" htmlFor={id}>
       {label}
-      <select
+      <NativeSelect
+        density="compact"
         id={id}
         value={value ?? ""}
         required={required}
@@ -60,7 +62,7 @@ function RoleSelect({
             {property.name}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </label>
   );
 }

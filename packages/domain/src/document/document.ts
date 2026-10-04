@@ -181,23 +181,7 @@ function marksKey(marks: readonly Mark[] | undefined): string {
  * position, a mark applied and removed — and none of those reasons are content.
  */
 export function normaliseInline(content: readonly Inline[]): readonly Inline[] {
-  const result: Inline[] = [];
-  for (const node of content) {
-    if (node.text === "") {
-      continue;
-    }
-    const marks = normaliseMarks(node.marks);
-    const previous = result[result.length - 1];
-    if (previous !== undefined && marksKey(previous.marks) === marksKey(marks)) {
-      result[result.length - 1] =
-        previous.marks === undefined
-          ? { text: previous.text + node.text }
-          : { text: previous.text + node.text, marks: previous.marks };
-      continue;
-    }
-    result.push(marks === undefined ? { text: node.text } : { text: node.text, marks });
-  }
-  return result;
+  return coalesceInlineRuns(content, normaliseMarks, marksKey);
 }
 
 /** Normalises one block and, recursively, its children. */
@@ -335,7 +319,10 @@ function isUnknownMarkV3(mark: MarkV3): mark is Extract<MarkV3, { type: "unknown
   return mark.type === "unknown";
 }
 
-function markKeyV3(mark: MarkV3): string {
+export function markKeyV3(
+  mark: MarkV3,
+  unknownKey: (value: JsonValue) => string = opaqueJsonKey,
+): string {
   switch (mark.type) {
     case "link":
       return `link:${mark.href}`;
@@ -345,7 +332,7 @@ function markKeyV3(mark: MarkV3): string {
     case "backgroundColor":
       return `${mark.type}:${mark.color}`;
     case "unknown":
-      return `unknown:${opaqueJsonKey(mark.raw)}`;
+      return `unknown:${unknownKey(mark.raw)}`;
     default:
       return mark.type;
   }
@@ -393,25 +380,11 @@ export function normaliseMarksV3(
 }
 
 function marksKeyV3(marks: readonly MarkV3[] | undefined): string {
-  return JSON.stringify(marks?.map(markKeyV3) ?? []);
+  return JSON.stringify(marks?.map((mark) => markKeyV3(mark)) ?? []);
 }
 
 export function normaliseInlineV3(content: readonly InlineV3[]): readonly InlineV3[] {
-  const result: InlineV3[] = [];
-  for (const node of content) {
-    if (node.text.length === 0) continue;
-    const marks = normaliseMarksV3(node.marks);
-    const previous = result.at(-1);
-    if (previous !== undefined && marksKeyV3(previous.marks) === marksKeyV3(marks)) {
-      result[result.length - 1] =
-        previous.marks === undefined
-          ? { text: previous.text + node.text }
-          : { text: previous.text + node.text, marks: previous.marks };
-      continue;
-    }
-    result.push(marks === undefined ? { text: node.text } : { text: node.text, marks });
-  }
-  return result;
+  return coalesceInlineRuns(content, normaliseMarksV3, marksKeyV3);
 }
 
 function normaliseChildrenV3(
@@ -462,6 +435,7 @@ export function normaliseBlockV3(block: CanonicalBlockV3): CanonicalBlockV3 {
     case "image":
     case "fileEmbed":
     case "embed":
+    case "databaseView":
       return block;
   }
 }
@@ -641,6 +615,14 @@ function serialiseBlockV3(block: CanonicalBlockV3, canonicalOpaque: boolean): Js
         caption: block.caption,
       };
       break;
+    case "databaseView":
+      known = {
+        type: block.type,
+        id: block.id,
+        containerItemId: block.containerItemId,
+        viewId: block.viewId,
+      };
+      break;
   }
   return appendExtraPropertiesV3(
     known,
@@ -708,4 +690,26 @@ export function collectDocumentIdsV3(document: BlockDocumentV3): string[] {
   };
   visit(document.blocks);
   return ids;
+}
+
+function coalesceInlineRuns<M>(
+  content: readonly { readonly text: string; readonly marks?: readonly M[] }[],
+  normalizeMarks: (marks: readonly M[] | undefined) => readonly M[] | undefined,
+  key: (marks: readonly M[] | undefined) => string,
+): readonly { readonly text: string; readonly marks?: readonly M[] }[] {
+  const result: { readonly text: string; readonly marks?: readonly M[] }[] = [];
+  for (const node of content) {
+    if (node.text.length === 0) continue;
+    const marks = normalizeMarks(node.marks);
+    const previous = result.at(-1);
+    if (previous !== undefined && key(previous.marks) === key(marks)) {
+      result[result.length - 1] =
+        previous.marks === undefined
+          ? { text: previous.text + node.text }
+          : { text: previous.text + node.text, marks: previous.marks };
+      continue;
+    }
+    result.push(marks === undefined ? { text: node.text } : { text: node.text, marks });
+  }
+  return result;
 }

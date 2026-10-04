@@ -319,3 +319,64 @@ reste donc en attente de renouvellement et ne constitue pas une preuve de
 réussite de la CI `main` ni de publication des images associées. T051 et T052
 sont clôturées par les preuves techniques ci-dessus; T053 reste explicitement
 ouverte jusqu'à la réussite de la CI `main` et à la vérification des images.
+
+## Maintenance hot reload — 2026-10-03 (US1, FR-006, T054–T055)
+
+La correction est vérifiée sur la stack locale `myownnotion-ui-dev`, issue du
+checkout courant, via `http://localhost:8080`. Elle concrétise la section 38
+du canevas produit. Le périmètre spec / plan / tâches est cohérent : stabilité
+au repos, mises à jour à chaud conservées et aucune modification des données.
+
+### Diagnostic avant correction
+
+- Aucune édition de source ni activité HMR dans les logs du serveur pendant
+  l'observation au repos ; aucun redémarrage de conteneur.
+- Le navigateur journalise la perte de connexion Vite à `09:13:41.480`,
+  `09:14:56.550` puis `09:16:11.625` UTC, soit des intervalles de 75,070 et
+  75,075 secondes, suivis d'une nouvelle connexion.
+- La métrique CDP `NavigationStart` passe de `68445.605821` à `68520.674363`,
+  soit un véritable rechargement du document après 75,069 secondes.
+- La route `web:5173` du proxy dev applique des délais de lecture et écriture
+  de 75 secondes. Le client Vite installé (`7.3.6`) appelle `location.reload()`
+  après la perte de WebSocket et le premier ping réussi du serveur.
+
+Les [réglages officiels du proxy Caddy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)
+confirment que les délais I/O et la durée maximale des flux sont sans limite
+par défaut. Retirer uniquement les délais de la route Web conserve le HMR
+silencieux au repos ; les limites API de 75 secondes restent en place.
+
+### Contrôles ciblés et application
+
+- Le nouveau contrat échoue avant correction sur le délai Web de 75 secondes
+  (10 succès, 1 échec attendu).
+- Après correction : `bun run --bun vitest run --project workspace-contract
+  tests/contract/compose-dev.spec.ts tests/contract/realtime-proxy.spec.ts` —
+  2 suites, 16 tests réussis.
+- `bun run --bun biome check tests/contract/compose-dev.spec.ts` réussit.
+- `caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile` réussit
+  avec l'image maintenue `caddy:2.10.2-alpine`.
+- Seul `caddy reload` est exécuté sur la stack existante, à `09:16:24` UTC.
+  La configuration réellement chargée comporte un transport Web par défaut
+  et aucun `stream_timeout`, sur les routes HTTP et HTTPS ; les transports
+  `/v1` conservent 75 secondes en lecture et écriture.
+
+### Vérification réelle après correction
+
+- Observation au repos de `09:16:41.440` à `09:19:34.636` UTC, soit 173,196
+  secondes : `NavigationStart` reste `68608.643993`, aucune nouvelle perte
+  de connexion Vite ni reconnexion. Les deux anciens cycles de 75 secondes
+  passent sans rechargement du document.
+- Ajout temporaire d'une propriété CSS inutilisée à la racine dans
+  `apps/web/src/global.css` : Vite journalise `hot updated: /src/global.css`
+  à `09:19:34.973` UTC ; le style calculé expose la valeur attendue `1`.
+- Retrait de la probe : seconde mise à jour à chaud à `09:19:52.823` UTC ;
+  le style calculé ne contient plus la propriété. `NavigationStart` reste
+  identique pendant l'aller et le retour. Le fichier CSS retrouve exactement
+  son contenu initial et ne figure pas dans le diff final.
+- `git diff --check` réussit. Aucun contenu utilisateur, volume, navigateur,
+  origine, certificat ou service worker n'est réinitialisé.
+
+T054 et T055 sont clôturées par ces preuves locales. La maintenance ne modifie
+pas l'interface et n'ajoute aucun mécanisme de reconnexion ou timer au client.
+Les E2E et la porte complète restent reportés à la demande de l'utilisateur.
+Aucun push, reset de données ou renouvellement de la preuve T053 n'est réalisé.

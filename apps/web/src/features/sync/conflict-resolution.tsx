@@ -38,7 +38,7 @@ import {
 } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
-import { AsyncState, Button } from "../../ui/primitives/index.ts";
+import { AsyncState, Button, CodePreview, ReadTable, Section } from "../../ui/primitives/index.ts";
 
 /** Shared side vocabulary for document and structured conflict resolvers. */
 export type ConflictSide = "local" | "remote";
@@ -234,7 +234,11 @@ export function ConflictResolution({
 
   if (unavailable !== null) {
     return (
-      <section className="panel" aria-label="Résoudre ce conflit" data-testid="conflict-resolution">
+      <Section
+        className="conflict-resolution"
+        aria-label="Résoudre ce conflit"
+        data-testid="conflict-resolution"
+      >
         <h2>Résoudre ce conflit</h2>
         <AsyncState
           compact
@@ -245,7 +249,7 @@ export function ConflictResolution({
         <Button type="button" onClick={onCancel} data-testid="resolution-close">
           Fermer
         </Button>
-      </section>
+      </Section>
     );
   }
 
@@ -254,7 +258,11 @@ export function ConflictResolution({
   }
 
   return (
-    <section className="panel" aria-label="Résoudre ce conflit" data-testid="conflict-resolution">
+    <Section
+      className="conflict-resolution"
+      aria-label="Résoudre ce conflit"
+      data-testid="conflict-resolution"
+    >
       <h2>Résoudre ce conflit</h2>
       <p className="muted">
         Ces parties ont changé à deux endroits en même temps. Choisissez quoi conserver pour chacune
@@ -262,7 +270,11 @@ export function ConflictResolution({
         et les deux versions restent ensuite dans l’historique.
       </p>
 
-      <table className="conflict-columns" data-testid="conflict-columns">
+      <ReadTable
+        scrollLabel="Comparer les versions de cette page"
+        className="conflict-columns"
+        data-testid="conflict-columns"
+      >
         <caption className="muted">
           Chaque ligne représente une partie modifiée aux deux endroits.
         </caption>
@@ -285,20 +297,20 @@ export function ConflictResolution({
                     choosing between unlabelled versions is worse than not
                     choosing. */}
                 <td data-column="Cet appareil">
-                  <pre data-testid={`conflict-local-${id}`}>
+                  <CodePreview prose data-testid={`conflict-local-${id}`}>
                     {blockAsText(findBlock(prepared.outcome.local, id)) || "(supprimé ici)"}
-                  </pre>
+                  </CodePreview>
                 </td>
                 <td data-column="Version commune de départ">
-                  <pre data-testid={`conflict-ancestor-${id}`}>
+                  <CodePreview prose data-testid={`conflict-ancestor-${id}`}>
                     {blockAsText(findBlock(prepared.outcome.ancestor, id)) ||
                       "(n’existait pas encore)"}
-                  </pre>
+                  </CodePreview>
                 </td>
                 <td data-column="L’autre appareil">
-                  <pre data-testid={`conflict-remote-${id}`}>
+                  <CodePreview prose data-testid={`conflict-remote-${id}`}>
                     {blockAsText(findBlock(prepared.outcome.remote, id)) || "(supprimé là-bas)"}
-                  </pre>
+                  </CodePreview>
                 </td>
                 <td data-column="Conserver">
                   {/* A radio group per row, labelled by the row, so the choice
@@ -332,10 +344,10 @@ export function ConflictResolution({
             );
           })}
         </tbody>
-      </table>
+      </ReadTable>
 
       <h3>Ordre du contenu enregistré</h3>
-      <ol data-testid="conflict-order">
+      <ol className="conflict-resolution__order" data-testid="conflict-order">
         {(result?.blocks ?? []).map((block, index) => (
           <li key={block.id} data-testid={`conflict-order-${block.id}`}>
             <span>{blockAsText(block) || "(vide)"}</span>
@@ -366,18 +378,19 @@ export function ConflictResolution({
       <h3>Vérification avant enregistrement</h3>
       {/* The whole result, not a summary of the choices. A summary is a claim
           about what the choices produce; this is the thing itself. */}
-      <pre data-testid="conflict-review">
+      <CodePreview prose data-testid="conflict-review">
         {result === null
           ? ""
           : exportMarkdown(result).trim() || "(la page enregistrée serait vide)"}
-      </pre>
+      </CodePreview>
 
       {failure !== null ? (
         <AsyncState compact kind="error" description={failure} testId="resolution-failure" />
       ) : null}
 
-      <div className="tree-actions">
+      <div className="ui-actions">
         <Button
+          variant="primary"
           type="button"
           data-testid="conflict-commit"
           disabled={saving}
@@ -389,6 +402,6 @@ export function ConflictResolution({
           Plus tard
         </Button>
       </div>
-    </section>
+    </Section>
   );
 }

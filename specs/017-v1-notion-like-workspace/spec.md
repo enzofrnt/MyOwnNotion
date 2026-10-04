@@ -781,6 +781,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
   glisser-déposer.
 - **FR-012**: Le bloc actif MUST proposer une poignée et un ajout adjacent sans
   afficher en permanence les commandes de tous les blocs.
+  La surface de la poignée suit les proportions de ses six points, avec le
+  même espace visible sur les quatre côtés et un intervalle avant le texte.
+  Les boutons sont centrés face à la première ligne de texte, y compris
+  pour les titres dont la taille et l'espacement diffèrent.
 - **FR-013**: Le glisser-déposer de blocs MUST afficher la destination exacte,
   prendre en charge le défilement automatique et préserver l'ordre et
   l'identité des blocs déplacés.
@@ -791,10 +795,15 @@ en charge, une fois sans pointeur puis une fois au toucher.
   formatage proche de la sélection sans masquer le texte ni déplacer la page.
 - **FR-016**: L'éditeur MUST prendre en charge gras, italique, souligné, barré,
   code en ligne, lien externe, lien interne, couleur de texte et surlignage.
-- **FR-017**: L'éditeur MUST prendre en charge au minimum paragraphes, trois
+- **FR-017**: L'éditeur MUST prendre en charge au minimum paragraphes, quatre
   niveaux de titres, listes à puces et numérotées, tâches, citations, code,
   séparateurs, sections repliables, encadrés, tableaux simples, images,
   fichiers et contenus intégrés autorisés.
+- **FR-100**: Dès qu'une page contient plus d'un titre, un sommaire MUST
+  apparaître au bord droit de l'écran : des traits discrets au repos, et au
+  survol ou au focus la liste des titres, indentée selon leur niveau, pour
+  naviguer vers le titre choisi. Le titre en cours de lecture MUST être
+  distingué. Moins de deux titres MUST masquer ce sommaire.
 - **FR-018**: Le propriétaire MUST pouvoir sélectionner un ou plusieurs blocs
   contigus puis les déplacer, dupliquer ou supprimer comme une seule opération
   annulable.
@@ -888,31 +897,43 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **FR-091**: Les actions contextuelles d'une page MUST apparaître dans l'ordre
   pièces jointes, création enfant, menu complémentaire ; un dossier MUST
   conserver l'ordre création enfant, menu complémentaire. La création enfant
-  MUST révéler dans la ligne des choix explicites page et dossier, sans déplacer
+  MUST révéler dans la ligne des choix explicites page, dossier et base lorsque
+  le parent les autorise, sans déplacer
   le titre ni modifier la taille de la ligne, et son bouton `+` MUST devenir la
   commande de fermeture dans la même surface visuelle. Cette surface MUST
   rester contenue dans les limites supérieure, inférieure et droite de la ligne
-  sélectionnée ; elle MAY recouvrir la fin du titre vers la gauche et MUST
+  sélectionnée ; elle MUST céder la place en tronquant le titre vers la gauche et MUST
   prendre temporairement la place de la commande de pièces jointes comme dans
-  la référence versionnée. Sur desktop, elle MUST contenir trois commandes de
-  28 px et une respiration uniforme de 2 px autour et entre ces commandes, soit
-  une enveloppe de 92 × 32 px. L'arrondi des commandes MUST rester concentrique
+  la référence versionnée. Sa largeur MUST suivre le nombre de commandes
+  effectivement disponibles et les tokens compacts du système UI. Au tactile,
+  chaque commande MUST disposer d'une cible de 44 px sans chevauchement.
+  L'arrondi des commandes MUST rester concentrique
   avec celui de l'enveloppe : rayon interne = rayon externe − respiration. Quand
   la surface s'étend, le titre MUST céder la place et tronquer avec des points
   de suspension au même rythme, plutôt que d'être recouvert. Son fond MUST être
   visible et distinct de la ligne sélectionnée ; elle MUST rester plate, sans
-  ombre extérieure ni fond de popover détaché, et ses trois commandes MUST être
+  ombre extérieure ni fond de popover détaché, et ses commandes MUST être
   des enfants du même groupe visuel. Un pointeur hors de cette surface MUST la
   refermer, comme Échap.
 - **FR-092**: Le panneau de pièces jointes ouvert depuis une page MUST prolonger
-  visuellement sa ligne sélectionnée avec la même largeur, sans modifier la
+  visuellement sa ligne avec la même largeur, sans modifier la
   hauteur, la largeur ou la position de cette ligne. Il MUST afficher un en-tête
-  compact avec le nombre de fichiers puis des lignes nom/taille, ou exactement
-  un état vide compact ; il MUST conserver l'import et l'accès aux actions de
-  fichier sans transformer l'arborescence en panneau de gestion complet. Sa
+  compact avec un petit compteur puis des lignes nom/taille, ou exactement
+  un état vide compact ; il MUST refléter les fichiers et images du contenu
+  courant, une ligne par fichier, et conserver l'accès aux actions de fichier.
+  L'import MUST se faire dans la page, sans bouton d'ajout indépendant dans
+  cette liste. Les lignes MUST employer un trombone, avec un retrait léger
+  aligné à l'en-tête, sans transformer l'arborescence en panneau de gestion complet. Sa
   commande MUST employer l’icône trombone de la référence versionnée, avec une
   présence discrète au repos et un état explicite au survol, au focus ou quand
-  le panneau est ouvert. Les coins inférieurs de la ligne sélectionnée MUST
+  le panneau est ouvert, avec un badge de quantité petit et discret. Tant que le panneau est ouvert,
+  ses actions trombone, création et menu MUST rester visibles ensemble après
+  interaction ailleurs ; la création dépliée conserve sa place propre dans la
+  ligne. Ouvrir ou fermer ce panneau MUST éviter de recalculer les autres
+  lignes et éditeurs. Le trombone d'une autre page MUST ouvrir ses PJ sans
+  changer la page active ni ses onglets ; les inspections de lignes sont
+  indépendantes et MUST se fermer à la navigation vers une autre vue, sans effacer
+  les sessions d'édition. Les coins inférieurs de la ligne inspectée MUST
   rester plats tant que la hauteur restante dépasse deux rayons de cette ligne ;
   ils MUST alors retrouver leur arrondi pendant exactement le temps de
   fermeture encore dû, afin que l'arrondi et la hauteur finissent ensemble.
@@ -931,8 +952,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
   mêmes règles de validation que pour une page. La modification MUST utiliser
   les mutations d'item existantes et se refléter immédiatement dans toutes les
   représentations de cet item. Le chrome supérieur MUST rester compact, sans
-  second titre ni libellé de type. Le canevas d'une page ou d'un dossier MUST
-  afficher, juste au-dessus du grand titre et proche de l'emoji, un libellé
+  second titre ni libellé de type. Sur une page, un dossier ou une base, l'emoji
+  choisi MUST se placer immédiatement devant le grand titre et le décaler vers
+  la droite ; le retirer MUST rendre au titre sa place initiale. Le canevas
+  d'une page ou d'un dossier MUST afficher, proche de ce titre, un libellé
   discret « Page » ou « Dossier » précédé de la petite icône de type.
 - **FR-095**: Sur écran large, l’en-tête de la barre latérale MUST exposer une
   commande pour la masquer entièrement. Le contenu principal MUST récupérer
@@ -1420,3 +1443,9 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - Certification formelle WCAG, campagne VoiceOver ou prise en charge spécialisée
   des technologies d'assistance au-delà de l'ergonomie personnelle demandée :
   clavier, focus visible, pointeur et toucher restent obligatoires.
+
+### Présentation des entrées de base — revue 033
+
+Les pages/dossiers entrées utilisent l'en-tête canonique, le titre/icône éditables
+et la colonne de lecture partagés avec les autres pages. Leurs propriétés
+compactes précèdent le contenu, selon le canevas §14 et 033 FR-016.

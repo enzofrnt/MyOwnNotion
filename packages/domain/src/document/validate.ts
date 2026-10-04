@@ -29,6 +29,7 @@ import {
   type EmbedProvider,
   type Inline,
   type InlineV3,
+  isHeadingLevel,
   isKnownBlockType,
   isKnownBlockTypeV3,
   type JsonObject,
@@ -124,8 +125,8 @@ function parseBlock(value: JsonValue, path: string, problems: ValidationProblem[
 
     case "heading": {
       const level = value["level"];
-      if (level !== 1 && level !== 2 && level !== 3) {
-        problems.push({ path: `${path}.level`, message: "a heading level must be 1, 2, or 3" });
+      if (!isHeadingLevel(level)) {
+        problems.push({ path: `${path}.level`, message: "a heading level must be 1, 2, 3, or 4" });
         return null;
       }
       return { type: "heading", id, level, content: parseContent(value, path, problems) };
@@ -847,8 +848,8 @@ function parseBlockV3(
       return withExtras({ type: "paragraph", id, content: content() });
     case "heading": {
       const level = value["level"];
-      if (level !== 1 && level !== 2 && level !== 3) {
-        addProblem(context, `${path}.level`, "must be 1, 2, or 3");
+      if (!isHeadingLevel(level)) {
+        addProblem(context, `${path}.level`, "must be 1, 2, 3, or 4");
         return null;
       }
       return withExtras({ type: "heading", id, level, content: content() });
@@ -1032,6 +1033,16 @@ function parseBlockV3(
       const caption = parseNullableTextV3(value["caption"], `${path}.caption`, context);
       if (caption === undefined) return null;
       return withExtras({ type: "embed", id, provider, sourceUrl, caption });
+    }
+    case "databaseView": {
+      const containerItemId = parseUuidReferenceV3(
+        value["containerItemId"],
+        `${path}.containerItemId`,
+        context,
+      );
+      const viewId = parseUuidReferenceV3(value["viewId"], `${path}.viewId`, context);
+      if (containerItemId === null || viewId === null) return null;
+      return withExtras({ type: "databaseView", id, containerItemId, viewId });
     }
   }
 }

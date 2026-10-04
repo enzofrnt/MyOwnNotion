@@ -1,0 +1,59 @@
+{
+  "animation": "none",
+  "doc": 1280,
+  "reduced": true,
+  "states": [
+    {
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "kind": "loading"
+    },
+    {
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "kind": "empty"
+    },
+    {
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "kind": "unavailable"
+    },
+    {
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "kind": "offline"
+    },
+    {
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "kind": "error"
+    },
+    {
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "kind": "success"
+    },
+    {
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "kind": "conflict"
+    },
+    {
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "kind": "pending"
+    },
+    {
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "kind": "syncing"
+    },
+    {
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(242, 240, 235)",
+      "kind": "info"
+    }
+  ],
+  "theme": "dark",
+  "width": 1280
+}

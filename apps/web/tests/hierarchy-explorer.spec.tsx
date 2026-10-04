@@ -180,7 +180,7 @@ describe("hierarchy item identity geometry", () => {
       /\.workspace-navigation \.tree\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u,
     );
     expect(css).toMatch(
-      /\.workspace-navigation \.tree ul\s*\{[^}]*margin-left:\s*calc\(var\(--space-1\) \+ 0\.75rem\)/u,
+      /\.workspace-navigation \.tree ul\s*\{[^}]*margin-left:\s*calc\(var\(--ui-space-1\) \+ 0\.75rem\)/u,
     );
     expect(css).toMatch(/\.workspace-navigation \.tree ul\s*\{[^}]*gap:\s*var\(--tree-row-gap\)/u);
     expect(css).toMatch(
@@ -217,7 +217,7 @@ describe("hierarchy item identity geometry", () => {
     expect(css).toMatch(/@container tree-item \(max-width:\s*11rem\)/u);
     expect(css).toMatch(/@container tree-item \(max-width:\s*7\.5rem\)/u);
     expect(css).not.toMatch(
-      /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*border-color:\s*var\(--color-border\)/u,
+      /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*border-color:\s*var\(--ui-color-border\)/u,
     );
     expect(css).not.toMatch(
       /\.workspace-navigation \.tree-row\[aria-selected="true"\][^{]*width:\s*calc/u,

@@ -1,0 +1,617 @@
+/* Owner: features/knowledge-graph/knowledge-graph.css. See docs/design/ui-system.md before extending. */
+/* ---------------------------------------------------------------------------
+   Knowledge graph (feature 010)
+   ------------------------------------------------------------------------ */
+
+.knowledge-graph-inspector > header,
+.knowledge-graph-controls__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2, 0.5rem);
+  flex-wrap: wrap;
+}
+
+.knowledge-graph {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.knowledge-graph__stage {
+  position: relative;
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Quiet stage copy — never the orange/red Status banner (atelier UI). */
+.knowledge-graph__placeholder {
+  grid-area: 1 / 1;
+  z-index: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--ui-space-2, 0.5rem);
+  padding: var(--ui-space-6, 1.5rem);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+  line-height: 1.45;
+  text-align: center;
+  pointer-events: none;
+}
+
+.knowledge-graph__placeholder p {
+  margin: 0;
+  max-width: 22rem;
+}
+
+.knowledge-graph__placeholder p[data-muted] {
+  color: color-mix(in srgb, var(--ui-color-text-muted) 78%, transparent);
+  font-size: var(--ui-text-xs);
+}
+
+.knowledge-graph__placeholder .ui-button {
+  pointer-events: auto;
+}
+
+.knowledge-graph-canvas {
+  grid-area: 1 / 1;
+}
+
+.knowledge-graph-controls__grid > *,
+.knowledge-graph-inspector {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.knowledge-graph h2,
+.knowledge-graph h3,
+.knowledge-graph p,
+.knowledge-graph li,
+.knowledge-graph small,
+.knowledge-graph strong {
+  overflow-wrap: anywhere;
+}
+
+.knowledge-graph-inspector h2,
+.knowledge-graph-inspector h3,
+.knowledge-graph-controls__header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.knowledge-graph-coverage,
+.knowledge-graph__summary,
+.knowledge-graph__limit,
+.knowledge-graph-inspector p {
+  margin: 0;
+}
+
+.knowledge-graph__hud {
+  position: absolute;
+  top: var(--ui-space-2, 0.5rem);
+  right: var(--ui-space-2, 0.5rem);
+  z-index: 2;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.125rem;
+}
+
+.knowledge-graph__chrome-btn.ui-button,
+.knowledge-graph__chrome-btn.ui-popover__trigger {
+  --graph-chrome: 1.5rem;
+
+  position: relative;
+  width: var(--graph-chrome);
+  min-width: var(--graph-chrome);
+  min-height: var(--graph-chrome);
+  padding: 0;
+  color: var(--ui-color-text-muted);
+}
+
+.knowledge-graph__chrome-btn.ui-button:hover,
+.knowledge-graph__chrome-btn.ui-button[aria-expanded="true"],
+.knowledge-graph__chrome-btn.ui-popover__trigger:hover,
+.knowledge-graph__chrome-btn.ui-popover__trigger[aria-expanded="true"] {
+  color: var(--ui-color-text);
+}
+
+.knowledge-graph__chrome-btn .ui-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.knowledge-graph__chrome-btn[data-tone="warn"] {
+  color: var(--ui-color-warning);
+}
+
+.knowledge-graph__filters-toggle.ui-button {
+  position: relative;
+}
+
+.knowledge-graph__filter-count {
+  position: absolute;
+  top: -0.15rem;
+  right: -0.15rem;
+  display: inline-flex;
+  min-width: 0.85rem;
+  height: 0.85rem;
+  padding-inline: 0.15rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--ui-color-accent);
+  color: var(--ui-color-text-inverse);
+  font-size: 0.5625rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+/* Fixed width: the panel is anchored at its end edge, so any content-driven
+   width change (a value going from "0.5" to "0.55", a wrapping notice) moved
+   the whole panel — and the slider track — under the pointer mid-drag. */
+.knowledge-graph__status-panel {
+  display: grid;
+  gap: var(--ui-space-2, 0.5rem);
+  width: min(20rem, calc(100vw - 2rem));
+  max-width: none;
+  padding: var(--ui-space-3, 0.75rem);
+}
+
+.knowledge-graph__panel-note {
+  display: grid;
+  gap: var(--ui-space-2, 0.5rem);
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  line-height: 1.4;
+}
+
+.knowledge-graph__panel-note p {
+  margin: 0;
+}
+
+.knowledge-graph-forces {
+  display: grid;
+  gap: var(--ui-space-3, 0.75rem);
+  padding-top: var(--ui-space-2, 0.5rem);
+  border-top: 1px solid var(--ui-color-border);
+}
+
+.knowledge-graph-forces > summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.knowledge-graph-forces > summary::-webkit-details-marker {
+  display: none;
+}
+
+.knowledge-graph-forces > summary::after {
+  content: "▾";
+  float: right;
+  opacity: 0.7;
+}
+
+.knowledge-graph-forces:not([open]) > summary::after {
+  content: "▸";
+}
+
+.knowledge-graph-forces__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--ui-space-1, 0.25rem) var(--ui-space-3, 0.75rem);
+  align-items: center;
+}
+
+.knowledge-graph-forces__label {
+  grid-column: 1;
+  font-size: 0.8125rem;
+}
+
+.knowledge-graph-forces__value {
+  grid-column: 2;
+  min-width: 4ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8125rem;
+  opacity: 0.8;
+}
+
+.knowledge-graph-forces__row input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 1.25rem;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+}
+
+.knowledge-graph-forces__row input[type="range"]::-webkit-slider-runnable-track {
+  height: 0.25rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--ui-color-accent) 0%,
+    var(--ui-color-accent) var(--graph-force-fill, 50%),
+    var(--ui-color-border) var(--graph-force-fill, 50%)
+  );
+}
+
+.knowledge-graph-forces__row input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-top: -0.3rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ui-color-text);
+}
+
+.knowledge-graph-forces__row input[type="range"]::-moz-range-track {
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--ui-color-border);
+}
+
+.knowledge-graph-forces__row input[type="range"]::-moz-range-progress {
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--ui-color-accent);
+}
+
+.knowledge-graph-forces__reset {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-color-text-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.knowledge-graph__status-panel .knowledge-graph-coverage,
+.knowledge-graph__status-panel .knowledge-graph__limit,
+.knowledge-graph__status-panel .ui-async-state {
+  position: static;
+  max-width: none;
+  pointer-events: auto;
+}
+
+.knowledge-graph-coverage {
+  display: flex;
+  gap: var(--ui-space-2, 0.5rem);
+  flex-wrap: wrap;
+  padding: var(--ui-space-1, 0.25rem) var(--ui-space-2, 0.5rem);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md, 0.5rem);
+  background: color-mix(in srgb, var(--ui-color-surface) 88%, transparent);
+  font-size: 0.8125rem;
+  pointer-events: auto;
+}
+
+.knowledge-graph-coverage[data-coverage="partial"],
+.knowledge-graph__limit {
+  border-left: 3px solid var(--ui-color-warning);
+}
+
+.knowledge-graph-controls {
+  position: absolute;
+  top: 3.5rem;
+  right: var(--ui-space-3, 0.75rem);
+  bottom: var(--ui-space-3, 0.75rem);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3, 0.75rem);
+  width: min(22rem, calc(100% - 1.5rem));
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md, 0.5rem);
+  padding: var(--ui-space-3, 0.75rem);
+  background: color-mix(in srgb, var(--ui-color-surface) 94%, transparent);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--ui-color-text) 12%, transparent);
+}
+
+.knowledge-graph-controls__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--ui-space-3, 0.75rem);
+  align-items: start;
+}
+
+.knowledge-graph-controls label,
+.knowledge-graph-controls fieldset {
+  min-width: 0;
+}
+
+.knowledge-graph-controls label {
+  display: grid;
+  gap: var(--ui-space-1, 0.25rem);
+}
+
+.knowledge-graph-controls fieldset {
+  display: flex;
+  gap: var(--ui-space-2, 0.5rem);
+  flex-wrap: wrap;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.knowledge-graph-controls fieldset label,
+.knowledge-graph-controls label:has(input[type="checkbox"]) {
+  display: inline-flex;
+  align-items: center;
+}
+
+.knowledge-graph-controls select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--ui-target-compact, 2.25rem);
+}
+
+.knowledge-graph-canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--graph-bg, var(--ui-color-canvas));
+}
+
+.knowledge-graph-canvas__dots {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] .knowledge-graph-canvas {
+  --graph-node: var(--ui-graph-node-dark);
+  --graph-line: var(--ui-graph-line-dark);
+  --graph-text: var(--ui-graph-text-dark);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .knowledge-graph-canvas {
+    --graph-node: var(--ui-graph-node-dark);
+    --graph-line: var(--ui-graph-line-dark);
+    --graph-text: var(--ui-graph-text-dark);
+  }
+}
+
+.knowledge-graph__view-controls {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--ui-space-2, 0.5rem);
+}
+
+.knowledge-graph__view-controls span {
+  min-width: 4.5ch;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-color-text-muted);
+  white-space: nowrap;
+}
+
+.knowledge-graph-canvas svg {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 12rem;
+  cursor: grab;
+  touch-action: none;
+  background: transparent;
+}
+
+.knowledge-graph-canvas svg[data-dragging="pan"],
+.knowledge-graph-canvas svg[data-dragging="node"] {
+  cursor: grabbing;
+}
+
+.knowledge-graph-canvas__edges > g,
+.knowledge-graph-canvas__nodes > g {
+  transition: opacity var(--ui-duration-fast, 120ms) ease;
+}
+
+.knowledge-graph-canvas [data-emphasis="dimmed"] {
+  opacity: 0.14;
+}
+
+.knowledge-graph-canvas__edges line {
+  stroke: var(--graph-line, var(--ui-color-text-subtle, currentColor));
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  opacity: 0.22;
+  vector-effect: non-scaling-stroke;
+}
+
+.knowledge-graph-canvas svg[data-zoom="overview"] .knowledge-graph-canvas__edges line {
+  opacity: 0.14;
+}
+
+.knowledge-graph-canvas__edges > g[data-emphasis="active"] line {
+  stroke: var(--graph-line-highlight, var(--ui-color-accent, currentColor));
+  opacity: 0.95;
+  stroke-width: 1.6;
+}
+
+.knowledge-graph-canvas
+  svg[data-zoom="overview"]
+  .knowledge-graph-canvas__edges
+  > g[data-emphasis="active"]
+  line {
+  opacity: 0.9;
+}
+
+.knowledge-graph-canvas__nodes > g {
+  cursor: grab;
+  outline: none;
+}
+
+.knowledge-graph-canvas svg[data-dragging="node"] .knowledge-graph-canvas__nodes > g {
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-graph-canvas__edges > g,
+  .knowledge-graph-canvas__nodes > g {
+    transition: none;
+  }
+}
+
+.knowledge-graph-canvas__nodes circle.knowledge-graph-canvas__hit {
+  fill: transparent;
+  stroke: none;
+}
+
+.knowledge-graph-canvas__nodes circle.knowledge-graph-canvas__halo {
+  fill: none;
+  stroke: var(--graph-node-focused, var(--ui-color-text, currentColor));
+  stroke-width: 1.25;
+  opacity: 0.55;
+  vector-effect: non-scaling-stroke;
+}
+
+.knowledge-graph-canvas__nodes circle.knowledge-graph-canvas__dot {
+  fill: var(--graph-node, var(--ui-color-text-muted, currentColor));
+  stroke: none;
+}
+
+.knowledge-graph-canvas__nodes > g[data-kind="file"] .knowledge-graph-canvas__dot {
+  fill: var(--graph-node-attachment, var(--ui-color-warning, currentColor));
+}
+
+.knowledge-graph-canvas__nodes > g[data-kind="task"] .knowledge-graph-canvas__dot {
+  fill: var(--graph-node-tag, var(--ui-color-success, currentColor));
+}
+
+.knowledge-graph-canvas__nodes > g[data-lifecycle="trashed"] .knowledge-graph-canvas__dot {
+  fill: var(--graph-node-unresolved, var(--ui-color-text-disabled, currentColor));
+  opacity: 0.55;
+}
+
+.knowledge-graph-canvas__nodes > g[aria-pressed="true"] .knowledge-graph-canvas__dot,
+.knowledge-graph-canvas__nodes > g[data-emphasis="active"] .knowledge-graph-canvas__dot,
+.knowledge-graph-canvas__nodes > g:focus-visible .knowledge-graph-canvas__dot {
+  fill: var(
+    --graph-fill-highlight,
+    var(--graph-node-focused, var(--ui-color-accent, currentColor))
+  );
+}
+
+.knowledge-graph-canvas__nodes > g:focus-visible .knowledge-graph-canvas__halo {
+  stroke: var(--graph-fill-highlight, var(--ui-color-accent, currentColor));
+  opacity: 1;
+}
+
+.knowledge-graph-canvas__icon,
+.knowledge-graph-canvas__label {
+  fill: var(--graph-text, var(--ui-color-text, currentColor));
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.knowledge-graph-canvas__label {
+  font-weight: 500;
+  font-size: 12px;
+  paint-order: stroke;
+  stroke: var(--graph-bg, var(--ui-color-surface-sunken, var(--ui-color-surface)));
+  stroke-width: 0.28em;
+  stroke-linejoin: round;
+}
+
+.knowledge-graph-inspector ul {
+  display: grid;
+  gap: var(--ui-space-2, 0.5rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.knowledge-graph-inspector {
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md, 0.5rem);
+  background: var(--ui-color-surface);
+}
+
+.knowledge-graph-inspector__relations button {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: var(--ui-space-2, 0.5rem);
+  align-items: center;
+  padding: var(--ui-space-3, 0.75rem);
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.knowledge-graph-inspector__identity {
+  display: grid;
+  min-width: 0;
+}
+
+.knowledge-graph-inspector small {
+  color: var(--ui-color-text-muted);
+}
+
+.knowledge-graph-inspector {
+  position: absolute;
+  top: 3.5rem;
+  left: var(--ui-space-3, 0.75rem);
+  bottom: var(--ui-space-3, 0.75rem);
+  z-index: 3;
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-3, 0.75rem);
+  width: min(22rem, calc(100% - 1.5rem));
+  min-width: 0;
+  overflow: auto;
+  padding: var(--ui-space-4, 1rem);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--ui-color-text) 12%, transparent);
+}
+
+.knowledge-graph-inspector__kind {
+  color: var(--ui-color-text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 48rem) {
+  .knowledge-graph__hud {
+    max-width: calc(100% - 1.5rem);
+  }
+
+  .knowledge-graph-controls,
+  .knowledge-graph-inspector {
+    top: auto;
+    right: var(--ui-space-2, 0.5rem);
+    left: var(--ui-space-2, 0.5rem);
+    bottom: var(--ui-space-2, 0.5rem);
+    width: auto;
+    max-height: min(55vh, 28rem);
+  }
+}

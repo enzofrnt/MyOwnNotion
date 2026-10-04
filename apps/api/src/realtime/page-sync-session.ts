@@ -351,12 +351,7 @@ export class PageSyncSession {
   #close(code: number, reason: string): void {
     if (this.#state === "closing" || this.#state === "closed") return;
     this.#state = "closing";
-    this.#deps.hub.remove(this.connectionId);
-    if (this.#helloTimer !== null) clearTimeout(this.#helloTimer);
-    if (this.#heartbeatTimer !== null) clearInterval(this.#heartbeatTimer);
-    this.#helloTimer = null;
-    this.#heartbeatTimer = null;
-    this.#observeClosed(code);
+    this.#releaseResources(code);
     try {
       this.#deps.socket.close(code, reason);
     } catch {
@@ -367,6 +362,10 @@ export class PageSyncSession {
   #dispose(code = 1006): void {
     if (this.#state === "closed") return;
     this.#state = "closed";
+    this.#releaseResources(code);
+  }
+
+  #releaseResources(code: number): void {
     this.#deps.hub.remove(this.connectionId);
     if (this.#helloTimer !== null) clearTimeout(this.#helloTimer);
     if (this.#heartbeatTimer !== null) clearInterval(this.#heartbeatTimer);

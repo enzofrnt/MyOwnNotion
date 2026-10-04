@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import type { SearchRequestDto, SearchResponseDto } from "@myownnotion/contracts";
 import type { Database } from "@myownnotion/database";
@@ -21,13 +21,14 @@ import {
   prepareSearchQuery,
   readDocumentBody,
   type SearchPathSegment,
+  safeSearchSnippet,
   type Uuid,
   WorkspaceSearchIndex,
 } from "@myownnotion/domain";
+import { sameSecretValue } from "@myownnotion/domain/security";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import { SearchState, type SearchStateName, type SearchStateView } from "./search-state.ts";
 
-const SNIPPET_LIMIT = 320;
 const REBUILD_YIELD_INTERVAL = 256;
 
 export interface ResolvedSearchSource extends SearchSourceRecord {
@@ -81,24 +82,11 @@ export class SearchRequestError extends Error {
 }
 
 function safeSnippet(bodyText: string, terms: readonly string[]): string | null {
-  if (bodyText.length === 0) {
-    return null;
-  }
-  const comparable = bodyText.normalize("NFKD").replace(/\p{M}/gu, "").toLocaleLowerCase("fr");
-  const firstMatch = terms.reduce((best, term) => {
-    const position = comparable.indexOf(term);
-    return position < 0 || (best >= 0 && best <= position) ? best : position;
-  }, -1);
-  const start = Math.max(0, firstMatch < 0 ? 0 : firstMatch - 100);
-  const value = bodyText
-    .slice(start, start + SNIPPET_LIMIT)
-    .replace(/[\p{Cc}\p{Cf}]+/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim();
-  if (value.length === 0) {
-    return null;
-  }
-  return `${start > 0 ? "…" : ""}${value}${start + SNIPPET_LIMIT < bodyText.length ? "…" : ""}`;
+  return safeSearchSnippet(
+    bodyText,
+    terms,
+    bodyText.normalize("NFKD").replace(/\p{M}/gu, "").toLocaleLowerCase("fr"),
+  );
 }
 
 function unavailableState(state: SearchStateName): "building" | "degraded" {
@@ -128,12 +116,6 @@ function cursorBinding(request: SearchRequestDto, normalisedQuery: string): stri
 
 function cursorSignatureInput(payload: Omit<SearchCursorPayload, "signature">): string {
   return [payload.version, payload.generation, payload.offset, payload.queryFingerprint].join(".");
-}
-
-function sameSecretValue(left: string, right: string): boolean {
-  const leftBytes = Buffer.from(left);
-  const rightBytes = Buffer.from(right);
-  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
 }
 
 export class SearchService {

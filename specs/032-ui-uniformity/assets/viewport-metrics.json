@@ -1,0 +1,874 @@
+[
+  {
+    "file": "backups-dark-1280.jpg",
+    "headings": ["Sauvegardes", "Sauvegarde complète du serveur", "Exports portables"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280
+  },
+  {
+    "file": "backups-dark-320.jpg",
+    "headings": ["Sauvegardes", "Sauvegarde complète du serveur", "Exports portables"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "file": "backups-light-1280.jpg",
+    "headings": ["Sauvegardes", "Sauvegarde complète du serveur"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280
+  },
+  {
+    "file": "backups-light-320.jpg",
+    "headings": ["Sauvegardes", "Sauvegarde complète du serveur", "Exports portables"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "file": "confirmation-dark-1280.jpg",
+    "dialogs": [
+      "Supprimer cet exemple ?Les lignes du laboratoire seront masquées. Remplir permet de les re"
+    ],
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application",
+      "Supprimer cet exemple ?"
+    ],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 1672.5
+  },
+  {
+    "file": "confirmation-dark-320.jpg",
+    "dialogs": [
+      "Supprimer cet exemple ?Les lignes du laboratoire seront masquées. Remplir permet de les re"
+    ],
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application",
+      "Supprimer cet exemple ?"
+    ],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 3652
+  },
+  {
+    "file": "confirmation-light-1280.jpg",
+    "dialogs": [
+      "Supprimer cet exemple ?Les lignes du laboratoire seront masquées. Remplir permet de les re"
+    ],
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application",
+      "Supprimer cet exemple ?"
+    ],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 1719.5
+  },
+  {
+    "file": "confirmation-light-320.jpg",
+    "dialogs": [
+      "Supprimer cet exemple ?Les lignes du laboratoire seront masquées. Remplir permet de les re"
+    ],
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application",
+      "Supprimer cet exemple ?"
+    ],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 3793
+  },
+  {
+    "file": "connection-dark-1280.jpg",
+    "headings": ["Connecter cette application"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280
+  },
+  {
+    "file": "connection-dark-320.jpg",
+    "headings": ["Connecter cette application"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "file": "connection-light-1280.jpg",
+    "headings": ["Connecter cette application"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280
+  },
+  {
+    "file": "connection-light-320.jpg",
+    "headings": ["Connecter cette application"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "file": "database-dark-1280.jpg",
+    "headings": ["Base sans nom"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "database-dark-320.jpg",
+    "headings": ["Base sans nom"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "database-light-1280.jpg",
+    "headings": ["Base sans nom"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "database-light-320.jpg",
+    "headings": ["Base sans nom"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "database-settings-dark-1280.jpg",
+    "headings": ["Base sans nom", "Afficher les paramètres"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "database-settings-dark-320.jpg",
+    "headings": ["Base sans nom", "Afficher les paramètres"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "database-settings-light-1280.jpg",
+    "headings": ["Base sans nom", "Afficher les paramètres"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "database-settings-light-320.jpg",
+    "headings": ["Base sans nom", "Afficher les paramètres"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "folder-dark-1280.jpg",
+    "headings": [],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "folder-dark-320.jpg",
+    "headings": [],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "folder-light-1280.jpg",
+    "headings": [],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "folder-light-320.jpg",
+    "headings": [],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "graph-dark-1280.jpg",
+    "headings": [],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "graph-dark-320.jpg",
+    "headings": [],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "graph-filters-dark-1280.jpg",
+    "headings": ["Filtres et périmètre"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "graph-filters-dark-320.jpg",
+    "headings": ["Filtres et périmètre"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "graph-filters-light-1280.jpg",
+    "headings": ["Filtres et périmètre"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "graph-filters-light-320.jpg",
+    "headings": ["Filtres et périmètre"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "graph-light-1280.jpg",
+    "headings": [],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "graph-light-320.jpg",
+    "headings": [],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "kanban-after-dark-1280.jpg",
+    "isBoard": true,
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "y": 1760
+  },
+  {
+    "file": "kanban-after-dark-320.jpg",
+    "isBoard": true,
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "y": 3613.6875
+  },
+  {
+    "file": "kanban-after-light-1280.jpg",
+    "isBoard": true,
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "y": 1760
+  },
+  {
+    "file": "kanban-after-light-320.jpg",
+    "isBoard": true,
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "y": 3613.6875
+  },
+  {
+    "file": "kanban-dark-1280.jpg",
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application"
+    ],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 1458
+  },
+  {
+    "file": "kanban-dark-320.jpg",
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application"
+    ],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 3272.5
+  },
+  {
+    "file": "kanban-light-1280.jpg",
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application"
+    ],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 1440.5
+  },
+  {
+    "file": "kanban-light-320.jpg",
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application"
+    ],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 3255
+  },
+  {
+    "file": "lab-dark-1280.jpg",
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application"
+    ],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280
+  },
+  {
+    "file": "lab-dark-320.jpg",
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application"
+    ],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "file": "lab-light-1280.jpg",
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application"
+    ],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280
+  },
+  {
+    "file": "lab-light-320.jpg",
+    "headings": [
+      "Laboratoire MyOwnNotion",
+      "Connexion et installation",
+      "Couleurs de contenu",
+      "Actions",
+      "Champs",
+      "États asynchrones",
+      "Locale française",
+      "Surfaces contextuelles",
+      "Compositions de l’application"
+    ],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "file": "login-dark-1280.jpg",
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280
+  },
+  {
+    "file": "login-dark-320.jpg",
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "file": "login-error-dark-1280.jpg",
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280
+  },
+  {
+    "file": "login-error-dark-320.jpg",
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "file": "login-error-light-1280.jpg",
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280
+  },
+  {
+    "file": "login-error-light-320.jpg",
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "file": "login-light-1280.jpg",
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280
+  },
+  {
+    "file": "login-light-320.jpg",
+    "headings": ["Se connecter", "Utiliser votre mot de passe"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "file": "page-dark-1280.jpg",
+    "headings": ["Vue d'ensemble — Produit"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "page-dark-320.jpg",
+    "headings": ["Vue d'ensemble — Produit"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "page-details-dark-1280.jpg",
+    "dialogs": [],
+    "headings": [
+      "Page actuelle",
+      "Vue d'ensemble — Produit",
+      "Identité et relations",
+      "Historique"
+    ],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "page-details-dark-320.jpg",
+    "dialogs": [],
+    "headings": [
+      "Page actuelle",
+      "Vue d'ensemble — Produit",
+      "Identité et relations",
+      "Historique"
+    ],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "page-details-light-1280.jpg",
+    "dialogs": [],
+    "headings": [
+      "Page actuelle",
+      "Vue d'ensemble — Produit",
+      "Identité et relations",
+      "Historique"
+    ],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "page-details-light-320.jpg",
+    "dialogs": [],
+    "headings": [
+      "Page actuelle",
+      "Vue d'ensemble — Produit",
+      "Identité et relations",
+      "Historique"
+    ],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "page-light-1280.jpg",
+    "headings": ["Vue d'ensemble — Produit"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "page-light-320.jpg",
+    "headings": ["Vue d'ensemble — Produit"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "search-dark-1280.jpg",
+    "dialogs": [
+      "Rechercher dans l’espace de travailRechercheRechercherFiltrer par typePagesDossiersFichier"
+    ],
+    "headings": ["Vue d'ensemble — Produit", "Rechercher dans l’espace de travail"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "search-dark-320.jpg",
+    "dialogs": [
+      "Rechercher dans l’espace de travailRechercheRechercherFiltrer par typePagesDossiersFichier"
+    ],
+    "headings": ["Vue d'ensemble — Produit", "Rechercher dans l’espace de travail"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "search-light-1280.jpg",
+    "dialogs": [
+      "Rechercher dans l’espace de travailRechercheRechercherFiltrer par typePagesDossiersFichier"
+    ],
+    "headings": ["Vue d'ensemble — Produit", "Rechercher dans l’espace de travail"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "search-light-320.jpg",
+    "dialogs": [
+      "Rechercher dans l’espace de travailRechercheRechercherFiltrer par typePagesDossiersFichier"
+    ],
+    "headings": ["Vue d'ensemble — Produit", "Rechercher dans l’espace de travail"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "security-dark-1280.jpg",
+    "headings": [
+      "Sécurité et appareils",
+      "Sécurité",
+      "Passkeys",
+      "Mot de passe",
+      "Vos connexions",
+      "Vos appareils",
+      "Accès des assistants",
+      "Récupération du compte",
+      "Clés de chiffrement"
+    ],
+    "passwordHeight": 44,
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280
+  },
+  {
+    "file": "security-dark-320.jpg",
+    "headings": [
+      "Sécurité et appareils",
+      "Sécurité",
+      "Passkeys",
+      "Mot de passe",
+      "Vos connexions",
+      "Vos appareils",
+      "Accès des assistants",
+      "Récupération du compte",
+      "Clés de chiffrement"
+    ],
+    "passwordHeight": 44,
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "file": "security-light-1280.jpg",
+    "headings": [
+      "Sécurité et appareils",
+      "Sécurité",
+      "Passkeys",
+      "Mot de passe",
+      "Vos connexions",
+      "Vos appareils",
+      "Accès des assistants",
+      "Récupération du compte",
+      "Clés de chiffrement"
+    ],
+    "passwordHeight": 44,
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280
+  },
+  {
+    "file": "security-light-320.jpg",
+    "headings": [
+      "Sécurité et appareils",
+      "Sécurité",
+      "Passkeys",
+      "Mot de passe",
+      "Vos connexions",
+      "Vos appareils",
+      "Accès des assistants",
+      "Récupération du compte",
+      "Clés de chiffrement"
+    ],
+    "passwordHeight": 44,
+    "scroll": 320,
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "file": "setup-dark-1280.jpg",
+    "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280
+  },
+  {
+    "file": "setup-dark-320.jpg",
+    "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "file": "setup-light-1280.jpg",
+    "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280
+  },
+  {
+    "file": "setup-light-320.jpg",
+    "headings": ["Configurer cette installation", "Créer la passkey du propriétaire"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "file": "storage-dark-1280.jpg",
+    "headings": ["Stockage et synchronisation", "Cet appareil", "Anciens brouillons récupérables"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280
+  },
+  {
+    "file": "storage-dark-320.jpg",
+    "headings": ["Stockage et synchronisation", "Cet appareil", "Anciens brouillons récupérables"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "file": "storage-light-1280.jpg",
+    "headings": ["Stockage et synchronisation", "Cet appareil", "Anciens brouillons récupérables"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280
+  },
+  {
+    "file": "storage-light-320.jpg",
+    "headings": ["Stockage et synchronisation", "Cet appareil", "Anciens brouillons récupérables"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "file": "trash-dark-1280.jpg",
+    "dialogs": [],
+    "headings": ["Corbeille", "Éléments supprimés"],
+    "scroll": 1280,
+    "theme": "dark",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "trash-dark-320.jpg",
+    "dialogs": [],
+    "headings": ["Corbeille", "Éléments supprimés"],
+    "scroll": 320,
+    "theme": "dark",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "trash-light-1280.jpg",
+    "dialogs": [],
+    "headings": ["Corbeille", "Éléments supprimés"],
+    "scroll": 1280,
+    "theme": "light",
+    "width": 1280,
+    "x": 0,
+    "y": 0
+  },
+  {
+    "file": "trash-light-320.jpg",
+    "dialogs": [],
+    "headings": ["Corbeille", "Éléments supprimés"],
+    "scroll": 320,
+    "theme": "light",
+    "width": 320,
+    "x": 0,
+    "y": 0
+  }
+]

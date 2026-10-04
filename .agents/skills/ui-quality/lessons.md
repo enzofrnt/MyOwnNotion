@@ -255,3 +255,70 @@ validation explicite du propriétaire (correction vue ensemble).
   clavier sans réafficher un bouton compacté hors du tiroir.
 - Preuve : `tests/e2e/workspace-tabs-folder.spec.ts`, répété sur Chromium et
   WebKit mobiles à 320 px ; `specs/022-page-tabs-folder-view/validation.md`.
+
+### L-019 — Virtualisation : observer le vrai défilement et conserver son étendue
+- Statut : validée
+- Surface : tableaux dans un flux de page, widgets bornés et onglets masqués.
+- Anti-pattern : observer le conteneur horizontal non borné alors que son
+  ancêtre possède le défilement vertical ; laisser les retraits de rangées
+  réduire provisoirement la hauteur et ramener WebKit en haut.
+- Règle : mesurer le scrollport réel et l’origine du contenu dans celui-ci,
+  conserver l’étendue calculée pendant les remplacements DOM et ignorer les
+  surfaces masquées. Un widget qui apparaît ne déplace pas l’ancre de la page.
+- Preuve : `use-table-viewport.ts`, tests de géométrie/lifecycle et retour après
+  1 001 lignes avec DOM borné, focus et visibilité intégrale sur les cinq profils ;
+  `specs/033-app-ui-review/verification.md`, T055 et captures clair/sombre.
+
+### L-020 — Retour du focus : une intention survit aux actualisations
+- Statut : validée
+- Surface : retour d’entrée, projections asynchrones et saisie suivante.
+- Anti-pattern : recréer une tentative de retour après chaque passage loading
+  puis ready ; elle oublie que le propriétaire a commencé un nouveau brouillon
+  et le ferme en reprenant le focus.
+- Règle : conserver le cycle d’une demande et ses cibles pendant les reprises,
+  terminer une seule fois dès qu’un autre contrôle prend volontairement le
+  focus, et distinguer une nouvelle demande explicitement réémise. Tester aussi
+  une saisie commencée avant la première disponibilité de la cible.
+- Preuve : test unitaire rouge/vert et créations consécutives répétées sur les
+  cinq profils ; `specs/033-app-ui-review/verification.md`, T057.
+
+
+### L-021 — Une couleur d'accent ne garantit pas le contraste d'un texte
+- Statut : validée
+- Surface : avis conditionnels, résumés fermés et panneaux ouverts.
+- Anti-pattern : placer le rouge d'accent sur un fond teinté en supposant que
+  la paire reste lisible dans les deux thèmes ; n'auditer que l'état ouvert.
+- Règle : choisir les rôles sémantiques de texte et de surface ensemble,
+  vérifier les états fermé/ouvert avec une vraie condition métier, aux deux
+  thèmes et dans le runtime natif. Un canvas neutre peut conserver l'accent
+  et sa bordure sans modifier la palette ni masquer l'avertissement.
+- Preuve : audit rouge/vert, cinq profils navigateur, audit Electron clair/sombre
+  et captures réelles ; `specs/033-app-ui-review/verification.md`, T059.
+
+### L-022 — Réserver la cible réelle d'un contrôle dans l'en-tête mobile
+- Statut : validée
+- Surface : ouverture du tiroir, accueil et en-têtes compacts.
+- Anti-pattern : réserver seulement la taille dessinée de l'icône, ou calculer
+  le gutter mobile avec l'état de la sidebar desktop ; le bouton recouvre le texte.
+- Règle : conserver l'espace de la zone cliquable effective et son espacement
+  dans chaque état mobile, même derrière le tiroir. Contrôler à 320 px que
+  les boîtes du bouton et des textes ne se recouvrent pas, puis l'ouverture,
+  la fermeture et le retour du focus ; ne pas réduire la cible pour faire tenir.
+- Preuve : géométrie rouge/verte, cinq profils, références et onglets mobiles,
+  captures clair/sombre ; `specs/033-app-ui-review/verification.md`, T060.
+
+
+### L-023 — Une preview de dépôt partage une destination réelle avec l'action
+- Statut : validée
+- Surface : glisser de blocs, bords de lecture et éditeurs conservés dans des onglets.
+- Anti-pattern : déduire toute la destination d'une position de caret fournie
+  par le moteur ; un trait bleu peut alors désigner le bloc suivant ou une
+  limite de groupe que l'action ne sait pas résoudre.
+- Règle : privilégier la géométrie du bloc survolé de l'éditeur actif, normaliser
+  ses limites vers une destination atomique valide et partager cette position
+  entre preview et dépôt. Refuser une preview sans action possible. Contrôler
+  l'alignement vertical, l'absence d'écriture avant dépôt, la persistance et
+  l'annulation avec des gestes natifs, y compris à largeur étroite.
+- Preuve : diagnostic de caret différent du pointeur, tests unitaires rouge/vert,
+  30 parcours sur cinq profils puis dix parcours sombres à 320 px, captures
+  réelles ; `specs/033-app-ui-review/verification.md`, T061.

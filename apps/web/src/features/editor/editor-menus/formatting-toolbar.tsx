@@ -39,7 +39,14 @@ function MyOwnNotionFormattingToolbar({
   useEffect(() => {
     if (isTextSelection(currentSelection)) preservedSelection.current = currentSelection;
   }, [currentSelection, preservedSelection]);
-  if (Toolbar === undefined) return null;
+  const cursorBlockType = ((): string | null => {
+    try {
+      return editor.getTextCursorPosition().block.type;
+    } catch {
+      return null;
+    }
+  })();
+  if (Toolbar === undefined || cursorBlockType === "databaseView") return null;
 
   const openPageLinkFlow = (): void => {
     if (selectedLink?.kind === "page") {

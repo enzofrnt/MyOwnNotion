@@ -9,10 +9,15 @@ let db: LocalDatabase;
 let codec: LocalRecordCodec;
 let repository: LocalRepository;
 
-function item(id: string, name: string, parentItemId: string | null): ItemDto {
+function item(
+  id: string,
+  name: string,
+  parentItemId: string | null,
+  kind: "page" | "database" = "page",
+): ItemDto {
   return {
     id,
-    kind: "page",
+    kind,
     name,
     icon: null,
     lifecycle: "active",
@@ -330,13 +335,13 @@ describe("local knowledge graph source", () => {
       schemaVersion: 1,
       cursor: "demo-graph",
       items: [
-        item(databaseId, "Pilotage", null),
-        item(ordinaryDatabaseId, "Référentiel", null),
-        item(ordinaryEntryId, "Entrée ordinaire", null),
-        item(optionalTaskDatabaseId, "Actions légères", null),
-        item(optionalTaskId, "Action sans date", null),
-        item(taskId, "Livrer le graphe", null),
-        item(incompleteTaskId, "Tâche incomplète", null),
+        item(databaseId, "Pilotage", null, "database"),
+        item(ordinaryDatabaseId, "Référentiel", null, "database"),
+        item(ordinaryEntryId, "Entrée ordinaire", ordinaryDatabaseId),
+        item(optionalTaskDatabaseId, "Actions légères", null, "database"),
+        item(optionalTaskId, "Action sans date", optionalTaskDatabaseId),
+        item(taskId, "Livrer le graphe", databaseId),
+        item(incompleteTaskId, "Tâche incomplète", databaseId),
         item(plainPageId, "Page ordinaire", null),
         attachment,
       ],
@@ -465,7 +470,7 @@ describe("local knowledge graph source", () => {
       parentIds: [],
     });
 
-    await db.databaseEntries.update(taskId, { availability: "offloaded" });
+    await db.databaseEntryPairs.update(`${databaseId}:${taskId}`, { availability: "offloaded" });
     expect((await repository.hydrateKnowledgeGraphNodes([taskId]))[0]?.structured).toEqual({});
   });
 

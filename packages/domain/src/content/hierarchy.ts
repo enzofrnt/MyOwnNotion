@@ -7,6 +7,8 @@
  * atomically. Cycle rejection is iterative — no recursion depth limit is
  * imposed by the product model.
  */
+
+import { validatePageDocumentEnvelopeV3 } from "../document/validate.ts";
 import { isUuid, type Uuid } from "../ids/uuid.ts";
 import { isValidPositionKey } from "./position-key.ts";
 import {
@@ -36,7 +38,7 @@ export interface HierarchyView {
 
 export interface CreateItemCommand {
   readonly id: Uuid;
-  readonly kind: Extract<ItemKind, "page" | "folder">;
+  readonly kind: Extract<ItemKind, "page" | "folder" | "database" | "database_view">;
   readonly name: string;
   readonly icon?: string | null;
   readonly placement: {
@@ -52,7 +54,7 @@ export interface CreateItemCommand {
 export interface CreateItemPlan {
   readonly item: {
     readonly id: Uuid;
-    readonly kind: Extract<ItemKind, "page" | "folder">;
+    readonly kind: Extract<ItemKind, "page" | "folder" | "database" | "database_view">;
     readonly name: string;
     readonly icon: string | null;
   };
@@ -78,7 +80,7 @@ export interface CreateItemPlan {
  * first edit, so an installation that rejected version 1 would refuse writes to
  * its own older pages.
  */
-export const SUPPORTED_PAGE_DOCUMENT_VERSION = 2;
+export const SUPPORTED_PAGE_DOCUMENT_VERSION = 3;
 
 export function validatePageDocument(document: PageDocument): DomainResult<PageDocument> {
   if (document.format !== PAGE_DOCUMENT_FORMAT) {
@@ -97,6 +99,9 @@ export function validatePageDocument(document: PageDocument): DomainResult<PageD
   }
   if (isProtectedContentPayload(document.body)) {
     return err("validation.invalid-payload", "Page document body uses a reserved value");
+  }
+  if (document.formatVersion === 3 && !validatePageDocumentEnvelopeV3(document).ok) {
+    return err("validation.invalid-payload", "Page document does not match format version 3");
   }
   return ok(document);
 }
@@ -147,8 +152,13 @@ export function validateCreateItem(
   if (view.getItem(command.id) !== null) {
     return err("mutation.duplicate", "An item with this identity already exists");
   }
-  if (command.kind !== "page" && command.kind !== "folder") {
-    return err("validation.invalid-kind", "Only pages and folders are created directly");
+  if (
+    command.kind !== "page" &&
+    command.kind !== "folder" &&
+    command.kind !== "database" &&
+    command.kind !== "database_view"
+  ) {
+    return err("validation.invalid-kind", "Unsupported hierarchy item kind");
   }
   const name = normalizeDisplayName(command.name);
   if (!name.ok) {
@@ -159,7 +169,7 @@ export function validateCreateItem(
     return icon as DomainResult<CreateItemPlan>;
   }
   if (command.placement.kind !== "hierarchy") {
-    return err("placement.cardinality-violation", "Pages and folders live in the hierarchy");
+    return err("placement.cardinality-violation", "This item lives in the hierarchy");
   }
   if (!isValidPositionKey(command.placement.positionKey)) {
     return err("validation.invalid-payload", "Invalid sibling position key");
@@ -177,7 +187,7 @@ export function validateCreateItem(
     }
     pageDocument = documentResult.value;
   } else if (command.pageDocument !== undefined) {
-    return err("validation.invalid-payload", "Folders cannot carry a page document");
+    return err("validation.invalid-payload", "Only pages can carry a page document");
   }
 
   if (command.placement.id !== undefined && !isUuid(command.placement.id)) {

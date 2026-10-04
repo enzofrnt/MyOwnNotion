@@ -10,7 +10,7 @@ import {
 } from "@modelcontextprotocol/client";
 import type { McpGrantResult, McpScope } from "@myownnotion/contracts";
 import { schema } from "@myownnotion/database";
-import { type DatabaseDefinition, databaseEmbeddings, generateUuidV7 } from "@myownnotion/domain";
+import { generateUuidV7 } from "@myownnotion/domain";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { McpAccessService } from "../src/mcp/access-service.ts";
@@ -332,7 +332,7 @@ describe("scoped MCP through the real official HTTP client", () => {
       (await call(client, "search", { query: "private", branchRootId: secretId })).isError,
     ).toBe(true);
   });
-  it("keeps linked database membership independent from delegated hierarchy access", async () => {
+  it("does not grant a source's entries through a linked view in another branch", async () => {
     const host = await createItemViaApi(harness.api, {
       kind: "page",
       name: "Allowed database display",
@@ -348,42 +348,30 @@ describe("scoped MCP through the real official HTTP client", () => {
         id: sourceId,
         name: "Shared source",
         hostPageId: host.itemId,
-        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
+        placement: { id: generateUuidV7(), parentItemId: host.itemId, positionKey: "a" },
         titlePropertyId: generateUuidV7(),
         initialViewId: generateUuidV7(),
         initialViewName: "First table",
       },
     });
     expect(created.statusCode, created.body).toBe(201);
-    const source = created.json().database;
-    const definition = source.definition as DatabaseDefinition;
-    const first = databaseEmbeddings(definition)[0];
-    expect(first).toBeDefined();
+    const linkedId = generateUuidV7();
     const linked = await harness.api.built.app.inject({
-      method: "PUT",
-      url: `/v1/databases/${sourceId}/definition`,
+      method: "POST",
+      url: "/v1/database-views",
       headers: { ...headers, ...idempotencyHeaders() },
       payload: {
-        baseRevisionId: source.definitionRevisionId,
-        definition: {
-          ...definition,
-          embeddings: [
-            ...databaseEmbeddings(definition),
-            {
-              id: generateUuidV7(),
-              hostPageId: secretId,
-              state: "active",
-              views: first?.views.map((view) => ({ ...view, id: generateUuidV7() })),
-            },
-          ],
-        },
+        id: linkedId,
+        name: "Private linked display",
+        sourceId: created.json().database.sourceId,
+        placement: { id: generateUuidV7(), parentItemId: secretId, positionKey: "a" },
+        initialViewId: generateUuidV7(),
       },
     });
-    expect(linked.statusCode, linked.body).toBe(200);
+    expect(linked.statusCode, linked.body).toBe(201);
     const entries = [
-      { id: generateUuidV7(), title: "Scope026 unplaced", parent: undefined },
-      { id: generateUuidV7(), title: "Scope026 allowed", parent: host.itemId },
-      { id: generateUuidV7(), title: "Scope026 private", parent: secretId },
+      { id: generateUuidV7(), title: "Scope029 first" },
+      { id: generateUuidV7(), title: "Scope029 second" },
     ];
     for (const entry of entries) {
       const result = await harness.api.built.app.inject({
@@ -400,15 +388,6 @@ describe("scoped MCP through the real official HTTP client", () => {
           },
           values: {},
           relationTargets: {},
-          ...(entry.parent === undefined
-            ? {}
-            : {
-                placement: {
-                  id: generateUuidV7(),
-                  parentItemId: entry.parent,
-                  positionKey: "a",
-                },
-              }),
         },
       });
       expect(result.statusCode, result.body).toBe(201);
@@ -422,34 +401,41 @@ describe("scoped MCP through the real official HTTP client", () => {
     });
     const listed = await call(scoped.client, "list_items", {});
     const searched = await call(scoped.client, "search", {
-      query: "Scope026",
+      query: "Scope029",
       branchRootId: branchId,
     });
     expect(listed.isError).toBe(false);
     expect(searched.isError).toBe(false);
     const unavailable = await call(scoped.client, "read_item", { itemId: generateUuidV7() });
     expect(unavailable.isError).toBe(true);
+    const privateBranch = await connect({
+      actions: ["read", "search"],
+      allContent: false,
+      branchRootIds: [secretId],
+      files: false,
+    });
+    expect((await call(privateBranch.client, "read_item", { itemId: linkedId })).isError).toBe(
+      false,
+    );
+    expect(await call(privateBranch.client, "read_item", { itemId: sourceId })).toEqual(
+      unavailable,
+    );
     const wholeWorkspace = await connect();
-    const wholeSearch = await call(wholeWorkspace.client, "search", { query: "Scope026" });
+    const wholeSearch = await call(wholeWorkspace.client, "search", { query: "Scope029" });
     expect(wholeSearch.isError).toBe(false);
     for (const entry of entries) {
       const read = await call(scoped.client, "read_item", { itemId: entry.id });
-      if (entry.parent === host.itemId) {
-        expect(read.isError).toBe(false);
-        expect(read.value.name).toBe(entry.title);
-        expect(JSON.stringify(listed)).toContain(entry.id);
-        expect(JSON.stringify(searched)).toContain(entry.id);
-      } else {
-        expect(read).toEqual(unavailable);
-        expect(JSON.stringify(listed)).not.toContain(entry.id);
-        expect(JSON.stringify(searched)).not.toContain(entry.id);
-        expect(JSON.stringify(searched)).not.toContain(entry.title);
-      }
+      expect(read.isError).toBe(false);
+      expect(read.value.name).toBe(entry.title);
+      expect(JSON.stringify(listed)).toContain(entry.id);
+      expect(JSON.stringify(searched)).toContain(entry.id);
+      expect(await call(privateBranch.client, "read_item", { itemId: entry.id })).toEqual(
+        unavailable,
+      );
       const unrestricted = await call(wholeWorkspace.client, "read_item", { itemId: entry.id });
       expect(unrestricted.isError).toBe(false);
       expect(unrestricted.value.name).toBe(entry.title);
       expect(JSON.stringify(wholeSearch)).toContain(entry.id);
-      if (entry.parent === undefined) expect(unrestricted.value.placements).toEqual([]);
     }
   });
   it("edits operational pages with exact state proof, publishes canonical revisions and rejects stale or blocked writes", async () => {

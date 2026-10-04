@@ -78,7 +78,9 @@ test.describe("turning a folder into a page", () => {
     await expect(page.getByTestId("convert-confirmation")).toBeHidden();
 
     await selectItem(page, folder);
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+      timeout: 30_000,
+    });
 
     // Both children are still in the tree, in the order they were created.
     const order = await readTreeOrder(page);
@@ -103,9 +105,12 @@ test.describe("turning a folder into a page", () => {
     await openWorkspace(page);
     await waitForSynchronized(page);
     await selectItem(page, folder);
-    await expect(page.getByTestId("block-editor")).toContainText("now it has words", {
-      timeout: 30_000,
-    });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "now it has words",
+      {
+        timeout: 30_000,
+      },
+    );
   });
 });
 
@@ -168,7 +173,9 @@ test.describe("turning a page into a folder", () => {
     await expect(page.getByTestId("convert-confirmation")).toBeHidden();
 
     await selectItem(page, kept);
-    await expect(page.getByTestId("block-editor")).toContainText("still here afterwards");
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
+      "still here afterwards",
+    );
   });
 
   test("accepting destroys the content and keeps every child", async ({ page }) => {

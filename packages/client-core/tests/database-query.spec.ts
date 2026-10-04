@@ -124,6 +124,88 @@ function source(
 }
 
 describe("local saved database queries", () => {
+  it.each(["unknown", "retired", "invalid filter"] as const)(
+    "refuses a %s view instead of displaying misleading rows",
+    (failure) => {
+      const input = source([entry(ids.entryA, "Alpha", ids.todo)]);
+      const candidate = {
+        ...input,
+        definition: {
+          ...input.definition,
+          views: input.definition.views.map((view) =>
+            failure === "retired"
+              ? { ...view, state: "retired" as const }
+              : failure === "invalid filter"
+                ? {
+                    ...view,
+                    filter: {
+                      mode: "all" as const,
+                      criteria: [
+                        {
+                          id: ids.filter,
+                          propertyId: ids.title,
+                          operator: "less-than" as const,
+                          operand: { kind: "number" as const, decimal: "1" },
+                        },
+                      ],
+                    },
+                  }
+                : view,
+          ),
+        },
+      };
+      try {
+        queryLocalDatabase(candidate, {
+          viewId: failure === "unknown" ? generateUuidV7() : ids.view,
+        });
+        throw new Error("An invalid view was accepted");
+      } catch (error) {
+        expect(error).toMatchObject({ code: "database.invalid-view" });
+      }
+    },
+  );
+
+  it.each([
+    "invalid",
+    "remote.1",
+    "local.2.a.b.c.1.1.d",
+    "local.1.a.b.c.1.0.d",
+    "local.1.a.b.c.1.-1.d",
+    "local.1.a.b.c.1.NaN.d",
+    "local.1.a.b.c.1.1.5.d",
+    "local.1.a.b.c.1.9007199254740992.d",
+  ])("rejects malformed local cursor %s", (cursor) => {
+    const input = source([entry(ids.entryA, "Alpha", ids.todo)]);
+    expect(() => queryLocalDatabase(input, { viewId: ids.view, cursor })).toThrowError(
+      expect.objectContaining({ code: "database.invalid-cursor" }),
+    );
+  });
+
+  it("pages through a stable projection without repeating or omitting identities", () => {
+    const input = source([
+      entry(ids.entryA, "Alpha", ids.todo),
+      entry(ids.entryB, "Beta", ids.todo),
+      entry(ids.entryC, "Gamma", ids.todo),
+    ]);
+    const first = queryLocalDatabase(input, { viewId: ids.view, limit: 1 });
+    if (first.nextCursor === null) throw new Error("Missing cursor");
+    const next = queryLocalDatabase(input, {
+      viewId: ids.view,
+      cursor: first.nextCursor,
+      limit: 2,
+    });
+    expect([...first.rows, ...next.rows].map((row) => row.entryId)).toEqual([
+      ids.entryA,
+      ids.entryB,
+      ids.entryC,
+    ]);
+    expect(next.nextCursor).toBeNull();
+    const foreign = { ...input, databaseId: generateUuidV7() };
+    const cursor = first.nextCursor;
+    expect(() => queryLocalDatabase(foreign, { viewId: ids.view, cursor })).toThrowError(
+      expect.objectContaining({ code: "database.cursor-stale" }),
+    );
+  });
   it("has the same filtered identities, order and groups as the shared evaluator", () => {
     const localSource = source([
       entry(ids.entryB, "Beta", ids.todo),
@@ -188,20 +270,30 @@ function projectedItem(
   id: Uuid,
   name: string,
   lifecycle: ItemDto["lifecycle"] = "active",
+  parentItemId: Uuid | null = null,
+  kind: "page" | "database" = "page",
 ): ItemDto {
   return {
     id,
-    kind: "page",
+    kind,
     name,
     lifecycle,
     currentRevisionId: generateUuidV7(),
     pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
-    placements: [],
+    placements: [
+      {
+        id: generateUuidV7(),
+        itemId: id,
+        kind: "hierarchy",
+        parentItemId,
+        positionKey: "V",
+      },
+    ],
   };
 }
 
 describe("purged structured projections (T102, FR-046)", () => {
-  it("keeps the host tombstone and independent source but removes values when the entry itself is purged", async () => {
+  it("keeps the owner tombstone but removes its source and entries on purge", async () => {
     const { codec } = await createTestCodec();
     const db: LocalDatabase = openLocalDatabase(`database-purge-${generateUuidV7()}`);
     const repository = new LocalRepository(db, codec);
@@ -219,7 +311,10 @@ describe("purged structured projections (T102, FR-046)", () => {
         workspaceId: generateUuidV7(),
         schemaVersion: 7,
         cursor: "before-purge",
-        items: [projectedItem(ids.database, "Database"), projectedItem(ids.entryA, "Entry")],
+        items: [
+          projectedItem(ids.database, "Database", "active", null, "database"),
+          projectedItem(ids.entryA, "Entry", "active", ids.database),
+        ],
         databases: [
           { itemId: ids.database, definitionVersion: 1, definition: definition() as never },
         ],
@@ -237,8 +332,8 @@ describe("purged structured projections (T102, FR-046)", () => {
 
       await repository.applyServerChange({
         cursor: "after-purge",
-        items: [projectedItem(ids.database, "Unavailable database", "purged")],
-        // Source resources survive the old host tombstone.
+        items: [projectedItem(ids.database, "Unavailable database", "purged", null, "database")],
+        // A stale source envelope accompanying the owner tombstone cannot revive it.
         databases: [
           { itemId: ids.database, definitionVersion: 1, definition: definition() as never },
         ],
@@ -253,8 +348,8 @@ describe("purged structured projections (T102, FR-046)", () => {
       });
 
       expect((await repository.getItem(ids.database))?.lifecycle).toBe("purged");
-      expect(await databases.getDatabase(ids.database)).not.toBeNull();
-      expect(await databases.getEntry(ids.entryA)).not.toBeNull();
+      expect(await databases.getDatabase(ids.database)).toBeNull();
+      expect(await databases.getEntry(ids.entryA)).toBeNull();
       await repository.applyServerChange({
         cursor: "entry-purge",
         items: [projectedItem(ids.entryA, "Unavailable entry", "purged")],

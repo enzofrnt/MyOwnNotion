@@ -1,5 +1,11 @@
 # Implementation Plan: Notion import CLI
 
+**Evolution 029 (2026-09-27)**: This plan records the historical import
+implementation against database model 026. The
+[029 specification](../029-database-pages-views/spec.md) supersedes that model;
+029 planning must include adaptation of import apply and preview to canonical
+database owners and hierarchical entries before V1 use.
+
 **Branch**: `codex/028-notion-import` | **Date**: 2026-09-05 | **Spec**: [spec.md](spec.md)
 
 ## Summary and technical context

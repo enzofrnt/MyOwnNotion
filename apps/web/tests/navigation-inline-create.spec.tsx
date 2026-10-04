@@ -50,6 +50,24 @@ describe("inline child creation", () => {
     expect(controls.at(-1)?.getAttribute("aria-label")).toBe("Fermer la création dans Projet");
   });
 
+  it("marks database creation with the layers plus", async () => {
+    await act(async () => {
+      root.render(
+        <NavigationInlineCreate
+          itemName="Notes"
+          open
+          onOpenChange={() => undefined}
+          onCreatePage={() => undefined}
+          onCreateFolder={() => undefined}
+          onCreateDatabase={() => undefined}
+        />,
+      );
+    });
+
+    const database = container.querySelector('[data-testid="new-database-inline-Notes"]');
+    expect(database?.querySelector('[data-icon="layersAdd"]')).not.toBeNull();
+  });
+
   it("opens and creates without propagating the row click", async () => {
     const onOpenChange = vi.fn();
     const onCreatePage = vi.fn();

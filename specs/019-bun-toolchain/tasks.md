@@ -270,3 +270,8 @@ US1 local/dev      US2 production
 - [X] T051 Aligner tous les pins runtime/types/images et le quickstart sur Bun 1.4.2 dans `package.json`, `bun.lock`, `.github/`, `docker/`, les scripts de gates et leurs contrats ; conserver les preuves historiques et documenter le lien avec 014 T105.
 - [X] T052 Ajouter dans `apps/desktop/tests/` une régression Windows réelle des pipes supplémentaires et de la survie des fichiers indépendants, prouver l'échec sous 1.4.0 et la réussite sous 1.4.2, puis vérifier les parcours natifs contraints sans adapter les notifications.
 - [ ] T053 Renouveler `bun run checks:local`, les scans/images, toute la CI de PR et de main, et consigner les preuves exactes dans `specs/019-bun-toolchain/validation.md` avant de fermer cette maintenance. La porte locale et la CI PR de PR #175 sont vertes et le commit est intégré, mais la CI `main` `34748994269` n'est pas encore verte; cette tâche reste ouverte.
+
+## Maintenance — stabilité du hot reload en développement (2026-10-03)
+
+- [x] T054 [US1] Couvrir la connexion HMR sans délai d'inactivité et les limites API conservées dans `tests/contract/compose-dev.spec.ts`, puis corriger la route Web de `docker/Caddyfile.dev` (FR-006).
+- [x] T055 [US1] Valider et appliquer le Caddyfile dans la stack de développement existante sans reset ; vérifier au moins 160 secondes au repos et une mise à jour CSS sans navigation, puis consigner les résultats dans `specs/019-bun-toolchain/validation.md` et le diagnostic dans `docs/development.md`. E2E reportés à la demande de l'utilisateur ; aucun push dans cette passe.

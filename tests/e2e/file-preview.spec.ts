@@ -10,6 +10,7 @@
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
+  dropEditorFile,
   openAttachmentDetails,
   openPageAttachments,
   openWorkspace,
@@ -45,7 +46,7 @@ async function pageWithFile(
   await waitForSynchronized(page);
   await selectSettledPage(page, pageName);
   await openPageAttachments(page, pageName);
-  await page.getByTestId("attachment-upload").setInputFiles({
+  await dropEditorFile(page, {
     name: fileName,
     mimeType,
     buffer: Buffer.from(body),
@@ -150,7 +151,7 @@ test.describe("deferred diagram support", () => {
     await openPageAttachments(page, pageName);
 
     const fileName = `${uniqueName("diagram")}.drawio`;
-    await page.getByTestId("attachment-upload").setInputFiles({
+    await dropEditorFile(page, {
       name: fileName,
       mimeType: "application/vnd.jgraph.mxfile",
       buffer: Buffer.from('<mxfile><diagram id="a" name="Page-1"></diagram></mxfile>'),

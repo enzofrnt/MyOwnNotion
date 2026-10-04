@@ -16,6 +16,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   closeMobileNavigation,
   createRootItem,
+  dropEditorFile,
   ensureNavigationVisible,
   expectNoHorizontalOverflow,
   openAttachmentDetails,
@@ -68,7 +69,9 @@ test.describe("at 320 pixels", () => {
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
     await selectItem(page, name);
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+      timeout: 30_000,
+    });
 
     await typeIntoEditor(
       page,
@@ -87,9 +90,11 @@ test.describe("at 320 pixels", () => {
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
     await selectItem(page, name);
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+      timeout: 30_000,
+    });
 
-    const surface = page.getByTestId("block-editor").locator(".ProseMirror");
+    const surface = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await surface.click();
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.press("Delete");
@@ -135,7 +140,7 @@ test.describe("at 320 pixels", () => {
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
     await selectItem(page, name);
-    const editor = page.getByTestId("block-editor").locator(".ProseMirror");
+    const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
     await expect(editor).toBeVisible({ timeout: 30_000 });
 
     // Insert media while the initial paragraph still owns the cursor. WebKit
@@ -185,7 +190,9 @@ test.describe("at 200 percent zoom", () => {
     await waitForSynchronized(page);
     await selectItem(page, name);
     await expect(page.getByTestId("active-item-title")).toBeVisible();
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toBeVisible({
+      timeout: 30_000,
+    });
     await expectNoHorizontalOverflow(page);
   });
 });
@@ -259,7 +266,7 @@ test.describe("the file surfaces at 320 pixels", () => {
     await openPageAttachments(page, name);
 
     const fileName = `${uniqueName("narrow")}.txt`;
-    await page.getByTestId("attachment-upload").setInputFiles({
+    await dropEditorFile(page, {
       name: fileName,
       mimeType: "text/plain",
       buffer: Buffer.from("bytes at 320px"),
@@ -281,7 +288,7 @@ test.describe("the file surfaces at 320 pixels", () => {
     await openPageAttachments(page, name);
 
     const fileName = `${uniqueName("narrowdel")}.txt`;
-    await page.getByTestId("attachment-upload").setInputFiles({
+    await dropEditorFile(page, {
       name: fileName,
       mimeType: "text/plain",
       buffer: Buffer.from("about to be deleted"),

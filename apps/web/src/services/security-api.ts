@@ -425,6 +425,16 @@ export class SecurityApi {
   }
 
   /** Signs in with a password and captures the session's CSRF token. */
+  #adoptSession(
+    result: SecurityResult<AuthenticatedSessionDto>,
+  ): SecurityResult<AuthenticatedSessionDto> {
+    if (result.ok) {
+      this.#csrfToken = result.value.csrfToken;
+      setSessionCsrf(this.#baseUrl, this.#csrfToken);
+    }
+    return result;
+  }
+
   async loginWithPassword(password: string): Promise<SecurityResult<AuthenticatedSessionDto>> {
     const result = await this.#authenticatedJson<AuthenticatedSessionDto>(
       "/v1/auth/login/password",
@@ -433,11 +443,7 @@ export class SecurityApi {
         body: JSON.stringify({ password, device: this.#deviceIdentity() }),
       },
     );
-    if (result.ok) {
-      this.#csrfToken = result.value.csrfToken;
-      setSessionCsrf(this.#baseUrl, this.#csrfToken);
-    }
-    return result;
+    return this.#adoptSession(result);
   }
 
   /** Begins a passkey sign-in by asking for a challenge. */
@@ -455,11 +461,7 @@ export class SecurityApi {
         body: JSON.stringify({ credential, device: this.#deviceIdentity() }),
       },
     );
-    if (result.ok) {
-      this.#csrfToken = result.value.csrfToken;
-      setSessionCsrf(this.#baseUrl, this.#csrfToken);
-    }
-    return result;
+    return this.#adoptSession(result);
   }
 
   /**
@@ -471,11 +473,7 @@ export class SecurityApi {
    */
   async currentSession(): Promise<SecurityResult<AuthenticatedSessionDto>> {
     const result = await this.#authenticatedJson<AuthenticatedSessionDto>("/v1/auth/session");
-    if (result.ok) {
-      this.#csrfToken = result.value.csrfToken;
-      setSessionCsrf(this.#baseUrl, this.#csrfToken);
-    }
-    return result;
+    return this.#adoptSession(result);
   }
 
   async listSessions(): Promise<SecurityResult<{ sessions: SessionViewDto[] }>> {

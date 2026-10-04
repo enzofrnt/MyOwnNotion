@@ -264,9 +264,61 @@ describe("saved database views (T041)", () => {
         }),
       ),
     );
-    expect(markup).toContain("Base disponible · 1 entrée");
     expect(markup).toContain("database-list");
     expect(markup).toContain("Alpha");
     expect(markup).toContain("Status");
+    expect(markup).toContain('option-pill__label">To do');
+  });
+
+  it("shows a chosen page icon in the table title and the default glyph otherwise", () => {
+    const current = definition([tableView({ filter: { mode: "all", criteria: [] }, group: null })]);
+    const database: DatabaseDto = {
+      databaseId: ids.database,
+      definitionRevisionId: ids.revision,
+      lifecycle: "active",
+      name: "Projects",
+      definition: current,
+    };
+    const markup = renderToStaticMarkup(
+      createElement(
+        MemoryRouter,
+        { initialEntries: [`/notes/${ids.database}?view=${ids.table}`] },
+        createElement(DatabasePage, {
+          database,
+          entries: [
+            {
+              databaseId: ids.database,
+              entryId: ids.entry,
+              kind: "page",
+              icon: "📌",
+              revisionId: generateUuidV7(),
+              lifecycle: "active",
+              title: "Marquée",
+              document: null,
+              values: {},
+              relationTargets: {},
+            },
+            {
+              databaseId: ids.database,
+              entryId: ids.list,
+              kind: "folder",
+              icon: null,
+              revisionId: generateUuidV7(),
+              lifecycle: "active",
+              title: "Classeur",
+              document: null,
+              values: {},
+              relationTargets: {},
+            },
+          ],
+          onReplaceDefinition: vi.fn(),
+          onCreateEntry: vi.fn(),
+          onOpenEntry: vi.fn(),
+        }),
+      ),
+    );
+    expect(markup).toContain("📌");
+    expect(markup).toContain('data-item-emoji="true"');
+    expect(markup).toContain('data-icon="folder"');
   });
 });

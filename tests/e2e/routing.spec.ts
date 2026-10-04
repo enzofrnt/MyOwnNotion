@@ -3,9 +3,9 @@ import { expect, test } from "./fixtures.ts";
 import {
   convertItem,
   createDatabaseEntry,
+  createRootDatabase,
   createRootItem,
   moveSelectedItemInto,
-  openRootDatabaseCreation,
   openWorkspace,
   renameItem,
   selectItem,
@@ -53,11 +53,7 @@ test("page, folder, database and entry URLs survive identity changes and history
   await expect(page).toHaveURL(pageUrl);
 
   const databaseName = uniqueName("RouteDatabase");
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
-  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await createRootDatabase(page, databaseName);
   const databaseUrl = page.url();
   expect(new URL(databaseUrl).pathname).toMatch(/^\/notes\/[0-9a-f-]+$/u);
 

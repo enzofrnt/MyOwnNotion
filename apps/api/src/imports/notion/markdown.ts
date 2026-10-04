@@ -60,6 +60,7 @@ export function frontmatter(text: string): { body: string; properties: Record<st
 export interface LinkResolution {
   id: Uuid | null;
   kind?: "page" | "file" | "base";
+  databaseView?: { readonly containerItemId: Uuid; readonly viewId: Uuid };
   status: ImportLink["status"];
 }
 /** Wiki embeds are considered only in prose, never literal code examples. */
@@ -197,8 +198,10 @@ export function convertMarkdown(input: {
           });
           return [];
         }
-        // Database embeds are materialized from the source definition separately.
-        if (result.id && result.kind === "base") return [];
+        if (result.id && result.kind === "base" && result.databaseView) {
+          attachments.push({ type: "databaseView", id: id(), ...result.databaseView });
+          return [];
+        }
         return [{ text: source(node) }];
       }
       if (node.type === "html") {
@@ -214,14 +217,14 @@ export function convertMarkdown(input: {
       if (node.type === "definition") return [];
       if (node.type === "paragraph" || node.type === "heading") {
         const content = inline(node.children, [], attachments);
-        if (node.type === "heading" && node.depth > 3) report("import.heading-level-normalized");
+        if (node.type === "heading" && node.depth > 4) report("import.heading-level-normalized");
         return [
           ...(content.length
             ? [
                 {
                   id: id(),
                   type: node.type,
-                  ...(node.type === "heading" ? { level: Math.min(node.depth, 3) } : {}),
+                  ...(node.type === "heading" ? { level: Math.min(node.depth, 4) } : {}),
                   content,
                 } as unknown as JsonObject,
               ]

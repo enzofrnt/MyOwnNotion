@@ -1,5 +1,19 @@
 # Contract: Système d'interface V1
 
+## Guide d’implémentation actuel
+
+Le [guide partagé](../../../docs/design/ui-system.md) et `/__ui-lab` décrivent
+les propriétaires CSS et composants réellement exportés. Les tokens `--ui-*`
+sont canoniques pour le nouveau CSS ; les aliases publics ci-dessous restent
+compatibles. La liste de primitives de ce contrat exprime la cible V1 ; elle
+ne doit pas être interprétée comme une liste d’exports déjà disponibles.
+La standardisation 031 conserve cette cible et documente ses preuves et limites.
+La clarification du canevas 43.6 précise les états communs : placeholders neutres
+adaptés au contenu, informations en texte principal, focus clavier discret sans
+halo et suppression en texte/contour rouges sur fond neutre. Les options de
+propriétés conservent leur propre palette. La géométrie d’attente appartient à
+la surface qui charge, avec maintien du contenu lors d’un rafraîchissement.
+
 ## 1. Objectif
 
 La V1 doit former un espace de travail cohérent, dense et calme, proche des
@@ -203,7 +217,11 @@ espacement équivalent. Le DnD n'est jamais l'unique méthode.
 - corps de page sans « carte » lourde autour de chaque paragraphe ;
 - ligne active et poignée visibles sans déplacer le texte ;
 - slash menu et barres flottantes alignés au viewport et non coupés par les
-  conteneurs de scroll ;
+  conteneurs de scroll ; les raccourcis du menu d'insertion restent du texte
+  discret, sans relief ni pastille enfoncée ;
+- quatre niveaux de titre insérables, du plus grand au plus petit ;
+- avec plus d'un titre, un sommaire fixe au bord droit : traits au repos,
+  liste lisible au survol ou au focus, titre courant distingué ;
 - sélection multi-blocs perceptible dans les deux thèmes ;
 - placeholders différents pour titre, paragraphe vide et bloc inconnu ;
 - préparation de page rendue par un squelette éditorial neutre, jamais par une
@@ -224,9 +242,12 @@ du grand titre, proche de l'emoji, un libellé discret « Page » ou « Dossier 
 est précédé de la petite icône de type. Dans l'arbre, ce composant et le
 chevron de branche partagent exactement la même boîte ; le chevron remplace
 l'icône au survol ou au focus sans déplacer le texte. Dans le canevas d'une
-page, l'emoji est placé au-dessus du titre et ouvre un sélecteur Unicode
-compact, disponible hors ligne et refermable avec Échap. Le canevas d'un
-dossier réutilise ce même éditeur d'identité pour son emoji et son titre, sans
+page, d'un dossier ou d'une base, l'emoji choisi se place sur la même ligne,
+immédiatement devant le grand titre, et décale ce titre vers la droite. Sans
+emoji, le titre reste à sa place : la commande d'ajout n'occupe pas cet
+emplacement. L'emoji ouvre un sélecteur Unicode compact, disponible hors ligne
+et refermable avec Échap. Le canevas d'un dossier réutilise ce même éditeur
+d'identité pour son emoji et son titre, sans
 document éditorial. Le chrome supérieur d'un dossier reste aussi compact que
 celui d'une page : fil d'Ariane seulement, sans identité dupliquée.
 

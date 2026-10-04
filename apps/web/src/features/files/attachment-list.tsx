@@ -1,3 +1,4 @@
+import { AttachmentUsages } from "./attachment-usages.tsx";
 /**
  * What a page carries, stated in full (T014, T015, US1, FR-002).
  *
@@ -14,7 +15,7 @@
  */
 
 import type { FileUsageDto, ItemDto } from "@myownnotion/contracts";
-import { AsyncState, Button, FR_COPY, formatDate } from "../../ui/index.ts";
+import { AsyncState, FR_COPY, formatDate } from "../../ui/index.ts";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 
 export type LocalAvailability = "present" | "offloaded" | "never-fetched";
@@ -43,6 +44,8 @@ export interface AttachmentRow {
   readonly addedAt: string | null;
   readonly location: string;
   readonly usages: readonly FileUsageDto[];
+  /** Local rows can precede their secondary server lookup. */
+  readonly usagesKnown?: boolean;
   readonly availability: LocalAvailability;
   readonly synchronized: boolean;
 }
@@ -111,25 +114,14 @@ export function AttachmentList({
             </span>
 
             <span className="muted" data-testid={`attachment-usages-${row.item.name}`}>
-              {row.usages.length === 0 ? (
+              {row.usagesKnown === false ? (
+                FR_COPY.files.attachments.usagesUnknown
+              ) : row.usages.length === 0 ? (
                 FR_COPY.files.attachments.usedNowhereElse
               ) : (
                 <>
                   {FR_COPY.files.attachments.usedIn}{" "}
-                  {row.usages.map((usage, index) => (
-                    <span key={`${usage.usedByItemId}-${usage.blockId ?? index}`}>
-                      {index > 0 ? ", " : null}
-                      <Button
-                        type="button"
-                        size="compact"
-                        variant="ghost"
-                        data-testid={`attachment-usage-${usage.usedByName}`}
-                        onClick={() => onOpenUsage(usage.usedByItemId)}
-                      >
-                        {usage.usedByName}
-                      </Button>
-                    </span>
-                  ))}
+                  {<AttachmentUsages usages={row.usages} onOpenUsage={onOpenUsage} />}
                 </>
               )}
             </span>

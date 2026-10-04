@@ -1,0 +1,122 @@
+{
+  "lab": [
+    {
+      "buttonSizes": [[20, 20], [20, 20], [20, 20], [20, 20]],
+      "counts": 0,
+      "fileInset": 8,
+      "rowHeight": 30,
+      "scrollWidth": 1280,
+      "theme": "dark",
+      "titleActionsGap": 4,
+      "titleWidth": 60,
+      "width": 1280
+    },
+    {
+      "buttonSizes": [[20, 20], [20, 20], [20, 20], [20, 20]],
+      "counts": 0,
+      "fileInset": 8,
+      "rowHeight": 30,
+      "scrollWidth": 1280,
+      "theme": "light",
+      "titleActionsGap": 4,
+      "titleWidth": 60,
+      "width": 1280
+    },
+    {
+      "buttonSizes": [[44, 44], [44, 44], [44, 44], [44, 44]],
+      "counts": 0,
+      "fileInset": 8,
+      "rowHeight": 44,
+      "scrollWidth": 320,
+      "theme": "dark",
+      "titleActionsGap": 4,
+      "titleWidth": 13,
+      "width": 320
+    },
+    {
+      "buttonSizes": [[44, 44], [44, 44], [44, 44], [44, 44]],
+      "counts": 0,
+      "fileInset": 8,
+      "rowHeight": 44,
+      "scrollWidth": 320,
+      "theme": "light",
+      "titleActionsGap": 4,
+      "titleWidth": 13,
+      "width": 320
+    }
+  ],
+  "real": {
+    "controls": [
+      {
+        "class": "ui-button workspace-page-attachments-trigger",
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      {
+        "class": "navigation-inline-create",
+        "opacity": "1",
+        "visibility": "visible"
+      },
+      {
+        "class": "ui-button ui-menu__trigger navigation-item-menu__trigger",
+        "opacity": "1",
+        "visibility": "visible"
+      }
+    ],
+    "counts": 0,
+    "embeddedFileName": "CNAM_Rapport_d_activité.pdf",
+    "expanded": "true",
+    "sidebarFiles": ["CNAM_Rapport_d_activité.pdf"],
+    "viewport": [1304, 909]
+  },
+  "performance": {
+    "before": {
+      "openScriptMs": 79,
+      "closeScriptMs": 169
+    },
+    "afterRowLocal": [
+      {
+        "action": "open",
+        "metrics": {
+          "LayoutCount": 27,
+          "LayoutDuration": 0.006203,
+          "RecalcStyleDuration": 0.003916000000000003,
+          "ScriptDuration": 0.034082999999998975,
+          "TaskDuration": 0.10399699999999967
+        }
+      },
+      {
+        "action": "close",
+        "metrics": {
+          "LayoutCount": 28,
+          "LayoutDuration": 0.005844000000000002,
+          "RecalcStyleDuration": 0.005083000000000004,
+          "ScriptDuration": 0.022085000000000576,
+          "TaskDuration": 0.08793800000000118
+        }
+      }
+    ],
+    "afterLazyMenusOpen": {
+      "LayoutCount": 28,
+      "LayoutDuration": 0.005168000000000006,
+      "RecalcStyleDuration": 0.0062690000000000246,
+      "ScriptDuration": 0.026119000000001336,
+      "TaskDuration": 0.09041700000000219
+    },
+    "navigationBeforeLazyMenus": {
+      "LayoutCount": 13,
+      "LayoutDuration": 0.0023900000000000032,
+      "RecalcStyleDuration": 0.0048759999999999915,
+      "ScriptDuration": 0.47847300000000104,
+      "TaskDuration": 0.5102350000000015
+    },
+    "navigationAfterLazyMenus": {
+      "LayoutCount": 29,
+      "LayoutDuration": 0.005220000000000002,
+      "RecalcStyleDuration": 0.009880999999999973,
+      "ScriptDuration": 0.2900039999999997,
+      "TaskDuration": 0.34461499999999745
+    },
+    "note": "Observations CDP en dev sur le même onglet, non benchmark. Navigation includes page activation work; no E2E. Panel is inert when closing and unmounted at transitionend; returning keeps it closed."
+  }
+}

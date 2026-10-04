@@ -42,7 +42,11 @@ async function exportArtifact(): Promise<{
       await harness.built.app.inject({ method: "GET", url: `/v1/export/${exportId}` })
     ).json() as typeof status;
   }
-  expect(status.status).toBe("ready");
+  const [job] = await harness.built.context.db
+    .select()
+    .from(schema.exports)
+    .where(eq(schema.exports.id, exportId));
+  expect(status.status, JSON.stringify(job?.problem)).toBe("ready");
   const artifact = await harness.built.app.inject({
     method: "GET",
     url: `/v1/export/${exportId}/artifact`,

@@ -8,10 +8,10 @@
  * Output artifact: `secret-scan.sarif` (SARIF 2.1.0), always written, so the
  * aggregate gate can distinguish "clean" from "never ran".
  */
-import { execFileSync } from "node:child_process";
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { trackedFiles as readTrackedFiles, readTrackedTextFile } from "./tracked-files.ts";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const artifactPath = path.join(repoRoot, "secret-scan.sarif");
@@ -122,12 +122,7 @@ interface Finding {
 }
 
 function trackedFiles(): string[] {
-  const output = execFileSync("git", ["ls-files", "-z"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  return output.split("\0").filter((entry) => entry.length > 0);
+  return readTrackedFiles(repoRoot, { maxBuffer: 64 * 1024 * 1024 });
 }
 
 function writeSarif(findings: Finding[]): void {
@@ -180,13 +175,9 @@ for (const file of trackedFiles()) {
     continue;
   }
 
-  const absolute = path.join(repoRoot, file);
-  let content: string;
+  let content: string | undefined;
   try {
-    if (statSync(absolute).size > maxBytes) {
-      continue;
-    }
-    content = readFileSync(absolute, "utf8");
+    content = readTrackedTextFile(repoRoot, file, maxBytes);
   } catch {
     // A tracked path that cannot be read is a scanner failure, and a scanner
     // failure blocks: report it rather than silently passing the file.
@@ -198,6 +189,7 @@ for (const file of trackedFiles()) {
     });
     continue;
   }
+  if (content === undefined) continue;
 
   scanned += 1;
   const isTestFile = testPathPattern.test(file) || /\.(?:spec|test)\.[cm]?tsx?$/.test(file);

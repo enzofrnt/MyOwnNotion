@@ -9,12 +9,15 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
+  addDatabaseProperty,
+  createDatabaseEntry,
+  createRootDatabase,
   ensureNavigationVisible,
-  openRootDatabaseCreation,
+  entryTrigger,
   openWorkspace,
   openWorkspaceDiagnostics,
   returnToWorkspace,
-  waitForDatabaseDefinitionSaved,
+  waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -65,10 +68,7 @@ async function indexedDbContents(page: Page): Promise<string> {
 
 async function createStructuredContent(page: Page): Promise<string> {
   await ensureNavigationVisible(page);
-  await openRootDatabaseCreation(page);
-  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
-  await createDatabase.getByLabel("Créer une base de données").fill(SENTINELS.database);
-  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
+  await createRootDatabase(page, SENTINELS.database);
   await expect(page.getByTestId("active-item-title")).toHaveValue(SENTINELS.database, {
     timeout: 15_000,
   });
@@ -77,25 +77,15 @@ async function createStructuredContent(page: Page): Promise<string> {
   const databaseId = await databaseRow.getAttribute("data-item-id");
   expect(databaseId).not.toBeNull();
 
-  await page.getByRole("button", { name: "Ajouter une propriété" }).click();
-  const propertyEditor = page.getByRole("form", { name: "Éditeur de propriété" });
-  await propertyEditor.getByLabel("Nom").fill(SENTINELS.property);
-  await propertyEditor.getByLabel("Type").selectOption("text");
-  await propertyEditor.getByRole("button", { name: "Enregistrer la propriété" }).click();
-  await expect(propertyEditor).toBeHidden({ timeout: 15_000 });
-  await waitForDatabaseDefinitionSaved(page);
+  await addDatabaseProperty(page, SENTINELS.property, "text");
 
-  const createEntry = page.locator(".database-entry-create");
-  await createEntry.getByLabel("Nouvelle entrée").fill(SENTINELS.entry);
-  await createEntry.getByRole("button", { name: "Nouvelle entrée" }).click();
-  const entry = page.locator("[data-entry-trigger]").filter({ hasText: SENTINELS.entry }).first();
+  await createDatabaseEntry(page, SENTINELS.entry);
+  const entry = entryTrigger(page, SENTINELS.entry).first();
   await expect(entry).toBeVisible({ timeout: 15_000 });
   await entry.click();
   const panel = page.locator(".entry-panel");
   await panel.getByLabel(SENTINELS.property, { exact: true }).fill(SENTINELS.value);
-  await panel.getByRole("button", { name: "Enregistrer les propriétés" }).click();
-  await expect(panel.getByTestId("entry-properties-saved")).toBeVisible();
-  await waitForSynchronized(page);
+  await waitForEntryAutosave(page);
   return databaseId ?? "";
 }
 
@@ -151,7 +141,7 @@ test("keeps structured content out of local storage, addresses and diagnostics",
   await page.context().route("**/v1/**", (route) => route.abort("connectionrefused"));
   const panel = page.locator(".entry-panel");
   await panel.getByLabel(SENTINELS.property, { exact: true }).fill(SENTINELS.offline);
-  await panel.getByRole("button", { name: "Enregistrer les propriétés" }).click();
+  await waitForEntryAutosave(page, { synchronize: false });
   await openWorkspaceDiagnostics(page);
   await expect(page.getByTestId("pending-mutations")).toContainText(
     "database.entry.values.replace",

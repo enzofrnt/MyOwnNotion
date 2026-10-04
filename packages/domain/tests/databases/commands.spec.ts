@@ -92,11 +92,12 @@ describe("structured database commands (T018)", () => {
   });
 
   it("parses entry creation as one canonical page, membership, values and relations", () => {
+    const entryPlacement = { ...placement, parentItemId: IDS.database };
     const result = parse("database.entry.create", {
       databaseId: IDS.database,
       id: IDS.entryA,
       title: " Première entrée ",
-      placement,
+      placement: entryPlacement,
       document: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
       values,
       relationTargets,
@@ -110,7 +111,7 @@ describe("structured database commands (T018)", () => {
     expect(result.value.relationTargets).toEqual(relationTargets);
   });
 
-  it("accepts an entry without a placement and preserves an explicitly supplied placement", () => {
+  it("generates a direct child placement and preserves an explicitly supplied placement", () => {
     const input = {
       databaseId: IDS.database,
       id: IDS.entryA,
@@ -120,10 +121,13 @@ describe("structured database commands (T018)", () => {
     };
     const unplaced = parse("database.entry.create", input);
     expect(unplaced.ok).toBe(true);
-    if (unplaced.ok) expect(unplaced.value).not.toHaveProperty("placement");
-    const explicit = parse("database.entry.create", { ...input, placement });
+    if (unplaced.ok)
+      expect(unplaced.value).toMatchObject({ placement: { parentItemId: IDS.database } });
+    const directPlacement = { ...placement, parentItemId: IDS.database };
+    const explicit = parse("database.entry.create", { ...input, placement: directPlacement });
     expect(explicit.ok).toBe(true);
-    if (explicit.ok) expect(explicit.value).toHaveProperty("placement", placement);
+    if (explicit.ok) expect(explicit.value).toHaveProperty("placement", directPlacement);
+    expect(parse("database.entry.create", { ...input, placement }).ok).toBe(false);
     expect(parse("database.entry.create", { ...input, placement: null }).ok).toBe(false);
   });
 

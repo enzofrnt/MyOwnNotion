@@ -25,15 +25,7 @@ export async function createOperationalCheckpoint(
 ): Promise<OperationalPageCheckpoint> {
   doc.commit();
   const bytes = doc.export({ mode: "snapshot" });
-  return {
-    operationalFormat: OPERATIONAL_FORMAT,
-    operationalVersion: OPERATIONAL_FORMAT_VERSION,
-    pageId,
-    bytes,
-    digest: await sha256Hex(bytes),
-    versionVector: doc.oplogVersion().encode(),
-    frontiers: encodeOperationalFrontiers(doc.frontiers()),
-  };
+  return describeCheckpoint(pageId, doc, bytes);
 }
 
 /**
@@ -51,15 +43,7 @@ export async function createCompactedOperationalCheckpoint(
 ): Promise<OperationalPageCheckpoint> {
   doc.commit();
   const bytes = doc.export({ mode: "shallow-snapshot", frontiers: doc.oplogFrontiers() });
-  return {
-    operationalFormat: OPERATIONAL_FORMAT,
-    operationalVersion: OPERATIONAL_FORMAT_VERSION,
-    pageId,
-    bytes,
-    digest: await sha256Hex(bytes),
-    versionVector: doc.oplogVersion().encode(),
-    frontiers: encodeOperationalFrontiers(doc.frontiers()),
-  };
+  return describeCheckpoint(pageId, doc, bytes);
 }
 
 export async function openOperationalCheckpoint(
@@ -85,4 +69,20 @@ export async function openOperationalCheckpoint(
     throw new TypeError("operational checkpoint frontier mismatch");
   }
   return doc;
+}
+
+async function describeCheckpoint(
+  pageId: Uuid,
+  doc: LoroDoc,
+  bytes: Uint8Array,
+): Promise<OperationalPageCheckpoint> {
+  return {
+    operationalFormat: OPERATIONAL_FORMAT,
+    operationalVersion: OPERATIONAL_FORMAT_VERSION,
+    pageId,
+    bytes,
+    digest: await sha256Hex(bytes),
+    versionVector: doc.oplogVersion().encode(),
+    frontiers: encodeOperationalFrontiers(doc.frontiers()),
+  };
 }

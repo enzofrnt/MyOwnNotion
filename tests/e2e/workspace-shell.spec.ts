@@ -9,6 +9,7 @@ import {
   createRootItem,
   ensureNavigationVisible,
   moveSelectedItemInto,
+  openItemIconPicker,
   openWorkspace,
   renameItem,
   selectItem,
@@ -43,15 +44,15 @@ test("recovers the same local page after an explicit storage initialization refu
   const failure = page.getByTestId("workspace-state-error");
   await expect(failure).toBeVisible();
   await expect(failure).not.toContainText("fixture private storage detail");
-  await expect(page.getByTestId("block-editor")).not.toBeVisible();
+  await expect(page.locator('[data-testid="block-editor"]:visible')).not.toBeVisible();
   await expect(page.getByRole("tree", { name: "Arborescence" })).not.toBeVisible();
   await page.evaluate(() => sessionStorage.removeItem("fixture-storage-refusal"));
   await failure.getByRole("button", { name: "Réessayer", exact: true }).click();
   await openWorkspace(page);
   await expect(page.getByTestId("active-item-title")).toHaveValue(title);
-  await expect(page.getByTestId("block-editor").locator(".ProseMirror")).toContainText(
-    "Text retained through a storage refusal",
-  );
+  await expect(
+    page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror"),
+  ).toContainText("Text retained through a storage refusal");
 });
 
 interface StoredPresentationState {
@@ -273,10 +274,12 @@ test.describe("focused workspace shell", () => {
     await waitForSynchronized(page);
     await expect(page.getByTestId("active-item-title")).toHaveValue(original);
 
-    const editorIdentity = await page.getByTestId("block-editor").evaluate((node) => {
-      node.dataset["mountIdentity"] = crypto.randomUUID();
-      return node.dataset["mountIdentity"];
-    });
+    const editorIdentity = await page
+      .locator('[data-testid="block-editor"]:visible')
+      .evaluate((node) => {
+        node.dataset["mountIdentity"] = crypto.randomUUID();
+        return node.dataset["mountIdentity"];
+      });
     const title = page.getByRole("textbox", { name: "Titre de la page" });
     await expect(title).toHaveValue(original);
     await title.fill(renamed);
@@ -284,15 +287,15 @@ test.describe("focused workspace shell", () => {
 
     await expect(page.getByTestId(`tree-item-${renamed}`)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("navigation", { name: "Fil d’Ariane" })).toContainText(renamed);
-    await expect(page.getByTestId("block-editor")).toHaveAttribute(
+    await expect(page.locator('[data-testid="block-editor"]:visible')).toHaveAttribute(
       "data-mount-identity",
       editorIdentity,
     );
 
     await title.fill("");
     await title.blur();
-    await expect(title).toHaveValue("Sans titre");
-    await expect(page.getByTestId("tree-item-Sans titre")).toBeVisible({ timeout: 15_000 });
+    await expect(title).toHaveValue("Nouvelle page");
+    await expect(page.getByTestId("tree-item-Nouvelle page")).toBeVisible({ timeout: 15_000 });
   });
 
   test("edits a folder title and emoji from the main canvas", async ({ page }) => {
@@ -314,9 +317,10 @@ test.describe("focused workspace shell", () => {
     const icon = page
       .getByTestId("workspace-folder-canvas")
       .getByTestId("item-icon-picker-trigger");
-    await icon.click();
+    await openItemIconPicker(page);
     const picker = page.getByTestId("emoji-picker-panel");
     await expect(picker).toBeVisible();
+    await picker.locator('em-emoji-picker input[type="search"]').fill("file_folder");
     const folderEmoji = picker.getByRole("button", { name: "📁", exact: true });
     await folderEmoji.click();
     await expect(icon.locator('[data-item-emoji="true"]')).toHaveText("📁");

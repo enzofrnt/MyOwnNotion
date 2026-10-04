@@ -14,6 +14,10 @@ interface follow the skill's Speckit gates. These conventions complement the
 canonical specification and existing primitives; they do not attest that
 unchanged screens have passed a new review.
 
+Start with the [UI system guide](design/ui-system.md) for the current CSS loading
+order, owners, token contract and exported primitives. `/__ui-lab` provides real
+page/database/navigation/settings compositions with synthetic in-memory data.
+
 | Concern | Tool | Where it is pinned |
 | --- | --- | --- |
 | Runtime, package manager and bundler | Bun 1.4.2 exactly | `packageManager` and `engines.bun` in `package.json` |
@@ -269,6 +273,19 @@ do not rebuild or restart containers; Bun `--watch` and Vite HMR pick them up
 inside the running processes. This helper is not the official deployment;
 `compose.yaml` still publishes HTTP only.
 
+If the page reloads every 75 seconds without source edits, inspect the Vite
+console for `server connection lost. Polling for restart...`. The HMR WebSocket
+can stay idle indefinitely; a proxy I/O deadline makes Vite mistake that idle
+connection for a server restart and reload the page. The development Caddy
+route to `web:5173` therefore uses the default unlimited I/O and stream
+lifetimes. Keep the 75-second deadlines on the API route, where SSE heartbeats
+keep live streams active. After changing the Caddyfile, validate and reload
+only Caddy with `docker compose -f compose.dev.yaml exec -T caddy caddy validate
+--config /etc/caddy/Caddyfile --adapter caddyfile` followed by the same command
+with `reload` in place of `validate`; include the same project and override
+arguments used to start your stack. Existing HMR connections close once during
+that reload, so one final browser refresh is expected. No data reset is needed.
+
 For a reproducible Knowledge Graph acceptance workspace, run
 `bun run dev:stack:demo`. It performs the same destructive local reset, creates
 the dummy owner/password and a verified 240-item forest corpus (243 relationships),
@@ -279,6 +296,28 @@ cookies or service-worker caches.
 
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.
+
+### Reset before the database page/view refactor (feature 029)
+
+Migration `0019_database_pages_views` refuses to run when the installation still
+contains databases from the former page-backed/linked model. It does not delete
+them. This is a pre-V1 breaking change: older structured data and backups are
+not migrated by opening the app.
+
+For an **isolated, disposable development profile**, first inventory the pages,
+databases, entries, uploaded files and local backups in that profile. Export or
+copy anything that must survive. Then, and only after deciding to discard the
+entire profile, run `bun run dev:stack:reset` and recreate test data under the
+new model. The command deletes the profile's PostgreSQL data, encrypted file
+store and local backup store; it is broader than a database-only reset. It does
+not clear a browser's IndexedDB or service-worker cache, which must also be
+cleared for that test profile before reconnecting a new server identity.
+
+For a profile with data to preserve, leave the migration refusal in place and
+use a separate fresh test profile. Do not edit historical migrations or remove
+the guard to force startup. The new-model export/backup and restore journey is
+validated on a fresh installation as described in
+[`specs/029-database-pages-views/quickstart.md`](../specs/029-database-pages-views/quickstart.md).
 
 ### Notion import CLI
 
