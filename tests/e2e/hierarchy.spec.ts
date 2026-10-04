@@ -160,110 +160,160 @@ test.describe("hierarchy organization (US1)", () => {
     await waitForSynchronized(page);
   });
 
-  test("creates page and folder children from the compact in-row actions", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await openWorkspace(page);
-    const parent = uniqueName("Inline parent");
-    const childPage = uniqueName("Inline page");
-    const childFolder = uniqueName("Inline folder");
-    await createRootItem(page, "folder", parent);
-    await waitForSynchronized(page);
-    await ensureNavigationVisible(page);
+  for (const { width, theme } of [
+    { width: 1280, theme: "light" },
+    { width: 320, theme: "light" },
+    { width: 1280, theme: "dark" },
+    { width: 320, theme: "dark" },
+  ] as const) {
+    test(`creates page and folder children from the compact in-row actions at ${width}px ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.emulateMedia({ colorScheme: theme });
+      await openWorkspace(page);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      const parent = uniqueName("Inline parent");
+      const childPage = uniqueName("Inline page");
+      const childFolder = uniqueName("Inline folder");
+      await createRootItem(page, "folder", parent);
+      await waitForSynchronized(page);
+      await ensureNavigationVisible(page);
 
-    const row = page.getByTestId(`tree-item-${parent}`);
-    const before = await row.boundingBox();
-    await row.hover();
-    const inlineToggle = page.getByTestId(`toggle-inline-create-${parent}`);
-    await inlineToggle.focus();
-    await page.keyboard.press("Enter");
-    await expect(page.getByTestId(`new-page-inline-${parent}`)).toBeFocused();
-    await page.keyboard.press("Escape");
-    await expect(inlineToggle).toBeFocused();
+      const row = page.getByTestId(`tree-item-${parent}`);
+      // Read the baseline after the rail/drawer opens; focus must not create an
+      // invisible horizontal scrollport in any of its masking ancestors.
+      await expect
+        .poll(() =>
+          row.evaluate((element) => {
+            for (let node: Element | null = element; node !== null; node = node.parentElement) {
+              if (node.getAnimations().some((animation) => animation.playState === "running"))
+                return false;
+            }
+            return true;
+          }),
+        )
+        .toBe(true);
+      const horizontalOffsets = () =>
+        row.evaluate((element) => {
+          const offsets = [];
+          for (let node: Element | null = element; node !== null; node = node.parentElement) {
+            if (node.scrollLeft !== 0)
+              offsets.push({ className: node.className, scrollLeft: node.scrollLeft });
+          }
+          return offsets;
+        });
+      expect(await horizontalOffsets()).toEqual([]);
+      const before = await row.boundingBox();
+      await row.hover();
+      const inlineToggle = page.getByTestId(`toggle-inline-create-${parent}`);
+      await inlineToggle.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByTestId(`new-page-inline-${parent}`)).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(inlineToggle).toBeFocused();
 
-    await inlineToggle.click();
-    const after = await row.boundingBox();
-    expect(before).not.toBeNull();
-    expect(after).not.toBeNull();
-    expect(Math.abs((before?.width ?? 0) - (after?.width ?? 0))).toBeLessThanOrEqual(1);
-    expect(Math.abs((before?.height ?? 0) - (after?.height ?? 0))).toBeLessThanOrEqual(1);
+      await inlineToggle.click();
+      const after = await row.boundingBox();
+      expect(before).not.toBeNull();
+      expect(after).not.toBeNull();
+      expect(Math.abs((before?.width ?? 0) - (after?.width ?? 0))).toBeLessThanOrEqual(1);
+      expect(Math.abs((before?.height ?? 0) - (after?.height ?? 0))).toBeLessThanOrEqual(1);
 
-    const surface = row.locator(".navigation-inline-create__surface");
-    const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-    const expectedSurfaceHeight = coarsePointer ? 44 : 26;
-    await expect
-      .poll(() =>
-        surface.evaluate((element) =>
-          element.getAnimations().every((animation) => animation.playState !== "running"),
-        ),
-      )
-      .toBe(true);
-    const surfaceBox = await surface.boundingBox();
-    expect(surfaceBox).not.toBeNull();
-    expect(Math.abs((surfaceBox?.height ?? 0) - expectedSurfaceHeight)).toBeLessThanOrEqual(1);
-    await expect(surface).toHaveCSS("box-shadow", "none");
-    const surfaceBackground = await surface.evaluate(
-      (element) => getComputedStyle(element).backgroundColor,
-    );
-    expect(surfaceBackground).not.toBe("transparent");
-    expect(surfaceBackground).not.toBe("rgba(0, 0, 0, 0)");
-    expect((surfaceBox?.y ?? 0) + 0.5).toBeGreaterThanOrEqual(before?.y ?? 0);
-    expect((surfaceBox?.y ?? 0) + (surfaceBox?.height ?? 0)).toBeLessThanOrEqual(
-      (before?.y ?? 0) + (before?.height ?? 0) + 0.5,
-    );
-    expect((surfaceBox?.x ?? 0) + (surfaceBox?.width ?? 0)).toBeLessThanOrEqual(
-      (before?.x ?? 0) + (before?.width ?? 0) + 0.5,
-    );
-
-    const creationControls = [
-      page.getByTestId(`new-page-inline-${parent}`),
-      page.getByTestId(`new-folder-inline-${parent}`),
-      page.getByTestId(`new-database-inline-${parent}`),
-      inlineToggle,
-    ];
-    const controlBoxes = await Promise.all(
-      creationControls.map(async (control) => control.boundingBox()),
-    );
-    for (const controlBox of controlBoxes) {
-      expect(controlBox).not.toBeNull();
-      expect(controlBox?.x ?? 0).toBeGreaterThanOrEqual((surfaceBox?.x ?? 0) - 0.5);
-      expect((controlBox?.x ?? 0) + (controlBox?.width ?? 0)).toBeLessThanOrEqual(
-        (surfaceBox?.x ?? 0) + (surfaceBox?.width ?? 0) + 0.5,
+      const surface = row.locator(".navigation-inline-create__surface");
+      const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+      const expectedSurfaceHeight = coarsePointer ? 44 : 26;
+      await expect
+        .poll(() =>
+          surface.evaluate((element) =>
+            element.getAnimations().every((animation) => animation.playState !== "running"),
+          ),
+        )
+        .toBe(true);
+      const geometry = await row.evaluate((element) => {
+        const rect = (node: Element) => {
+          const { x, y, width, height } = node.getBoundingClientRect();
+          return { x, y, width, height };
+        };
+        const surface = element.querySelector(".navigation-inline-create__surface");
+        if (surface === null) throw new Error("Inline creation surface missing");
+        return {
+          row: rect(element),
+          surface: rect(surface),
+          controls: [...surface.querySelectorAll("button")].map(rect),
+        };
+      });
+      const surfaceBox = geometry.surface;
+      expect(await horizontalOffsets()).toEqual([]);
+      expect(Math.abs(geometry.row.x - (before?.x ?? 0))).toBeLessThanOrEqual(0.5);
+      expect(surfaceBox).not.toBeNull();
+      expect(Math.abs((surfaceBox?.height ?? 0) - expectedSurfaceHeight)).toBeLessThanOrEqual(1);
+      await expect(surface).toHaveCSS("box-shadow", "none");
+      const surfaceBackground = await surface.evaluate(
+        (element) => getComputedStyle(element).backgroundColor,
       );
-    }
-    const expectedGutter = coarsePointer ? 4 : 3;
-    for (let index = 1; index < controlBoxes.length; index += 1) {
-      const gap =
-        (controlBoxes[index]?.x ?? 0) -
-        ((controlBoxes[index - 1]?.x ?? 0) + (controlBoxes[index - 1]?.width ?? 0));
-      expect(gap).toBeGreaterThanOrEqual(-0.5);
-      expect(gap).toBeLessThanOrEqual(expectedGutter);
-    }
+      expect(surfaceBackground).not.toBe("transparent");
+      expect(surfaceBackground).not.toBe("rgba(0, 0, 0, 0)");
+      expect((surfaceBox?.y ?? 0) + 0.5).toBeGreaterThanOrEqual(geometry.row.y ?? 0);
+      expect((surfaceBox?.y ?? 0) + (surfaceBox?.height ?? 0)).toBeLessThanOrEqual(
+        (geometry.row.y ?? 0) + geometry.row.height + 0.5,
+      );
+      expect((surfaceBox?.x ?? 0) + (surfaceBox?.width ?? 0)).toBeLessThanOrEqual(
+        geometry.row.x + geometry.row.width + 0.5,
+      );
 
-    const plus = inlineToggle.locator(".ui-icon");
-    await expect(plus).toHaveAttribute("data-icon", "add");
-    const openTransform = await plus.evaluate((element) => getComputedStyle(element).transform);
-    expect(openTransform).not.toBe("none");
+      const controlBoxes = geometry.controls;
+      expect(controlBoxes).toHaveLength(4);
+      for (const controlBox of controlBoxes) {
+        expect(controlBox).not.toBeNull();
+        expect(controlBox?.x ?? 0).toBeGreaterThanOrEqual((surfaceBox?.x ?? 0) - 0.5);
+        expect((controlBox?.x ?? 0) + (controlBox?.width ?? 0)).toBeLessThanOrEqual(
+          (surfaceBox?.x ?? 0) + (surfaceBox?.width ?? 0) + 0.5,
+        );
+      }
+      const expectedGutter = coarsePointer ? 4 : 3;
+      for (let index = 1; index < controlBoxes.length; index += 1) {
+        const gap =
+          (controlBoxes[index]?.x ?? 0) -
+          ((controlBoxes[index - 1]?.x ?? 0) + (controlBoxes[index - 1]?.width ?? 0));
+        expect(gap).toBeGreaterThanOrEqual(-0.5);
+        expect(gap).toBeLessThanOrEqual(expectedGutter);
+      }
 
-    await row.hover();
-    await page.getByTestId(`new-page-inline-${parent}`).click();
-    const pageTitle = page.getByTestId("active-item-title");
-    await expect(pageTitle).toBeFocused({ timeout: 15_000 });
-    await expect(pageTitle).toHaveValue("");
-    await pageTitle.fill(childPage);
-    await pageTitle.press("Enter");
-    await expect(pageTitle).toHaveValue(childPage);
+      const plus = inlineToggle.locator(".ui-icon");
+      await expect(plus).toHaveAttribute("data-icon", "add");
+      const openTransform = await plus.evaluate((element) => getComputedStyle(element).transform);
+      expect(openTransform).not.toBe("none");
 
-    await ensureNavigationVisible(page);
-    await row.hover();
-    await page.getByTestId(`toggle-inline-create-${parent}`).click();
-    await page.getByTestId(`new-folder-inline-${parent}`).click();
-    const folderTitle = page.getByTestId("active-item-title");
-    await expect(folderTitle).toBeFocused({ timeout: 15_000 });
-    await expect(folderTitle).toHaveValue("");
-    await folderTitle.fill(childFolder);
-    await folderTitle.press("Enter");
-    await expect(page.getByTestId(`tree-item-${childFolder}`)).toBeVisible({ timeout: 15_000 });
-  });
+      await page.screenshot({ path: testInfo.outputPath(`inline-create-${theme}-${width}.png`) });
+      await row.hover();
+      await page.getByTestId(`new-page-inline-${parent}`).click();
+      const pageTitle = page.getByTestId("active-item-title");
+      await expect(pageTitle).toBeFocused({ timeout: 15_000 });
+      await expect(pageTitle).toHaveValue("");
+      await pageTitle.fill(childPage);
+      await pageTitle.press("Enter");
+      await expect(pageTitle).toHaveValue(childPage);
+
+      await ensureNavigationVisible(page);
+      await row.hover();
+      await page.getByTestId(`toggle-inline-create-${parent}`).click();
+      await page.getByTestId(`new-folder-inline-${parent}`).click();
+      const folderTitle = page.getByTestId("active-item-title");
+      await expect(folderTitle).toBeFocused({ timeout: 15_000 });
+      await expect(folderTitle).toHaveValue("");
+      await folderTitle.fill(childFolder);
+      await folderTitle.press("Enter");
+      // Selection closes the touch drawer. Reopen it before inspecting children.
+      await ensureNavigationVisible(page);
+      await expect(page.getByTestId(`tree-item-${childFolder}`)).toBeVisible({ timeout: 15_000 });
+      await waitForSynchronized(page);
+      await page.reload();
+      await ensureNavigationVisible(page);
+      await expect(page.getByTestId(`tree-item-${childPage}`)).toBeVisible();
+      await expect(page.getByTestId(`tree-item-${childFolder}`)).toBeVisible();
+    });
+  }
 
   test("rotates one chevron while descendants open and close progressively", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });

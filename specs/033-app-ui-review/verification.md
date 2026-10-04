@@ -969,8 +969,11 @@ Trivy 0.70.0 sur l'image ARM du même commit passe le seuil HIGH/CRITICAL
 corrigibles ; son rapport conserve 46 résultats sans correctif. Logs locaux
 ignorés : `checks-local-11.log`, `checks-local-11-e2e-logs/`,
 `trivy-image-build-09.log`, `trivy-gate-09.log`, `container-scan-09.sarif`.
-Les logs web sont archivés avant le parcours desktop qui réutilise le nom de
-profil Chromium, afin de conserver les comptes de chaque corpus.
+Limite de l'archive 11 constatée lors de la tentative 14 : son fichier
+Chromium a été copié après le parcours desktop et contient ses neuf résultats,
+pas les 303 parcours web. Le log complet 11 conserve la réussite 5/5 de la
+matrice ; les quatre autres archives web sont intactes. À partir du contrôle
+14, chaque log web est copié dès la fin de son profil, avant sa réutilisation.
 
 Les états UI et captures associés à T040–044/T046–058 sont revus dans les
 sections précédentes : clair/sombre, largeur étroite, gestes natifs, sauvegarde,
@@ -1121,3 +1124,63 @@ n'établissent pas la cause des deux timeouts du contrôle complet ; aucun
 correctif produit, hausse de délai ou exclusion n'est introduit. Le prochain
 contrôle doit réussir intégralement sur son commit exact. Les quatre
 conteneurs de l'instance du propriétaire et leurs données restent intacts.
+
+
+### Contrôle complet 14 — géométrie intermittente, pas de push
+
+Le contrôle sur `ea70b396aa36edeb14beaf167dece9906d975f46` passe
+format/lint/types, 5 094 tests dans 483 fichiers, les deux exclusions Windows
+locales habituelles, puis couverture 91,72/86,33/94,37/92,82 %, neuf suites de
+performance (22 tests), 375 intégrations, 13 migrations et 1 871 contrats.
+Les deux suites qui avaient expiré lors du contrôle 13 passent ici, y compris
+leur nettoyage. Quatre profils web complets passent : Chromium desktop 304/12,
+Firefox desktop 290/26, Chromium mobile 292/24 et WebKit desktop 290/26
+(réussites/exclusions existantes). Leurs logs sont archivés immédiatement sous
+`work/test-readiness/checks-local-14-e2e-logs/`, avec le commit exact.
+
+WebKit mobile termine son premier shard, puis signale un échec de géométrie
+inline au deuxième shard, réussi au retry. Les deux glissers natifs T061
+passent également, en clair à largeur habituelle et sombre à 320 px. La
+tentative est interrompue après conservation de la capture et de la trace :
+un retry réussi ne valide pas le gate. WebKit mobile reste incomplet, son
+troisième shard et les contrôles desktop/build/images/sécurité/Compose suivants
+ne sont pas exécutés. Aucun push ; les données et quatre conteneurs du
+propriétaire restent intacts. T062 suit le diagnostic de ce défaut.
+
+
+### T062 — masque de sidebar sans défilement invisible
+
+Le diagnostic 46 reproduit trois échecs sur dix essais WebKit mobile. Les
+mesures relèvent une translation de tout le panneau par `scrollLeft = 7`
+sur `.workspace-sidebar-slot`, avec transformation CSS à zéro ; les autres
+ancêtres ne défilent pas. Le repère de la ligne passe de x = −3 à x = 4
+lors des gestes de focus. Le problème est donc un vrai déplacement de la
+sidebar, pas son animation ni un débordement propre aux boutons. Le test
+renforcé 47 échoue deux fois sur cet offset, avant toute modification CSS.
+
+Le seul propriétaire modifié est `navigation.css` : le masque extérieur
+utilise `overflow: clip` au lieu de créer un scrollport invisible avec
+`hidden`. Le défilement réel reste dans le viewport de l’arbre. Le test
+conserve les tolérances de 0,5/1 px et les dimensions/cibles/gouttières, lit
+ligne/surface/contrôles dans une seule mesure, exige une origine stable et
+l’absence de défilement horizontal des ancêtres. Les transitions restent
+actives ; Entrée, Échap, retour du focus et clic natif sont conservés.
+
+L’extension 48 découvre une préparation inadaptée à 320 px : créer un enfant
+ferme normalement le tiroir ; son assertion de visibilité devait le rouvrir.
+Cette tentative est interrompue, sans valider la matrice. Le parcours corrigé
+49 passe **40 tests, cinq profils, 139 s, sans retry** : clair/sombre à
+320/1 280 px, deux répétitions de chaque cas. Les enfants sont relus après
+synchronisation et rechargement. Aucun délai augmenté, exclusion ajoutée ni
+assertion de débordement retirée. Tous les loggers temporaires sont supprimés
+des tests maintenus. Logs sous `work/test-readiness/e2e-inline-scroll-*.log`
+et `e2e-inline-scroll-green-49-logs/`.
+
+Les huit captures Chromium desktop/WebKit mobile, chaque thème et largeur,
+sont examinées et conservées sous
+`assets/validation-inline-create-<profil>-<thème>-<largeur>.png`. La ligne
+et ses quatre commandes restent contenues et alignées ; le texte long cède
+sa place aux actions, les thèmes et le tiroir restent cohérents. Vérification
+avec ui-quality, lessons et le guide du système UI. Le contrôle complet sur
+le nouveau commit et sa CI restent obligatoires ; T045/T059–062 restent
+ouverts à cette étape. Les données de dev sont intactes.

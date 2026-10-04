@@ -2,7 +2,10 @@
   height: 100%;
   width: var(--workspace-sidebar-width);
   min-width: 0;
-  overflow: hidden;
+  /* This masks the rail while it closes; the tree owns its actual scrolling.
+     `hidden` lets WebKit scroll the mask horizontally when a child receives
+     focus, shifting the entire navigation even though no scrollbar exists. */
+  overflow: clip;
   background: var(--ui-color-sidebar);
   transition: width 220ms var(--ui-ease-standard);
 }

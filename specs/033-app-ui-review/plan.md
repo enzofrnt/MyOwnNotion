@@ -436,3 +436,20 @@ groupe sont normalisées vers le premier/dernier bloc ; une preview sans cible
 de dépôt est refusée et les placements sans effet restent masqués. Le commit
 de déplacement conserve exactement cette position, sans modifier le CSS ni
 utiliser un collage HTML. Les diagnostics temporaires sont retirés.
+
+T062 examine les rectangles et les offsets de défilement de la création inline
+sur WebKit mobile. Une comparaison entre une ligne mesurée avant les gestes et
+une surface mesurée après ne doit pas confondre un déplacement du repère avec
+un débordement du contrôle. Conserver les tolérances, la géométrie stable, les
+gestes clavier/pointeur et la création durable. Le diagnostic doit distinguer
+animation et défilement d'un ancêtre avant de décider entre correction du test
+ou de la surface ; appliquer ui-quality + lessons et conserver les preuves.
+
+
+Le diagnostic T062 identifie le scrollport caché de `.workspace-sidebar-slot`
+(offset horizontal de 7 px sous WebKit), sans transformation animée. Le masque
+utilise `overflow: clip`, et le viewport de l’arbre conserve son défilement réel.
+Le parcours renforcé lit tous les rectangles dans le même frame, exige une
+origine stable sans scroll horizontal, conserve les tolérances et gestes, puis
+relit les enfants après rechargement. Clair/sombre × 320/1 280 px restent dans
+le corpus ; captures réelles revues selon ui-quality + lessons.

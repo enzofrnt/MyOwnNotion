@@ -137,3 +137,7 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 ## Phase 9: Convergence
 
 - [ ] T061 Préserver le dépôt natif d'un bloc à la destination de sa preview sur WebKit mobile, avec un autre éditeur masqué : diagnostiquer l'échec CI avant toute correction, conserver déplacement durable/annulation/mentions et contrôles de géométrie, rejouer les cinq profils sans retry et appliquer ui-quality + lessons avec preuves, selon FR-005/012, US2/AC2 et Constitution III/VI/VII (partial).
+
+## Phase 10: Convergence
+
+- [ ] T062 Diagnostiquer la mesure intermittente de débordement de création inline sur WebKit mobile ; comparer ligne, surface et contrôles dans un même repère, conserver stabilité des dimensions, tolérances et gestes natifs, couvrir ouverture animée et thèmes avec ui-quality + lessons et preuve réelle, puis contrôle complet et CI, selon FR-008/010, US2/AC2 et Constitution III/VI/VII (partial).
