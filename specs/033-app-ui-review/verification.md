@@ -1958,3 +1958,57 @@ rapports CI `*-e7e69ad7.log`. La CI doit encore confirmer la dernière révision
 publiée ; les références et sa conclusion restent dans la PR 181. Le suivi
 automatique consulte son état toutes les cinq minutes, selon la demande du
 propriétaire, et traite un nouvel échec avant de déclarer la livraison terminée.
+
+## Géométrie inline après les animations des choix — 2026-10-04
+
+Le [run de `6e889c07`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37219819502)
+passe les quatre autres profils E2E et tous les contrôles hors navigateur.
+WebKit mobile échoue dans le cas inline sombre à 1280 px ; le clair ne passe
+qu'après retry, donc reste bloquant. La gouttière mesurée entre le groupe des
+choix et la croix est −1,075/−1,406 px en sombre et −1,802 px en clair, sous
+la tolérance inchangée de −0,5 px. La mesure attendait uniquement les animations
+de la surface ; les choix possèdent leurs propres transitions de transformation.
+
+Dix essais normaux puis quarante avec observation passent en local : le défaut
+intermittent brut de la CI n'est pas reproduit dans ces essais. Un diagnostic
+contrôlé ralentit seulement la transition native de transformation des choix
+via son `playbackRate`, sans changer les styles. L'ancienne attente passe pendant
+que cette transition court encore ; la mesure échoue à −0,525 px. Le même
+diagnostic passe après inclusion du sous-arbre : quatre boutons de 44 px,
+gouttières nulles et aucune animation restante. Cela reproduit le mécanisme que
+l'attente précédente ne contrôlait pas, sans prétendre reproduire la charge CI.
+
+Le changement maintenu est limité à `getAnimations({ subtree: true })` dans
+l'attente de ce parcours. Les mesures atomiques, tolérances, dimensions,
+gouttières, focus, Entrée/Échap, clics, persistance/rechargement et budgets
+restent identiques. Toute instrumentation et tout changement de playbackRate
+sont retirés avant validation finale ; le code produit reste inchangé.
+
+- **60/60 parcours normaux réussis**, sans retry, trois répétitions par thème
+  et largeur sur les cinq profils ; 188 s. Commande :
+
+  ```bash
+  DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+  MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+  tests/e2e/hierarchy.spec.ts --grep 'compact in-row actions' \
+  --retries=0 --repeat-each=3
+  ```
+
+- Biome ciblé et types racine réussis ; prérequis/cohérence Spec Kit, liens
+  locaux et diff contrôlés. Les 75 parcours de T074 restent applicables au
+  helper et aux sources produit inchangés. La CI précédente confirme également
+  les unités/couverture/contrats et les cibles desktop de ces mêmes sources.
+- Revue ui-quality + lessons sur les captures normales : quatre actions alignées,
+  taille constante, libellé tronqué selon l'espace restant, focus visible et
+  Réglages au pied, en [clair 320](assets/validation-inline-await-webkit-mobile-light-320.png),
+  [sombre 320](assets/validation-inline-await-webkit-mobile-dark-320.png),
+  [clair 1280](assets/validation-inline-await-webkit-mobile-light-1280.png) et
+  [sombre 1280](assets/validation-inline-await-webkit-mobile-dark-1280.png).
+
+Diagnostics ignorés sous `work/ci-181/` : `local-inline-before.log`,
+`local-inline-probe.log`, `inline-probe-*.log`,
+`local-inline-child-frame-{before,after}.log`,
+`inline-child-frame-{before,after}-detail.log` et `local-inline-after.log`.
+La base jetable est séparée des données propriétaire. La dernière révision
+publiée doit encore obtenir sa CI verte, suivie toutes les cinq minutes dans
+la PR 181 ; cet échec n'est pas présenté comme une livraison réussie.

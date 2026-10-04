@@ -69,6 +69,17 @@ puis le défilement natif expose la cible. Ne pas imposer une largeur intégrale
 de débordement du parcours zoom. Rejouer zoom, dépliement/pagination et accès
 sidebar/Source sur les cinq profils, sans retry ni augmentation des budgets.
 
+Le run de `6e889c07` passe les quatre autres profils et tous les contrôles hors
+E2E, mais révèle une mesure de gouttière pendant l'animation des choix inline
+sur WebKit mobile, à 1280 px. Dix essais normaux puis quarante avec observation
+ne reproduisent pas cet échec. Un frame contrôlé de la transition native des
+choix reproduit le même chevauchement : l'attente du conteneur est déjà satisfaite
+alors que son descendant est encore animé. Étendre cette attente à son sous-arbre
+avant la mesure atomique, conserver les tolérances, transitions et gestes natifs.
+Vérifier le même frame contrôlé puis retirer toute instrumentation et rejouer
+la composition clair/sombre, 320/1280 px sur les cinq profils. Aucun rendu produit
+ne change ; appliquer ui-quality + lessons aux preuves de la vraie composition.
+
 ## Technical Context
 
 TypeScript strict/Bun 1.4.2/React/Ariakit/BlockNote existants. Frameworks conservés ;
