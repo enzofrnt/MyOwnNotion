@@ -18,6 +18,7 @@ export const DATABASE_COPY = {
     unavailableOption: "Option indisponible",
     unavailableProperty: "Propriété indisponible",
     noUsableView: "Cette base de données ne contient aucune vue utilisable.",
+    sourceLocked: "Ajoutez une deuxième vue pour changer sa source.",
     noEntriesAvailable: "Aucune entrée dans les données disponibles sur cet appareil.",
     noEntries: "Aucune entrée dans cette vue.",
     noCardsAvailable: "Aucune carte dans les données disponibles sur cet appareil.",

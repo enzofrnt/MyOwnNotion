@@ -658,6 +658,24 @@ export async function ensureNavigationRowVisible(page: Page, itemName: string): 
   await ensureNavigationVisible(page);
   const row = page.getByTestId(`tree-item-${itemName}`);
   await expect(row).toBeVisible({ timeout: 15_000 });
+  // Visibility alone ignores an expanding branch's animation mask. Observe
+  // its actual opening before scrolling to the row, rather than requiring the
+  // decorative row width to fit the viewport (which is false at CSS zoom).
+  await expect
+    .poll(() =>
+      row.evaluate((element) => {
+        for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+          if (!ancestor.matches(".collapsible-region")) continue;
+          if (ancestor.getAttribute("data-open") !== "true") return false;
+          if (ancestor.getAnimations().some((animation) => animation.playState === "running"))
+            return false;
+        }
+        return true;
+      }),
+    )
+    .toBe(true);
+  await row.scrollIntoViewIfNeeded();
+  await expect(row).toBeInViewport();
   return row;
 }
 
@@ -789,6 +807,9 @@ export async function trashItem(
 
 export async function moveItemToRoot(page: Page, itemName: string): Promise<void> {
   await clickItemAction(page, itemName, `move-root-${itemName}`);
+  // The click returns before the local move remounts this row at the root.
+  // Observe that result before a later scroll or selection uses the old branch.
+  await expect(page.getByTestId(`tree-item-${itemName}`)).toHaveAttribute("aria-level", "1");
 }
 
 export async function moveItemUp(page: Page, itemName: string): Promise<void> {

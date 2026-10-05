@@ -1735,3 +1735,505 @@ L'instance du propriétaire conserve Caddy `125a1a04c051`, web `d21f7c000c58`, A
 `9805c10c811b` et PostgreSQL `8c1a3325af0b`, tous sains. Les références du commit
 publié sont ajoutées au corps de la PR 180 ; aucune fusion et aucune nouvelle
 suite applicative lancée pour cette mise à jour documentaire.
+
+## Sidebar et accès Source après fusion — 2026-10-04
+
+Base : `main` fusionné `01a0560b51cecc461135fb26b49e7ceff9105f6a`, CI
+37196888713 verte. Correctifs locaux sur `codex/033-sidebar-source-controls`,
+selon FR-022/023, T070/071 et ui-quality + lessons L-009/010/018.
+
+### Diagnostic et résultat réel
+
+À 1059×843, une longue branche fait grandir la rangée implicite de la grille :
+sidebar de 1236,45 px, pied à 1183,45 px, hors de la fenêtre. La rangée explicite
+`minmax(0, 1fr)`, la taille minimale nulle du rail et le pied non rétrécissable
+conservent le défilement dans OverlayScrollArea. Après correction : shell et
+rail de 843 px, pied à 790–835 px. Après défilement de la navigation (1273 px
+observés), le pied garde le même emplacement. Le tiroir mobile à 320×843 garde
+son pied à 770–815 px, sans débordement horizontal ; Échap le ferme et rend le
+focus au déclencheur.
+
+Le refus de choisir « bob » provenait du verrou existant de vue unique.
+Un même booléen est maintenant utilisé par l'écriture, le menu Ariakit et
+la ligne des paramètres. Les deux commandes sont grisées/inactives avec
+description accessible et titre natif « Ajoutez une deuxième vue pour changer
+sa source. ». Ajouter une deuxième vue réactive les accès ; la gestion des
+sources et l'exception des vues liées restent inchangées.
+
+Preuves de l'instance réelle, examinées dans le navigateur intégré :
+
+- [Sidebar et paramètres sombres à 1059](assets/sidebar-source-dark-1059.jpg).
+- [Menu Source désactivé](assets/source-menu-dark-1059.jpg).
+- [Sidebar et paramètres sombres à 1280](assets/sidebar-source-dark-1280.jpg).
+- [Sidebar défilée et paramètres clairs à 1280](assets/sidebar-source-light-1280.jpg).
+- [Tiroir clair à 320](assets/sidebar-light-320.jpg),
+  [tiroir sombre défilé à 320](assets/sidebar-dark-320.jpg).
+- [Paramètres clairs à 320](assets/source-settings-light-320.jpg),
+  [paramètres sombres à 320](assets/source-settings-dark-320.jpg).
+
+Les dimensions et le thème système ont été temporairement émulés pour la
+revue, puis restaurés ; aucune préférence de thème ni donnée métier changée.
+Pas de nouvelle leçon dans le journal avant validation explicite du propriétaire.
+
+### Validation proportionnée
+
+- Vitest web : **33/33** tests, quatre fichiers (nouveau verrou du panneau,
+  shell, sidebar, compositions partagées). Le bouton natif refuse le clic puis
+  accepte l'action après déverrouillage, sans garder la raison obsolète.
+- Types web et TypeScript racine : **réussis**.
+- Biome sur les neuf fichiers exécutables modifiés : **code 0**, zéro erreur,
+  63 avertissements de spécificité CSS ; aucune règle désactivée. Diff vérifié.
+- Deux parcours sélectionnés, Chromium desktop et WebKit mobile Linux :
+  **4/4 réussites, sans retry**, 35 s pour la matrice ciblée. Géométrie bureau
+  et 320 px, défilement natif déclenché par focus, Échap/retour du focus ; menu
+  au clic droit puis Shift+F10, raison accessible et déverrouillage des deux
+  accès. Source et création de pages/dossiers restent opérationnelles.
+- Le premier essai du nouveau test utilisait une molette non supportée par
+  Playwright WebKit mobile ; le parcours utilise maintenant le défilement natif
+  au focus, avec les mêmes assertions. Ce premier essai n'est pas une preuve
+  réussie et aucune assertion produit n'a été retirée.
+- Spécifications/plan/tâches cohérents avec le canevas §§12/14 et 029 ; preuves
+  locales présentes, titres/liens et diff vérifiés. Aucune suite complète, aucun
+  reset du workspace du propriétaire, aucune migration ni dépendance changée.
+
+L'instance HTTP 8080 reste en dev sur ce checkout. Docker Desktop avait conservé
+une taille de fichier obsolète sur les sources modifiées, provoquant des lectures
+tronquées : le web a été recréé et ces six fichiers ont été actualisés dans le
+montage. Les données et services API/PostgreSQL/Caddy sont conservés. Les sources
+lues dans le conteneur correspondent aux fichiers locaux corrigés. La vérification
+applicative de la CI précédente n'est pas annoncée comme une CI de ces correctifs.
+
+## Stabilisation de la navigation pendant le dépliement — 2026-10-04
+
+### Échec reproduit et correction
+
+La [CI initiale de PR 181](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37213675030)
+sur `abf78d5e` termine avec 30 contrôles réussis ; Chromium mobile est refusé
+pour un parcours flaky, puis quality-gate refuse sa conclusion. Les autres
+profils Playwright réussissent. Le parcours concerné est
+`linked-databases.spec.ts`, « loads beyond 1000 canonical entries using a
+visible cursor action ». Il échoue avant le chargement de la première page :
+`Large reusable source` conserve `aria-selected=false` après le clic.
+
+La trace CI montre le clic pendant l'animation du groupe de navigation. La
+ligne et son texte sont montés et possèdent une boîte stable, mais leur parent
+`collapsible-region__inner` masque encore cette boîte avec `overflow: clip`.
+`toBeVisible` ne vérifie pas ce masque. La même erreur est reproduite en local
+sur Chromium mobile : **deux réussites et un échec sur trois**, sans retry.
+Les traces et logs restent dans les sorties locales ignorées (`work/ci-181`,
+`test-results` et `.e2e-logs`) et dans le rapport de la CI initiale.
+
+`ensureNavigationRowVisible` effectue maintenant le défilement natif nécessaire
+puis attend une intersection complète de la ligne (`toBeInViewport`, ratio 1).
+L'attente observe la géométrie réellement exposée au pointeur, sans durée fixe,
+nouveau retry, clic forcé, budget augmenté ou assertion de sélection supprimée.
+Le code produit, les données et les animations restent ceux de `abf78d5e`.
+
+### Validation locale avant publication
+
+Changement exécutable délimité à cinq lignes de `tests/e2e/helpers.ts`.
+Les types TypeScript racine et Biome sur ce fichier réussissent ; le build E2E
+est effectué par le runner. La preuve antérieure de 33 tests composants et
+des types web reste applicable aux sources produit inchangées.
+
+Matrice isolée : trois parcours (pagination de 1001 entrées, sidebar longue,
+accès Source verrouillé/déverrouillé), **trois répétitions chacun sur les cinq
+profils**, **45/45 réussites**, **zéro retry**, 532 s. Chromium desktop/mobile
+s'exécutent sur l'hôte ; Firefox et WebKit desktop/mobile dans le runtime Linux
+documenté. Les assertions de pagination, virtualisation, ouverture/retour,
+focus, source et géométrie sont conservées.
+
+Commande reproductible avec PostgreSQL de test sur 55432 et deux stacks :
+
+```bash
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/linked-databases.spec.ts tests/e2e/workspace-shell.spec.ts \
+tests/e2e/databases-pages-views.spec.ts \
+--grep 'loads beyond 1000|keeps settings visible|a database is a navigable owner' \
+--retries=0 --repeat-each=3
+```
+
+Prérequis Spec Kit 033, cohérence FR-008/022–plan–T072, liens locaux des documents
+modifiés et diff contrôlés. Aucune donnée du workspace du propriétaire utilisée
+pour les fixtures. La publication doit encore recevoir la confirmation de tous
+les contrôles GitHub ; cette preuve locale ne constitue pas une CI verte. La
+révision publiée, son run et sa conclusion sont suivis dans la
+[PR 181](https://github.com/enzofrnt/MyOwnNotion/pull/181).
+
+## Collecte du test de routage sous couverture — 2026-10-04
+
+Le [run de `46427ada`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37216046150)
+révèle un autre échec, dans `Unit, property & coverage` : le `beforeAll` de
+`app-routing.spec.tsx` expire à **10 000 ms** en chargeant le graphe complet de
+modules de `App`. Les 18 tests de routage sont alors non exécutés ; les 5098
+autres assertions réussissent. Le test ciblé sur l'hôte passe avant correction
+(18/18, 7,10 s pour le fichier) : ce dépassement du délai de préparation n'est
+pas reproduit dans cet essai isolé.
+
+Le test importe maintenant `App` statiquement lors de la collecte de Vitest,
+comme ses autres composants. Il ne mesure plus la transformation/chargement
+du code dans un hook de préparation fonctionnelle. Les 18 assertions, les
+délais des tests, les hooks de montage/nettoyage, l'isolation, les quatre
+workers et les seuils de couverture restent inchangés. Aucun code produit ni
+configuration de test n'est modifié.
+
+Validation du même code avant publication :
+
+- **Couverture complète réussie** : 487 fichiers, **5117 assertions réussies**,
+  deux exclusions existantes, 210,81 s. Les 18 tests de routage passent en
+  5,32 s, y compris authentification, retour protégé, réglages, graphe et reprise
+  hors ligne. Le fournisseur Istanbul et tous les seuils sont conservés.
+- Couverture globale observée : statements 91,72 %, branches 86,33 %, fonctions
+  94,37 %, lignes 92,82 % ; le gate des nombres absolus non couverts réussit.
+- Types web, types racine, Biome ciblé, prérequis Spec Kit, cohérence
+  FR-008–plan–T073, liens des trois documents modifiés et diff vérifiés.
+- Les 45 parcours ciblés sans retry de `46427ada` restent une preuve applicable
+  aux entrées E2E et aux sources produit inchangées. Le test unitaire de routage
+  n'est pas une entrée du bundle produit ni de ces parcours.
+
+Le premier lancement local de la couverture a été interrompu (sortie 130)
+après des refus de sauvegarde : les clients PG18 n'étaient pas sur PATH.
+Il n'est pas compté comme une réussite. La commande suivante utilise le chemin
+Homebrew documenté et le PostgreSQL jetable du runner ; aucun reset de la base
+ou des données du propriétaire :
+
+```bash
+PATH="/opt/homebrew/opt/libpq/bin:$PATH" bun run test:coverage
+```
+
+Logs locaux ignorés : `work/ci-181/local-coverage-routing-pg18.log` ; diagnostic
+CI dans `work/ci-181/unit-46427ada.log`. La confirmation CI du correctif de
+collecte reste à obtenir sur sa révision publiée et est suivie dans la PR 181.
+
+## Attente du dépliement et zoom — 2026-10-04
+
+Le [run de `e7e69ad7`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37217351997)
+passe tous les contrôles hors E2E, dont la couverture. Les cinq profils E2E
+échouent au zoom à 200 % sur l'attente introduite par T072 ; WebKit bureau
+échoue aussi sur une ligne de fichier enfant. Le ratio horizontal de la ligne
+reste environ 0,99, même après défilement et retry : l'exigence d'une ligne
+décorative intégralement dans le viewport n'observe pas seulement le dépliement.
+Le screenshot CI du zoom montre bien le libellé exposé et les réglages visibles.
+Le même échec est reproduit localement sur Chromium et Firefox, sans retry.
+
+`ensureNavigationRowVisible` attend maintenant que chaque région ancêtre soit
+ouverte et que ses animations natives soient terminées, puis fait défiler la
+ligne et vérifie sa présence dans le viewport. Il ne désactive ni n'accélère
+l'animation produit. Le clic réel et sa sélection restent contrôlés ; le
+parcours zoom conserve son assertion de débordement horizontal. Aucun budget,
+retry, skip, code produit, dépendance ou configuration n'est modifié.
+
+Validation locale avant publication :
+
+- **60/60 parcours** : zoom, pagination après 1000 entrées, sidebar bornée et
+  propriétaire de base/Source, trois répétitions sur chacun des cinq profils,
+  sans retry ; matrice réussie en 590 s.
+- **15/15 parcours supplémentaires** : fichier hiérarchique distinct des PJ de
+  sa page, trois répétitions sur les cinq profils, sans retry ; 69 s.
+- Biome ciblé et types racine réussis. Prérequis Spec Kit, liens locaux, diff
+  et cohérence FR-008/022–plan–T074 vérifiés.
+- La couverture complète de T073 reste applicable aux sources produit et
+  unitaires inchangées. Le helper Playwright n'est pas une entrée Vitest.
+
+Commandes avec PostgreSQL jetable sur 55432, distinct de l'instance propriétaire :
+
+```bash
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/narrow-viewport.spec.ts tests/e2e/linked-databases.spec.ts \
+tests/e2e/workspace-shell.spec.ts tests/e2e/databases-pages-views.spec.ts \
+--grep 'core writing surface|loads beyond 1000|keeps settings visible|a database is a navigable owner' \
+--retries=0 --repeat-each=3
+
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/files.spec.ts --grep 'keeps a hierarchy file under a page distinct' \
+--retries=0 --repeat-each=3
+```
+
+Logs ignorés : `work/ci-181/local-zoom-before.log`,
+`local-navigation-zoom-after.log`, `local-navigation-files-after.log` et les
+rapports CI `*-e7e69ad7.log`. La CI doit encore confirmer la dernière révision
+publiée ; les références et sa conclusion restent dans la PR 181. Le suivi
+automatique consulte son état toutes les cinq minutes, selon la demande du
+propriétaire, et traite un nouvel échec avant de déclarer la livraison terminée.
+
+## Géométrie inline après les animations des choix — 2026-10-04
+
+Le [run de `6e889c07`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37219819502)
+passe les quatre autres profils E2E et tous les contrôles hors navigateur.
+WebKit mobile échoue dans le cas inline sombre à 1280 px ; le clair ne passe
+qu'après retry, donc reste bloquant. La gouttière mesurée entre le groupe des
+choix et la croix est −1,075/−1,406 px en sombre et −1,802 px en clair, sous
+la tolérance inchangée de −0,5 px. La mesure attendait uniquement les animations
+de la surface ; les choix possèdent leurs propres transitions de transformation.
+
+Dix essais normaux puis quarante avec observation passent en local : le défaut
+intermittent brut de la CI n'est pas reproduit dans ces essais. Un diagnostic
+contrôlé ralentit seulement la transition native de transformation des choix
+via son `playbackRate`, sans changer les styles. L'ancienne attente passe pendant
+que cette transition court encore ; la mesure échoue à −0,525 px. Le même
+diagnostic passe après inclusion du sous-arbre : quatre boutons de 44 px,
+gouttières nulles et aucune animation restante. Cela reproduit le mécanisme que
+l'attente précédente ne contrôlait pas, sans prétendre reproduire la charge CI.
+
+Le changement maintenu est limité à `getAnimations({ subtree: true })` dans
+l'attente de ce parcours. Les mesures atomiques, tolérances, dimensions,
+gouttières, focus, Entrée/Échap, clics, persistance/rechargement et budgets
+restent identiques. Toute instrumentation et tout changement de playbackRate
+sont retirés avant validation finale ; le code produit reste inchangé.
+
+- **60/60 parcours normaux réussis**, sans retry, trois répétitions par thème
+  et largeur sur les cinq profils ; 188 s. Commande :
+
+  ```bash
+  DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+  MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+  tests/e2e/hierarchy.spec.ts --grep 'compact in-row actions' \
+  --retries=0 --repeat-each=3
+  ```
+
+- Biome ciblé et types racine réussis ; prérequis/cohérence Spec Kit, liens
+  locaux et diff contrôlés. Les 75 parcours de T074 restent applicables au
+  helper et aux sources produit inchangés. La CI précédente confirme également
+  les unités/couverture/contrats et les cibles desktop de ces mêmes sources.
+- Revue ui-quality + lessons sur les captures normales : quatre actions alignées,
+  taille constante, libellé tronqué selon l'espace restant, focus visible et
+  Réglages au pied, en [clair 320](assets/validation-inline-await-webkit-mobile-light-320.png),
+  [sombre 320](assets/validation-inline-await-webkit-mobile-dark-320.png),
+  [clair 1280](assets/validation-inline-await-webkit-mobile-light-1280.png) et
+  [sombre 1280](assets/validation-inline-await-webkit-mobile-dark-1280.png).
+
+Diagnostics ignorés sous `work/ci-181/` : `local-inline-before.log`,
+`local-inline-probe.log`, `inline-probe-*.log`,
+`local-inline-child-frame-{before,after}.log`,
+`inline-child-frame-{before,after}-detail.log` et `local-inline-after.log`.
+La base jetable est séparée des données propriétaire. La dernière révision
+publiée doit encore obtenir sa CI verte, suivie toutes les cinq minutes dans
+la PR 181 ; cet échec n'est pas présenté comme une livraison réussie.
+
+## Activation clavier avant la flèche des propriétés — 2026-10-04
+
+Le [run de `1f370935`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37222965472)
+bloque sur un parcours Chromium bureau flaky : après Espace puis Flèche bas,
+la transformation reste nulle. Le retry passe, mais le gate refuse ce résultat.
+La trace montre déjà des rectangles et transformations d'identité avant la
+flèche : attendre seulement leur mesure ne corrigerait pas cette séquence.
+
+Cinq répétitions normales passent. Deux séries de vingt répétitions avec
+observation reproduisent chacune un blocage, sur le second déplacement après
+annulation. La seconde capture observe Espace à 3639,9 ms, Flèche bas à
+3648,4 ms puis l'installation de l'écoute clavier à 3649,9 ms. Aucun appel au
+calcul des coordonnées ne reçoit cette flèche. Les essais qui reçoivent la
+commande observent trois rectangles corrects et la destination de Team.
+L'état visuel actif est publié avant le listener que KeyboardSensor installe
+par un timer différé ; il ne garantit donc pas la réception de la touche suivante.
+
+Le changement maintenu se limite au parcours : après Espace et le contrôle de
+`data-dragging`, un timer natif sans durée ajoutée laisse s'exécuter le tour
+déjà en file, avant Flèche bas. Cette séquence est partagée entre annulation
+et dépôt. Il n'y a ni pause à durée arbitraire, ni flèche répétée, ni clic forcé,
+ni changement du moteur produit, du CSS, des assertions, des budgets ou des
+retries. Le parcours vérifie toujours transformation réelle, preview et annonce,
+annulation sans écriture, ordre durable après rechargement, valeurs et colonnes
+indépendantes. Aucun parcours n'est exclu.
+
+- **20/20 répétitions avec observation après correction**, 98 s : chaque flèche
+  est reçue après installation. Les probes sont ensuite intégralement retirées.
+- **25/25 parcours normaux réussis**, sans retry, cinq répétitions sur chacun
+  des cinq profils ; matrice en 169 s. Firefox et les deux WebKit utilisent le
+  runtime Linux documenté sur cet hôte macOS.
+- Biome ciblé et types racine réussis. Diff, prérequis/cohérence Spec Kit et
+  liens locaux vérifiés avant publication. Les sources produit et les entrées
+  unitaires restent identiques à la révision dont la CI confirme la couverture.
+- Revue ui-quality + lessons des captures réelles : ordre Team/Brief/Estimate,
+  Research conservé, poignée de Brief et focus visibles, valeurs lisibles en
+  [bureau](assets/validation-property-keyboard-webkit-desktop.png) et en
+  [mobile](assets/validation-property-keyboard-webkit-mobile.png). Le rendu
+  produit n'est pas modifié par cette maintenance de test.
+
+```bash
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/database-entry-properties.spec.ts --retries=0 --repeat-each=5
+```
+
+Diagnostics ignorés : `work/ci-181/local-property-order-before.log`,
+`local-property-order-{probe,second-probe,probe-after}.log`,
+`property-order-{probe,second-probe,probe-after}-detail.log` et
+`local-property-order-after.log`. La base de test jetable sur 55432 est arrêtée ;
+aucune donnée de l'instance du propriétaire n'est touchée. La dernière révision
+publiée doit encore être confirmée par la CI, consultée toutes les cinq minutes
+et suivie dans la PR 181 ; cette preuve locale n'est pas déclarée CI verte.
+
+## Lanceur Linux partagé et déplacement à la racine — 2026-10-04
+
+Le [run de `697d9bbb`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37225613460)
+confirme la séquence clavier sur les cinq profils. Il passe Firefox, les deux
+Chromium, WebKit mobile et tous les contrôles hors navigateur. WebKit bureau
+refuse un résultat flaky du parcours des fichiers protégés, avant toute action
+sur une pièce jointe : le shell initial reste absent pendant 30 s. La trace
+montre les réponses 200 de HTML/modules/Wasm, puis une page blanche sans requête
+d'authentification. Le retry dans un nouveau worker passe en 4,2 s.
+
+Cette trace ne localise pas l'instruction bloquée et ne suffit pas à attribuer
+un bug à l'application. Elle expose une différence d'exécution concrète : la CI
+enchaînait toute la lane dans un seul processus WebKit, tandis que le lanceur
+Linux local existant la borne déjà en trois shards. La CI appelle maintenant ce
+même lanceur avec les fichiers du plan d'impact. Le script, les budgets, les
+assertions et les règles de retry/skip ne changent pas ; chaque invocation
+conserve `--fail-on-flaky-tests`. Chromium/Firefox et les diagnostics explicites
+restent en une seule invocation. Cette isolation ne promet pas d'éliminer tout
+incident interne du moteur ; la publication doit obtenir sa propre CI verte.
+
+La première passe locale complète termine WebKit mobile, mais WebKit bureau
+échoue dans le deuxième shard après un déplacement à la racine. La trace observe
+encore `aria-level=2` après retour du clic ; le test tente de défiler jusqu'à cette
+ancienne ligne pendant que l'écriture locale la remonte au niveau 1. Playwright
+perd l'élément pendant son contrôle de stabilité. Le helper `moveItemToRoot`
+attend maintenant son résultat visible, `aria-level=1`, avant de continuer.
+Le scroll natif, les attentes de dépliement/viewport, les clics et leurs
+assertions restent inchangés. Ce post-état ajoute une garantie ; aucun délai,
+retry ou geste forcé n'est ajouté.
+
+Validation proportionnée du changement depuis `697d9bbb` :
+
+- **52/52 contrats** réussis dans quatre fichiers : exécution réelle du lanceur
+  avec un substitut de Bun, transmission exacte des sélections/flags, trois
+  processus WebKit, arrêt immédiat et propagation d'erreur, diagnostics uniques,
+  câblage CI, artefacts Bun et invariants de publication. Le substitut ne lance
+  ni navigateur ni API et n'entre jamais dans l'application.
+- **30/30 parcours hiérarchiques** réussis, trois répétitions de chacun des deux
+  consommateurs du helper sur les cinq profils, sans retry ; 136 s. Création,
+  déplacement, descendants, refus des cycles et retour à une page feuille gardent
+  leurs assertions. Aucun rendu produit modifié ; les preuves ui-quality et les
+  sources UI validées précédemment restent applicables.
+- **WebKit bureau complet** : trois shards, **294 réussites et 26 exclusions
+  existantes**, sans retry ; 1071 s. Les trois parties couvrent 108 + 111 + 101
+  tests, donc toute la lane de 320 cas. Le parcours des fichiers protégés passe
+  en 3,6 s et le parcours hiérarchique précédemment bloqué en 4,0 s.
+- **WebKit mobile complet** : trois shards, **289 réussites et 31 exclusions
+  existantes**, sans retry ; 108 + 111 + 101 cas. Le parcours des fichiers
+  protégés passe en 5,0 s. Cette passe précède le seul post-état ajouté au helper :
+  ses deux consommateurs sont ensuite revalidés parmi les 30 parcours ci-dessus ;
+  tous les autres inputs de cette lane restent identiques.
+- Biome ciblé, types racine, politique de toolchain et shell réussis. Le premier
+  essai shell refuse shfmt 3.14.1 présent sur l'hôte ; il n'est pas compté comme
+  réussi. Le contrôle suivant utilise shfmt **3.12.0** dans un répertoire local
+  ignoré, avec ShellCheck **0.11.0** ; les 13 scripts passent. Aucune installation
+  globale ni version du dépôt n'est changée.
+- Prérequis/cohérence Spec Kit, liens et diff contrôlés avant publication.
+  Les sources produit/build/sécurité/stockage et leurs gates réussis dans la CI
+  de `697d9bbb` ne changent pas : ils sont réutilisés sans refaire une passe complète
+  locale sans impact. Le changement exécutable est borné au point d'entrée du
+  workflow et au post-état d'un helper consommé par deux parcours identifiés.
+
+```bash
+bun run --bun vitest run --project workspace-contract \
+tests/contract/e2e-project-runner.spec.ts \
+tests/contract/bun-production-artifacts.spec.ts \
+tests/contract/bun-quality-gate.spec.ts tests/contract/release-gates.spec.ts
+
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+--project=webkit-desktop --project=webkit-mobile --retries=0
+
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/hierarchy.spec.ts --grep 'creates, nests, reorders|turns a page back into a leaf' \
+--retries=0 --repeat-each=3
+
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=1 bun scripts/e2e/run-local-matrix.ts \
+--project=webkit-desktop --retries=0
+```
+
+Logs et trace ignorés sous `work/ci-181/` :
+`webkit-desktop-697d9bbb.log`, `local-webkit-recycled-full.log`,
+`local-webkit-recycled-{desktop,mobile}-detail.log`,
+`local-navigation-remount-before.zip`, `local-root-move-after.log`,
+`local-webkit-desktop-recycled-after{,-detail}.log` et `local-shell-runner.log`.
+Le premier run des deux lanes est **1/2**, pas une réussite complète. La base
+jetable est arrêtée et les données propriétaire restent intactes. La confirmation
+CI de la dernière révision est un gate distinct, suivi dans la PR 181 avec un
+minuteur de cinq minutes ; aucune fusion n'est effectuée par cet agent.
+
+## Navigation conservée pendant la restauration — T079
+
+Le run [37231049654](https://github.com/enzofrnt/MyOwnNotion/actions/runs/37231049654)
+de `671f6869` passe tous les contrôles hors navigateur et les quatre autres
+profils, dont les deux lanes WebKit complètes. Firefox signale un seul flaky :
+la base supprimée ne réapparaît pas après le clic Restaurer ; le retry passe.
+Ce flaky reste bloquant et n'est pas traité comme une réussite.
+
+La trace native montre le mécanisme avant toute correction : une requête de
+snapshot part pendant la suppression, avec l'état serveur antérieur. Sa réponse
+réaffiche brièvement la base et vide la corbeille pendant le clic Restaurer ;
+le rattrapage serveur réapplique ensuite la suppression. Aucune mutation
+`item.restore` n'est envoyée. Tous les transports observés répondent 200 ; ce
+n'est donc pas simplement une ligne masquée ou un budget trop court. Les images
+de la trace ont été relues pour distinguer la disparition du contrôle de sa
+présentation normale ; aucune donnée propriétaire n'est utilisée.
+
+Le callback `navigate` du routeur déclaratif change avec l'adresse ; il renouvelle
+`navigateSafely`, puis `onOpenItem`, puis le callback de sélection dont dépend
+l'initialisation de l'explorateur conservé. Quand tout est dans la corbeille,
+cette initialisation relancée considère l'espace comme vide et le seed remplace
+sa projection. Le parcours local Firefox enrichi d'un compteur de snapshot
+échoue **avant correction : 3 requêtes au lieu de la seule requête initiale**.
+Deux tests du vrai App échouent aussi sur le renouvellement du callback ; les
+18 tests de routage précédents passent.
+
+La correction reste à la frontière impérative de navigation d'App : sa ref lit
+le handler courant, et son callback stable conserve la durée de vie des effets
+du workspace. Le routeur courant ou un nouveau handler injecté continue d'être
+appelé ; les refus de navigation, remplacements, retour de réglages, historique
+et générations de sélection ne changent pas. Aucun code de stockage, seed,
+transport, synchronisation, protocole, dépendance ou CSS n'est modifié.
+Le parcours attend aussi le message de restauration locale avant de quitter
+les réglages, en conservant toutes ses assertions d'identité et d'entrées.
+
+Validation proportionnée depuis `671f6869` :
+
+- **27/27 tests web** passent après correction et formatage final : 20 de routage
+  et 7 de hiérarchie. Les deux nouveaux cas vérifient les changements de route
+  et le remplacement du handler injecté, sans retenir une closure périmée.
+- **75/75 parcours natifs**, sans retry, sur les cinq profils, trois répétitions
+  de cinq scénarios : base et deux entrées restaurées avec les mêmes identités,
+  branche restaurée, cinq destinations arrière/avant, rechargement local sans
+  API et retour des réglages avec note/focus/scroll conservés. **244 s** ; les
+  moteurs Firefox/WebKit utilisent le runtime Linux documenté. Le compteur
+  prouve que les routes ne relancent plus de snapshot dans ce parcours.
+- Biome des trois fichiers exécutables et types racine passent. La seule
+  modification après la matrice est le formatage sans changement de logique ;
+  les 27 tests sont relancés sur cet état final.
+- ui-quality + lessons L-010/020 : mêmes composants, géométrie, états vide et
+  corbeille, clics natifs et retour/focus conservés. Les preuves de rendu de la
+  passe restent applicables : aucune modification visuelle ne demande une
+  nouvelle palette ou composition. La revue de trace et les assertions natives
+  couvrent ici le remplacement intempestif de la surface sous le clic.
+- Prérequis/cohérence Spec Kit, liens et diff vérifiés avant publication.
+  Les gates serveur, stockage, sécurité, build et configuration réussies sur
+  `671f6869` restent réutilisables pour leurs inputs inchangés. Le correctif est
+  borné à l'identité d'une frontière de callback dans App, avec ses parcours de
+  navigation réels et tests de refus ; la CI de la dernière révision reste requise.
+
+```bash
+bun run --bun vitest run --project web apps/web/tests/app-routing.spec.tsx \
+apps/web/tests/hierarchy-explorer.spec.tsx
+
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55432/myownnotion \
+MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts \
+tests/e2e/databases-schema.spec.ts tests/e2e/hierarchy.spec.ts \
+tests/e2e/routing.spec.ts tests/e2e/workspace-settings-boundary.spec.ts \
+--grep 'trashes and restores|trashes a branch|browser history restores|a direct local note|settings stay outside|keeps settings in front' \
+--retries=0 --repeat-each=3
+```
+
+Logs/trace ignorés : `work/ci-181/firefox-restore/`,
+`local-restore-before.log`, `local-routing-lifecycle-{before,after,final}.log`,
+`local-restore-routing-after.log` et ses cinq logs de profil. La base jetable
+est arrêtée ; les instances et volumes propriétaire restent intacts.
+La CI publiée est suivie à intervalles de cinq minutes, selon la demande du
+propriétaire, jusqu'à la réussite sur le commit exact. Aucune fusion automatique.

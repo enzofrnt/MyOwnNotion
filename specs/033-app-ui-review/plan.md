@@ -11,6 +11,133 @@ Canevas §§4, 7–22, 24, 26–33, 38–39, 43.4–43.6, 46. Sources :
 [lessons](../../.agents/skills/ui-quality/lessons.md),
 [guide](../../docs/design/ui-system.md).
 
+## Maintenance sidebar et accès Source — 2026-10-04
+
+Canevas §§12 et 14, 029 verrou de source, 033 FR-022/023. Appliquer ui-quality
+et lessons L-009/010/018 : conserver un propriétaire CSS par domaine et vérifier
+la géométrie réelle, le tiroir et les accès clavier.
+
+La grille du shell possède une rangée implicite dont la taille minimale dépend
+du contenu : sur le cas réel à 1059×843, la sidebar atteint 1236 px et son pied
+commence à 1183 px. Borner la rangée du shell et son rail à l'espace disponible,
+en conservant OverlayScrollArea comme propriétaire du défilement de l'arbre.
+Le pied ne doit pas rétrécir. Aucun changement de données, d'état d'arbre ni
+de primitives globales.
+
+Réutiliser le même `sourceLocked` pour le menu de vue et la ligne de paramètres.
+Contrôles désactivés natifs/Ariakit, couleur sémantique muted, sans survol actif,
+raison via description accessible et indication au survol. La gestion des
+sources reste disponible ; les vues liées conservent leur exception actuelle.
+
+Validation proportionnée : test comportemental de la ligne verrouillée puis
+déverrouillée, parcours Playwright ciblés sur les deux défauts (aucune suite
+complète), types web et contrôles statiques des fichiers modifiés. Preuves du
+cas réel, clair/sombre et bureau/320 px, défilement et Échap/clavier. Source,
+synchronisation, stockage, migrations et dépendances restent inchangés.
+
+## Stabilisation du parcours de navigation CI — 2026-10-04
+
+FR-008/022, Constitution III/VII et validation proportionnée. Le parcours de
+pagination de 1001 entrées échoue de manière intermittente sur Chromium mobile
+avant toute pagination : le clic vise une ligne montée dont la branche animée
+masque encore le contenu. La trace CI et une répétition locale sans retry
+reproduisent le même refus de sélection. Le helper de navigation doit observer
+la fin du dépliement des régions ancêtres puis exposer la cible par défilement natif, en conservant
+les assertions de sélection et les budgets fonctionnels. Pas de temporisation
+fixe, de clic forcé ni de changement du rendu ou de l'animation produit.
+
+Vérifier le parcours reproduit plusieurs fois, les accès Source/sidebar et les
+parcours de navigation concernés sur les cinq profils. Garder les données de
+test isolées de l'instance du propriétaire ; suivre ensuite tous les contrôles
+de la PR jusqu'à leur réussite sur la dernière révision publiée.
+
+Le run suivant révèle un second défaut de préparation du test de routage :
+le `beforeAll` attend l'import froid du graphe complet de l'application et
+expire à 10 s sous instrumentation/concurrence, avant ses 18 assertions.
+Importer `App` statiquement dans la phase normale de collecte de Vitest ;
+conserver les délais fonctionnels, la couverture et les assertions. Vérifier
+les tests web et la couverture complète sur la base de test isolée, puis
+publier et confirmer la CI sans relancer les preuves produit inchangées.
+
+Le run de `e7e69ad7` révèle une attente trop large introduite dans T072 : à
+200 % de zoom, la ligne dépasse légèrement le bord horizontal du tiroir,
+donc son ratio de viewport ne peut jamais atteindre 1. Le cas échoue aussi
+localement sur Chromium et Firefox. L'attente doit viser le mécanisme initial :
+chaque région ancêtre est ouverte et ses animations de dépliement sont terminées,
+puis le défilement natif expose la cible. Ne pas imposer une largeur intégrale
+à la ligne décorative ; conserver les assertions fonctionnelles et le contrôle
+de débordement du parcours zoom. Rejouer zoom, dépliement/pagination et accès
+sidebar/Source sur les cinq profils, sans retry ni augmentation des budgets.
+
+Le run de `6e889c07` passe les quatre autres profils et tous les contrôles hors
+E2E, mais révèle une mesure de gouttière pendant l'animation des choix inline
+sur WebKit mobile, à 1280 px. Dix essais normaux puis quarante avec observation
+ne reproduisent pas cet échec. Un frame contrôlé de la transition native des
+choix reproduit le même chevauchement : l'attente du conteneur est déjà satisfaite
+alors que son descendant est encore animé. Étendre cette attente à son sous-arbre
+avant la mesure atomique, conserver les tolérances, transitions et gestes natifs.
+Vérifier le même frame contrôlé puis retirer toute instrumentation et rejouer
+la composition clair/sombre, 320/1280 px sur les cinq profils. Aucun rendu produit
+ne change ; appliquer ui-quality + lessons aux preuves de la vraie composition.
+
+Le run de `1f370935` révèle une flèche perdue au démarrage du déplacement
+clavier des propriétés. Deux séries de vingt répétitions avec observation
+reproduisent le blocage après annulation. La seconde capture montre la flèche
+à 3648,4 ms puis l'installation de l'écoute clavier à 3649,9 ms : l'état
+`data-dragging` est déjà vrai, mais le listener différé de KeyboardSensor ne
+reçoit pas la touche. Les mesures de collision sont correctes quand il la reçoit.
+Le parcours doit laisser s'exécuter le timer natif déjà en file après activation,
+avant d'envoyer la flèche ; aucune durée de pause arbitraire, modification du
+moteur, retry ou assertion assouplie. Vérifier le diagnostic puis retirer les
+probes et rejouer plusieurs fois le parcours sur les cinq profils, en conservant
+preview, annonce, annulation, dépôt durable et indépendance des colonnes.
+
+Le run de `697d9bbb` valide les deux Chromium et tous les contrôles hors
+navigateur, mais WebKit bureau bloque une fois à l'ouverture initiale de
+l'application dans le parcours des fichiers protégés, après environ 238 tests.
+HTML, modules et Wasm répondent 200 ; aucune requête d'authentification n'est
+émise et la page reste vide. Le retry dans un nouveau worker passe en 4,2 s.
+Cette trace ne localise pas l'instruction bloquée et ne démontre pas un défaut
+produit. La CI utilise pourtant un processus long alors que le lanceur Linux
+local existant borne déjà WebKit en trois shards, sans changer les attentes.
+Partager ce lanceur dans la CI, vérifier transmission exacte des sélections,
+shards, arrêt en erreur et maintien du refus des flakies ; conserver une exécution
+unique pour les diagnostics explicites et les autres moteurs. Exécuter les deux
+lanes WebKit complètes en local, contrôler les consommateurs du workflow et
+conserver les preuves/limites avant publication. Impact borné au point d'entrée
+E2E du workflow ; aucune source produit, build, dépendance ou donnée modifiée.
+Les gates inchangées confirmées sur `697d9bbb` restent réutilisables.
+
+La vérification complète de T077 termine les trois shards WebKit mobile, mais
+WebKit bureau révèle une autre course dans le parcours hiérarchique : juste
+après « déplacer à la racine », le test continue sur la ligne encore au niveau 2.
+L'écriture locale la remonte au niveau 1 pendant l'attente interne de stabilité
+du scroll Playwright, qui perd son élément. La trace observe encore le niveau 2
+après retour du clic. Faire attendre au helper de déplacement son résultat
+visible (`aria-level=1`), puis conserver le scroll natif et tous les contrôles
+de dépliement/viewport/sélection existants. Aucun changement produit ou retry.
+Rejouer ses deux consommateurs sur les cinq profils, puis terminer une lane
+WebKit bureau complète en trois shards. Les parcours WebKit mobile inchangés
+réutilisent la passe complète déjà réussie ; ses deux consommateurs sont
+revalidés avec le nouveau post-état avant publication.
+
+Le run de `671f6869` valide tous les autres contrôles, y compris les deux lanes
+WebKit complètes. Firefox révèle une restauration perdue : une réponse de seed
+précédant la suppression réaffiche brièvement la base et vide la corbeille pendant
+le clic ; la convergence serveur la remet ensuite en corbeille. Aucune commande
+de restauration n'est envoyée. L'effet d'initialisation dépend du callback de
+sélection, lui-même renouvelé par la navigation du routeur. Vérifier cette
+causalité avant correction avec un compteur des requêtes de snapshot dans le
+parcours isolé. Stabiliser la frontière impérative de navigation dans App en lisant
+le handler du routeur courant par ref ; garder la génération de sélection, le routage
+et tous les mécanismes de synchronisation existants. La navigation seule ne
+doit pas réhydrater l'espace conservé. Vérifier l'initialisation unique et le
+nouveau callback, puis restauration avec identités, branche, retour et routage
+sur les cinq profils sans retry. Observer le résultat de restauration avant
+de quitter ses réglages. Impact attendu borné au cycle de vie du composant,
+sans changer stockage, transport ou schéma ; ui-quality + lessons s'appliquent
+aux états réels conservés. La sélection des gates sera confirmée par le diagnostic.
+
 ## Technical Context
 
 TypeScript strict/Bun 1.4.2/React/Ariakit/BlockNote existants. Frameworks conservés ;
@@ -28,8 +155,9 @@ I/IV : données/chiffrement/hors ligne/permissions conservés. II/VIII : dossier
 unique lié au canevas. V : système existant, abstraction seulement répétée.
 VI : clic sémantique/labels/focus/clavier/tactile. VII : Bun et vérification
 types/lint/tests/build. III : le propriétaire réactive la validation automatisée
-complète et autorise push/PR le 2026-10-03. Toutes les gates de docs/development.md
-s’appliquent avant chaque push, puis la CI est suivie jusqu’au succès.
+complète et autorise push/PR le 2026-10-03. Depuis Constitution 4.0.0, les gates
+locales de docs/development.md sont sélectionnées selon l'impact de chaque
+publication ; la CI de la dernière révision reste suivie jusqu'au succès.
 
 ## Phase 0 — Research
 

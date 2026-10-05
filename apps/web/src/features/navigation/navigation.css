@@ -1,5 +1,6 @@
 .workspace-sidebar-slot {
   height: 100%;
+  min-height: 0;
   width: var(--workspace-sidebar-width);
   min-width: 0;
   /* This masks the rail while it closes; the tree owns its actual scrolling.
@@ -1437,6 +1438,7 @@ html[data-tree-grabbing="true"] * {
 
 .workspace-navigation__footer {
   display: grid;
+  flex-shrink: 0;
   padding-top: var(--ui-space-2);
   gap: var(--ui-space-1);
   border-top: 1px solid color-mix(in srgb, var(--ui-color-border) 42%, transparent);

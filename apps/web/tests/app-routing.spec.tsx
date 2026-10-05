@@ -3,12 +3,14 @@ import { generateUuidV7 } from "@myownnotion/domain";
 import { act, type ComponentType } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, type NavigateOptions, useLocation } from "react-router-dom";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { App } from "../src/app.tsx";
 import type { BootstrapPageProps } from "../src/features/auth/bootstrap-page.tsx";
 import type { HierarchyExplorerProps } from "../src/features/hierarchy/hierarchy-explorer.tsx";
 import type { SecurityApi } from "../src/services/security-api.ts";
 
 const renderedGraphModes: HierarchyExplorerProps["graphMode"][] = [];
+const renderedOpenItems: HierarchyExplorerProps["onOpenItem"][] = [];
 const replacementItemId = generateUuidV7();
 
 function RoutedHierarchy({
@@ -21,6 +23,7 @@ function RoutedHierarchy({
   onTrashedItemsChange,
 }: HierarchyExplorerProps) {
   renderedGraphModes.push(graphMode);
+  renderedOpenItems.push(onOpenItem);
   return (
     <div
       data-testid="routed-hierarchy"
@@ -72,12 +75,6 @@ function RoutedBootstrap({ onReady }: BootstrapPageProps) {
     </button>
   );
 }
-
-let App: typeof import("../src/app.tsx")["App"];
-
-beforeAll(async () => {
-  ({ App } = await import("../src/app.tsx"));
-});
 
 afterAll(() => {
   vi.resetModules();
@@ -169,6 +166,7 @@ describe("application routing", () => {
     document.body.append(container);
     root = createRoot(container);
     renderedGraphModes.length = 0;
+    renderedOpenItems.length = 0;
     vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   });
 
@@ -201,6 +199,38 @@ describe("application routing", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
   }
+
+  it("retains the workspace routing callback across note and settings destinations", async () => {
+    await renderAt("/notes");
+    const initialOpenItem = renderedOpenItems[0];
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("button")?.click();
+    });
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toMatch(
+      /^\/notes\/[0-9a-f-]+$/u,
+    );
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="open-routing-settings"]')?.click();
+    });
+    expect(container.querySelector('[data-testid="settings-shell"]')).not.toBeNull();
+    expect(renderedOpenItems.length).toBeGreaterThan(1);
+    expect(renderedOpenItems.every((callback) => callback === initialOpenItem)).toBe(true);
+  });
+
+  it("uses the replacement navigation handler without renewing the workspace callback", async () => {
+    const previousNavigate = vi.fn();
+    const currentNavigate = vi.fn();
+    await renderAt("/notes", securityApi(), { navigate: previousNavigate });
+    const initialOpenItem = renderedOpenItems[0];
+    await renderAt("/notes", securityApi(), { navigate: currentNavigate });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("button")?.click();
+    });
+    expect(previousNavigate).not.toHaveBeenCalled();
+    expect(currentNavigate).toHaveBeenCalledOnce();
+    expect(currentNavigate.mock.calls[0]?.[0]).toMatch(/^\/notes\/[0-9a-f-]+$/u);
+    expect(renderedOpenItems.every((callback) => callback === initialOpenItem)).toBe(true);
+  });
 
   it("authenticates only after the native server profile is resolved", async () => {
     const api = securityApi();

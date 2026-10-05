@@ -115,9 +115,15 @@ test("configures entry properties directly, shares symbols, and preserves indepe
   expect(orderBefore).toHaveLength(3);
   const handle = page.getByRole("button", { name: "Déplacer Brief", exact: true });
   const dragAnnouncement = page.locator('.entry-panel [id^="DndLiveRegion-"]');
+  const startKeyboardDrag = async () => {
+    await handle.press("Space");
+    await expect(rows.first()).toHaveAttribute("data-dragging", "true");
+    // KeyboardSensor queues its key listener after onDragStart. Drain that
+    // browser task before the next key, even when the row is already active.
+    await page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+  };
   await handle.focus();
-  await handle.press("Space");
-  await expect(rows.first()).toHaveAttribute("data-dragging", "true");
+  await startKeyboardDrag();
   await handle.press("ArrowDown");
   await expect
     .poll(() =>
@@ -134,8 +140,7 @@ test("configures entry properties directly, shares symbols, and preserves indepe
       rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-property-id"))),
     )
     .toEqual(orderBefore);
-  await handle.press("Space");
-  await expect(rows.first()).toHaveAttribute("data-dragging", "true");
+  await startKeyboardDrag();
   await handle.press("ArrowDown");
   await expect(rows.nth(1)).toHaveAttribute("data-preview", "after");
   await expect(dragAnnouncement).toHaveText("Après Team.");

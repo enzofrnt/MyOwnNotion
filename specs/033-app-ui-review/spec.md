@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/033-app-ui-review`
 **Created**: 2026-10-03
-**Status**: État UI validé par le propriétaire — implémentation et validation automatisée convergées ; PR ouverte sans fusion
+**Status**: Passe initiale fusionnée ; corrections de maintenance vérifiées, en attente de relecture du propriétaire
 **Input**: « Commit en l’état, passe complète sur l’app ; composants génériques réutilisables si cohérents, sans casser les interfaces. »
 
 ## Direction produit et périmètre
@@ -179,6 +179,17 @@ Observer sur l’instance courante et disposer de règles réellement vérifiée
   choix se répartissent dans le champ sans débordement. Les recherches d’icônes
   et de propriétés utilisent les mêmes repères de saisie et de focus discret.
   Recherche vide, sans résultat, clavier et tactile restent opérationnels.
+
+### Retours de maintenance — 2026-10-04
+
+- **FR-022** : Les réglages restent visibles au pied de la sidebar ouverte,
+  même avec une longue branche dépliée. Le contenu de navigation défile dans
+  l'espace restant, sur bureau et dans le tiroir mobile, sans dépasser le cadre.
+- **FR-023** : Lorsque le changement de source d'une vue est interdit, « Source »
+  est grisée et inactive dès le menu de l'onglet (clic/clic droit) et dans les
+  paramètres. Le contrôle indique « Ajoutez une deuxième vue pour changer sa
+  source ». Dès que le verrou existant est levé, les deux accès sont actifs.
+  La gestion des sources reste distincte et les vues liées gardent leurs règles.
 
 ### Key Entities
 

@@ -66,6 +66,58 @@ interface StoredPresentationState {
   readonly lastVisitedItemId?: string | null;
 }
 
+test("keeps settings visible while a long navigation tree scrolls on desktop and mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1059, height: 400 });
+  await openWorkspace(page);
+  const folder = uniqueName("Long navigation");
+  await createRootItem(page, "folder", folder);
+  for (let index = 0; index < 8; index += 1) {
+    await createChildItem(page, folder, "page", `${folder} child ${index}`);
+  }
+
+  for (const width of [1059, 320]) {
+    await page.setViewportSize({ width, height: 400 });
+    await ensureNavigationVisible(page);
+    const navigation = page.getByRole("navigation", { name: "Navigation principale" });
+    const settings = navigation.getByRole("button", { name: "Réglages", exact: true });
+    const geometry = async () =>
+      await navigation.evaluate((element) => {
+        const footer = element.querySelector("footer");
+        const viewport = element.querySelector(".ui-overlay-scroll__viewport");
+        if (!(footer instanceof HTMLElement) || !(viewport instanceof HTMLElement)) {
+          throw new Error("Missing navigation regions");
+        }
+        return {
+          footerBottom: footer.getBoundingClientRect().bottom,
+          footerTop: footer.getBoundingClientRect().top,
+          scrollable: viewport.scrollHeight > viewport.clientHeight,
+          scrollTop: viewport.scrollTop,
+          viewportBottom: viewport.getBoundingClientRect().bottom,
+          windowHeight: innerHeight,
+        };
+      });
+    await expect(settings).toBeInViewport({ ratio: 1 });
+    const initial = await geometry();
+    expect(initial.scrollable).toBe(true);
+    expect(initial.footerBottom).toBeLessThanOrEqual(initial.windowHeight);
+    expect(initial.viewportBottom).toBeLessThanOrEqual(initial.footerTop);
+    // Native focus also scrolls on touch-only WebKit, which has no wheel API.
+    const lastChild = navigation.getByTestId(`tree-item-${folder} child 7`);
+    await lastChild.focus();
+    await expect(lastChild).toBeInViewport({ ratio: 1 });
+    await expect.poll(async () => (await geometry()).scrollTop).toBeGreaterThan(initial.scrollTop);
+    await expect(settings).toBeInViewport({ ratio: 1 });
+    expect((await geometry()).footerTop).toBe(initial.footerTop);
+    if (width === 320) {
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("workspace-navigation-drawer")).toBeHidden();
+      await expect(page.getByTestId("toggle-sidebar")).toBeFocused();
+    }
+  }
+});
+
 /** Reads the durable presentation record so reload never races its IndexedDB write. */
 async function storedPresentationState(page: Page): Promise<StoredPresentationState | null> {
   return await page.evaluate(

@@ -223,10 +223,14 @@ test.describe("hierarchy organization (US1)", () => {
       const surface = row.locator(".navigation-inline-create__surface");
       const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
       const expectedSurfaceHeight = coarsePointer ? 44 : 26;
+      // The choices have their own transform/width transitions. The surface
+      // can finish first, while its buttons still approach the closing toggle.
       await expect
         .poll(() =>
           surface.evaluate((element) =>
-            element.getAnimations().every((animation) => animation.playState !== "running"),
+            element
+              .getAnimations({ subtree: true })
+              .every((animation) => animation.playState !== "running"),
           ),
         )
         .toBe(true);

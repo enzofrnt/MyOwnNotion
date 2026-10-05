@@ -381,11 +381,11 @@
   cursor: pointer;
 }
 
-.database-view-settings__row:hover,
+.database-view-settings__row:hover:not(:disabled),
 .database-view-settings__row:focus-visible,
-.database-view-settings__choice:hover,
+.database-view-settings__choice:hover:not(:disabled),
 .database-view-settings__choice:focus-visible,
-.database-view-settings__more:hover,
+.database-view-settings__more:hover:not(:disabled),
 .database-view-settings__more:focus-visible {
   background: var(--ui-color-surface-hover);
 }
@@ -395,7 +395,8 @@
   font-weight: 600;
 }
 
-.database-view-settings__choice:disabled {
+.database-view-settings__choice:disabled,
+.database-view-settings__row:disabled {
   color: var(--ui-color-text-muted);
   cursor: not-allowed;
 }
