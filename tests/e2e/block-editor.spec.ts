@@ -290,7 +290,7 @@ test.describe("the contextual BlockNote controls", () => {
     await toolbar.getByTestId("open-page-link-picker").click();
     const picker = page.getByTestId("page-link-picker");
     await expect(picker).toBeVisible();
-    const search = picker.getByLabel("Rechercher une page");
+    const search = picker.getByLabel("Rechercher un élément");
     await search.fill(targetName);
     await expect(picker.getByRole("option").filter({ hasText: targetName })).toHaveCount(1);
     await search.press("Enter");

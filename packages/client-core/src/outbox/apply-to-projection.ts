@@ -690,7 +690,23 @@ export async function prepareProjectionWrite(
           "Folders cannot carry a page document",
         );
       }
-      const database = await codec.openDatabase(storedDatabase);
+      const primary = await codec.openDatabase(storedDatabase);
+      const primarySourceId = primary.sourceId ?? ownedSourceIdFromItemId(command.databaseId);
+      const storedSource =
+        command.sourceId === undefined || command.sourceId === primarySourceId
+          ? storedDatabase
+          : await db.databaseSources.get(command.sourceId);
+      if (storedSource === undefined)
+        throw new LocalValidationError(
+          "database.source-unavailable",
+          "Source is not available locally",
+        );
+      const database = await codec.openDatabase(storedSource);
+      if (database.itemId !== command.databaseId)
+        throw new LocalValidationError(
+          "database.source-unavailable",
+          "Source belongs to another owner",
+        );
       const structured = await normalizeStructuredCommandValues(db, database.definition, command);
       const revisionId = generateUuidV7();
       return {

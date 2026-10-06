@@ -565,7 +565,12 @@ async function executeReplaceDefinition(
   const currentDefinition =
     typeof storedDefinition === "object" && storedDefinition !== null
       ? (storedDefinition as DatabaseDefinition)
-      : await readCurrentDatabaseDefinition(tx, command.databaseId, snapshotResolver(tx, context));
+      : await readCurrentDatabaseDefinition(
+          tx,
+          command.databaseId,
+          snapshotResolver(tx, context),
+          record?.sourceId,
+        );
   if (record === null || item === null || currentDefinition === null) {
     return err("database.not-found", "Database does not exist");
   }
@@ -664,7 +669,12 @@ async function executeCreateEntry(
   const definition =
     typeof sourceDefinition === "object" && sourceDefinition !== null
       ? (sourceDefinition as DatabaseDefinition)
-      : await readCurrentDatabaseDefinition(tx, command.databaseId, snapshotResolver(tx, context));
+      : await readCurrentDatabaseDefinition(
+          tx,
+          command.databaseId,
+          snapshotResolver(tx, context),
+          database?.sourceId,
+        );
   const existingItem = await getItem(tx, command.id);
   const existingMembership = await readDatabaseEntryRecord(tx, command.id);
   if (database === null || databaseItem === null || definition === null) {
@@ -796,12 +806,16 @@ async function executeReplaceEntryValues(
   command: Extract<DatabaseMutationCommand, { type: "database.entry.values.replace" }>,
 ): Promise<DomainResult<DatabaseCommandExecution>> {
   const entry = await readDatabaseEntryRecord(tx, command.entryId, command.databaseId);
-  const ownerSource = await readDatabaseRecord(tx, command.databaseId);
+  const ownerSource =
+    entry === null
+      ? await readDatabaseRecord(tx, command.databaseId)
+      : await readDatabaseRecordBySourceId(tx, entry.sourceId);
   const item = await getItem(tx, command.entryId);
   const definition = await readCurrentDatabaseDefinition(
     tx,
     command.databaseId,
     snapshotResolver(tx, context),
+    entry?.sourceId,
   );
   const priorValues = await readCurrentDatabaseEntryValues(
     tx,
@@ -1181,6 +1195,7 @@ async function prepareDefinitionChange(
   const entryRecords = await listDatabaseEntryRecords(tx, databaseId);
   const entryValues: EntryValues[] = [];
   for (const entry of entryRecords) {
+    if (entry.sourceId !== record.sourceId) continue;
     const values = await readCurrentDatabaseEntryValues(
       tx,
       entry.entryId,

@@ -1675,6 +1675,7 @@ export function HierarchyExplorer({
       if (existing !== null) {
         if (
           existing.kind !== "database" ||
+          existing.lifecycle !== "active" ||
           !existing.placements.some(
             (placement) =>
               placement.kind === "hierarchy" && placement.parentItemId === parentItemId,
@@ -1682,13 +1683,12 @@ export function HierarchyExplorer({
         ) {
           throw new Error("Cette identité appartient déjà à un autre élément.");
         }
+        const storedView = (await service.getDatabase(itemId))?.presentation?.views[0];
+        if (storedView === undefined) throw new Error(FR_COPY.editor.databaseInsertion.missingView);
         return {
           id: itemId,
           title: existing.name,
-          viewId:
-            request.initialViewId ??
-            (await service.getDatabase(itemId))?.presentation?.views[0]?.id ??
-            "",
+          viewId: storedView.id,
         };
       }
       const keys = items
@@ -2821,7 +2821,7 @@ export function HierarchyExplorer({
                           definitionMutationQueue.current = queued.catch(() => undefined);
                           return queued;
                         }}
-                        onCreateEntry={async (title) => {
+                        onCreateEntry={async (title, initialValues = {}) => {
                           const id = generateUuidV7();
                           const result = await service.createDatabaseEntry(selectedItem.id, {
                             id,
@@ -2831,7 +2831,7 @@ export function HierarchyExplorer({
                               formatVersion: 1,
                               body: {},
                             },
-                            values: {},
+                            values: initialValues,
                             relationTargets: {},
                           });
                           if (!result.ok) {

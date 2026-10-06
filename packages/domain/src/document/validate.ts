@@ -618,6 +618,23 @@ function parseMarkV3(value: JsonValue, path: string, context: V3ValidationContex
 
   const knownType = type as KnownMarkTypeV3;
   switch (knownType) {
+    case "equation": {
+      rejectExtra(["type", "equationId", "expression"]);
+      const equationId = value["equationId"];
+      const expression = value["expression"];
+      if (
+        typeof equationId !== "string" ||
+        !isUuid(equationId) ||
+        !validateStringV3(expression, `${path}.expression`, context, {
+          maxBytes: MAX_INLINE_BYTES_V3,
+          code: true,
+        })
+      ) {
+        addProblem(context, path, "equation requires a UUID and a valid source string");
+        return null;
+      }
+      return { type: "equation", equationId: equationId as Uuid, expression };
+    }
     case "bold":
     case "italic":
     case "underline":
@@ -1034,6 +1051,19 @@ function parseBlockV3(
       if (caption === undefined) return null;
       return withExtras({ type: "embed", id, provider, sourceUrl, caption });
     }
+    case "equation": {
+      const expression = value["expression"];
+      if (
+        !validateStringV3(expression, `${path}.expression`, context, {
+          maxBytes: MAX_INLINE_BYTES_V3,
+          code: true,
+        })
+      )
+        return null;
+      return withExtras({ type: "equation", id, expression });
+    }
+    case "tableOfContents":
+      return withExtras({ type: "tableOfContents", id });
     case "databaseView": {
       const containerItemId = parseUuidReferenceV3(
         value["containerItemId"],

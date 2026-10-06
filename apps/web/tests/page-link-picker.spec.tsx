@@ -92,6 +92,26 @@ describe("page link picker", () => {
     ]);
   });
 
+  it("includes navigable database owners and linked pages, excluding files and retired targets", () => {
+    const current = item("Courante");
+    const folder = { ...item("Archive"), kind: "folder" as const };
+    const database = { ...item("Tâches", { parentId: folder.id }), kind: "database" as const };
+    const linked = { ...item("Vue des tâches"), kind: "database_view" as const };
+    const file = { ...item("Pièce jointe"), kind: "file" as const };
+    const trashed = {
+      ...item("Ancienne base"),
+      kind: "database" as const,
+      lifecycle: "trashed" as const,
+    };
+    const options = pageLinkOptions([current, folder, database, linked, file, trashed], current.id);
+    expect(options.map((option) => option.id)).toEqual([folder.id, database.id, linked.id]);
+    expect(options.find((option) => option.id === database.id)).toMatchObject({
+      kind: "database",
+      path: "Notes / Archive / Tâches",
+      parentItemId: folder.id,
+    });
+  });
+
   it("finds a page and validates it with ArrowDown/Enter into a UUID-only relation", async () => {
     const current = item("Courante");
     const first = item("Alpha");
@@ -116,7 +136,7 @@ describe("page link picker", () => {
         />,
       );
     });
-    const query = document.querySelector<HTMLInputElement>('[aria-label="Rechercher une page"]');
+    const query = document.querySelector<HTMLInputElement>('[aria-label="Rechercher un élément"]');
     if (query === null) throw new Error("page query missing");
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(

@@ -1036,6 +1036,10 @@
   transform: translateY(-50%);
 }
 
+.page-outline[data-space-available="false"] {
+  display: none;
+}
+
 .page-outline:hover,
 .page-outline:focus-within {
   max-width: min(16rem, calc(100vw - 2rem));

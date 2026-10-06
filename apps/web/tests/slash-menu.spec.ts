@@ -3,53 +3,12 @@ import { isValidElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
   buildCustomSlashMenuItems,
-  createInlineDatabaseFromSlash,
   createSubfolderFromSlash,
   createSubpageFromSlash,
   prepareLinkFromSlash,
   slashItemsWithHeading4,
 } from "../src/features/editor/editor-menus/slash-menu.tsx";
 import { FR_COPY } from "../src/ui/copy/fr.ts";
-
-describe("/base intégrée", () => {
-  it("creates the owner before replacing only the current block with its single view", async () => {
-    const blockId = generateUuidV7();
-    const editor = {
-      getTextCursorPosition: () => ({ block: { id: blockId, type: "paragraph", content: [] } }),
-      updateBlock: vi.fn(),
-    };
-    const create = vi.fn(async (request: { id: string; initialViewId?: string }) => ({
-      id: request.id,
-      viewId: request.initialViewId ?? "",
-    }));
-    await createInlineDatabaseFromSlash(editor, create);
-    const request = create.mock.calls[0]?.[0];
-    expect(request).toMatchObject({ title: "Nouvelle base de données" });
-    expect(request?.id).toBe(blockId);
-    expect(editor.updateBlock).toHaveBeenCalledWith(blockId, {
-      type: "databaseView",
-      props: { containerItemId: request?.id, viewId: request?.initialViewId },
-    });
-    expect(create.mock.invocationCallOrder[0]).toBeLessThan(
-      editor.updateBlock.mock.invocationCallOrder[0] ?? 0,
-    );
-  });
-
-  it("keeps the paragraph when creation fails", async () => {
-    const editor = {
-      getTextCursorPosition: () => ({
-        block: { id: generateUuidV7(), type: "paragraph", content: [] },
-      }),
-      updateBlock: vi.fn(),
-    };
-    await expect(
-      createInlineDatabaseFromSlash(editor, async () => {
-        throw new Error("offline");
-      }),
-    ).rejects.toThrow("offline");
-    expect(editor.updateBlock).not.toHaveBeenCalled();
-  });
-});
 
 describe("the /page command", () => {
   it("uses the current block identity for an idempotent child and turns it into its link", async () => {
@@ -142,11 +101,7 @@ describe("custom slash menu presentation", () => {
       onCreateSubpage: async () => ({ id: generateUuidV7(), title: "Sans titre" }),
       onCreateSubfolder: async () => ({ id: generateUuidV7(), title: "Sans titre" }),
       onCreateFullPageDatabase: async () => ({ id: generateUuidV7(), title: "Base" }),
-      onCreateInlineDatabase: async () => ({
-        id: generateUuidV7(),
-        viewId: generateUuidV7(),
-      }),
-      onCreateLinkedDatabaseView: () => undefined,
+      onInsertInlineDatabase: () => undefined,
     });
 
     expect(items.every((item) => item.icon !== undefined)).toBe(true);
@@ -157,7 +112,8 @@ describe("custom slash menu presentation", () => {
       FR_COPY.editor.slashMenu.webBookmark.title,
       FR_COPY.editor.slashMenu.fullPageDatabase.title,
       FR_COPY.editor.slashMenu.inlineDatabase.title,
-      FR_COPY.editor.slashMenu.linkedDatabase.title,
+      "Sommaire",
+      "Équation",
       FR_COPY.editor.slashMenu.toggle.title,
       FR_COPY.editor.slashMenu.callout.title,
       FR_COPY.editor.slashMenu.table.title,
@@ -170,14 +126,15 @@ describe("custom slash menu presentation", () => {
       FR_COPY.editor.slashMenu.linksGroup,
       FR_COPY.editor.slashMenu.databaseGroup,
       FR_COPY.editor.slashMenu.databaseGroup,
-      FR_COPY.editor.slashMenu.databaseGroup,
+      FR_COPY.editor.slashMenu.advancedGroup,
+      FR_COPY.editor.slashMenu.advancedGroup,
       FR_COPY.editor.slashMenu.advancedGroup,
       FR_COPY.editor.slashMenu.advancedGroup,
       FR_COPY.editor.slashMenu.advancedGroup,
       FR_COPY.editor.slashMenu.advancedGroup,
     ]);
-    expect(FR_COPY.editor.slashMenu.page.title).toBe("Page");
-    expect(FR_COPY.editor.slashMenu.folder.title).toBe("Dossier");
+    expect(FR_COPY.editor.slashMenu.page.title).toBe("Page imbriquée");
+    expect(FR_COPY.editor.slashMenu.folder.title).toBe("Dossier imbriqué");
     const iconMark = (icon: unknown): string | null => {
       if (!isValidElement(icon)) return null;
       const props = icon.props as { readonly name?: string; readonly kind?: string };
@@ -185,8 +142,8 @@ describe("custom slash menu presentation", () => {
     };
     const marks = new Map(items.map((item) => [item.title, iconMark(item.icon)]));
     expect(marks.get(FR_COPY.editor.slashMenu.fullPageDatabase.title)).toBe("layersAdd");
-    expect(marks.get(FR_COPY.editor.slashMenu.inlineDatabase.title)).toBe("layersAdd");
-    expect(marks.get(FR_COPY.editor.slashMenu.linkedDatabase.title)).toBe("database_view");
+    expect(marks.get(FR_COPY.editor.slashMenu.inlineDatabase.title)).toBe("layers");
+    expect(marks.get(FR_COPY.editor.slashMenu.pageLink.title)).toBe("reference");
     expect(marks.get(FR_COPY.editor.slashMenu.table.title)).toBe("table");
   });
 });

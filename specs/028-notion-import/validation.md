@@ -1,3 +1,9 @@
+# Historical evidence — retired file importer
+
+Superseded on 2026-10-04 by the owner's API replacement request. Current
+implementation and live evidence are in [validation-api.md](validation-api.md).
+The following observations describe the earlier file-based adapter only.
+
 # Validation evidence — 2026-09-05
 
 ## Focused behavior and coverage convergence

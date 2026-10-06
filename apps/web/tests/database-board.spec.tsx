@@ -2,7 +2,12 @@ import { type DatabaseProperty, type DatabaseView, generateUuidV7 } from "@myown
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { BoardView, boardColumns, boardMoveUpdate } from "../src/features/databases/board-view.tsx";
+import {
+  BoardView,
+  boardColumns,
+  boardCreateValues,
+  boardMoveUpdate,
+} from "../src/features/databases/board-view.tsx";
 import type { DatabaseViewPage } from "../src/services/databases.ts";
 
 const ids = {
@@ -76,6 +81,50 @@ const page: DatabaseViewPage = {
 };
 
 describe("database board view (T088)", () => {
+  it("creates only the active column value, with empty missing and no retired option", () => {
+    expect(boardCreateValues(statusProperty, ids.todo)).toEqual({
+      [ids.status]: { kind: "status", optionId: ids.todo },
+    });
+    expect(boardCreateValues({ ...statusProperty, type: "multi-select" }, ids.done)).toEqual({
+      [ids.status]: { kind: "multi-select", optionIds: [ids.done] },
+    });
+    expect(boardCreateValues(statusProperty, "missing")).toEqual({});
+    expect(boardCreateValues(statusProperty, generateUuidV7())).toBeNull();
+    expect(boardCreateValues({ ...statusProperty, state: "retired" }, ids.todo)).toBeNull();
+  });
+  const multi: DatabaseProperty = { ...statusProperty, type: "multi-select" };
+  it("shows one canonical entry in each selected column and retired-only entries in missing", () => {
+    const rows = page.rows.map((row) => ({
+      ...row,
+      values: {
+        [ids.status]: { kind: "multi-select" as const, optionIds: [ids.todo, ids.done, ids.todo] },
+      },
+    }));
+    const columns = boardColumns(view, multi, rows);
+    expect(columns.map((c) => c.rows.length)).toEqual([1, 1, 0]);
+    expect(columns[0]?.rows[0]).toBe(columns[1]?.rows[0]);
+    const retired: DatabaseProperty = {
+      ...multi,
+      config: { options: multi.config.options.map((o) => ({ ...o, state: "retired" })) },
+    };
+    expect(boardColumns(view, retired, rows).map((c) => [c.id, c.rows.length])).toEqual([
+      ["missing", 1],
+    ]);
+  });
+  it("encodes multi-select movement as membership intent, with a known origin and no same-column write", () => {
+    expect(boardMoveUpdate(multi, ids.done, ids.todo)).toEqual({
+      kind: "property",
+      propertyId: ids.status,
+      optionMove: { from: ids.todo, to: ids.done },
+    });
+    expect(boardMoveUpdate(multi, "missing", ids.todo)).toEqual({
+      kind: "property",
+      propertyId: ids.status,
+      optionMove: { from: ids.todo, to: "missing" },
+    });
+    expect(boardMoveUpdate(multi, ids.todo, ids.todo)).toBeNull();
+    expect(boardMoveUpdate(multi, ids.done)).toBeNull();
+  });
   it("derives every option column, including empty and missing columns, in saved order", () => {
     const columns = boardColumns(view, statusProperty, page.rows);
     expect(
@@ -99,6 +148,21 @@ describe("database board view (T088)", () => {
     });
   });
 
+  it("offers explicit axis recovery without silently substituting an unrelated property", () => {
+    const markup = renderToStaticMarkup(
+      createElement(BoardView, {
+        properties: [statusProperty],
+        view: { ...view, options: { ...view.options, axisPropertyId: generateUuidV7() } },
+        page,
+        onOpenEntry: vi.fn(),
+        onChangeView: vi.fn(),
+      }),
+    );
+    expect(markup).toContain("Choisir une propriété");
+    expect(markup).toContain("Propriété de regroupement du Kanban");
+    expect(markup).not.toContain("Colonnes regroupées par");
+  });
+
   it("uses native lists and named move controls rather than requiring drag-and-drop", () => {
     const markup = renderToStaticMarkup(
       createElement(BoardView, {
@@ -113,14 +177,16 @@ describe("database board view (T088)", () => {
     expect(markup).toContain('aria-label="Vue Kanban Delivery board"');
     expect(markup).toContain('option-pill__label">Done');
     expect(markup).toContain('option-pill__label">To do');
-    expect(markup).toContain("> · 0</span>");
-    expect(markup).toContain("> · 1</span>");
+    expect(markup).toContain('database-board__count">0</span>');
+    expect(markup).toContain('database-board__count">1</span>');
     expect(markup).toContain("Sans status");
     expect(markup).toContain('draggable="true"');
     expect(markup).toContain('aria-posinset="1"');
     expect(markup).toContain('aria-setsize="1"');
     expect(markup).toContain('aria-label="Déplacer Alpha dans une autre colonne"');
     expect(markup).toContain(`data-entry-trigger="${ids.alpha}"`);
+    expect(markup).toContain('aria-haspopup="menu"');
+    expect(markup).not.toContain('class="database-card__controls"');
     expect(markup).not.toContain('role="grid"');
   });
 });

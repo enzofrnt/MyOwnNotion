@@ -25,10 +25,16 @@ export function SortGroupEditor({
 }) {
   const active = properties.filter(({ state }) => state === "active");
   const groupable = active.filter(
-    ({ type }) => type === "status" || type === "select" || type === "checkbox",
+    ({ type }) =>
+      type === "status" ||
+      type === "select" ||
+      type === "multi-select" ||
+      (view.type !== "board" && type === "checkbox"),
   );
+  const effectiveGroup =
+    view.type === "board" ? { propertyId: view.options.axisPropertyId } : view.group;
   const [sorts, setSorts] = useState(view.sorts);
-  const [group, setGroup] = useState<GroupCriterion | null>(view.group);
+  const [group, setGroup] = useState<GroupCriterion | null>(effectiveGroup);
   const [saving, setSaving] = useState(false);
   const sortsRef = useRef(sorts);
   const groupRef = useRef(group);
@@ -48,7 +54,9 @@ export function SortGroupEditor({
     setGroup(next);
   };
   useEffect(() => {
-    const incomingSignature = draftSignature(view.sorts, view.group);
+    const incomingGroup =
+      view.type === "board" ? { propertyId: view.options.axisPropertyId } : view.group;
+    const incomingSignature = draftSignature(view.sorts, incomingGroup);
     if (pendingSignature.current !== null) {
       if (pendingSignature.current === incomingSignature) {
         pendingSignature.current = null;
@@ -60,10 +68,10 @@ export function SortGroupEditor({
     }
     if (dirty.current) return;
     sortsRef.current = view.sorts;
-    groupRef.current = view.group;
+    groupRef.current = incomingGroup;
     setSorts(view.sorts);
-    setGroup(view.group);
-  }, [view.group, view.sorts]);
+    setGroup(incomingGroup);
+  }, [view.group, view.sorts, view.type, view.options]);
   const updateSort = (index: number, change: Partial<SortCriterion>): void => {
     updateSorts((current) =>
       current.map((sort, position) => (position === index ? { ...sort, ...change } : sort)),
@@ -209,7 +217,9 @@ export function SortGroupEditor({
               )
             }
           >
-            <option value="">{DATABASE_COPY.sort.noGrouping}</option>
+            {view.type === "board" ? null : (
+              <option value="">{DATABASE_COPY.sort.noGrouping}</option>
+            )}
             {groupable.map((property) => (
               <option key={property.id} value={property.id}>
                 {property.name}
@@ -224,7 +234,22 @@ export function SortGroupEditor({
           onClick={() => {
             pendingSignature.current = draftSignature(sorts, group);
             setSaving(true);
-            void Promise.resolve(onChange({ ...view, sorts, group }))
+            const next =
+              view.type === "board" && group !== null
+                ? {
+                    ...view,
+                    sorts,
+                    group,
+                    options: {
+                      ...view.options,
+                      axisPropertyId: group.propertyId,
+                      ...(group.propertyId === view.options.axisPropertyId
+                        ? {}
+                        : { columnOrder: [], collapsedColumnIds: [] }),
+                    },
+                  }
+                : { ...view, sorts, group };
+            void Promise.resolve(onChange(next))
               .catch(() => {
                 pendingSignature.current = null;
               })

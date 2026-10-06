@@ -770,3 +770,25 @@ de tests ni le périmètre du plan d'impact GitHub. Les critères de T069 sont :
 exception documentaire applicable aussi après du code déjà validé, sélection
 ciblée motivée pour les corrections délimitées, fallback complet pour les impacts
 transversaux/incertains, et conservation des gates requis avant fusion/release.
+
+## Extension034
+
+Voir[034/plan.md](../034-notion-content-navigation/plan.md) pour le modèle
+mathématique, les sommaires dérivés, la navigation scopée et le propriétaire
+CSS des rangées de liste. Les primitives, thèmes et parcours existants sont
+réutilisés ; la couche034 dispose de sa propre preuve ui-quality et lessons.
+
+
+## Ajustement des liens et commandes — 035
+
+Le retour du propriétaire du 4 octobre est défini dans
+[035/spec.md](../035-item-links-database-insertion/spec.md), avec approche et
+suivi dans ses plan.md/tasks.md. Il remplace les libellés précédents par les
+créations « Page/Dossier/Base de données imbriqué(e) », élargit « Lien vers un
+autre élément » aux bases, et fusionne les commandes d'affichage intégré et lié
+dans un dialogue de choix. Le concept de vue liée et la propriété des sources
+restent inchangés. L'import respecte is_inline et corrige les références
+historiques inchangées ; la validation locale propre à035 ne revalide pas les
+anciennes phases de cette feature.
+
+Le flux de page des Kanbans et les en-têtes fixes table/Kanban sont précisés par [037](../037-database-page-flow/plan.md) sur demande du propriétaire ; ce périmètre remplace la conservation des scrollports Kanban en pleine page et intégrée.

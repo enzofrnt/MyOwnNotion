@@ -1,828 +1,372 @@
-import { posix } from "node:path";
 import {
-  createInitialDatabaseDefinition,
-  type DatabaseDefinition,
   type DatabaseProperty,
-  migrateDocumentV2ToV3,
+  generateUuidV7,
   type NonRelationPropertyValue,
-  normalizeCivilDate,
-  normalizeDisplayName,
-  readDocumentBody,
   type Uuid,
   validateDatabaseDefinition,
   validatePageDocumentEnvelopeV3,
 } from "@myownnotion/domain";
-import { parse } from "csv-parse/sync";
-import {
-  convertMarkdown,
-  frontmatter,
-  type LinkResolution,
-  markdownEmbeds,
-  safeYaml,
-} from "./markdown.ts";
+import { object, objects, parentId, sourceId, string, title } from "./api-client.ts";
+import { convertNotionDocument } from "./blocks.ts";
+import type { NotionCollection } from "./collect.ts";
 import {
   type ImportDatabase,
   type ImportFile,
-  type ImportFolder,
-  type ImportIssue,
   type ImportPage,
   type ImportPlan,
-  type ImportReport,
   importId,
 } from "./model.ts";
-import { digest, type ImportSnapshot, NotionImportError, sourceText } from "./source.ts";
+import { convertProperty, convertValue, position, relationIds } from "./properties.ts";
+import { digest, NotionImportError, SOURCE_LIMITS, type SourceFile } from "./source.ts";
+import { convertViews } from "./views.ts";
 
-const blank = () => ({
-  format: "myownnotion.document+json" as const,
-  formatVersion: 2,
-  body: { blocks: [] },
-});
-const stem = (path: string) => path.replace(/\.[^./]+$/, "");
-const notionTitle = (path: string) => posix.basename(stem(path)).replace(/ [a-f0-9]{32}$/i, "");
-const wikiTarget = (value: string) => value.replace(/^\[\[|\]\]$/g, "").split("|")[0] ?? value;
-const canonical = (value: string) =>
-  wikiTarget(value)
-    .replace(/\.(?:md|base)$/i, "")
-    .normalize("NFC")
-    .toLowerCase();
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+export interface NotionPlanOptions {
+  readonly excludedDatabaseIds?: readonly string[];
 }
-function mediaType(path: string): string {
-  return (
-    (
-      {
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".pdf": "application/pdf",
-        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        ".md": "text/markdown",
-        ".csv": "text/csv",
-        ".base": "application/yaml",
-        ".svg": "image/svg+xml",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-      } as Record<string, string>
-    )[posix.extname(path).toLowerCase()] ?? "application/octet-stream"
-  );
+
+/** A database/page can belong to a layout block rather than directly to a page. */
+export function notionBlockOwners(collection: NotionCollection): Map<string, string> {
+  const owners = new Map<string, string>();
+  const walk = (blocks: NotionCollection["pages"], owner: string) => {
+    for (const block of blocks) {
+      owners.set(sourceId(block["id"]), owner);
+      walk(objects(block["import_children"]), owner);
+    }
+  };
+  for (const page of collection.pages) {
+    const id = sourceId(page["id"]);
+    walk(collection.blocks[id] ?? [], id);
+  }
+  return owners;
 }
-interface DatabaseSource {
-  key: string;
-  path: string;
-  name: string;
-  host: ImportPage;
-  members: ImportPage[];
-  view: Record<string, unknown> | null;
-}
+
 export function planNotionImport(
-  snapshot: ImportSnapshot,
-  jobId = importId("snapshot", snapshot.digest),
+  originalCollection: NotionCollection,
+  jobId = generateUuidV7(),
+  options: NotionPlanOptions = {},
 ): ImportPlan {
+  const blockOwners = notionBlockOwners(originalCollection);
+  const resolvedParent = (value: NotionCollection["pages"][number]) => {
+    const id = parentId(value);
+    return id === null
+      ? null
+      : object(value["parent"])["type"] === "block_id"
+        ? (blockOwners.get(id) ?? id)
+        : id;
+  };
+  const excluded = new Set((options.excludedDatabaseIds ?? []).map(sourceId));
+  for (const id of excluded)
+    if (!originalCollection.databases.some((value) => sourceId(value["id"]) === id))
+      throw new NotionImportError("import.excluded-database-missing");
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const value of [
+      ...originalCollection.databases,
+      ...originalCollection.sources,
+      ...originalCollection.pages,
+    ]) {
+      const parent = resolvedParent(value),
+        id = sourceId(value["id"]);
+      if (parent && excluded.has(parent) && !excluded.has(id)) {
+        excluded.add(id);
+        grew = true;
+      }
+    }
+  }
+  const included = (value: NotionCollection["pages"][number]) =>
+    !excluded.has(sourceId(value["id"]));
+  const collection: NotionCollection = {
+    ...originalCollection,
+    pages: originalCollection.pages.filter(included),
+    databases: originalCollection.databases.filter(included),
+    sources: originalCollection.sources.filter(included),
+    media: originalCollection.media.filter((media) => !excluded.has(media.ownerId)),
+    views: originalCollection.views.filter(
+      (view) =>
+        !excluded.has(string(view["data_source_id"])) && !excluded.has(resolvedParent(view) ?? ""),
+    ),
+  };
   const rootId = importId(jobId, "root");
-  const originalsId = importId(jobId, "originals");
-  const issues: ImportIssue[] = [];
-  const folders: ImportFolder[] = [
-    { id: rootId, name: "Import Notion", parentId: null },
-    { id: originalsId, name: "Sources importées", parentId: rootId },
+  const issues = [
+    ...collection.issues,
+    ...(options.excludedDatabaseIds ?? []).map((id) => ({
+      code: "import.database-excluded",
+      sourcePath: sourceId(id),
+    })),
   ];
-  const folderIds = new Map<string, Uuid>([[".", rootId]]);
-  const folder = (path: string): Uuid => {
-    const existing = folderIds.get(path);
-    if (existing) return existing;
-    const parentId = folder(posix.dirname(path));
-    const id = importId(jobId, `folder:${path}`);
-    folders.push({ id, name: posix.basename(path).slice(0, 255), parentId });
-    folderIds.set(path, id);
-    return id;
+  const identities = new Map<string, Uuid>();
+  const titles = new Map<string, string>();
+  for (const value of [...collection.pages, ...collection.databases, ...collection.sources]) {
+    const id = sourceId(value["id"]);
+    identities.set(id, importId(jobId, `${string(value["object"])}:${id}`));
+    titles.set(id, title(value));
+    if (title(value).length > 255) issues.push({ code: "import.name-shortened", sourcePath: id });
+  }
+  const destination = (id: string) => {
+    const value = identities.get(id);
+    if (!value) throw new NotionImportError("import.identity-missing");
+    return value;
   };
-  const originalFolderIds = new Map<string, Uuid>([[".", originalsId]]);
-  const originalFolder = (path: string): Uuid => {
-    const existing = originalFolderIds.get(path);
-    if (existing) return existing;
-    const parentId = originalFolder(posix.dirname(path));
-    const id = importId(jobId, `original-folder:${path}`);
-    folders.push({ id, name: posix.basename(path).slice(0, 255), parentId });
-    originalFolderIds.set(path, id);
-    return id;
-  };
-  for (const path of snapshot.directories ?? []) folder(path);
-  const pages: ImportPage[] = [];
   const files: ImportFile[] = [];
-  const bodies = new Map<Uuid, string>();
-  const report: ImportReport = {
-    adapter: snapshot.files.some((file) => posix.extname(file.path).toLowerCase() === ".base")
-      ? "obsidian"
-      : "notion",
-    snapshotDigest: snapshot.digest,
-    importId: jobId,
-    totals: {
-      sourceFiles: snapshot.files.length,
-      sourceBytes: snapshot.totalBytes,
-      pages: 0,
-      folders: 0,
-      attachments: 0,
-      originals: 0,
-      databases: 0,
-      memberships: 0,
-      links: 0,
-      issues: 0,
-    },
-    pages: [],
-    folders: [],
-    files: [],
-    links: [],
-    properties: [],
-    databases: [],
-    issues,
-  };
-  const byPath = new Map<string, { id: Uuid; kind: "page" | "file" | "base" }>();
-  const addPage = (
-    path: string,
-    title: string,
-    body: string,
-    properties: Record<string, unknown>,
-  ) => {
-    if (pages.some((page) => page.path === path))
-      throw new NotionImportError("import.duplicate-identity");
-    if (title.length > 255) issues.push({ code: "import.title-shortened", sourcePath: path });
-    const page: ImportPage = {
-      id: importId(jobId, `page:${path}`),
+  const media = new Map<string, Uuid>();
+  const assets = new Map<string, Uuid>();
+  const snapshotFiles: SourceFile[] = [];
+  const includedMedia = collection.media.filter((entry) => !entry.key.startsWith("cover:"));
+  for (const entry of includedMedia) {
+    const bytes = new Uint8Array(Buffer.from(entry.base64, "base64"));
+    const hash = digest(bytes);
+    const existingAsset = assets.get(hash);
+    if (existingAsset) {
+      media.set(entry.key, existingAsset);
+      continue;
+    }
+    const id = importId(jobId, `media:${hash}`),
+      path = `media/${id}`;
+    media.set(entry.key, id);
+    assets.set(hash, id);
+    snapshotFiles.push({ path, bytes, sha256: digest(bytes) });
+    // Files cannot be direct children of a database page; attach those under
+    // the import root. Editorial media stays beside its page content.
+    const owner = collection.pages.some((page) => sourceId(page["id"]) === entry.ownerId)
+      ? destination(entry.ownerId)
+      : rootId;
+    files.push({
+      id,
       path,
-      title: title.trim().slice(0, 255) || "Sans titre",
-      parentId: folder(posix.dirname(path)),
-      document: blank(),
-      properties,
-    };
-    pages.push(page);
-    bodies.set(page.id, body);
-    byPath.set(path, { id: page.id, kind: "page" });
-    return page;
-  };
-  for (const source of snapshot.files) {
-    const extension = posix.extname(source.path).toLowerCase();
-    const original = [".md", ".csv", ".base"].includes(extension);
-    const file: ImportFile = {
-      id: importId(jobId, `file:${source.path}`),
-      path: source.path,
-      name: posix.basename(source.path).slice(0, 255),
-      parentId: original
-        ? originalFolder(posix.dirname(source.path))
-        : folder(posix.dirname(source.path)),
-      mediaType: mediaType(source.path),
-      original,
-    };
-    files.push(file);
-    report.files.push({
-      path: source.path,
-      bytes: source.bytes.length,
-      sha256: source.sha256,
-      outcome: original ? "converted-and-original-preserved" : "file-preserved",
-      canonicalId: file.id,
-      parentId: file.parentId,
-      original,
+      name: entry.name,
+      parentId: owner,
+      mediaType: entry.mediaType,
+      original: false,
     });
-    if (extension === ".md") {
-      const parsed = frontmatter(sourceText(source));
-      addPage(
-        source.path,
-        /^#\s+(.+)$/m.exec(parsed.body)?.[1] ?? notionTitle(source.path),
-        parsed.body,
-        parsed.properties,
-      );
-    } else if (extension === ".base")
-      byPath.set(source.path, { id: importId(jobId, `database:${source.path}`), kind: "base" });
-    else if (extension !== ".csv") byPath.set(source.path, { id: file.id, kind: "file" });
   }
-  const resolveLink = (from: string, raw: string): LinkResolution => {
-    let target: string;
-    try {
-      target = decodeURIComponent(wikiTarget(raw)).split("#")[0] ?? "";
-    } catch {
-      return { id: null, status: "unsafe" };
-    }
-    if (/^https?:\/\//i.test(target)) {
-      const notionId = /(?:notion\.so|notion\.site)\/.+?([a-f0-9]{32})(?:\?|$)/i.exec(target)?.[1];
-      if (notionId) {
-        const matches = [...byPath].filter(([path]) => path.includes(notionId));
-        if (matches.length === 1 && matches[0]) return { ...matches[0][1], status: "resolved" };
-      }
-      return { id: null, status: "external" };
-    }
-    if (/^mailto:/i.test(target)) return { id: null, status: "external" };
-    if (
-      /^[a-z][a-z0-9+.-]*:/i.test(target) ||
-      target.includes("\\") ||
-      [...target].some((character) => character.charCodeAt(0) < 32)
-    )
-      return { id: null, status: "unsafe" };
-    if (!target) {
-      const own = byPath.get(from);
-      return own ? { ...own, status: "resolved" } : { id: null, status: "missing" };
-    }
-    const relative = posix.normalize(posix.join(posix.dirname(from), target));
-    if (relative.startsWith("../") || posix.isAbsolute(target))
-      return { id: null, status: "unsafe" };
-    const candidates = [
-      relative,
-      target,
-      `${relative}.md`,
-      `${target}.md`,
-      `${relative}.base`,
-      `${target}.base`,
-    ]
-      .map((path) => byPath.get(path.normalize("NFC")))
-      .filter((value) => value !== undefined);
-    const unique = new Map(candidates.map((value) => [value.id, value]));
-    const one = [...unique.values()][0];
-    if (unique.size === 1 && one) return { ...one, status: "resolved" };
-    if (unique.size > 1) return { id: null, status: "ambiguous" };
-    const fallback = [...byPath].filter(
-      ([path]) =>
-        canonical(path) === canonical(target) ||
-        canonical(posix.basename(path)) === canonical(target),
-    );
-    if (fallback.length === 1 && fallback[0]) return { ...fallback[0][1], status: "resolved" };
-    return { id: null, status: fallback.length > 1 ? "ambiguous" : "missing" };
-  };
-  // Notion subpage folders share their basename with the containing Markdown page.
-  for (const page of pages) {
-    const parent = pages.find((other) => stem(other.path) === posix.dirname(page.path));
-    if (parent) page.parentId = parent.id;
-  }
-  for (const file of files.filter((value) => !value.original)) {
-    const parent = pages.find((page) => stem(page.path) === posix.dirname(file.path));
-    if (parent) file.parentId = parent.id;
-  }
-  const sources: DatabaseSource[] = [];
-  for (const source of snapshot.files) {
-    const extension = posix.extname(source.path).toLowerCase();
-    if (extension !== ".base" && extension !== ".csv") continue;
-    const referencedHosts = pages.filter((page) =>
-      markdownEmbeds(bodies.get(page.id) ?? "").some(
-        (reference) => resolveLink(page.path, reference).id === byPath.get(source.path)?.id,
-      ),
-    );
-    const host =
-      referencedHosts[0] ??
-      pages.find((page) => stem(page.path) === stem(source.path)) ??
-      addPage(`${stem(source.path)}.import-host.md`, notionTitle(source.path), "", {});
-    let key = `csv:${source.path}`;
-    const members: ImportPage[] = [];
-    let view: Record<string, unknown> | null = null;
-    if (extension === ".base") {
-      const base = record(safeYaml(sourceText(source)));
-      if (!base) throw new NotionImportError("import.invalid-base");
-      const filters = record(base["filters"]);
-      const expressions = Array.isArray(filters?.["and"])
-        ? filters["and"]
-        : typeof base["filters"] === "string"
-          ? [base["filters"]]
-          : [];
-      const expression =
-        expressions.length === 1 && typeof expressions[0] === "string" ? expressions[0] : "";
-      const match =
-        /^\s*note\[(?:"base"|'base')\]\s*==\s*link\((?:"([^"]+)"|'([^']+)')\)\s*$/.exec(
-          expression,
-        ) ?? /^\s*note\.base\s*==\s*link\((?:"([^"]+)"|'([^']+)')\)\s*$/.exec(expression);
-      if (!match)
-        issues.push({
-          code: "import.base-filter-unsupported",
-          sourcePath: source.path,
-          blocking: true,
-        });
-      else {
-        const value = match[1] ?? match[2] ?? "";
-        key = `base:${canonical(value)}`;
-        members.push(
-          ...pages.filter(
-            (page) =>
-              typeof page.properties["base"] === "string" &&
-              canonical(page.properties["base"]) === canonical(value),
-          ),
-        );
-      }
-      view = Array.isArray(base["views"]) ? record(base["views"][0]) : null;
-      if (Array.isArray(base["views"]) && base["views"].length > 1)
-        issues.push({
-          code: "import.additional-views-preserved-in-source",
-          sourcePath: source.path,
-        });
-      if (view?.["type"] !== "table") {
-        issues.push({ code: "import.base-view-unsupported", sourcePath: source.path });
-        view = null;
-      }
-      const otherSettings = [
-        ...Object.keys(base).filter((key) => !["filters", "views"].includes(key)),
-        ...Object.keys(view ?? {}).filter((key) => !["name", "type", "order"].includes(key)),
-      ];
-      if (otherSettings.length)
-        issues.push({
-          code: "import.base-settings-preserved-in-source",
-          sourcePath: source.path,
-          detail: [...new Set(otherSettings)].sort().join(", "),
-        });
-      if (base["formulas"] || base["summaries"])
-        issues.push({ code: "import.base-formulas-preserved-in-source", sourcePath: source.path });
-    } else {
-      let rows: string[][];
-      try {
-        rows = parse(sourceText(source), {
-          bom: true,
-          skip_empty_lines: true,
-          max_record_size: 8 * 1024 * 1024,
-        }) as string[][];
-      } catch {
-        throw new NotionImportError("import.invalid-csv");
-      }
-      const header = rows[0] ?? [];
-      if (
-        header.length === 0 ||
-        header.some((value) => !value.trim()) ||
-        new Set(header).size !== header.length
-      )
-        throw new NotionImportError("import.invalid-csv");
-      for (const [index, row] of rows.slice(1).entries()) {
-        const title = row[0] ?? "Sans titre";
-        const matched = pages.filter(
-          (candidate) =>
-            posix.dirname(candidate.path) === stem(source.path) && candidate.title === title,
-        );
-        // A native CSV's own exported subpages establish membership. Global
-        // title lookup can otherwise steal an unrelated note with the same name.
-        let page = matched.length === 1 ? matched[0] : undefined;
-        if (matched.length > 1) {
-          issues.push({
-            code: "import.csv-row-ambiguous",
-            sourcePath: source.path,
-            blocking: true,
-          });
-        } else if (!page) {
-          const resolved = resolveLink(source.path, title);
-          if (resolved.status === "ambiguous")
-            issues.push({
-              code: "import.csv-row-ambiguous",
-              sourcePath: source.path,
-              blocking: true,
-            });
-          page = resolved.id ? pages.find((candidate) => candidate.id === resolved.id) : undefined;
-        }
-        if (!page) {
-          page = addPage(`${stem(source.path)}/row-${index + 1}.import.md`, title, "", {});
-          issues.push({ code: "import.csv-page-content-unavailable", sourcePath: source.path });
-        }
-        if (members.some((member) => member.id === page.id))
-          issues.push({
-            code: "import.csv-row-ambiguous",
-            sourcePath: source.path,
-            blocking: true,
-          });
-        for (let column = 1; column < header.length; column++) {
-          const name = header[column];
-          if (name === undefined) throw new NotionImportError("import.invalid-csv");
-          const value = row[column] ?? "";
-          if (
-            page.properties[name] !== undefined &&
-            JSON.stringify(page.properties[name]) !== JSON.stringify(value)
-          )
-            issues.push({
-              code: "import.csv-property-preserved-separately",
-              sourcePath: page.path,
-              detail: name,
-            });
-          page.properties[name] = value;
-        }
-        members.push(page);
-      }
-    }
-    for (const displayHost of referencedHosts.length ? referencedHosts : [host])
-      sources.push({
-        key,
-        path: source.path,
-        name: notionTitle(source.path),
-        host: displayHost,
-        members: [...new Map(members.map((page) => [page.id, page])).values()],
-        view,
-      });
-  }
-  const groups = new Map<string, DatabaseSource[]>();
-  for (const source of sources) groups.set(source.key, [...(groups.get(source.key) ?? []), source]);
-  const databases: ImportDatabase[] = [];
-  for (const displays of groups.values()) {
-    const first = displays[0];
-    if (!first) continue;
-    const source = {
-      ...first,
-      members: [
-        ...new Map(
-          displays.flatMap((display) => display.members).map((page) => [page.id, page]),
-        ).values(),
-      ],
-    };
-    const id = importId(jobId, `database:${source.key}`),
-      sourceId = importId(id, "source"),
-      titlePropertyId = importId(id, "title"),
-      initialViewId = importId(id, "view"),
-      embeddingId = importId(id, "embedding");
-    const initial = createInitialDatabaseDefinition({
-      type: "database.create",
-      id,
-      name: source.name,
-      titlePropertyId,
-      initialViewId,
-      initialViewName:
-        typeof source.view?.["name"] === "string"
-          ? source.view["name"]
-          : "Import — table par défaut",
-      sourceId,
-      placement: { id: embeddingId, parentItemId: source.host.id, positionKey: "a" },
-    });
-    const properties: DatabaseProperty[] = [...initial.properties];
-    const fields = [...new Set(source.members.flatMap((page) => Object.keys(page.properties)))]
-      .filter((name) => name !== "base")
-      .sort();
-    for (const page of source.members) {
-      if (page.databaseId || source.host.id === page.id)
-        issues.push({
-          code: "import.database-membership-conflict",
-          sourcePath: page.path,
-          blocking: true,
-        });
-      if (page.properties["base"] !== undefined)
-        report.properties.push({
-          sourcePath: page.path,
-          name: "base",
-          representation: "database-membership",
-        });
-      page.databaseId = id;
-      page.parentId = id;
-      page.values = {};
-      page.relationTargets = {};
-    }
-    for (const [index, name] of fields.entries()) {
-      const propertyId = importId(id, `property:${name}`);
-      const values = source.members
-        .map((page) => page.properties[name])
-        .filter((value) => value !== undefined && value !== null && value !== "");
-      const every = (predicate: (value: unknown) => boolean) =>
-        values.length > 0 && values.every(predicate);
-      const type = every((value) => typeof value === "boolean")
-        ? "checkbox"
-        : every((value) => typeof value === "number" && Number.isFinite(value))
-          ? "number"
-          : every((value) => typeof value === "string" && normalizeCivilDate(value).ok)
-            ? "date"
-            : /^(status|statut|état)$/i.test(name) && every((value) => typeof value === "string")
-              ? "status"
-              : every(
-                    (value) =>
-                      Array.isArray(value) &&
-                      value.every(
-                        (part) => typeof part === "string" && /^\[\[.+\]\]$/.test(part),
-                      ) &&
-                      source.members
-                        .filter((page) => page.properties[name] === value)
-                        .every((page) =>
-                          value.every((part) => resolveLink(page.path, part).kind === "page"),
-                        ),
-                  )
-                ? "relation"
-                : "text";
-      const optionLabels = type === "status" ? [...new Set(values as string[])].sort() : [];
-      const options = optionLabels.map((label, optionIndex) => ({
-        id: importId(propertyId, label),
-        label,
-        positionKey: `a${String(optionIndex).padStart(5, "0")}`,
-        tone: "default",
-        state: "active" as const,
-      }));
-      properties.push({
-        id: propertyId,
-        name,
-        type,
-        positionKey: `a${String(index).padStart(5, "0")}`,
-        state: "active",
-        config:
-          type === "date"
-            ? { mode: "date" }
-            : type === "status"
-              ? { options }
-              : type === "relation"
-                ? { cardinality: "many" }
-                : {},
-      } as DatabaseProperty);
-      for (const page of source.members) {
-        const value = page.properties[name];
-        report.properties.push({ sourcePath: page.path, name, representation: type });
-        if (value === undefined || value === null || value === "") continue;
-        let converted: NonRelationPropertyValue;
-        if (type === "relation") {
-          const targets: Uuid[] = [];
-          for (const reference of value as string[]) {
-            const resolved = resolveLink(page.path, reference);
-            report.links.push({
-              sourcePath: page.path,
-              sourceTarget: reference,
-              targetId: resolved.id,
-              status: resolved.status,
-            });
-            if (resolved.id && resolved.kind === "page") targets.push(resolved.id);
-            else
-              issues.push({
-                code: "import.property-link-unresolved",
-                sourcePath: page.path,
-                detail: name,
-              });
-          }
-          (page.relationTargets as Record<Uuid, readonly Uuid[]>)[propertyId] = [
-            ...new Set(targets),
-          ];
-          continue;
-        }
-        if (type === "checkbox") converted = { kind: "checkbox", checked: value as boolean };
-        else if (type === "number") converted = { kind: "number", decimal: String(value) };
-        else if (type === "date") converted = { kind: "date", date: value as string };
-        else if (type === "status")
-          converted = { kind: "status", optionId: importId(propertyId, value as string) };
-        else
-          converted = {
-            kind: "text",
-            value: typeof value === "string" ? value : JSON.stringify(value),
-          };
-        if (page.values === undefined) throw new NotionImportError("import.invalid-plan");
-        page.values[propertyId] = converted;
-      }
-    }
-    const displayedProperties = (view: Record<string, unknown> | null) => {
-      const order = Array.isArray(view?.["order"])
-        ? view["order"]
-            .filter((value): value is string => typeof value === "string")
-            .map((value) => value.replace(/^note\./, ""))
-        : [];
-      return [...properties]
-        .sort((a, b) => {
-          const ai = order.indexOf(a.name),
-            bi = order.indexOf(b.name);
-          return (ai < 0 ? 10000 : ai) - (bi < 0 ? 10000 : bi);
-        })
-        .map((property, index) => ({
-          propertyId: property.id,
-          visible: true,
-          positionKey: `a${String(index).padStart(5, "0")}`,
-        }));
-    };
-    const views = initial.views.map((view) => ({
-      ...view,
-      properties: displayedProperties(source.view),
-    }));
-    const definition: DatabaseDefinition = {
-      ...initial,
-      name: source.name,
-      properties,
-      views,
-    };
-    const initialView = views[0];
-    if (initialView === undefined) throw new NotionImportError("import.invalid-definition");
-    const linkedDisplays = displays.slice(1).map((display) => {
-      const viewId = importId(id, `view:${display.path}:${display.host.id}`);
-      const name =
-        typeof display.view?.["name"] === "string"
-          ? display.view["name"]
-          : "Import — table par défaut";
-      return {
-        id: importId(id, `linked:${display.path}:${display.host.id}`),
-        hostPageId: display.host.id,
-        viewId,
-        name,
-        view: {
-          ...initialView,
-          id: viewId,
-          name,
-          properties: displayedProperties(display.view),
-        },
-      };
-    });
-    for (const display of displays) byPath.set(display.path, { id, kind: "base" });
-    databases.push({
-      id,
-      sourceId,
-      path: source.path,
-      name: source.name,
-      hostPageId: source.host.id,
-      titlePropertyId,
-      initialViewId,
-      embeddingId,
-      definition,
-      memberIds: source.members.map((page) => page.id),
-      linkedDisplays,
-    });
-    for (const [index, display] of displays.entries())
-      report.databases.push({
-        path: display.path,
-        id,
-        hostPageId: display.host.id,
-        members: source.members.length,
-        memberIds: source.members.map((page) => page.id),
-        embeddingId: index === 0 ? embeddingId : (linkedDisplays[index - 1]?.id ?? embeddingId),
-        membershipReference: source.key,
-        retained: display.view ? ["first-table-name", "first-table-property-order"] : [],
-        presentation: display.view ? "exported-table" : "default-table",
-        missing: [
-          "original-board-calendar-gallery-configuration",
-          "original-previews",
-          "automation",
-          "permissions",
-          "revision-history",
-          "task-role-configuration",
-        ],
-      });
-  }
-  for (const page of pages) {
-    const propertyStrings = (value: unknown): string[] =>
-      typeof value === "string"
-        ? [value]
-        : Array.isArray(value)
-          ? value.flatMap(propertyStrings)
-          : record(value)
-            ? Object.values(record(value) ?? {}).flatMap(propertyStrings)
-            : [];
-    for (const [name, value] of Object.entries(page.properties))
-      for (const text of propertyStrings(value)) {
-        for (const match of text.matchAll(/\[\[([^\]\r\n]+)\]\]/g)) {
-          const reference = match[0];
-          // Relationship conversion already recorded these same source references.
-          if (
-            report.links.some(
-              (link) => link.sourcePath === page.path && link.sourceTarget === reference,
-            )
-          )
-            continue;
-          const resolved = resolveLink(page.path, reference);
-          report.links.push({
-            sourcePath: page.path,
-            sourceTarget: reference,
-            targetId: resolved.id,
-            status: resolved.status,
-          });
-          if (
-            resolved.status === "missing" ||
-            resolved.status === "ambiguous" ||
-            resolved.status === "unsafe"
-          )
-            issues.push({
-              code: `import.property-link-${resolved.status}`,
-              sourcePath: page.path,
-              detail: name,
-            });
-        }
-      }
-    page.document = convertMarkdown({
-      jobId,
-      path: page.path,
-      markdown: bodies.get(page.id) ?? "",
-      resolve: (target) => {
-        const link = resolveLink(page.path, target);
-        if (link.kind !== "base" || link.id === null) return link;
-        const database = databases.find((candidate) => candidate.id === link.id);
-        if (database === undefined) return link;
-        const view =
-          database.hostPageId === page.id
-            ? { containerItemId: database.id, viewId: database.initialViewId }
-            : database.linkedDisplays.find((display) => display.hostPageId === page.id);
-        return view === undefined
-          ? link
-          : {
-              ...link,
-              databaseView:
-                "containerItemId" in view
-                  ? view
-                  : { containerItemId: view.id, viewId: view.viewId },
-            };
-      },
-      issues,
-      links: report.links,
-    });
-    if (!page.databaseId && Object.keys(page.properties).length) {
-      (page.document.body["blocks"] as unknown[]).push({
-        id: importId(jobId, `metadata:${page.path}`),
-        type: "code",
-        language: "yaml",
-        text: JSON.stringify(page.properties, null, 2),
-      });
-      for (const name of Object.keys(page.properties))
-        report.properties.push({
-          sourcePath: page.path,
-          name,
-          representation: "preserved-metadata",
-        });
-    }
-    const rawBlocks = page.document.body["blocks"] as Array<Record<string, unknown>>;
-    if (rawBlocks.some((block) => block["type"] === "databaseView")) {
-      // v2 validation knows no databaseView block. Preserve its ordinal slot
-      // while migrating the surrounding Markdown blocks, then restore it in v3.
-      const parsed = readDocumentBody({
-        blocks: rawBlocks.map((block) =>
-          block["type"] === "databaseView"
-            ? { type: "paragraph", id: block["id"], content: [] }
-            : block,
-        ),
-      });
-      if (parsed.kind !== "blocks" || !parsed.result.ok) {
-        // Preview must report malformed Markdown as a blocking issue. It must
-        // still return the rest of the import inventory to the user.
-        issues.push({ code: "import.invalid-document", sourcePath: page.path, blocking: true });
-        continue;
-      }
-      const migrated = migrateDocumentV2ToV3(parsed.result.document);
-      page.document = {
-        format: "myownnotion.document+json",
-        formatVersion: 3,
-        body: {
-          blocks: migrated.blocks.map((block, index) => {
-            const raw = rawBlocks[index];
-            if (raw?.["type"] !== "databaseView") return block;
-            return {
-              type: "databaseView",
-              id: raw["id"],
-              containerItemId: raw["containerItemId"],
-              viewId: raw["viewId"],
-            };
-          }),
-        },
-      };
-    }
-  }
-  report.pages = pages.map((page) => ({
-    sourcePath: page.path,
-    id: page.id,
-    title: page.title,
-    parentId: page.parentId,
-    databaseId: page.databaseId ?? null,
-    blocks: (page.document.body["blocks"] as unknown[]).length,
-    synthesized: !snapshot.files.some((file) => file.path === page.path),
-  }));
-  report.folders = folders;
-  for (const file of report.files)
-    file.parentId = files.find((value) => value.id === file.canonicalId)?.parentId ?? file.parentId;
-  report.totals = {
-    ...report.totals,
-    pages: pages.length,
-    folders: folders.length,
-    attachments: files.filter((file) => !file.original).length,
-    originals: files.filter((file) => file.original).length,
-    databases: databases.length,
-    memberships: databases.reduce((sum, database) => sum + database.memberIds.length, 0),
-    links: report.links.length,
-    issues: issues.length,
-  };
-  for (const page of pages) {
-    const valid =
-      page.document.formatVersion === 3
-        ? validatePageDocumentEnvelopeV3(page.document).ok
-        : (() => {
-            const parsed = readDocumentBody(page.document.body);
-            return parsed.kind === "blocks" && parsed.result.ok;
-          })();
-    if (!valid)
-      issues.push({ code: "import.invalid-document", sourcePath: page.path, blocking: true });
-  }
-  const invalidNamePaths = new Set<string>();
-  const reportInvalidName = (name: string, sourcePath: string) => {
-    if (normalizeDisplayName(name).ok || invalidNamePaths.has(sourcePath)) return;
-    invalidNamePaths.add(sourcePath);
-    issues.push({ code: "import.invalid-name", sourcePath, blocking: true });
-  };
-  for (const page of pages) reportInvalidName(page.title, page.path);
-  for (const file of files) reportInvalidName(file.name, file.path);
-  for (const folder of folders) reportInvalidName(folder.name, folder.name);
-  for (const database of databases)
-    if (!validateDatabaseDefinition(database.definition).ok)
-      issues.push({ code: "import.invalid-definition", sourcePath: database.path, blocking: true });
-  try {
-    creationOrder({ folders, pages, databases });
-  } catch (error) {
-    if (!(error instanceof NotionImportError)) throw error;
-    issues.push({ code: error.code, sourcePath: "", blocking: true });
-  }
-  report.totals.issues = issues.length;
-  const fingerprint = digest(
+  const original = new TextEncoder().encode(
     JSON.stringify({
-      version: 1,
-      id: jobId,
-      snapshot: snapshot.digest,
-      folders,
-      pages,
-      files,
-      databases,
+      ...originalCollection,
+      media: originalCollection.media.filter((entry) => !entry.key.startsWith("cover:")),
     }),
   );
-  return {
-    version: 1,
+  if (original.length > SOURCE_LIMITS.totalBytes)
+    throw new NotionImportError("import.source-too-large");
+  snapshotFiles.push({ path: "notion-snapshot.json", bytes: original, sha256: digest(original) });
+  const dbBySource = new Map<string, ImportDatabase>();
+  const propMaps = new Map<string, Map<string, DatabaseProperty>>();
+  const databases = collection.databases.map((raw, index): ImportDatabase => {
+    const nid = sourceId(raw["id"]),
+      id = destination(nid),
+      parent = resolvedParent(raw);
+    const icon = string(object(raw["icon"])["emoji"]);
+    if (parent && collection.databases.some((database) => sourceId(database["id"]) === parent))
+      issues.push({ code: "import.nested-database-page-membership", sourcePath: nid });
+    if (raw["icon"] && !icon)
+      issues.push({ code: "import.page-icon-as-attachment", sourcePath: nid });
+    const database: ImportDatabase = {
+      id,
+      path: nid,
+      name: title(raw).slice(0, 255),
+      ...(icon ? { icon } : {}),
+      parentId: parent && identities.has(parent) ? destination(parent) : rootId,
+      sources: [],
+      views: [],
+      positionKey: position(index),
+    };
+    for (const [sourceIndex, rawSource] of collection.sources
+      .filter((value) => parentId(value) === nid)
+      .entries()) {
+      const sid = sourceId(rawSource["id"]),
+        sourceTargetId = destination(sid);
+      const rows = collection.pages.filter((page) => parentId(page) === sid);
+      const map = new Map<string, DatabaseProperty>();
+      const properties = Object.entries(object(rawSource["properties"])).flatMap(
+        ([name, raw], i) => {
+          if (["people", "created_by", "last_edited_by"].includes(string(object(raw)["type"]))) {
+            issues.push({ code: "import.property-people-ignored", sourcePath: sid });
+            return [];
+          }
+          const prop = convertProperty(jobId, sid, name, object(raw), i, rows, issues);
+          map.set(string(object(raw)["id"]), prop);
+          try {
+            map.set(decodeURIComponent(string(object(raw)["id"])), prop);
+          } catch {
+            /* Retain the raw ID. */
+          }
+          map.set(name, prop);
+          return [prop];
+        },
+      );
+      const titleProp = properties.find((prop) => prop.type === "title");
+      if (!titleProp) throw new NotionImportError("import.title-property-missing");
+      const views = convertViews(
+        jobId,
+        sid,
+        properties,
+        map,
+        collection.views.filter((view) => view["data_source_id"] === sid && parentId(view) === nid),
+        issues,
+      );
+      const view = views[0];
+      if (!view) throw new NotionImportError("import.view-missing");
+      const definition = {
+        format: "myownnotion.database-definition+json" as const,
+        formatVersion: 1 as const,
+        databaseId: id,
+        name: title(rawSource).slice(0, 255),
+        properties,
+        views,
+        taskRoles: null,
+      };
+      if (!validateDatabaseDefinition(definition).ok)
+        throw new NotionImportError("import.invalid-definition", sid);
+      database.sources.push({
+        id: sourceTargetId,
+        name: title(rawSource).slice(0, 255),
+        titlePropertyId: titleProp.id,
+        initialViewId: view.id,
+        definition,
+      });
+      database.views.push(
+        ...views.map((view) => ({
+          ...view,
+          positionKey: position(sourceIndex * 100 + views.indexOf(view)),
+          sourceId: sourceTargetId,
+        })),
+      );
+      dbBySource.set(sid, database);
+      propMaps.set(sid, map);
+    }
+    if (!database.sources.length) issues.push({ code: "import.empty-database", sourcePath: nid });
+    return database;
+  });
+  // Linked views belong to their display container, while their properties
+  // belong to the referenced source. Build them after all source maps exist.
+  for (const database of databases) {
+    const rawViews = collection.views.filter((view) => parentId(view) === database.path);
+    for (const rawView of rawViews) {
+      const sid = string(rawView["data_source_id"]);
+      if (dbBySource.get(sid)?.id === database.id) continue;
+      const map = propMaps.get(sid);
+      const source = dbBySource
+        .get(sid)
+        ?.sources.find((source) => source.id === identities.get(sid));
+      if (!map || !source) {
+        issues.push({
+          code: "import.view-source-outside-selection",
+          sourcePath: string(rawView["id"]),
+        });
+        continue;
+      }
+      const views = convertViews(jobId, sid, source.definition.properties, map, [rawView], issues);
+      database.views.push(
+        ...views.map((view) => ({
+          ...view,
+          positionKey: position(database.views.length),
+          sourceId: source.id,
+        })),
+      );
+    }
+  }
+  const databaseViews = new Map(
+    databases.flatMap((db) => {
+      const raw = collection.databases.find((row) => sourceId(row["id"]) === db.path);
+      if (typeof raw?.["is_inline"] !== "boolean")
+        issues.push({ code: "import.database-presentation-unknown", sourcePath: db.path });
+      return raw?.["is_inline"] === true && db.views[0]
+        ? [[db.path, { containerItemId: db.id, viewId: db.views[0].id }] as const]
+        : [];
+    }),
+  );
+  const pages = collection.pages.map((raw, index): ImportPage => {
+    const nid = sourceId(raw["id"]),
+      id = destination(nid),
+      parent = resolvedParent(raw);
+    const database = parent ? dbBySource.get(parent) : undefined;
+    const values: Record<Uuid, NonRelationPropertyValue> = {},
+      relations: Record<Uuid, Uuid[]> = {};
+    const map = parent ? propMaps.get(parent) : undefined;
+    for (const [name, rawValue] of Object.entries(object(raw["properties"]))) {
+      const value = object(rawValue),
+        prop = map?.get(string(value["id"])) ?? map?.get(name);
+      if (!prop) continue;
+      if (prop.type === "relation")
+        relations[prop.id] = relationIds(value, identities, issues, nid);
+      else {
+        const converted = convertValue(prop, value, issues, nid);
+        if (converted) values[prop.id] = converted;
+      }
+    }
+    const document = convertNotionDocument(collection.blocks[nid] ?? [], {
+      jobId,
+      identities,
+      titles,
+      media,
+      databaseViews,
+      issues,
+      path: nid,
+    });
+    if (!validatePageDocumentEnvelopeV3(document).ok)
+      throw new NotionImportError("import.invalid-document", nid);
+    const icon = string(object(raw["icon"])["emoji"]);
+    if (raw["icon"] && !icon)
+      issues.push({ code: "import.page-icon-as-attachment", sourcePath: nid });
+    if (!database && parent && !identities.has(parent))
+      issues.push({ code: "import.parent-outside-selection", sourcePath: nid });
+    return {
+      id,
+      path: nid,
+      title: title(raw).slice(0, 255),
+      parentId: database?.id ?? (parent && identities.has(parent) ? destination(parent) : rootId),
+      document,
+      positionKey: position(index),
+      ...(icon ? { icon } : {}),
+      ...(database && parent
+        ? {
+            databaseId: database.id,
+            sourceId: destination(parent),
+            values,
+            relationTargets: relations,
+          }
+        : {}),
+    };
+  });
+  const totalBytes = snapshotFiles.reduce((sum, file) => sum + file.bytes.length, 0);
+  if (totalBytes > SOURCE_LIMITS.totalBytes) throw new NotionImportError("import.source-too-large");
+  const snapshot = {
+    files: snapshotFiles,
+    totalBytes,
+    digest: digest(snapshotFiles.map((file) => `${file.path}:${file.sha256}`).join("\n")),
+  };
+  const folders = [{ id: rootId, name: "Import Notion", parentId: null }];
+  const report = {
+    adapter: "notion-api" as const,
+    importId: jobId,
+    snapshotDigest: snapshot.digest,
+    totals: {
+      pages: pages.length,
+      databases: databases.length,
+      sources: collection.sources.length,
+      memberships: pages.filter((page) => page.databaseId).length,
+      attachments: assets.size,
+      originals: 1,
+      sourceBytes: totalBytes,
+      issues: issues.length,
+    },
+    identities: [...identities].map(([sourceId, targetId]) => ({
+      sourceId,
+      targetId,
+      kind: collection.sources.some((source) => source["id"] === sourceId)
+        ? "source"
+        : collection.databases.some((db) => db["id"] === sourceId)
+          ? "database"
+          : "page",
+    })),
+    issues,
+  };
+  const plan: ImportPlan = {
+    version: 2,
+    excludedDatabaseIds: (options.excludedDatabaseIds ?? []).map(sourceId),
     id: jobId,
     rootId,
-    fingerprint,
+    fingerprint: digest(JSON.stringify({ pages, databases, files, snapshot: snapshot.digest })),
     snapshot,
     folders,
     pages,
@@ -830,33 +374,29 @@ export function planNotionImport(
     databases,
     report,
   };
+  creationOrder(plan);
+  return plan;
 }
-
-/** Dependency planning happens before any target connection or backup is changed. */
 export function creationOrder(
-  plan: Pick<ImportPlan, "folders" | "pages" | "databases">,
+  plan: Pick<ImportPlan, "pages" | "databases" | "folders">,
 ): Array<{ kind: "page" | "database"; id: Uuid }> {
-  const existing = new Set(plan.folders.map((folder) => folder.id));
+  const created = new Set(plan.folders.map((folder) => folder.id));
   const pending = [
-    ...plan.pages.map((page) => ({
-      kind: "page" as const,
-      id: page.id,
-      dependencies: [page.parentId, ...(page.databaseId ? [page.databaseId] : [])],
-    })),
-    ...plan.databases.map((source) => ({
+    ...plan.pages.map((page) => ({ kind: "page" as const, id: page.id, parentId: page.parentId })),
+    ...plan.databases.map((db) => ({
       kind: "database" as const,
-      id: source.id,
-      dependencies: [source.hostPageId],
+      id: db.id,
+      parentId: db.parentId,
     })),
   ];
   const order: Array<{ kind: "page" | "database"; id: Uuid }> = [];
   while (pending.length) {
-    const index = pending.findIndex((item) => item.dependencies.every((id) => existing.has(id)));
+    const index = pending.findIndex((value) => created.has(value.parentId));
     if (index < 0) throw new NotionImportError("import.cyclic-dependencies");
-    const item = pending.splice(index, 1)[0];
-    if (!item) throw new NotionImportError("import.invalid-plan");
-    order.push(item);
-    existing.add(item.id);
+    const value = pending.splice(index, 1)[0];
+    if (!value) throw new NotionImportError("import.invalid-plan");
+    order.push({ kind: value.kind, id: value.id });
+    created.add(value.id);
   }
   return order;
 }

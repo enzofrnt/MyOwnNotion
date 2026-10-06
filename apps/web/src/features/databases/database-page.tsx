@@ -1,4 +1,8 @@
-import type { DatabaseDto, DatabaseEntryDto } from "@myownnotion/contracts";
+import {
+  type DatabaseDto,
+  type DatabaseEntryDto,
+  presentDatabaseQuery,
+} from "@myownnotion/contracts";
 import type {
   DatabaseDefinition,
   DatabaseProperty,
@@ -120,8 +124,14 @@ export function DatabasePage({
   readonly onPreviewDefinitionImpact?: (
     definition: DatabaseDefinition,
   ) => DefinitionImpact | null | Promise<DefinitionImpact | null>;
-  readonly onCreateEntry: (title: string) => void | Promise<void | Uuid>;
-  readonly onCreateFolder?: (title: string) => void | Promise<void | Uuid>;
+  readonly onCreateEntry: (
+    title: string,
+    initialValues?: DatabaseEntryDto["values"],
+  ) => void | Promise<void | Uuid>;
+  readonly onCreateFolder?: (
+    title: string,
+    initialValues?: DatabaseEntryDto["values"],
+  ) => void | Promise<void | Uuid>;
   readonly onOpenEntry: (entryId: Uuid, trigger?: HTMLElement | null) => void;
   readonly onUpdateEntry?: (entryId: Uuid, update: DatabaseCellUpdate) => void | Promise<void>;
   readonly relationOptions?: readonly RelationOption[];
@@ -227,6 +237,16 @@ export function DatabasePage({
     );
     if (!evaluated.ok) return null;
     const byId = new Map(entries.map((entry) => [entry.entryId, entry]));
+    const projected = presentDatabaseQuery({
+      definition,
+      view: activeView,
+      entries: evaluated.value.rows.flatMap((row) => {
+        const entry = byId.get(row.entryId);
+        return entry === undefined ? [] : [{ ...row, revisionId: entry.revisionId as Uuid }];
+      }),
+      groups: evaluated.value.groups,
+      includeGroups: true,
+    });
     return {
       databaseId: database.databaseId,
       viewId: activeView.id,
@@ -235,25 +255,8 @@ export function DatabasePage({
       coverage: "complete",
       availableCount: entries.length,
       expectedCount: entries.length,
-      rows: evaluated.value.rows.flatMap((row) => {
-        const entry = byId.get(row.entryId);
-        return entry === undefined
-          ? []
-          : [
-              {
-                entryId: entry.entryId,
-                revisionId: entry.revisionId,
-                title: entry.title,
-                values: entry.values,
-                relationTargets: entry.relationTargets,
-                groupId:
-                  evaluated.value.groups.find((group) => group.entryIds.includes(row.entryId))
-                    ?.id ?? null,
-                syncState: "synced" as const,
-              },
-            ];
-      }),
-      groups: [],
+      rows: projected.rows.map((row) => ({ ...row, syncState: "synced" as const })),
+      groups: projected.groups,
       nextCursor: null,
       source: "local",
       staleCursorRecovered: false,
@@ -401,9 +404,21 @@ export function DatabasePage({
     };
 
     const restore = (): void => {
-      const trigger = sectionRef.current?.querySelector<HTMLElement>(
-        `[data-entry-trigger="${returnFocusEntryId}"]`,
-      );
+      const savedColumn = viewContext.context.returnColumnId;
+      const columnTrigger =
+        savedColumn === undefined
+          ? null
+          : (sectionRef.current?.querySelector<HTMLElement>(
+              `[data-board-column="${savedColumn}"] [data-entry-trigger="${returnFocusEntryId}"]`,
+            ) ??
+            sectionRef.current?.querySelector<HTMLElement>(
+              `[data-board-column="${savedColumn}"] [data-board-create="page"]`,
+            ));
+      const trigger =
+        columnTrigger ??
+        sectionRef.current?.querySelector<HTMLElement>(
+          `[data-entry-trigger="${returnFocusEntryId}"]`,
+        );
       const activeElement = document.activeElement;
       const userMovedFocus =
         activeElement instanceof HTMLElement &&
@@ -445,6 +460,7 @@ export function DatabasePage({
     onReturnFocusRestored,
     returnFocusEntryId,
     viewContext.finishEntryReturn,
+    viewContext.context.returnColumnId,
   ]);
 
   const saveView = async (view: NonNullable<typeof activeView>): Promise<void> => {
@@ -736,23 +752,6 @@ export function DatabasePage({
             {embeddingId === undefined ? DATABASE_COPY.page.contents : database.name}
           </h2>
         </div>
-        {activeView?.type === "table" ? null : (
-          <div className="database-page__actions">
-            <Button
-              type="button"
-              size="compact"
-              variant="ghost"
-              disabled={savingProperty}
-              onClick={() => {
-                setSettingsOpen(true);
-                setEditingProperty(true);
-              }}
-            >
-              <AppIcon name="add" size="small" />
-              {DATABASE_COPY.page.addProperty}
-            </Button>
-          </div>
-        )}
       </header>
 
       <div className="database-settings">
@@ -782,21 +781,6 @@ export function DatabasePage({
                 onChange={replaceDefinition}
               />
             )}
-            {editingProperty ? (
-              <PropertyEditor
-                draft={propertyDraft}
-                error={propertyError}
-                onChange={(draft) => {
-                  propertyDraftRef.current = draft;
-                  setPropertyDraft(draft);
-                  setPropertyError(null);
-                }}
-                onSubmit={addProperty}
-                onCancel={() => setEditingProperty(false)}
-                submitting={savingProperty}
-              />
-            ) : null}
-
             {activeView === undefined ? null : (
               <div className="database-view-config">
                 <FilterEditor
@@ -843,9 +827,40 @@ export function DatabasePage({
               className="database-schema database-panel-section"
               aria-labelledby={`database-schema-heading-${embeddingId ?? database.databaseId}`}
             >
-              <h3 id={`database-schema-heading-${embeddingId ?? database.databaseId}`}>
-                {DATABASE_COPY.page.properties}
-              </h3>
+              <div className="database-schema__heading">
+                <h3 id={`database-schema-heading-${embeddingId ?? database.databaseId}`}>
+                  {DATABASE_COPY.page.properties}
+                </h3>
+                {activeView?.type === "table" ? null : (
+                  <Button
+                    type="button"
+                    size="compact"
+                    variant="ghost"
+                    disabled={savingProperty}
+                    onClick={() => {
+                      setPropertyError(null);
+                      setEditingProperty(true);
+                    }}
+                  >
+                    <AppIcon name="add" size="small" />
+                    {DATABASE_COPY.page.addProperty}
+                  </Button>
+                )}
+              </div>
+              {editingProperty ? (
+                <PropertyEditor
+                  draft={propertyDraft}
+                  error={propertyError}
+                  onChange={(draft) => {
+                    propertyDraftRef.current = draft;
+                    setPropertyDraft(draft);
+                    setPropertyError(null);
+                  }}
+                  onSubmit={addProperty}
+                  onCancel={() => setEditingProperty(false)}
+                  submitting={savingProperty}
+                />
+              ) : null}
               <ul>
                 {activeProperties.map((property) => (
                   <li key={property.id} className="database-schema__property">
@@ -950,40 +965,42 @@ export function DatabasePage({
         </section>
       ) : null}
 
-      <div className="database-entry-create">
-        {/* biome-ignore lint/a11y/useSemanticElements: Action choices are a labelled button group, not form controls. */}
-        <div className="database-entry-kind" role="group" aria-label="Type du nouvel élément">
-          <Button
-            type="button"
-            size="compact"
-            variant="ghost"
-            aria-label="Nouvelle page"
-            disabled={savingEntry}
-            onClick={() => void createKind("page")}
-          >
-            <AppIcon name="fileAdd" size="small" />
-            Page
-          </Button>
-          {onCreateFolder === undefined ? null : (
+      {activeView?.type === "board" ? null : (
+        <div className="database-entry-create">
+          {/* biome-ignore lint/a11y/useSemanticElements: Action choices are a labelled button group, not form controls. */}
+          <div className="database-entry-kind" role="group" aria-label="Type du nouvel élément">
             <Button
               type="button"
               size="compact"
               variant="ghost"
-              aria-label="Nouveau dossier"
+              aria-label="Nouvelle page"
               disabled={savingEntry}
-              onClick={() => void createKind("folder")}
+              onClick={() => void createKind("page")}
             >
-              <AppIcon name="folderAdd" size="small" />
-              Dossier
+              <AppIcon name="fileAdd" size="small" />
+              Page
             </Button>
+            {onCreateFolder === undefined ? null : (
+              <Button
+                type="button"
+                size="compact"
+                variant="ghost"
+                aria-label="Nouveau dossier"
+                disabled={savingEntry}
+                onClick={() => void createKind("folder")}
+              >
+                <AppIcon name="folderAdd" size="small" />
+                Dossier
+              </Button>
+            )}
+          </div>
+          {entryError === null ? null : (
+            <p className="database-field__error" role="alert">
+              {entryError}
+            </p>
           )}
         </div>
-        {entryError === null ? null : (
-          <p className="database-field__error" role="alert">
-            {entryError}
-          </p>
-        )}
-      </div>
+      )}
 
       <div className="database-view-status" aria-live="polite">
         {effectiveQueryState === "loading" ? (
@@ -1089,6 +1106,12 @@ export function DatabasePage({
           />
         ) : activeView.type === "board" ? (
           <BoardView
+            onCreateInColumn={(kind, values) =>
+              kind === "folder"
+                ? onCreateFolder?.(defaultItemTitle("folder"), values)
+                : onCreateEntry(defaultItemTitle("page"), values)
+            }
+            canCreateFolder={onCreateFolder !== undefined}
             properties={definition.properties}
             view={activeView}
             page={page}

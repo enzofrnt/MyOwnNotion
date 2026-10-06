@@ -1,5 +1,6 @@
 import type { ProjectedItem } from "@myownnotion/client-core";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FR_COPY } from "../../../ui/copy/fr.ts";
 import { ItemIcon } from "../../../ui/item-icon.tsx";
 import {
   Button,
@@ -53,13 +54,16 @@ export function pageLinkOptions(
       (item) =>
         item.id !== currentItemId &&
         item.lifecycle === "active" &&
-        (item.kind === "page" || item.kind === "folder"),
+        (item.kind === "page" ||
+          item.kind === "folder" ||
+          item.kind === "database" ||
+          item.kind === "database_view"),
     )
     .map((item) => ({
       id: item.id,
       name: item.name,
       path: pathOf(item),
-      kind: item.kind as "page" | "folder",
+      kind: item.kind as "page" | "folder" | "database" | "database_view",
       icon: item.icon,
       parentItemId: hierarchyParentId(item),
     }))
@@ -152,7 +156,9 @@ export function PageLinkPicker({
         initialFocus={input}
       >
         <DialogHeading>
-          {request.mode === "edit" ? "Modifier le lien vers une page" : "Lien vers une page"}
+          {request.mode === "edit"
+            ? FR_COPY.editor.itemLink.edit
+            : FR_COPY.editor.slashMenu.pageLink.title}
         </DialogHeading>
         <DialogDismiss />
         <input
@@ -160,8 +166,8 @@ export function PageLinkPicker({
           className="page-link-picker__query"
           type="search"
           defaultValue={initialQuery}
-          placeholder="Rechercher une page…"
-          aria-label="Rechercher une page"
+          placeholder={FR_COPY.editor.itemLink.searchPlaceholder}
+          aria-label={FR_COPY.editor.itemLink.search}
           aria-controls="page-link-picker-results"
           aria-activedescendant={
             candidates[selectedIndex] === undefined
@@ -183,8 +189,7 @@ export function PageLinkPicker({
             } else if (event.key === "Enter") {
               event.preventDefault();
               const candidate = candidates[selectedIndex];
-              if (candidate === undefined)
-                setValidation("Aucune page ne correspond à cette recherche.");
+              if (candidate === undefined) setValidation(FR_COPY.editor.itemLink.noMatch);
               else choose(candidate);
             }
           }}
@@ -194,7 +199,7 @@ export function PageLinkPicker({
           id="page-link-picker-results"
           className="page-link-picker__results"
           role="listbox"
-          aria-label="Pages disponibles"
+          aria-label={FR_COPY.editor.itemLink.available}
         >
           {candidates.map((option, index) => (
             <button
@@ -214,7 +219,7 @@ export function PageLinkPicker({
               </span>
             </button>
           ))}
-          {candidates.length === 0 ? <p>Aucune page correspondante</p> : null}
+          {candidates.length === 0 ? <p>{FR_COPY.editor.itemLink.noMatch}</p> : null}
         </div>
         {request.mode === "edit" ? (
           <div className="page-link-picker__actions">

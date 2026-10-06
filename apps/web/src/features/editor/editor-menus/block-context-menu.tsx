@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { FR_COPY } from "../../../ui/copy/fr.ts";
 import {
   MenuContent,
   MenuItem,
@@ -148,7 +149,9 @@ export function BlockContextMenu({
         )}
         {state?.link === null || state?.link === undefined ? null : (
           <>
-            <MenuLabel>{state.link.kind === "page" ? "Lien vers une page" : "Lien Web"}</MenuLabel>
+            <MenuLabel>
+              {state.link.kind === "page" ? FR_COPY.editor.slashMenu.pageLink.title : "Lien Web"}
+            </MenuLabel>
             <MenuItem
               ref={firstItem}
               data-testid="context-open-link"

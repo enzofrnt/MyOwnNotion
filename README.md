@@ -1,7 +1,11 @@
 > [!CAUTION]
 > **Ce projet est produit en très grande partie par des intelligences artificielles.** Le code, les dépendances, les migrations, les mécanismes de sécurité, les sauvegardes et les procédures de restauration peuvent contenir des erreurs. Ne déployez pas ce projet avec des données importantes sans revue humaine, tests complets et sauvegardes indépendantes vérifiées. Utilisez-le avec prudence et à vos propres risques.
 
-# Knowledge Workspace
+<p align="center">
+  <img src="apps/web/assets/brand/myownnotion-logo.png" alt="Logo MyOwnNotion : un M en pages pliées" width="160" height="160" />
+</p>
+
+# MyOwnNotion
 
 Projet d’application de gestion des connaissances combinant pages hiérarchiques, édition par blocs, liens bidirectionnels, graphe, tâches, bases structurées, canvas et intégrations.
 

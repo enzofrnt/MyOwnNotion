@@ -13,6 +13,9 @@ Le produit n'étant pas encore en V1, le propriétaire autorise une rupture des 
 
 Le propriétaire veut retrouver le parcours illustré par ses captures : une base ouverte affiche des onglets de vues comme Table et Kanban ; les lignes ou cartes représentent des entrées ; la navigation distingue la base de ses vues épinglées. Les captures servent de référence de parcours et de hiérarchie visuelle, sans imposer une copie pixel à pixel.
 
+Le regroupement Kanban par sélection multiple, ses mouvements et la conservation
+des autres appartenances sont précisés dans [036](../036-multi-select-boards/spec.md).
+
 ## Clarifications
 
 ### Session 2026-09-27
@@ -33,7 +36,7 @@ Le propriétaire veut retrouver le parcours illustré par ses captures : une bas
 - Vérification directe dans Notion : une base avec une seule vue affiche « Source » désactivé dans les réglages. Après duplication de la vue, les deux sources deviennent modifiables. Les deux vues d'une base de test ont été reliées à « Emmy » ; le panneau « Gérer les sources de données » montre toujours la source d'origine comme « Source » et « Emmy » comme « Liées — 2 vues ».
 - Vérification directe dans Notion : la commande « Vue liée de la source de données » insérée dans une page crée un bloc et un élément enfant ouvrable en pleine page. Cet élément n'a pas de source propre et son gestionnaire ne montre que la source liée choisie. Un conteneur de base qui lie une source externe conserve, lui, sa source propre séparément.
 - Décision du propriétaire : la première refonte prend en charge Table, Kanban, Galerie, Liste et Calendrier. Les autres formats observés dans Notion attendent une feature ultérieure.
-- Décision du propriétaire : une commande distincte « Vue liée de base de données » insère dans une page une vue d'une source existante, sans créer ni dupliquer cette source.
+- Décision du propriétaire (035) : « Base de données intégrée » propose une nouvelle source ou une source existante ; ce choix remplace la commande distincte de vue liée, sans créer ni dupliquer une source existante.
 - Décision du propriétaire du 27 septembre, remplacée le 30 septembre : un bloc intégré affichait une seule vue. Voir la session du 30 septembre.
 - Décision du propriétaire du 27 septembre, remplacée le 30 septembre : chaque page de base possédait une seule source. Voir la session du 30 septembre.
 
@@ -58,13 +61,13 @@ Les essais directs sont consignés dans [research.md](research.md) et les huit c
 
 ### User Story 1 — Créer une base pleine page (Priority: P1)
 
-Depuis une page, le propriétaire insère « Base de données - pleine page » ; la nouvelle base est un enfant de cette page, un lien de sous-page est ajouté au contenu au point de commande et l'interface ouvre immédiatement la nouvelle base en pleine page. Ce lien d'enfant utilise l'icône de base sans flèche de raccourci. Les menus `+` de Notes et des éléments pouvant contenir des enfants proposent aussi « Base de données », à côté de « Page » et « Dossier ».
+Depuis une page, le propriétaire insère « Base de données imbriquée » ; la nouvelle base est un enfant de cette page, un lien de sous-page est ajouté au contenu au point de commande et l'interface ouvre immédiatement la nouvelle base en pleine page. Ce lien d'enfant utilise l'icône de base sans flèche de raccourci. Les menus `+` de Notes et des éléments pouvant contenir des enfants proposent aussi « Base de données », à côté de « Page » et « Dossier ».
 
 **Independent Test**: Créer la base depuis une page et depuis chacun des deux `+`, vérifier l'ouverture immédiate en pleine page, puis la renommer, la déplacer et revenir à la page de départ par son lien.
 
 **Acceptance Scenarios**:
 
-1. **Given** une page éditable, **When** le propriétaire choisit « Base de données - pleine page », **Then** une base enfant est créée, un lien de sous-page sans flèche de raccourci est inséré au point de commande et la nouvelle base s'ouvre en pleine page.
+1. **Given** une page éditable, **When** le propriétaire choisit « Base de données imbriquée », **Then** une base enfant est créée, un lien de sous-page sans flèche de raccourci est inséré au point de commande et la nouvelle base s'ouvre en pleine page.
 2. **Given** le `+` au-dessus des Notes ou sur une page ou un dossier, **When** le propriétaire l'ouvre, **Then** « Dossier », « Page » et « Base de données » sont disponibles et créent un enfant du bon parent.
 3. **Given** une page ordinaire, **When** elle est affichée, **Then** aucun bouton systématique « Ajouter une base » n'apparaît sous son contenu.
 4. **Given** une base ouverte depuis l'arborescence ou un lien, **When** elle apparaît en pleine page, **Then** elle possède son propre onglet dans la bande du workspace, avec son icône et son titre ; revenir à cet onglet rouvre la même base.
@@ -83,6 +86,7 @@ Depuis le contenu d'une page classique, « Base de données - intégrée » cré
 3. **Given** une création interrompue ou refusée, **When** l'interface revient à l'édition, **Then** ni base orpheline ni vue rompue ne sont présentées comme une création réussie ; la saisie et le point d'insertion restent récupérables.
 4. **Given** une vue intégrée avec plusieurs colonnes, **When** la page est affichée sur écran normal ou étroit, **Then** la vue reste alignée avec le texte et son contenu large défile dans la vue sans élargir la page.
 5. **Given** cette base intégrée, **When** le propriétaire ajoute une vue Kanban à côté de Table, **Then** le bloc et la page enfant présentent les deux onglets, sans copier les entrées.
+6. **Given** un bloc de base intégrée dont les vues affichent les sources A et B, **When** le propriétaire choisit une vue de B, **Then** le titre de B apparaît dans le bloc au-dessus de ses vues et de la table ; choisir une vue de A met ce titre à jour. Le titre est modifiable si la source appartient à la base intégrée, et en lecture seule si elle est liée depuis ailleurs.
 
 ### User Story 3 — Gérer des entrées comme enfants de la base (Priority: P1)
 
@@ -125,7 +129,8 @@ Le propriétaire ajoute des onglets Table, Kanban, Galerie, Liste ou Calendrier 
 13. **Given** une page de base qui affiche une seule source, **When** elle est ouverte, **Then** son titre est le titre de cette source. **When** ses vues affichent plusieurs sources, **Then** le nom de la page est le premier titre et le nom de la source de la vue sélectionnée apparaît en dessous, dans un titre secondaire plus grand qu’une légende.
 14. **Given** ce titre secondaire, **When** la source de la vue sélectionnée est rattachée à la page courante, **Then** il se modifie sur place comme le titre de page. **When** cette source est née sur une autre page, **Then** le titre secondaire reste en lecture seule et se distingue par une flèche.
 15. **Given** un onglet de vue, **When** le propriétaire fait un clic droit ou ouvre le menu contextuel au clavier, **Then** un menu propose Renommer, Modifier la vue, Source, Dupliquer la vue et Supprimer la vue, avec une icône alignée sur chaque libellé. Le clic droit n’ouvre pas l’édition du nom. Supprimer la vue ne devient rouge, texte et icône, qu’au survol ou au focus. Renommer ouvre le panneau de réglages de la vue, le curseur dans le champ du nom. Dupliquer ajoute une vue de la même source : un nom choisi devient « nom (1) », puis « nom (2) » si ce nom est déjà pris ; un nom automatique prend le prochain nom libre de son format. Supprimer suit les règles de la dernière vue d’une source sur sa page d’origine.
-16. **Given** ce menu, **When** le propriétaire choisit Modifier la vue, **Then** un panneau latéral d’environ 290 px s’ouvre sur les réglages de cette vue : nom, disposition, visibilité des propriétés, filtres, tri, puis la source et ses propriétés. **When** il choisit Source, **Then** le même panneau s’ouvre directement sur le choix de source. Les propriétés se modifient dans un sous-écran de ce panneau, pas dans un formulaire séparé. La roue des options de la vue ouvre le même panneau.
+16. **Given** ce menu, **When** le propriétaire choisit Modifier la vue, **Then** un panneau latéral d'environ 290 px s'ouvre sur les réglages de cette vue : nom, disposition, visibilité des propriétés, filtres, tri, puis la source et ses propriétés. **When** il choisit Source, **Then** le même panneau s'ouvre directement sur le choix de source. Les propriétés se modifient dans un sous-écran de ce panneau, pas dans un formulaire séparé. La roue des options de la vue ouvre le même panneau.
+17. **Given** une base intégrée dans une page, **When** le propriétaire la déplace avec la poignée de bloc, **Then** le bloc entier se déplace comme une unité, sans ancien calque de sélection qui ne couvre qu'une partie de la vue ; le fantôme reprend fidèlement le rendu réel du bloc, y compris son titre, ses onglets et sa vue active.
 
 ### User Story 5 — Cycle de vie d'une source (Priority: P1)
 
@@ -152,7 +157,7 @@ Supprimer une vue ne supprime pas sa source. Si la dernière vue d'une source es
 ### Functional Requirements
 
 - **FR-001**: Une page de base est un élément canonique de la hiérarchie, avec identité, titre et placement uniques, sans corps de texte éditorial. Elle possède zéro, une ou plusieurs sources. Chaque source a exactement une page d'origine.
-- **FR-002**: « Base de données - pleine page » crée une page de base enfant. Le propriétaire choisit une nouvelle source, rattachée à cette page, ou l'affichage d'une source existante, sans source propre. La pleine page insère un lien de sous-page sans flèche de raccourci, puis ouvre la page. « Base de données - intégrée » crée une page de base enfant, une source qui lui est rattachée, et un bloc qui affiche les vues de cette page.
+- **FR-002**: « Base de données imbriquée » crée une page de base enfant. Le propriétaire choisit une nouvelle source, rattachée à cette page, ou l'affichage d'une source existante, sans source propre. La pleine page insère un lien de sous-page sans flèche de raccourci, puis ouvre la page. « Base de données - intégrée » crée une page de base enfant, une source qui lui est rattachée, et un bloc qui affiche les vues de cette page.
 - **FR-003**: Les `+` de Notes, pages et dossiers permettent de créer une page, un dossier ou une base sous le parent choisi.
 - **FR-004**: Le bouton permanent « Ajouter une base » sous chaque page disparaît. Le choix ou le changement de source appartient à l'élément de vue ou à la commande explicite de liaison, pas à un ajout automatique en fin de page.
 - **FR-005**: Chaque entrée créée dans une source est une page ou un dossier canonique enfant direct du conteneur propriétaire de cette source, y compris si la création part d'une vue liée ailleurs ; son appartenance et son placement ne produisent pas deux identités. Un conteneur de base n'accepte directement que des pages et dossiers, jamais un autre conteneur de base ni un élément de vue liée.
@@ -176,11 +181,50 @@ Supprimer une vue ne supprime pas sa source. Si la dernière vue d'une source es
 - **FR-023**: Supprimer la dernière vue d'une source depuis sa page d'origine demande de supprimer seulement la vue, ou la vue et la source. Supprimer une vue d'une source née sur une autre page ne propose pas de supprimer la source. Supprimer une page de base qui possède des sources utilise une confirmation qui énonce leur nombre, par exemple « Cette page contient 3 sources de données. Sa suppression entraînera également la suppression de ces sources et pourra affecter les vues qui les utilisent ailleurs. Voulez-vous continuer ? »
 - **FR-024**: Les entrées directes de la source possédée restent visibles et ouvrables dans la branche du conteneur propriétaire même si aucune vue de ce conteneur ne les affiche.
 - **FR-025**: Les valeurs de propriétés d'une entrée sont conservées par couple entrée-source lorsque l'entrée quitte une base ; si elle revient dans cette même source, ses valeurs antérieures sont restaurées. Cette conservation ne fait pas de l'entrée un membre actif pendant son absence.
-- **FR-026**: Dans le menu de commandes d'une page, « Vue liée de base de données » demande une source existante et insère à l'emplacement du curseur un bloc qui l'affiche. Cette insertion ne crée ni source ni copie d'entrée ; l'élément de vue lié est ouvrable en pleine page et identifiable dans l'arborescence.
+- **FR-026**: Dans le menu de commandes d'une page, « Base de données intégrée » propose une nouvelle source ou une source existante. Le choix existant insère à l'emplacement du curseur un bloc qui l'affiche sans créer de source ni copier d'entrée ; l'élément de vue lié est ouvrable en pleine page et identifiable dans l'arborescence (035).
 - **FR-027**: Une nouvelle source est créée depuis une page de base et lui est rattachée. Une page créée seulement pour afficher une source existante n'a aucune source propre ; elle peut se nommer « Vue de [nom de la source] ». Déplacer la page d'origine déplace les sources qui lui sont rattachées. Une source ne change pas de page d'origine par le seul changement d'une vue.
 - **FR-028**: Retirer une vue liée ou son bloc ne supprime ni sa source ni ses entrées. Un élément de vue liée n'a pas d'enfants hiérarchiques directs et sa mise à la corbeille ne cascade pas dans le conteneur propriétaire de la source.
 - **FR-029**: L'import Notion local destiné à la V1 adapte son aperçu et son application au nouveau modèle : chaque source importée a une page de base propriétaire, les pages et dossiers membres deviennent ses enfants directs, et les vues importées ou reconstruites comme choix par défaut ne créent aucune source orpheline. Les garanties de prévisualisation, sauvegarde préalable, provenance chiffrée et reprise restent applicables.
 - **FR-030**: Le clic droit ou le menu contextuel d’un onglet de vue ouvre Renommer, Modifier la vue, Source, Dupliquer la vue et Supprimer la vue. Les icônes sont alignées sur les libellés. Supprimer la vue ne rougit, texte et icône, qu’au survol ou au focus. Renommer ouvre le même panneau, le curseur dans le champ du nom. Un nom encore automatique y apparaît en indication : le champ reste vide, et le vider après un nom choisi rétablit le nom automatique du format. L’icône de ce champ suit les icônes des rangées et ouvre un choix d’icône pour la vue ; la retirer rétablit l’icône du format. Le panneau propose aussi de gérer les sources de données de la page courante, sans les sources nées ailleurs. Modifier la vue ouvre un panneau latéral des réglages de cette vue. Source ouvre directement son sous-écran. Ce panneau regroupe le nom, la disposition, la visibilité, les filtres, le tri, la source et les propriétés. La source et les propriétés sont des sous-écrans du panneau. La commande d’options de la vue ouvre le même panneau. Dupliquer crée une vue de la même source, nommée « nom (1) » lorsque le nom a été choisi. Supprimer reste soumis au choix de la dernière vue d’une source sur sa page d’origine, et au verrou qui empêche de changer la source d’une vue unique.
+- **FR-031**: L'action « Ajouter une propriété » est placée avec le schéma
+  « Propriétés » dans le panneau de configuration des vues non tabulaires,
+  plutôt qu'entre les onglets de vue et le contenu. La table conserve son ajout
+  contextuel dans l'en-tête des colonnes.
+- **FR-032**: Une base pleine page utilise la largeur disponible de son espace
+  de travail, avec le titre, les onglets et la vue alignés sur le même bord de
+  contenu et des marges latérales équilibrées. Les pages de prose conservent
+  leur largeur de lecture et leurs marges habituelles.
+- **FR-033**: Le formulaire de création de propriété regroupe chaque libellé
+  immédiatement avec son champ, présente les réglages conditionnels sous le
+  type correspondant et distingue nettement l'enregistrement de l'annulation.
+  Il reste utilisable dans un panneau étroit, conserve la saisie lorsqu'une
+  erreur survient et utilise les primitives de champs et boutons existantes.
+- **FR-034**: Une base intégrée affiche, dans son bloc et au-dessus des onglets
+  et du contenu de la vue, le nom de la source référencée par la vue active.
+  Ce titre suit immédiatement les changements de vue. Il est modifiable si la
+  source appartient au conteneur intégré et reste en lecture seule si la
+  source appartient à une autre page.
+- **FR-035**: La poignée d'une base intégrée déplace le bloc comme une unité.
+  Pendant le déplacement, l'éditeur n'applique pas le calque de sélection
+  éditoriale qui ne couvre qu'une partie de la vue interactive ; le fantôme
+  reprend le rendu du bloc déjà affiché dans la page, sans cloner une structure
+  incomplète qui déforme le tableau, le Kanban ou une autre vue. Il conserve
+  l'écart entre la poignée saisie et le contenu, sans saut à l'amorçage du geste,
+  y compris après défilement de la page. Sa largeur correspond à celle du bloc
+  d'origine, sans réduction automatique de l'aperçu.
+
+### Clarification UI — ajout de propriété
+
+Sur une vue Kanban, Galerie, Liste ou Calendrier, la création d'une propriété
+se trouve dans la section « Propriétés » du panneau de configuration. La table
+garde son bouton plus dans l'en-tête de colonnes, où l'ajout est directement
+lié à la grille.
+
+Une base pleine page occupe la largeur disponible du workspace : le titre et
+les commandes de vue gardent le même axe de départ, tandis que le texte des
+pages ordinaires conserve sa colonne de lecture. La création de propriété suit
+le patron transversal documenté dans `docs/design/ui-system.md` et
+`.agents/skills/ui-quality/SKILL.md`.
 
 Précision d'interface du 2026-10-04 (033 FR-023) : si le verrou de vue unique
 interdit le changement de source, la commande « Source » du menu de vue et
@@ -231,3 +275,25 @@ Le déverrouillage réactive les deux accès sans changer les règles métier.
 - La création d'une base sans élément canonique dans la hiérarchie.
 - Le déplacement d'une source vers une autre page sans déplacer sa page d'origine.
 - Le partage public ou un nouveau modèle de permission entre propriétaires.
+
+## Suivi034 — contenus et présentation
+
+La feature[034](../034-notion-content-navigation/spec.md) étend les contenus
+natifs avec équations/sommaires et corrige l'outline actif et la présentation
+ListView. Les valeurs secondaires restent celles de la vue ; leurs noms sont
+masqués visuellement sur chaque rangée. Aucune nouvelle identité, source ou
+vue n'est créée par cette présentation. Les preuves UI de034 couvrent ces
+surfaces modifiées ; elles ne remplacent pas la validation historique entière.
+
+
+## Ajustement des liens et commandes — 035
+
+Le retour du propriétaire du 4 octobre est défini dans
+[035/spec.md](../035-item-links-database-insertion/spec.md), avec approche et
+suivi dans ses plan.md/tasks.md. Il remplace les libellés précédents par les
+créations « Page/Dossier/Base de données imbriqué(e) », élargit « Lien vers un
+autre élément » aux bases, et fusionne les commandes d'affichage intégré et lié
+dans un dialogue de choix. Le concept de vue liée et la propriété des sources
+restent inchangés. L'import respecte is_inline et corrige les références
+historiques inchangées ; la validation locale propre à035 ne revalide pas les
+anciennes phases de cette feature.

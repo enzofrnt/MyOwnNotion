@@ -777,3 +777,13 @@ travail ; elles n'autorisent pas à réintroduire leurs sections.
 - [X] T320 [US1] Adapter les parcours de synchronisation et de connexion à l'état réel du service et au bouton d'information de la note ; confirmer par tests composant et E2E l'absence de statut de barre latérale per FR-007, FR-076, SC-028 et skill UI quality.
 - [X] T321 [US5] Couvrir les déplacements et changements de largeur de table avec et sans colonnes héritées, y compris cibles manquantes pendant la reprise hors ligne, sans masquer une perte de données per FR-026 et Definition of Done.
 - [ ] T322 [US1] Vérifier l'interface sur les profils desktop/mobile, clair/sombre selon [UI quality](../../.agents/skills/ui-quality/SKILL.md) et son [journal de leçons](../../.agents/skills/ui-quality/lessons.md), lancer le gate `checks:local` complet, puis observer les contrôles de la PR et de main après fusion per Definition of Done.
+
+## Maintenance — logo et favicon (2026-10-06)
+
+- [x] T323 Créer et inspecter le logo MyOwnNotion puis conserver le maître et
+  les variantes de favicon dans `apps/web/assets/brand/`.
+- [x] T324 Intégrer le même dessin au favicon Web et au README ; garantir
+  l'émission et la disponibilité hors ligne des fichiers dans le build.
+- [x] T325 Appliquer `ui-quality` et son journal : vérifier visuellement le
+  maître et les tailles 16/32 px en clair/sombre, contrôler les ressources
+  servies sur 8082 et le bundle, puis consigner les preuves dans `validation.md`.

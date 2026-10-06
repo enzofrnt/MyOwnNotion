@@ -119,6 +119,25 @@ s'accumulent. Aligner les libellés, les champs et les actions sur des repères 
 Mesurer les quatre côtés d'une barre d'outils, d'un formulaire ou d'une carte,
 y compris avec un texte long, une icône, un état vide et un message d'erreur.
 
+## Formulaires
+
+- Par défaut, empiler les champs : un libellé se trouve immédiatement au-dessus
+  de son contrôle. Réserver les lignes libellé/champ côte à côte aux formulaires
+  denses dont les colonnes restent évidentes ; ne pas compter sur l'ordre DOM
+  pour former des paires visuelles implicites.
+- Regrouper les réglages conditionnels avec le champ qui les déclenche. Une aide
+  précise le format ou l'effet attendu ; une erreur reste près du champ concerné,
+  conserve le brouillon et propose une reprise claire.
+- Séparer les commandes de fin du contenu des champs, avec une action principale
+  explicite et une annulation secondaire. Garder ordre, taille et emplacement
+  stables pendant l'enregistrement.
+- Réutiliser `Field`, `NativeInput`, `NativeSelect` et les boutons existants.
+  N'ajouter un cadre de formulaire que si le formulaire constitue vraiment une
+  surface distincte dans l'écran ; éviter d'empiler des cartes dans un panneau.
+- Vérifier le retour à la ligne, les erreurs et les cibles tactiles dans un
+  panneau étroit. Sur petit écran, les champs passent en une colonne sans
+  réduire la cible tactile des commandes.
+
 ## Arrondis imbriqués
 
 Deux surfaces proches doivent avoir des courbes concentriques. Pour un parent

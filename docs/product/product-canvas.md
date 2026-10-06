@@ -192,7 +192,7 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - détection et résolution sûre des conflits ;
 - sauvegarde chiffrée, vérification et restauration ;
 - export complet et documenté ;
-- import Notion local avec aperçu, reprise et conservation des sources ;
+- import Notion par API avec aperçu, reprise et conservation des sources ;
 - mise à jour avec sauvegarde préalable et retour arrière ;
 - accès MCP avec autorisation depuis les réglages, périmètres et révocation ;
 - commandes administratives essentielles ;
@@ -651,6 +651,8 @@ Les blocs comprennent au minimum :
 - cases à cocher ;
 - citations ;
 - code ;
+- équations LaTeX de bloc et en ligne ;
+- sommaires insérables fondés sur les titres courants de la page ;
 - séparateurs ;
 - sections repliables ;
 - encadrés ;
@@ -661,7 +663,8 @@ Les blocs comprennent au minimum :
 - contenus intégrés.
 
 Parmi les liens, l'éditeur doit distinguer les bookmarks Web et les liens
-internes vers des pages. Un lien interne conserve l'identifiant canonique de
+internes vers des pages, dossiers et bases, y compris les bases liées.
+Un lien interne conserve l'identifiant canonique de
 sa cible, affiche toujours son titre et son icône courants, et ouvre la cible
 sans créer de placement hiérarchique. Son libellé et son icône ne sont pas
 éditables indépendamment. Les références internes doivent rester intactes
@@ -673,18 +676,19 @@ indicateur de lien superposé à l'icône de la cible. La référence créée pa
 commande `/page` vers l'enfant hiérarchique direct de la page courante n'utilise
 pas cet indicateur : elle représente la sous-page créée à cet emplacement.
 
-Les commandes de base suivent la même distinction. « Base de données - pleine
-page » crée une page de base enfant. Le propriétaire y crée une nouvelle source
-ou affiche une source existante. La commande insère le lien d'enfant, sans
-flèche de raccourci, puis ouvre la page. « Base de données - intégrée » crée
-une page de base enfant et sa source, puis insère dans la page classique
-l'affichage des vues de cette page enfant. « Vue liée de base de données »
-affiche une source existante, sans créer ni copier cette source.
+Les créations d'enfants se nomment « Page imbriquée », « Dossier imbriqué » et
+« Base de données imbriquée ». Elles insèrent le lien d'enfant, sans flèche de
+raccourci, puis ouvrent l'élément. Les commandes de base suivent la même
+distinction. « Base de données intégrée » ouvre un dialogue proposant de créer
+une nouvelle base enfant avec sa source, ou d'afficher une source existante.
+Le premier choix affiche les vues de la base enfant ; le second crée un
+affichage lié sans créer ni copier la source. Ce parcours unique remplace
+l'entrée « Vue liée de base de données » du menu `/` (feature035).
 Le bouton permanent d'ajout de base sous le contenu d'une page disparaît.
 
 La création utilise deux actions visibles et deux outils compacts distincts.
-« Lien vers une page » recherche uniquement les pages et dossiers par nom ou
-chemin et se pilote entièrement au clavier. « Lien Web » valide uniquement une
+« Lien vers un autre élément » recherche les pages, dossiers et bases par nom
+ou chemin et se pilote entièrement au clavier. « Lien Web » valide uniquement une
 adresse puis crée un bookmark occupant sa propre ligne. Le bookmark affiche un
 aperçu lorsque celui-ci est disponible et conserve au minimum domaine et URL
 dans le cas contraire ; il n'exécute pas une iframe arbitraire. Les contenus
@@ -710,6 +714,13 @@ le focus, fournir des libellés compréhensibles et posséder des alternatives q
 dépendent ni du survol ni d'un clic droit.
 
 L'expérience d'écriture doit ressembler au Markdown, mais les données n'ont pas besoin d'être stockées dans des fichiers `.md`.
+
+Le sommaire latéral suit uniquement la page active ; ses liens rejoignent les
+titres et son repère suit la section lue. Les équations restent lisibles hors
+ligne et leur source demeure modifiable même lorsque leur syntaxe est invalide
+(feature 034). Les listes de base privilégient des rangées compactes avec titre,
+icône et valeurs alignées, sans répéter les noms des propriétés dans chaque
+rangée ; elles restent utilisables sur écran étroit (029/034).
 
 L'éditeur doit préserver les changements locaux en cas de fermeture inattendue, signaler l'état de sauvegarde et ne jamais afficher un état « synchronisé » avant confirmation du serveur.
 
@@ -739,13 +750,31 @@ confirmation, supprime ces sources. Les vues ailleurs restent et affichent
 « Aucun résultat : la source de données demandée n'existe plus. »
 
 Une page classique peut contenir une base intégrée : l'affichage des vues de
-la page de base enfant créée sous elle. Une page de base qui ne possède aucune
-source porte une flèche sur son icône et peut se nommer « Vue de [nom de la
-source] ». Retirer une vue ne supprime pas la source qu'elle affichait. Les
-formats initiaux sont table, Kanban, galerie, liste et calendrier. Chaque vue
-conserve ses filtres, tris, regroupements et propriétés visibles ; les
-propriétés définies par la source et leurs valeurs sont communes à toutes les
-vues qui l'affichent.
+la page de base enfant créée sous elle. Le bloc intégré affiche au-dessus de
+ses vues le titre de la source de la vue active ; ce titre suit le changement
+de vue et ne peut être renommé depuis le bloc que si la source lui appartient.
+Une page de base qui ne possède aucune source porte une flèche sur son icône et
+peut se nommer « Vue de [nom de la source] ». Retirer une vue ne supprime pas
+la source qu'elle affichait. Les formats initiaux sont table, Kanban, galerie,
+liste et calendrier. Chaque vue conserve ses filtres, tris, regroupements et
+propriétés visibles ; les propriétés définies par la source et leurs valeurs
+sont communes à toutes les vues qui l'affichent. Déplacer un bloc intégré par
+sa poignée traite la base comme une unité, sans calque de sélection éditoriale
+sur sa vue interactive ; l'aperçu de déplacement reprend le rendu réel du bloc
+et de son contenu, sans reconstruction partielle de la base.
+
+Un Kanban peut regrouper les entrées par statut, sélection simple ou sélection
+multiple. Une entrée à plusieurs valeurs apparaît dans chaque colonne concernée
+sans duplication canonique. Déplacer une occurrence remplace sa seule appartenance
+d’origine et conserve les autres ; retirer toutes les valeurs est explicite.
+La visibilité de la propriété ne désactive pas son rôle de regroupement (036).
+
+En pleine page et intégrée, tables et Kanbans suivent le défilement vertical
+de la page. Leurs en-têtes restent au sommet visible pendant la lecture de
+la base et s’arrêtent à sa fin ; le défilement horizontal reste local. Les
+cartes Kanban sont compactes et grandissent selon leur titre. Chaque colonne
+dépliée permet de créer une page ou un dossier après ses cartes, avec la
+valeur de regroupement enregistrée dans la même opération canonique (037).
 
 Chaque entrée d'une source est une page ou un dossier canonique placé
 directement sous la page d'origine de la source, même si elle est créée
@@ -1291,19 +1320,27 @@ L'export peut être chiffré à la demande. Si un export chiffré est produit, s
 
 ### 27.1 Import Notion avant V1
 
-La V1 comprend un import local Notion en ligne de commande, spécifié séparément
-par028. Il accepte les exports Markdown/CSV natifs, leurs archives ZIP et un
-dossier local converti pour Obsidian. L'aperçu est le comportement par défaut ;
-il décrit exhaustivement contenus, hiérarchie, liens, fichiers, propriétés et
-membres des sources de données. L'import doit représenter les bases et leurs
-entrées selon le modèle de propriétaire et de hiérarchie de la section 14 ; les
-configurations absentes de l'export sont
-signalées, sans inventer les vues, aperçus ou automatismes d'origine.
+La V1 comprend un import Notion par API en lecture seule, spécifié par 028.
+Il remplace les anciens imports Markdown/CSV/ZIP et Obsidian. Découverte,
+sélection et aperçu précèdent toute application explicite. Pages, contenus,
+médias, liens, bases, sources, propriétés, lignes et relations rejoignent le
+modèle natif de la section 14. Les vues compatibles sont conservées ; toute
+valeur ou configuration incompatible reste préservée et explicitement signalée.
+Les propriétés Personne, auteur et dernier éditeur sont ignorées à l'import.
+Le propriétaire peut exclure explicitement une base et ses entrées. Les parents
+de pages et bases sont résolus même lorsque Notion les rattache à un bloc de
+mise en page. Les équations et sommaires compatibles utilisent les blocs natifs
+de 034.
+Les couvertures de page sont
+exclues du produit : aucune image d'en-tête de type Notion n'est prévue.
+L'archive technique des réponses originales reste dans le snapshot privé de
+reprise, sans dossier ou fichier ajouté à l'arborescence des notes.
 
-L'application explicite protège une cible déjà occupée par une sauvegarde
-complète024 préalable et conserve provenance et reprise chiffrées. Les sources
-restent intactes ; une reprise conserve les identités et les modifications
-ultérieures du propriétaire. Aucun import distant ou compte tiers n'est requis.
+Une sauvegarde complète 024 vérifiée précède chaque nouvelle application.
+Provenance, originaux et snapshot de reprise sont chiffrés. La reprise conserve
+les identités et les éditions ultérieures sans dépendre de fichiers distants.
+Le secret Notion reste éphémère, absent des rapports, exports et journaux.
+L’import ne modifie jamais Notion et ne constitue pas une synchronisation continue.
 
 ---
 
@@ -2250,7 +2287,7 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 23. application Electron Linux connectée au serveur auto-hébergé ;
 24. journaux serveur lisibles, actionnables et toujours collectables ;
 25. accès MCP autorisé, limité et révocable ;
-26. import local Notion en CLI, avec aperçu, provenance et reprise ;
+26. import Notion par API en CLI, avec aperçu, provenance et reprise ;
 27. convergence V1 de l'espace de travail, de l'éditeur et des vues de
     connaissance proches de Notion.
 

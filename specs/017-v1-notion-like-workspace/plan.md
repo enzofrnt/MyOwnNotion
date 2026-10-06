@@ -1,5 +1,23 @@
 # Implementation Plan: Expérience V1 proche de Notion et convergence locale
 
+## Maintenance — logo et favicon (2026-10-06)
+
+Créer avec `imagegen` un monogramme M fait de pages pliées, blanc et bleu sur
+une tuile indigo, sans mot-symbole dans le favicon. Conserver le maître PNG
+dans `apps/web/assets/brand/` ; produire les tailles de favicon depuis ce
+maître et référencer les fichiers depuis `index.html` pour leur prise en
+charge par Vite et Bun. Le README affiche le même maître avec le nom de
+l'application. Le bundle conserve ces images dans le shell hors ligne.
+
+Appliquer [ui-quality](../../.agents/skills/ui-quality/SKILL.md) et son
+[journal](../../.agents/skills/ui-quality/lessons.md), notamment L-010 :
+inspecter le maître et les rendus réels à 16/32 px sur fonds clair/sombre,
+vérifier les URL de favicon servies sur l'instance isolée 8082 ainsi que leur
+émission dans le bundle. Vérifier le format des fichiers modifiés et le build
+Web. Aucune donnée privée n'est envoyée au générateur ; aucune migration,
+nouvelle dépendance applicative ni modification de l'instance 8080.
+
+
 **Phases UI** : charger le [skill UI partagé](../../.agents/skills/ui-quality/SKILL.md)
 pour la conception, la réalisation et la revue. Conserver les états, critères
 et preuves propres à cette feature dans ses artefacts ; cette référence ne

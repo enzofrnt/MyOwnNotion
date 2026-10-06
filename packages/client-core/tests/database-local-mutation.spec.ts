@@ -95,6 +95,89 @@ function expandedDefinition(
 }
 
 describe("atomic structured local mutation (T021)", () => {
+  it("creates a column entry atomically against its secondary source, rejects foreign and unknown sources", async () => {
+    const owner = createPayload();
+    expect((await apply("database.create", owner)).ok).toBe(true);
+    const primary = required(await databases.getDatabase(owner.id));
+    const sourceId = generateUuidV7(),
+      propertyId = generateUuidV7(),
+      optionId = generateUuidV7();
+    await db.databaseSources.put(
+      await codec.sealDatabase({
+        ...primary,
+        sourceId,
+        definition: {
+          ...primary.definition,
+          properties: [
+            ...primary.definition.properties,
+            {
+              id: propertyId,
+              name: "Matières",
+              type: "multi-select",
+              positionKey: "b",
+              state: "active",
+              config: {
+                options: [
+                  { id: optionId, label: "Alpha", tone: "blue", positionKey: "a", state: "active" },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    );
+    const id = generateUuidV7();
+    const values = { [propertyId]: { kind: "multi-select", optionIds: [optionId] } };
+    expect(
+      (
+        await apply("database.entry.create", {
+          databaseId: owner.id,
+          sourceId,
+          id,
+          title: "Column folder",
+          kind: "folder",
+          values,
+          relationTargets: {},
+        })
+      ).ok,
+    ).toBe(true);
+    expect((await items.getItem(id))?.kind).toBe("folder");
+    expect((await databases.getEntry(id))?.values?.values[propertyId]).toEqual(values[propertyId]);
+    expect((await db.placements.where("itemId").equals(id).first())?.parentItemId).toBe(owner.id);
+    for (const targetSource of [generateUuidV7(), primary.sourceId]) {
+      const rejectedId = generateUuidV7(),
+        before = await db.outbox.count();
+      const result = await apply("database.entry.create", {
+        databaseId: owner.id,
+        sourceId: targetSource,
+        id: rejectedId,
+        title: "Refused",
+        values,
+        relationTargets: {},
+      });
+      expect(result.ok).toBe(false);
+      expect(await db.items.get(rejectedId)).toBeUndefined();
+      expect(await db.outbox.count()).toBe(before);
+    }
+    const foreign = createPayload();
+    expect((await apply("database.create", foreign)).ok).toBe(true);
+    const foreignSource = required(await databases.getDatabase(foreign.id)).sourceId;
+    const foreignId = generateUuidV7();
+    expect(
+      (
+        await apply("database.entry.create", {
+          databaseId: owner.id,
+          sourceId: foreignSource,
+          id: foreignId,
+          title: "Foreign",
+          values: {},
+          relationTargets: {},
+        })
+      ).ok,
+    ).toBe(false);
+    expect(await db.items.get(foreignId)).toBeUndefined();
+  });
+
   it("persists a property icon in the sealed source and replayable mutation across restart", async () => {
     const source = createPayload();
     expect((await apply("database.create", source)).ok).toBe(true);

@@ -23,7 +23,6 @@ import {
   type DatabasePresentationDefinition,
   type DatabaseProperty,
   type DatabaseView,
-  databasePageTitleMode,
   generateUuidV7,
   keyAfterAll,
   ownedSourceIdFromItemId,
@@ -921,22 +920,22 @@ export function DatabaseContainerPage({
     [];
   const hasBoardAxis = sourceProperties.some(
     (property) =>
-      property.state === "active" && (property.type === "status" || property.type === "select"),
+      property.state === "active" &&
+      (property.type === "status" ||
+        property.type === "select" ||
+        property.type === "multi-select"),
   );
   const hasCalendarDate = sourceProperties.some(
     (property) => property.state === "active" && property.type === "date",
   );
   const currentSource = activeSources.find((source) => source.sourceId === selected.sourceId);
-  const currentSourceName = currentSource?.definition.name ?? "";
-  const showSourceUnderPageTitle =
-    databasePageTitleMode(new Set(views.map((view) => view.sourceId)).size) === "page-and-source" &&
-    currentSourceName.trim().length > 0;
+  const currentSourceName = currentSource?.definition.name?.trim() || "Sans nom";
   const menuView = views.find((view) => view.id === viewMenu?.viewId);
   const menuSourceName =
     activeSources.find((source) => source.sourceId === menuView?.sourceId)?.definition.name ?? "";
   return (
     <section className="database-container-page" aria-label="Base de données">
-      {showSourceUnderPageTitle && currentSource?.sourceId !== undefined ? (
+      {currentSource?.sourceId !== undefined ? (
         <CurrentSourceTitle
           name={currentSourceName}
           editable={currentSource.itemId === containerItemId}

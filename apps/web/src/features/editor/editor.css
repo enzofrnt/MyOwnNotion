@@ -294,6 +294,14 @@
   cursor: pointer;
 }
 
+.page-editor .bn-inline-content [data-style-type="textColor"]:not([data-value="default"]) a[href] {
+  color: inherit;
+}
+
+.page-editor .bn-inline-content :is(a[href], u) {
+  text-decoration-color: currentColor;
+}
+
 .page-editor .bn-block-content[data-content-type="heading"][data-level="1"] {
   padding-top: var(--ui-space-8);
   font-size: clamp(1.75rem, 4vw, 2.25rem);
@@ -700,6 +708,51 @@ html[data-block-grabbing="true"] .bn-formatting-toolbar {
 .page-editor .bn-inline-content .ProseMirror-selectednode::after {
   background-color: color-mix(in srgb, var(--ui-color-surface-active) 70%, transparent);
   box-shadow: inset 0 0 0 1.5px var(--ui-color-border-strong);
+}
+
+/* Keep the existing database clone in viewport coordinates. A transparent
+   canvas replaces the native bitmap; dragover moves this visible surface. */
+.bn-drag-preview.editor-database-drag-preview {
+  position: fixed;
+  top: 0;
+  left: 0;
+  max-width: none;
+  padding: 0;
+  z-index: var(--ui-layer-menu);
+  opacity: 0.92;
+  pointer-events: none;
+  transition: none;
+  will-change: transform;
+}
+
+/* An embedded database is an interactive surface, not a text block. BlockNote
+   still marks its React node as selected while dragging; suppress the legacy
+   selection wash so it cannot cover only the title/chrome while the view
+   breaks out below it. */
+.page-editor
+  .bn-block:has(.editor-database-view-block)
+  .bn-block-content.ProseMirror-selectednode
+  > *::after,
+.page-editor
+  .bn-block:has(.editor-database-view-block)
+  .ProseMirror-selectednode
+  > .bn-block-content
+  > *::after,
+.page-editor
+  .bn-block:has(.editor-database-view-block)
+  .bn-block-content
+  .ProseMirror-selectednode::after,
+.bn-drag-preview:has(.editor-database-view-block)
+  .bn-block-content.ProseMirror-selectednode
+  > *::after,
+.bn-drag-preview:has(.editor-database-view-block)
+  .ProseMirror-selectednode
+  > .bn-block-content
+  > *::after {
+  content: none;
+  display: none;
+  background: none;
+  box-shadow: none;
 }
 
 .page-editor
@@ -1401,4 +1454,116 @@ html[data-block-grabbing="true"] .bn-formatting-toolbar {
     min-height: 2.75rem;
     min-width: 2.75rem;
   }
+}
+
+/* Equation and contents node views own their UI; no changes to ProseMirror DOM. */
+.editor-equation {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding-block: var(--ui-space-2);
+}
+.editor-equation-preview {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  color: var(--ui-color-text);
+}
+.editor-equation-preview > .ui-button__label {
+  max-width: 100%;
+}
+.editor-inline-equation {
+  display: inline;
+}
+.editor-inline-equation > .editor-equation-preview {
+  display: inline-flex;
+  width: auto;
+  min-height: 0;
+  padding: 0 var(--ui-space-1);
+  vertical-align: baseline;
+}
+.editor-math-render {
+  max-width: 100%;
+}
+.editor-math-render .katex-display {
+  margin: var(--ui-space-2) 0;
+}
+.editor-math-empty,
+.editor-contents-empty {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+}
+.editor-math-error {
+  display: inline-flex;
+  flex-direction: column;
+  max-width: 100%;
+  gap: var(--ui-space-1);
+  color: var(--ui-color-danger);
+  font-size: var(--ui-text-sm);
+}
+.editor-math-error > code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.editor-equation-source {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  max-width: 100%;
+  padding: var(--ui-space-3);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-sm);
+}
+.editor-equation-source > label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+  font-size: var(--ui-text-sm);
+}
+.editor-equation-source textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  font-family: var(--ui-font-mono);
+}
+.editor-equation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+.editor-equation-source > .editor-math-render {
+  overflow-x: auto;
+}
+.editor-contents {
+  width: 100%;
+  padding-block: var(--ui-space-2);
+}
+.editor-contents-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.editor-contents-link {
+  display: block;
+  max-width: 100%;
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-color-text-muted);
+  text-align: start;
+  font-size: var(--ui-text-sm);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.editor-contents-link:hover {
+  background: var(--ui-color-surface-hover);
+  color: var(--ui-color-text);
+}
+.editor-contents-link:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 2px;
 }

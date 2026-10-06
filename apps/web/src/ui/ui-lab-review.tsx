@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { BoardView } from "../features/databases/board-view.tsx";
 import { CalendarView } from "../features/databases/calendar-view.tsx";
 import { StructuredConflictCard } from "../features/databases/database-conflict-resolution.tsx";
+import { DatabaseCreateChoiceDialog } from "../features/databases/database-create-choice.tsx";
 import { EntryPanel } from "../features/databases/entry-panel.tsx";
 import { FilterEditor } from "../features/databases/filter-editor.tsx";
 import { GalleryView } from "../features/databases/gallery-view.tsx";
@@ -151,7 +152,10 @@ function wireValue(value: NonRelationPropertyValue): DatabaseEntryDto["values"][
 
 function PreviewDatabases() {
   const query = new URLSearchParams(location.search);
+  const insertion = query.get("insertion");
   const format = query.get("format") ?? "table";
+  const prototypeRow = reviewPage.rows[0];
+  if (prototypeRow === undefined) throw new Error("Missing review row");
   const initial: DatabaseView =
     format === "board"
       ? {
@@ -184,7 +188,26 @@ function PreviewDatabases() {
   const [view, setView] = useState(initial);
   const [empty, setEmpty] = useState(false);
   const [opened, setOpened] = useState<string | null>(null);
-  const [data, setData] = useState<DatabaseViewPage>(reviewPage);
+  const [data, setData] = useState<DatabaseViewPage>(() => {
+    const count = Math.min(1000, Math.max(0, Number(query.get("rows")) || reviewPage.rows.length));
+    if (query.get("rows") === null) return reviewPage;
+    return {
+      ...reviewPage,
+      availableCount: count,
+      expectedCount: count,
+      rows: Array.from({ length: count }, (_, index) => ({
+        ...prototypeRow,
+        entryId: reviewId(1000 + index),
+        title:
+          index === 1
+            ? "Un titre très long qui revient à la ligne et conserve tout son contenu dans une carte de hauteur adaptée"
+            : `Carte ${String(index).padStart(4, "0")}`,
+        values: {
+          [reviewId(2)]: { kind: "status" as const, optionId: reviewId(index === 2 ? 21 : 20) },
+        },
+      })),
+    };
+  });
   const page = empty ? { ...data, rows: [], availableCount: 0, expectedCount: 0 } : data;
   const selected = page.rows.find((row) => row.entryId === opened);
   const update = (entryId: Uuid, change: DatabaseCellUpdate) =>
@@ -216,10 +239,42 @@ function PreviewDatabases() {
     properties: reviewProperties,
     page,
     onOpenEntry: (id: string) => setOpened(id),
-    onUpdateEntry: update,
+    onUpdateEntry: (entryId: Uuid, change: DatabaseCellUpdate): void | Promise<void> => {
+      // Deterministic preview states exercise the real controls without server data.
+      if (query.get("mutation") === "pending") return new Promise<void>(() => {});
+      if (query.get("mutation") === "refused") {
+        return Promise.reject(new Error("Preview mutation refused"));
+      }
+      update(entryId, change);
+    },
   };
   return (
     <>
+      {insertion === null ? null : (
+        <DatabaseCreateChoiceDialog
+          open
+          variant="inline"
+          mode={insertion === "existing" ? "existing" : "choose"}
+          sources={
+            insertion === "empty" || insertion === "loading" || insertion === "error"
+              ? []
+              : [{ id: reviewId(1), name: "Projet / Tâches" }]
+          }
+          sourceId={reviewId(1)}
+          busy={insertion === "busy"}
+          error={insertion === "retry" ? "L’insertion a été interrompue. Réessayez." : null}
+          insertionReady={insertion === "retry"}
+          loadingSources={insertion === "loading"}
+          sourcesError={insertion === "error" ? "Les sources ne sont pas disponibles." : null}
+          onCancel={() => location.assign("?review=database")}
+          onCreateNewSource={() => undefined}
+          onShowExisting={() => location.assign("?review=database&insertion=existing")}
+          onSourceId={() => undefined}
+          onCreateFromSource={() => undefined}
+          onBack={() => location.assign("?review=database&insertion=choose")}
+          onRetrySources={() => location.assign("?review=database&insertion=choose")}
+        />
+      )}
       <nav className="ui-lab__row" aria-label="Formats de revue">
         {(["table", "board", "gallery", "list", "calendar"] as const).map((type) => (
           <LinkButton
@@ -240,48 +295,101 @@ function PreviewDatabases() {
           {empty ? "Remplir" : "Vider"}
         </Button>
       </nav>
-      {view.type === "table" ? (
-        <TableView
-          {...props}
-          view={view}
-          onResize={(propertyId, width) =>
-            setView((current) => ({
-              ...current,
-              properties: current.properties.map((column) =>
-                column.propertyId === propertyId ? { ...column, width } : column,
-              ),
-            }))
+      <div
+        className={query.has("flow") ? "workspace-main" : undefined}
+        data-content-mode={query.has("flow") ? "page" : undefined}
+        style={
+          query.has("flow")
+            ? { height: 600, display: "block", padding: 0, overflowY: "auto" }
+            : undefined
+        }
+      >
+        <div
+          className={
+            query.get("flow") === "inline"
+              ? "editor-database-view-block"
+              : query.has("flow")
+                ? "database-container-page"
+                : undefined
           }
-        />
-      ) : view.type === "board" ? (
-        <BoardView {...props} view={view} onChangeView={setView} />
-      ) : view.type === "gallery" ? (
-        <GalleryView
-          {...props}
-          view={view}
-          onChangeView={setView}
-          previews={
-            new Map([
-              [
-                reviewId(30),
-                {
-                  kind: "page",
-                  text: "Une page conserve son contenu, ses propriétés et ses liens.",
-                },
-              ],
-            ])
-          }
-        />
-      ) : view.type === "list" ? (
-        <ListView {...props} view={view} />
-      ) : (
-        <CalendarView
-          {...props}
-          view={view}
-          onChangeView={setView}
-          referenceDate={new Date("2026-10-03T12:00:00Z")}
-        />
-      )}
+        >
+          {query.has("flow") ? <p style={{ height: 120 }}>Contenu avant la base</p> : null}
+          {view.type === "table" ? (
+            <TableView
+              {...props}
+              view={view}
+              onResize={(propertyId, width) =>
+                setView((current) => ({
+                  ...current,
+                  properties: current.properties.map((column) =>
+                    column.propertyId === propertyId ? { ...column, width } : column,
+                  ),
+                }))
+              }
+            />
+          ) : view.type === "board" ? (
+            <BoardView
+              {...props}
+              view={view}
+              onChangeView={setView}
+              canCreateFolder
+              onCreateInColumn={async (kind, values) => {
+                if (query.get("creation") === "pending") return new Promise<Uuid>(() => {});
+                if (query.get("creation") === "refused")
+                  throw new Error("Preview creation refused");
+                const id = reviewId(5000 + data.rows.length);
+                setData((current) => ({
+                  ...current,
+                  availableCount: current.availableCount + 1,
+                  expectedCount: current.expectedCount + 1,
+                  rows: [
+                    ...current.rows,
+                    {
+                      ...prototypeRow,
+                      entryId: id,
+                      title: kind === "folder" ? "Nouveau dossier" : "Nouvelle page",
+                      itemKind: kind,
+                      values,
+                    },
+                  ],
+                }));
+                return id;
+              }}
+            />
+          ) : view.type === "gallery" ? (
+            <GalleryView
+              {...props}
+              view={view}
+              onChangeView={setView}
+              previews={
+                new Map([
+                  [
+                    reviewId(30),
+                    {
+                      kind: "page",
+                      text: "Une page conserve son contenu, ses propriétés et ses liens.",
+                    },
+                  ],
+                ])
+              }
+            />
+          ) : view.type === "list" ? (
+            <ListView {...props} view={view} />
+          ) : (
+            <CalendarView
+              {...props}
+              view={view}
+              onChangeView={setView}
+              referenceDate={new Date("2026-10-03T12:00:00Z")}
+            />
+          )}
+        </div>
+        {query.has("flow") ? (
+          <p data-flow-after style={{ height: 500 }}>
+            Contenu après la base
+          </p>
+        ) : null}
+      </div>
       {selected === undefined ? null : (
         <DrawerRoot
           open

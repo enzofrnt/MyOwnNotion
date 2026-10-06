@@ -6,6 +6,7 @@ export interface DatabaseViewContext {
   readonly activeViewId: Uuid;
   readonly selectedEntryId: Uuid | null;
   readonly scrollTop: number;
+  readonly returnColumnId?: Uuid | "missing";
 }
 
 interface RequestedDatabaseView {
@@ -38,7 +39,13 @@ export function readDatabaseViewContext(
   const selectedEntryId = candidate["selectedEntryId"];
   if (typeof scrollTop !== "number" || !Number.isFinite(scrollTop) || scrollTop < 0) return null;
   if (selectedEntryId !== null && !isUuid(selectedEntryId)) return null;
-  return { activeViewId: viewId, selectedEntryId, scrollTop };
+  const returnColumnId = candidate["returnColumnId"];
+  return {
+    activeViewId: viewId,
+    selectedEntryId,
+    scrollTop,
+    ...(returnColumnId === "missing" || isUuid(returnColumnId) ? { returnColumnId } : {}),
+  };
 }
 
 export function writeDatabaseViewContext(
@@ -284,7 +291,12 @@ export function useDatabaseView(definition: DatabaseDefinition, embeddingId?: Uu
 
   const openEntry = useCallback(
     (entryId: Uuid): void => {
-      updateContext((current) => ({ ...current, selectedEntryId: entryId }));
+      const column = triggers.current.get(entryId)?.dataset["entryColumn"];
+      updateContext((current) => ({
+        ...current,
+        selectedEntryId: entryId,
+        ...(column === "missing" || isUuid(column) ? { returnColumnId: column } : {}),
+      }));
     },
     [updateContext],
   );

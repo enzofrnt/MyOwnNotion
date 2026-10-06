@@ -1184,3 +1184,34 @@ d'architecture, scénarios manuels et essai d'utilisabilité.
 
 La tranche prouve donc le parcours de synchronisation implémenté aujourd'hui ;
 elle ferme US6 mais ne prétend pas encore que toute la V1 est terminée.
+
+## Logo et favicon — 2026-10-06 (T323–T325)
+
+Le générateur d'images intégré a créé un M de pages pliées blanc, avec un coin
+bleu et une tuile indigo. Le maître PNG 1254 × 1254 px et les dérivés 16, 32 et
+180 px avec alpha sont conservés dans `apps/web/assets/brand/`, avec le prompt
+exact et leur provenance. Le README affiche ce maître à 160 px et utilise
+désormais le titre MyOwnNotion. Les métadonnées HTML utilisent les dérivés
+locaux ; aucune dépendance à une image distante n'est introduite.
+
+Revue `ui-quality`/L-010 : le maître est inspecté après génération, puis les
+fichiers réellement servis par 8082 sont affichés dans Chromium à 160, 16 et
+32 px sur fond clair et sombre. Le M reste reconnaissable aux deux tailles de
+favicon, sans disparition sur le fond sombre. La capture de contrôle est
+[brand-logo-light-dark.png](assets/brand-logo-light-dark.png). Il s'agit d'une
+planche de contrôle des ressources servies, pas d'une capture du chrome natif
+du navigateur ni du rendu GitHub du README.
+
+Depuis une URL de note imbriquée, les deux liens `rel=icon` et le lien tactile
+résolvent correctement vers les assets, avec HTTP 200 et `image/png`. Le build
+Bun émet les trois PNG avec URL versionnée et les inclut tous dans le précache
+Workbox : 33 sorties Web et 23 fichiers précachés. Les favicons pèsent 763 et
+1765 octets. L'ajout de `png` au glob de précache couvre ces nouvelles ressources
+du shell sans modifier les règles de stockage du contenu.
+
+Biome sur `apps/web/build.ts`, build Web et `git diff --check` passent. Le
+périmètre de contrôle est limité aux assets, métadonnées HTML, README et émission
+du bundle ; aucune interaction ni donnée métier ne change. Aucune suite
+applicative n'est lancée. Seul le Web isolé 8082 est recréé ; l'API isolée et les
+conteneurs de l'instance principale conservent leurs dates de démarrage.
+Cette maintenance ne clôt aucune autre tâche de convergence V1.

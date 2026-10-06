@@ -5,6 +5,8 @@ import {
   generateUuidV7,
 } from "@myownnotion/domain";
 import { type FormEvent, useId, useRef, useState } from "react";
+import { AppIcon } from "../../ui/icons.tsx";
+import { Button } from "../../ui/primitives/button.tsx";
 import { NativeInput } from "../../ui/primitives/native-input.tsx";
 import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
@@ -257,62 +259,68 @@ export function PropertyEditor({
       aria-label={DATABASE_COPY.property.editor}
       onSubmit={submit}
     >
-      <div className="field-row">
-        <label htmlFor={`${fieldId}-name`}>{DATABASE_COPY.property.name}</label>
-        <NativeInput
-          type="text"
-          density="compact"
-          id={`${fieldId}-name`}
-          name="property-name"
-          defaultValue={visibleDraft.name}
-          autoComplete="off"
-          onChange={(event) => changeDraft((current) => ({ ...current, name: event.target.value }))}
-        />
-        <label htmlFor={`${fieldId}-type`}>{DATABASE_COPY.property.type}</label>
-        <NativeSelect
-          density="compact"
-          id={`${fieldId}-type`}
-          name="property-type"
-          defaultValue={visibleDraft.type}
-          onChange={(event) =>
-            changeDraft((current) => {
-              const type = event.target.value as EditablePropertyType;
-              if (!isChoiceType(type)) return { ...current, type };
-              return {
-                ...current,
-                type,
-                options:
-                  current.options !== undefined && current.options.length > 0
-                    ? current.options
-                    : defaultSelectionOptions(),
-              };
-            })
-          }
-        >
-          {!PROPERTY_TYPE_CHOICES.includes(visibleDraft.type) ? (
-            <option value={visibleDraft.type}>
-              {DATABASE_COPY.property.typeLabels[visibleDraft.type]} (actuel)
-            </option>
-          ) : null}
-          {PROPERTY_TYPE_CHOICES.map((type) => (
-            <option key={type} value={type}>
-              {DATABASE_COPY.property.typeLabels[type]}
-            </option>
-          ))}
-        </NativeSelect>
+      <div className="property-editor__fields">
+        <label className="property-editor__field" htmlFor={`${fieldId}-name`}>
+          <span>{DATABASE_COPY.property.name}</span>
+          <NativeInput
+            type="text"
+            density="compact"
+            id={`${fieldId}-name`}
+            name="property-name"
+            defaultValue={visibleDraft.name}
+            autoComplete="off"
+            onChange={(event) =>
+              changeDraft((current) => ({ ...current, name: event.target.value }))
+            }
+          />
+        </label>
+        <label className="property-editor__field" htmlFor={`${fieldId}-type`}>
+          <span>{DATABASE_COPY.property.type}</span>
+          <NativeSelect
+            density="compact"
+            id={`${fieldId}-type`}
+            name="property-type"
+            defaultValue={visibleDraft.type}
+            onChange={(event) =>
+              changeDraft((current) => {
+                const type = event.target.value as EditablePropertyType;
+                if (!isChoiceType(type)) return { ...current, type };
+                return {
+                  ...current,
+                  type,
+                  options:
+                    current.options !== undefined && current.options.length > 0
+                      ? current.options
+                      : defaultSelectionOptions(),
+                };
+              })
+            }
+          >
+            {!PROPERTY_TYPE_CHOICES.includes(visibleDraft.type) ? (
+              <option value={visibleDraft.type}>
+                {DATABASE_COPY.property.typeLabels[visibleDraft.type]} (actuel)
+              </option>
+            ) : null}
+            {PROPERTY_TYPE_CHOICES.map((type) => (
+              <option key={type} value={type}>
+                {DATABASE_COPY.property.typeLabels[type]}
+              </option>
+            ))}
+          </NativeSelect>
+        </label>
       </div>
 
       {usesOptions ? (
-        <fieldset className="property-options">
+        <fieldset className="property-editor__options">
           <legend>{DATABASE_COPY.property.options}</legend>
           <input
             type="hidden"
             name="option-order"
             value={optionRows.map(({ key }) => key).join(",")}
           />
-          <ul>
+          <ul className="property-editor__option-list">
             {optionRows.map((option) => (
-              <li key={option.key}>
+              <li key={option.key} className="property-editor__option-row">
                 <NativeInput
                   density="compact"
                   name={`option-label-${option.key}`}
@@ -329,39 +337,45 @@ export function PropertyEditor({
                     }))
                   }
                 />
-                <FormTonePicker
-                  name={`option-tone-${option.key}`}
-                  tone={option.tone}
-                  onChange={(tone) =>
-                    changeDraft((current) => ({
-                      ...current,
-                      options: (current.options ?? optionRows).map((candidate) =>
-                        candidate.key === option.key ? { ...candidate, tone } : candidate,
-                      ),
-                    }))
-                  }
-                />
-                <button
-                  type="button"
-                  className="link"
-                  aria-label={`${DATABASE_COPY.property.removeOption} ${option.label}`}
-                  onClick={() =>
-                    changeDraft((current) => ({
-                      ...current,
-                      options: (current.options ?? optionRows).filter(
-                        (candidate) => candidate.key !== option.key,
-                      ),
-                    }))
-                  }
-                >
-                  {DATABASE_COPY.property.removeOption}
-                </button>
+                <div className="property-editor__option-controls">
+                  <FormTonePicker
+                    name={`option-tone-${option.key}`}
+                    tone={option.tone}
+                    onChange={(tone) =>
+                      changeDraft((current) => ({
+                        ...current,
+                        options: (current.options ?? optionRows).map((candidate) =>
+                          candidate.key === option.key ? { ...candidate, tone } : candidate,
+                        ),
+                      }))
+                    }
+                  />
+                  <Button
+                    type="button"
+                    size="compact"
+                    variant="ghost"
+                    className="property-editor__remove-option"
+                    aria-label={`${DATABASE_COPY.property.removeOption} ${option.label}`}
+                    disabled={submitting}
+                    onClick={() =>
+                      changeDraft((current) => ({
+                        ...current,
+                        options: (current.options ?? optionRows).filter(
+                          (candidate) => candidate.key !== option.key,
+                        ),
+                      }))
+                    }
+                  >
+                    <AppIcon name="close" size="small" />
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
-          <button
+          <Button
             type="button"
-            className="link"
+            size="compact"
+            variant="ghost"
             onClick={() =>
               changeDraft((current) => {
                 const options = current.options ?? optionRows;
@@ -378,16 +392,19 @@ export function PropertyEditor({
                 };
               })
             }
+            disabled={submitting}
           >
+            <AppIcon name="add" size="small" />
             {DATABASE_COPY.property.addOption}
-          </button>
+          </Button>
         </fieldset>
       ) : null}
 
       {visibleDraft.type === "date" ? (
-        <label className="database-field">
-          {DATABASE_COPY.property.dateMode}
+        <label className="property-editor__field" htmlFor={`${fieldId}-date-mode`}>
+          <span>{DATABASE_COPY.property.dateMode}</span>
           <NativeSelect
+            id={`${fieldId}-date-mode`}
             density="compact"
             name="property-date-mode"
             defaultValue={visibleDraft.dateMode ?? "date"}
@@ -405,9 +422,10 @@ export function PropertyEditor({
       ) : null}
 
       {visibleDraft.type === "relation" ? (
-        <label className="database-field">
-          {DATABASE_COPY.property.relationCardinality}
+        <label className="property-editor__field" htmlFor={`${fieldId}-relation-cardinality`}>
+          <span>{DATABASE_COPY.property.relationCardinality}</span>
           <NativeSelect
+            id={`${fieldId}-relation-cardinality`}
             density="compact"
             name="property-relation-cardinality"
             defaultValue={visibleDraft.relationCardinality ?? "many"}
@@ -424,14 +442,30 @@ export function PropertyEditor({
         </label>
       ) : null}
 
-      {error !== null ? <p role="alert">{error}</p> : null}
-      <div className="field-row">
-        <StableActionButton type="submit" disabled={submitting} onActivate={submitVisibleDraft}>
+      {error !== null ? (
+        <p className="property-editor__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="property-editor__actions">
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          onClick={onCancel}
+          disabled={submitting}
+        >
+          {DATABASE_COPY.common.cancel}
+        </Button>
+        <StableActionButton
+          type="submit"
+          variant="primary"
+          size="compact"
+          disabled={submitting}
+          onActivate={submitVisibleDraft}
+        >
           {submitting ? DATABASE_COPY.common.savingLocally : DATABASE_COPY.property.save}
         </StableActionButton>
-        <button type="button" className="link" onClick={onCancel} disabled={submitting}>
-          {DATABASE_COPY.common.cancel}
-        </button>
       </div>
     </form>
   );

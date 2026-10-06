@@ -1,16 +1,37 @@
-# CLI contract
+# CLI contract — API replacement
 
-`bun run import:notion --source PATH [--id UUID] [--json] [--dry-run] [--apply]`
+```text
+bun run import:notion --discover [--json]
+bun run import:notion (--root UUID ... | --all) [--id UUID] [--json] [--dry-run] [--apply]
+bun run import:notion --resume --id UUID [--json] [--dry-run]
+```
 
-No apply flag means preview; dry-run takes precedence. Preview requires only the
-source. Apply requires a stable explicit UUID, configured DATABASE_URL,
-MYOWNNOTION_BLOB_ROOT, MYOWNNOTION_BACKUP_ROOT and
-MYOWNNOTION_DEPLOYMENT_KEY_FILE, a ready installation
-and installed migrations. It creates an isolated root, never merges by title.
-Every new job is backed up with024 before mutation, including an empty target.
-Resume retains that first verified receipt.
+The old `--source` adapter and token arguments are rejected. Credentials come
+only from `NOTION_TOKEN` or a private `NOTION_TOKEN_FILE`. Discovery and preview
+need no local target; preview makes no canonical write or source-content cache.
+`--dry-run` overrides `--apply`. Notion requests are read-only.
 
-Text output is a count/code summary. Explicit JSON includes exhaustive source
-outcomes and conversion mappings for owner review. Fixed failure codes contain
-no source content. Exit0 succeeds,2 denotes invalid input,1 denotes apply/runtime
-refusal. Resume repeats the same source/UUID command; changed source refuses.
+Apply requires an explicit stable UUID, `DATABASE_URL`, `MYOWNNOTION_BLOB_ROOT`,
+`MYOWNNOTION_BACKUP_ROOT`, `MYOWNNOTION_DEPLOYMENT_KEY_FILE`, a ready installation,
+installed migrations and verified full safety backup. Objects live under a new
+import root, never merge by title. Resume retains the original backup and reads
+the encrypted saved plan, without source credentials or network collection.
+
+Ordinary output contains aggregate counts and fixed codes. Explicit JSON is an
+owner-only detailed report containing source identities, conversion notices and
+target mappings; source paths on failures appear only with JSON. Progress on
+stderr contains counts only. Exit 0 succeeds, 2 means invalid CLI arguments,
+and 1 means source, configuration or application refusal.
+
+Ctrl+C cancels collection or stops between canonical operations. Completed
+operations and their checkpoints commit together. Replaying a completed job
+does not replace later owner edits.
+
+## Exclusion explicite de base
+
+--exclude-database UUID_NOTION est répétable avec --root ou --all pour aperçu
+et application. Les IDs doivent désigner des bases collectées ; un ID absent
+est refusé avant application. Base, sources, membres, descendants et médias
+associés sont omis de la projection. La sélection exclue est enregistrée dans
+le plan protégé pour reprise. L'option est refusée avec --discover/--resume,
+qui ne définissent pas une nouvelle sélection. Pas d'exclusion globale par nom.

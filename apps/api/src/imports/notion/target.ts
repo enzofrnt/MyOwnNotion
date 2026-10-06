@@ -1,9 +1,12 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { ContentStore, PartialUploadStore } from "@myownnotion/blob-store";
 import {
   createDatabase,
   migrationInventory,
   schema,
   type Transaction,
+  workspaceMigrationsDir,
 } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
@@ -21,12 +24,20 @@ export interface NotionTargetOptions {
   blobRoot: string;
   keyFile: string;
   backupRoot: string;
+  migrationsDir?: string;
 }
 export async function openNotionTarget(options: NotionTargetOptions) {
   await assertFullRestoreActivated(options.blobRoot);
   const database = createDatabase(options.connectionString);
   try {
-    const inventory = await migrationInventory(options.connectionString);
+    // Bundled CLI modules share the entrypoint location. Production ships SQL
+    // beside dist, while source execution retains the database package layout.
+    const packagedMigrations = path.resolve(import.meta.dirname, "../../../migrations");
+    const migrationsDir =
+      options.migrationsDir ||
+      process.env["MYOWNNOTION_MIGRATIONS_DIR"]?.trim() ||
+      (existsSync(packagedMigrations) ? packagedMigrations : workspaceMigrationsDir);
+    const inventory = await migrationInventory(options.connectionString, { migrationsDir });
     if (inventory.pending.length) throw new NotionImportError("import.pending-migrations");
     const [installation] = await database.db.select().from(schema.installations).limit(1);
     if (installation?.state !== "ready" || !installation.ownerId || !installation.workspaceId)

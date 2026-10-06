@@ -187,3 +187,14 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 - [x] T078 Attendre le niveau racine réellement appliqué après la commande de déplacement dans le helper E2E, avant les actions sur la nouvelle ligne : préserver dépliement/scroll natif/sélection, cycles refusés et page redevenue feuille ; vérifier les deux consommateurs sur cinq profils sans retry, terminer la lane WebKit bureau complète et consigner trace/preuves selon FR-008/022 et le plan de stabilisation CI. Preuve : verification, section « Lanceur Linux partagé et déplacement à la racine ».
 
 - [x] T079 Diagnostiquer la restauration Firefox du run de `671f6869` : vérifier pourquoi les changements de route relancent l'hydratation de l'explorateur vide, conserver le callback de navigation courant sans réinitialiser son cycle, prouver absence de nouveau seed et restauration des identités ; tests rouge/vert et parcours sur cinq profils, ui-quality + lessons pour les états réels, sans changement de stockage/protocole/budgets. Preuve : verification, section « Navigation conservée pendant la restauration ». La confirmation CI reste un gate distinct à obtenir sur la dernière révision.
+## Ajustement des liens et commandes — 035
+
+Le retour du propriétaire du 4 octobre est défini dans
+[035/spec.md](../035-item-links-database-insertion/spec.md), avec approche et
+suivi dans ses plan.md/tasks.md. Il remplace les libellés précédents par les
+créations « Page/Dossier/Base de données imbriqué(e) », élargit « Lien vers un
+autre élément » aux bases, et fusionne les commandes d'affichage intégré et lié
+dans un dialogue de choix. Le concept de vue liée et la propriété des sources
+restent inchangés. L'import respecte is_inline et corrige les références
+historiques inchangées ; la validation locale propre à035 ne revalide pas les
+anciennes phases de cette feature.

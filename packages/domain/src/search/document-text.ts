@@ -79,6 +79,9 @@ function visibleBlockTextV3(block: CanonicalBlockV3): string[] {
       return [block.caption, block.sourceUrl]
         .filter((value): value is string => value !== null)
         .map(cleanVisibleText);
+    case "equation":
+      return [cleanVisibleText(block.expression)];
+    case "tableOfContents":
     case "databaseView":
       return [];
     case "table":

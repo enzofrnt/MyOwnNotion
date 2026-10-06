@@ -46,6 +46,7 @@ import { isChoiceProperty, OptionValueMenu, PropertyOptionsEditor } from "./opti
 import { DatabasePropertyIcon } from "./property-icon.tsx";
 import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
 import { observeTableScrollOffset } from "./table-scroll-observer.ts";
+import { usePageHeaders } from "./use-page-headers.ts";
 import { useTableViewport } from "./use-table-viewport.ts";
 import {
   type RelationOption,
@@ -88,6 +89,7 @@ export type DatabaseCellUpdate =
       readonly propertyId: Uuid;
       readonly value?: NonRelationPropertyValue;
       readonly relationTargets?: readonly Uuid[];
+      readonly optionMove?: { readonly from: Uuid | "missing"; readonly to: Uuid | "missing" };
     };
 
 interface EditingCell {
@@ -580,6 +582,9 @@ export function TableView({
   const rows = table.getRowModel().rows;
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewport = useTableViewport(scrollRef);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  usePageHeaders(scrollRef, viewport, headerRef, bodyRef);
   const previousViewId = useRef(view.id);
   const [activeCell, setActiveCell] = useState<GridCellPosition>({ row: 0, column: 0 });
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
@@ -921,11 +926,159 @@ export function TableView({
       </tr>
     );
 
+  const widths = (table.getHeaderGroups()[0]?.headers ?? []).map((header) => ({
+    id: header.column.id,
+    width:
+      columnResize?.propertyId === header.column.id ? columnResize.width : header.column.getSize(),
+  }));
+  const tableWidth =
+    widths.reduce((sum, column) => sum + column.width, 0) + (onAddProperty === undefined ? 0 : 68);
+  const columnWidths = (
+    <colgroup>
+      {widths.map((column) => (
+        <col key={column.id} style={{ width: column.width }} />
+      ))}
+      {onAddProperty === undefined ? null : <col style={{ width: 68 }} />}
+      <col />
+    </colgroup>
+  );
+  const tableHeader = (
+    <thead>
+      {table.getHeaderGroups().map((group) => (
+        <tr key={group.id}>
+          {group.headers.map((header) => {
+            const property = properties.find(({ id }) => id === header.column.id);
+            const sort = view.sorts.find(({ propertyId }) => propertyId === header.column.id);
+            const width =
+              property !== undefined && columnResize?.propertyId === property.id
+                ? columnResize.width
+                : header.column.getSize();
+            return (
+              <th
+                key={header.id}
+                scope="col"
+                id={`database-column-${view.id}-${header.column.id}`}
+                aria-sort={
+                  sort === undefined
+                    ? "none"
+                    : sort.direction === "ascending"
+                      ? "ascending"
+                      : "descending"
+                }
+                style={{ width }}
+              >
+                {header.isPlaceholder || property === undefined ? null : (
+                  <ColumnPropertyButton
+                    key={`${property.id}:${property.name}`}
+                    property={property}
+                    view={view}
+                    {...(onRenameProperty === undefined ? {} : { onRename: onRenameProperty })}
+                    {...(onRetireProperty === undefined ? {} : { onRetire: onRetireProperty })}
+                    {...(onChangePropertyOptions === undefined
+                      ? {}
+                      : { onChangeOptions: onChangePropertyOptions })}
+                    {...(onToggleColumn === undefined ? {} : { onToggleColumn })}
+                    {...(onSortProperty === undefined ? {} : { onSort: onSortProperty })}
+                    {...(onFilterProperty === undefined ? {} : { onFilter: onFilterProperty })}
+                    {...(onInsertProperty === undefined ? {} : { onInsert: onInsertProperty })}
+                    {...(onDuplicateProperty === undefined
+                      ? {}
+                      : { onDuplicate: onDuplicateProperty })}
+                  />
+                )}
+                {property === undefined ? null : (
+                  <DatabaseColumnResize
+                    name={property.name}
+                    width={width}
+                    onPreview={(next) =>
+                      setColumnResize({
+                        propertyId: property.id,
+                        width: next,
+                        dragging: true,
+                      })
+                    }
+                    onCommit={(next) => {
+                      setColumnResize({
+                        propertyId: property.id,
+                        width: next,
+                        dragging: false,
+                      });
+                      onResize(property.id, next);
+                    }}
+                    onDragging={(dragging) =>
+                      setColumnResize((current) =>
+                        dragging
+                          ? {
+                              propertyId: property.id,
+                              width: current?.propertyId === property.id ? current.width : width,
+                              dragging: true,
+                            }
+                          : current === null
+                            ? null
+                            : { ...current, dragging: false },
+                      )
+                    }
+                  />
+                )}
+              </th>
+            );
+          })}
+          {onAddProperty === undefined ? null : (
+            <th className="database-table-add-property" scope="col">
+              <div className="database-header-actions">
+                <Button
+                  type="button"
+                  size="square"
+                  variant="ghost"
+                  aria-label={DATABASE_COPY.page.addProperty}
+                  title={DATABASE_COPY.page.addProperty}
+                  onClick={onAddProperty}
+                >
+                  <AppIcon name="add" size="small" />
+                </Button>
+                {onToggleColumn === undefined ? null : (
+                  <PopoverRoot>
+                    <PopoverTrigger
+                      className="database-header-more"
+                      aria-label={DATABASE_COPY.page.showProperties}
+                      title={DATABASE_COPY.page.showProperties}
+                    >
+                      <AppIcon name="more" size="small" />
+                    </PopoverTrigger>
+                    <PopoverContent>
+                      <ul className="database-property-visibility">
+                        {viewColumns(properties, view.properties).map((column) => (
+                          <li key={column.property.id}>
+                            <span className="database-column-label__name">
+                              {column.property.name}
+                            </span>
+                            <PropertyVisibilitySwitch
+                              property={column.property}
+                              visible={column.visible}
+                              onToggle={onToggleColumn}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </PopoverContent>
+                  </PopoverRoot>
+                )}
+              </div>
+            </th>
+          )}
+          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: Empty filler cells are not focusable and carry no column semantics. */}
+          <th className="database-table-filler" aria-hidden="true" />
+        </tr>
+      ))}
+    </thead>
+  );
+
   return (
     <section className="database-view" aria-label={DATABASE_COPY.table.viewLabel(view.name)}>
       <section
         ref={scrollRef}
         className="database-table-scroll"
+        data-page-flow={viewport.pageFlow || undefined}
         // Keep the page extent while React replaces virtual rows/spacers.
         // WebKit otherwise clamps scrollTop during intermediate DOM removals.
         style={
@@ -935,465 +1088,345 @@ export function TableView({
         }
         aria-label={DATABASE_COPY.table.scrollLabel(view.name)}
       >
-        <table
-          className="database-table database-grid"
-          data-resizing={columnResize?.dragging ? "" : undefined}
-          role="grid"
-          aria-rowcount={page.expectedCount + 1}
-          aria-colcount={visible.length + (onAddProperty ? 1 : 0)}
-          style={{
-            minWidth:
-              (table.getHeaderGroups()[0]?.headers.reduce((sum, header) => {
-                const property = properties.find(({ id }) => id === header.column.id);
-                const width =
-                  property !== undefined && columnResize?.propertyId === property.id
-                    ? columnResize.width
-                    : header.column.getSize();
-                return sum + width;
-              }, 0) ?? 0) + (onAddProperty === undefined ? 0 : 68),
-          }}
-        >
-          <thead>
-            {table.getHeaderGroups().map((group) => (
-              <tr key={group.id}>
-                {group.headers.map((header) => {
-                  const property = properties.find(({ id }) => id === header.column.id);
-                  const sort = view.sorts.find(({ propertyId }) => propertyId === header.column.id);
-                  const width =
-                    property !== undefined && columnResize?.propertyId === property.id
-                      ? columnResize.width
-                      : header.column.getSize();
-                  return (
-                    <th
-                      key={header.id}
-                      scope="col"
-                      aria-sort={
-                        sort === undefined
-                          ? "none"
-                          : sort.direction === "ascending"
-                            ? "ascending"
-                            : "descending"
-                      }
-                      style={{ width }}
-                    >
-                      {header.isPlaceholder || property === undefined ? null : (
-                        <ColumnPropertyButton
-                          key={`${property.id}:${property.name}`}
-                          property={property}
-                          view={view}
-                          {...(onRenameProperty === undefined
-                            ? {}
-                            : { onRename: onRenameProperty })}
-                          {...(onRetireProperty === undefined
-                            ? {}
-                            : { onRetire: onRetireProperty })}
-                          {...(onChangePropertyOptions === undefined
-                            ? {}
-                            : { onChangeOptions: onChangePropertyOptions })}
-                          {...(onToggleColumn === undefined ? {} : { onToggleColumn })}
-                          {...(onSortProperty === undefined ? {} : { onSort: onSortProperty })}
-                          {...(onFilterProperty === undefined
-                            ? {}
-                            : { onFilter: onFilterProperty })}
-                          {...(onInsertProperty === undefined
-                            ? {}
-                            : { onInsert: onInsertProperty })}
-                          {...(onDuplicateProperty === undefined
-                            ? {}
-                            : { onDuplicate: onDuplicateProperty })}
-                        />
-                      )}
-                      {property === undefined ? null : (
-                        <DatabaseColumnResize
-                          name={property.name}
-                          width={width}
-                          onPreview={(next) =>
-                            setColumnResize({
-                              propertyId: property.id,
-                              width: next,
-                              dragging: true,
-                            })
-                          }
-                          onCommit={(next) => {
-                            setColumnResize({
-                              propertyId: property.id,
-                              width: next,
-                              dragging: false,
-                            });
-                            onResize(property.id, next);
-                          }}
-                          onDragging={(dragging) =>
-                            setColumnResize((current) =>
-                              dragging
-                                ? {
-                                    propertyId: property.id,
-                                    width:
-                                      current?.propertyId === property.id ? current.width : width,
-                                    dragging: true,
-                                  }
-                                : current === null
-                                  ? null
-                                  : { ...current, dragging: false },
-                            )
-                          }
-                        />
-                      )}
-                    </th>
-                  );
-                })}
-                {onAddProperty === undefined ? null : (
-                  <th className="database-table-add-property" scope="col">
-                    <div className="database-header-actions">
-                      <Button
-                        type="button"
-                        size="square"
-                        variant="ghost"
-                        aria-label={DATABASE_COPY.page.addProperty}
-                        title={DATABASE_COPY.page.addProperty}
-                        onClick={onAddProperty}
+        {viewport.pageFlow ? (
+          <div className="database-page-header">
+            <div ref={headerRef} className="database-page-header-scroll">
+              <table
+                className="database-table database-grid"
+                style={{ minWidth: tableWidth }}
+                aria-label={`En-têtes de ${view.name}`}
+              >
+                {columnWidths}
+                {tableHeader}
+              </table>
+            </div>
+          </div>
+        ) : null}
+        <div ref={bodyRef} className="database-table-body-scroll">
+          <table
+            className="database-table database-grid"
+            data-resizing={columnResize?.dragging ? "" : undefined}
+            role="grid"
+            aria-rowcount={page.expectedCount + 1}
+            aria-colcount={visible.length + (onAddProperty ? 1 : 0)}
+            style={{
+              minWidth: tableWidth,
+            }}
+          >
+            {columnWidths}
+            {viewport.pageFlow ? null : tableHeader}
+            <tbody>
+              {renderedRows.length === 0 && page.coverage === "partial" ? (
+                <tr>
+                  <td colSpan={Math.max(1, visible.length + (onAddProperty ? 1 : 0) + 1)}>
+                    <AsyncState
+                      compact
+                      kind="offline"
+                      description={DATABASE_COPY.common.noEntriesAvailable}
+                    />
+                  </td>
+                </tr>
+              ) : (
+                renderedRows.map(({ row, index, item, gap }) =>
+                  row === undefined ? null : (
+                    <Fragment key={row.id}>
+                      {spacer(gap)}
+                      <tr
+                        aria-rowindex={index + 2}
+                        data-index={item?.index}
+                        ref={item === null ? undefined : virtualizer.measureElement}
                       >
-                        <AppIcon name="add" size="small" />
-                      </Button>
-                      {onToggleColumn === undefined ? null : (
-                        <PopoverRoot>
-                          <PopoverTrigger
-                            className="database-header-more"
-                            aria-label={DATABASE_COPY.page.showProperties}
-                            title={DATABASE_COPY.page.showProperties}
-                          >
-                            <AppIcon name="more" size="small" />
-                          </PopoverTrigger>
-                          <PopoverContent>
-                            <ul className="database-property-visibility">
-                              {viewColumns(properties, view.properties).map((column) => (
-                                <li key={column.property.id}>
-                                  <span className="database-column-label__name">
-                                    {column.property.name}
-                                  </span>
-                                  <PropertyVisibilitySwitch
-                                    property={column.property}
-                                    visible={column.visible}
-                                    onToggle={onToggleColumn}
-                                  />
-                                </li>
-                              ))}
-                            </ul>
-                          </PopoverContent>
-                        </PopoverRoot>
-                      )}
-                    </div>
-                  </th>
-                )}
-                {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: Empty filler cells are not focusable and carry no column semantics. */}
-                <th className="database-table-filler" aria-hidden="true" />
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {renderedRows.length === 0 && page.coverage === "partial" ? (
-              <tr>
-                <td colSpan={Math.max(1, visible.length + (onAddProperty ? 1 : 0) + 1)}>
-                  <AsyncState
-                    compact
-                    kind="offline"
-                    description={DATABASE_COPY.common.noEntriesAvailable}
-                  />
-                </td>
-              </tr>
-            ) : (
-              renderedRows.map(({ row, index, item, gap }) =>
-                row === undefined ? null : (
-                  <Fragment key={row.id}>
-                    {spacer(gap)}
-                    <tr
-                      aria-rowindex={index + 2}
-                      data-index={item?.index}
-                      ref={item === null ? undefined : virtualizer.measureElement}
-                    >
-                      {row.getAllCells().map((cell, column) => {
-                        const property = visible[column];
-                        if (property === undefined) return null;
-                        const position = { row: index, column };
-                        const key = refKey(position);
-                        const editing = editingCell?.key === key;
-                        return (
-                          <td
-                            key={cell.id}
-                            ref={(element) => {
-                              if (element === null) refs.current.delete(key);
-                              else refs.current.set(key, element);
-                            }}
-                            className={
-                              property.type === "title" ||
-                              property.type === "text" ||
-                              property.type === "number"
-                                ? "database-cell--text"
-                                : "database-cell--property"
-                            }
-                            role="gridcell"
-                            aria-colindex={column + 1}
-                            aria-label={`${property.name}, ${displayDatabaseValue(row.original, property)}`}
-                            tabIndex={
-                              activeCell.row === index && activeCell.column === column ? 0 : -1
-                            }
-                            data-grid-mode={
-                              editing ||
-                              (property.type === "title" &&
-                                (row.original.entryId === namingEntryId ||
-                                  titleEdit?.id === row.original.entryId))
-                                ? "editing"
-                                : "navigation"
-                            }
-                            onFocus={() => {
-                              // Keep a focused entry button (or editor) in the
-                              // virtual range after its temporary return pin ends.
-                              setActiveCell((current) =>
-                                current.row === index && current.column === column
-                                  ? current
-                                  : position,
-                              );
-                            }}
-                            onKeyDown={(event) =>
-                              onCellKeyDown(event, position, property, row.original)
-                            }
-                            onClick={(event) => {
-                              if (property.type === "title") {
+                        {row.getAllCells().map((cell, column) => {
+                          const property = visible[column];
+                          if (property === undefined) return null;
+                          const position = { row: index, column };
+                          const key = refKey(position);
+                          const editing = editingCell?.key === key;
+                          return (
+                            <td
+                              key={cell.id}
+                              ref={(element) => {
+                                if (element === null) refs.current.delete(key);
+                                else refs.current.set(key, element);
+                              }}
+                              className={
+                                property.type === "title" ||
+                                property.type === "text" ||
+                                property.type === "number"
+                                  ? "database-cell--text"
+                                  : "database-cell--property"
+                              }
+                              role="gridcell"
+                              headers={`database-column-${view.id}-${property.id}`}
+                              aria-colindex={column + 1}
+                              aria-label={`${property.name}, ${displayDatabaseValue(row.original, property)}`}
+                              tabIndex={
+                                activeCell.row === index && activeCell.column === column ? 0 : -1
+                              }
+                              data-grid-mode={
+                                editing ||
+                                (property.type === "title" &&
+                                  (row.original.entryId === namingEntryId ||
+                                    titleEdit?.id === row.original.entryId))
+                                  ? "editing"
+                                  : "navigation"
+                              }
+                              onFocus={() => {
+                                // Keep a focused entry button (or editor) in the
+                                // virtual range after its temporary return pin ends.
+                                setActiveCell((current) =>
+                                  current.row === index && current.column === column
+                                    ? current
+                                    : position,
+                                );
+                              }}
+                              onKeyDown={(event) =>
+                                onCellKeyDown(event, position, property, row.original)
+                              }
+                              onClick={(event) => {
+                                if (property.type === "title") {
+                                  const target = event.target;
+                                  if (
+                                    target instanceof Element &&
+                                    target.closest(
+                                      ".database-cell-title__open, input, textarea, select",
+                                    )
+                                  ) {
+                                    return;
+                                  }
+                                  if (row.original.entryId === namingEntryId) return;
+                                  startTitleEdit(row.original.entryId, null);
+                                  return;
+                                }
+                                if (editing) return;
                                 const target = event.target;
                                 if (
                                   target instanceof Element &&
-                                  target.closest(
-                                    ".database-cell-title__open, input, textarea, select",
-                                  )
+                                  target.closest("button, select, input, textarea, a")
                                 ) {
                                   return;
                                 }
-                                if (row.original.entryId === namingEntryId) return;
-                                startTitleEdit(row.original.entryId, null);
-                                return;
-                              }
-                              if (editing) return;
-                              const target = event.target;
-                              if (
-                                target instanceof Element &&
-                                target.closest("button, select, input, textarea, a")
-                              ) {
-                                return;
-                              }
-                              if (isImmediateProperty(property)) {
-                                openImmediateControl(event.currentTarget, "Enter");
-                                return;
-                              }
-                              beginEdit(position, property, row.original);
-                            }}
-                          >
-                            {property.type === "title" && row.original.entryId === namingEntryId ? (
-                              <label className="database-cell-title database-cell-title--naming">
-                                <TitleItemIcon row={row.original} />
-                                <input
-                                  className="database-cell-title-input"
-                                  data-naming-entry={row.original.entryId}
-                                  aria-label={`Nom de ${row.original.title}`}
-                                  placeholder={row.original.title}
-                                  defaultValue=""
-                                  onKeyDown={(event) => {
-                                    event.stopPropagation();
-                                    if (event.key !== "Enter" && event.key !== "Escape") return;
-                                    event.preventDefault();
-                                    finishNaming(
-                                      row.original.entryId as Uuid,
-                                      event.currentTarget,
-                                      event.key === "Escape",
-                                    );
-                                  }}
-                                  onBlur={(event) =>
-                                    finishNaming(
-                                      row.original.entryId as Uuid,
-                                      event.currentTarget,
-                                      false,
-                                    )
-                                  }
-                                />
-                              </label>
-                            ) : editing && property.type !== "title" ? (
-                              <ValueEditor
-                                presentation="inline"
-                                property={property}
-                                input={editingCell.draft}
-                                error={editingCell.error}
-                                idSuffix={row.original.entryId}
-                                relationOptions={relationOptions.filter(
-                                  ({ id }) => id !== row.original.entryId,
-                                )}
-                                onBlur={() => {
-                                  if (ignoreEditBlur.current) {
-                                    ignoreEditBlur.current = false;
-                                    return;
-                                  }
-                                  void saveEdit(position, property, row.original);
-                                }}
-                                onChange={(draft) => {
-                                  setEditingCell((current) =>
-                                    current?.key === key
-                                      ? { ...current, draft, error: null }
-                                      : current,
-                                  );
-                                  const commitsOnChange =
-                                    property.type === "checkbox" ||
-                                    property.type === "status" ||
-                                    property.type === "select" ||
-                                    (property.type === "relation" &&
-                                      property.config.cardinality === "one");
-                                  if (commitsOnChange) {
-                                    void commitProperty(position, property, row.original, draft);
-                                  }
-                                }}
-                              />
-                            ) : editing ? (
-                              <div className="database-cell-editor">
-                                <label>
-                                  <span className="sr-only">
-                                    {DATABASE_COPY.table.titleFor(row.original.title)}
-                                  </span>
-                                  <input
-                                    value={
-                                      typeof editingCell.draft === "string" ? editingCell.draft : ""
-                                    }
-                                    onChange={(event) =>
-                                      setEditingCell((current) =>
-                                        current?.key === key
-                                          ? {
-                                              ...current,
-                                              draft: event.target.value,
-                                              error: null,
-                                            }
-                                          : current,
-                                      )
-                                    }
-                                  />
-                                </label>
-                                {editingCell.error !== null ? (
-                                  <span className="database-field__error" role="alert">
-                                    {editingCell.error}
-                                  </span>
-                                ) : null}
-                                <div className="database-cell-editor__actions">
-                                  <Button
-                                    type="button"
-                                    size="compact"
-                                    busy={editingCell.saving}
-                                    disabled={editingCell.saving}
-                                    onClick={() => void saveEdit(position, property, row.original)}
-                                  >
-                                    {editingCell.saving
-                                      ? DATABASE_COPY.table.saving(property.name)
-                                      : DATABASE_COPY.table.saveFor(
-                                          property.name,
-                                          row.original.title,
-                                        )}
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="compact"
-                                    variant="ghost"
-                                    disabled={editingCell.saving}
-                                    onClick={() => cancelEdit(position)}
-                                  >
-                                    {DATABASE_COPY.table.cancelEdit}
-                                  </Button>
-                                  <StableActionButton
-                                    type="button"
-                                    className="link"
-                                    data-entry-trigger={row.original.entryId}
-                                    onActivate={(trigger) =>
-                                      onOpenEntry(row.original.entryId as Uuid, trigger)
-                                    }
-                                  >
-                                    {DATABASE_COPY.table.openEntry}
-                                  </StableActionButton>
-                                </div>
-                              </div>
-                            ) : property.type === "title" ? (
-                              <div className="database-cell-title">
-                                <TitleItemIcon row={row.original} />
-                                {titleEdit?.id === row.original.entryId ? (
+                                if (isImmediateProperty(property)) {
+                                  openImmediateControl(event.currentTarget, "Enter");
+                                  return;
+                                }
+                                beginEdit(position, property, row.original);
+                              }}
+                            >
+                              {property.type === "title" &&
+                              row.original.entryId === namingEntryId ? (
+                                <label className="database-cell-title database-cell-title--naming">
+                                  <TitleItemIcon row={row.original} />
                                   <input
                                     className="database-cell-title-input"
-                                    data-title-edit={row.original.entryId}
+                                    data-naming-entry={row.original.entryId}
                                     aria-label={`Nom de ${row.original.title}`}
-                                    placeholder={DATABASE_COPY.value.emptyPlaceholder}
-                                    defaultValue={titleEdit.seed ?? row.original.title}
+                                    placeholder={row.original.title}
+                                    defaultValue=""
                                     onKeyDown={(event) => {
                                       event.stopPropagation();
                                       if (event.key !== "Enter" && event.key !== "Escape") return;
                                       event.preventDefault();
-                                      finishTitleEdit(
+                                      finishNaming(
                                         row.original.entryId as Uuid,
-                                        row.original.title,
                                         event.currentTarget,
                                         event.key === "Escape",
                                       );
                                     }}
                                     onBlur={(event) =>
-                                      finishTitleEdit(
+                                      finishNaming(
                                         row.original.entryId as Uuid,
-                                        row.original.title,
                                         event.currentTarget,
                                         false,
                                       )
                                     }
                                   />
-                                ) : (
-                                  <span className="database-cell-text">
-                                    {String(cell.getValue())}
-                                  </span>
-                                )}
-                                {titleEdit?.id === row.original.entryId ? null : (
-                                  <StableActionButton
-                                    type="button"
-                                    className="database-cell-title__open"
-                                    pinDuringPointer
-                                    size="square"
-                                    variant="ghost"
-                                    aria-label={DATABASE_COPY.table.openEntry}
-                                    data-entry-trigger={row.original.entryId}
-                                    tabIndex={-1}
-                                    onKeyDown={(event) => event.stopPropagation()}
-                                    onActivate={(trigger) =>
-                                      onOpenEntry(row.original.entryId as Uuid, trigger)
+                                </label>
+                              ) : editing && property.type !== "title" ? (
+                                <ValueEditor
+                                  presentation="inline"
+                                  property={property}
+                                  input={editingCell.draft}
+                                  error={editingCell.error}
+                                  idSuffix={row.original.entryId}
+                                  relationOptions={relationOptions.filter(
+                                    ({ id }) => id !== row.original.entryId,
+                                  )}
+                                  onBlur={() => {
+                                    if (ignoreEditBlur.current) {
+                                      ignoreEditBlur.current = false;
+                                      return;
                                     }
-                                  >
-                                    <AppIcon name="reference" size="small" />
-                                  </StableActionButton>
-                                )}
-                              </div>
-                            ) : isImmediateProperty(property) ? (
-                              <ImmediatePropertyControl
-                                property={property}
-                                row={row.original}
-                                onCommit={(draft) =>
-                                  void commitProperty(position, property, row.original, draft)
-                                }
-                              />
-                            ) : (
-                              <span className="database-cell-value database-cell-text">
-                                {String(cell.getValue())}
-                              </span>
-                            )}
-                          </td>
-                        );
-                      })}
-                      {onAddProperty === undefined ? null : (
-                        <td className="database-table-add-property" aria-hidden="true" />
-                      )}
-                      <td className="database-table-filler" aria-hidden="true" />
-                    </tr>
-                  </Fragment>
-                ),
-              )
-            )}
-            {spacer(trailingGap)}
-          </tbody>
-        </table>
+                                    void saveEdit(position, property, row.original);
+                                  }}
+                                  onChange={(draft) => {
+                                    setEditingCell((current) =>
+                                      current?.key === key
+                                        ? { ...current, draft, error: null }
+                                        : current,
+                                    );
+                                    const commitsOnChange =
+                                      property.type === "checkbox" ||
+                                      property.type === "status" ||
+                                      property.type === "select" ||
+                                      (property.type === "relation" &&
+                                        property.config.cardinality === "one");
+                                    if (commitsOnChange) {
+                                      void commitProperty(position, property, row.original, draft);
+                                    }
+                                  }}
+                                />
+                              ) : editing ? (
+                                <div className="database-cell-editor">
+                                  <label>
+                                    <span className="sr-only">
+                                      {DATABASE_COPY.table.titleFor(row.original.title)}
+                                    </span>
+                                    <input
+                                      value={
+                                        typeof editingCell.draft === "string"
+                                          ? editingCell.draft
+                                          : ""
+                                      }
+                                      onChange={(event) =>
+                                        setEditingCell((current) =>
+                                          current?.key === key
+                                            ? {
+                                                ...current,
+                                                draft: event.target.value,
+                                                error: null,
+                                              }
+                                            : current,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  {editingCell.error !== null ? (
+                                    <span className="database-field__error" role="alert">
+                                      {editingCell.error}
+                                    </span>
+                                  ) : null}
+                                  <div className="database-cell-editor__actions">
+                                    <Button
+                                      type="button"
+                                      size="compact"
+                                      busy={editingCell.saving}
+                                      disabled={editingCell.saving}
+                                      onClick={() =>
+                                        void saveEdit(position, property, row.original)
+                                      }
+                                    >
+                                      {editingCell.saving
+                                        ? DATABASE_COPY.table.saving(property.name)
+                                        : DATABASE_COPY.table.saveFor(
+                                            property.name,
+                                            row.original.title,
+                                          )}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="compact"
+                                      variant="ghost"
+                                      disabled={editingCell.saving}
+                                      onClick={() => cancelEdit(position)}
+                                    >
+                                      {DATABASE_COPY.table.cancelEdit}
+                                    </Button>
+                                    <StableActionButton
+                                      type="button"
+                                      className="link"
+                                      data-entry-trigger={row.original.entryId}
+                                      onActivate={(trigger) =>
+                                        onOpenEntry(row.original.entryId as Uuid, trigger)
+                                      }
+                                    >
+                                      {DATABASE_COPY.table.openEntry}
+                                    </StableActionButton>
+                                  </div>
+                                </div>
+                              ) : property.type === "title" ? (
+                                <div className="database-cell-title">
+                                  <TitleItemIcon row={row.original} />
+                                  {titleEdit?.id === row.original.entryId ? (
+                                    <input
+                                      className="database-cell-title-input"
+                                      data-title-edit={row.original.entryId}
+                                      aria-label={`Nom de ${row.original.title}`}
+                                      placeholder={DATABASE_COPY.value.emptyPlaceholder}
+                                      defaultValue={titleEdit.seed ?? row.original.title}
+                                      onKeyDown={(event) => {
+                                        event.stopPropagation();
+                                        if (event.key !== "Enter" && event.key !== "Escape") return;
+                                        event.preventDefault();
+                                        finishTitleEdit(
+                                          row.original.entryId as Uuid,
+                                          row.original.title,
+                                          event.currentTarget,
+                                          event.key === "Escape",
+                                        );
+                                      }}
+                                      onBlur={(event) =>
+                                        finishTitleEdit(
+                                          row.original.entryId as Uuid,
+                                          row.original.title,
+                                          event.currentTarget,
+                                          false,
+                                        )
+                                      }
+                                    />
+                                  ) : (
+                                    <span className="database-cell-text">
+                                      {String(cell.getValue())}
+                                    </span>
+                                  )}
+                                  {titleEdit?.id === row.original.entryId ? null : (
+                                    <StableActionButton
+                                      type="button"
+                                      className="database-cell-title__open"
+                                      pinDuringPointer
+                                      size="square"
+                                      variant="ghost"
+                                      aria-label={DATABASE_COPY.table.openEntry}
+                                      data-entry-trigger={row.original.entryId}
+                                      tabIndex={-1}
+                                      onKeyDown={(event) => event.stopPropagation()}
+                                      onActivate={(trigger) =>
+                                        onOpenEntry(row.original.entryId as Uuid, trigger)
+                                      }
+                                    >
+                                      <AppIcon name="reference" size="small" />
+                                    </StableActionButton>
+                                  )}
+                                </div>
+                              ) : isImmediateProperty(property) ? (
+                                <ImmediatePropertyControl
+                                  property={property}
+                                  row={row.original}
+                                  onCommit={(draft) =>
+                                    void commitProperty(position, property, row.original, draft)
+                                  }
+                                />
+                              ) : (
+                                <span className="database-cell-value database-cell-text">
+                                  {String(cell.getValue())}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        {onAddProperty === undefined ? null : (
+                          <td className="database-table-add-property" aria-hidden="true" />
+                        )}
+                        <td className="database-table-filler" aria-hidden="true" />
+                      </tr>
+                    </Fragment>
+                  ),
+                )
+              )}
+              {spacer(trailingGap)}
+            </tbody>
+          </table>
+        </div>
       </section>
       <p className="sr-only" aria-live="polite">
         {announcement}

@@ -67,13 +67,20 @@ export function createSavedView(
     };
   } else if (type === "board") {
     const axis = activeProperties.find(
-      (property) => property.type === "status" || property.type === "select",
+      (property) =>
+        property.type === "status" ||
+        property.type === "select" ||
+        property.type === "multi-select",
     );
-    if (axis === undefined || (axis.type !== "status" && axis.type !== "select")) return definition;
+    if (
+      axis === undefined ||
+      (axis.type !== "status" && axis.type !== "select" && axis.type !== "multi-select")
+    )
+      return definition;
     created = {
       ...common,
       type,
-      group: null,
+      group: { propertyId: axis.id },
       options: {
         axisPropertyId: axis.id,
         columnOrder: axis.config.options.map(({ id }) => id),
@@ -231,7 +238,8 @@ export function DatabaseToolbar({
     return <AsyncState compact kind="error" description={DATABASE_COPY.common.noUsableView} />;
   }
   const hasBoardAxis = definition.properties.some(
-    ({ state, type }) => state === "active" && (type === "status" || type === "select"),
+    ({ state, type }) =>
+      state === "active" && (type === "status" || type === "select" || type === "multi-select"),
   );
   const hasCalendarDate = definition.properties.some(
     ({ state, type }) => state === "active" && type === "date",

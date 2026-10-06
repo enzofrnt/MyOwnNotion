@@ -20,7 +20,12 @@ function groupLabel(definition: DatabaseDefinition, propertyId: Uuid, groupId: s
   if (groupId === "checked") return "Coché";
   if (groupId === "unchecked") return "Non coché";
   const property = definition.properties.find(({ id }) => id === propertyId);
-  if (property?.type !== "status" && property?.type !== "select") return groupId;
+  if (
+    property?.type !== "status" &&
+    property?.type !== "select" &&
+    property?.type !== "multi-select"
+  )
+    return groupId;
   return property.config.options.find(({ id }) => id === groupId)?.label ?? "Option indisponible";
 }
 
@@ -35,9 +40,18 @@ export function presentDatabaseQuery(input: {
   const visiblePropertyIds = new Set(
     input.view.properties.filter(({ visible }) => visible).map(({ propertyId }) => propertyId),
   );
-  const entryGroups = new Map<Uuid, string>();
+  // Hidden board properties still determine membership and movement. Visibility
+  // controls display, not the values needed to operate the chosen layout.
+  if (input.view.type === "board") visiblePropertyIds.add(input.view.options.axisPropertyId);
+  const groupingId =
+    input.view.type === "board" ? input.view.options.axisPropertyId : input.view.group?.propertyId;
+  const entryGroups = new Map<Uuid, string[]>();
   for (const group of input.groups)
-    for (const entryId of group.entryIds) entryGroups.set(entryId, group.id);
+    for (const entryId of group.entryIds) {
+      const memberships = entryGroups.get(entryId) ?? [];
+      memberships.push(group.id);
+      entryGroups.set(entryId, memberships);
+    }
   return {
     rows: input.entries.map((entry) => ({
       entryId: entry.entryId,
@@ -53,14 +67,17 @@ export function presentDatabaseQuery(input: {
           .filter(([propertyId]) => visiblePropertyIds.has(propertyId as Uuid))
           .map(([propertyId, targetIds]) => [propertyId, [...targetIds]]),
       ),
-      groupId: entryGroups.get(entry.entryId) ?? null,
+      groupId:
+        entryGroups.get(entry.entryId)?.length === 1
+          ? (entryGroups.get(entry.entryId)?.[0] ?? null)
+          : null,
     })),
     groups:
-      !input.includeGroups || input.view.group === null
+      !input.includeGroups || groupingId === undefined
         ? []
         : input.groups.map((group) => ({
             id: group.id,
-            label: groupLabel(input.definition, input.view.group?.propertyId as Uuid, group.id),
+            label: groupLabel(input.definition, groupingId, group.id),
             count: group.entryIds.length,
           })),
   };

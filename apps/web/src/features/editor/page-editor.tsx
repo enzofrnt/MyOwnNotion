@@ -59,7 +59,7 @@ import {
 import { BlockContextMenu } from "./editor-menus/block-context-menu.tsx";
 import { BlockSideMenu } from "./editor-menus/block-side-menu.tsx";
 import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
-import { LinkedDatabasePicker } from "./editor-menus/linked-database-picker.tsx";
+import { IntegratedDatabasePicker } from "./editor-menus/integrated-database-picker.tsx";
 import { PageLinkPicker, type PageLinkPickerRequest } from "./editor-menus/page-link-picker.tsx";
 import {
   type CreateInlineDatabase,
@@ -145,11 +145,16 @@ export function PageEditor({
   const [editorError, setEditorError] = useState<string | null>(null);
   const [pageLinkPicker, setPageLinkPicker] = useState<PageLinkPickerRequest | null>(null);
   const [webBookmarkDialog, setWebBookmarkDialog] = useState<WebBookmarkRequest | null>(null);
-  const [linkedDatabaseBlockId, setLinkedDatabaseBlockId] = useState<string | null>(null);
+  const [integratedDatabaseBlockId, setIntegratedDatabaseBlockId] = useState<string | null>(null);
   const databaseBlockContext = useDatabaseViewBlockContext();
+  useEffect(() => {
+    if (!discoverable) setIntegratedDatabaseBlockId(null);
+  }, [discoverable]);
   const [, setHistoryVersion] = useState(0);
   const onOpenPageRef = useRef(onOpenPage);
   const editorHostRef = useRef<HTMLElement | null>(null);
+  const activeEditorRef = useRef(discoverable);
+  activeEditorRef.current = discoverable;
   // BlockNote can replace the floating toolbar after a formatting action.
   // This ref belongs to the editor surface so the replacement cannot discard
   // the range needed by the next page-link action.
@@ -830,7 +835,7 @@ export function PageEditor({
             historyHost,
           )
         : null}
-      <PageOutline editor={editor} />
+      {discoverable ? <PageOutline key={pageId} editor={editor} hostRef={editorHostRef} /> : null}
       <BlockNoteView
         editor={viewEditor}
         editable={editable}
@@ -854,8 +859,9 @@ export function PageEditor({
           onCreateSubpage={onCreateSubpage}
           onCreateSubfolder={onCreateSubfolder}
           onCreateFullPageDatabase={onCreateFullPageDatabase}
-          onCreateInlineDatabase={onCreateInlineDatabase}
-          onCreateLinkedDatabaseView={setLinkedDatabaseBlockId}
+          onInsertInlineDatabase={
+            databaseBlockContext === null ? undefined : setIntegratedDatabaseBlockId
+          }
           onSubpageCreated={openCreatedSubpage}
           onError={reportEditorError}
         />
@@ -892,14 +898,23 @@ export function PageEditor({
         request={webBookmarkDialog}
         onClose={() => setWebBookmarkDialog(null)}
       />
-      {databaseBlockContext === null ? null : (
-        <LinkedDatabasePicker
-          blockId={linkedDatabaseBlockId}
+      {databaseBlockContext === null ||
+      integratedDatabaseBlockId === null ||
+      !discoverable ? null : (
+        <IntegratedDatabasePicker
+          key={integratedDatabaseBlockId}
+          blockId={integratedDatabaseBlockId}
           parentItemId={pageId}
           items={items}
           service={databaseBlockContext.service}
           editor={editor}
-          onClose={() => setLinkedDatabaseBlockId(null)}
+          createDatabase={onCreateInlineDatabase}
+          onClose={() => {
+            setIntegratedDatabaseBlockId(null);
+            queueMicrotask(() => {
+              if (activeEditorRef.current) editor.focus();
+            });
+          }}
         />
       )}
       {editorError === null ? null : (

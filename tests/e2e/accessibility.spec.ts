@@ -480,9 +480,10 @@ test.describe("structured database view accessibility (feature 009)", () => {
 
     await databaseViewButton(page, /Kanban/).click();
     await expect(page.getByLabel(`Déplacer ${entryName} dans une autre colonne`)).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: `Déplacer ${entryName} dans la colonne suivante` }),
-    ).toBeVisible();
+    await page.getByLabel(`Déplacer ${entryName} dans une autre colonne`).press("Enter");
+    await expect(page.getByRole("menuitem", { name: "Done", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByLabel(`Déplacer ${entryName} dans une autre colonne`)).toBeFocused();
     await databaseViewButton(page, /Calendrier/).click();
     await expect(page.getByLabel(`Planifier ${entryName}`)).toBeVisible();
     await expect(

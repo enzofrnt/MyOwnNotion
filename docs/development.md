@@ -319,11 +319,12 @@ the guard to force startup. The new-model export/backup and restore journey is
 validated on a fresh installation as described in
 [`specs/029-database-pages-views/quickstart.md`](../specs/029-database-pages-views/quickstart.md).
 
-### Notion import CLI
+### Notion API import CLI
 
-`bun run import:notion --source PATH` performs a source-only preview. Explicit
+`bun run import:notion --discover --json` lists accessible Notion objects;
+`bun run import:notion --all --id UUID` previews a read-only API snapshot. Explicit
 apply uses canonical mutation services, protected files and a verified complete
-safety backup. See the [source formats, setup, reports and resume guide](notion-import.md).
+safety backup. See the [API access, selection, reports and encrypted resume guide](notion-import.md).
 
 ### Backup and recovery commands
 

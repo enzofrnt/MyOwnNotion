@@ -11,7 +11,22 @@ export function updatedCellProperties(
 ) {
   const values = { ...currentValues };
   const relationTargets = { ...currentRelations };
-  if (update.relationTargets !== undefined) {
+  if (update.optionMove !== undefined) {
+    const current = values[update.propertyId];
+    if (current !== undefined && current.kind !== "multi-select")
+      throw new Error("La propriété de regroupement a changé.");
+    const ids = current?.kind === "multi-select" ? current.optionIds : [];
+    const { from, to } = update.optionMove;
+    if (from !== "missing" && !ids.includes(from))
+      throw new Error("La carte a changé de colonne. Réessayez depuis sa position actuelle.");
+    delete relationTargets[update.propertyId];
+    if (to === "missing") delete values[update.propertyId];
+    else
+      values[update.propertyId] = {
+        kind: "multi-select",
+        optionIds: [...new Set([...ids.filter((id) => id !== from), to])].sort(),
+      };
+  } else if (update.relationTargets !== undefined) {
     relationTargets[update.propertyId] = update.relationTargets;
     delete values[update.propertyId];
   } else {

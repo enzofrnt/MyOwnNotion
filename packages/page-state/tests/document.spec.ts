@@ -1,4 +1,4 @@
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { canonicalBlockProperties, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 import {
   OperationalPageDocument,
@@ -11,6 +11,24 @@ function paragraph(id: Uuid, text: string) {
 }
 
 describe("operational page transactions", () => {
+  it("activates inline database references and retains them through edits and checkpoint reopen", async () => {
+    const pageId = generateUuidV7(),
+      blockId = generateUuidV7(),
+      containerItemId = generateUuidV7(),
+      viewId = generateUuidV7();
+    const block = { type: "databaseView" as const, id: blockId, containerItemId, viewId };
+    expect(canonicalBlockProperties(block)).toEqual({ containerItemId, viewId });
+    const page = OperationalPageDocument.create({ pageId, document: { blocks: [block] } });
+    expect(page.snapshot().blocks[0]).toEqual(block);
+    const nextView = generateUuidV7();
+    page.transact([{ type: "set-block-property", blockId, key: "viewId", value: nextView }]);
+    expect((await page.project()).document.blocks[0]).toEqual({ ...block, viewId: nextView });
+    const reopened = await OperationalPageDocument.fromCheckpoint({
+      pageId,
+      checkpoint: await page.checkpoint(),
+    });
+    expect(reopened.snapshot().blocks[0]).toEqual({ ...block, viewId: nextView });
+  });
   it("applies a command batch atomically and emits one incremental update", async () => {
     const pageId = generateUuidV7();
     const firstId = generateUuidV7();

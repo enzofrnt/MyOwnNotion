@@ -100,7 +100,8 @@ export const DATABASE_COPY = {
     newBoard: "Nouvelle vue Kanban",
     newGallery: "Nouvelle vue galerie",
     newCalendar: "Nouvelle vue calendrier",
-    boardNeedsProperty: "Ajoutez d'abord une propriété de statut ou de sélection",
+    boardNeedsProperty:
+      "Ajoutez d'abord une propriété de statut, de sélection ou de sélection multiple",
     calendarNeedsProperty: "Ajoutez d'abord une propriété de date",
     duplicate: "Dupliquer la vue",
     moveEarlier: "Déplacer la vue vers la gauche",
@@ -239,6 +240,9 @@ export const DATABASE_COPY = {
       `Tri et regroupement · ${count} ${count === 1 ? "tri" : "tris"}${grouped ? " · regroupé" : ""}`,
   },
   board: {
+    moveTo: "Déplacer vers",
+    groupingSettings: "Regroupement du Kanban",
+    clearSelections: "Retirer toutes les sélections",
     noPropertyValue: (name: string) => `Sans ${name.toLocaleLowerCase(DATABASE_LOCALE)}`,
     cardsFor: (name: string) => `Cartes de ${name}`,
     moveToAnother: (title: string) => `Déplacer ${title} dans une autre colonne`,
@@ -248,7 +252,7 @@ export const DATABASE_COPY = {
     next: "Colonne suivante",
     viewLabel: (name: string) => `Vue Kanban ${name}`,
     needsProperty:
-      "Ajoutez une propriété active de statut ou de sélection pour utiliser cette vue.",
+      "Choisissez une propriété active de statut, de sélection ou de sélection multiple pour utiliser cette vue.",
     moved: (title: string, column: string) => `${title} a été déplacé dans ${column}`,
     moveFailed: (title: string) => `${title} n'a pas pu être déplacé`,
     groupingProperty: "Propriété de regroupement du Kanban",

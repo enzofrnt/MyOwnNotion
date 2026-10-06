@@ -251,15 +251,31 @@ Autorisation depuis les réglages, permissions granulaires, révocation et audit
 MCP. Canevas : sections 26, 28–30, 42, 47 et 49.
 
 
-### 028 — Import Notion local avant V1
+### 028 — Import Notion par API avant V1
 
-Dépend des fondations de sauvegarde 024 et de bases 026 ; l'application de
-l'import doit être réalignée sur le modèle de la refonte 029 avant la V1.
-CLI avec aperçu par défaut pour Markdown/CSV/ZIP natifs et
-dossier Obsidian converti ; contenu, liens, fichiers, propriétés et membres de
-sources réutilisables. Sauvegarde préalable sur cible occupée, provenance
-chiffrée et reprise idempotente. Les réglages absents restent explicitement
-inconnus. Aucun parcours UI ni synchronisation Notion continue.
+Dépend de 024 et du modèle de bases 029. Remplace les adaptateurs de fichiers
+par découverte/sélection/aperçu et application explicite via une intégration
+Notion en lecture seule. Contenus, sources, lignes, relations, médias et vues
+compatibles deviennent natifs ; limites signalées et originaux conservés.
+Snapshot chiffré, reprise idempotente et sauvegarde préalable. Aucun nouveau
+parcours UI ni synchronisation continue.
+
+### 035 — Liens d'éléments et insertion de bases
+
+**Dossier** : [specs/035-item-links-database-insertion](../../specs/035-item-links-database-insertion/).
+Livraison locale sur l'instance isolée : liens vers pages/dossiers/bases,
+créations imbriquées cohérentes, choix unifié nouvelle source/source existante.
+L'import conserve lien de base enfant ou intégration selon sa présentation.
+Les preuves et la réparation contrôlée sont consignées dans la feature ;
+publication non demandée.
+
+### 034 — Équations, sommaires et listes lisibles
+
+**Dossier** : [specs/034-notion-content-navigation](../../specs/034-notion-content-navigation/).
+**Canevas** : §§13,14,18,20 et27.1. Complète l'import028 et les bases029 :
+équations de bloc/en ligne durables et éditables, sommaire insérable et outline
+limité à la page active, liste à valeurs alignées et icônes. Livraison locale
+sur instance indépendante, sans couverture ni collaboration.
 
 ### 029 — Bases comme pages et vues (avant V1)
 

@@ -133,16 +133,18 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   const doneColumn = page
     .locator("[data-board-column]")
     .filter({ has: page.getByRole("heading", { name: /^Done ·/ }) });
-  await page.getByRole("button", { name: `Déplacer ${alpha} dans la colonne suivante` }).click();
+  await page.getByRole("button", { name: `Déplacer ${alpha} dans une autre colonne` }).click();
+  await page.getByRole("menuitem", { name: "Done", exact: true }).click();
   await expect(doneColumn.locator(".database-card").filter({ hasText: alpha })).toBeVisible({
     timeout: 15_000,
   });
   await waitForSynchronized(page);
 
   const betaMove = page.getByRole("button", {
-    name: `Déplacer ${beta} dans la colonne suivante`,
+    name: `Déplacer ${beta} dans une autre colonne`,
   });
   await betaMove.press("Enter");
+  await page.getByRole("menuitem", { name: "Done", exact: true }).press("Enter");
   await expect(doneColumn.locator(".database-card").filter({ hasText: beta })).toBeVisible({
     timeout: 15_000,
   });

@@ -8,15 +8,20 @@ interface TableViewport {
 }
 
 /** Table rows live in either a bounded table or the workspace's page flow. */
-export function measureTableViewport(surface: HTMLElement | null): TableViewport {
+export function measureTableViewport(
+  surface: HTMLElement | null,
+  contentSelector = "tbody",
+): TableViewport {
   // Retained editor tabs must not observe or move the visible page's viewport.
   if (surface === null || surface.getClientRects().length === 0) {
     return { element: null, scrollMargin: 0, headerHeight: 0, pageFlow: false };
   }
   const pageFlow =
-    surface.closest(".database-container-page, .editor-database-view-block") !== null;
+    surface.closest(
+      ".database-container-page, .editor-database-view-block, .workspace-page-canvas, .page-databases",
+    ) !== null;
   const element = (pageFlow ? surface.closest<HTMLElement>(".workspace-main") : null) ?? surface;
-  const body = surface.querySelector("tbody");
+  const body = surface.querySelector(contentSelector);
   return {
     element,
     pageFlow: element !== surface,
@@ -36,7 +41,10 @@ export function measureTableViewport(surface: HTMLElement | null): TableViewport
   };
 }
 
-export function useTableViewport(surface: RefObject<HTMLElement | null>): TableViewport {
+export function useTableViewport(
+  surface: RefObject<HTMLElement | null>,
+  contentSelector = "tbody",
+): TableViewport {
   const [viewport, setViewport] = useState<TableViewport>({
     element: null,
     scrollMargin: 0,
@@ -45,7 +53,7 @@ export function useTableViewport(surface: RefObject<HTMLElement | null>): TableV
   });
   // Changes to title, properties or row contents can move the tbody origin.
   useLayoutEffect(() => {
-    const measured = measureTableViewport(surface.current);
+    const measured = measureTableViewport(surface.current, contentSelector);
     setViewport((current) =>
       current.element === measured.element &&
       current.scrollMargin === measured.scrollMargin &&
@@ -58,7 +66,7 @@ export function useTableViewport(surface: RefObject<HTMLElement | null>): TableV
     const element = surface.current;
     if (element === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      const measured = measureTableViewport(element);
+      const measured = measureTableViewport(element, contentSelector);
       setViewport((current) =>
         current.element === measured.element &&
         current.scrollMargin === measured.scrollMargin &&
@@ -71,6 +79,6 @@ export function useTableViewport(surface: RefObject<HTMLElement | null>): TableV
     const workspace = element.closest(".workspace-main");
     if (workspace !== null) observer.observe(workspace);
     return () => observer.disconnect();
-  }, [surface]);
+  }, [surface, contentSelector]);
   return viewport;
 }
