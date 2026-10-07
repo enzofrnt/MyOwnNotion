@@ -922,3 +922,77 @@ réels sans tolérance, puis visibilité et clic natifs. Aucune modification CSS
 de layout n'est conservée pour ce calcul d'intersection. Preuves privées :
 publication-peek-menu-five-profiles-3.log et publication-five-profile-menu-proof/.
 La validation globale reste en attente du gate complet sur le commit corrigé.
+
+## Reprises de disposition et de focus — publication du 7 octobre
+
+Les premiers passages complets ont révélé des parcours historiques qui ciblaient
+une table unique, des en-têtes hors écran ou la navigation derrière un volet
+mobile. Les parcours gardent leurs assertions métier, mais distinguent désormais
+les en-têtes détachés du corps vide, révèlent les quatre bords des commandes
+par focus natif et ferment le volet avant d'ouvrir les diagnostics. Aucun clic
+forcé, seuil de pixels élargi ou contrôle de chiffrement supprimé.
+
+T050 : une fixture renomme d'abord sa page propriétaire, puis la source. Sur
+WebKit mobile, mesurer le geste suivant avant la fin de ce second renommage
+produisait un déplacement de 29 px, avec scroll de page et de propriétaire à 0.
+Les positions sont conservées dans `publication-property-stability-red-proof` ;
+le passage instrumenté rapportait 13 succès, 4 retries et 3 échecs, sans être
+présenté comme validé. Le parcours attend maintenant le nom réel de la source
+avant cette mesure distincte, sans modifier le seuil de 1 px. L'autosize du titre
+est effectué avant peinture ; le test de première mesure échoue sur l'ancien
+effet (`publication-source-title-red.log`) et passe après correction.
+
+T051 : le retour inconditionnel de focus à la fin de fermeture animée du volet
+fermait un choix de vue déjà ouvert. Deux passages WebKit mobile ont réellement
+bloqué sur le bouton Kanban masqué ; leurs retries ne validaient pas ce défaut
+(`publication-mobile-preconditions-green.log`, passage interrompu). La
+restitution conserve maintenant tout focus connecté hors du volet qui se ferme.
+Le retour normal et le remplacement du déclencheur restent testés.
+
+Commit de correction : `eae08c9c`. Contrôles ciblés : 23 tests web dans trois
+fichiers, types web et racine, Biome ciblé, sorties 0. Le passage des deux
+profils mobiles répète sept parcours deux fois : **28 succès, aucun retry**,
+sortie 0 en 172 s. Huit mesures de commande conservent leur nœud et donnent
+0 px de déplacement. Les captures du choix de vue après fermeture et les
+positions/défilements sont dans
+`work/notion-api/publication-mobile-preconditions-green-proof/` ; les logs sont
+`publication-focus-source-units.log`, `publication-focus-source-types.log`,
+`publication-focus-root-types.log` et `publication-mobile-preconditions-2.log`.
+Ces résultats bornés ne remplacent pas le gate complet ; répétitions sur les
+cinq profils, références visuelles et validation finale restent en cours.
+
+Les répétitions ciblées sur `eae08c9c` sont terminées : **75 succès sur les cinq
+profils, aucun retry**, sortie 0 en 160 s. Cinquante mesures (maintien et
+annulation, dix par profil) donnent toutes 0 px et un nœud connecté. Le choix
+de vue reste visible après fermeture du volet puis crée réellement la vue
+Liste. Captures examinées sur les cinq profils ; menu contenu et options
+indisponibles atténuées, sans changement d'apparence par cette correction.
+Preuves privées : `publication-focus-stability-five-profiles.log` et
+`publication-focus-stability-five-profile-proof/`, dont `stability-summary.json`.
+Les références visuelles et le gate complet restent à terminer.
+
+### Référence de base vide
+
+Le parcours sombre vérifie la région de vue, sa table d'en-têtes (une rangée),
+son corps grid (zéro rangée), l'absence d'éditeur et l'absence de faux introuvable.
+Il attend le nom de source courant avant capture. Seules les deux références
+`v1-database-dark-chromium-desktop-{darwin,linux}.png` sont actualisées, à partir
+d'un rendu réellement inspecté par plateforme. Disposition large dans le flux
+de page, titre de source et commandes Page/Dossier conformes aux artefacts ;
+les autres références et le seuil de comparaison 0,005 restent inchangés.
+
+Chaque plateforme passe ensuite trois comparaisons sans actualisation, aucun
+retry : macOS, 6 s de matrice ; Linux Playwright épinglé, 8,2 s de tests. Logs
+privés `publication-visual-darwin-{update,verify}.log` et
+`publication-visual-linux-{update,verify}.log`. Captures et comparaison macOS
+dans `publication-visual-darwin-proof/`, Linux dans
+`publication-visual-linux/`. La source Linux de cette vérification est une
+archive Git avec les deux références, une base et une clé jetables ; aucun
+fichier propriétaire ni secret de l'instance n'entre dans cette archive.
+
+Sélection du contrôle final : les changements depuis `origin/main` touchent
+import, stockage/synchronisation, rendu et déploiement ; exécuter un nouveau
+`bun run checks:local` intégral sur le candidat figé, puis les probes CI de
+sécurité et de sauvegarde séparément observables. Les passages complets
+précédents interrompus ne constituent pas un succès du gate final. Les inputs
+SQL ne diffèrent pas de main ; aucun changement de migration supplémentaire.
