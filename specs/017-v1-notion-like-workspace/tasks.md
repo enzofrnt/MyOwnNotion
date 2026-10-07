@@ -787,3 +787,9 @@ travail ; elles n'autorisent pas à réintroduire leurs sections.
 - [x] T325 Appliquer `ui-quality` et son journal : vérifier visuellement le
   maître et les tailles 16/32 px en clair/sombre, contrôler les ressources
   servies sur 8082 et le bundle, puis consigner les preuves dans `validation.md`.
+
+## Maintenance — notifications du sommaire et durabilité de la frappe (2026-10-07)
+
+- [ ] T326 [US2] Reproduire avant correction les actualisations React inutiles et synchrones du sommaire ; couvrir regroupement de frappes, changements de texte/niveau/ordre/identité, suppression, changement d'éditeur et annulation au démontage dans `apps/web/tests/page-headings-hook.spec.tsx` per FR-052 et FR-059.
+- [ ] T327 [US2] Différer et comparer la projection partagée des titres hors des callbacks de transaction BlockNote dans `apps/web/src/features/editor/page-headings.ts`, sans différer les opérations durables ; renforcer le journey legacy par l'absence d'erreur JavaScript et la présence du dernier caractère dans le journal avant reconnexion per FR-052, FR-064 et FR-065.
+- [ ] T328 [US2] Appliquer [ui-quality](../../.agents/skills/ui-quality/SKILL.md) et son [journal](../../.agents/skills/ui-quality/lessons.md), vérifier sommaires et migration sur les cinq profils et le gate complet, consigner preuves et commit dans `validation.md`, sans fermer les tâches V1 indépendantes restantes.

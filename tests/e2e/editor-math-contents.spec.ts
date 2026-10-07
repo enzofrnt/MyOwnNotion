@@ -98,7 +98,9 @@ test("edits math, preserves invalid source and supports history, slash and offli
 test("updates both contents projections, scrolls nested headings and leaves no stale outline", async ({
   page,
   request,
-}) => {
+}, testInfo) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const ids = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const,
@@ -205,6 +207,14 @@ test("updates both contents projections, scrolls nested headings and leaves no s
   await expect(editor.locator(".editor-contents-link").first()).toContainText("modifiée");
   await expect(page.getByTestId("page-outline")).toContainText("modifiée");
   await saveDocument(page, { until: "synced" });
+  expect(pageErrors).toEqual([]);
+  if (testInfo.repeatEachIndex === 0) {
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.screenshot({ path: testInfo.outputPath(`current-headings-${theme}.png`) });
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+  }
   for (let i = 0; i < 20; i++) {
     const alternate = i % 2 === 0;
     await page.evaluate(

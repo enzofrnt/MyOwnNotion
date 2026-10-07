@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { editorScrollContainer } from "./editor-view-state.ts";
 
 export interface PageHeading {
@@ -58,10 +58,42 @@ export function collectPageHeadings(document: readonly unknown[]): PageHeading[]
 }
 export function usePageHeadings(editor: HeadingsEditor): PageHeading[] {
   const [headings, setHeadings] = useState(() => collectPageHeadings(editor.document));
+  const published = useRef(headings);
   useEffect(() => {
-    const update = () => setHeadings(collectPageHeadings(editor.document));
+    let frame: number | null = null;
+    const update = () => {
+      const next = collectPageHeadings(editor.document);
+      if (
+        next.length === published.current.length &&
+        next.every((heading, index) => {
+          const previous = published.current[index];
+          return (
+            heading.id === previous?.id &&
+            heading.level === previous.level &&
+            heading.text === previous.text
+          );
+        })
+      )
+        return;
+      published.current = next;
+      setHeadings(next);
+    };
     update();
-    return editor.onChange(update);
+    // BlockNote emits inside its transaction, before the durable adapter's
+    // listener. React work there can interrupt the remaining listeners (error
+    // #185 during rapid typing). The outline is a derived UI projection: read
+    // the latest titles once per frame, after every transaction was recorded.
+    const unsubscribe = editor.onChange(() => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        update();
+      });
+    });
+    return () => {
+      unsubscribe();
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
   }, [editor]);
   return headings;
 }

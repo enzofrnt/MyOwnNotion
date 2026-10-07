@@ -1215,3 +1215,38 @@ du bundle ; aucune interaction ni donnée métier ne change. Aucune suite
 applicative n'est lancée. Seul le Web isolé 8082 est recréé ; l'API isolée et les
 conteneurs de l'instance principale conservent leurs dates de démarrage.
 Cette maintenance ne clôt aucune autre tâche de convergence V1.
+
+## Notifications du sommaire et durabilité — 2026-10-07 (T326–T328)
+
+Le propriétaire demande commit, tous les contrôles, push et PR. Le sixième
+gate du candidat `e8f432c1` est interrompu après un vrai échec E2E : le dernier
+caractère d'une saisie hors ligne disparaît à la projection suivant la
+reconnexion. La trace contient une erreur React 185 pendant cette dernière
+frappe, avant la fin de `pressSequentially`. Les source maps localisent
+`usePageHeadings` (`page-headings.ts:62`), notification BlockNote antérieure à
+celle de l'adaptateur durable. Une erreur dans ce callback interrompt les
+listeners suivants ; la présence du texte dans le DOM ne prouve donc pas sa
+durabilité. Les phases précédentes de ce gate ont passé couverture,
+performance, intégrations, migrations et contrats ; elles ne constituent pas
+un succès global ni une validation du candidat corrigé.
+
+La projection commune au sommaire latéral et aux tables des matières regroupe
+désormais les notifications par frame hors de la transaction et ne publie que
+les changements d'identité, niveau, texte ou ordre. Le cleanup retire la
+subscription et annule la frame en attente. Les opérations éditoriales restent
+immédiates et leur durabilité ne dépend pas de cette projection UI. Le journey
+de migration exige le texte complet dans le journal avant reconnexion et
+l'absence d'erreur JavaScript ; celui des sommaires protège aussi cette absence.
+Les délais artificiels d'encryption utilisés pour diagnostiquer sont retirés.
+
+Tests avant correction : deux assertions de notification synchrone/inutile
+échouent. Après correction : 33 tests passent dans quatre fichiers (dont six
+du hook), couvrant aussi les notifications pendant un commit React, changements
+de titres, ordre/niveau/identité, changement d'éditeur, démontage, batching
+d'entrée et projection distante. Format/lint ciblés et types Web/workspace
+passent. Preuves privées : `publication-headings-red.log`,
+`publication-headings-green.log`, `publication-headings-feedback-green.log` et
+`publication-headings-source-map-proof.json` sous `work/notion-api/`.
+La matrice répétée, les captures réelles selon ui-quality/lessons et le nouveau
+gate complet restent en cours ; aucune tâche de release V1 indépendante n'est
+clôturée par cette maintenance.

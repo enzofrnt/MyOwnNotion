@@ -183,6 +183,8 @@ test.describe("page protocol migration", () => {
     context,
     request,
   }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     const pageName = uniqueName("PendingV2Migration");
     const replacementText = `ancienne écriture en attente ${pageName}`;
     const operationalText = `nouvelle écriture opérationnelle ${pageName}`;
@@ -208,6 +210,14 @@ test.describe("page protocol migration", () => {
     await saveDocument(page);
     await expect(page.getByTestId("editor-sync-status")).toHaveAttribute("data-sync", "offline");
 
+    const durableBranch = await page.evaluate(async (id) => {
+      const service = window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.();
+      if (service === undefined) throw new Error("the E2E local-content hook is unavailable");
+      return await service.pageOperationLog.getLegacyBranch(id);
+    }, itemId);
+    expect(JSON.stringify(durableBranch?.branch.localDocument)).toContain(operationalText);
+    expect(pageErrors).toEqual([]);
+
     // Reconnection alone owns the handover. The old outbox write must be
     // accepted first (giving its local revision a canonical alias), then the
     // semantic branch converts from that exact acknowledged base.
@@ -216,6 +226,7 @@ test.describe("page protocol migration", () => {
     await expect(surface(page)).toContainText(replacementText);
     await expect(surface(page)).toContainText(operationalText);
     await expect(page.getByTestId("conflict-notice")).toHaveCount(0);
+    expect(pageErrors).toEqual([]);
 
     const localState = await page.evaluate(
       async ({ id, oldMutationId, oldLocalRevisionId }) => {

@@ -424,6 +424,23 @@ et version vector ; aucun WebSocket, WebRTC ou fournisseur hébergé n'est requi
 
 ### 5. Adaptateur BlockNote
 
+Maintenance de publication du 2026-10-07 (FR-052, FR-059, FR-064/065) : le gate
+complet a révélé une frappe visible mais absente du journal durable après une
+erreur React de profondeur maximale. Les source maps localisent le callback du
+sommaire, exécuté avant celui de l'adaptateur pendant la transaction BlockNote.
+Le sommaire et le bloc table des matières doivent partager une projection des
+titres actualisée après la transaction, regroupée par frame et comparée par
+identité, niveau, texte et ordre avant toute actualisation React. Le cleanup
+annule le travail différé lors d'un changement d'éditeur ou démontage. Cette
+maintenance ne change ni le protocole ni la garantie de durabilité : le test de
+bascule legacy contrôle le dernier caractère dans le journal avant reconnexion,
+l'absence d'erreur JavaScript puis la projection convergée après reconnexion.
+Appliquer [ui-quality](../../.agents/skills/ui-quality/SKILL.md) et son
+[journal](../../.agents/skills/ui-quality/lessons.md) : titres de sommaire à jour,
+aucun déplacement de la surface éditoriale ni changement visuel de son chrome.
+Vérifier le hook par tests composant, les journeys de sommaire et de migration
+sur les cinq profils, puis le gate complet sur le commit de publication.
+
 BlockNote ne lit ni n'écrit directement Dexie, l'API ou le document canonique.
 `editor-adapter.ts` expose :
 

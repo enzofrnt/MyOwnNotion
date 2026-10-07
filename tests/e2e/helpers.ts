@@ -5,6 +5,7 @@
  * secret, and readiness helpers the feature-002 journeys need (T003).
  */
 import {
+  type BlockDocumentV3,
   type DatabasePropertyType,
   generateUuidV7,
   type PageDocument,
@@ -353,7 +354,10 @@ interface E2ELocalContentService {
   };
   readonly pageOperationLog: {
     getState(pageId: string): Promise<{ readonly status: string } | null>;
-    getLegacyBranch(pageId: string): Promise<{ readonly status: string } | null>;
+    getLegacyBranch(pageId: string): Promise<{
+      readonly status: string;
+      readonly branch: { readonly localDocument: BlockDocumentV3 };
+    } | null>;
   };
 }
 
