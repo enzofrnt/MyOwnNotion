@@ -251,7 +251,7 @@ couleurs `--ui-content-*` restent les textes éditoriaux lisibles. Les graines
 `-accent` et les coefficients communs `--ui-content-*-weight` produisent les
 fonds `-wash` (colonne), `-soft` (carte/highlight), `-badge` (option) et le
 contour `-border` sans palette locale. `-foreground` mélange l’accent au texte
-principal en clair ; les commandes et compteurs restent lisibles tandis que
+principal dans les deux thèmes ; les commandes et compteurs restent lisibles tandis que
 les points et sélecteurs conservent la teinte de base. La palette de propriété s'applique aussi
 quand le badge est posé sur une carte d'une autre couleur. Le gris utilise les
 surfaces neutres. Un contour ne reprend jamais le texte clair d'un badge.

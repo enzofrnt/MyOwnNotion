@@ -82,7 +82,8 @@ Captures clair/sombre, 320 px, clavier ; écart matériel bloque convergence.
 
 Tests ciblés avant gate complet `bun run checks:local` ; utiliser les équivalents
 Linux documentés pour Firefox/WebKit sur macOS. Préserver instances 8080 et API/DB
-8082 ; reconstruire seulement le web 8082 pour revue réelle. Aucun push demandé.
+8082 ; reconstruire seulement le web 8082 pour revue réelle. La demande de
+publication du 7 octobre autorise commit, contrôles complets, push et PR.
 Conserver les captures privées dans `work/notion-api/040-*` et l'évidence résumée
 sans données propriétaire dans validation.md.
 

@@ -31,12 +31,13 @@ rôles dérivés (-foreground, -soft, -wash, -badge, -border). Les ratios s'appl
 même espace sRGB que les couches transparentes mesurées. Le gris utilise les
 surfaces neutres, sans prétendre être une teinte vive.
 
-Ratios initiaux : 6 % accent pour la colonne sombre, 20 % pour la carte,
-48 % sur surface active pour le badge et 25 % transparent pour le contour.
-En clair : 4 %, 8 %, 16 % et 15 %. La revue a ajouté -foreground :
-52 % accent + texte principal en clair, 100 % accent en sombre, pour les
-compteurs et commandes colorées. Le point garde le seed intact. Ajustement
-seulement après revue réelle.
+Ratios courants : 6 % accent pour la colonne sombre, 20 % pour la carte,
+46 % sur surface active pour le badge et 25 % transparent pour le contour.
+En clair : 4 %, 8 %, 16 % et 15 %. Le rôle -foreground mélange l'accent au
+texte principal : 52 % accent en clair, 80 % en sombre, pour les compteurs
+et commandes colorées. Le point garde le seed intact. Les ratios initiaux
+48 % badge / 100 % commande sombre et leur correction mesurée sont consignés
+ci-dessous et dans validation.md.
 Le survol reprend une augmentation de luminosité de 2,5 points HSL (clair :
 réduction équivalente), sans gris ajouté au titre. Recette commune au thème.
 

@@ -94,8 +94,12 @@ export function usePageHeaders(
       if (!(event.target instanceof HTMLElement)) return;
       const control = event.target.getBoundingClientRect();
       const bounds = headerRail.getBoundingClientRect();
-      if (control.left < bounds.left) bodyRail.scrollLeft += control.left - bounds.left;
-      else if (control.right > bounds.right) bodyRail.scrollLeft += control.right - bounds.right;
+      // Breakout rails can extend fractionally past the viewport in WebKit.
+      // Reveal the whole control and its focus ring inside both clipping edges.
+      const left = Math.max(0, bounds.left) + 4;
+      const right = Math.min(window.innerWidth, bounds.right) - 4;
+      if (control.left < left) bodyRail.scrollLeft += control.left - left;
+      else if (control.right > right) bodyRail.scrollLeft += control.right - right;
       syncFallback();
     };
     if (timeline === null) {

@@ -6,7 +6,6 @@ import {
   MenuLabel,
   MenuRoot,
   MenuSeparator,
-  MenuTrigger,
 } from "../../../ui/primitives/menu.tsx";
 import {
   deleteSelectedBlocks,
@@ -87,24 +86,6 @@ export function BlockContextMenu({
       }}
       placement="bottom-start"
     >
-      {state === null ? null : (
-        <MenuTrigger
-          aria-hidden="true"
-          tabIndex={-1}
-          style={{
-            position: "fixed",
-            left: state.x,
-            top: state.y,
-            width: 1,
-            height: 1,
-            padding: 0,
-            opacity: 0,
-            pointerEvents: "none",
-          }}
-        >
-          <span />
-        </MenuTrigger>
-      )}
       <MenuContent
         data-testid="block-context-menu"
         data-block-id={state?.blockId}
@@ -112,6 +93,12 @@ export function BlockContextMenu({
         autoFocusOnHide={false}
         autoFocusOnShow={state?.openedBy === "keyboard"}
         initialFocus={state?.openedBy === "keyboard" ? firstItem : null}
+        // Pointer and keyboard selection coordinates are viewport-relative.
+        // A fixed DOM anchor inside a transformed or container-query surface
+        // changes their coordinate system (notably in the entry side peek).
+        getAnchorRect={() =>
+          state === null ? null : DOMRect.fromRect({ x: state.x, y: state.y, width: 0, height: 0 })
+        }
       >
         {bookmarkUrl === null || state === null ? null : (
           <>

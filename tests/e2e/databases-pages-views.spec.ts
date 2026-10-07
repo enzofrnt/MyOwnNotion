@@ -12,6 +12,7 @@ import {
   nameNewlyCreatedItem,
   openRootDatabaseCreation,
   openWorkspace,
+  saveDocument,
   selectItem,
   trashItem,
   typeIntoEditor,
@@ -288,6 +289,7 @@ test("a linked block shares its source and warns after its owner is trashed", as
   const host = uniqueName("Linked host");
   await createRootItem(page, "page", host);
   await waitForSynchronized(page);
+  await saveDocument(page, { until: "synced" });
   await page.context().setOffline(true);
   const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
   await editor.click();
@@ -312,7 +314,9 @@ test("a linked block shares its source and warns after its owner is trashed", as
       .locator('[data-testid="block-editor"]:visible')
       .locator('[data-testid="database-view-block"][contenteditable="false"]'),
   ).toContainText(entry);
+  await saveDocument(page);
   await page.context().setOffline(false);
+  await saveDocument(page, { until: "synced" });
   await waitForSynchronized(page);
   await page.reload();
   await selectItem(page, host);

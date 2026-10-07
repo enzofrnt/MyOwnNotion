@@ -1021,7 +1021,25 @@ export async function addDatabaseProperty(
   // including on mobile engines without mouse.wheel support.
   await add.focus();
   await expect(add).toBeFocused();
-  await expect(add).toBeInViewport({ ratio: 1 });
+  // WebKit quantizes intersection widths on transformed rails even when all
+  // four edges fit (28 px reported as 27.9844 px). Check the actual bounds,
+  // retaining the native visibility check and click rather than relaxing them.
+  await expect
+    .poll(() =>
+      add.evaluate((node) => {
+        const control = node.getBoundingClientRect();
+        const rail = node.closest(".database-page-header-scroll")?.getBoundingClientRect();
+        return (
+          rail !== undefined &&
+          control.left >= Math.max(0, rail.left) &&
+          control.right <= Math.min(innerWidth, rail.right) &&
+          control.top >= Math.max(0, rail.top) &&
+          control.bottom <= Math.min(innerHeight, rail.bottom)
+        );
+      }),
+    )
+    .toBe(true);
+  await expect(add).toBeInViewport();
   await add.click();
   const form = page.getByRole("form", { name: "Éditeur de propriété" });
   await form.getByLabel("Nom", { exact: true }).fill(name);

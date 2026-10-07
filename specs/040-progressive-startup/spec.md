@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/notion-api-import`
 **Created**: 2026-10-07
-**Status**: Specified
+**Status**: Implémenté ; validation de publication en cours
 **Input**: Afficher les premières pages racines sur un appareil neuf, puis charger le reste en arrière-plan ; corriger les autres lenteurs concrètes de navigation.
 
 ## Product Direction, Dependencies, and Scope

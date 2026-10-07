@@ -52,7 +52,7 @@ React/TypeScript strict, Bun du repo, Ariakit, LocalContentService et projection
 
 ## Constitution Check
 
-I/IV : même propriétaire, données chiffrées locales et synchronisation existante. II/V/VIII : une feature, artefacts avant code, changements réversibles. III/VI/VII : contrôles ciblés et revue manuelle demandée ; pas de campagne exhaustive suspendue. Checkpoint 0b3157a2 créé sans tests. Pas de violation.
+I/IV : même propriétaire, données chiffrées locales et synchronisation existante. II/V/VIII : une feature, artefacts avant code, changements réversibles. III/VI/VII : contrôles ciblés et revue manuelle, puis gate complet et cinq profils avant publication, réautorisés le 7 octobre. Le checkpoint historique 0b3157a2 avait été créé sans tests. Pas de violation.
 
 ## Phase 0 — Research
 
@@ -90,6 +90,26 @@ les couleurs. Aucun changement de données, hors-ligne, permissions ou migration
 Appliquer [ui-quality](../../.agents/skills/ui-quality/SKILL.md), [lessons](../../.agents/skills/ui-quality/lessons.md) L009/010/019/020 et [guide UI](../../docs/design/ui-system.md). Les retours autorisent ces corrections. États : vide, saisie, attente, refus, succès, volet chargé/indisponible ; menus/focus non concurrents. Chaque story possède une revue navigateur documentée avant done. Captures contenant les données privées uniquement dans work/notion-api, jamais dans les artefacts suivis.
 
 ## Validation and delivery
+
+Reprise de publication FR007/008 : une ancre DOM fixe sous une transformation
+ou un conteneur de requêtes CSS ne garde pas le repère viewport du pointeur.
+Réutiliser l'ancre virtuelle `getAnchorRect` de MenuContent avec les coordonnées
+capturées, comme le menu des vues ; supprimer le bouton invisible devenu inutile.
+Conserver animations, portails et couches Ariakit, sans relever globalement les
+menus ni contourner les clics natifs.
+Vérifier transformation en case à cocher, fermeture du menu sans fermeture du
+volet, persistance, clair/sombre et 320 px avec ui-quality/lessons. L'insertion
+hors ligne doit être éprouvée après settlement de l'éditeur et avant rechargement,
+en plus de la synchronisation globale ; une erreur de commande reste bloquante.
+Le focus d'un contrôle d'en-tête révèle sa boîte et son contour à l'intérieur
+du rail et du viewport : les rails breakout peuvent dépasser fractionnellement
+le bord de l'écran sur WebKit. Garder le défilement horizontal commun au corps
+et à l'en-tête ; aucune activation forcée dans les parcours de préparation.
+La préparation E2E exige les quatre bords réels dans le viewport et le rail,
+puis visibilité et clic natifs : WebKit quantifie certaines intersections de
+rails transformés (28 px deviennent 27,9844 px malgré une boîte entièrement
+contenue). Aucun seuil géométrique relâché ni changement de layout pour ce
+comportement du calcul d'intersection.
 
 Reprise de publication du 7 octobre : le gate révèle que `headers` sur les
 cellules du corps séparé vise une autre table. En page-flow, conserver le nom

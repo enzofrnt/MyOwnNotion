@@ -47,3 +47,14 @@ Notion sombre ne sont pas assez contrastés pour du texte sur nos fonds clairs
 (jaune ≈2,1:1). Un rôle commun -foreground mélange 52 % accent avec le texte
 principal en clair, 100 % en sombre. Il sert aux commandes et compteurs,
 sans changer le point, le badge ni le texte éditorial.
+
+
+## Correction commune après contrôle de production
+
+Les contrastes calculés sur les couleurs réellement produites imposent
+46 % pour le badge sombre et 80 % accent + 20 % texte principal pour la
+commande sombre ; le clair reste à 52 % accent pour le texte de commande.
+Le ratio historique 48 % badge / 100 % commande ne satisfait pas tous les tons
+au survol. Il n'y a aucune exception par couleur. Les arguments de color-mix
+sont conservés dans des tokens intermédiaires pour éviter leur réduction en
+accents pleins par le build ; preuves et limites dans validation.md.

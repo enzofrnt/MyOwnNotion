@@ -881,3 +881,44 @@ publication-focus-schema-regressions-2.log et publication-focused-proof-2/ sous
 work/notion-api/. Les essais interrompus/échoués précédents ne sont pas des
 validations globales. T046–T048 restent ouvertes jusqu'aux cinq profils et au
 gate complet du candidat partagé.
+
+
+## Reprise de publication — menus éditoriaux et préconditions des parcours
+
+Le ciblé révèle un vrai défaut visuel du menu éditorial : son bouton invisible
+fixe réinterprétait les coordonnées viewport dans le conteneur du volet. Le
+menu pouvait être partiellement hors écran même quand un clic automatisé
+atteignait encore une action. L'ancre virtuelle commune Ariakit remplace ce
+bouton ; aucune couche globale ni animation n'est modifiée. Le parcours exige
+maintenant une boîte entièrement dans le viewport, la fermeture du menu par
+Échap sans fermer le volet, puis transformation, checkbox et persistance.
+
+Les deux autres préconditions sont explicitées, sans retirer d'assertion :
+la traversée des curseurs attend le feed complet de la fixture (des racines
+visibles n'impliquent plus un historique terminé), et le parcours de recherche
+ouvre son module paresseux en ligne avant l'outage du bundle E2E sans service
+worker. Il prouve d'abord le résultat indexé, puis qu'un contenu libéré ne fuit
+plus hors ligne. Le build applicatif ordinaire précache ce module. L'insertion
+liée attend aussi settlement/durabilité du document avant coupure et reload ;
+la synchronisation globale seule n'est pas un acquittement éditorial.
+
+Quatre parcours passent sans retry dans chaque navigateur : Chromium desktop
+48,1 s, Firefox Linux épinglé 1,1 min ; matrice ciblée sortie 0 en 77 s.
+L'insertion liée avec les frontières éditoriales passe auparavant trois fois
+par navigateur. Captures Firefox avant/après revues : le menu complet est
+visible et ses actions restent au-dessus du contenu du volet. Ces résultats
+ne valent pas encore réussite du gate complet. Preuves privées sous
+work/notion-api/publication-pagination-search-proof/ et logs de la même passe.
+
+La reprise finale des deux parcours passe sans retry sur les cinq profils :
+Chromium desktop/mobile, Firefox desktop Linux, WebKit desktop/mobile Linux ;
+10 tests, matrice sortie 0 en 102 s. Chaque profil vérifie menu complet,
+Échap sans fermeture du volet, transformation et durabilité, à sa largeur
+initiale et 320 px, clair/sombre. Les en-têtes révèlent le contrôle focalisé
+à l'intérieur du rail et du viewport avec la place de son contour. La mesure
+WebKit mobile quantifiait une largeur transformée de 28 à 27,9844 px malgré
+une boîte entièrement contenue : le helper vérifie désormais ses quatre bords
+réels sans tolérance, puis visibilité et clic natifs. Aucune modification CSS
+de layout n'est conservée pour ce calcul d'intersection. Preuves privées :
+publication-peek-menu-five-profiles-3.log et publication-five-profile-menu-proof/.
+La validation globale reste en attente du gate complet sur le commit corrigé.

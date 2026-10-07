@@ -12,7 +12,8 @@ E2E retient volontairement un lot pendant au moins cinq secondes, puis vérifie
 la disponibilité, les états incomplets et la convergence. Les captures réelles
 et la revue suivent ui-quality, son journal et le guide UI.
 
-**État au 7 octobre 2026** : à la demande explicite du propriétaire, les E2E
+**État historique avant la demande de publication du 7 octobre 2026** : à la
+demande explicite du propriétaire, les E2E
 restants et la reprise du gate complet sont reportés. La priorité passe au
 système de couleurs, fondé sur des mesures réelles de Notion. Les contrôles déjà
 engagés ont été terminés et leurs résultats sont conservés ci-dessous ; aucun
@@ -228,3 +229,17 @@ est simulé par l'absence du marqueur dans le schéma actuel, pas par la migrati
 d'un ancien IndexedDB. HTTP et socket sont bloqués pour simuler le réseau
 indisponible tout en gardant le shell accessible ; la reprise chaude est
 démontrée par HTTP, sans prétendre mesurer la reconnexion socket.
+
+
+## Reprise des parcours historiques de publication
+
+La navigation rend maintenant les racines avant la fin du feed : le parcours
+de pagination de 1 001 entrées attend explicitement cette fin avant de parcourir
+les curseurs d'une source stable. Les assertions de pages de 100, absence de
+doublon et dernière entrée virtualisée restent intactes. La première recherche
+reste paresseuse ; le parcours hors ligne du bundle contrôlé sans service worker
+ouvre ce module en ligne puis libère un contenu déjà indexé. Il vérifie ainsi
+la revalidation de disponibilité, l'édition locale et la déduplication. Le
+build de production précache les assets de workers. Les deux parcours passent
+sans retry sur Chromium desktop et Firefox Linux épinglé ; le gate complet
+et les parcours propres à 040 restent à terminer.

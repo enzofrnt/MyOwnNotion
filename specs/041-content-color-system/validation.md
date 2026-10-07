@@ -1,8 +1,9 @@
 # Validation — Couleurs de contenu
 
-2026-10-07. Périmètre : 041, contrôles ciblés et revue manuelle. Les E2E et
-le gate global sont explicitement différés par le propriétaire. Cette passe
-ne valide pas les changements de démarrage 039/040 ni toute la branche.
+Revue initiale du 2026-10-07 : périmètre 041, contrôles ciblés et revue manuelle.
+Les E2E et le gate global étaient alors différés par le propriétaire. Cette
+revue seule ne valide pas le démarrage 039/040 ni toute la branche. La reprise
+autorisée de publication est consignée plus bas.
 
 ## Référence et résultat
 

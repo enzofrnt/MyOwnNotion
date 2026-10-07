@@ -4,6 +4,7 @@ import {
   addDatabaseProperty,
   chooseEntryOptions,
   chooseEntryRelation,
+  closeMobileNavigation,
   createDatabaseEntry,
   createRootDatabase,
   createRootItem,
@@ -91,7 +92,7 @@ for (const cancel of [false, true]) {
 
 test("tracks one task page through roles, notes, relations, search and an independent checkbox", async ({
   page,
-}) => {
+}, testInfo) => {
   await openWorkspace(page);
   const databaseName = uniqueName("Tasks");
   const taskName = uniqueName("Ship task roles");
@@ -152,8 +153,59 @@ test("tracks one task page through roles, notes, relations, search and an indepe
     .filter({ hasText: editorialNote })
     .last();
   await editorialBlock.click({ button: "right" });
+  const blockMenu = page.getByRole("menu", { name: "Actions du bloc" });
+  await expect(blockMenu).toBeVisible();
+  const expectMenuInViewport = async () => {
+    await expect
+      .poll(() =>
+        blockMenu.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return (
+            rect.left >= 0 &&
+            rect.top >= 0 &&
+            rect.right <= innerWidth &&
+            rect.bottom <= innerHeight
+          );
+        }),
+      )
+      .toBe(true);
+  };
+  await expectMenuInViewport();
+  await blockMenu.focus();
+  await page.keyboard.press("Escape");
+  await expect(blockMenu).toBeHidden();
+  await expect(page.locator(".database-entry-peek")).toBeVisible();
+  const viewport = page.viewportSize();
+  if (viewport === null) throw new Error("Menu geometry requires a configured viewport");
+  try {
+    for (const width of new Set([viewport.width, 320])) {
+      await page.setViewportSize({ width, height: viewport.height });
+      await closeMobileNavigation(page);
+      for (const colorScheme of ["light", "dark"] as const) {
+        await page.emulateMedia({ colorScheme });
+        await editorialBlock.click({ button: "right" });
+        await expect(blockMenu).toBeVisible();
+        await expectMenuInViewport();
+        await page.screenshot({
+          path: testInfo.outputPath(`side-peek-menu-${width}-${colorScheme}.png`),
+        });
+        await blockMenu.focus();
+        await page.keyboard.press("Escape");
+        await expect(blockMenu).toBeHidden();
+        await expect(page.locator(".database-entry-peek")).toBeVisible();
+      }
+    }
+  } finally {
+    await page.setViewportSize(viewport);
+    await page.emulateMedia({ colorScheme: null });
+  }
+  await editorialBlock.click({ button: "right" });
+  await expect(blockMenu).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("side-peek-editor-menu.png") });
   const beforeTaskConversion = await editorApplyCount(page);
   await page.getByRole("menuitem", { name: "Liste de tâches" }).click();
+  await expect(blockMenu).toBeHidden();
+  await expect(page.locator(".database-entry-peek")).toBeVisible();
   await waitForEditorSettled(page, { afterApplyCount: beforeTaskConversion });
   const documentCheckbox = page
     .locator('[data-testid="block-editor"]:visible')

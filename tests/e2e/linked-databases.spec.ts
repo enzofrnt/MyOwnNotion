@@ -175,6 +175,10 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   await ensureNavigationVisible(page);
   await page.getByRole("button", { name: `Déplier ${hostName}` }).click();
   await expect(page.getByRole("treeitem")).toHaveCount(2);
+  // Root readiness no longer implies that the historical feed has finished.
+  // Traverse cursors on the stable fixture; a newer source generation during
+  // catch-up must legitimately restart pagination instead of mixing revisions.
+  await waitForSynchronized(page, { timeoutMs: 60_000 });
   await selectItem(page, "Large reusable source");
   const loaded = page.locator(".database-pagination");
   await expect(loaded).toContainText("100 entrées chargées", { timeout: 30_000 });
