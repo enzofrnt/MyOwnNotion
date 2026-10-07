@@ -93,7 +93,7 @@ for (const flow of ["full", "inline"]) {
       await main.evaluate((node) => {
         node.scrollTop = node.scrollHeight - node.clientHeight - 450;
       });
-      const last = page.locator("[data-entry-trigger]").filter({ hasText: "Carte 0999" });
+      const last = virtualNodes.filter({ hasText: "Carte 0999" });
       // Measured card heights replace estimates after the jump. Follow the
       // actual last card using the native page owner rather than stale heights.
       await last.scrollIntoViewIfNeeded();
