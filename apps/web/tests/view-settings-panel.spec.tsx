@@ -35,6 +35,7 @@ it("blocks the source action with its reason, then enables it when the lock is l
     onCommitIcon: vi.fn(),
     onChangeFormat: vi.fn(),
     onChangeView: vi.fn(),
+    onChangeGrouping: vi.fn(async () => undefined),
     onToggleProperty: vi.fn(),
     onChangeSource: vi.fn(),
     onCreateSource: vi.fn(),
