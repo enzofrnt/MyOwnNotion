@@ -13,3 +13,10 @@ de la branche ni la convergence 040. Aucun blocage avant implémentation.
 Revue finale du 2026-10-07 : écarts du picker et du contraste clair corrigés
 avant validation. Voir validation.md pour les preuves et limites ; aucun
 écart matériel restant sur FR001–006 / SC001–003 dans le périmètre 041.
+
+Reprise de publication : la validation finale de production sur 758945b8 passe
+le gate complet et les cinq profils, avec neuf familles aux deux thèmes et
+revue réelle 320 px. La convergence formelle vérifie six exigences, trois
+critères, sept scénarios, quatre décisions du plan et les huit principes de
+la constitution : zéro finding, aucune tâche ajoutée. Voir
+[validation.md](validation.md) et la preuve commune 038 pour les limites.

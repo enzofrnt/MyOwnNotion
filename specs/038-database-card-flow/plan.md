@@ -119,7 +119,7 @@ historiques sur le volet, le menu Actions et Grouper dans les réglages, sans
 retirer leurs assertions de persistance, focus, déplacement ou navigation.
 ui-quality/lessons restent applicables ; matrice complète et preuves avant push.
 
-Types/Biome/build ciblés, tests de comportement bornés si nécessaires ; aucune matrice. Revue manuelle Notion puis 8082 (création, visibilité, volet, clavier, thème, étroit). Déployer seulement web myownnotion-notion-api, préserver API/DB et instance 8080. [quickstart.md](quickstart.md), [validation.md](validation.md).
+Passe initiale : types/Biome/build ciblés, tests de comportement bornés si nécessaires ; matrice alors différée. La publication réautorisée exécute le gate complet et les cinq profils, avec résultats dans validation.md. Revue manuelle Notion puis 8082 (création, visibilité, volet, clavier, thème, étroit). Déployer seulement web myownnotion-notion-api, préserver API/DB et instance 8080. [quickstart.md](quickstart.md), [validation.md](validation.md).
 
 ## Post-design gate
 

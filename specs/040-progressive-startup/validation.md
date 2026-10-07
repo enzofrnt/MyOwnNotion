@@ -243,3 +243,40 @@ la revalidation de disponibilité, l'édition locale et la déduplication. Le
 build de production précache les assets de workers. Les deux parcours passent
 sans retry sur Chromium desktop et Firefox Linux épinglé ; le gate complet
 et les parcours propres à 040 restent à terminer.
+
+## Validation finale de publication — 2026-10-07
+
+Le candidat 758945b8 passe le gate complet, les cinq profils et la revue UI
+réelle ; voir la [preuve partagée](../038-database-card-flow/validation.md#publication-locale-finale--2026-10-07)
+pour les runtimes, comptes, scan de sécurité et isolation du déploiement.
+T007/008/010/013/014/015/017/018 sont terminées ; les plafonds de couverture
+restent inchangés. Les 5533 tests de couverture passent, avec 2447 branches
+non couvertes sous le plafond existant de 2470. Les tests ajoutés couvrent les
+intentions/outbox, le journal local et les frontières de projection/reprise.
+
+La fixture de 300 descendants démontre une première disponibilité avant
+libération du lot retenu sur chaque profil :
+
+| Profil | Appareil neuf | Cache déjà local | Lot retenu neuf / local |
+| --- | --- | --- | --- |
+| Chromium desktop | 387 ms | 331 ms | 5001 / 5002 ms |
+| Firefox desktop | 557 ms | 524 ms | 8403 / 5000 ms |
+| WebKit desktop | 659 ms | 443 ms | 7315 / 5001 ms |
+| Chromium mobile | 447 ms | 320 ms | 5002 / 5003 ms |
+| WebKit mobile | 800 ms | 444 ms | 6196 / 5005 ms |
+
+Ces durées locales synthétiques mesurent le premier accès, pas le transfert
+total ni le HAR propriétaire. Le lot retenu comprend les interactions et
+captures, avec un minimum artificiel de cinq secondes. Recherche à la première
+utilisation, navigation pendant réception et édition locale concurrente passent.
+L'ancien cache sans marqueur reste lisible hors ligne, total inconnu et reprise
+disponible, sans faux catalogue complet ni faux vide ; captures clair/sombre
+à 320 px examinées. Le parcours Chromium de 500 blocs donne une page éditable
+en moins de deux secondes et un p95 de saisie de 15,3 ms sur cent échantillons,
+avec 50 ms de stabilisation par échantillon ; ce n'est pas une mesure générale
+de tous les appareils.
+
+La convergence formelle vérifie huit exigences, quatre critères, dix scénarios
+et huit décisions du plan, sous les huit principes constitutionnels : zéro
+finding et aucune tâche ajoutée. T016 est terminée ; les limites de mesure
+ci-dessus restent applicables.

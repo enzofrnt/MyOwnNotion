@@ -996,3 +996,110 @@ import, stockage/synchronisation, rendu et déploiement ; exécuter un nouveau
 sécurité et de sauvegarde séparément observables. Les passages complets
 précédents interrompus ne constituent pas un succès du gate final. Les inputs
 SQL ne diffèrent pas de main ; aucun changement de migration supplémentaire.
+
+## Publication locale finale — 2026-10-07
+
+La demande de commit, contrôles complets, push et PR réautorise la matrice.
+Le candidat exécutable figé est `758945b86e0d6e1458bf2c1f2ac0e7dd604e3fd7`.
+Le dixième `bun run checks:local` termine avec **sortie 0**, de 20:08:40
+à 21:18:56 UTC observées. Les passages antérieurs interrompus ou échoués
+restent historiques ; aucun n'est substitué à ce succès.
+
+Sélection selon [docs/development.md](../../docs/development.md) : le diff de
+publication touche import, stockage, synchronisation, dépendance partagée,
+build et UI. Ce périmètre demande le gate intégral, puis les responsabilités
+CI de sécurité, sauvegarde de référence et Trivy observées séparément.
+PostgreSQL 18.6 utilise une base jetable distincte ; Bun 1.4.2 et les runtimes
+documentés sont conservés. Les inputs SQL ne diffèrent pas de main.
+
+| Contrôle | Résultat final |
+| --- | --- |
+| Toolchain, shell, format/lint, types | Tous passent ; 106 avertissements lint existants, zéro erreur |
+| Couverture | 518 fichiers réussis, 5533 tests réussis, deux exclusions de plateforme Windows attendues ; statements 92,06 %, branches 86,74 %, fonctions 94,30 %, lignes 93,21 % |
+| Dette absolue de couverture | 1584 lignes, 256 fonctions, 2447 branches non couvertes ; plafonds inchangés |
+| Performance | Neuf fichiers, 22 cas réussis, budgets respectés |
+| Intégrations / migrations / contrats | 404 / 13 / 1895 tests réussis |
+| E2E, cinq profils | 1576 cas réussis, 119 exclusions de plateforme prévues, **zéro retry** |
+| Desktop natif local | macOS Apple Silicon construit, packagé, installé et smoke vérifié ; neuf parcours réussis |
+| Builds / images | Workspaces réussis ; images linux/amd64 et linux/arm64 assemblées |
+| API et restauration natives | Smoke et sauvegarde/restauration complète réussis en ARM64 sans Node ; AMD64 et autres OS desktop confirmés par CI |
+| Audit dépendances | 385 packages production, zéro HIGH/CRITICAL ; sept résultats sous ce seuil |
+| Secrets / statique / licences / Compose | 1968 fichiers, 1371 sources, 389 packages : zéro finding bloquant ; Compose passe |
+| Probes CI supplémentaires | Sauvegarde de référence : un test réussi ; sécurité : 309 tests réussis |
+
+Les profils passent séparément : Chromium desktop 327 cas/12 exclusions,
+Firefox desktop 313/26, Chromium mobile 315/24, WebKit desktop 313/26,
+WebKit mobile 308/31. Les shards WebKit appartiennent au même run figé.
+Logs complets et preuves privées : `work/notion-api/publication-full-gate-10.log`,
+`publication-full-gate-10-manifest.json`, `publication-full-gate-10-proof/`,
+`publication-full-gate-10-shard-proof/` et `publication-ci-probes-10/`.
+
+Trivy 0.70.0 épinglé rescane l'image API construite sur ce candidat, avec la
+base d'avis actualisée. Image :
+`sha256:bcfaa41e63c6cc0010e247419d09ce604dc7071f82f26a28893164ff3e587d59`.
+Le gate HIGH/CRITICAL avec correctif disponible passe, conformément à CI.
+Le SARIF complet conserve **46 résultats HIGH sans correctif**, huit avis
+distincts dans les packages système Debian 13.7 ; il n'y a pas de CRITICAL.
+Aucune règle d'ignore ni exception n'est ajoutée. Le scan porte sur l'API,
+pas sur l'image Web. Rapports privés : `publication-security-10/`.
+
+### Preuves UI et revue de l'instance isolée
+
+La revue suit [ui-quality](../../.agents/skills/ui-quality/SKILL.md) et son
+[journal](../../.agents/skills/ui-quality/lessons.md). Les captures réelles du
+bundle de production sont examinées aux deux thèmes, sur les cinq profils et
+à 320 px : neuf familles, création de carte, édition, menus, pièces jointes,
+sommaires et cache partiel. La validation des recettes et contrastes est
+détaillée dans [041](../041-content-color-system/validation.md) ; la première
+disponibilité et ses limites dans [040](../040-progressive-startup/validation.md).
+
+Le Web 8082 seul est reconstruit et recréé à 21:20:44 UTC après les suites.
+Les dates de démarrage de l'API, PostgreSQL et Caddy 8082, ainsi que des quatre
+services 8080, restent identiques. Aucun contenu propriétaire n'est modifié.
+Les dix-huit identités/titres observés conservent le même hash avant/après ;
+cette comparaison ne prétend pas être un checksum de toute la base.
+
+À 970 px, le titre garde exactement x=327, y=333,59375, largeur=242,
+hauteur=20 px entre repos et édition, avec police 14 px, ligne 20 px,
+cadre nul et fond transparent. Les propriétés visibles gardent leur place ;
+les propriétés cachées apparaissent dessous. Un appui sur le crayon suivant
+conserve la première carte jusqu'au relâchement ; celui-ci ouvre uniquement la
+seconde. Échap ferme l'éditeur. Le sélecteur Page/Dossier compact et séparé,
+le volet et Grouper dans les réglages sont examinés sans changement de valeur.
+
+À 320 px, viewport, document et corps mesurent tous 320 px ; le titre reste
+sans cadre et les propriétés supplémentaires tiennent dans la carte, aux deux
+thèmes. Le survol bleu passe de sRGB (0,10902 ; 0,181176 ; 0,252549) à
+(0,124096 ; 0,206231 ; 0,287473), sans plaque grise. La carte garde 268 × 68 px
+et sa bordure 1 px. Le volet expose Fermer le volet et Ouvrir en pleine page.
+Fin de revue : URL de la base conservée, 970 px/sombre, zéro éditeur/dialogue
+ou panneau de réglages ouvert. Captures et mesures propriétaires restent en
+privé sous `work/notion-api/publication-owner-10-*`.
+
+T046–T051 sont terminées : les parcours de déplacement, menus transformés,
+confirmation, géométrie et retour de focus passent les cinq profils. Les
+répétitions ciblées précédentes de stabilité donnent 75 succès et cinquante
+mesures de 0 px, sans élargir le seuil de 1 px. Aucun travail V1 indépendant
+de 017 ou 029 n'est déclaré terminé par cette publication.
+
+### Convergence et clôture documentaire
+
+`speckit-converge` vérifie le code actuel de 038, 040 et 041 contre leurs
+spec/plan/tasks et la constitution : respectivement 42/22/16 exigences et
+scénarios, 14/8/4 décisions techniques, huit principes communs. Aucun finding
+missing, partial, contradicts ou unrequested ; aucune tâche ajoutée et fichiers
+tasks byte-identiques pendant la phase de convergence. T016 de 040 est cochée
+ensuite au titre du résultat, hors de cette phase append-only. Les prérequis
+Spec Kit passent pour les trois features, sans modifier le pointeur courant.
+La convergence ne déclare pas l'ensemble des anciennes features terminé.
+
+Le commit final ne change que ces preuves et la progression Spec Kit. Le seul
+consommateur exécutable identifié lit tasks.md de 017 pour sa référence au
+prototype approuvé : ses douze tests passent après la mise à jour. Les autres
+documents n'ont pas de consommateur runtime/test. Contrôles documentaires :
+diff sans erreur, 112 Markdown de publication et 462 liens locaux résolus,
+titres/terminologie/références et cohérence des artefacts relus. Le pointeur de
+feature reste 041. Les inputs exécutables restent ceux de 758945b8 ; son gate
+réussi est réutilisé, sans relancer builds ou matrice pour cette clôture prose.
+La PR fournit la première confirmation distante ; aucun merge ni release
+n'est effectué sur la seule preuve locale.

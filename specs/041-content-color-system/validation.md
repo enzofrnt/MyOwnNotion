@@ -72,7 +72,7 @@ consommateurs et la revue réelle ci-dessus. Pas d’écart matériel UI dans le
 périmètre de cette passe. Les anciennes preuves de couleur 038 sont historiques ;
 son comportement et ses autres critères restent en vigueur.
 
-Les E2E, la matrice multi-moteur et le gate complet ne sont pas relancés.
+Lors de cette passe initiale, les E2E, la matrice multi-moteur et le gate complet ne sont pas relancés. La reprise ci-dessous les exécute après réautorisation.
 Les contrôles de 040 gardent leur statut dans ses propres artefacts ; aucun
 résultat partiel n’est transformé en validation globale. Le rendu clair de
 Notion n’a pas été mesuré : le clair de l’application suit notre recette
@@ -107,4 +107,27 @@ Preuves privées : `work/notion-api/publication-colors-chromium-4.log` et
 `test-results/chromium-desktop/` (`content-colors-*.json/png`,
 `persistent-create-*.png`). Les essais précédents ont échoué pendant la mise au
 point du contrôle et les corrections de contraste ; ils ne sont pas présentés
-comme des succès. T011 reste ouverte jusqu'à la matrice complète et au gate.
+comme des succès. À ce stade intermédiaire, T011 reste ouverte jusqu'à la matrice complète et au gate ; leur résultat final figure ci-dessous.
+
+## Validation finale de production — 2026-10-07
+
+T011 est terminée sur 758945b8 : neuf familles × cinq profils × deux thèmes,
+soit 90 combinaisons mesurées, sur le bundle de production. Les trois surfaces
+opaques colonne/carte/badge sont distinctes entre elles et de l'accent dans
+chaque profil ; le contour reste dérivé et discret, à 1 px CSS. Les minima
+des paires de rôles effectivement mesurées sont :
+
+| Rôle | Clair | Sombre |
+| --- | --- | --- |
+| Texte de badge / badge | 10,037:1 | 4,567:1 |
+| Texte de contenu / surfaces | 13,325:1 | 10,513:1 |
+| Commande colorée / support et survol | 4,822:1 | 4,607:1 |
+
+Rapport privé : `work/notion-api/publication-final-color-10-contrast-summary.json`.
+Ces paires ne constituent pas un audit WCAG global. Les planches palette et
+les créations réelles sont examinées aux deux thèmes, avec éditions mobiles
+à 320 px. La revue manuelle 8082 confirme les mêmes niveaux, le survol teinté
+sans changement de métriques et le sélecteur intégré, sans écriture propriétaire.
+Le gate complet et ses limites de sécurité sont dans la
+[preuve partagée](../038-database-card-flow/validation.md#publication-locale-finale--2026-10-07).
+Aucune exception par couleur ni nouveau seed stocké n'est introduit.

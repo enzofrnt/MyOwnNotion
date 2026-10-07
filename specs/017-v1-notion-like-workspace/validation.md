@@ -1247,8 +1247,11 @@ d'entrée et projection distante. Format/lint ciblés et types Web/workspace
 passent. Preuves privées : `publication-headings-red.log`,
 `publication-headings-green.log`, `publication-headings-feedback-green.log` et
 `publication-headings-source-map-proof.json` sous `work/notion-api/`.
-La matrice répétée, les captures réelles selon ui-quality/lessons et le nouveau
-gate complet restent en cours ; aucune tâche de release V1 indépendante n'est
+La reprise passe ensuite 100 cas migration/sommaires sur les cinq profils,
+sans retry, avec captures réelles examinées selon ui-quality/lessons. Le gate
+final du candidat 758945b8 passe également ; voir la preuve partagée de
+[publication](../038-database-card-flow/validation.md#publication-locale-finale--2026-10-07).
+T326–T328 sont terminées ; aucune tâche de release V1 indépendante n'est
 clôturée par cette maintenance.
 
 ## Maintenance de publication — collage ProseMirror (T329), 2026-10-07
@@ -1275,6 +1278,10 @@ Biome ciblé, types workspace et audit production au seuil high passent :
 aucune vulnérabilité bloquante parmi 385 packages, sept résultats sous ce seuil.
 Les logs rouge/vert, installation figée, versions, types et audit sont conservés
 en privé sous `work/notion-api/publication-clipboard-*`. La dépendance partagée
-justifie un nouveau `checks:local` complet et un nouveau scan Trivy avant push ;
-T329 reste ouverte jusqu'à ces résultats. Aucun contrat, migration ou contenu
-propriétaire n'est modifié.
+justifie un nouveau `checks:local` complet et un nouveau scan Trivy avant push.
+Les deux terminent avec succès sur 758945b8 : aucun HIGH/CRITICAL avec correctif
+disponible dans l'image API courante. Le rapport complet conserve 46 résultats
+HIGH sans correctif, correspondant à huit avis système ; aucune exception
+n'est ajoutée. Voir la preuve partagée de
+[publication](../038-database-card-flow/validation.md#publication-locale-finale--2026-10-07).
+T329 est terminée. Aucun contrat, migration ou contenu propriétaire n'est modifié.

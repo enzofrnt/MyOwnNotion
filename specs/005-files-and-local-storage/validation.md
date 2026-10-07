@@ -155,3 +155,18 @@ Private evidence under `work/notion-api/`: the original
 in `publication-preview-five-profile-proof/`. Earlier interrupted runs are
 diagnostic evidence only. No owner attachment was uploaded, deleted or modified
 to reproduce this issue.
+
+## Maintenance de publication — T062, 2026-10-07
+
+Les parcours de réponse tardive, relâchement extérieur, clic et Entrée passent
+105 cas répétés sur les cinq profils, sans retry, puis passent de nouveau le
+gate complet sur 758945b8. Le nœud de commande reste connecté, déplacement
+mesuré 0 px ; cible 32 px au bureau et 44 px au toucher. Les captures réelles
+clair/sombre et 320 px montrent les actions avant les faits, menu contenu dans
+le viewport et le drawer. L'annulation ne crée aucune iframe ; clic/Entrée en
+créent une seule, avec sandbox préservé. T062 est terminée.
+Preuves privées : `work/notion-api/publication-full-gate-10-proof/` et
+`publication-full-gate-10-shard-proof/`. Voir la
+[validation partagée](../038-database-card-flow/validation.md#publication-locale-finale--2026-10-07)
+pour le gate et les limites. Les anciens critères partiellement vérifiés de
+005 restent ouverts ; cette maintenance ne les clôture pas.

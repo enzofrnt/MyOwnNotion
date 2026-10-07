@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/notion-api-import`
 **Created**: 2026-10-07
-**Status**: Reprise de publication ; validation de production en cours
+**Status**: Implémenté ; validation de production complète et revue manuelle terminées
 **Input**: Relever les couleurs réelles du Kanban Notion et corriger les couleurs
 de l'application avec des transformations communes, sans couleurs brutes dans
 chaque composant. Les E2E initialement reportés sont réautorisés par le

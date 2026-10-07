@@ -29,4 +29,4 @@ Revue réelle T006/T008 suit build/déploiement T009. T010 final. Une passe pale
 utile, sans refonte de layout ni nouvelle interaction. E2E initialement différés,
 puis repris pour la publication du 7 octobre (T011).
 
-- [ ] T011 Reprise de publication FR002/003/006 : protéger les recettes color-mix contre leur réduction en accents pleins pendant le build ; vérifier les neuf tons et contrastes du rendu de production en clair/sombre/320 px sur les cinq profils avec ui-quality/lessons, puis le gate complet.
+- [x] T011 Reprise de publication FR002/003/006 : protéger les recettes color-mix contre leur réduction en accents pleins pendant le build ; vérifier les neuf tons et contrastes du rendu de production en clair/sombre/320 px sur les cinq profils avec ui-quality/lessons, puis le gate complet.
