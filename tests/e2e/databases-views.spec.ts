@@ -50,7 +50,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     await expect(panel).toBeVisible();
     await chooseEntryOptions(page, "Status", [status]);
     await waitForEntryAutosave(page);
-    await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+    await page.getByRole("button", { name: "Fermer le volet" }).click();
     await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
     await expect(entryTrigger(page, title).first()).toBeFocused({ timeout: 15_000 });
   };

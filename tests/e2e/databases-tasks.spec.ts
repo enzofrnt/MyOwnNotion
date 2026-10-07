@@ -192,6 +192,6 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await expect(entryPanel.getByRole("button", { name: "Project", exact: true })).toHaveText(
     projectName,
   );
-  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
   await expect(page.locator("[data-entry-trigger]")).toHaveCount(1);
 });

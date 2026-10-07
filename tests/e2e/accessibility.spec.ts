@@ -436,7 +436,7 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await due.fill(currentMonthDate);
     await expect(due).toHaveValue(currentMonthDate);
     await waitForEntryAutosave(page);
-    await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+    await page.getByRole("button", { name: "Fermer le volet" }).click();
     await expect(panel).toBeHidden();
     // The entry projection can still refresh after its durable write is
     // acknowledged. Reloading proves the values survived and lets the view

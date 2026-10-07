@@ -40,7 +40,7 @@ async function createEntry(
     await expect(due).toHaveValue(values.due);
   }
   await waitForEntryAutosave(page);
-  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
   await expect(trigger).toBeFocused({ timeout: 15_000 });
 }
 
@@ -95,7 +95,7 @@ test("preserves native property input across a remote projection before input de
     await expect(summary).toHaveValue("Native pending summary");
     await summary.dispatchEvent("input");
     await waitForEntryAutosave(page);
-    await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+    await page.getByRole("button", { name: "Fermer le volet" }).click();
     await trigger.click();
     await expect(summary).toHaveValue("Native pending summary");
   } finally {
@@ -159,7 +159,7 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   );
   await alphaGalleryCard.locator("[data-entry-trigger]").click();
   await expect(page.getByTestId("active-item-title")).toHaveValue(alpha);
-  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
   await expect(page.locator(`[data-entry-trigger="${canonicalEntryId as string}"]`)).toBeFocused();
 
   await createView(page, "Nouvelle vue calendrier", /Calendrier/);

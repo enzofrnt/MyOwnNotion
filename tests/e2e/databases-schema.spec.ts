@@ -75,7 +75,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await chooseEntryRelation(page, "Related", targetName);
   await waitForEntryAutosave(page);
 
-  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 
   await selectItem(page, targetName);

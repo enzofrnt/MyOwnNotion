@@ -108,7 +108,7 @@ async function saveEntryValues(
 }
 
 async function closeEntry(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
 }
 
 async function updateTextCell(

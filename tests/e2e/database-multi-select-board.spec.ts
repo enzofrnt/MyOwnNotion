@@ -25,7 +25,7 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   await trigger.click();
   await chooseEntryOptions(page, "Matières", ["Alpha", "Beta"]);
   await waitForEntryAutosave(page);
-  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
   await createDatabaseView(page, "Kanban");
   const board = page.locator(".database-board-scroll");
   const column = (label: string) =>
@@ -78,7 +78,7 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   await expect(card("Alpha")).toBeAttached();
   // Opening one occurrence returns to the same column.
   await entryTrigger(card("Beta"), title).click();
-  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
   await expect(entryTrigger(card("Beta"), title)).toBeFocused();
 
   // Alpha -> Gamma must retain Beta. Selector is available to pointer and touch.
@@ -141,11 +141,17 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   await waitForSynchronized(page);
   await page.reload();
   await expect(card("Gamma")).toBeVisible({ timeout: 30_000 });
-  const grouping = board.getByRole("button", { name: "Regroupement du Kanban", exact: true });
+  await page.getByRole("button", { name: "Options de la vue", exact: true }).press("Enter");
+  await settings.getByRole("button", { name: /^Grouper/ }).click();
+  const grouping = settings.getByRole("button", { name: "Grouper par Matières", exact: true });
   await grouping.press("Enter");
-  await expect(page.getByLabel("Propriété de regroupement du Kanban")).toBeVisible();
+  const groupingMenu = page.getByRole("menu", { name: "Grouper par", exact: true });
+  await expect(groupingMenu.getByRole("menuitem", { name: "Matières", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
+  await expect(groupingMenu).toBeHidden();
   await expect(grouping).toBeFocused();
+  await settings.getByRole("button", { name: "Fermer", exact: true }).click();
+  await expect(settings).toBeHidden();
   for (const theme of ["light", "dark"])
     for (const width of [1440, 320]) {
       await page.evaluate((t) => localStorage.setItem("myownnotion.theme", t), theme);
