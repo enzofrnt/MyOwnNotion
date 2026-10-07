@@ -280,3 +280,38 @@ La convergence formelle vérifie huit exigences, quatre critères, dix scénario
 et huit décisions du plan, sous les huit principes constitutionnels : zéro
 finding et aucune tâche ajoutée. T016 est terminée ; les limites de mesure
 ci-dessus restent applicables.
+
+## Reprise CI — 8 octobre
+
+PR 182, run 37691633290 sur 8497c61f : le job couverture échoue sur
+`reconciliation (T044) > limits independent offline writes to causal batches
+of one hundred`, timeout générique de 5000 ms. Le fichier termine en 6021 ms,
+avec une seule erreur de délai ; 517 autres fichiers et 5531 cas passent,
+trois exclusions de plateforme sont attendues. Aucune assertion métier ou
+plafond de couverture n'est signalé en échec. Ce run reste un échec global,
+distinct du gate local réussi de 758945b8. Log privé :
+`work/notion-api/publication-ci-182-coverage-failure.log`.
+
+La maintenance T019 garde la vraie fixture chiffrée et toutes ses assertions,
+avec 15 s pour ce cas de volume seulement. Les budgets produits et le timeout
+général sont inchangés ; aucune optimisation production n'est revendiquée.
+La couverture locale complète termine avec sortie 0 : 518 fichiers, 5533 cas,
+deux exclusions de plateforme, mêmes taux (92,06/86,74/94,30/93,21 %) et plafonds.
+Le fichier corrigé passe ses 37 cas sous instrumentation en 1770 ms. Trois
+répétitions du fichier passent ensuite, 111 cas au total, sans retry ; chaque
+invocation termine en 2,3 à 2,4 s. Biome, types client-core, diff et liens passent.
+T019 est terminée localement ; la confirmation CI reste requise pour la PR.
+
+Sélection de ce suivi selon docs/development.md : seuls
+`packages/client-core/tests/reconciliation.spec.ts` et trois artefacts de 040
+changent après 8497c61f. La couverture complète couvre directement le test
+modifié ; les répétitions vérifient son ordre et ses acquittements. Aucun source
+production, dépendance, migration, bundler ou workflow ne change ; leurs preuves
+réussies sur 758945b8 sont réutilisées, sans nouveaux builds ou navigateurs
+locaux. Le planner CI évaluera encore le diff entier de la PR.
+
+Logs privés : `publication-ci-182-coverage-local-11.log`,
+`publication-ci-182-reconciliation-11-repeat-{1,2,3}.log` et
+`publication-ci-182-reconciliation-11-repeat-results.json` sous work/notion-api.
+La consistance du raffinement plan/T019/test est vérifiée ; les prérequis 040
+passent et le pointeur de feature reste 041.

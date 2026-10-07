@@ -47,3 +47,7 @@ MVP US1 puis US2 et travail dérivé borné ; aucun chantier serveur supplément
 ## Phase 7: Convergence
 
 - [x] T018 Compléter les tests des frontières de reprise, intentions locales et projections opérationnelles exigées par FR005 et le gate de couverture (partial) ; conserver les plafonds existants, puis reprendre T014.
+
+## Maintenance de validation CI
+
+- [x] T019 FR005 / Constitution III/VII : documenter le timeout réel du cas chiffré de 101 écritures sur PR 182, calibrer son délai de test sans réduire les assertions ni changer un budget produit, vérifier sous couverture/répétitions et reprendre la publication ; preuves dans validation.md.

@@ -91,3 +91,15 @@ sans données propriétaire dans validation.md.
 
 Aucune exception constitutionnelle. Le préchargement racine peut inclure de gros
 corps ; il privilégie la première disponibilité sans promettre un plafond absolu.
+
+## Maintenance de validation CI — 8 octobre
+
+Le premier run PR 182 atteint les limites de lots causaux, mais le test de
+101 écritures réelles dépasse le timeout Vitest générique de 5 s sous Istanbul
+sur le runner partagé. Le cas teste taille/ordre/acquittement durables, pas un
+budget produit de 5 s. Lui accorder 15 s uniquement, conserver les 101 créations
+chiffrées, les lots [100, 1], chaque identité dans l'ordre, les 101 acquittements,
+la file vide et le marqueur complet. Aucun changement production, de plafond de
+couverture, de tolérance E2E ou de budget performance. Exécuter le fichier
+instrumenté et répété, puis la couverture complète locale ; réutiliser les
+autres preuves de 758945b8 dont les inputs exécutables restent identiques.

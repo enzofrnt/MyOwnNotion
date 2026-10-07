@@ -221,6 +221,8 @@ class FakeTransport implements ReconcileTransport {
 }
 
 describe("reconciliation (T044)", () => {
+  // Creating and reconciling 101 encrypted writes can exceed the default CI
+  // deadline under coverage. This case checks batching, not a performance budget.
   it("limits independent offline writes to causal batches of one hundred", async () => {
     const mutationIds: Uuid[] = [];
     for (let index = 0; index < 101; index += 1) {
@@ -232,7 +234,7 @@ describe("reconciliation (T044)", () => {
     expect(transport.submissions.flat().map(({ mutationId }) => mutationId)).toEqual(mutationIds);
     expect(outcome).toMatchObject({ submitted: 101, accepted: 101, retained: 0 });
     expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(true);
-  });
+  }, 15_000);
 
   it.each(["write_blocked", "rotation.write-blocked"])(
     "retains a write refused by %s as blocked rather than a conflict",
