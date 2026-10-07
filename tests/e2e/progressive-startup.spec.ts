@@ -446,7 +446,8 @@ test.describe("progressive startup (feature 040)", () => {
 
       await selectItem(page, sourceName);
       await closeMobileNavigation(page);
-      const cachedNative = page.getByRole("main").locator(".database-container-page");
+      const cachedNative = page.getByRole("main").locator(".database-container-page:visible");
+      await expect(cachedNative).toHaveCount(1);
       await expect(entryTrigger(cachedNative, entryName)).toBeVisible();
       await expect(cachedNative.getByRole("grid")).toHaveAttribute("aria-rowcount", "-1");
       await expect(cachedNative.getByTestId("database-discovery-state")).toHaveAttribute(
