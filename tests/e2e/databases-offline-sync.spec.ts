@@ -85,7 +85,9 @@ async function createEntry(page: Page, title: string): Promise<void> {
 
 async function openEntry(page: Page, title: string): Promise<void> {
   await entryTrigger(page, title).first().click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(title, {
+  await expect(
+    page.locator(".entry-panel").getByRole("textbox", { name: "Titre de la page", exact: true }),
+  ).toHaveValue(title, {
     timeout: 15_000,
   });
 }

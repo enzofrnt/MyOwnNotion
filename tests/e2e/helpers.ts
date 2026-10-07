@@ -1077,6 +1077,31 @@ export function databaseViewButton(scope: Page | Locator, name: string | RegExp)
   return scope.locator(".database-container-page__tabs").getByRole("button", { name, exact: true });
 }
 
+/** Opens the card action menu and its destinations through the real controls. */
+export async function openBoardMoveMenu(
+  page: Page,
+  scope: Page | Locator,
+  title: string,
+  keyboard = false,
+): Promise<Locator> {
+  const trigger = scope.getByRole("button", { name: `Actions de ${title}`, exact: true });
+  if (keyboard) await trigger.press("Enter");
+  else await trigger.click();
+  const menu = page.getByRole("menu");
+  const move = menu.getByRole("menuitem", { name: "Déplacer dans un groupe", exact: true });
+  if (keyboard) {
+    await expect(menu.getByRole("menuitem").first()).toBeFocused();
+    for (let index = 0; index < 12; index += 1) {
+      if (await move.evaluate((node) => node === document.activeElement)) break;
+      await page.keyboard.press("ArrowDown");
+    }
+    await expect(move).toBeFocused();
+    await page.keyboard.press("Enter");
+  } else await move.click();
+  await expect(menu.locator("[data-board-destination]").first()).toBeVisible();
+  return menu;
+}
+
 export async function openDatabaseTools(page: Page): Promise<void> {
   const trigger = page.getByRole("button", { name: "Filtrer, trier et configurer", exact: true });
   if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();

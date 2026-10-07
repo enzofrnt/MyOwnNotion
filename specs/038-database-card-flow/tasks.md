@@ -69,3 +69,5 @@ historiques ; le protocole courant est celui de T017/T018.
 - [x] T043 FR003 : création canonique dès « Nouvel élément », édition existante après retour de l'identité/révision ; bouton permanent, sauvegarde avant création suivante, filtre/pagination et refus sans doublon.
 - [x] T044 FR024 : ancienne passe couleur pleine réalisée ; remplacée par le système de rôles de 041 à la demande du 7 octobre. La validation de cette nouvelle apparence appartient à specs/041-content-color-system/tasks.md et validation.md.
 - [x] T045 FR003/FR024 : tests ciblés, parcours Playwright et inspection visuelle clair/sombre/320 px, preuve et convergence ; environnement isolé pour préserver le fil principal.
+
+- [ ] T046 Correction de publication : conserver les libellés de cellules sans référence HTML à un en-tête d'une autre table, aligner les parcours sur le volet/menu/réglages courants et vérifier les cinq profils avec ui-quality/lessons ; preuve dans validation.md.

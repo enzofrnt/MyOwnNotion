@@ -61,7 +61,9 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await waitForSynchronized(page);
   await entryButton.click();
 
-  await expect(page.getByTestId("active-item-title")).toHaveValue(entryName);
+  await expect(
+    page.locator(".entry-panel").getByRole("textbox", { name: "Titre de la page", exact: true }),
+  ).toHaveValue(entryName);
   const entryPanel = page.locator(".entry-panel");
   await entryPanel
     .getByLabel("Notes", { exact: true })

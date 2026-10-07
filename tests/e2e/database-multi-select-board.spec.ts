@@ -6,6 +6,7 @@ import {
   createDatabaseView,
   createRootDatabase,
   entryTrigger,
+  openBoardMoveMenu,
   openWorkspace,
   uniqueName,
   waitForEntryAutosave,
@@ -28,10 +29,7 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   await page.getByRole("button", { name: "Fermer le volet" }).click();
   await createDatabaseView(page, "Kanban");
   const board = page.locator(".database-board-scroll");
-  const column = (label: string) =>
-    board
-      .locator("[data-board-column]")
-      .filter({ has: page.getByRole("heading", { name: new RegExp(`^${label} ·`) }) });
+  const column = (label: string) => board.getByRole("region", { name: new RegExp(`^${label} ·`) });
   const card = (label: string) =>
     column(label).locator(".database-card").filter({ hasText: title });
   await expect(card("Alpha")).toBeVisible();
@@ -41,12 +39,7 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   await board.screenshot({ path: testInfo.outputPath("multi-memberships.png") });
   const moveCard = async (origin: string, destination: string, keyboard = false) => {
     const destinationId = await column(destination).getAttribute("data-board-column");
-    const trigger = card(origin).getByRole("button", {
-      name: `Déplacer ${title} dans une autre colonne`,
-    });
-    if (keyboard) await trigger.press("Enter");
-    else await trigger.click();
-    const menu = page.getByRole("menu");
+    const menu = await openBoardMoveMenu(page, card(origin), title, keyboard);
     const choice = menu.locator(`[data-board-destination="${destinationId}"]`);
     await expect(choice).toBeEnabled();
     if (keyboard) {
@@ -62,9 +55,9 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
     } else await choice.click();
   };
   const betaMenu = card("Beta").getByRole("button", {
-    name: `Déplacer ${title} dans une autre colonne`,
+    name: `Actions de ${title}`,
   });
-  await betaMenu.press("Enter");
+  await openBoardMoveMenu(page, card("Beta"), title, true);
   await expect(page.getByRole("menu")).toContainText("Retirer toutes les sélections");
   await page.getByRole("menu").screenshot({ path: testInfo.outputPath("board-destinations.png") });
   await page.keyboard.press("Escape");
@@ -72,9 +65,9 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   await expect(betaMenu).toBeFocused();
   await expect(card("Alpha")).toBeAttached();
   await expect(card("Beta")).toBeAttached();
-  await column("Alpha").getByRole("button", { name: "Replier Alpha", exact: true }).click();
+  await board.getByRole("button", { name: "Replier Alpha", exact: true }).click();
   await expect(card("Alpha")).toHaveCount(0);
-  await column("Alpha").getByRole("button", { name: "Déplier Alpha", exact: true }).click();
+  await board.getByRole("button", { name: "Déplier Alpha", exact: true }).click();
   await expect(card("Alpha")).toBeAttached();
   // Opening one occurrence returns to the same column.
   await entryTrigger(card("Beta"), title).click();
@@ -188,15 +181,12 @@ test("Kanban destination menus expose pending and refused moves without false su
     const source = board
       .locator(".database-card")
       .filter({ hasText: "Préparer la prochaine version" });
-    const trigger = source.getByRole("button", {
-      name: "Déplacer Préparer la prochaine version dans une autre colonne",
-    });
-    await trigger.click();
+    await openBoardMoveMenu(page, source, "Préparer la prochaine version");
     await page.getByRole("menuitem", { name: "Terminé", exact: true }).click();
     await expect(source).toBeAttached();
     if (state === "pending") {
       await expect(source).toHaveAttribute("aria-busy", "true");
-      await trigger.click();
+      await openBoardMoveMenu(page, source, "Préparer la prochaine version");
       await expect(page.getByRole("menuitem", { name: "Terminé", exact: true })).toHaveAttribute(
         "aria-disabled",
         "true",
@@ -211,12 +201,12 @@ test("Kanban destination menus expose pending and refused moves without false su
       await expect(feedback).toContainText("n'a pas pu être déplacé");
       await expect(feedback).toBeInViewport();
       await expect(feedback).not.toContainText("déplacé vers");
-      await trigger.click();
+      await openBoardMoveMenu(page, source, "Préparer la prochaine version");
       await expect(page.getByRole("menuitem", { name: "Terminé", exact: true })).toBeEnabled();
       await page.getByRole("menuitem", { name: "Terminé", exact: true }).click();
       await expect(feedback).toContainText("n'a pas pu être déplacé");
       await expect(source).toBeAttached();
-      await trigger.click();
+      await openBoardMoveMenu(page, source, "Préparer la prochaine version");
       // A full-page mobile capture can temporarily resize the layout viewport;
       // capture after retry so geometry changes cannot steer the pointer action.
       await page.screenshot({

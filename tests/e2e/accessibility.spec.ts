@@ -23,6 +23,7 @@ import {
   ensureNavigationVisible,
   entryTrigger,
   openAttachmentDetails,
+  openBoardMoveMenu,
   openItemActions,
   openNoteInformation,
   openPageAttachments,
@@ -479,11 +480,12 @@ test.describe("structured database view accessibility (feature 009)", () => {
     }
 
     await databaseViewButton(page, /Kanban/).click();
-    await expect(page.getByLabel(`Déplacer ${entryName} dans une autre colonne`)).toBeVisible();
-    await page.getByLabel(`Déplacer ${entryName} dans une autre colonne`).press("Enter");
+    const actions = page.getByRole("button", { name: `Actions de ${entryName}`, exact: true });
+    await expect(actions).toBeVisible();
+    await openBoardMoveMenu(page, page, entryName, true);
     await expect(page.getByRole("menuitem", { name: "Done", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByLabel(`Déplacer ${entryName} dans une autre colonne`)).toBeFocused();
+    await expect(actions).toBeFocused();
     await databaseViewButton(page, /Calendrier/).click();
     await expect(page.getByLabel(`Planifier ${entryName}`)).toBeVisible();
     await expect(

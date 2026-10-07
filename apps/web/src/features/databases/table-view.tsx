@@ -1159,7 +1159,11 @@ export function TableView({
                                   : "database-cell--property"
                               }
                               role="gridcell"
-                              headers={`database-column-${view.id}-${property.id}`}
+                              headers={
+                                viewport.pageFlow
+                                  ? undefined
+                                  : `database-column-${view.id}-${property.id}`
+                              }
                               aria-colindex={column + 1}
                               aria-label={`${property.name}, ${displayDatabaseValue(row.original, property)}`}
                               tabIndex={

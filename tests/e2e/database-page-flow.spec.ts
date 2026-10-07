@@ -61,7 +61,7 @@ for (const flow of ["full", "inline"]) {
       await expect.poll(() => virtualNodes.count()).toBeGreaterThan(0);
       await expect.poll(() => virtualNodes.count()).toBeLessThan(100);
       if (format === "board") {
-        const short = page.locator("[data-board-column]").nth(1).locator("header");
+        const short = headers.nth(1);
         await expect
           .poll(async () =>
             short.evaluate((node) =>

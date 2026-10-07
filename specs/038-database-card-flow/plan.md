@@ -71,6 +71,14 @@ Appliquer [ui-quality](../../.agents/skills/ui-quality/SKILL.md), [lessons](../.
 
 ## Validation and delivery
 
+Reprise de publication du 7 octobre : le gate révèle que `headers` sur les
+cellules du corps séparé vise une autre table. En page-flow, conserver le nom
+explicite propriété/valeur et l'indice de colonne, sans cette relation HTML
+invalide ; la table bornée garde ses en-têtes internes. Aligner les parcours
+historiques sur le volet, le menu Actions et Grouper dans les réglages, sans
+retirer leurs assertions de persistance, focus, déplacement ou navigation.
+ui-quality/lessons restent applicables ; matrice complète et preuves avant push.
+
 Types/Biome/build ciblés, tests de comportement bornés si nécessaires ; aucune matrice. Revue manuelle Notion puis 8082 (création, visibilité, volet, clavier, thème, étroit). Déployer seulement web myownnotion-notion-api, préserver API/DB et instance 8080. [quickstart.md](quickstart.md), [validation.md](validation.md).
 
 ## Post-design gate
