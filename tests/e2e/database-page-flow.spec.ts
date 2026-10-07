@@ -27,32 +27,30 @@ for (const flow of ["full", "inline"]) {
       const headers = page.locator(
         format === "board" ? ".database-board__column header" : ".database-grid thead",
       );
+      const sticky = surface.locator(".database-page-header");
+      await expect(sticky).toHaveCount(1);
       await expect(headers.first()).toBeVisible();
       await main.evaluate((node) => {
         node.scrollTop = 700;
       });
       await expect
         .poll(async () =>
-          headers
-            .first()
-            .evaluate((node) =>
-              Math.round(
-                node.getBoundingClientRect().top -
-                  (node.closest(".workspace-main")?.getBoundingClientRect().top ?? 0),
-              ),
+          sticky.evaluate((node) =>
+            Math.round(
+              node.getBoundingClientRect().top -
+                (node.closest(".workspace-main")?.getBoundingClientRect().top ?? 0),
             ),
+          ),
         )
         .toBeLessThanOrEqual(2);
       await expect
         .poll(async () =>
-          headers
-            .first()
-            .evaluate((node) =>
-              Math.round(
-                node.getBoundingClientRect().top -
-                  (node.closest(".workspace-main")?.getBoundingClientRect().top ?? 0),
-              ),
+          sticky.evaluate((node) =>
+            Math.round(
+              node.getBoundingClientRect().top -
+                (node.closest(".workspace-main")?.getBoundingClientRect().top ?? 0),
             ),
+          ),
         )
         .toBeGreaterThanOrEqual(-2);
       expect(await surface.evaluate((node) => node.scrollTop)).toBe(0);
@@ -68,7 +66,10 @@ for (const flow of ["full", "inline"]) {
             short.evaluate((node) =>
               Math.abs(
                 node.getBoundingClientRect().top -
-                  (node.closest(".workspace-main")?.getBoundingClientRect().top ?? 0),
+                  (node
+                    .closest(".database-page-header")
+                    ?.querySelector("header")
+                    ?.getBoundingClientRect().top ?? 0),
               ),
             ),
           )
@@ -79,17 +80,25 @@ for (const flow of ["full", "inline"]) {
         await collapse.press("Enter");
       } else {
         const before = await headers.first().getByRole("button").first().boundingBox();
-        await surface.evaluate((node) => {
+        await surface.locator(".database-table-body-scroll").evaluate((node) => {
           node.scrollLeft = 120;
         });
-        const after = await headers.first().getByRole("button").first().boundingBox();
-        expect((before?.x ?? 0) - (after?.x ?? 0)).toBeCloseTo(120, 0);
+        await expect
+          .poll(async () => {
+            const after = await headers.first().getByRole("button").first().boundingBox();
+            return (before?.x ?? 0) - (after?.x ?? 0);
+          })
+          .toBeCloseTo(120, 0);
       }
       await main.evaluate((node) => {
         node.scrollTop = node.scrollHeight - node.clientHeight - 450;
       });
       const last = page.locator("[data-entry-trigger]").filter({ hasText: "Carte 0999" });
+      // Measured card heights replace estimates after the jump. Follow the
+      // actual last card using the native page owner rather than stale heights.
+      await last.scrollIntoViewIfNeeded();
       await expect(last).toBeInViewport();
+      expect(await surface.evaluate((node) => node.scrollTop)).toBe(0);
       await main.evaluate((node) => {
         node.scrollTop = node.scrollHeight;
       });

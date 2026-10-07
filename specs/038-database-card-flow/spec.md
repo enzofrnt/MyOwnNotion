@@ -43,7 +43,7 @@ Le clic sur une entrée depuis une vue ouvre un volet à droite avec titre, icô
 **Independent Test**: Ouvrir une carte, modifier le titre/propriété/contenu, fermer puis rouvrir en pleine page.
 **Acceptance Scenarios**:
 1. **Given** une base pleine page ou intégrée, **When** une entrée est ouverte, **Then** un volet droit affiche l'entrée canonique et la base reste visible.
-2. **Given** le volet ouvert, **When** il est fermé ou Échap est pressé hors d'un menu/éditeur, **Then** le focus revient à la carte et la base garde sa vue et sa position.
+2. **Given** le volet ouvert, **When** il est fermé ou Échap est pressé hors d'un menu/éditeur/geste actif, **Then** le focus revient à la carte et la base garde sa vue et sa position. Pendant un déplacement de propriété au clavier, Échap annule seulement ce déplacement et conserve le volet et l'ordre précédent.
 3. **Given** le volet ouvert, **When** Ouvrir en pleine page est activé, **Then** la même entrée est affichée dans la navigation normale.
 4. **Given** une entrée/source indisponible, **When** elle est ouverte, **Then** un état local clair propose une reprise ou fermeture sans page vide ni perte de données.
 

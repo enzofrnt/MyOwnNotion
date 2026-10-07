@@ -71,3 +71,5 @@ historiques ; le protocole courant est celui de T017/T018.
 - [x] T045 FR003/FR024 : tests ciblés, parcours Playwright et inspection visuelle clair/sombre/320 px, preuve et convergence ; environnement isolé pour préserver le fil principal.
 
 - [ ] T046 Correction de publication : conserver les libellés de cellules sans référence HTML à un en-tête d'une autre table, aligner les parcours sur le volet/menu/réglages courants et vérifier les cinq profils avec ui-quality/lessons ; preuve dans validation.md.
+
+- [ ] T047 Reprise US3.2/FR008 : Échap annule le déplacement de propriété sans fermer le volet ni écrire ; vérifier ensuite déplacement validé, ordre durable et fermeture normale avec ui-quality/lessons. Aligner composition inline du laboratoire, géométrie sticky et cibles de champs exactes ; tests ciblés, cinq profils et preuve dans validation.md.

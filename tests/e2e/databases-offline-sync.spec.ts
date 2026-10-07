@@ -57,13 +57,18 @@ async function addTextProperty(
   name: string,
   options: { readonly online?: boolean } = {},
 ): Promise<void> {
-  await page.getByRole("button", { name: "Ajouter une propriété" }).click();
+  await page
+    .getByTestId("database-view-surface")
+    .getByRole("button", { name: "Ajouter une propriété" })
+    .click();
   const editor = page.getByRole("form", { name: "Éditeur de propriété" });
-  await editor.getByLabel("Nom").fill(name);
+  await editor.getByLabel("Nom", { exact: true }).fill(name);
   await editor.getByLabel("Type").selectOption("text");
   await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
   await expect(editor).toBeHidden({ timeout: 15_000 });
-  await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
+  await expect(
+    page.getByTestId("database-view-surface").getByRole("columnheader").filter({ hasText: name }),
+  ).toBeVisible();
   if (options.online === false) await waitForDatabaseDefinitionIdle(page);
   else await waitForDatabaseDefinitionSaved(page);
   await page.keyboard.press("Escape");

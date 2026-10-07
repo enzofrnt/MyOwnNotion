@@ -161,6 +161,12 @@ function PreviewDatabases() {
       ? {
           ...reviewTable,
           type: "board",
+          properties: query.has("flow")
+            ? reviewTable.properties.map((property) => ({
+                ...property,
+                visible: property.propertyId === reviewId(1),
+              }))
+            : reviewTable.properties,
           options: { axisPropertyId: reviewId(2), columnOrder: [], collapsedColumnIds: [] },
         }
       : format === "gallery"
@@ -296,7 +302,13 @@ function PreviewDatabases() {
         </Button>
       </nav>
       <div
-        className={query.has("flow") ? "workspace-main" : undefined}
+        className={
+          query.get("flow") === "inline"
+            ? "workspace-main page-editor"
+            : query.has("flow")
+              ? "workspace-main"
+              : undefined
+        }
         data-content-mode={query.has("flow") ? "page" : undefined}
         style={
           query.has("flow")
@@ -385,7 +397,7 @@ function PreviewDatabases() {
           )}
         </div>
         {query.has("flow") ? (
-          <p data-flow-after style={{ height: 500 }}>
+          <p data-flow-after style={{ height: 800 }}>
             Contenu après la base
           </p>
         ) : null}

@@ -24,6 +24,21 @@ dans un environnement isolé, sans redémarrer la pile du fil principal.
 
 ## Summary
 
+Reprise de publication : le déplacement de propriété au clavier consomme
+Échap avant la fermeture du volet. Le prédicat de dismissal de DatabaseEntryPeek
+respecte la rangée de propriété en déplacement ; vérifier annulation sans
+écriture, ordre conservé puis fermeture normale au second Échap. Le laboratoire
+inline conserve l'ancêtre page-editor réel ; les tests mesurent le conteneur
+sticky commun et utilisent le rail horizontal du corps, sans contourner les
+gestes de dépôt ni élargir les tolérances. Les libellés de propriétés sont
+ciblés exactement pour éviter « Nom »/« nombre ».
+La fixture de flux Kanban expose seulement le titre pour vérifier son centrage
+vertical, et conserve après la base un contenu plus haut que le scrollport pour
+vérifier la sortie complète du sticky. Après un saut virtualisé, révéler la
+dernière carte mesurée par le scroll natif ; la surface de base doit toujours
+garder scrollTop à zéro. La recherche ouvre la route pleine page, dont le
+contrôle de retour est distinct de celui du volet.
+
 Canevas §14/18/19/43.6. Réutiliser création atomique, présentations de vues, EntryPanel et éditeur canonique. Pas de nouvelle dépendance, API, migration ou stockage de document.
 
 ## Technical Context

@@ -116,6 +116,12 @@ export function DatabaseEntryPeek({
         modal={false}
         backdrop={false}
         hideOnInteractOutside={false}
+        hideOnEscape={(event) =>
+          !(
+            event.target instanceof Element &&
+            event.target.closest('.entry-property-row[data-dragging="true"]')
+          )
+        }
         className="database-entry-peek"
         data-closing={closing || undefined}
         onAnimationEnd={(event) => {

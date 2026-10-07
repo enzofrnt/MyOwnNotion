@@ -35,7 +35,9 @@ for (const cancel of [false, true]) {
   }) => {
     await openWorkspace(page);
     await createRootDatabase(page, uniqueName("Stable property"));
-    await expect(page.locator(".database-grid")).toBeVisible();
+    await expect(
+      page.getByTestId("database-view-surface").getByRole("columnheader").first(),
+    ).toBeVisible();
     // Classification is known at creation. A page-editor placeholder above the
     // database would move this action after the owner has already pressed it.
     await expect(page.getByTestId("editor-loading-skeleton")).not.toBeVisible();
@@ -57,7 +59,7 @@ for (const cancel of [false, true]) {
     });
     await addProperty.click();
     const form = page.getByRole("form", { name: "Éditeur de propriété" });
-    await form.getByLabel("Nom").fill("Notes");
+    await form.getByLabel("Nom", { exact: true }).fill("Notes");
     const stability = await stopObserving.evaluate((stop) => stop());
     await stopObserving.dispose();
     expect(stability.connected).toBe(true);
@@ -76,7 +78,7 @@ for (const cancel of [false, true]) {
     await page.mouse.up();
     if (cancel) {
       await expect(form).toBeVisible();
-      await expect(form.getByLabel("Nom")).toHaveValue("Notes");
+      await expect(form.getByLabel("Nom", { exact: true })).toHaveValue("Notes");
       await save.focus();
       await page.keyboard.press("Enter");
     }
@@ -180,6 +182,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await expect(result).toContainText("Propriété correspondante : Workflow");
   await result.getByRole("button").click();
   await expect(entryPanel).toBeVisible();
+  await expect(page.locator(".database-entry-peek")).toBeHidden();
 
   await chooseEntryOptions(page, "Workflow", ["Done"]);
   await waitForEntryAutosave(page);
@@ -192,6 +195,6 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await expect(entryPanel.getByRole("button", { name: "Project", exact: true })).toHaveText(
     projectName,
   );
-  await page.getByRole("button", { name: "Fermer le volet" }).click();
+  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
   await expect(page.locator("[data-entry-trigger]")).toHaveCount(1);
 });
