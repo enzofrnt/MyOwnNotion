@@ -70,6 +70,10 @@ Colonne vide/sans valeur/repliée, titre long, IME, filtre masquant la nouvelle 
 - **FR-012**: Le volet MUST glisser depuis/vers la droite, rester monté pendant sa sortie et respecter la réduction des animations. Deux boutons icônes voisins ferment (double chevron) ou ouvrent en pleine page.
 - **FR-013**: Les titres de table MUST rester éditables au clic avec ouverture latérale au survol/focus. Les en-têtes repliés MUST être centrés verticalement et le hover MUST éclaircir le fond teinté entier sans plaque grise.
 - **FR-015**: Le regroupement MUST se configurer dans les réglages de la vue, via « Grouper » et un panneau dédié « Grouper par » indiquant la propriété actuelle. Aucun bouton de regroupement ne reste au-dessus du Kanban ni dans le panneau de tri. Le choix s'applique immédiatement, conserve filtres/tris/visibilité et reste propre à chaque vue. Un axe indisponible indique les réglages comme point de reprise, sans substitution silencieuse.
+- **FR-016**: Les changements courants des entrées MUST s'appliquer sans message de succès ni badge « Enregistré localement » sous les cartes ou rangées des vues. Une attente de synchronisation ne constitue pas une erreur ; les refus et conflits MUST rester visibles et les diagnostics de synchronisation accessibles dans les réglages. Le retrait de l'indication ne change ni la persistance locale ni la synchronisation.
+
+- **FR-017**: Les propriétés déjà visibles sur une carte MUST être directement modifiables sans déplier la carte ni ouvrir le volet. Le crayon révèle les champs supplémentaires après les propriétés visibles, sans déplacer ni redimensionner le titre et les contrôles déjà présents. Le titre se modifie à sa place, sans cadre de champ, avec le curseur initial en fin de texte ; un titre long conserve ses retours à la ligne.
+- **FR-018**: Activer le crayon d'une autre carte MUST terminer l'édition courante puis ouvrir la nouvelle, sans perdre une saisie encore en attente. L'appui et le focus sur ce crayon ne replient pas la carte courante avant son activation, y compris dans la même colonne ; un relâchement extérieur annule le geste sans changer de carte. Un refus conserve la carte et son brouillon au lieu de les démonter. La capsule crayon/menu MUST être plus discrète au pointeur, en conservant ses aides, son clavier et les cibles tactiles.
 
 ### Key Entities
 
@@ -84,6 +88,8 @@ Brouillon de carte transitoire (titre/type/valeurs/relations/champs modifiés), 
 - **SC-003**: Ouvrir/fermer le volet conserve la vue et la position de défilement ; les modifications sont identiques en pleine page.
 - **SC-004**: Les parcours initiaux et les huit retours complémentaires sont vérifiés sur 8082 avec captures et parcours clavier, clair/sombre, animations réduites et largeur étroite.
 - **SC-005**: Depuis les réglages, changer État vers Matière puis recharger conserve le regroupement ; les autres vues restent inchangées. Vérification pleine page et base intégrée, clavier, clair/sombre et 320 px.
+
+- **SC-006**: Sur 8082, titre et propriétés visibles gardent leur position, police et hauteur avant/après le crayon ; les champs masqués apparaissent en dessous. Une propriété se modifie directement depuis la carte fermée. Passer au crayon suivant pendant une saisie conserve celle-ci après rechargement ; une écriture refusée reste récupérable. Revue selon ui-quality, sombre/clair, titre long et 320 px.
 
 ## Assumptions and boundaries
 

@@ -1,5 +1,28 @@
 # Vérification
 
+## Ligne Source nettement désactivée — 7 octobre 2026, T080
+
+FR023 précisé avant code : toute la ligne doit se distinguer dès le repos.
+Le style désactivé de database.css reprend l'opacité 0.5 de Button/Menu ;
+libellé, nom de source, icône et chevron sont atténués ensemble. Les rangées
+actives gardent leur opacité 1. Aucun changement de verrou ni de données.
+
+Revue réelle sur la base signalée à une seule vue, 8082 : état disabled natif,
+raison « Ajoutez une deuxième vue pour changer sa source. » conservée, clic
+au centre sans ouverture. Captures privées inspectées :
+`work/notion-api/033-source-disabled-dark.png`, `033-source-disabled-light.png`,
+`033-source-disabled-320.png`. Les deux thèmes montrent la distinction au repos ;
+à 320 px, largeur de document et scrollWidth égaux à 320. Émulations retirées,
+sidebar restituée. ui-quality + lessons appliqués ; FR023/T080 convergés.
+
+Validation proportionnée à une règle CSS sans changement comportemental :
+Biome CSS sans erreur (avertissements préexistants), build Bun 1.4.2 réussi
+(33 sorties, 23 assets, 10 228 781 octets), diff sans erreur, prérequis et
+cohérence Spec Kit vérifiés. Pas de nouveau test miroir de la règle CSS ;
+le test de verrou/déverrouillage reste inchangé et déjà validé après rebase.
+Seul web 8082 recréé à `2026-10-07T08:21:54.569818167Z` ; API 8082 et instance
+8080 conservées. Aucun commit ni push pour ce suivi.
+
 ## Point de départ
 
 - 032 enregistré : `f7b167a8` ; état Git propre au début.

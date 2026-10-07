@@ -29,6 +29,13 @@ Contrôles désactivés natifs/Ariakit, couleur sémantique muted, sans survol a
 raison via description accessible et indication au survol. La gestion des
 sources reste disponible ; les vues liées conservent leur exception actuelle.
 
+Retour du 7 octobre : la couleur muted seule ressemble encore à une action
+active. Dans database.css, appliquer aux rangées et choix désactivés la même
+opacité 0.5 que les primitives Button/Menu, couvrant aussi valeur et icônes.
+Conserver géométrie, raison, verrou et absence de hover actif. FR023 → T080 ;
+ui-quality + lessons, revue réelle clair/sombre avant done. Ajustement CSS seul,
+sans nouvelle logique ni campagne de tests comportementaux.
+
 Validation proportionnée : test comportemental de la ligne verrouillée puis
 déverrouillée, parcours Playwright ciblés sur les deux défauts (aucune suite
 complète), types web et contrôles statiques des fichiers modifiés. Preuves du

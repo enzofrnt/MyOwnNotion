@@ -68,3 +68,38 @@ Retirer la toolbar et son CSS de BoardView ; conserver l'état indisponible avec
 indication du point de reprise. Aucun nouveau réglage de masquage, sous-groupe ou
 couleur ; aucun contrat ni migration. Appliquer ui-quality + lessons ; preuves
 pleine page/intégrée, clavier, refus/pending, thèmes et 320 px avant done.
+
+## Édition de carte sans changement de présentation
+
+Correction T025/T026 : distinguer le crayon de la même instance Kanban des
+interactions extérieures ordinaires. Les événements pointerdown/focusin sur ce
+déclencheur laissent l'éditeur courant monté ; son clic sémantique existant
+sauvegarde puis bascule. Aucun déclenchement sur pointerdown, délai arbitraire
+ou changement de persistance. Vérifier le geste réel appui/relâchement : la
+carte suivante ne doit pas remonter sous le pointeur avant le clic. Appliquer
+ui-quality + lessons, annulation hors cible, clavier et brouillon en attente.
+
+FR017/018 → T023/T024. Garder BoardCardEditor monté sur chaque carte interactive :
+la même session sérialise les propriétés visibles au repos et celles révélées par
+le crayon. Réutiliser ValueEditor/EntryChoicePicker, avec présentation compacte
+sans icône ajoutée aux champs déjà visibles. Le titre seul ouvre le volet au repos ;
+en édition, un texte éditable sans bordure reprend les mêmes métriques et place
+le curseur en fin de texte. Conserver les champs visibles en premier puis ajouter
+les autres, afin de ne pas déplacer les contrôles existants. Une référence de
+session permet au passage entre crayons d'attendre la sauvegarde ; un refus
+empêche ce passage et garde la reprise locale. Rafraîchir les champs non modifiés
+depuis la projection canonique, sans écraser les brouillons ou écritures en cours.
+Capsule de 26 px au pointeur fin, icônes de 16 px ; cible 44 px au tactile.
+Appliquer ui-quality + lessons et le guide UI. Observer NSY103/Examen/crayon
+dans Notion, mesurer le rendu local avant/après et vérifier sauvegarde, passage,
+refus, clavier, thèmes et largeur étroite. Aucun contrat réseau ni migration.
+
+## Enregistrement discret des entrées
+
+FR016 → T021/T022. Les vues BoardView, GalleryView et ListView n'affichent
+le badge database-sync que pour un conflit. Retirer la copie et le style
+pending inutilisés ; conserver les commandes d'édition automatique et leurs
+erreurs/reprises. Aucun changement de données, hors-ligne, synchronisation,
+permissions ou migration. Appliquer ui-quality + lessons ; régression bornée
+sur les trois vues (pending discret, conflit visible), puis modification réelle
+d'une propriété sur 8082, rechargement et restitution de la valeur initiale.

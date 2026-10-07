@@ -18,7 +18,7 @@ it("keeps the draft after refusal, blocks repeated Enter while pending, and canc
         fail = reject;
       }),
   );
-  const enter = (input: HTMLInputElement) =>
+  const enter = (input: HTMLElement) =>
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
   try {
     await act(async () =>
@@ -31,13 +31,10 @@ it("keeps the draft after refusal, blocks repeated Enter while pending, and canc
       ),
     );
     await act(async () => host.querySelector<HTMLButtonElement>(".database-board__add")?.click());
-    const input = host.querySelector("input");
+    const input = host.querySelector<HTMLElement>('[role="textbox"]');
     if (!input) throw new Error("Missing draft");
     await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
-        input,
-        "First card",
-      );
+      input.textContent = "First card";
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => {
@@ -46,18 +43,18 @@ it("keeps the draft after refusal, blocks repeated Enter while pending, and canc
     });
     expect(create).toHaveBeenCalledExactlyOnceWith("page", "First card", {}, {});
     await act(async () => fail?.(new Error("Refused")));
-    expect(input.value).toBe("First card");
+    expect(input.textContent).toBe("First card");
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("conservé");
     await act(async () => enter(input));
     expect(create).toHaveBeenCalledTimes(2);
     await act(async () => finish?.());
-    expect(host.querySelector("input")?.value).toBe("");
+    expect(host.querySelector('[role="textbox"]')?.textContent).toBe("");
     await act(async () =>
       host
-        .querySelector("input")
+        .querySelector('[role="textbox"]')
         ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
     );
-    expect(host.querySelector("input")).toBeNull();
+    expect(host.querySelector('[role="textbox"]')).toBeNull();
     expect(create).toHaveBeenCalledTimes(2);
   } finally {
     act(() => root.unmount());
@@ -116,13 +113,10 @@ it("keeps creation open across property focus and commits type, column, date, ch
       ),
     );
     await act(async () => host.querySelector<HTMLButtonElement>(".database-board__add")?.click());
-    const title = host.querySelector<HTMLInputElement>('input:not([type="checkbox"])');
+    const title = host.querySelector<HTMLElement>('[role="textbox"]');
     if (!title) throw new Error("Missing title");
     await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
-        title,
-        "Complete draft",
-      );
+      title.textContent = "Complete draft";
       title.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => {
@@ -146,7 +140,7 @@ it("keeps creation open across property focus and commits type, column, date, ch
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Related"]')?.click());
     await act(async () => document.querySelector<HTMLElement>('[role="menuitemradio"]')?.click());
     expect(create).not.toHaveBeenCalled();
-    expect(title.value).toBe("Complete draft");
+    expect(title.textContent).toBe("Complete draft");
     expect(
       [...host.querySelectorAll("button")].some(
         (b) => b.textContent === "Créer" || b.textContent === "Annuler",
@@ -187,18 +181,15 @@ it("retries a refused outside creation once and closes the saved draft", async (
       ),
     );
     await act(async () => host.querySelector<HTMLButtonElement>(".database-board__add")?.click());
-    const input = host.querySelector("input");
+    const input = host.querySelector<HTMLElement>('[role="textbox"]');
     if (!input) throw new Error("Missing draft");
     await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
-        input,
-        "Retry card",
-      );
+      input.textContent = "Retry card";
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })));
     expect(create).toHaveBeenCalledTimes(1);
-    expect(host.querySelector("input")?.value).toBe("Retry card");
+    expect(host.querySelector('[role="textbox"]')?.textContent).toBe("Retry card");
     await act(async () =>
       [...host.querySelectorAll("button")].find((b) => b.textContent === "Réessayer")?.click(),
     );

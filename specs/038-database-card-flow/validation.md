@@ -1,5 +1,79 @@
 # Validation — 6 octobre 2026
 
+## Édition stable des cartes — 7 octobre, T023/T024
+
+FR017/018, plan et canevas §14 alignés avant code ; ui-quality + lessons et
+guide UI appliqués. Dans Notion, Matière ouvre directement son sélecteur et
+Examen se coche sans ouvrir l'entrée. Le crayon remplace le titre par un texte
+éditable sans bordure, avec les mêmes coordonnées, largeur, hauteur et police.
+Case de référence remise décochée ; titre et options non modifiés.
+
+Revue réelle sur 8082 :
+
+- Le titre court et les deux propriétés visibles ont exactement les mêmes
+  coordonnées et métriques avant/après le crayon. Titre : 14 px, interligne
+  20 px, hauteur 20 px ; champs : hauteurs 24/20 px inchangées. Les propriétés
+  supplémentaires s'ajoutent en dessous. Curseur au bout du titre, aucun cadre.
+- Titre sur deux lignes : clic physique sur le crayon, mêmes x/y, largeur
+  214 px, hauteur 40 px, retrait vertical 10 px dans la carte. Le premier
+  clic automatisé avait fait défiler le viewport ; la mesure physique exclut
+  ce déplacement de l'automatisation et confirme la stabilité de l'interface.
+- Titre temporaire saisi puis crayon d'une autre carte activé immédiatement :
+  ancienne carte fermée, suivante ouverte, modification retrouvée au rechargement.
+  Titre d'origine restitué et vérifié après rechargement.
+- Depuis la carte fermée, Matière ouvre son sélecteur sans volet ni dépliage ;
+  Examen se modifie directement et persiste après rechargement. Valeur initiale
+  décochée restituée et vérifiée. 17 cartes au début et à la fin, aucune alerte.
+- Capsule : commandes 26 px et icônes 16 px mesurées au pointeur. Clavier : Tab
+  passe du titre à Examen, Échap ferme ; création vide annulée sans nouvelle
+  entrée. Revue clair/sombre et 320 px : largeur du document 320 px, sans
+  débordement global. Thème, viewport et sidebar restitués.
+
+Captures privées inspectées : `work/notion-api/038-stable-edit-dark.png`,
+`038-stable-edit-light.png`, `038-stable-edit-320.png`,
+`038-stable-edit-320-dark.png`, référence `038-notion-stable-edit.png`.
+
+37 tests ciblés réussis sur 8 fichiers : édition directe, contrôles conservés,
+sauvegardes sérialisées/baseline, passage entre crayons pendant une écriture,
+refus/reprise, création atomique/Entrée/vide/portails, caret, propriétés du volet,
+mouvements du Kanban et retour discret. Le refus est vérifié par simulation
+contrôlée dans les tests ; aucune panne provoquée sur les données du propriétaire.
+Typecheck Web et racine, Biome ciblé sans erreur et build Bun 1.4.2 réussis
+(33 sorties, 23 assets, 10 232 372 octets). Avertissements historiques de CSS et
+union void conservés. Prérequis et cohérence de la feature vérifiés.
+
+Web 8082 seul recréé à `2026-10-07T08:46:57.812472918Z` ; API 8082 et
+web/API 8080 inchangés. T023/T024 convergés après cette revue réelle.
+
+## Enregistrement discret — 7 octobre, T021/T022
+
+FR016 et canevas §14 alignés avant code. Le seul badge d'attente affiché sous
+les entrées est retiré de Kanban/galerie/liste ; conflits et erreurs restent
+visibles, aucune commande de persistance ou de synchronisation n'est modifiée.
+Scope borné : composants de rendu, copie inutilisée et règle CSS pending.
+
+Sur 8082, ouvrir le crayon de « Nouvelle page », cocher Examen : aucun message
+sous la carte, édition conservée et valeur retrouvée après rechargement.
+Valeur initiale décochée restituée, fermeture par Échap. Revue réelle sombre,
+clair et 320 px : aucun badge, formulaire inchangé, largeur de document 320 px
+sans débordement global. Émulation de thème/viewport retirée. Captures privées
+inspectées : `work/notion-api/038-save-quiet-dark.png`,
+`038-save-quiet-light.png`, `038-save-quiet-320.png`.
+
+- Régression de présentation Kanban/galerie/liste : 3 tests réussis ; entrées
+  synced/pending conservées sans message, conflit toujours affiché.
+- Éditeur automatique : 2 tests réussis ; sérialisation et refus/reprise sans
+  boutons de validation. Première fixture de présentation corrigée pour employer
+  un axe status compatible avec le Kanban.
+- Typecheck Web, Biome ciblé et build Bun 1.4.2 réussis. Biome ne signale aucune
+  erreur ; avertissements préexistants de cascade CSS et union void conservés.
+  Build : 33 sorties, 23 assets, 10 228 770 octets.
+- Prérequis Spec Kit et cohérence FR016/T021/T022 vérifiés ; diff sans erreur.
+- Seul web 8082 recréé à `2026-10-07T08:18:35.308639338Z` ; démarrages API 8082,
+  web/API 8080 inchangés. Aucun push ni nouveau commit demandé pour ce correctif.
+
+ui-quality + lessons appliqués ; T021/T022 convergés après revue réelle.
+
 ## Référence et checkpoint
 
 Checkpoint demandé sans tests : `0b3157a2`, avant toute modification de cette
@@ -271,3 +345,46 @@ revue du propriétaire.
 Dernière vérification documentaire : 11 documents et 29 liens locaux valides.
 La revue finale après redéploiement confirme l'aide de la base intégrée,
 Réglages → Grouper État, comptes 5/2/10/0, sidebar visible et largeur 1133 px.
+
+## Passage entre crayons dans la même colonne — 7 octobre
+
+T025/T026, FR018/SC006 ; ui-quality et lessons appliqués. La vérification
+antérieure entre deux colonnes ne couvrait pas le déplacement de la cible.
+Reproduction réelle sur 8082 : appui sur le second crayon de En cours à
+(841, 564.59375), repli immédiat du premier éditeur et déplacement de 110 px
+vers le haut ; aucun éditeur ouvert après relâchement à la position initiale.
+La nouvelle régression séparant appui/focus et activation échoue sur ce code.
+
+Correction bornée : marqueur du crayon et reconnaissance dans la fermeture
+extérieure du seul Kanban parent, hors création. L'appui/focus garde la carte
+actuelle montée ; le clic existant attend sa sauvegarde puis bascule. Aucun
+changement de CSS, API, synchronisation, permissions ou migration, aucune action
+déclenchée sur pointerdown. Les interactions extérieures ordinaires et portails
+conservent leur protocole. Un refus garde la saisie et la reprise.
+
+Revue physique, sans clic DOM synthétique : mêmes cartes/mêmes coordonnées,
+cible inchangée avant relâchement puis seconde carte seule en édition. Retour
+vers le premier crayon après une saisie ajoutée au titre du second, avant le
+délai d'autosave : bascule réussie, titre conservé après rechargement. Titre
+initial restauré par l'UI et restitution confirmée après rechargement. Appui
+sur le second crayon puis relâchement hors cible : premier éditeur conservé ;
+Entrée sur le crayon focalisé ouvre le second, Échap ferme. En clair à 320×800,
+Nouvelle page → ponon : cible (225, 607.59375) inchangée à l'appui, bascule au
+relâchement ; document.scrollWidth=320. Rendu inspecté dans les captures privées
+ignorées work/notion-api/038-pencil-same-column-fixed.png et
+038-pencil-same-column-light-320.png. Aucune donnée privée suivie dans Git.
+
+Contrôles : 10 tests dans database-card-inline, board-card-editor et
+board-create-card réussis (écritures en attente, refus/reprise, gestes, fermeture
+extérieure, création et portails). Web typecheck et Biome des trois fichiers
+modifiés sans erreur ; build Bun 1.4.2, 33 sorties / 23 assets / 10 232 564 octets.
+Prérequis Spec Kit et git diff --check réussis ; spec/plan/tasks cohérents.
+Ces checks couvrent la seule séquence d'événements modifiée ; preuves antérieures
+des styles et autres vues réutilisées, pas de matrice globale.
+
+Web isolé 8082 redéployé à 2026-10-07T08:59:00.179577002Z. API isolée et web/API
+8080 inchangés (démarrages 2026-10-04T19:51:13.811269801Z,
+2026-10-04T15:18:07.665527509Z et 2026-10-04T12:06:24.636775506Z).
+État final : 17 cartes, aucun éditeur ni alerte, titre initial restauré,
+aucune saisie temporaire restante ; viewport/thème/sidebar restaurés.
+Convergence de cette correction réalisée, aucun commit ni push ajouté.

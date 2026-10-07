@@ -789,6 +789,11 @@ menus de propriétés en font partie. Une création se termine par Entrée ou cl
 extérieur, sans entrée vide accidentelle. Les points de suspension
 regroupent les actions canoniques, dont la conversion selon les règles de l'arbre.
 Les cartes affichent les propriétés visibles de leur vue dans son ordre.
+Ces propriétés sont modifiables directement sur la carte. Le crayon conserve
+le titre et les contrôles visibles à leur place et révèle les autres champs
+en dessous ; le titre devient éditable sans cadre ni changement de métriques.
+Passer au crayon d'une autre carte termine la saisie courante avant d'ouvrir
+la suivante ; un refus garde le brouillon et sa reprise locale (038).
 Le clic sur une entrée depuis une vue ouvre un volet éditable à droite,
 avec accès à la pleine page ; fermer le volet conserve la base et son défilement
 (038).
@@ -811,8 +816,12 @@ icône éditables, chemin et colonne de lecture partagés. Les propriétés sont
 compactes et lisibles sous le titre, avec les mêmes couleurs d'options dans
 les vues et dans la page ; le contenu suit dans cette même colonne. Une prise
 de largeur de colonne ne peint que son repère d'accent, sans fond supplémentaire.
-Les valeurs s’enregistrent automatiquement sans bouton de validation. Le clic
-sur le nom et son menu contextuel permettent de configurer, renommer, dupliquer
+Les valeurs s’enregistrent automatiquement sans bouton de validation.
+Les modifications courantes des entrées n'affichent pas de message de succès
+ni de badge d'attente de synchronisation sous les cartes ou les rangées.
+Les erreurs et conflits restent visibles ; les diagnostics de synchronisation
+restent accessibles dans les réglages.
+Le clic sur le nom et son menu contextuel permettent de configurer, renommer, dupliquer
 ou supprimer la propriété avec les confirmations d’impact nécessaires.
 Les options se choisissent, se créent et se configurent dans des panneaux
 compacts. Les poignées à six points réordonnent les propriétés des entrées

@@ -172,6 +172,7 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 
 - [x] T070 Garder Réglages visible dans la sidebar avec un arbre long, défilement local bureau/tiroir mobile, selon FR-022 et canevas §12 ; correction dans les propriétaires CSS existants, parcours ciblé et preuves ui-quality + lessons. Preuve : verification, section « Sidebar et accès Source après fusion ».
 - [x] T071 Griser et désactiver Source dans le menu clic/clic droit et les paramètres en réutilisant le verrou existant, selon FR-023 et 029 ; raison accessible, déverrouillage conservé, tests ciblés et preuves ui-quality + lessons. Preuve : verification, section « Sidebar et accès Source après fusion ».
+- [x] T080 Retour du 7 octobre, FR023 : renforcer le gris de toute la ligne Source désactivée dès le repos, en cohérence avec les primitives ; appliquer ui-quality + lessons, vérifier rendu clair/sombre et refus d'activation sur 8082, sans changement du verrou ni des données. Preuve : verification, « Ligne Source nettement désactivée ».
 
 ## Phase 18: Diagnostic et stabilisation de la CI de PR 181
 

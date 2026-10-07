@@ -190,6 +190,8 @@ Observer sur l’instance courante et disposer de règles réellement vérifiée
   paramètres. Le contrôle indique « Ajoutez une deuxième vue pour changer sa
   source ». Dès que le verrou existant est levé, les deux accès sont actifs.
   La gestion des sources reste distincte et les vues liées gardent leurs règles.
+  L'état désactivé se distingue dès le repos sur toute la ligne (libellé,
+  valeur, icône et chevron), dans les deux thèmes, sans attendre le survol.
 
 ### Key Entities
 

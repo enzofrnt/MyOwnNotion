@@ -8,6 +8,7 @@ import type {
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import {
   type MutableRefObject,
+  type Ref,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -28,7 +29,11 @@ import {
 } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { ConvertItemControl } from "../navigation/convert-item.tsx";
-import { type BoardCardDraft, BoardCardEditor } from "./board-card-editor.tsx";
+import {
+  type BoardCardDraft,
+  BoardCardEditor,
+  type BoardCardEditorHandle,
+} from "./board-card-editor.tsx";
 import { BoardCreateCard } from "./board-create-card.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { DatabaseEntryActionsContext } from "./database-entry-actions-context.tsx";
@@ -371,12 +376,14 @@ function BoardCards({
   editingEntryId,
   onEditCard,
   onCloseEditor,
+  editorRef,
 }: {
   readonly properties: readonly DatabaseProperty[];
   readonly cardProperties: readonly DatabaseProperty[];
   readonly editingEntryId: string | null;
   readonly onEditCard: (row: DatabaseViewRow) => void;
-  readonly onCloseEditor: () => void;
+  readonly onCloseEditor: (entryId: string) => void;
+  readonly editorRef: Ref<BoardCardEditorHandle>;
   readonly column: BoardColumn;
   readonly columns: readonly BoardColumn[];
   readonly draggedCard: MutableRefObject<{
@@ -487,8 +494,23 @@ function BoardCards({
                 draggedCard.current = null;
               }}
             >
-              {editingEntryId === row.entryId && actions !== null ? (
+              {actions !== null ? (
                 <BoardCardEditor
+                  ref={editingEntryId === row.entryId ? editorRef : undefined}
+                  expanded={editingEntryId === row.entryId}
+                  cardProperties={cardProperties}
+                  titleIcon={
+                    row.icon || row.itemKind === "folder" || row.holdsContent ? (
+                      <ItemIcon
+                        kind={row.itemKind === "folder" ? "folder" : "page"}
+                        icon={row.icon ?? null}
+                        holdsContent={row.holdsContent === true}
+                        size="tree"
+                      />
+                    ) : null
+                  }
+                  columnId={column.id}
+                  onOpenEntry={(trigger) => onOpenEntry(row.entryId as Uuid, trigger)}
                   properties={properties}
                   initial={{
                     kind: row.itemKind ?? "page",
@@ -503,7 +525,7 @@ function BoardCards({
                   entryId={row.entryId as Uuid}
                   onConvert={actions.convert}
                   onCancel={(restoreFocus = true) => {
-                    onCloseEditor();
+                    onCloseEditor(row.entryId);
                     if (restoreFocus)
                       requestAnimationFrame(() =>
                         document
@@ -525,105 +547,102 @@ function BoardCards({
                   }}
                 />
               ) : (
-                <>
-                  <StableActionButton
-                    type="button"
-                    className="link database-card__title"
-                    variant="ghost"
-                    data-entry-trigger={row.entryId}
-                    data-entry-column={column.id}
-                    onActivate={(trigger) => onOpenEntry(row.entryId as Uuid, trigger)}
-                  >
-                    <span className="database-card__identity">
-                      {row.icon || row.itemKind === "folder" || row.holdsContent ? (
-                        <ItemIcon
-                          kind={row.itemKind === "folder" ? "folder" : "page"}
-                          icon={row.icon ?? null}
-                          holdsContent={row.holdsContent === true}
-                          size="tree"
-                        />
-                      ) : null}
-                      <span>{row.title}</span>
-                    </span>
-                    <span className="database-card__properties">
-                      {cardProperties.map((property) => {
-                        const value = row.values[property.id];
-                        if (
-                          isChoiceProperty(property) &&
-                          choiceOptionsForRow(property, row).length === 0
-                        )
-                          return null;
-                        if (
-                          property.type !== "checkbox" &&
-                          value === undefined &&
-                          (row.relationTargets[property.id]?.length ?? 0) === 0
-                        )
-                          return null;
-                        return (
-                          <span
-                            key={property.id}
-                            className="database-card__property"
-                            title={property.name}
-                          >
-                            {property.type === "checkbox" ? (
-                              <span className="database-card__checkbox-value">
-                                <span
-                                  className="database-card__checkbox"
-                                  data-checked={
-                                    (value?.kind === "checkbox" && value.checked) || undefined
-                                  }
-                                  aria-hidden="true"
-                                >
-                                  {value?.kind === "checkbox" && value.checked ? (
-                                    <AppIcon name="check" size="small" />
-                                  ) : null}
-                                </span>
-                                <span>{property.name}</span>
-                              </span>
-                            ) : (
-                              <>
-                                <span className="sr-only">{property.name} : </span>
-                                <PropertyValue property={property} row={row} />
-                              </>
-                            )}
-                          </span>
-                        );
-                      })}
-                    </span>
-                  </StableActionButton>
-                  {onUpdateEntry === undefined ? null : (
-                    <div className="database-card__actions">
-                      {actions === null ? null : (
-                        <Button
-                          className="database-card__edit"
-                          size="square"
-                          variant="ghost"
-                          aria-label={`Modifier ${row.title}`}
-                          title="Modifier les propriétés"
-                          onClick={() => editCard(row)}
-                        >
-                          <AppIcon name="edit" size="small" />
-                        </Button>
-                      )}
-                      <BoardCardMenu
-                        onEdit={() => editCard(row)}
-                        onOpenEntry={onOpenEntry}
-                        row={row}
-                        column={column}
-                        columns={columns}
-                        pending={pendingEntryIds.has(row.entryId as Uuid)}
-                        multiSelect={multiSelect}
-                        onMove={onMove}
+                <StableActionButton
+                  type="button"
+                  className="link database-card__title"
+                  variant="ghost"
+                  data-entry-trigger={row.entryId}
+                  data-entry-column={column.id}
+                  onActivate={(trigger) => onOpenEntry(row.entryId as Uuid, trigger)}
+                >
+                  <span className="database-card__identity">
+                    {row.icon || row.itemKind === "folder" || row.holdsContent ? (
+                      <ItemIcon
+                        kind={row.itemKind === "folder" ? "folder" : "page"}
+                        icon={row.icon ?? null}
+                        holdsContent={row.holdsContent === true}
+                        size="tree"
                       />
-                    </div>
-                  )}
-                </>
+                    ) : null}
+                    <span>{row.title}</span>
+                  </span>
+                  <span className="database-card__properties">
+                    {cardProperties.map((property) => {
+                      const value = row.values[property.id];
+                      if (
+                        isChoiceProperty(property) &&
+                        choiceOptionsForRow(property, row).length === 0
+                      )
+                        return null;
+                      if (
+                        property.type !== "checkbox" &&
+                        value === undefined &&
+                        (row.relationTargets[property.id]?.length ?? 0) === 0
+                      )
+                        return null;
+                      return (
+                        <span
+                          key={property.id}
+                          className="database-card__property"
+                          title={property.name}
+                        >
+                          {property.type === "checkbox" ? (
+                            <span className="database-card__checkbox-value">
+                              <span
+                                className="database-card__checkbox"
+                                data-checked={
+                                  (value?.kind === "checkbox" && value.checked) || undefined
+                                }
+                                aria-hidden="true"
+                              >
+                                {value?.kind === "checkbox" && value.checked ? (
+                                  <AppIcon name="check" size="small" />
+                                ) : null}
+                              </span>
+                              <span>{property.name}</span>
+                            </span>
+                          ) : (
+                            <>
+                              <span className="sr-only">{property.name} : </span>
+                              <PropertyValue property={property} row={row} />
+                            </>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </span>
+                </StableActionButton>
               )}
-              {row.syncState === "synced" ? null : (
-                <span className={`database-sync database-sync--${row.syncState}`}>
-                  {row.syncState === "pending"
-                    ? DATABASE_COPY.common.savedLocally
-                    : DATABASE_COPY.common.conflict}
+              {onUpdateEntry === undefined || editingEntryId === row.entryId ? null : (
+                <div className="database-card__actions">
+                  {actions === null ? null : (
+                    <Button
+                      className="database-card__edit"
+                      data-board-edit-trigger
+                      size="square"
+                      variant="ghost"
+                      aria-label={`Modifier ${row.title}`}
+                      title="Modifier les propriétés"
+                      onClick={() => editCard(row)}
+                    >
+                      <AppIcon name="edit" size="small" />
+                    </Button>
+                  )}
+                  <BoardCardMenu
+                    onEdit={() => editCard(row)}
+                    onOpenEntry={onOpenEntry}
+                    row={row}
+                    column={column}
+                    columns={columns}
+                    pending={pendingEntryIds.has(row.entryId as Uuid)}
+                    multiSelect={multiSelect}
+                    onMove={onMove}
+                  />
+                </div>
+              )}
+              {row.syncState !== "conflict" ? null : (
+                <span className="database-sync database-sync--conflict">
+                  {DATABASE_COPY.common.conflict}
                 </span>
               )}
             </li>
@@ -673,6 +692,13 @@ export function BoardView({
   const [editingCard, setEditingCard] = useState<{ row: DatabaseViewRow; columnId: string } | null>(
     null,
   );
+  const editorRef = useRef<BoardCardEditorHandle>(null);
+  const editRequest = useRef(0);
+  const editCard = async (row: DatabaseViewRow, columnId: string) => {
+    const request = ++editRequest.current;
+    if ((await editorRef.current?.finish()) === false || request !== editRequest.current) return;
+    setEditingCard({ row, columnId });
+  };
   const columns = (axis === undefined ? [] : boardColumns(view, axis, page.rows)).map((column) => {
     if (editingCard === null) return column;
     const rows = column.rows.filter((row) => row.entryId !== editingCard.row.entryId);
@@ -916,10 +942,11 @@ export function BoardView({
                       editingEntryId={
                         editingCard?.columnId === column.id ? editingCard.row.entryId : null
                       }
-                      onEditCard={(row) => setEditingCard({ row, columnId: column.id })}
-                      onCloseEditor={() =>
+                      editorRef={editorRef}
+                      onEditCard={(row) => void editCard(row, column.id)}
+                      onCloseEditor={(entryId) =>
                         setEditingCard((current) =>
-                          current?.row.entryId === editingCard?.row.entryId ? null : current,
+                          current?.row.entryId === entryId ? null : current,
                         )
                       }
                       cardProperties={visibleViewColumns(properties, view.properties).filter(

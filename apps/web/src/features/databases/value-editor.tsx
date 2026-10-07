@@ -163,6 +163,7 @@ export function ValueEditor({
   relationOptions = [],
   idSuffix,
   presentation = "field",
+  cardShowIcon = true,
   onBlur,
   labelContent,
   onChangeOptions,
@@ -174,6 +175,7 @@ export function ValueEditor({
   readonly relationOptions?: readonly RelationOption[];
   readonly idSuffix?: string;
   readonly presentation?: "field" | "inline" | "entry" | "card";
+  readonly cardShowIcon?: boolean;
   readonly onBlur?: () => void;
   readonly labelContent?: React.ReactNode;
   readonly onChangeOptions?: ((options: readonly PropertyOption[]) => Promise<void>) | undefined;
@@ -363,7 +365,7 @@ export function ValueEditor({
         presentation === "inline"
           ? "database-cell-inline-field"
           : entryPresentation
-            ? `database-field database-field--entry${presentation === "card" ? " database-field--card" : ""}`
+            ? `database-field database-field--entry${presentation === "card" ? ` database-field--card${cardShowIcon ? "" : " database-field--card-value"}` : ""}`
             : "database-field"
       }
     >
@@ -371,7 +373,7 @@ export function ValueEditor({
         ? null
         : (labelContent ?? (
             <label htmlFor={controlId}>
-              {entryPresentation ? (
+              {entryPresentation && (presentation !== "card" || cardShowIcon) ? (
                 <DatabasePropertyIcon type={property.type} icon={property.icon} />
               ) : null}
               {presentation === "card" ? (

@@ -12,7 +12,6 @@ export const DATABASE_COPY = {
     close: "Fermer",
     conflict: "Conflit",
     remove: "Supprimer",
-    savedLocally: "Enregistré localement",
     saving: "Enregistrement…",
     savingLocally: "Enregistrement local…",
     unavailableOption: "Option indisponible",

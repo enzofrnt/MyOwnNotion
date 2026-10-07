@@ -407,6 +407,7 @@
 .database-view-settings__choice:disabled,
 .database-view-settings__row:disabled {
   color: var(--ui-color-text-muted);
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -3225,10 +3226,6 @@
   font-size: 0.8rem;
 }
 
-.database-sync--pending {
-  color: var(--ui-color-warning);
-}
-
 .database-sync--conflict {
   color: var(--ui-color-danger);
 }
@@ -4071,17 +4068,17 @@
   border-bottom-left-radius: 0;
 }
 .database-card__actions .ui-button {
-  width: var(--ui-target-compact);
-  min-width: var(--ui-target-compact);
-  height: var(--ui-target-compact);
-  min-height: var(--ui-target-compact);
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 2px;
+}
+.database-card__actions .ui-icon {
+  width: 16px;
+  height: 16px;
 }
 .database-card__edit.ui-button {
-  width: var(--ui-target-compact);
-  min-width: var(--ui-target-compact);
-  min-height: var(--ui-target-compact);
-  height: var(--ui-target-compact);
-  padding: 2px;
   color: var(--ui-color-text-muted);
 }
 .database-card-editor {
@@ -4094,23 +4091,46 @@
   min-width: 0;
 }
 .database-card-editor__title {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-2);
   min-width: 0;
+  min-height: 24px;
+  padding: 2px 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
 }
-.database-card-editor__title .ui-native-input {
+.database-card-editor__title .database-card__identity {
   width: 100%;
+}
+.database-card-editor__title .item-icon,
+.database-card-editor__title .ui-icon {
+  flex: none;
+  color: var(--ui-color-text-muted);
+}
+.database-card__name {
+  display: block;
+  flex: 1;
   min-width: 0;
-  min-height: var(--ui-target-compact);
+  min-height: 20px;
   border: 0;
   padding: 0;
+  margin: 0;
   background: transparent;
-  font-weight: 600;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.database-card__name[contenteditable] {
+  cursor: text;
+  outline: 0;
+}
+.database-card__name[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--ui-color-text-muted);
+  pointer-events: none;
 }
 .database-card-editor__fields {
   display: grid;
-  gap: var(--ui-space-1);
+  gap: var(--ui-space-2);
   min-width: 0;
   border: 0;
   padding: 0;
@@ -4120,7 +4140,28 @@
   grid-template-columns: 16px minmax(0, 1fr);
   gap: 0 var(--ui-space-1);
   align-items: center;
-  min-height: var(--ui-target-compact);
+  min-height: 20px;
+}
+.database-card-editor__fields:empty {
+  display: none;
+}
+.database-card-editor__fields .database-field--card-value {
+  grid-template-columns: minmax(0, 1fr);
+}
+.database-card-editor__fields
+  .database-field--card-value
+  > label:first-child:not(.entry-checkbox-control) {
+  display: none;
+}
+.database-card-editor__fields .database-field--card:has(input[type="checkbox"]) {
+  grid-template-columns: 16px minmax(0, 1fr);
+}
+.database-card-editor__fields .ui-native-input,
+.database-card-editor__fields .option-menu__trigger {
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  line-height: 20px;
 }
 .database-card-editor__fields .database-field--card > label:not(.entry-checkbox-control) {
   gap: 0;
@@ -4134,13 +4175,14 @@
   > label:first-child {
   display: none;
 }
-.database-field--card .entry-checkbox-control {
+.database-card-editor__fields .entry-checkbox-control {
   padding: 0;
   min-width: 16px;
+  min-height: 20px;
 }
 .database-card-editor__fields .database-field--card > .database-card-editor__checkbox-name {
   width: fit-content;
-  min-height: var(--ui-target-compact);
+  min-height: 20px;
   color: var(--ui-color-text);
   cursor: pointer;
 }
@@ -4172,8 +4214,17 @@
   gap: var(--ui-space-1);
 }
 @media (pointer: coarse) {
-  .database-card__edit.ui-button {
+  .database-card__actions .ui-button {
+    width: var(--ui-target);
+    height: var(--ui-target);
     min-width: var(--ui-target);
+    min-height: var(--ui-target);
+  }
+  .database-card-editor__fields .database-field--card,
+  .database-card-editor__fields .ui-native-input,
+  .database-card-editor__fields .option-menu__trigger,
+  .database-card-editor__fields .entry-checkbox-control,
+  .database-card-editor__fields .database-card-editor__checkbox-name {
     min-height: var(--ui-target);
   }
 }

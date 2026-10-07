@@ -2,6 +2,15 @@
 
 ## Retours du 7 octobre
 
+- [x] T025 FR018 : appliquer ui-quality + lessons ; conserver la carte courante pendant l'appui/focus sur le crayon suivant de la même colonne, puis basculer au clic après sauvegarde ; préserver l'annulation du geste et les refus.
+- [x] T026 SC006 : régression séparant appui/focus et clic ; reproduction et vérification physique dans la même colonne sur 8082, saisie en cours, retour/clavier et relâchement extérieur ; contrôles ciblés et convergence documentée.
+
+- [x] T023 FR017/018 : appliquer ui-quality + lessons ; propriétés visibles éditables au repos, présentation stable et titre sans cadre ; bascule entre crayons après sauvegarde, refus conservé ; tests de comportement ciblés.
+- [x] T024 SC006 : observation Notion, mesures et parcours réels sur 8082, titre long/clavier/clair/sombre/320 px ; preuves visuelles, contrôles ciblés, web isolé uniquement et convergence.
+
+- [x] T021 FR016 : appliquer ui-quality + lessons ; retirer le badge de succès/attente sous les entrées, préserver conflits et refus ; régression ciblée sur Kanban/galerie/liste.
+- [x] T022 Vérifier manuellement modification silencieuse, fermeture et persistance sur 8082 ; preuves UI et contrôles ciblés, web isolé uniquement.
+
 - [x] T019 FR015 : Grouper dans les réglages de la vue, panneau dédié partagé, mise à jour immédiate, axe indisponible et suppression du contrôle au-dessus du Kanban. Appliquer ui-quality + lessons.
 - [x] T020 Preuves manuelles pleine page/intégrée, persistance/isolement, clavier/clair/sombre/320 px ; contrôles ciblés, web 8082 uniquement, convergence documentée.
 
