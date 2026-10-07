@@ -1117,7 +1117,8 @@ html[data-tree-grabbing="true"] * {
 
 .workspace-attachment-file__details-panel {
   display: grid;
-  min-width: 14rem;
+  inline-size: min(22rem, calc(100vw - var(--ui-space-4)));
+  min-inline-size: 0;
   padding: var(--ui-space-2);
   gap: var(--ui-space-1);
   color: var(--ui-color-text-muted);
@@ -1132,6 +1133,18 @@ html[data-tree-grabbing="true"] * {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ui-space-1);
+  padding-block-end: var(--ui-space-2);
+  border-block-end: 1px solid var(--ui-color-border);
+}
+
+/* This portal belongs to the modal drawer, whose clipped width is narrower
+   than the viewport. Leave its menu gutters inside that actual boundary. */
+.workspace-sidebar-drawer .workspace-attachment-file__details-panel {
+  inline-size: calc(min(22rem, calc(100vw - 3rem)) - 2 * var(--ui-space-3));
+}
+
+.workspace-attachment-file__actions input[type="file"] {
+  max-inline-size: 100%;
 }
 
 .collapsible-region {

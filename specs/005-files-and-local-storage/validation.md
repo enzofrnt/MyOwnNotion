@@ -113,3 +113,45 @@ request. The resumable path is complete and asserted through the API, but the
 interface does not use it yet, so an owner attaching a file today does not get
 resumption. `file-transfer.spec.ts` says so in its header rather than implying
 otherwise.
+
+## Publication maintenance — stable attachment actions (2026-10-07)
+
+The owner authorizes all checks before commit/push/PR. The complete gate on
+`d2d42309` was interrupted after Firefox's preview-sandbox journey failed once
+and passed on retry; a retry is not accepted by the publication gate. The
+retained trace shows a semantic click at y=368 while a late usage lookup added
+a second usage above the action. The button received focus, but release no
+longer activated it. The sandbox token itself was unchanged.
+
+A controlled response, released during pointer down, reproduces 71.5 px of
+button displacement in both themes on Chromium at 320 px. Actions now precede
+the changing facts, and the popover has a fixed width bounded by its containing
+modal drawer. A separate geometry check first reproduced 32 px of drawer
+clipping; the final scoped width preserves both gutters. The test retains its
+1 px limit, checks connected controls, outside-release cancellation, native
+click, Enter, one preview iframe and `sandbox="allow-scripts"`. Usages remain
+reachable and destructive deletion remains confirmed by its existing flow.
+
+The final Chromium captures, inspected according to
+[ui-quality](../../.agents/skills/ui-quality/SKILL.md) and its
+[lessons](../../.agents/skills/ui-quality/lessons.md), show contained light/dark
+menus at 320 px, readable long usage names, a separated action group and no
+clipped controls. The first final measurement is 0 px displacement, with left
+and right drawer margins of 8/16 px. Biome and workspace types pass; CSS emits
+24 existing specificity/style warnings and no error. The final repeated matrix
+passes all 105 cases in 306 seconds without retry: 21 per profile, with WebKit
+using its three documented shards. All 30 held-response gestures assert a
+connected button, at most 1 px displacement and a fully contained panel;
+outside-release cancellation, native click, Enter and the exact opaque-origin
+sandbox pass in both themes. A final capture from each profile was inspected;
+Chromium's two themes were inspected separately. Platform font/native-input
+differences remain visible but controls and long names stay readable and inside
+the drawer. T061 is complete; T062 still awaits the complete publication gate.
+
+Private evidence under `work/notion-api/`: the original
+`publication-full-gate-8-failed-firefox-preview/`, red measurements in
+`publication-preview-red-proof/`, clipping reproduction in
+`publication-preview-width-red-proof/`, and final repeated captures/measurements
+in `publication-preview-five-profile-proof/`. Earlier interrupted runs are
+diagnostic evidence only. No owner attachment was uploaded, deleted or modified
+to reproduce this issue.

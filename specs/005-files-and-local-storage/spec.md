@@ -169,6 +169,9 @@ offloaded and how it is presented.
 - Storage is exhausted at the operating-system level rather than by the
   configured limit.
 - A preview fails to render a file that claims a supported type.
+- A late usage lookup updates an open attachment panel while a file action is
+  pressed. The action remains in place, activates on release inside its target,
+  and stays cancelled when released outside it.
 - A `.drawio` file remains downloadable without starting another service or
   contacting a Draw.io host.
 

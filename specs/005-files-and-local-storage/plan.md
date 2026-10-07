@@ -157,3 +157,21 @@ Feature 025 preserves file identities, verified deduplication, resumable offsets
 See the [canonical plan](../025-storage-coherence-audit/plan.md) and
 [implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
 does not mark that follow-up implemented or delivered.
+
+## Publication maintenance — late attachment usages (2026-10-07)
+
+Apply [ui-quality](../../.agents/skills/ui-quality/SKILL.md) and its
+[lessons](../../.agents/skills/ui-quality/lessons.md). The full publication gate
+found a native Firefox click lost when an asynchronous usage lookup added a
+second line above the pressed preview button. Place the action group before
+the changing facts in `attachment-panel.tsx`, and give the details popover a
+fixed, viewport-bounded inline size in `navigation.css`. Preserve semantic click,
+outside-release cancellation, usage links, destructive confirmation and the
+opaque-origin preview sandbox. No server, storage or migration change.
+
+Exercise a held usage response during pointer down in
+`tests/e2e/file-preview.spec.ts`: the same control remains connected and within
+1 px of its original position, release inside opens exactly one preview,
+outside release cancels, and Enter opens it. Inspect light/dark and 320 px
+captures on the five browser profiles, then run the publication checks from
+`docs/development.md`. Keep evidence in `validation.md`.
