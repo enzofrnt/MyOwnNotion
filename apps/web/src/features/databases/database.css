@@ -4298,6 +4298,13 @@
   outline: none;
   box-shadow: none;
 }
+/* Firefox can restore a pointer-focused trigger without matching focus-visible
+   even after keyboard activation. Keep the keyboard return visibly focused. */
+.database-card-kind[data-keyboard-return-focus] > .ui-button:focus:not(:disabled) {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: 1px;
+  box-shadow: var(--ui-focus-ring);
+}
 .database-card-kind:has(> .ui-button[aria-pressed="true"]:hover:not(:disabled))::before {
   background: color-mix(in srgb, var(--card-kind-surface) 82%, var(--ui-color-text));
 }

@@ -71,7 +71,7 @@ export function ConvertItemControl({
   const [pendingKind, setPendingKind] = useState<ConvertibleKind | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [quietReturnFocus, setQuietReturnFocus] = useState(false);
+  const [returnFocus, setReturnFocus] = useState<"pointer" | "keyboard" | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
   const running = useRef(false);
   const openedWithPointer = useRef(false);
@@ -82,7 +82,9 @@ export function ConvertItemControl({
   const close = useCallback(() => {
     if (running.current) return;
     setConfirming(false);
-    setQuietReturnFocus(variant === "switch" && openedWithPointer.current);
+    setReturnFocus(
+      variant === "switch" ? (openedWithPointer.current ? "pointer" : "keyboard") : null,
+    );
     onActiveChange?.(false);
   }, [onActiveChange, variant]);
 
@@ -143,9 +145,11 @@ export function ConvertItemControl({
           aria-label="Type d’élément"
           aria-busy={pending || undefined}
           data-pending-kind={pendingKind ?? undefined}
-          data-quiet-return-focus={quietReturnFocus || undefined}
-          onKeyDownCapture={() => setQuietReturnFocus(false)}
-          onBlurCapture={() => setQuietReturnFocus(false)}
+          data-quiet-return-focus={returnFocus === "pointer" || undefined}
+          data-keyboard-return-focus={returnFocus === "keyboard" || undefined}
+          onKeyDownCapture={() => setReturnFocus(null)}
+          onPointerDownCapture={() => setReturnFocus(null)}
+          onBlurCapture={() => setReturnFocus(null)}
         >
           {(["page", "folder"] as const).map((choice) => (
             <Button
@@ -163,7 +167,7 @@ export function ConvertItemControl({
               onClick={(event) => {
                 if (choice !== kind) {
                   openedWithPointer.current = event.detail > 0;
-                  setQuietReturnFocus(false);
+                  setReturnFocus(null);
                   void run(false);
                 }
               }}

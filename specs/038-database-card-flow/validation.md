@@ -848,3 +848,36 @@ fausse entrée. Pas de gap UI matériel restant sur ce périmètre. Prérequis
 Spec Kit, références documentaires et espaces du diff vérifiés ; T037–T042
 peuvent être clos. La baisse des octets de 039 n'est pas assimilée à une baisse
 du temps utilisateur, ni le benchmark du repository à un démarrage complet.
+
+
+## Reprise de publication — focus et parcours de bases
+
+Le 7 octobre, les contrôles complets sont réautorisés. La matrice a révélé
+une différence de focus Firefox : le bouton restauré après activation clavier
+pouvait ne pas correspondre à :focus-visible. ConvertItemControl conserve
+maintenant la modalité transitoire du retour ; seul le retour clavier peint
+le focus commun. Un prochain geste ou blur efface cette intention, et le
+retour pointeur reste sans contour. Aucune conversion ni écriture sur annulation.
+
+Les parcours de schéma visent le canvas propriétaire ; la fermeture animée
+du volet est attendue avant l'ouverture d'un autre éditeur. Cela évite son
+retour de focus tardif dans un popover qui vient de s'ouvrir. Tri et regroupement
+utilisent leurs contrôles actuels séparés, et les assertions d'en-têtes visent
+les vrais en-têtes détachés. Les assertions de durabilité restent inchangées.
+
+- Cinq tests du contrôle de conversion passent ; Biome ciblé et types de tous
+  les workspaces/racine passent (52 avertissements CSS existants, aucune erreur).
+- Neuf parcours par navigateur passent sans retry : Chromium desktop 53,2 s,
+  Firefox desktop dans le runtime Linux épinglé, matrice ciblée 95 s, sortie 0.
+  Couverture : conversion/confirmation, composition, propriétés, synchronisation
+  hors ligne avec redémarrage et conflit, schéma/relations, corbeille et réglages
+  de vues conservés sur deux appareils.
+- Captures de retour clavier Chromium/Firefox revues : contour fin visible sur
+  Dossier, taille et position conservées. Les parcours vérifient aussi le retour
+  pointeur sans contour et la confirmation à 320 px.
+
+Preuves privées : publication-focus-static.log, publication-conversion-focus-unit-3.log,
+publication-focus-schema-regressions-2.log et publication-focused-proof-2/ sous
+work/notion-api/. Les essais interrompus/échoués précédents ne sont pas des
+validations globales. T046–T048 restent ouvertes jusqu'aux cinq profils et au
+gate complet du candidat partagé.

@@ -38,6 +38,11 @@ vérifier la sortie complète du sticky. Après un saut virtualisé, révéler l
 dernière carte mesurée par le scroll natif ; la surface de base doit toujours
 garder scrollTop à zéro. La recherche ouvre la route pleine page, dont le
 contrôle de retour est distinct de celui du volet.
+FR020 : mémoriser la modalité du retour de confirmation dans le sélecteur.
+Un retour clavier peint le focus du bouton actif avec les tokens communs,
+indépendamment de l'heuristique :focus-visible du moteur ; retour pointeur
+discret conservé. Effacer cette intention au blur et au prochain geste.
+Réutiliser les tests de conversion et leurs preuves réelles multi-moteur.
 
 Canevas §14/18/19/43.6. Réutiliser création atomique, présentations de vues, EntryPanel et éditeur canonique. Pas de nouvelle dépendance, API, migration ou stockage de document.
 

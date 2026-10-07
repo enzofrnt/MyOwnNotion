@@ -73,3 +73,5 @@ historiques ; le protocole courant est celui de T017/T018.
 - [ ] T046 Correction de publication : conserver les libellés de cellules sans référence HTML à un en-tête d'une autre table, aligner les parcours sur le volet/menu/réglages courants et vérifier les cinq profils avec ui-quality/lessons ; preuve dans validation.md.
 
 - [ ] T047 Reprise US3.2/FR008 : Échap annule le déplacement de propriété sans fermer le volet ni écrire ; vérifier ensuite déplacement validé, ordre durable et fermeture normale avec ui-quality/lessons. Aligner composition inline du laboratoire, géométrie sticky et cibles de champs exactes ; tests ciblés, cinq profils et preuve dans validation.md.
+
+- [ ] T048 Reprise FR020 : retour clavier de confirmation avec focus visible sur Firefox, sans contour au retour pointeur ; intention transitoire effacée au blur/prochain geste. Appliquer ui-quality/lessons, tests de conversion et preuves réelles des cinq profils. Cibler le titre de la page propriétaire et attendre la fermeture animée du volet avant une autre édition ; conserver les parcours de tri/regroupement et en-têtes détachés avec leurs contrôles actuels.

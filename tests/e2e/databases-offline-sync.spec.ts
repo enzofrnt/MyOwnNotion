@@ -116,6 +116,7 @@ async function saveEntryValues(
 
 async function closeEntry(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Fermer le volet" }).click();
+  await expect(page.locator(".database-entry-peek")).toBeHidden();
 }
 
 async function updateTextCell(

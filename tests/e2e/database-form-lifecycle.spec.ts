@@ -138,6 +138,7 @@ test("keeps conversion confirmation immediate and returns to the card without a 
     await expect(folder).toBeFocused();
     await expect(kind).not.toHaveAttribute("data-quiet-return-focus", "true");
     expect(await folder.evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe("none");
+    await kind.screenshot({ path: testInfo.outputPath("conversion-cancel-keyboard.png") });
   }
   await page.setViewportSize({ width: 320, height: 800 });
   await folder.click();

@@ -66,11 +66,13 @@ it("asks immediately for known content without starting a conversion and returns
     await ui.dismissWithEscape();
     await vi.waitFor(() => expect(document.activeElement).toBe(ui.folder));
     expect(ui.rail.dataset.quietReturnFocus).toBe("true");
+    expect(ui.rail.dataset.keyboardReturnFocus).toBeUndefined();
     expect(ui.folder.getAttribute("aria-pressed")).toBe("false");
     await act(async () =>
       ui.folder.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true })),
     );
     expect(ui.rail.dataset.quietReturnFocus).toBeUndefined();
+    expect(ui.rail.dataset.keyboardReturnFocus).toBeUndefined();
     expect(ui.convert).not.toHaveBeenCalled();
   } finally {
     ui.cleanup();
@@ -84,6 +86,12 @@ it("preserves ordinary keyboard focus when a keyboard-opened confirmation is can
     await ui.dismissWithEscape();
     await vi.waitFor(() => expect(document.activeElement).toBe(ui.folder));
     expect(ui.rail.dataset.quietReturnFocus).toBeUndefined();
+    expect(ui.rail.dataset.keyboardReturnFocus).toBe("true");
+    await act(async () =>
+      ui.folder.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })),
+    );
+    expect(ui.rail.dataset.keyboardReturnFocus).toBeUndefined();
+    expect(ui.convert).not.toHaveBeenCalled();
   } finally {
     ui.cleanup();
   }
