@@ -2,10 +2,11 @@
 
 **Feature Branch**: `codex/notion-api-import`
 **Created**: 2026-10-07
-**Status**: Implémentée et vérifiée manuellement ; E2E différés
+**Status**: Reprise de publication ; validation de production en cours
 **Input**: Relever les couleurs réelles du Kanban Notion et corriger les couleurs
 de l'application avec des transformations communes, sans couleurs brutes dans
-chaque composant. Les E2E sont reportés explicitement par le propriétaire.
+chaque composant. Les E2E initialement reportés sont réautorisés par le
+propriétaire pour la publication du 7 octobre.
 
 ## Product direction
 
@@ -64,7 +65,7 @@ thème système sans script de bootstrap et largeur de 320 px.
 - **FR005**: Partager les fonds de contenu avec les surfaces éditoriales existantes,
   sans transformer les couleurs métier en états d'application.
 - **FR006**: Vérifier le rendu réel aux deux thèmes, à 320 px et au clavier ;
-  conserver les preuves et les limites. Les E2E restent une vérification différée.
+  conserver les preuves et les limites, y compris celles du build de production.
 
 ## Success criteria
 
@@ -76,4 +77,6 @@ thème système sans script de bootstrap et largeur de 320 px.
   brutes dupliquées dans les consommateurs.
 - **SC003**: Les captures réelles montrent un survol teinté sans déplacement,
   un focus clavier visible, des libellés lisibles et aucun débordement de page à
-  320 px. Aucun E2E n'est lancé pendant cette passe à la demande du propriétaire.
+  320 px. La publication vérifie également les neuf familles sur les cinq
+  profils E2E ; les surfaces compilées conservent leurs niveaux distincts et
+  leurs contrastes lisibles.

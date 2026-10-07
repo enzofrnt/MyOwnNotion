@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { expect, test } from "./fixtures.ts";
 import {
   addDatabaseProperty,
@@ -237,17 +238,93 @@ test("keeps Nouvel élément below the edited card, creates successive durable e
       await expect
         .poll(async () => {
           const color = await colors();
-          return (
-            color.button === color.dot &&
-            color.buttonBorder === color.dot &&
-            color.cardBorder === color.dot
-          );
+          return color.buttonBorder === color.cardBorder && color.cardBorder !== color.dot;
         })
         .toBe(true);
       await column.screenshot({
         path: testInfo.outputPath(`persistent-create-${width}-${theme}.png`),
       });
     }
+  }
+});
+
+test("production content colors keep distinct surfaces and readable text in both themes", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/__ui-lab");
+  await page.setViewportSize({ width: 320, height: 909 });
+  const palette = page.locator(".ui-lab__swatches");
+  await expect(palette.locator("[data-content-color]")).toHaveCount(9);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((value) => {
+      document.documentElement.dataset["theme"] = value;
+    }, theme);
+    const colors = await palette.evaluate((node) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Missing color canvas");
+      const probe = document.createElement("span");
+      node.append(probe);
+      const read = (variable: string) => {
+        probe.style.backgroundColor = `var(${variable})`;
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = getComputedStyle(probe).backgroundColor;
+        ctx.fillRect(0, 0, 1, 1);
+        return Array.from(ctx.getImageData(0, 0, 1, 1).data);
+      };
+      const result = Array.from(node.querySelectorAll<HTMLElement>("[data-content-color]")).map(
+        (swatch) => {
+          const tone = swatch.dataset["contentColor"];
+          if (!tone) throw new Error("Missing color family");
+          return {
+            tone,
+            accent: read(`--ui-content-${tone}-accent`),
+            wash: read(`--ui-content-${tone}-wash`),
+            soft: read(`--ui-content-${tone}-soft`),
+            badge: read(`--ui-content-${tone}-badge`),
+            foreground: read(`--ui-content-${tone}-foreground`),
+            text: read("--ui-color-text"),
+          };
+        },
+      );
+      probe.remove();
+      return result;
+    });
+    const luminance = (rgb: number[]) => {
+      const channels = rgb.slice(0, 3).map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return (
+        (channels[0] ?? 0) * 0.2126 + (channels[1] ?? 0) * 0.7152 + (channels[2] ?? 0) * 0.0722
+      );
+    };
+    const contrast = (a: number[], b: number[]) => {
+      const values = [luminance(a), luminance(b)].sort((x, y) => x - y);
+      return ((values[1] ?? 0) + 0.05) / ((values[0] ?? 0) + 0.05);
+    };
+    for (const color of colors) {
+      const message = `${theme}/${color.tone}`;
+      expect(
+        new Set([color.wash, color.soft, color.badge].map((value) => value.join(","))).size,
+        message,
+      ).toBe(3);
+      for (const surface of [color.wash, color.soft, color.badge]) {
+        expect(surface, message).not.toEqual(color.accent);
+        expect(surface[3], message).toBe(255);
+      }
+      expect(contrast(color.text, color.badge), message).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(color.text, color.soft), message).toBeGreaterThanOrEqual(4.5);
+      // Colored commands sit on wash at rest and soft on hover.
+      expect(contrast(color.foreground, color.wash), message).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(color.foreground, color.soft), message).toBeGreaterThanOrEqual(4.5);
+    }
+    await writeFile(
+      testInfo.outputPath(`content-colors-${theme}.json`),
+      JSON.stringify(colors, null, 2),
+    );
+    await palette.screenshot({ path: testInfo.outputPath(`content-colors-${theme}-320.png`) });
   }
 });
 

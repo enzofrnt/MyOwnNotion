@@ -76,3 +76,34 @@ Les contrôles de 040 gardent leur statut dans ses propres artefacts ; aucun
 résultat partiel n’est transformé en validation globale. Le rendu clair de
 Notion n’a pas été mesuré : le clair de l’application suit notre recette
 commune, vérifiée manuellement.
+
+## Reprise de publication du 7 octobre
+
+Le propriétaire réautorise les E2E et tous les contrôles avant push/PR.
+Les résultats précédents restent une revue du rendu de développement. Le
+parcours axe du bundle de production a révélé un défaut distinct : le plugin
+CSS réduisait des recettes `color-mix` avec variables à leur premier accent.
+Le badge bleu clair devenait plein (contraste 3,92:1) et une colonne vide bleue
+était saturée. Une reproduction avec global.css confirme cette réduction.
+
+Les 45 recettes de contenu conservent maintenant leurs arguments dans un token
+intermédiaire `-mix`. Le bundle garde la fonction native et le navigateur
+calcule les couleurs après choix du thème ; seeds et consommateurs restent
+inchangés. Le contrôle des neuf familles a aussi mesuré 4,42:1 sur le badge jaune
+sombre et moins de 4,5:1 pour la commande bleue au repos/survol. Les coefficients
+communs sombres deviennent 46 % pour les badges et 80 % accent + 20 % texte pour
+les commandes. Il n'y a aucune exception par couleur.
+
+Trois parcours Chromium desktop passent (12 s) : axe sur les cinq vues, création
+durable avec couleurs dérivées, neuf familles de production aux deux thèmes et
+à 320 px. Minima calculés à partir des pixels sRGB : badges 10,04:1 en clair,
+4,57:1 en sombre ; commandes sur fond de survol 4,82:1 / 4,61:1. Chaque surface
+colonne/carte/badge reste distincte de l'accent et des deux autres niveaux.
+Les captures palette clair/sombre et création sombre sont revues : contours
+discrets, niveaux lisibles et aucune couleur pleine accidentelle.
+
+Preuves privées : `work/notion-api/publication-colors-chromium-4.log` et
+`test-results/chromium-desktop/` (`content-colors-*.json/png`,
+`persistent-create-*.png`). Les essais précédents ont échoué pendant la mise au
+point du contrôle et les corrections de contraste ; ils ne sont pas présentés
+comme des succès. T011 reste ouverte jusqu'à la matrice complète et au gate.
