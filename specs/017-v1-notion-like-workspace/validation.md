@@ -1250,3 +1250,31 @@ passent. Preuves privées : `publication-headings-red.log`,
 La matrice répétée, les captures réelles selon ui-quality/lessons et le nouveau
 gate complet restent en cours ; aucune tâche de release V1 indépendante n'est
 clôturée par cette maintenance.
+
+## Maintenance de publication — collage ProseMirror (T329), 2026-10-07
+
+Le gate complet du candidat `e4a5d7e1` passe les cinq profils E2E
+(1576 cas, zéro retry), le desktop natif, les builds et les images, puis échoue
+sur l'audit de `prosemirror-view@1.42.2` :
+[GHSA-c8x8-7fp4-3x9w](https://github.com/ProseMirror/prosemirror-view/security/advisories/GHSA-c8x8-7fp4-3x9w).
+Ce run reste un échec global ; les contrôles de sécurité suivants ne sont pas
+atteints. Aucun push n'est effectué sur cette preuve partielle.
+
+L'override partagé fixe uniquement `prosemirror-view` à 1.42.3 ; le lock est
+régénéré avec Bun 1.4.2 sans changement des autres packages. Le test
+`editor-clipboard-security.spec.ts` exerce `EditorView.pasteHTML` et observe
+le contexte réellement reconstruit au hook `handlePaste`. Sur 1.42.2, le
+contexte valide passe et le cas invalide échoue : l'attribut refusé est encore
+présent. Sur 1.42.3, les deux cas passent ; le contexte invalide est retiré,
+le texte reste présent et les attributs valides sont conservés. Le test n'exécute
+aucun script du presse-papiers : son attribut DOM est inerte.
+
+Deux installations `bun ci` consécutives laissent le lock byte-identique ; le
+graphe résolu contient une seule version de prosemirror-view, 1.42.3.
+Biome ciblé, types workspace et audit production au seuil high passent :
+aucune vulnérabilité bloquante parmi 385 packages, sept résultats sous ce seuil.
+Les logs rouge/vert, installation figée, versions, types et audit sont conservés
+en privé sous `work/notion-api/publication-clipboard-*`. La dépendance partagée
+justifie un nouveau `checks:local` complet et un nouveau scan Trivy avant push ;
+T329 reste ouverte jusqu'à ces résultats. Aucun contrat, migration ou contenu
+propriétaire n'est modifié.

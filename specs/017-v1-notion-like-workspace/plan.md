@@ -900,3 +900,18 @@ Le centrage sur la première ligne est lu par `block-side-menu-layout.ts`
 dans le middleware du BlockPopover, avec sa hauteur réelle. Les titres longs
 et vides ont leurs preuves/tests dans 033, sans offsets fixes par niveau ni
 écriture dans le DOM éditorial.
+
+## Maintenance de publication — collage ProseMirror, 7 octobre 2026
+
+L'audit du gate complet relève GHSA-c8x8-7fp4-3x9w dans
+`prosemirror-view@1.42.2`. Cette maintenance satisfait FR-021 et le principe IV :
+les attributs d'un contexte de collage doivent respecter les validateurs du
+schéma. Fixer `prosemirror-view` à la version corrigée 1.42.3 dans les overrides
+existants, puis régénérer le lock avec Bun 1.4.2. Conserver BlockNote/Tiptap et
+leurs autres versions. Régression rouge/verte avec le moteur réellement installé,
+contexte valide et invalide, contenu textuel préservé ; audit sans exception,
+installation figée, types et gate complet avant push. Les changements de lock
+exigent aussi une nouvelle preuve Trivy sur l'image API. Aucun contrat,
+migration ou changement de données propriétaire.
+
+Référence primaire : [avis du mainteneur](https://github.com/ProseMirror/prosemirror-view/security/advisories/GHSA-c8x8-7fp4-3x9w).
