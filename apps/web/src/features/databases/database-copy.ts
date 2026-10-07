@@ -239,6 +239,8 @@ export const DATABASE_COPY = {
       `Tri et regroupement · ${count} ${count === 1 ? "tri" : "tris"}${grouped ? " · regroupé" : ""}`,
   },
   board: {
+    newElement: "Nouvel élément",
+    newElementIn: (name: string) => `Nouvel élément dans ${name}`,
     moveTo: "Déplacer vers",
     clearSelections: "Retirer toutes les sélections",
     noPropertyValue: (name: string) => `Sans ${name.toLocaleLowerCase(DATABASE_LOCALE)}`,

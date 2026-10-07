@@ -778,15 +778,21 @@ la base et s’arrêtent à sa fin ; le défilement horizontal reste local. Les
 cartes Kanban sont compactes et grandissent selon leur titre. Chaque colonne
 dépliée permet de créer une page ou un dossier après ses cartes, avec la
 valeur de regroupement enregistrée dans la même opération canonique (037).
-La création se fait dans une carte au pied de la colonne sans ouvrir l’entrée ;
-Entrée valide le titre et prépare la saisie suivante, Échap annule le brouillon.
+Le bouton « Nouvel élément » reste au pied de chaque colonne dépliée, même
+pendant l'édition. Chaque activation crée une entrée canonique puis ouvre son
+édition inline, sans navigation ; Entrée, Échap ou clic extérieur ferme
+l'édition après sauvegarde, sans supprimer l'entrée créée.
 La carte de création déplie toutes les propriétés éditables et le choix
 Page/Dossier ; le crayon d'une carte existante rouvre ce mode compact, avec
 propriétés sur une ligne et changements appliqués automatiquement, sans boutons
 de validation/annulation. Le choix Page/Dossier reste visible ; la conversion
 avertit quand elle supprime du contenu. Un clic extérieur ferme ce mode ; les
-menus de propriétés en font partie. Une création se termine par Entrée ou clic
-extérieur, sans entrée vide accidentelle. Les points de suspension
+menus de propriétés en font partie. La création choisit Page par défaut ; son
+type reste modifiable ensuite. Les cartes et le bouton de création utilisent
+un contour fin et discret dérivé de la teinte de la colonne ; le texte du
+bouton utilise un accent lisible adapté au thème. Colonne, carte et badge ont des intensités distinctes
+issues d'une palette de contenu commune ; le survol conserve la teinte et ne
+modifie pas la géométrie (041). Les points de suspension
 regroupent les actions canoniques, dont la conversion selon les règles de l'arbre.
 Les cartes affichent les propriétés visibles de leur vue dans son ordre.
 Ces propriétés sont modifiables directement sur la carte. Le crayon conserve

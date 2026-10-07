@@ -1,5 +1,5 @@
 import { LOCAL_SCHEMA_VERSION, openLocalDatabase } from "@myownnotion/client-core";
-import { generateUuidV7 } from "@myownnotion/domain";
+import { generateUuidV7, ownedSourceIdFromItemId } from "@myownnotion/domain";
 import { Dexie } from "dexie";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -31,6 +31,88 @@ afterEach(async () => {
 });
 
 describe("page-operation local schema v10", () => {
+  it("opens the browser default store without inventing completed discovery", async () => {
+    const db = openLocalDatabase();
+    databasesToDelete.add(db.name);
+    try {
+      await db.open();
+      expect(db.name).toBe("myownnotion-local");
+      expect(await db.meta.get("projectionComplete")).toBeUndefined();
+      expect(await db.pageOperationUpdates.count()).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("upgrades owned source identities while retaining encrypted journals and linked containers", async () => {
+    const name = `progressive-startup-v11-${generateUuidV7()}`;
+    databasesToDelete.add(name);
+    const legacy = new Dexie(name);
+    legacy.version(11).stores({
+      ...v7Stores,
+      legacySyncRecoveries: "mutationId, pageId, status, capturedAt, [status+pageId]",
+      pendingFileTransfers: "fileItemId, status, createdAt",
+      pendingFileTransferChunks: "id, fileItemId, chunkIndex, [fileItemId+chunkIndex]",
+      databaseEntryPairs: "key, entryItemId, databaseId, availability, [databaseId+availability]",
+    });
+    const ownedId = generateUuidV7();
+    const existingId = generateUuidV7();
+    const explicitSourceId = generateUuidV7();
+    const linkedId = generateUuidV7();
+    const pageId = generateUuidV7();
+    const orphanId = generateUuidV7();
+    const opaque = { ciphertext: "historical-sealed-definition" };
+    const rows = [
+      { itemId: ownedId, sealedDefinition: opaque },
+      { itemId: existingId, sourceId: explicitSourceId, sealedDefinition: opaque },
+      { itemId: linkedId, sealedDefinition: opaque },
+      { itemId: orphanId, sealedDefinition: opaque },
+      // Historical IndexedDB was untyped at its boundary. Malformed routing
+      // must not turn into a source or prevent unrelated offline work opening.
+      { itemId: 42, sealedDefinition: opaque },
+    ];
+    await legacy.table("items").bulkPut([
+      { id: ownedId, kind: "database" },
+      { id: existingId, kind: "database" },
+      { id: linkedId, kind: "database_view" },
+      { id: pageId, kind: "page" },
+      { id: 43, kind: "database" },
+    ]);
+    await legacy.table("databases").bulkPut(rows);
+    const updateId = generateUuidV7();
+    const retainedUpdate = {
+      updateId,
+      pageId,
+      status: "pending",
+      enqueueOrder: 1,
+      sealedUpdate: { ciphertext: "unsubmitted-page-operation" },
+    };
+    await legacy.table("pageOperationUpdates").put(retainedUpdate);
+    await legacy.table("meta").put({ key: "lastChangeCursor", value: "127" });
+    legacy.close();
+
+    const upgraded = openLocalDatabase(name);
+    try {
+      await upgraded.open();
+      expect(await upgraded.databaseSources.toArray()).toEqual(
+        expect.arrayContaining([
+          { ...rows[0], sourceId: ownedSourceIdFromItemId(ownedId) },
+          rows[1],
+        ]),
+      );
+      expect(await upgraded.databaseSources.count()).toBe(2);
+      expect(await upgraded.databases.toArray()).toHaveLength(rows.length);
+      expect(await upgraded.pageOperationUpdates.get(updateId)).toEqual(retainedUpdate);
+      expect(await upgraded.meta.get("lastChangeCursor")).toEqual({
+        key: "lastChangeCursor",
+        value: "127",
+      });
+      expect(await upgraded.meta.get("projectionComplete")).toBeUndefined();
+    } finally {
+      upgraded.close();
+    }
+  });
+
   it("upgrades v6 without changing historical projection rows", async () => {
     const name = `page-operations-v6-${generateUuidV7()}`;
     databasesToDelete.add(name);

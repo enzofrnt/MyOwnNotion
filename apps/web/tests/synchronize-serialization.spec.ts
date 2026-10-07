@@ -88,6 +88,9 @@ describe("synchronize serialization", () => {
 
     await Promise.all([service.initialize(), service.initialize(), service.initialize()]);
 
+    // Content readiness no longer waits for the initial background drain.
+    await vi.waitFor(() => expect(recorder.passes).toBe(1));
+
     // Recovery now belongs to the per-page reconciler after it acquires the
     // origin-wide transport lock. Boot cannot know whether another tab still
     // owns a `sending` row and must leave it untouched here.
@@ -112,7 +115,7 @@ describe("synchronize serialization", () => {
 
     await service.initialize();
 
-    expect(synchronizePage).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(synchronizePage).toHaveBeenCalledTimes(1));
   });
 
   it("does not exchange idle cached reconcilers that have no queued work", async () => {
@@ -139,7 +142,7 @@ describe("synchronize serialization", () => {
 
     await service.initialize();
 
-    expect(seen).toEqual([queuedId]);
+    await vi.waitFor(() => expect(seen).toEqual([queuedId]));
     expect(synchronizePage).toHaveBeenCalledTimes(1);
   });
 
@@ -167,7 +170,7 @@ describe("synchronize serialization", () => {
 
     await service.initialize();
 
-    expect(convertLegacyBranch).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(convertLegacyBranch).toHaveBeenCalledTimes(1));
   });
 
   it("keeps the global status pending while an unopened page queue remains", async () => {

@@ -17,7 +17,29 @@
 		max_size 2GB
 	}
 
+	# Vite serves many unbundled modules in this helper. Compress public shell
+	# assets, but leave API, auth/recovery, private files and MCP outside it.
+	@public_shell {
+		not path /v1* /mcp* /health*
+	}
+	encode @public_shell {
+		gzip 1
+	}
+
 	handle /v1* {
+		# Initial catch-up carries large JSON pages. Restrict compression to
+		# this read endpoint; realtime SSE and secret-bearing replies stream
+		# through the existing proxy unchanged, without compression buffering.
+		@change_page {
+			method GET
+			path /v1/changes
+		}
+		encode @change_page {
+			gzip 1
+			match {
+				header Content-Type application/json*
+			}
+		}
 		reverse_proxy api:3001 {
 			header_up Host {host}
 			header_up X-Forwarded-Host {host}

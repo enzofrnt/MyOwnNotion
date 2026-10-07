@@ -488,6 +488,7 @@ export function TableView({
   properties,
   view,
   page,
+  totalKnown = true,
   onOpenEntry,
   onResize,
   onAddProperty,
@@ -510,6 +511,7 @@ export function TableView({
   readonly properties: readonly DatabaseProperty[];
   readonly view: DatabaseView;
   readonly page: DatabaseViewPage;
+  readonly totalKnown?: boolean;
   readonly onOpenEntry: (entryId: Uuid, trigger: HTMLElement | null) => void;
   readonly onResize: (propertyId: Uuid, width: number) => void;
   readonly onAddProperty?: () => void;
@@ -1107,7 +1109,7 @@ export function TableView({
             className="database-table database-grid"
             data-resizing={columnResize?.dragging ? "" : undefined}
             role="grid"
-            aria-rowcount={page.expectedCount + 1}
+            aria-rowcount={totalKnown ? page.expectedCount + 1 : -1}
             aria-colcount={visible.length + (onAddProperty ? 1 : 0)}
             style={{
               minWidth: tableWidth,
@@ -1427,6 +1429,13 @@ export function TableView({
               {spacer(trailingGap)}
             </tbody>
           </table>
+          {viewport.pageFlow && page.rows.length === 0 && page.coverage === "complete" ? (
+            <div
+              aria-hidden="true"
+              className="database-table-empty-extent"
+              style={{ minWidth: tableWidth }}
+            />
+          ) : null}
         </div>
       </section>
       <p className="sr-only" aria-live="polite">

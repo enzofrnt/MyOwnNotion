@@ -29,7 +29,11 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import type { DatabaseViewPage, DatabaseViewResult } from "../../services/databases.ts";
+import type {
+  DatabaseViewPage,
+  DatabaseViewResult,
+  DatabaseViewRow,
+} from "../../services/databases.ts";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
   AsyncState,
@@ -128,6 +132,8 @@ export function DatabasePage({
   relationOptions = [],
   queryPage,
   queryState,
+  discoveryState,
+  onRetryDiscovery,
   onQueryView,
   returnFocusEntryId,
   onReturnFocusRestored,
@@ -161,6 +167,9 @@ export function DatabasePage({
   readonly relationOptions?: readonly RelationOption[];
   readonly queryPage?: DatabaseViewPage | null;
   readonly queryState?: "loading" | "ready" | "invalid" | "degraded";
+  /** Known local rows remain usable while workspace membership is still being discovered. */
+  readonly discoveryState?: "loading" | "offline" | "error";
+  readonly onRetryDiscovery?: () => void;
   readonly onQueryView?: (viewId: Uuid, cursor?: string) => Promise<DatabaseViewResult>;
   readonly returnFocusEntryId?: Uuid | null;
   readonly onReturnFocusRestored?: () => void;
@@ -228,6 +237,23 @@ export function DatabasePage({
       ({ id, state }) => id === viewContext.context.activeViewId && state === "active",
     ) ?? definition.views.find(({ state }) => state === "active");
   const activeViewId = activeView?.id;
+  const creationRows = useMemo<readonly DatabaseViewRow[]>(
+    () =>
+      entries.map((entry) => ({
+        entryId: entry.entryId,
+        revisionId: entry.revisionId,
+        title: entry.title,
+        values: entry.values,
+        relationTargets: entry.relationTargets,
+        groupId: null,
+        syncState: "pending",
+        itemKind: entry.kind === "folder" ? "folder" : "page",
+        icon: entry.icon ?? null,
+        holdsContent:
+          entry.kind !== "folder" && pageBodyHoldsEditorialContent(entry.document?.body),
+      })),
+    [entries],
+  );
   const entryRevisionKey = entries
     .map(({ entryId, revisionId }) => `${entryId}:${revisionId}`)
     .join("|");
@@ -325,7 +351,11 @@ export function DatabasePage({
       : effectiveQueryState === "ready" && loadedPage?.viewId === activeView?.id
         ? loadedPage
         : fallbackPage;
-  const page = resolvedPage === null ? null : withEntryPresentation(resolvedPage, entries);
+  const presentedPage = resolvedPage === null ? null : withEntryPresentation(resolvedPage, entries);
+  const page =
+    presentedPage === null || discoveryState === undefined
+      ? presentedPage
+      : { ...presentedPage, coverage: "partial" as const, groups: [] };
   const loadMore = useCallback(async (): Promise<void> => {
     if (
       loadingMore ||
@@ -706,7 +736,17 @@ export function DatabasePage({
         ),
       })),
     };
-    const preview = await onPreviewDefinitionImpact?.(candidate);
+    let preview: DefinitionImpact | null | undefined;
+    try {
+      preview = await onPreviewDefinitionImpact?.(candidate);
+    } catch (cause) {
+      setSchemaError(
+        cause instanceof Error
+          ? cause.message
+          : "L’impact de cette modification ne peut pas être vérifié.",
+      );
+      return;
+    }
     if (preview?.destructive) {
       setPendingDefinition(candidate);
       setImpact(preview);
@@ -735,7 +775,17 @@ export function DatabasePage({
       ...definition,
       properties: replaceChoiceOptions(definition.properties, propertyId, options),
     };
-    const preview = await onPreviewDefinitionImpact?.(candidate);
+    let preview: DefinitionImpact | null | undefined;
+    try {
+      preview = await onPreviewDefinitionImpact?.(candidate);
+    } catch (cause) {
+      setSchemaError(
+        cause instanceof Error
+          ? cause.message
+          : "L’impact de cette modification ne peut pas être vérifié.",
+      );
+      return;
+    }
     if (preview?.destructive) {
       setPendingDefinition(candidate);
       setImpact(preview);
@@ -1044,6 +1094,28 @@ export function DatabasePage({
       )}
 
       <div className="database-view-status" aria-live="polite">
+        {discoveryState === undefined ? null : (
+          <AsyncState
+            compact
+            testId="database-discovery-state"
+            state={discoveryState}
+            kind={discoveryState === "loading" ? "info" : discoveryState}
+            description={
+              discoveryState === "offline"
+                ? "Données locales disponibles. Reconnectez-vous pour charger les autres entrées."
+                : discoveryState === "error"
+                  ? "Les entrées n’ont pas pu être actualisées. Les données locales restent disponibles."
+                  : "Chargement des autres entrées… Les données locales restent disponibles."
+            }
+            action={
+              discoveryState === "loading" || onRetryDiscovery === undefined ? undefined : (
+                <Button size="compact" onClick={onRetryDiscovery}>
+                  Réessayer
+                </Button>
+              )
+            }
+          />
+        )}
         {effectiveQueryState === "loading" ? (
           <AsyncState compact kind="loading" description={DATABASE_COPY.page.loadingView} />
         ) : null}
@@ -1060,6 +1132,7 @@ export function DatabasePage({
         {page === null ||
         effectiveQueryState === "loading" ||
         effectiveQueryState === "degraded" ||
+        discoveryState !== undefined ||
         page.coverage === "complete" ? null : (
           <AsyncState
             compact
@@ -1109,6 +1182,7 @@ export function DatabasePage({
           />
         ) : activeView.type === "table" ? (
           <TableView
+            totalKnown={discoveryState === undefined}
             {...(returnFocusEntryId === undefined ? {} : { returnFocusEntryId })}
             renameEntryId={renameEntryId}
             onRenameStarted={clearRename}
@@ -1147,6 +1221,7 @@ export function DatabasePage({
           />
         ) : activeView.type === "board" ? (
           <BoardView
+            creationRows={creationRows}
             onCreateInColumn={(kind, values, title, relations) =>
               kind === "folder"
                 ? onCreateFolder?.(title, values, relations)

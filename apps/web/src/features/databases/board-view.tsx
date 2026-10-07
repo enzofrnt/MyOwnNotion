@@ -29,6 +29,7 @@ import {
 } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { ConvertItemControl } from "../navigation/convert-item.tsx";
+import { defaultItemTitle } from "../workspace/default-item-title.ts";
 import {
   type BoardCardDraft,
   BoardCardEditor,
@@ -302,6 +303,7 @@ function BoardCardMenu({
                   itemId={row.entryId as Uuid}
                   itemName={row.title}
                   kind={row.itemKind ?? "page"}
+                  holdsContent={row.holdsContent}
                   convert={actions.convert}
                   finalFocus={triggerRef}
                   variant="menu"
@@ -523,6 +525,7 @@ function BoardCards({
                   relationOptions={actions.relationOptions}
                   canChooseKind
                   entryId={row.entryId as Uuid}
+                  holdsContent={row.holdsContent}
                   onConvert={actions.convert}
                   onCancel={(restoreFocus = true) => {
                     onCloseEditor(row.entryId);
@@ -661,8 +664,7 @@ export function BoardView({
   onUpdateEntry,
   onChangeView,
   onCreateInColumn,
-  canCreateFolder = false,
-  relationOptions = [],
+  creationRows = [],
   scrollTop = 0,
   onScroll,
 }: {
@@ -680,10 +682,11 @@ export function BoardView({
   ) => void | Uuid | Promise<void | Uuid>;
   readonly canCreateFolder?: boolean;
   readonly relationOptions?: readonly RelationOption[];
+  /** Canonical local rows, including entries excluded by filters or pagination. */
+  readonly creationRows?: readonly DatabaseViewRow[];
   readonly scrollTop?: number;
   readonly onScroll?: (scrollTop: number) => void;
 }) {
-  const actions = useContext(DatabaseEntryActionsContext);
   const axes = properties.filter(
     (property): property is BoardAxisProperty =>
       property.state === "active" && isBoardAxisProperty(property),
@@ -694,10 +697,54 @@ export function BoardView({
   );
   const editorRef = useRef<BoardCardEditorHandle>(null);
   const editRequest = useRef(0);
+  const creatingRef = useRef<number | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createdEntry, setCreatedEntry] = useState<{
+    entryId: Uuid;
+    columnId: string;
+    request: number;
+  } | null>(null);
+  useLayoutEffect(() => {
+    if (createdEntry === null) return;
+    const row =
+      page.rows.find((row) => row.entryId === createdEntry.entryId) ??
+      creationRows.find((row) => row.entryId === createdEntry.entryId);
+    if (createdEntry.request === editRequest.current && row === undefined) return;
+    if (row !== undefined && createdEntry.request === editRequest.current)
+      setEditingCard({ row, columnId: createdEntry.columnId });
+    setCreatedEntry(null);
+    if (creatingRef.current === createdEntry.request) {
+      creatingRef.current = null;
+      setCreating(false);
+    }
+  }, [createdEntry, page.rows, creationRows]);
   const editCard = async (row: DatabaseViewRow, columnId: string) => {
     const request = ++editRequest.current;
     if ((await editorRef.current?.finish()) === false || request !== editRequest.current) return;
     setEditingCard({ row, columnId });
+  };
+  const createInColumn = async (columnId: Uuid | "missing") => {
+    if (creatingRef.current !== null || axis === undefined || onCreateInColumn === undefined)
+      return;
+    const values = boardCreateValues(axis, columnId);
+    if (values === null) throw new Error("Colonne indisponible");
+    const request = ++editRequest.current;
+    creatingRef.current = request;
+    setCreating(true);
+    let awaitingRow = false;
+    try {
+      if ((await editorRef.current?.finish()) === false || request !== editRequest.current) return;
+      const entryId = await onCreateInColumn("page", values, defaultItemTitle("page"), {});
+      if (entryId !== undefined && request === editRequest.current) {
+        awaitingRow = true;
+        setCreatedEntry({ entryId, columnId, request });
+      }
+    } finally {
+      if (!awaitingRow && creatingRef.current === request) {
+        creatingRef.current = null;
+        setCreating(false);
+      }
+    }
   };
   const columns = (axis === undefined ? [] : boardColumns(view, axis, page.rows)).map((column) => {
     if (editingCard === null) return column;
@@ -756,6 +803,10 @@ export function BoardView({
   useLayoutEffect(() => {
     draggedCard.current = null;
     pendingFocus.current = null;
+    editRequest.current += 1;
+    setCreatedEntry(null);
+    creatingRef.current = null;
+    setCreating(false);
     setEditingCard(null);
   }, [view.id, view.options.axisPropertyId]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: retry focus when asynchronous query rows replace the moved occurrence
@@ -965,17 +1016,8 @@ export function BoardView({
                   {collapsed || onCreateInColumn === undefined ? null : (
                     <BoardCreateCard
                       columnLabel={column.label}
-                      canCreateFolder={canCreateFolder}
-                      properties={properties}
-                      initialValues={boardCreateValues(axis, column.id) ?? {}}
-                      relationOptions={
-                        relationOptions.length ? relationOptions : (actions?.relationOptions ?? [])
-                      }
-                      onCreate={async (kind, title, values, relations) => {
-                        if (boardCreateValues(axis, column.id) === null)
-                          throw new Error("Colonne indisponible");
-                        return await onCreateInColumn(kind, values, title, relations);
-                      }}
+                      pending={creating}
+                      onCreate={() => createInColumn(column.id)}
                     />
                   )}
                   {column.id === "missing" && axis.type === "multi-select" ? (

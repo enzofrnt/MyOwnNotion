@@ -216,6 +216,57 @@ describe("source property operations", () => {
 });
 
 describe("source schema persistence and impact confirmation", () => {
+  it.each(["properties", "taskRoles"] as const)(
+    "refuses a %s change before reading incomplete memberships or writing even with confirmation",
+    async (field) => {
+      const { editEntrySourceDefinition } = await import(
+        "../src/features/databases/edit-entry-properties.ts"
+      );
+      const property = reviewDefinition.properties.find((p) => p.type === "text");
+      const status = reviewDefinition.properties.find((p) => p.type === "status");
+      if (property === undefined || status === undefined)
+        throw new Error("Missing source properties");
+      const sourceId = generateUuidV7();
+      const memberships = vi.fn().mockResolvedValue([]);
+      const replace = vi.fn().mockResolvedValue({ ok: true });
+      const service = {
+        getSnapshot: () => ({ projectionComplete: false }),
+        getDatabase: vi.fn().mockResolvedValue({
+          itemId: reviewDefinition.databaseId,
+          sourceId,
+          definitionRevisionId: generateUuidV7(),
+          definition: reviewDefinition,
+        }),
+        getItem: vi.fn().mockResolvedValue({ currentRevisionId: generateUuidV7() }),
+        listDatabaseEntries: memberships,
+        replaceDatabaseDefinition: replace,
+      } as unknown as LocalContentService;
+      await expect(
+        editEntrySourceDefinition(
+          service,
+          sourceId,
+          (definition) =>
+            field === "properties"
+              ? updateEntryProperty(definition, property.id, (p) => propertyWithType(p, "number"))
+              : {
+                  ...definition,
+                  taskRoles:
+                    definition.taskRoles === null
+                      ? {
+                          statusPropertyId: status.id,
+                          dueDatePropertyId: null,
+                          priorityPropertyId: null,
+                        }
+                      : null,
+                },
+          true,
+        ),
+      ).rejects.toThrow("Attendez la fin du chargement des entrées");
+      expect(memberships).not.toHaveBeenCalled();
+      expect(replace).not.toHaveBeenCalled();
+    },
+  );
+
   it("does not include legacy primary memberships when editing a secondary source", async () => {
     const { editEntrySourceDefinition } = await import(
       "../src/features/databases/edit-entry-properties.ts"
@@ -225,6 +276,7 @@ describe("source schema persistence and impact confirmation", () => {
     const revision = generateUuidV7();
     const replace = vi.fn().mockResolvedValue({ ok: true });
     const service = {
+      getSnapshot: () => ({ projectionComplete: true }),
       getDatabase: vi.fn(async (key) => ({
         itemId: reviewDefinition.databaseId,
         sourceId: key === secondarySourceId ? secondarySourceId : primarySourceId,
@@ -257,6 +309,7 @@ describe("source schema persistence and impact confirmation", () => {
       revision = generateUuidV7();
     const replace = vi.fn().mockResolvedValue({ ok: true });
     const service = {
+      getSnapshot: () => ({ projectionComplete: true }),
       getDatabase: vi.fn().mockResolvedValue({
         itemId: reviewDefinition.databaseId,
         sourceId,
@@ -285,6 +338,7 @@ describe("source schema persistence and impact confirmation", () => {
     if (property === undefined) throw Error();
     const replace = vi.fn().mockResolvedValue({ ok: true });
     const service = {
+      getSnapshot: () => ({ projectionComplete: true }),
       getDatabase: vi.fn().mockResolvedValue({
         itemId: reviewDefinition.databaseId,
         definitionRevisionId: revision,

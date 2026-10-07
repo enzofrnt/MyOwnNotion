@@ -115,27 +115,32 @@ function harness(input: {
     },
   };
   const source = {
-    list: async (sourceVersion: number) =>
+    list: vi.fn(async (sourceVersion: number) =>
       input.entries.map((value) => ({
         ...value,
         document: { ...value.document, sourceVersion },
       })),
-    read: async (itemIds: readonly (typeof itemId)[], sourceVersion: number) =>
+    ),
+    read: vi.fn(async (itemIds: readonly (typeof itemId)[], sourceVersion: number) =>
       input.entries
         .filter(({ document }) => itemIds.includes(document.itemId))
         .map((value) => ({
           ...value,
           document: { ...value.document, sourceVersion },
         })),
+    ),
     activeDescendantIds: async (rootItemId: typeof itemId) =>
       input.entries
         .filter(({ path }) => path.some(({ itemId: pathItemId }) => pathItemId === rootItemId))
         .map(({ document }) => document.itemId),
   };
-  const service = new WorkspaceSearchService(content, { worker, source });
+  const workerFactory = vi.fn(() => worker);
+  const service = new WorkspaceSearchService(content, { workerFactory, source });
   return {
     service,
     commands,
+    source,
+    workerFactory,
     terminated: () => terminated,
     emit: async (change: LocalProjectionChange) => {
       await Promise.all([...listeners].map(async (listener) => await listener(change)));
@@ -144,6 +149,197 @@ function harness(input: {
 }
 
 describe("WorkspaceSearchService", () => {
+  it("does no derived work for one hundred unused notifications and indexes the current state on first use", async () => {
+    const entries = [entry("Before download")];
+    const setup = harness({
+      entries,
+      search: async () => ({
+        ok: false,
+        offline: true,
+        problem: {
+          type: "about:blank",
+          title: "Server unreachable",
+          status: 503,
+          code: "network.unreachable",
+        },
+      }),
+    });
+
+    for (let index = 0; index < 100; index += 1) {
+      entries.splice(0, 1, entry(`Downloaded version ${index}`));
+      await setup.emit(
+        index % 2 === 0 ? { kind: "rebuild" } : { kind: "upsert", itemIds: [itemId] },
+      );
+    }
+
+    expect(setup.workerFactory).not.toHaveBeenCalled();
+    expect(setup.source.list).not.toHaveBeenCalled();
+    expect(setup.source.read).not.toHaveBeenCalled();
+    expect(setup.commands).toEqual([]);
+
+    await expect(setup.service.search({ query: "downloaded version 99" })).resolves.toMatchObject({
+      coverage: "local-only",
+      state: "offline",
+      results: [{ title: "Downloaded version 99" }],
+    });
+    expect(setup.workerFactory).toHaveBeenCalledTimes(1);
+    expect(setup.commands.filter(({ type }) => type === "build")).toHaveLength(1);
+  });
+
+  it("retries a refused first build using the current projection", async () => {
+    const entries = [entry("Before failure")];
+    const runtime = createSearchWorkerRuntime();
+    let refuseBuild = true;
+    const setup = harness({
+      entries,
+      search: async () => completeServerResult("After retry"),
+      workerRequest: async (command) => {
+        if (command.type === "build" && refuseBuild) {
+          refuseBuild = false;
+          throw new Error("Search worker unavailable");
+        }
+        return runtime.handle(command);
+      },
+    });
+
+    await expect(setup.service.initialize()).rejects.toThrow("Search worker unavailable");
+    entries.splice(0, 1, entry("After retry"));
+    await expect(setup.service.search({ query: "after retry" })).resolves.toMatchObject({
+      results: [{ title: "After retry" }],
+    });
+    expect(setup.workerFactory).toHaveBeenCalledTimes(2);
+    expect(setup.commands.filter(({ type }) => type === "build")).toHaveLength(2);
+  });
+
+  it("includes a projection committed while the first build is pending", async () => {
+    const entries = [entry("Old snapshot")];
+    const runtime = createSearchWorkerRuntime();
+    let releaseBuild: (() => void) | undefined;
+    const setup = harness({
+      entries,
+      search: async () => completeServerResult("Latest projection"),
+      workerRequest: async (command) => {
+        if (command.type === "build") {
+          await new Promise<void>((resolve) => {
+            releaseBuild = resolve;
+          });
+        }
+        return runtime.handle(command);
+      },
+    });
+
+    const firstSearch = setup.service.search({ query: "latest projection" });
+    await vi.waitFor(() => expect(releaseBuild).toBeDefined());
+    entries.splice(0, 1, entry("Latest projection", { syncState: "pending" }));
+    await setup.emit({ kind: "upsert", itemIds: [itemId] });
+    releaseBuild?.();
+
+    await expect(firstSearch).resolves.toMatchObject({
+      results: [{ title: "Latest projection", localState: "pending" }],
+    });
+    expect(setup.commands.map(({ type }) => type)).toEqual(["build", "upsert", "query"]);
+  });
+
+  it("rebuilds before querying after a derived update fails", async () => {
+    const entries = [entry("Old index")];
+    const runtime = createSearchWorkerRuntime();
+    const setup = harness({
+      entries,
+      search: async () => completeServerResult("Current index"),
+      workerRequest: async (command) => {
+        if (command.type === "upsert") throw new Error("Search worker stopped");
+        return runtime.handle(command);
+      },
+    });
+    await setup.service.initialize();
+
+    entries.splice(0, 1, entry("Current index", { syncState: "pending" }));
+    await setup.emit({ kind: "upsert", itemIds: [itemId] });
+    await vi.waitFor(() => expect(setup.terminated()).toBe(true));
+
+    await expect(setup.service.search({ query: "current index" })).resolves.toMatchObject({
+      results: [{ title: "Current index", localState: "pending" }],
+    });
+    expect(setup.workerFactory).toHaveBeenCalledTimes(2);
+    expect(setup.commands.map(({ type }) => type)).toEqual(["build", "upsert", "build", "query"]);
+  });
+
+  it("does not starve a query behind healthy notifications that arrive after its readiness cut", async () => {
+    const entries = [entry("Available projection")];
+    const runtime = createSearchWorkerRuntime();
+    const releases: Array<() => void> = [];
+    const setup = harness({
+      entries,
+      search: async () => completeServerResult("Available projection"),
+      workerRequest: async (command) => {
+        if (command.type === "upsert") {
+          await new Promise<void>((resolve) => releases.push(resolve));
+        }
+        return runtime.handle(command);
+      },
+    });
+    await setup.service.initialize();
+    await setup.emit({ kind: "upsert", itemIds: [itemId] });
+    await vi.waitFor(() => expect(releases).toHaveLength(1));
+    const onLocal = vi.fn();
+    const query = setup.service.search({ query: "available projection" }, onLocal);
+    // Give the query its existing-tail cut before a later healthy notification.
+    await Promise.resolve();
+    await setup.emit({ kind: "upsert", itemIds: [itemId] });
+    releases[0]?.();
+    try {
+      await vi.waitFor(() => expect(releases).toHaveLength(2));
+      await vi.waitFor(() => expect(onLocal).toHaveBeenCalledTimes(1));
+      await expect(query).resolves.toMatchObject({
+        results: [{ title: "Available projection" }],
+      });
+    } finally {
+      releases[1]?.();
+      await setup.service.dispose();
+    }
+  });
+
+  it("retries worker construction after a failure without poisoning future searches", async () => {
+    const setup = harness({
+      entries: [entry("Current projection")],
+      search: async () => completeServerResult("Current projection"),
+    });
+    setup.workerFactory.mockImplementationOnce(() => {
+      throw new Error("Worker could not start");
+    });
+
+    await expect(setup.service.initialize()).rejects.toThrow("Worker could not start");
+    await expect(setup.service.search({ query: "current projection" })).resolves.toMatchObject({
+      results: [{ title: "Current projection" }],
+    });
+    expect(setup.workerFactory).toHaveBeenCalledTimes(2);
+  });
+
+  it("restarts the derived worker after a query fails", async () => {
+    const runtime = createSearchWorkerRuntime();
+    let refuseQuery = true;
+    const setup = harness({
+      entries: [entry("Current projection")],
+      search: async () => completeServerResult("Current projection"),
+      workerRequest: async (command) => {
+        if (command.type === "query" && refuseQuery) {
+          refuseQuery = false;
+          throw new Error("Search worker stopped");
+        }
+        return runtime.handle(command);
+      },
+    });
+
+    await expect(setup.service.search({ query: "current projection" })).rejects.toThrow(
+      "Search worker stopped",
+    );
+    await expect(setup.service.search({ query: "current projection" })).resolves.toMatchObject({
+      results: [{ title: "Current projection" }],
+    });
+    expect(setup.workerFactory).toHaveBeenCalledTimes(2);
+    expect(setup.commands.map(({ type }) => type)).toEqual(["build", "query", "build", "query"]);
+  });
+
   it("shows local pending content before the server and keeps it over a stale remote result", async () => {
     let resolveServer: ((result: ApiResult<SearchResponseDto>) => void) | undefined;
     const server = new Promise<ApiResult<SearchResponseDto>>((resolve) => {
@@ -201,7 +397,9 @@ describe("WorkspaceSearchService", () => {
       workerRequest: async () => await new Promise(() => {}),
     });
 
-    await expect(setup.emit({ kind: "rebuild" })).resolves.toBeUndefined();
+    void setup.service.initialize().catch(() => undefined);
+    await vi.waitFor(() => expect(setup.commands).toHaveLength(1));
+    await expect(setup.emit({ kind: "upsert", itemIds: [itemId] })).resolves.toBeUndefined();
     expect(setup.commands).toEqual([{ type: "build", documents: [] }]);
     await setup.service.dispose();
     expect(setup.terminated()).toBe(true);
@@ -340,5 +538,40 @@ describe("WorkspaceSearchService", () => {
 
     expect(setup.terminated()).toBe(true);
     await expect(setup.service.initialize()).rejects.toThrow("locked");
+  });
+
+  it("locks an unused search without creating a worker or opening its source", async () => {
+    const setup = harness({ entries: [], search: async () => completeServerResult("Unused") });
+
+    await setup.emit({ kind: "clear" });
+    await setup.service.dispose();
+
+    expect(setup.workerFactory).not.toHaveBeenCalled();
+    expect(setup.source.list).not.toHaveBeenCalled();
+    expect(setup.commands).toEqual([]);
+    await expect(setup.service.initialize()).rejects.toThrow("locked");
+  });
+
+  it("never creates a worker for a source read completed after locking", async () => {
+    const setup = harness({
+      entries: [entry("Private projection")],
+      search: async () => completeServerResult("Unused"),
+    });
+    let releaseSource: (() => void) | undefined;
+    setup.source.list.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        releaseSource = resolve;
+      });
+      return [entry("Private projection")];
+    });
+
+    const opening = setup.service.initialize();
+    await vi.waitFor(() => expect(releaseSource).toBeDefined());
+    await setup.emit({ kind: "clear" });
+    releaseSource?.();
+
+    await expect(opening).rejects.toThrow("locked");
+    expect(setup.workerFactory).not.toHaveBeenCalled();
+    expect(setup.commands).toEqual([]);
   });
 });

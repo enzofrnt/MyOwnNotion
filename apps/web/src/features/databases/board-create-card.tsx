@@ -1,76 +1,52 @@
-import type { DatabaseProperty, RelationTargets, Uuid } from "@myownnotion/domain";
 import { useRef, useState } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { Button } from "../../ui/primitives/index.ts";
-import { type BoardCardDraft, BoardCardEditor } from "./board-card-editor.tsx";
-import type { BoardInitialValues } from "./board-view.tsx";
-import type { RelationOption } from "./value-editor.tsx";
+import { DATABASE_COPY } from "./database-copy.ts";
 
+/** The creation command stays below the list, including while a card is edited. */
 export function BoardCreateCard({
   columnLabel,
-  canCreateFolder,
-  properties = [],
-  initialValues = {},
-  relationOptions = [],
+  pending = false,
   onCreate,
 }: {
   readonly columnLabel: string;
-  readonly canCreateFolder: boolean;
-  readonly properties?: readonly DatabaseProperty[];
-  readonly initialValues?: BoardInitialValues;
-  readonly relationOptions?: readonly RelationOption[];
-  readonly onCreate: (
-    kind: "page" | "folder",
-    title: string,
-    values: BoardInitialValues,
-    relations: RelationTargets,
-  ) => Promise<void | Uuid>;
+  readonly pending?: boolean;
+  readonly onCreate: () => Promise<void>;
 }) {
-  const [editing, setEditing] = useState(false);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const close = (restoreFocus = true) => {
-    setEditing(false);
-    if (restoreFocus) requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true }));
-  };
-  const save = async (draft: BoardCardDraft) => {
-    await onCreate(
-      draft.kind,
-      draft.title,
-      draft.values as BoardInitialValues,
-      draft.relationTargets,
-    );
+  const busy = useRef(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const create = async () => {
+    if (busy.current || pending) return;
+    busy.current = true;
+    setCreating(true);
+    setError(null);
+    try {
+      await onCreate();
+    } catch {
+      setError(DATABASE_COPY.page.entryCreateFailed);
+    } finally {
+      busy.current = false;
+      setCreating(false);
+    }
   };
   return (
-    <div className="database-board__create">
-      {editing ? (
-        <div className="database-card database-card--draft">
-          <BoardCardEditor
-            properties={properties}
-            initial={{
-              kind: "page",
-              title: "",
-              values: initialValues as BoardCardDraft["values"],
-              relationTargets: {},
-            }}
-            relationOptions={relationOptions}
-            canChooseKind={canCreateFolder}
-            creating
-            label={`Titre de la page dans ${columnLabel}`}
-            onSave={save}
-            onCancel={close}
-          />
-        </div>
-      ) : (
-        <Button
-          ref={trigger}
-          size="compact"
-          variant="ghost"
-          className="database-board__add"
-          aria-label={`Nouvelle page dans ${columnLabel}`}
-          onClick={() => setEditing(true)}
-        >
-          <AppIcon name="add" size="small" /> Nouvelle page
-        </Button>
+    <div className="database-board__create" aria-busy={pending || creating || undefined}>
+      <Button
+        size="compact"
+        variant="ghost"
+        className="database-board__add"
+        data-board-create-trigger
+        disabled={pending || creating}
+        aria-label={DATABASE_COPY.board.newElementIn(columnLabel)}
+        onClick={() => void create()}
+      >
+        <AppIcon name="add" size="small" /> {DATABASE_COPY.board.newElement}
+      </Button>
+      {error === null ? null : (
+        <p className="database-board__create-error" role="alert">
+          {error}
+        </p>
       )}
     </div>
   );

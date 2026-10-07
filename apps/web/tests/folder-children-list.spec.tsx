@@ -171,6 +171,34 @@ describe("folder children list", () => {
     expect(container.querySelector('[data-testid="folder-create-toggle"]')).toBeNull();
   });
 
+  it("does not describe an unknown descendant count as an empty folder", async () => {
+    const child = children[1];
+    if (child === undefined) throw new Error("Folder fixture missing");
+    await act(async () => {
+      root.render(
+        <FolderChildrenList
+          folderName="Projets"
+          items={[{ ...child, childCount: null }]}
+          onOpen={vi.fn()}
+          onReorder={vi.fn()}
+        />,
+      );
+    });
+    expect(container.textContent).toContain("Dossier");
+    expect(container.textContent).not.toContain("Dossier vide");
+    await act(async () => {
+      root.render(
+        <FolderChildrenList
+          folderName="Projets"
+          items={[{ ...child, childCount: 0 }]}
+          onOpen={vi.fn()}
+          onReorder={vi.fn()}
+        />,
+      );
+    });
+    expect(container.textContent).toContain("Dossier vide");
+  });
+
   it("holds the chosen order until the projection confirms it, and yields to any other change", async () => {
     let reorder: ((from: number, to: number) => void) | null = null;
     const render = (items: readonly FolderChild[]) =>

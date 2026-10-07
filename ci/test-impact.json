@@ -1285,6 +1285,56 @@
       }
     },
     {
+      "test": "tests/e2e/database-page-flow.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/services/local-content.ts"],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "apps/web/src/features/hierarchy/",
+          "packages/client-core/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/database-multi-select-board.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/services/local-content.ts"],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/progressive-startup.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/services/local-content.ts",
+          "apps/web/src/services/search.ts",
+          "apps/web/src/features/editor/custom-blocks/database-view.tsx"
+        ],
+        "prefixes": [
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/workspace/",
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/reconciliation/",
+          "packages/client-core/src/local-store/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/editor-math-contents.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/global.css", "apps/web/src/ui/tokens.css"],
+        "prefixes": ["apps/web/src/features/editor/", "packages/domain/src/document/"],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/editor-caret.spec.ts",
       "owners": {
         "exact": ["apps/web/src/global.css", "apps/web/src/main.tsx", "apps/web/src/ui/tokens.css"],

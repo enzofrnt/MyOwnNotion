@@ -1015,12 +1015,22 @@ export async function addDatabaseProperty(
   type: Exclude<DatabasePropertyType, "title">,
   options?: readonly string[],
 ): Promise<void> {
-  await page.getByRole("button", { name: "Ajouter une propriété", exact: true }).click();
+  const add = page.getByRole("button", { name: "Ajouter une propriété", exact: true });
+  await expect(add).toBeEnabled();
+  // Header focus reveals the control through the body's horizontal scroll,
+  // including on mobile engines without mouse.wheel support.
+  await add.focus();
+  await expect(add).toBeFocused();
+  await expect(add).toBeInViewport({ ratio: 1 });
+  await add.click();
   const form = page.getByRole("form", { name: "Éditeur de propriété" });
   await form.getByLabel("Nom", { exact: true }).fill(name);
-  await form
-    .getByLabel("Type", { exact: true })
-    .selectOption(type === "status" || type === "multi-select" ? "select" : type);
+  // The native select's wrapping label also contains its option text. Use
+  // its accessible combobox name rather than the label's full text content.
+  const typeControl = form.getByRole("combobox", { name: "Type", exact: true });
+  const draftType = type === "status" || type === "multi-select" ? "select" : type;
+  await typeControl.selectOption(draftType);
+  await expect(typeControl).toHaveValue(draftType);
   if (options !== undefined) {
     const inputs = form.getByLabel("Nom de l'option", { exact: true });
     while ((await inputs.count()) > options.length) {

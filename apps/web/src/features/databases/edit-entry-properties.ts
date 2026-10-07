@@ -90,6 +90,14 @@ export async function editEntrySourceDefinition(
     const revision = source.definitionRevisionId ?? item?.currentRevisionId;
     if (revision === undefined) throw new Error("La source n’est pas disponible sur cet appareil.");
     const candidate = edit(source.definition);
+    const sourceChanged =
+      !jsonValuesEqual(candidate.properties, source.definition.properties) ||
+      !jsonValuesEqual(candidate.taskRoles, source.definition.taskRoles);
+    if (sourceChanged && !service.getSnapshot().projectionComplete) {
+      throw new Error(
+        "Attendez la fin du chargement des entrées avant de modifier la structure de la base.",
+      );
+    }
     const owner = await service.getDatabase(source.itemId);
     const primarySourceId = owner?.sourceId ?? ownedSourceIdFromItemId(source.itemId);
     const editedSourceId = source.sourceId ?? primarySourceId;

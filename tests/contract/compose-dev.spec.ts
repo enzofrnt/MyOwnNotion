@@ -31,6 +31,16 @@ describe("local HTTPS development stack", () => {
     bases: { bun: { ref: string; digest: string } };
   };
 
+  it("compresses public modules and change pages without compressing auth, private files or streams", () => {
+    expect(caddyfile).toMatch(/@public_shell\s*\{\s*not path \/v1\* \/mcp\* \/health\*\s*\}/);
+    expect(caddyfile).toMatch(/encode @public_shell\s*\{\s*gzip 1\s*\}/);
+    expect(caddyfile).toMatch(/@change_page\s*\{\s*method GET\s*path \/v1\/changes\s*\}/);
+    expect(caddyfile).toMatch(
+      /encode @change_page\s*\{\s*gzip 1\s*match\s*\{\s*header Content-Type application\/json\*/,
+    );
+    expect(caddyfile.match(/\bencode @/g)).toHaveLength(2);
+  });
+
   it("is a named helper and not the official deployment topology", () => {
     expect(compose.name).toBe("myownnotion-dev");
     expect(Object.keys(official.services ?? {}).sort()).toEqual([

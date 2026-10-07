@@ -16,7 +16,10 @@ for (const flow of ["full", "inline"]) {
     for (const format of ["board", "table"]) {
       await page.goto(`/__ui-lab?review=database&format=${format}&flow=${flow}&rows=1000`);
       const main = page.locator(".workspace-main");
-      await main.evaluate(node => { node.style.height = `${Math.min(600, innerHeight - 80)}px`; node.scrollIntoView({block: "start"}); });
+      await main.evaluate((node) => {
+        node.style.height = `${Math.min(600, innerHeight - 80)}px`;
+        node.scrollIntoView({ block: "start" });
+      });
       const surface = page.locator(
         format === "board" ? ".database-board-scroll" : ".database-table-scroll",
       );
@@ -154,7 +157,7 @@ test("column creation blocks pending duplicates and permits retry after refusal"
   for (const state of ["pending", "refused"]) {
     await page.goto(`/__ui-lab?review=database&format=board&creation=${state}`);
     const column = page.locator("[data-board-column]").first();
-    const create = column.getByRole("button", { name: /Nouvelle page dans/ });
+    const create = column.getByRole("button", { name: /Nouvel élément dans/ });
     await create.press("Enter");
     if (state === "pending") {
       await expect(create).toBeDisabled();
@@ -171,6 +174,83 @@ test("column creation blocks pending duplicates and permits retry after refusal"
   }
 });
 
+test("keeps Nouvel élément below the edited card, creates successive durable entries and uses full column colors", async ({
+  page,
+}, testInfo) => {
+  await openWorkspace(page);
+  await createRootDatabase(page, uniqueName("Persistent creation source"));
+  await addDatabaseProperty(page, "État", "select");
+  await createDatabaseView(page, "Kanban");
+  const add = page.getByRole("button", { name: "Nouvel élément dans En cours", exact: true });
+  const column = page.locator("[data-board-column]").filter({ has: add });
+  await add.click();
+  const title = column.getByRole("textbox", { name: /^Nom de/ });
+  await expect(title).toBeFocused();
+  await expect(add).toBeVisible();
+  await expect(add).toBeEnabled();
+  await expect(column.locator(".database-card")).toHaveCount(1);
+  await column.screenshot({ path: testInfo.outputPath("creation-expanded.png") });
+  const firstName = uniqueName("First immediate entry");
+  await title.fill(firstName);
+  // A new command saves this card and opens the next without an extra Enter.
+  await add.click();
+  await expect(column.locator(".database-card")).toHaveCount(2);
+  await expect(column.locator('[data-editing="true"]')).toHaveCount(1);
+  await expect(title).toBeFocused();
+  await expect(title).toHaveText("Nouvelle page");
+  const secondName = uniqueName("Second immediate entry");
+  await title.fill(secondName);
+  await title.press("Escape");
+  await expect(title).toBeHidden();
+  await expect(column.locator(".database-card")).toHaveCount(2);
+  await expect(page.locator(".entry-panel")).toBeHidden();
+  await waitForSynchronized(page);
+  await page.reload();
+  await expect(column.locator(".database-card").filter({ hasText: firstName })).toHaveCount(1);
+  await expect(column.locator(".database-card").filter({ hasText: secondName })).toHaveCount(1);
+  for (const width of [1133, 320]) {
+    await page.setViewportSize({ width, height: 909 });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate((theme) => {
+        document.documentElement.dataset["theme"] = theme;
+      }, theme);
+      await add.scrollIntoViewIfNeeded();
+      const colors = () =>
+        column.evaluate((node) => {
+          const button = node.querySelector(".database-board__add");
+          const card = node.querySelector(".database-card");
+          const dot =
+            node.closest(".database-board__column")?.querySelector(".option-pill__dot") ??
+            document.querySelector(
+              '.database-board--headers .database-board__column[data-tone="blue"] .option-pill__dot',
+            );
+          if (!button || !card || !dot) throw new Error("Missing color surfaces");
+          return {
+            button: getComputedStyle(button).color,
+            buttonBorder: getComputedStyle(button).borderTopColor,
+            cardBorder: getComputedStyle(card).borderTopColor,
+            dot: getComputedStyle(dot).backgroundColor,
+          };
+        });
+      // Theme changes animate the button; inspect its settled paint, not an
+      // intermediate interpolated color from the previous theme.
+      await expect
+        .poll(async () => {
+          const color = await colors();
+          return (
+            color.button === color.dot &&
+            color.buttonBorder === color.dot &&
+            color.cardBorder === color.dot
+          );
+        })
+        .toBe(true);
+      await column.screenshot({
+        path: testInfo.outputPath(`persistent-create-${width}-${theme}.png`),
+      });
+    }
+  }
+});
+
 test("creates canonical pages and folders in multi-select columns, reloads and queues offline", async ({
   page,
   context,
@@ -182,22 +262,26 @@ test("creates canonical pages and folders in multi-select columns, reloads and q
   await createDatabaseView(page, "Kanban");
   await expect(page.locator(".database-entry-create")).toHaveCount(0);
   const create = async (label: string, kind: "page" | "folder", title: string) => {
-    await page
-      .getByRole("button", {
-        name: `${kind === "page" ? "Nouvelle page" : "Nouveau dossier"} dans ${label}`,
-        exact: true,
-      })
-      .click();
-    await expect(page.locator(".entry-panel")).toBeVisible();
-    const titleInput = page.getByTestId("active-item-title");
+    const add = page.getByRole("button", { name: `Nouvel élément dans ${label}`, exact: true });
+    const column = page.locator("[data-board-column]").filter({ has: add });
+    await add.click();
+    const titleInput = column.getByRole("textbox", { name: /^Nom de/ });
+    await expect(titleInput).toBeFocused();
+    await expect(add).toBeVisible();
+    await expect(add).toBeEnabled();
+    await expect(page.locator(".entry-panel")).toBeHidden();
     await titleInput.fill(title);
+    if (kind === "folder") {
+      const choice = column.getByRole("group", { name: "Type d’élément", exact: true });
+      await choice.getByRole("button", { name: "Dossier", exact: true }).click();
+      await expect(choice.getByRole("button", { name: "Dossier", exact: true })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    }
     await titleInput.press("Enter");
-    await page.getByRole("button", { name: "Fermer l'entrée", exact: true }).click();
-    const card = page
-      .locator("[data-board-column]")
-      .filter({ has: page.getByRole("heading", { name: new RegExp(`^${label} ·`) }) })
-      .locator(".database-card")
-      .filter({ hasText: title });
+    await expect(titleInput).toBeHidden();
+    const card = column.locator(".database-card").filter({ hasText: title });
     await expect(card).toBeVisible();
     return card;
   };

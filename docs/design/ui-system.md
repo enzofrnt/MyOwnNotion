@@ -28,8 +28,8 @@ première installation et adresse du serveur. Leurs actions s’arrêtent dans
 l’exemple local avant une requête ou une cérémonie passkey. L’aperçu d’adresse
 du serveur est réservé au navigateur, afin de préserver le profil desktop.
 Sous les couleurs de contenu, le sélecteur de démonstration utilise les mêmes
-tokens : fond `-soft`, contour et point central en couleur de contenu, nom et
-choix explicites. Il ne définit pas une nouvelle palette ni une API globale.
+tokens : fond `-soft`, contour `-border`, point central `-accent`, nom et choix
+explicites. Il ne définit pas une nouvelle palette locale.
 
 Le lien « Parcourir les interfaces » ouvre `?review=conflicts`. Dix parcours
 utilisent les composants de production : conflits, fichiers, historique, bases,
@@ -236,7 +236,7 @@ dans leur domaine. `ReadTable` sert uniquement aux comparaisons de lecture.
 | Texte | `--ui-font-sans`, `--ui-font-mono`, `--ui-text-xs…3xl`, `--ui-leading-tight/normal/relaxed` |
 | Géométrie partagée | `--ui-space-0…12`, `--ui-radius-*`, `--ui-target` (44 px), `--ui-target-compact` (32 px), `--ui-reading-width` |
 | Superpositions / mouvement | `--ui-layer-*`, `--ui-shadow-*`, `--ui-focus-ring`, `--ui-duration-*`, `--ui-ease-*` |
-| Couleurs de contenu | `--ui-content-{gray,brown,orange,yellow,green,blue,purple,pink,red}` et `-soft` |
+| Couleurs de contenu | `--ui-content-{gray,brown,orange,yellow,green,blue,purple,pink,red}` (texte), `-accent` (repère), `-foreground` (texte de commande), `-wash` (support faible), `-soft` (contenu), `-badge` (option), `-border` (contour) |
 
 Les aliases `--color-*`, `--space-*`, etc. sont conservés pour les consommateurs
 existants, y compris les styles inline. Nouveau CSS : `--ui-*`. Les couleurs et
@@ -247,12 +247,17 @@ neutre et `--ui-focus-ring: none`, sans glow. Pour du texte coloré, utiliser
 un contraste lisible sur les surfaces de chaque thème. Le bouton principal
 emploie `--ui-color-accent-solid` / `-solid-hover` pour son texte blanc ; les
 repères de sélection et traits de dépôt gardent `--ui-color-accent`. Les
-couleurs pleines `--ui-content-*` servent aux libellés et petits repères ; les
-fonds `--ui-content-*-soft` sont des nuances sémantiques centralisées, réglées
-par thème pour garder leur teinte et leur contraste (pastels en clair, tons
-profonds et saturés en sombre). Les composants consomment ces rôles sans
-introduire de palette locale. Les bordures colorées restent discrètes en
-partant de `--ui-color-border`. Une nouvelle valeur de thème doit
+couleurs `--ui-content-*` restent les textes éditoriaux lisibles. Les graines
+`-accent` et les coefficients communs `--ui-content-*-weight` produisent les
+fonds `-wash` (colonne), `-soft` (carte/highlight), `-badge` (option) et le
+contour `-border` sans palette locale. `-foreground` mélange l’accent au texte
+principal en clair ; les commandes et compteurs restent lisibles tandis que
+les points et sélecteurs conservent la teinte de base. La palette de propriété s'applique aussi
+quand le badge est posé sur une carte d'une autre couleur. Le gris utilise les
+surfaces neutres. Un contour ne reprend jamais le texte clair d'un badge.
+Le survol dérive la luminosité du support avec `--ui-content-hover-lightness`,
+sans modifier teinte ni géométrie. Voir [041](../../specs/041-content-color-system/plan.md).
+Une nouvelle valeur de thème doit
 être vérifiée dans `:root`, `[data-theme="dark"]` et le fallback sombre sans JS.
 
 Les tokens `--ui-graph-*-dark`, `--ui-color-retire-accent-dark`,

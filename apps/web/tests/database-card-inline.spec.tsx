@@ -9,7 +9,11 @@ import type { DatabaseViewPage } from "../src/services/databases.ts";
 
 const pause = () => new Promise((resolve) => setTimeout(resolve, 15));
 
-async function mount(save: ReturnType<typeof vi.fn>) {
+async function mount(
+  save: ReturnType<typeof vi.fn>,
+  create?: ReturnType<typeof vi.fn>,
+  filtered = false,
+) {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const axis = generateUuidV7(),
     option = generateUuidV7(),
@@ -46,7 +50,7 @@ async function mount(save: ReturnType<typeof vi.fn>) {
     group: { propertyId: axis },
     options: { axisPropertyId: axis, columnOrder: [option], collapsedColumnIds: [] },
   };
-  const page: DatabaseViewPage = {
+  let page: DatabaseViewPage = {
     databaseId: generateUuidV7(),
     definitionRevisionId: generateUuidV7(),
     viewId: view.id,
@@ -72,7 +76,8 @@ async function mount(save: ReturnType<typeof vi.fn>) {
   document.body.append(host);
   const root = createRoot(host);
   const open = vi.fn();
-  await act(async () =>
+  const creationRows: DatabaseViewPage["rows"][number][] = [];
+  const render = () =>
     root.render(
       createElement(
         DatabaseEntryActionsContext.Provider,
@@ -93,14 +98,38 @@ async function mount(save: ReturnType<typeof vi.fn>) {
           onOpenEntry: open,
           onUpdateEntry: vi.fn(),
           onChangeView: vi.fn(),
+          creationRows,
+          ...(create === undefined
+            ? {}
+            : {
+                onCreateInColumn: async (kind, values, title, relations) => {
+                  const id = await create(kind, values, title, relations);
+                  const row = {
+                    entryId: id,
+                    revisionId: generateUuidV7(),
+                    title,
+                    values,
+                    relationTargets: relations,
+                    groupId: option,
+                    syncState: "pending" as const,
+                    itemKind: kind,
+                  };
+                  creationRows.push(row);
+                  if (!filtered) page = { ...page, rows: [...page.rows, row] };
+                  render();
+                  return id;
+                },
+              }),
         }),
       ),
-    ),
-  );
+    );
+  await act(async () => render());
   return {
     host,
     checkbox,
     hidden,
+    axis,
+    option,
     open,
     destroy: () => {
       act(() => root.unmount());
@@ -156,6 +185,104 @@ it("edits a visible property without expanding or opening the entry, then retain
     beforeCaret.selectNodeContents(textbox);
     beforeCaret.setEnd(selection.focusNode, selection.focusOffset);
     expect(beforeCaret.toString()).toBe("Alpha");
+  } finally {
+    ui.destroy();
+  }
+});
+
+it("creates immediately, keeps the same button underneath and saves before creating the next entry", async () => {
+  const save = vi.fn().mockResolvedValue(undefined);
+  const create = vi.fn(async () => generateUuidV7());
+  const ui = await mount(save, create);
+  try {
+    const add = ui.host.querySelector<HTMLButtonElement>('[aria-label="Nouvel élément dans Todo"]');
+    if (!add) throw new Error("Missing creation command");
+    await act(async () => {
+      add.click();
+      await pause();
+    });
+    expect(create).toHaveBeenCalledExactlyOnceWith(
+      "page",
+      {
+        [ui.axis]: { kind: "status", optionId: ui.option },
+      },
+      "Nouvelle page",
+      {},
+    );
+    expect(ui.host.querySelectorAll(".database-card")).toHaveLength(3);
+    expect(ui.host.querySelector('[role="textbox"]')?.textContent).toBe("Nouvelle page");
+    expect(document.activeElement).toBe(ui.host.querySelector('[role="textbox"]'));
+    expect(add.isConnected).toBe(true);
+    expect(add.disabled).toBe(false);
+    await title(ui.host, "Created and edited");
+    await act(async () => {
+      add.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      add.focus();
+      await pause();
+    });
+    expect(ui.host.querySelector('[role="textbox"]')?.textContent).toBe("Created and edited");
+    await act(async () => {
+      add.click();
+      await pause();
+    });
+    expect(save.mock.calls[0]?.[1].title).toBe("Created and edited");
+    expect(save.mock.invocationCallOrder[0]).toBeLessThan(create.mock.invocationCallOrder[1] ?? 0);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(ui.host.querySelectorAll(".database-card")).toHaveLength(4);
+    expect(ui.host.querySelectorAll('[data-editing="true"]')).toHaveLength(1);
+    await act(async () => {
+      ui.host
+        .querySelector('[role="textbox"]')
+        ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await pause();
+    });
+    expect(ui.host.querySelector('[role="textbox"]')).toBeNull();
+    expect(ui.host.querySelectorAll(".database-card")).toHaveLength(4);
+    expect(ui.open).not.toHaveBeenCalled();
+  } finally {
+    ui.destroy();
+  }
+});
+
+it("opens the canonical created row excluded by a filter, then removes only its temporary occurrence", async () => {
+  const ui = await mount(
+    vi.fn().mockResolvedValue(undefined),
+    vi.fn(async () => generateUuidV7()),
+    true,
+  );
+  try {
+    await act(async () => {
+      ui.host.querySelector<HTMLButtonElement>('[aria-label="Nouvel élément dans Todo"]')?.click();
+      await pause();
+    });
+    expect(ui.host.querySelectorAll(".database-card")).toHaveLength(3);
+    expect(ui.host.querySelector('[role="textbox"]')?.textContent).toBe("Nouvelle page");
+    await act(async () => {
+      document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      await pause();
+    });
+    expect(ui.host.querySelectorAll(".database-card")).toHaveLength(2);
+    expect(ui.host.querySelector('[role="textbox"]')).toBeNull();
+  } finally {
+    ui.destroy();
+  }
+});
+
+it("keeps a refused edited title open and does not create another entry until saving succeeds", async () => {
+  const save = vi.fn().mockRejectedValue(new Error("Refused"));
+  const create = vi.fn(async () => generateUuidV7());
+  const ui = await mount(save, create);
+  try {
+    await pencil(ui.host, "Alpha");
+    await title(ui.host, "Retain this title");
+    await act(async () => {
+      ui.host.querySelector<HTMLButtonElement>('[aria-label="Nouvel élément dans Todo"]')?.click();
+      await pause();
+    });
+    expect(create).not.toHaveBeenCalled();
+    expect(ui.host.querySelector('[role="textbox"]')?.textContent).toBe("Retain this title");
+    expect(ui.host.querySelector('[role="alert"]')?.textContent).toContain("conservée");
+    expect(ui.host.querySelectorAll(".database-card")).toHaveLength(2);
   } finally {
     ui.destroy();
   }

@@ -110,6 +110,7 @@ export function BoardCardEditor({
   ref,
   label,
   entryId,
+  holdsContent,
   onConvert,
   onSave,
   onCancel,
@@ -127,6 +128,7 @@ export function BoardCardEditor({
   readonly ref?: Ref<BoardCardEditorHandle> | undefined;
   readonly label: string;
   readonly entryId?: Uuid;
+  readonly holdsContent?: boolean | undefined;
   readonly onConvert?: (
     id: Uuid,
     kind: "page" | "folder",
@@ -315,7 +317,7 @@ export function BoardCardEditor({
     const outside = (event: Event) => {
       const editTrigger =
         !creating && event.target instanceof Element
-          ? event.target.closest("[data-board-edit-trigger]")
+          ? event.target.closest("[data-board-edit-trigger], [data-board-create-trigger]")
           : null;
       // Let the pencil's semantic click save and switch. Collapsing now moves
       // later cards out from under the pointer before its release can click.
@@ -448,6 +450,7 @@ export function BoardCardEditor({
               itemId={entryId}
               itemName={title}
               kind={kind}
+              holdsContent={holdsContent}
               variant="switch"
               convert={async (entryId, target, confirmed) => {
                 if (!(await flushRef.current()))

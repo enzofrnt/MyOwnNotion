@@ -79,6 +79,104 @@ function checkpointResponse(overrides: Record<string, unknown> = {}) {
   };
 }
 
+describe("startup page response boundaries", () => {
+  const receipt = (pageSequence = 1) => ({
+    updateId: generateUuidV7(),
+    pageSequence,
+    resultVersionVector: bytes(8),
+  });
+  const active = (overrides: Record<string, unknown> = {}) => ({
+    mode: "active",
+    requestId: generateUuidV7(),
+    pageId: generateUuidV7(),
+    accepted: [],
+    repeated: [],
+    remoteUpdates: [],
+    serverVersionVector: bytes(8),
+    throughPageSequence: 5,
+    latestPageSequence: 5,
+    hasMore: false,
+    canonical: {
+      format: "myownnotion.document+json",
+      formatVersion: 3,
+      digest,
+      lastConsolidatedRevisionId: null,
+      hasUnconsolidatedChanges: false,
+    },
+    ambiguities: [],
+    fileRequirements: [],
+    ...overrides,
+  });
+
+  it("refuses combined receipt overflow and receipts beyond the advertised frontier", () => {
+    expect(() =>
+      parsePageSyncResponse(
+        active({
+          accepted: Array.from({ length: 33 }, () => receipt()),
+          repeated: Array.from({ length: 32 }, () => receipt()),
+        }),
+      ),
+    ).toThrow("accepted page update count");
+    expect(() => parsePageSyncResponse(active({ accepted: [receipt(6)] }))).toThrow(
+      "accepted page update sequence",
+    );
+    expect(() => parsePageSyncResponse(active({ throughPageSequence: 6 }))).toThrow(
+      "active page sequence",
+    );
+  });
+
+  it("refuses a checkpoint boundary or following order outside the durable range", () => {
+    expect(() => parsePageSyncResponse(checkpointResponse({ throughPageSequence: 6 }))).toThrow(
+      "checkpoint page sequence",
+    );
+    expect(() =>
+      parsePageSyncResponse(
+        checkpointResponse({ followingUpdates: [remoteUpdate({ pageSequence: 4 })] }),
+      ),
+    ).toThrow("following page update sequence");
+    expect(() =>
+      parsePageSyncResponse(active({ remoteUpdates: [remoteUpdate({ pageSequence: 6 })] })),
+    ).toThrow("remote page update sequence");
+  });
+
+  it("refuses following bytes exceeding the shared batch budget", () => {
+    expect(() =>
+      parsePageSyncResponse(
+        checkpointResponse({
+          latestPageSequence: 6,
+          followingUpdates: [
+            remoteUpdate({ pageSequence: 5, updateBytes: bytes(600_000) }),
+            remoteUpdate({ pageSequence: 6, updateBytes: bytes(600_000) }),
+          ],
+        }),
+      ),
+    ).toThrow("following page update batch bytes");
+  });
+
+  it("refuses invalid remote timestamps that still match the transport shape", () => {
+    const invalid = remoteUpdate({ acceptedAt: "2026-13-20T12:00:00.000Z" });
+    expect(() => parsePageSyncResponse(active({ remoteUpdates: [invalid] }))).toThrow(
+      "remote update timestamp",
+    );
+    expect(() =>
+      parsePageSyncResponse(checkpointResponse({ followingUpdates: [invalid] })),
+    ).toThrow("following update timestamp");
+  });
+
+  it("refuses duplicate conversion identities instead of replaying them twice", () => {
+    const id = generateUuidV7();
+    expect(() =>
+      parsePageSyncResponse(
+        checkpointResponse({
+          convertedBranchId: generateUuidV7(),
+          conversionUpdateIds: [id, id],
+          localDocumentDigest: digest,
+        }),
+      ),
+    ).toThrow("legacy conversion update ids");
+  });
+});
+
 describe("protocol-v3 page sync requests", () => {
   it("accepts active, empty and bounded legacy-branch requests", () => {
     const tableId = generateUuidV7();

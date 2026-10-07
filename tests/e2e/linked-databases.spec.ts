@@ -27,8 +27,10 @@ test("keeps entry activation and cancellation intact while another device update
   const hostName = uniqueName("Stable database owner");
   const entryName = uniqueName("Stable entry");
   await createRootDatabase(page, hostName);
-  await expect(page.locator(".database-grid")).toBeVisible();
+  // The page-flow header is visible before the empty body has any height.
+  await expect(page.getByRole("table", { name: "En-têtes de Tableau", exact: true })).toBeVisible();
   await createDatabaseEntry(page, entryName);
+  await expect(page.getByRole("grid")).toBeVisible();
   await waitForSynchronized(page);
   const second = await openSecondDevice(browser, baseURL);
   try {
@@ -89,8 +91,10 @@ test("keeps entry activation and cancellation intact while another device update
         await expect(page.getByTestId("active-item-title")).toHaveValue(hostName);
       } else {
         await page.mouse.up();
-        await expect(page.getByTestId("active-item-title")).toHaveValue(entryName);
-        await page.getByRole("button", { name: "Fermer l'entrée", exact: true }).click();
+        const peek = page.locator(".database-entry-peek");
+        await expect(peek.getByTestId("active-item-title")).toHaveValue(entryName);
+        await peek.getByRole("button", { name: "Fermer le volet", exact: true }).click();
+        await expect(peek).toBeHidden();
         await expect(page.getByTestId("active-item-title")).toHaveValue(hostName);
       }
       await original.dispose();
@@ -99,8 +103,10 @@ test("keeps entry activation and cancellation intact while another device update
       const trigger = entryTrigger(page, entryName).first();
       await trigger.focus();
       await page.keyboard.press(key);
-      await expect(page.getByTestId("active-item-title")).toHaveValue(entryName);
-      await page.getByRole("button", { name: "Fermer l'entrée", exact: true }).click();
+      const peek = page.locator(".database-entry-peek");
+      await expect(peek.getByTestId("active-item-title")).toHaveValue(entryName);
+      await peek.getByRole("button", { name: "Fermer le volet", exact: true }).click();
+      await expect(peek).toBeHidden();
       await expect(page.getByTestId("active-item-title")).toHaveValue(hostName);
     }
   } finally {
@@ -182,7 +188,7 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
     });
   }
   await expect(loaded.getByRole("button")).toHaveCount(0);
-  const renderedRows = page.locator(".database-grid tbody tr[data-index]");
+  const renderedRows = page.getByRole("grid").locator("tbody tr[data-index]");
   await expect.poll(() => renderedRows.count()).toBeGreaterThan(0);
   await expect.poll(() => renderedRows.count()).toBeLessThan(100);
   // The table owns horizontal scrolling; its page owns vertical scrolling.
@@ -195,7 +201,10 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   const nextPageMs = Date.now() - nextStarted;
   await last.click();
   await expect(page.locator(".entry-panel")).toBeVisible();
-  await page.getByRole("button", { name: "Fermer l'entrée", exact: true }).click();
+  const peek = page.locator(".database-entry-peek");
+  await expect(peek.getByTestId("active-item-title")).toHaveValue("Entry 1000");
+  await peek.getByRole("button", { name: "Fermer le volet", exact: true }).click();
+  await expect(peek).toBeHidden();
   await expect(page.getByTestId("active-item-title")).toHaveValue("Large reusable source");
   await expect(loaded).toContainText("1001 entrées chargées", { timeout: 30_000 });
   await expect(last).toBeFocused();

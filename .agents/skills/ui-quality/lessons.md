@@ -322,3 +322,40 @@ validation explicite du propriétaire (correction vue ensemble).
 - Preuve : diagnostic de caret différent du pointeur, tests unitaires rouge/vert,
   30 parcours sur cinq profils puis dix parcours sombres à 320 px, captures
   réelles ; `specs/033-app-ui-review/verification.md`, T061.
+
+### L-024 — Un contrôle sur une surface teintée reprend son contexte
+- Statut : validée
+- Surface : sélecteur inline dans une carte teintée.
+- Anti-pattern : utiliser un fond sunken neutre très sombre qui forme une
+  rupture noire au milieu de la carte, puis un choix actif d'une autre palette.
+- Règle : laisser voir le support et dériver le relief actif de sa teinte et
+  des rôles du thème. Garder un contour fin, vérifier actif/survol/focus en
+  clair et sombre dans le contexte réel, plutôt que sur un fond isolé.
+- Preuve : proposition réelle `specs/038-database-card-flow/validation.md`,
+  section sélecteur Page/Dossier ; retour propriétaire « C'est beaucoup mieux ».
+
+### L-025 — Une surface vide conserve une étendue de défilement réelle
+- Statut : validée
+- Surface : en-têtes détachés pilotés par le défilement horizontal du corps.
+- Anti-pattern : supposer que la largeur CSS d'une table vide à hauteur nulle
+  suffit à créer l'étendue défilante, ou ajouter une fausse ligne pour la créer.
+- Règle : garder une géométrie non nulle minimale et ignorée par l'accessibilité
+  quand le corps est vide. Vérifier les commandes hors écran au pointeur et au
+  clavier, puis le passage au premier contenu, dans les moteurs requis ; une
+  hauteur déclarée sur une table vide n'est pas interprétée identiquement partout.
+- Preuve : reproduction réelle à 320 px et parcours de composition/synchronisation
+  sur cinq profils ; `specs/038-database-card-flow/validation.md`, FR023.
+
+
+### L-026 — Dériver les surfaces d’une teinte, séparer repère et texte
+- Statut : validée par revue manuelle
+- Surface : couleurs de contenu, Kanban, badges et sélecteurs partagés.
+- Anti-pattern : réutiliser le texte clair d’un badge comme contour de carte,
+  puis le même accent mesuré en sombre comme texte sur fond clair.
+- Règle : mesurer les rôles de la référence, centraliser une teinte et des
+  coefficients communs par thème, distinguer support/carte/badge/contour et
+  repère/texte lisible. Le survol dérive le fond sans changer sa teinte ni
+  sa géométrie. Vérifier les consommateurs secondaires de la même palette.
+- Preuve : mesures réelles Notion, captures clair/sombre, survol avec boîtes
+  identiques, focus et 320 px dans `specs/041-content-color-system/validation.md`.
+  E2E explicitement différés ; cette leçon ne vaut pas validation multi-moteur.

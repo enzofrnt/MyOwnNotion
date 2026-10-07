@@ -144,9 +144,9 @@ export function UiLab({
                 aria-pressed={selectedColor === color}
                 onClick={() => setSelectedColor(color)}
                 style={{
-                  color: `var(--ui-content-${color})`,
+                  color: `var(--ui-content-${color}-accent)`,
                   backgroundColor: `var(--ui-content-${color}-soft)`,
-                  borderColor: `var(--ui-content-${color})`,
+                  borderColor: `var(--ui-content-${color}-border)`,
                 }}
               >
                 <span className="ui-lab__color-dot" aria-hidden="true" />

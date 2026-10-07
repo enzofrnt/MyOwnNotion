@@ -246,6 +246,20 @@ export class DatabaseViewService {
         },
       };
     }
+    // Full local coverage already supplies the complete source and diagnostics.
+    // The server response below neither hydrates that projection nor replaces
+    // these rows. Keep remote cursors on their existing pagination path.
+    if (request.cursor === undefined && localPage?.coverage === "complete") {
+      return {
+        ok: true,
+        value: {
+          ...localPage,
+          rows: withState(localPage.rows),
+          source: "local",
+          staleCursorRecovered: false,
+        },
+      };
+    }
     let staleCursorRecovered = false;
     let server = await this.#local.api.queryDatabase(databaseId, request);
     if (

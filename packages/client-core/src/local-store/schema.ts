@@ -261,6 +261,8 @@ export const META_KEYS = {
   workspaceId: "workspaceId",
   schemaVersion: "schemaVersion",
   lastChangeCursor: "lastChangeCursor",
+  /** A partial first discovery must survive a reload without claiming an empty workspace. */
+  projectionComplete: "projectionComplete",
   syncState: "syncState",
 } as const;
 

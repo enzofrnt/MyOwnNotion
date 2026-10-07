@@ -1,5 +1,6 @@
 import {
   encodePageOperationBytes,
+  installPageCheckpoint,
   openLocalDatabase,
   type PageEditingSession,
 } from "@myownnotion/client-core";
@@ -115,6 +116,196 @@ afterEach(async () => {
 });
 
 describe("operational page opening", () => {
+  it("commits an unopened card conversion locally while workspace transport remains held", async () => {
+    const service = new LocalContentService(workspaceApi(), `card-conversion-${generateUuidV7()}`);
+    services.push(service);
+    await service.initialize();
+    const pageId = generateUuidV7();
+    await service.repository.applyServerItems([pageItem(pageId, generateUuidV7(), { blocks: [] })]);
+
+    let release!: () => void;
+    const held = new Promise<"synced">((resolve) => {
+      release = () => resolve("synced");
+    });
+    const synchronize = vi.spyOn(service, "synchronize").mockReturnValue(held);
+    let settled = false;
+    const conversion = service
+      .mutate("item.convert", { itemId: pageId, targetKind: "folder", confirmedDestruction: false })
+      .then((outcome) => {
+        settled = true;
+        return outcome;
+      });
+
+    try {
+      await vi.waitFor(() => expect(settled).toBe(true));
+      expect(await conversion).toEqual({ ok: true });
+      expect(await service.getItem(pageId)).toMatchObject({ kind: "folder", pageDocument: null });
+      expect(await service.outbox.all()).toMatchObject([
+        { commandType: "item.convert", status: "pending", payload: { itemId: pageId } },
+      ]);
+      // The network request belongs to background synchronization after the
+      // atomic local projection/outbox commit; it cannot delay local success.
+      expect(synchronize).toHaveBeenCalledOnce();
+    } finally {
+      release();
+      await conversion;
+    }
+  });
+
+  it("refuses destructive content on an unopened card without a network read or partial write", async () => {
+    const service = new LocalContentService(workspaceApi(), `card-content-${generateUuidV7()}`);
+    services.push(service);
+    await service.initialize();
+    const pageId = generateUuidV7();
+    const document: BlockDocumentV3 = {
+      blocks: [
+        { type: "paragraph", id: generateUuidV7(), content: [{ text: "Keep these words" }] },
+      ],
+    };
+    await service.repository.applyServerItems([pageItem(pageId, generateUuidV7(), document)]);
+    const synchronize = vi.spyOn(service, "synchronize").mockResolvedValue("synced");
+
+    expect(
+      await service.mutate("item.convert", {
+        itemId: pageId,
+        targetKind: "folder",
+        confirmedDestruction: false,
+      }),
+    ).toMatchObject({ ok: false, error: { code: "conversion.confirmation-required" } });
+    expect(synchronize).not.toHaveBeenCalled();
+    expect(await service.outbox.all()).toEqual([]);
+    expect(await service.getItem(pageId)).toMatchObject({
+      kind: "page",
+      pageDocument: { body: document },
+    });
+  });
+
+  it.each(["state", "update", "legacy-branch"] as const)(
+    "keeps a closed durable %s behind its workspace handover before conversion",
+    async (journalKind) => {
+      vi.stubGlobal("navigator", { onLine: false });
+      const databaseName = `closed-conversion-${generateUuidV7()}`;
+      const source = new LocalContentService(workspaceApi(), databaseName);
+      services.push(source);
+      await source.initialize();
+      const pageId = generateUuidV7();
+      const revisionId = generateUuidV7();
+      const document: BlockDocumentV3 = { blocks: [] };
+      await source.repository.applyServerItems([pageItem(pageId, revisionId, document)]);
+      if (journalKind === "state" || journalKind === "update") {
+        await installPageCheckpoint(
+          source.pageOperationLog,
+          await checkpointResponse({ pageId, requestId: generateUuidV7(), revisionId, document }),
+        );
+        if (journalKind === "update") {
+          vi.spyOn(source.pageReconciler(pageId), "synchronize").mockResolvedValue({
+            kind: "offline",
+            exchanges: 0,
+            latestPageSequence: 0,
+            fileRequirements: [],
+          });
+          const opened = await source.openOperationalPage(pageId);
+          expect(opened.ok).toBe(true);
+          if (opened.ok) opened.close();
+          expect(await source.pageOperationLog.listUpdates(pageId)).not.toEqual([]);
+          // A retained update without its state still represents editorial
+          // work. Treat this incomplete journal conservatively rather than
+          // proving the fast path from the missing state alone.
+          await source.db.pageOperationStates.delete(pageId);
+        }
+      } else {
+        const opened = await source.openOperationalPage(pageId);
+        expect(opened).toMatchObject({ ok: true, mode: "legacy-branch" });
+        if (opened.ok) {
+          const blockId = opened.session.read().blocks[0]?.id;
+          expect(blockId).toBeDefined();
+          if (blockId !== undefined) {
+            await opened.session.transact({
+              type: "replace-text",
+              blockId,
+              from: 0,
+              to: 0,
+              text: "Retained offline words",
+            });
+          }
+          opened.close();
+        }
+        expect(await source.pageOperationLog.getLegacyBranch(pageId)).not.toBeNull();
+      }
+
+      // A new service has no cached reconciler or opening. Its durable journal
+      // survives that restart and must independently prevent the fast path.
+      const service = new LocalContentService(workspaceApi(), databaseName);
+      services.push(service);
+      let release!: () => void;
+      const held = new Promise<"offline">((resolve) => {
+        release = () => resolve("offline");
+      });
+      const synchronize = vi.spyOn(service, "synchronize").mockReturnValue(held);
+      let settled = false;
+      const conversion = service
+        .mutate("item.convert", {
+          itemId: pageId,
+          targetKind: "folder",
+          confirmedDestruction: journalKind === "legacy-branch",
+        })
+        .then((outcome) => {
+          settled = true;
+          return outcome;
+        });
+      try {
+        await vi.waitFor(() => expect(synchronize).toHaveBeenCalledOnce());
+        expect(settled).toBe(false);
+        expect(await service.getItem(pageId)).toMatchObject({ kind: "page" });
+        expect(await service.outbox.all()).toEqual([]);
+      } finally {
+        release();
+      }
+      expect(await conversion).toEqual({ ok: true });
+      expect(await service.getItem(pageId)).toMatchObject({ kind: "folder", pageDocument: null });
+      expect(await service.pageOperationLog.getState(pageId)).toBeNull();
+      expect(await service.pageOperationLog.getLegacyBranch(pageId)).toBeNull();
+      expect(await service.pageOperationLog.listUpdates(pageId)).toEqual([]);
+    },
+  );
+
+  it("awaits a cached page exchange even when its durable state is currently absent", async () => {
+    const service = new LocalContentService(
+      workspaceApi(),
+      `cached-conversion-${generateUuidV7()}`,
+    );
+    services.push(service);
+    await service.initialize();
+    const pageId = generateUuidV7();
+    await service.repository.applyServerItems([pageItem(pageId, generateUuidV7(), { blocks: [] })]);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const exchange = vi
+      .spyOn(service.pageReconciler(pageId), "synchronize")
+      .mockImplementation(async () => {
+        await held;
+        return { kind: "synced", exchanges: 0, latestPageSequence: 0, fileRequirements: [] };
+      });
+    const synchronize = vi.spyOn(service, "synchronize").mockResolvedValue("synced");
+    const conversion = service.mutate("item.convert", {
+      itemId: pageId,
+      targetKind: "folder",
+      confirmedDestruction: false,
+    });
+    try {
+      await vi.waitFor(() => expect(exchange).toHaveBeenCalledOnce());
+      expect(synchronize).not.toHaveBeenCalled();
+      expect(await service.getItem(pageId)).toMatchObject({ kind: "page" });
+      expect(await service.outbox.all()).toEqual([]);
+    } finally {
+      release();
+    }
+    expect(await conversion).toEqual({ ok: true });
+    expect(await service.getItem(pageId)).toMatchObject({ kind: "folder", pageDocument: null });
+  });
+
   it("activates an online legacy projection before the editor accepts changes", async () => {
     vi.stubGlobal("navigator", { onLine: true });
     const service = new LocalContentService(workspaceApi(), `online-activation-${Date.now()}`);

@@ -156,10 +156,13 @@ export class WorkspaceSearchService {
   readonly #content: WorkspaceSearchContent;
   readonly #api: Pick<ContentApi, "search">;
   readonly #source: LocalSearchReader;
-  readonly #worker: SearchWorkerClient;
+  readonly #workerFactory: () => SearchWorkerClient;
+  readonly #injectedWorker: boolean;
   readonly #unsubscribeProjection: () => void;
+  #worker: SearchWorkerClient | null;
   #serial: Promise<void> = Promise.resolve();
   #initialBuild: Promise<void> | null = null;
+  #started = false;
   #sourceVersion = 0;
   #disposed = false;
 
@@ -168,6 +171,7 @@ export class WorkspaceSearchService {
     options: {
       readonly api?: Pick<ContentApi, "search">;
       readonly worker?: SearchWorkerClient;
+      readonly workerFactory?: () => SearchWorkerClient;
       readonly source?: LocalSearchReader;
     } = {},
   ) {
@@ -176,7 +180,9 @@ export class WorkspaceSearchService {
     this.#source =
       options.source ??
       new LocalSearchSource(content.repository, content.databases, content.pageOperationLog);
-    this.#worker = options.worker ?? new BrowserSearchWorkerClient();
+    this.#workerFactory = options.workerFactory ?? (() => new BrowserSearchWorkerClient());
+    this.#worker = options.worker ?? null;
+    this.#injectedWorker = options.worker !== undefined;
     this.#unsubscribeProjection = content.subscribeProjection((change) => {
       // Search is a rebuildable acceleration structure, never part of the
       // canonical projection commit. A cold or failed worker must not hold the
@@ -187,15 +193,52 @@ export class WorkspaceSearchService {
   }
 
   #enqueue(work: () => Promise<void>): Promise<void> {
-    const run = this.#serial.then(work);
+    const run = this.#serial.then(async () => {
+      if (this.#disposed) throw new Error("Local search is locked");
+      await work();
+    });
     this.#serial = run.catch(() => undefined);
     return run;
+  }
+
+  #activeWorker(): SearchWorkerClient {
+    if (this.#disposed) throw new Error("Local search is locked");
+    this.#worker ??= this.#workerFactory();
+    return this.#worker;
+  }
+
+  #invalidateIndex(expectedBuild: Promise<void>): void {
+    if (this.#initialBuild !== expectedBuild) return;
+    this.#initialBuild = null;
+    if (!this.#injectedWorker) {
+      this.#worker?.terminate();
+      this.#worker = null;
+    }
+  }
+
+  #scheduleBuild(): Promise<void> {
+    const build = this.#enqueue(async () => await this.#build());
+    this.#initialBuild = build;
+    void build.catch(() => this.#invalidateIndex(build));
+    return build;
+  }
+
+  async #requestWorker(command: SearchWorkerCommand): Promise<SearchWorkerResult> {
+    const indexedBuild = this.#initialBuild;
+    try {
+      const result = await this.#activeWorker().request(command);
+      if (!result.ok && indexedBuild !== null) this.#invalidateIndex(indexedBuild);
+      return result;
+    } catch (error) {
+      if (indexedBuild !== null) this.#invalidateIndex(indexedBuild);
+      throw error;
+    }
   }
 
   async #build(): Promise<void> {
     this.#sourceVersion += 1;
     const entries = await this.#source.list(this.#sourceVersion);
-    const result = await this.#worker.request({
+    const result = await this.#requestWorker({
       type: "build",
       documents: entries.map(({ document }) => document),
     });
@@ -208,9 +251,19 @@ export class WorkspaceSearchService {
     if (this.#disposed) {
       throw new Error("Local search is locked");
     }
-    this.#initialBuild ??= this.#enqueue(async () => await this.#build());
-    await this.#initialBuild;
-    await this.#serial;
+    this.#started = true;
+    // Before first use, projection notifications need no derived work: this
+    // snapshot reads the latest committed state. Once started, drain the tail
+    // observed after that build, without waiting for an endless quiet period
+    // while later download batches continue to arrive.
+    while (true) {
+      const build = this.#initialBuild ?? this.#scheduleBuild();
+      await build;
+      const tail = this.#serial;
+      await tail;
+      if (this.#disposed) throw new Error("Local search is locked");
+      if (this.#initialBuild !== null) return;
+    }
   }
 
   async #upsert(itemIds: readonly Uuid[]): Promise<void> {
@@ -218,14 +271,17 @@ export class WorkspaceSearchService {
     const entries = await this.#source.read(itemIds, this.#sourceVersion);
     const activeIds = new Set(entries.map(({ document }) => document.itemId));
     for (const entry of entries) {
-      const result = await this.#worker.request({ type: "upsert", document: entry.document });
+      const result = await this.#requestWorker({
+        type: "upsert",
+        document: entry.document,
+      });
       if (!result.ok) {
         throw new Error("Local search update was refused");
       }
     }
     for (const itemId of itemIds) {
       if (!activeIds.has(itemId)) {
-        const result = await this.#worker.request({
+        const result = await this.#requestWorker({
           type: "remove",
           itemId,
           sourceVersion: this.#sourceVersion,
@@ -242,21 +298,20 @@ export class WorkspaceSearchService {
       await this.dispose();
       return;
     }
-    if (this.#disposed) {
+    if (this.#disposed || !this.#started) {
       return;
     }
     if (change.kind === "rebuild" || this.#initialBuild === null) {
-      const build = this.#enqueue(async () => await this.#build());
-      this.#initialBuild = build;
-      try {
-        await build;
-      } catch (error) {
-        if (this.#initialBuild === build) this.#initialBuild = null;
-        throw error;
-      }
+      await this.#scheduleBuild();
       return;
     }
-    await this.#enqueue(async () => await this.#upsert(change.itemIds));
+    const indexedBuild = this.#initialBuild;
+    try {
+      await this.#enqueue(async () => await this.#upsert(change.itemIds));
+    } catch (error) {
+      this.#invalidateIndex(indexedBuild);
+      throw error;
+    }
   }
 
   async #localResults(request: SearchRequestDto): Promise<{
@@ -267,7 +322,7 @@ export class WorkspaceSearchService {
       request.branchRootItemId === undefined || request.branchRootItemId === null
         ? undefined
         : await this.#source.activeDescendantIds(request.branchRootItemId as Uuid);
-    const response = await this.#worker.request({
+    const response = await this.#requestWorker({
       type: "query",
       query: request.query,
       ...(request.kinds === undefined ? {} : { kinds: request.kinds }),
@@ -416,6 +471,7 @@ export class WorkspaceSearchService {
     // Termination already drops the transient index. Waiting for a `clear`
     // response first leaves a failed worker alive forever during React's
     // development remount, which can stall Firefox before the workspace opens.
-    this.#worker.terminate();
+    this.#worker?.terminate();
+    this.#worker = null;
   }
 }

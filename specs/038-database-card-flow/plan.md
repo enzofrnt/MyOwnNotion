@@ -1,5 +1,25 @@
 # Implementation Plan: Parcours des cartes et volet droit
 
+## Création immédiate et contours de colonne — 7 octobre
+
+FR003/FR024 → T043–T045 ; canevas §14/18/19/43.6, skill ui-quality,
+lessons journal et guide UI relus. Cette passe remplace le protocole historique
+de brouillon de création décrit plus bas : « Nouvel élément » appelle la création
+canonique existante avec Page et la valeur de colonne. L'identité retournée est
+ouverte dans BoardCardEditor comme toute entrée existante, dès que sa vraie
+révision est disponible. Les entrées locales complètes fournissent la reprise
+si le filtre ou la pagination exclut cette identité ; aucune révision inventée.
+Le bouton reste monté sous la liste, désactivé pendant la création seulement.
+Son activation termine la sauvegarde courante ; pointerdown/focus sur ce bouton
+ne replie pas la carte avant le clic. Une création refusée n'ajoute aucune carte
+et propose une reprise dans cette même colonne. Échap ferme sans supprimer.
+La passe initiale utilisait des contours pleins. La correction 041 demandée le
+7 octobre la remplace par des rôles distincts : contour dérivé discret, accent
+du bouton et niveaux colonne/carte/badge. Voir specs/041-content-color-system/plan.md ;
+les métriques et le focus clavier sont conservés. Vérifier création répétée, données masquées,
+autosave/refus/pending, thèmes et 320 px ; tests ciblés et parcours Playwright
+dans un environnement isolé, sans redémarrer la pile du fil principal.
+
 **Date**: 2026-10-06 | **Branch**: codex/notion-api-import | **Spec**: [spec.md](spec.md)
 
 ## Summary
@@ -27,6 +47,25 @@ Observation réelle de Notion : carte inline, Entrée prépare suivante, Échap 
 - Onglets : corriger la vraie cascade et le wrapper de survol pour toute la cellule.
 
 ## UI quality gate
+
+Suite acceptée par le propriétaire : FR019 → T029/T030. Séparateur dans le
+wrapper de type, boutons 28 px au pointeur (rail 34 px), 44 px au toucher.
+Un seul fond actif en pseudo-élément du fieldset glisse par transform (token
+180 ms), suivant le type réel au repos et la destination demandée pendant
+une conversion autorisée (raffinement T031 ci-dessous) ; le protocole canonique
+de conversion reste inchangé. Texte et cibles ne bougent pas. Désactiver la
+transition sous prefers-reduced-motion. Appliquer ui-quality + lessons ; revoir
+les deux sens, clavier, attente/confirmation non destructive, création, thèmes
+et 320 px. CSS local uniquement : contrôle statique/build et preuve navigateur.
+
+Retouche Page/Dossier FR019 → T027/T028 : dans database.css, rail transparent
+au contour fin et choix actif obtenu à partir du fond teinté hérité de la carte
+et du texte du thème. Même principe pour le survol, arrondis internes adaptés
+au retrait de 3 px. Conserver Button, aria-pressed, focus, cibles et protocole
+de création/conversion existants. Appliquer ui-quality + lessons ; revue réelle
+sur cartes grise/bleue/verte, création et édition, clair/sombre/320 px. Changement
+CSS local : contrôle statique/build et revue navigateur, aucun test recopiant
+les couleurs. Aucun changement de données, hors-ligne, permissions ou migration.
 
 Appliquer [ui-quality](../../.agents/skills/ui-quality/SKILL.md), [lessons](../../.agents/skills/ui-quality/lessons.md) L009/010/019/020 et [guide UI](../../docs/design/ui-system.md). Les retours autorisent ces corrections. États : vide, saisie, attente, refus, succès, volet chargé/indisponible ; menus/focus non concurrents. Chaque story possède une revue navigateur documentée avant done. Captures contenant les données privées uniquement dans work/notion-api, jamais dans les artefacts suivis.
 
@@ -103,3 +142,92 @@ erreurs/reprises. Aucun changement de données, hors-ligne, synchronisation,
 permissions ou migration. Appliquer ui-quality + lessons ; régression bornée
 sur les trois vues (pending discret, conflit visible), puis modification réelle
 d'une propriété sur 8082, rechargement et restitution de la valeur initiale.
+
+## Conversion réactive et retour de confirmation
+
+FR019/020 → T031/T032 : ouvrir la confirmation directement depuis le signal
+positif holdsContent de la projection (carte/arbre), sans lancer une conversion
+exploratoire qui attend le journal de page et la synchronisation. Conserver la
+vérification canonique avant écriture, même avec un signal absent ou périmé.
+Après succès, rafraîchir uniquement l'élément converti ; aucun rafraîchissement
+de l'arbre après le refus de confirmation. Le sélecteur expose une destination
+transitoire busy pour animer immédiatement le fond, indépendamment de la durée
+de sauvegarde ; aria-pressed reste canonique et le fond revient en cas de refus.
+Annuler une confirmation ouverte au pointeur rend le focus sans contour de
+seconde sélection ; une nouvelle interaction clavier rétablit le focus visible.
+Aucun effacement global des styles de focus. Appliquer ui-quality + lessons :
+tests bornés de confirmation, attente/refus, anti-double et retour clavier ;
+gestes réels Échap/Tab, thèmes et 320 px avant convergence. Aucun nouveau contrat,
+stockage, migration ou changement du journal.
+
+## Durée réelle des conversions et sauvegardes
+
+FR021 → T033–T036 ; canevas §43.1 et §18/19, ui-quality et lessons pour le parcours.
+Mesurer une carte temporaire dans la vraie base avant/après, du déclenchement
+au type réel avec contrôle disponible. Ne pas présenter la durée du slider
+comme celle de la conversion. Baseline clavier sur 8082 : Page → Dossier
+1 636/1 574/1 463 ms ; Dossier → Page 467/784/828 ms, lecture DOM externe
+incluse. Trois essais par sens, conditions locales, aucun benchmark général.
+
+Dans LocalContentService, éviter la barrière réseau uniquement si aucune
+ouverture, reconciler, ligne opérationnelle, update ou branche durable n'existe
+pour la page. Conserver le protocole complet dans les autres cas, ainsi que
+les gardes locales/serveur et le flush de carte. Compter les envois via l'index
+de statut et les conflits via leurs identités, sans ouvrir leurs contenus.
+Dans applyLocalMutation, charger seulement les alias des références de révision
+de la commande, en conservant le remappage existant et la transaction atomique.
+Dans le parent de la base native, éviter la seconde hydratation des entrées
+déjà détenue par DatabaseContainerPage ; garder le chemin legacy.
+
+Aucune migration, dépendance, nouvel état UI ou modification des règles de
+synchronisation. Tests bornés de durabilité/réseau bloqué, garde de contenu,
+activation/journal/offline, compteurs et alias ; types/static/build, parcours
+Playwright et preuve manuelle desktop/320 px, déploiement web 8082 seul.
+
+## Lecture et actualisation des bases
+
+FR022 → T037–T040 ; canevas §14/18/19/43.1, ui-quality + lessons et guide UI.
+Changement borné aux lectures de projection des bases existantes : aucune
+écriture, migration, chiffrement, règle de sync ou permission modifiée.
+Dans LocalDatabaseRepository.listEntries, lire les paires sélectionnées en
+bulkGet puis déchiffrer par lots ordonnés de 64, hors transaction IndexedDB.
+Préserver lignes synthétiques, disponibilité et filtres ; indexer les propriétaires
+de sources pour listDatabases sans modifier la priorité des présentations.
+Dans loadView, préférer la lecture de source par identité avec fallback legacy ;
+paralléliser les lectures indépendantes et réutiliser le conteneur déjà ouvert.
+Les deux surfaces drainent une seule actualisation à la fois, relancent une fois
+si notifiées pendant une lecture et ne publient que le dernier tour ; await
+refresh attend toujours ce tour. Annuler la publication après démontage ou
+changement d'identité. Conserver toutes les notifications pour cette passe ;
+un filtrage agressif risquerait de manquer des déplacements entrants.
+DatabaseViewService retourne la première page complète locale avant le réseau,
+sans appliquer cette règle à un curseur serveur ni à une couverture partielle.
+
+États inchangés : chargement initial, rempli/vide, source/vue absente, erreur
+avec reprise, pending/conflict et édition active. Vérifier source secondaire,
+legacy, rafales, lecture suspendue et pagination, puis les gestes réels de vue,
+crayon et volet en bureau/320 px/clair/sombre. Mesures avant/après sur 8082 et
+fixture jetable scellée pour distinguer transport navigateur et coût de lecture.
+Le HAR fourni le 7 octobre est analysé séparément, sans secrets ou contenu dans
+les preuves ; ses conclusions détermineront tout correctif de première ouverture.
+
+## Table vide et accès aux commandes sur mobile
+
+FR023 → T041/T042 ; maintenance révélée par T040, ui-quality + lessons chargés.
+Reproduction réelle à 320 px sur une base intégrée vide : table de largeur
+328 px dans un rail de 304 px, corps de hauteur nulle et scrollWidth 304 px.
+Le rectangle vide ne contribue donc pas à l'étendue défilante ; le mouvement
+de l'en-tête piloté par ce corps ne peut pas révéler ses commandes. Conserver
+une étendue non nulle minimale dans le corps en page-flow, sans fausse entrée
+ni changement des cellules remplies. Une première hauteur CSS de table suffit
+dans Chromium mais reste ignorée sur une table vide dans WebKit : utiliser
+un élément de géométrie `aria-hidden`, large comme la table et haut d'un pixel,
+uniquement quand aucune ligne complète n'est rendue. Il ne représente aucune
+entrée et disparaît dès que les lignes existent. Aucune écriture, contrat ou migration.
+Vérifier à la main geste horizontal et commandes au clavier, vide/rempli et
+320 px/clair/sombre. Les tests de préparation mobiles emploient le focus clavier
+pour révéler le bouton puis son clic normal : WebKit mobile ne supporte pas
+Playwright mouse.wheel ; aucune activation forcée ou mutation de scroll via JS.
+Parcours de composition/sync inchangé après préparation, plus test de géométrie
+et défilement réel sur table vide. Rebuild et web 8082 seul si la correction
+produit est validée ; conserver API/DB/8080.

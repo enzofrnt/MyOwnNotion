@@ -34,6 +34,25 @@ export interface LocalMutationResult {
   readonly localRevisionIds: ReadonlyArray<Uuid>;
 }
 
+function referencedRevisionIds(input: LocalMutationInput): Uuid[] {
+  const revisions = new Set(input.baseRevisionIds);
+  // Match the references remapped below; unrelated history and payload fields
+  // do not participate in this command's causal aliases.
+  for (const key of ["baseRevisionId", "currentRevisionId"] as const) {
+    const value = input.payload[key];
+    if (typeof value === "string") revisions.add(value as Uuid);
+  }
+  for (const key of ["resolvedRevisionIds", "parentRevisionIds"] as const) {
+    const value = input.payload[key];
+    if (Array.isArray(value)) {
+      for (const revisionId of value) {
+        if (typeof revisionId === "string") revisions.add(revisionId as Uuid);
+      }
+    }
+  }
+  return [...revisions];
+}
+
 /**
  * Validates, optimistically applies, and enqueues one local mutation.
  * Returns a safe error (without any partial write) when validation or
@@ -48,8 +67,8 @@ export async function applyLocalMutation(
   return await withProjectionWrite(db, async () => {
     try {
       const aliases = new Map<Uuid, Uuid>();
-      for (const header of await db.revisionHeaders.toArray()) {
-        if (header.canonicalRevisionId !== undefined) {
+      for (const header of await db.revisionHeaders.bulkGet(referencedRevisionIds(input))) {
+        if (header?.canonicalRevisionId !== undefined) {
           aliases.set(header.id, header.canonicalRevisionId);
         }
       }

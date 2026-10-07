@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type { LocalDatabaseRow } from "@myownnotion/client-core";
-import type { DatabaseDto } from "@myownnotion/contracts";
+import type { DatabaseDto, DatabaseEntryDto } from "@myownnotion/contracts";
 import {
   DATABASE_DEFINITION_FORMAT,
   DATABASE_PRESENTATION_FORMAT,
@@ -147,6 +147,12 @@ function integratedDatabase(withLinkedSource: boolean) {
     },
   };
   const service = {
+    subscribe: () => () => {},
+    getSnapshot: () => ({
+      projectionComplete: true,
+      projectionLoadFailed: false,
+      syncState: "synced",
+    }),
     getDatabase: async (id: Uuid) =>
       id === containerId ? container : id === linkedItemId ? linkedSource : null,
     listDatabases: async () => [container, ...(withLinkedSource ? [linkedSource] : [])],
@@ -407,6 +413,77 @@ describe("database page interaction durability", () => {
       options: [{ label: "To do", tone: "gray" }, { label: "En cours" }, { label: "Terminé" }],
     });
   });
+
+  it.each(["fallback-loading", "fallback-degraded", "queried"] as const)(
+    "normalizes %s rows as locally readable with an unknown discovery total",
+    async (phase) => {
+      const value = database();
+      const viewId = value.definition.views[0]?.id;
+      if (viewId === undefined) throw new Error("Missing view");
+      const entry: DatabaseEntryDto = {
+        databaseId: value.databaseId,
+        entryId: generateUuidV7(),
+        kind: "page",
+        revisionId: generateUuidV7(),
+        lifecycle: "active",
+        title: "Readable local entry",
+        document: null,
+        values: {},
+        relationTargets: {},
+      };
+      const page: DatabaseViewPage = {
+        databaseId: value.databaseId,
+        viewId,
+        definitionRevisionId: value.definitionRevisionId,
+        generation: 1,
+        coverage: "complete",
+        availableCount: 1,
+        expectedCount: 1,
+        rows: [{ ...entry, groupId: null, syncState: "synced" }],
+        groups: [],
+        nextCursor: null,
+        source: "local",
+        staleCursorRecovered: false,
+      };
+      const retry = vi.fn();
+      const query = vi.fn<() => Promise<DatabaseViewResult>>(() => new Promise(() => undefined));
+      const render = (partial: boolean) => (
+        <MemoryRouter>
+          <DatabasePage
+            database={value}
+            entries={[entry]}
+            {...(phase === "queried" ? { queryPage: page } : {})}
+            queryState={
+              phase === "fallback-loading"
+                ? "loading"
+                : phase === "fallback-degraded"
+                  ? "degraded"
+                  : "ready"
+            }
+            {...(partial ? { discoveryState: "offline" as const, onRetryDiscovery: retry } : {})}
+            onQueryView={query}
+            onReplaceDefinition={vi.fn()}
+            onCreateEntry={vi.fn()}
+            onOpenEntry={vi.fn()}
+          />
+        </MemoryRouter>
+      );
+      await act(async () => root.render(render(true)));
+      const trigger = container.querySelector("[data-entry-trigger]");
+      expect(trigger).not.toBeNull();
+      expect(container.textContent).toContain("Readable local entry");
+      expect(container.querySelector('[role="grid"]')?.getAttribute("aria-rowcount")).toBe("-1");
+      const notice = container.querySelector('[data-testid="database-discovery-state"]');
+      expect(notice?.textContent).toContain("Données locales disponibles");
+      expect(container.textContent).not.toContain("1 sur 1");
+      act(() => notice?.querySelector<HTMLButtonElement>("button")?.click());
+      expect(retry).toHaveBeenCalledTimes(1);
+      await act(async () => root.render(render(false)));
+      expect(container.querySelector("[data-entry-trigger]")).toBe(trigger);
+      expect(container.querySelector('[role="grid"]')?.getAttribute("aria-rowcount")).toBe("2");
+      expect(container.querySelector('[data-testid="database-discovery-state"]')).toBeNull();
+    },
+  );
 
   it("keeps the entry loading region mounted during projection refresh", () => {
     const value = database();

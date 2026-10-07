@@ -86,6 +86,18 @@ export interface ReconcileOutcome {
   readonly offline: boolean;
 }
 
+export interface ReconcileProjectionCommit {
+  readonly itemIds: readonly Uuid[];
+  /** Snapshot replacement requires a complete projection read by consumers. */
+  readonly rebuilt: boolean;
+  readonly complete: boolean;
+}
+
+export interface ReconcileOptions {
+  /** Called after the projection lock is released, never before durable commit. */
+  readonly onProjectionCommitted?: (commit: ReconcileProjectionCommit) => void | Promise<void>;
+}
+
 const BATCH_LIMIT = 100;
 
 function nextCausalBatch(rows: readonly OutboxMutationRow[]): OutboxMutationRow[] {
@@ -299,9 +311,19 @@ async function reconcileAsOwner(
   db: LocalDatabase,
   transport: ReconcileTransport,
   codec: LocalRecordCodec,
+  options: ReconcileOptions,
 ): Promise<ReconcileOutcome> {
   const outbox = new Outbox(db, codec);
   const repository = new LocalRepository(db, codec);
+
+  await withProjectionWrite(db, async () => {
+    if ((await repository.getMeta(META_KEYS.projectionComplete)) === null) {
+      // A legacy cursor can belong to an interrupted discovery. Without an
+      // explicit completed marker, absence remains unknown until the last
+      // committed response, even for callers preceding UI initialization.
+      await repository.setMeta(META_KEYS.projectionComplete, false);
+    }
+  });
 
   await outbox.recoverInterrupted();
 
@@ -469,6 +491,7 @@ async function reconcileAsOwner(
               ? {}
               : { databaseEntries: snapshot.value.databaseEntries }),
           });
+          await repository.setMeta(META_KEYS.projectionComplete, true);
         });
         if (yieldedToLocalMutation) {
           return {
@@ -484,6 +507,11 @@ async function reconcileAsOwner(
         }
         usedSnapshotFallback = true;
         cursor = snapshot.value.cursor;
+        await options.onProjectionCommitted?.({
+          itemIds: snapshot.value.items.map(({ id }) => id as Uuid),
+          rebuilt: true,
+          complete: true,
+        });
         continue;
       }
       return {
@@ -519,6 +547,12 @@ async function reconcileAsOwner(
             : { databaseEntries: change.databaseEntries }),
         });
       }
+      if (page.value.changes.length === 0) {
+        await repository.setMeta(META_KEYS.lastChangeCursor, page.value.nextCursor);
+      }
+      if (!page.value.hasMore) {
+        await repository.setMeta(META_KEYS.projectionComplete, true);
+      }
     });
     if (yieldedToLocalMutation) {
       return {
@@ -533,9 +567,20 @@ async function reconcileAsOwner(
       };
     }
     cursor = page.value.nextCursor;
-    if (page.value.changes.length === 0) {
-      await repository.setMeta(META_KEYS.lastChangeCursor, cursor);
+    const itemIds = new Set<Uuid>();
+    for (const change of page.value.changes) {
+      for (const item of change.changedItems ?? []) itemIds.add(item.id as Uuid);
+      for (const database of change.databases ?? []) itemIds.add(database.itemId as Uuid);
+      for (const entry of change.databaseEntries ?? []) {
+        itemIds.add(entry.entryItemId as Uuid);
+        itemIds.add(entry.databaseId as Uuid);
+      }
     }
+    await options.onProjectionCommitted?.({
+      itemIds: [...itemIds],
+      rebuilt: false,
+      complete: (await repository.getMeta<boolean>(META_KEYS.projectionComplete)) === true,
+    });
     if (!page.value.hasMore) {
       break;
     }
@@ -562,10 +607,11 @@ export async function reconcile(
   db: LocalDatabase,
   transport: ReconcileTransport,
   codec: LocalRecordCodec,
+  options: ReconcileOptions = {},
 ): Promise<ReconcileOutcome> {
   return await withLocalDatabaseLock(
     db,
     WORKSPACE_SYNC_RESOURCE,
-    async () => await reconcileAsOwner(db, transport, codec),
+    async () => await reconcileAsOwner(db, transport, codec, options),
   );
 }

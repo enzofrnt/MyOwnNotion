@@ -65,18 +65,21 @@ export class LocalDatabaseRepository {
   }
 
   async listDatabases(): Promise<LocalDatabaseRow[]> {
-    const [containers, sources] = await Promise.all([
-      Promise.all((await this.db.databases.toArray()).map((row) => this.#codec.openDatabase(row))),
-      Promise.all(
-        (await this.db.databaseSources.toArray()).map((row) => this.#codec.openDatabase(row)),
-      ),
+    const [storedContainers, storedSources] = await Promise.all([
+      this.db.databases.toArray(),
+      this.db.databaseSources.toArray(),
     ]);
+    const [containers, sources] = await Promise.all([
+      Promise.all(storedContainers.map((row) => this.#codec.openDatabase(row))),
+      Promise.all(storedSources.map((row) => this.#codec.openDatabase(row))),
+    ]);
+    const owners = new Map(containers.map((row) => [row.itemId, row]));
     const merged = new Map<string, LocalDatabaseRow>();
     for (const row of containers) merged.set(row.sourceId ?? row.itemId, row);
     for (const row of sources) {
       const key = row.sourceId ?? row.itemId;
       const existing = merged.get(key);
-      const owner = containers.find((candidate) => candidate.itemId === row.itemId);
+      const owner = owners.get(row.itemId);
       merged.set(key, {
         ...row,
         ...(existing?.presentation !== undefined
@@ -176,42 +179,54 @@ export class LocalDatabaseRepository {
   }
 
   async listEntries(databaseId: Uuid): Promise<LocalDatabaseEntryRow[]> {
-    const placements = (
-      await this.db.placements.where("parentKey").equals(databaseId).toArray()
-    ).filter(
-      (placement) => placement.kind === "hierarchy" && placement.parentItemId === databaseId,
+    const stored = await this.db.transaction(
+      "r",
+      [this.db.placements, this.db.items, this.db.databaseEntryPairs],
+      async () => {
+        const placements = (
+          await this.db.placements.where("parentKey").equals(databaseId).toArray()
+        ).filter(
+          (placement) => placement.kind === "hierarchy" && placement.parentItemId === databaseId,
+        );
+        const items = await this.db.items.bulkGet(placements.map((placement) => placement.itemId));
+        const activeIds = placements.flatMap((placement, index) => {
+          const item = items[index];
+          return item?.lifecycle === "active" && (item.kind === "page" || item.kind === "folder")
+            ? [placement.itemId]
+            : [];
+        });
+        const rows = await this.db.databaseEntryPairs.bulkGet(
+          activeIds.map((entryId) => databaseEntryPairKey(databaseId, entryId)),
+        );
+        return activeIds.map((entryId, index) => ({ entryId, row: rows[index] }));
+      },
     );
-    const items = await this.db.items.bulkGet(placements.map((placement) => placement.itemId));
+    // Open after the read snapshot closes: WebCrypto must not hold an IndexedDB
+    // transaction, and bounded batches retain order without flooding its queue.
     const opened: LocalDatabaseEntryRow[] = [];
-    for (const [index, placement] of placements.entries()) {
-      const item = items[index];
-      if (
-        item === undefined ||
-        item.lifecycle !== "active" ||
-        (item.kind !== "page" && item.kind !== "folder")
-      )
-        continue;
-      const row = await this.db.databaseEntryPairs.get(
-        databaseEntryPairKey(databaseId, placement.itemId),
-      );
+    for (let offset = 0; offset < stored.length; offset += 64) {
       opened.push(
-        row === undefined
-          ? {
-              key: databaseEntryPairKey(databaseId, placement.itemId),
-              entryItemId: placement.itemId,
-              databaseId,
-              valueVersion: 0,
-              availability: "present",
-              values: {
-                format: "myownnotion.database-entry-values+json",
-                formatVersion: 1,
-                databaseId,
-                entryId: placement.itemId,
-                values: {},
-                preserved: [],
-              },
-            }
-          : await this.#codec.openDatabaseEntry(row),
+        ...(await Promise.all(
+          stored.slice(offset, offset + 64).map(async ({ entryId, row }) =>
+            row === undefined
+              ? {
+                  key: databaseEntryPairKey(databaseId, entryId),
+                  entryItemId: entryId,
+                  databaseId,
+                  valueVersion: 0,
+                  availability: "present" as const,
+                  values: {
+                    format: "myownnotion.database-entry-values+json" as const,
+                    formatVersion: 1 as const,
+                    databaseId,
+                    entryId,
+                    values: {},
+                    preserved: [],
+                  },
+                }
+              : await this.#codec.openDatabaseEntry(row),
+          ),
+        )),
       );
     }
     return opened;

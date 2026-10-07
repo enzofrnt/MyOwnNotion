@@ -31,6 +31,9 @@ Le premier commit Slopo `b782a106` reste séparé de cette standardisation.
 - 2026-10-02 : conserver les échantillons de couleurs de contenu et ajouter
   dessous un exemple de sélection en rangée : fond doux, contour et point central
   plus saturés, sans changer la palette. Choix et nom sélectionné visibles.
+- 2026-10-07 : la correction [041](../041-content-color-system/spec.md)
+  sépare texte, accent, surfaces, badge et contour ; elle remplace la recette
+  historique de contour égal au texte coloré, avec coefficients communs par thème.
 
 ## User Scenarios & Testing
 
