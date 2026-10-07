@@ -88,7 +88,7 @@ export function CurrentSourceTitle({
   useEffect(() => {
     if (!focused.current) setDraft(name);
   }, [name]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const node = field.current;
     if (node === null || !editable) return;
     node.rows = Math.max(1, draft.split("\n").length);

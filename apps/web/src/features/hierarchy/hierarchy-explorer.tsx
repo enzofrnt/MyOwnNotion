@@ -83,6 +83,7 @@ import {
 } from "../databases/edit-entry-properties.ts";
 import { type EntryDrafts, EntryPanel } from "../databases/entry-panel.tsx";
 import { PageDatabases } from "../databases/page-databases.tsx";
+import { restoreEntryPeekFocus } from "../databases/restore-entry-peek-focus.ts";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
 import { updatedCellProperties } from "../databases/update-database-cell.ts";
 import { initializeEditorFileTransfers } from "../editor/editor-file-state.tsx";
@@ -885,16 +886,10 @@ export function HierarchyExplorer({
   );
   const closeDatabasePeek = useCallback(() => {
     const origin = entryPeek;
+    const closingPeek = document.activeElement?.closest(".database-entry-peek") ?? null;
     setEntryPeek(null);
     requestAnimationFrame(() => {
-      const trigger = origin?.trigger?.isConnected
-        ? origin.trigger
-        : origin === null
-          ? null
-          : document.querySelector<HTMLElement>(
-              `.workspace-main [data-entry-trigger="${origin.entryId}"]`,
-            );
-      trigger?.focus({ preventScroll: true });
+      restoreEntryPeekFocus(origin, closingPeek);
     });
   }, [entryPeek]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: navigation ends the independent peek session.

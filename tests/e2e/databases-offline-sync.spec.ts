@@ -57,13 +57,31 @@ async function addTextProperty(
   name: string,
   options: { readonly online?: boolean } = {},
 ): Promise<void> {
-  await page
+  const add = page
     .getByTestId("database-view-surface")
-    .getByRole("button", { name: "Ajouter une propriété" })
-    .click();
+    .getByRole("button", { name: "Ajouter une propriété", exact: true });
+  await add.focus();
+  await expect(add).toBeFocused();
+  await expect
+    .poll(() =>
+      add.evaluate((node) => {
+        const control = node.getBoundingClientRect();
+        const rail = node.closest(".database-page-header-scroll")?.getBoundingClientRect();
+        return (
+          rail !== undefined &&
+          control.left >= Math.max(0, rail.left) &&
+          control.right <= Math.min(innerWidth, rail.right) &&
+          control.top >= Math.max(0, rail.top) &&
+          control.bottom <= Math.min(innerHeight, rail.bottom)
+        );
+      }),
+    )
+    .toBe(true);
+  await expect(add).toBeInViewport();
+  await add.click();
   const editor = page.getByRole("form", { name: "Éditeur de propriété" });
   await editor.getByLabel("Nom", { exact: true }).fill(name);
-  await editor.getByLabel("Type").selectOption("text");
+  await editor.getByRole("combobox", { name: "Type", exact: true }).selectOption("text");
   await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
   await expect(editor).toBeHidden({ timeout: 15_000 });
   await expect(
@@ -312,6 +330,7 @@ test.describe("structured offline convergence (US5)", () => {
         "local compatible note",
       );
       await expect(second.page.getByLabel("Owner", { exact: true })).toHaveValue("common owner");
+      await closeEntry(second.page);
       await openWorkspaceDiagnostics(second.page);
       await expect(second.page.getByTestId("pending-mutations")).toBeVisible();
 

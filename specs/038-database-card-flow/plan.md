@@ -279,3 +279,53 @@ Playwright mouse.wheel ; aucune activation forcée ou mutation de scroll via JS.
 Parcours de composition/sync inchangé après préparation, plus test de géométrie
 et défilement réel sur table vide. Rebuild et web 8082 seul si la correction
 produit est validée ; conserver API/DB/8080.
+
+## Référence visuelle de publication
+
+T046 couvre aussi le parcours de référence de la base vide : distinguer le
+tableau d’en-têtes détaché du corps ARIA grid et vérifier qu’aucune fausse ligne
+n’est présentée. L’ancien sélecteur générique attendait une table unique et
+bloquait la capture avant sa comparaison. Actualiser seulement la référence
+sombre de cette base, après inspection du rendu réel (flux de page et titre de
+source courants), sur macOS et dans le runtime Linux épinglé. Conserver le seuil
+de comparaison et les autres références ; répéter ensuite sans actualisation.
+Cette maintenance de test ne modifie aucun comportement produit. Appliquer
+ui-quality et lessons ; conserver les captures produites dans les preuves.
+
+Le parcours multi-select revient de Beta vers la commande d’Alpha dans un
+en-tête détaché. Révéler cette commande par son focus clavier, puis vérifier
+ses quatre bords dans le rail et le viewport avant son clic natif. Le clic ne
+doit pas forcer une cible hors écran ; repli/dépliage, identités, autres
+memberships et durabilité hors ligne restent vérifiés sur les cinq profils.
+Le helper local du parcours de convergence hors ligne applique la même
+précondition à l’ajout d’une propriété après élargissement de la table. Ses
+assertions de redémarrage, fusion, conflit, filiation et chiffrement restent
+inchangées ; cibler le combobox Type par son nom accessible exact. Fermer le
+volet après lecture des valeurs redémarrées avant d’ouvrir les diagnostics.
+Le parcours de confidentialité ferme le volet après sauvegarde locale avant
+d’ouvrir la navigation, puis rouvre la même entrée après les diagnostics. Le
+volet occupe légitimement toute la largeur mobile : ne pas cliquer à travers
+lui. Conserver les probes de stockage chiffré, d’outbox, d’adresses et d’erreurs.
+Le parcours des vues applique aussi la révélation native à la commande de
+visibilité des colonnes après le regroupement. Conserver les vérifications de
+filtres, tris, groupes, ordre/largeur et second appareil sans clic forcé.
+
+T050 couvre la stabilité du titre de source : la création de fixture renomme
+le propriétaire, puis sa source, de façon asynchrone. Attendre le nom réel de
+source avant la mesure d’un geste distinct. Un titre long change normalement
+le nombre de lignes ; son autosize doit toutefois être effectué avant peinture
+dans CurrentSourceTitle, sans un second layout visible. Garder le brouillon
+concentré, les garanties d’enregistrement et le seuil de stabilité à 1 px.
+Appliquer ui-quality/lessons, test de première mesure et répétitions réelles
+du geste sur les cinq profils ; ne pas retarder la disponibilité de la base.
+
+T051 corrige une course réellement observée sur WebKit mobile : pendant la
+fermeture animée du volet, le propriétaire peut déjà ouvrir le choix de vue.
+Le callback final ne doit alors pas ramener le focus sur l’ancienne entrée et
+fermer le nouveau menu. Dans la frame de restitution, préserver tout focus
+connecté hors du volet qui se ferme ; restituer le déclencheur initial ou son
+remplaçant seulement si le focus reste dans ce volet ou revient au body.
+Tester le retour normal et les deux moments de la nouvelle action (avant le
+callback, ou entre celui-ci et sa frame), sans attente artificielle côté produit.
+Appliquer ui-quality/lessons et vérifier le clic natif immédiatement après la
+commande de fermeture, avec menu encore ouvert après la fin d’animation.

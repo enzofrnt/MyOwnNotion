@@ -13,6 +13,31 @@ import {
   waitForSynchronized,
 } from "./helpers.ts";
 
+test("keeps the next view menu open while the entry peek finishes closing", async ({
+  page,
+}, testInfo) => {
+  await openWorkspace(page);
+  await createRootDatabase(page, uniqueName("Peek menu return"));
+  const trigger = await createDatabaseEntry(page, uniqueName("Entry"));
+  await trigger.click();
+  const peek = page.getByRole("dialog", { name: "Aperçu latéral de l’entrée" });
+  await expect(peek).toBeVisible();
+  await peek.getByRole("button", { name: "Fermer le volet" }).click();
+  await page.getByRole("button", { name: "Ajouter une vue", exact: true }).click();
+  const menu = page.getByRole("dialog", { name: "Ajouter une nouvelle vue" });
+  await expect(menu).toBeVisible();
+  await expect(peek).toBeHidden();
+  await expect(menu).toBeVisible();
+  await menu.screenshot({ path: testInfo.outputPath("view-menu-after-peek-close.png") });
+  await menu.getByRole("button", { name: "Liste", exact: true }).click();
+  await expect(menu).toBeHidden();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Vues de la base" })
+      .getByRole("button", { name: "Liste", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+});
+
 test("multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline", async ({
   page,
   context,
@@ -65,9 +90,33 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   await expect(betaMenu).toBeFocused();
   await expect(card("Alpha")).toBeAttached();
   await expect(card("Beta")).toBeAttached();
-  await board.getByRole("button", { name: "Replier Alpha", exact: true }).click();
+  const toggleAlpha = async (name: "Replier Alpha" | "Déplier Alpha") => {
+    const button = board.getByRole("button", { name, exact: true });
+    // The prior Beta menu left the body scrolled to that occurrence. Keyboard
+    // focus reveals a detached header through the same body rail as a gesture.
+    await button.focus();
+    await expect(button).toBeFocused();
+    await expect
+      .poll(() =>
+        button.evaluate((node) => {
+          const control = node.getBoundingClientRect();
+          const rail = node.closest(".database-page-header-scroll")?.getBoundingClientRect();
+          return (
+            rail !== undefined &&
+            control.left >= Math.max(0, rail.left) &&
+            control.right <= Math.min(innerWidth, rail.right) &&
+            control.top >= Math.max(0, rail.top) &&
+            control.bottom <= Math.min(innerHeight, rail.bottom)
+          );
+        }),
+      )
+      .toBe(true);
+    await expect(button).toBeInViewport();
+    await button.click();
+  };
+  await toggleAlpha("Replier Alpha");
   await expect(card("Alpha")).toHaveCount(0);
-  await board.getByRole("button", { name: "Déplier Alpha", exact: true }).click();
+  await toggleAlpha("Déplier Alpha");
   await expect(card("Alpha")).toBeAttached();
   // Opening one occurrence returns to the same column.
   await entryTrigger(card("Beta"), title).click();

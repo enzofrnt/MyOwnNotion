@@ -134,7 +134,30 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await waitForDatabaseDefinitionSaved(page);
 
   await page.keyboard.press("Escape");
-  const columnsButton = page.getByRole("button", { name: "Afficher ou masquer les propriétés" });
+  const columnsButton = page.getByRole("button", {
+    name: "Afficher ou masquer les propriétés",
+    exact: true,
+  });
+  // Grouping leaves the detached table header scrolled to its last column.
+  // Keyboard focus reveals its command through the body rail before clicking.
+  await columnsButton.focus();
+  await expect(columnsButton).toBeFocused();
+  await expect
+    .poll(() =>
+      columnsButton.evaluate((node) => {
+        const control = node.getBoundingClientRect();
+        const rail = node.closest(".database-page-header-scroll")?.getBoundingClientRect();
+        return (
+          rail !== undefined &&
+          control.left >= Math.max(0, rail.left) &&
+          control.right <= Math.min(innerWidth, rail.right) &&
+          control.top >= Math.max(0, rail.top) &&
+          control.bottom <= Math.min(innerHeight, rail.bottom)
+        );
+      }),
+    )
+    .toBe(true);
+  await expect(columnsButton).toBeInViewport();
   await columnsButton.click();
   const columns = page.locator(".database-property-visibility");
   await columns.getByRole("switch", { name: "Afficher Status dans cette vue" }).click();

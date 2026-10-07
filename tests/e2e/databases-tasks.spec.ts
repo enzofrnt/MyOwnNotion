@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
@@ -33,9 +34,15 @@ async function openSearch(page: Page, query: string) {
 for (const cancel of [false, true]) {
   test(`keeps a property action stable while a new database opens${cancel ? " and permits cancellation" : ""}`, async ({
     page,
-  }) => {
+  }, testInfo) => {
     await openWorkspace(page);
-    await createRootDatabase(page, uniqueName("Stable property"));
+    const databaseName = uniqueName("Stable property");
+    await createRootDatabase(page, databaseName);
+    // Naming the owner also renames its source asynchronously. Finish that
+    // distinct edit before measuring the geometry of a property gesture.
+    await expect(
+      page.getByRole("textbox", { name: "Titre de la source", exact: true }),
+    ).toHaveValue(databaseName);
     await expect(
       page.getByTestId("database-view-surface").getByRole("columnheader").first(),
     ).toBeVisible();
@@ -44,18 +51,28 @@ for (const cancel of [false, true]) {
     await expect(page.getByTestId("editor-loading-skeleton")).not.toBeVisible();
     const addProperty = page.getByRole("button", { name: "Ajouter une propriété" });
     const stopObserving = await addProperty.evaluateHandle((button) => {
-      const positions = [button.getBoundingClientRect().top];
+      const position = () => ({
+        top: button.getBoundingClientRect().top,
+        ownerScrollTop: button.closest(".workspace-main")?.scrollTop ?? 0,
+        pageScrollY: window.scrollY,
+      });
+      const positions = [position()];
       let connected = true;
       const sample = () => {
         connected &&= button.isConnected;
-        if (button.isConnected) positions.push(button.getBoundingClientRect().top);
+        if (button.isConnected) positions.push(position());
       };
       const observer = new MutationObserver(sample);
       observer.observe(document.body, { subtree: true, childList: true, attributes: true });
       return () => {
         sample();
         observer.disconnect();
-        return { connected, displacement: Math.max(...positions) - Math.min(...positions) };
+        const tops = positions.map(({ top }) => top);
+        return {
+          connected,
+          displacement: Math.max(...tops) - Math.min(...tops),
+          positions,
+        };
       };
     });
     await addProperty.click();
@@ -63,6 +80,12 @@ for (const cancel of [false, true]) {
     await form.getByLabel("Nom", { exact: true }).fill("Notes");
     const stability = await stopObserving.evaluate((stop) => stop());
     await stopObserving.dispose();
+    const stabilityPath = testInfo.outputPath("property-action-stability.json");
+    await writeFile(stabilityPath, JSON.stringify(stability, null, 2));
+    await testInfo.attach("property-action-stability", {
+      path: stabilityPath,
+      contentType: "application/json",
+    });
     expect(stability.connected).toBe(true);
     expect(stability.displacement).toBeLessThanOrEqual(1);
     const save = form.getByRole("button", { name: "Enregistrer la propriété" });
