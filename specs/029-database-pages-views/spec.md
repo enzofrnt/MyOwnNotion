@@ -16,6 +16,11 @@ Le propriétaire veut retrouver le parcours illustré par ses captures : une bas
 Le regroupement Kanban par sélection multiple, ses mouvements et la conservation
 des autres appartenances sont précisés dans [036](../036-multi-select-boards/spec.md).
 
+Le parcours de création Kanban, les propriétés visibles sur les cartes et
+l'ouverture éditable en volet droit sont précisés dans
+[038](../038-database-card-flow/spec.md). Les entrées restent canoniques ;
+l'arbre et les liens ordinaires continuent à les ouvrir en pleine page.
+
 ## Clarifications
 
 ### Session 2026-09-27

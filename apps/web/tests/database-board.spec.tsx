@@ -158,8 +158,8 @@ describe("database board view (T088)", () => {
         onChangeView: vi.fn(),
       }),
     );
-    expect(markup).toContain("Choisir une propriété");
-    expect(markup).toContain("Propriété de regroupement du Kanban");
+    expect(markup).toContain("Grouper");
+    expect(markup).toContain("dans les réglages de la vue");
     expect(markup).not.toContain("Colonnes regroupées par");
   });
 
@@ -183,10 +183,63 @@ describe("database board view (T088)", () => {
     expect(markup).toContain('draggable="true"');
     expect(markup).toContain('aria-posinset="1"');
     expect(markup).toContain('aria-setsize="1"');
-    expect(markup).toContain('aria-label="Déplacer Alpha dans une autre colonne"');
+    expect(markup).toContain('aria-label="Actions de Alpha"');
     expect(markup).toContain(`data-entry-trigger="${ids.alpha}"`);
     expect(markup).toContain('aria-haspopup="menu"');
     expect(markup).not.toContain('class="database-card__controls"');
     expect(markup).not.toContain('role="grid"');
+  });
+
+  it("keeps grouping while rendering only this view’s visible card properties in order", () => {
+    const textId = generateUuidV7();
+    const checkboxId = generateUuidV7();
+    const markup = renderToStaticMarkup(
+      createElement(BoardView, {
+        properties: [
+          statusProperty,
+          {
+            id: textId,
+            name: "Details",
+            type: "text",
+            positionKey: "c",
+            state: "active",
+            config: {},
+          },
+          {
+            id: checkboxId,
+            name: "Reviewed",
+            type: "checkbox",
+            positionKey: "d",
+            state: "active",
+            config: {},
+          },
+        ],
+        view: {
+          ...view,
+          properties: [
+            { propertyId: ids.status, visible: false, positionKey: "c" },
+            { propertyId: textId, visible: true, positionKey: "b" },
+            { propertyId: checkboxId, visible: true, positionKey: "a" },
+          ],
+        },
+        page: {
+          ...page,
+          rows: page.rows.map((row) => ({
+            ...row,
+            values: { ...row.values, [textId]: { kind: "text", value: "Card details" } },
+          })),
+        },
+        onOpenEntry: vi.fn(),
+        onChangeView: vi.fn(),
+      }),
+    );
+    const card = markup.match(/<li\b[^>]*class="database-card"[^>]*>([\s\S]*?)<\/li>/)?.[1];
+    expect(card).toBeDefined();
+    expect(card).toContain("Alpha");
+    expect(card).toContain("Reviewed");
+    expect(card).toContain("Card details");
+    expect(card).not.toContain("To do");
+    expect(card?.indexOf("Reviewed")).toBeLessThan(card?.indexOf("Card details") ?? 0);
+    expect(markup).toContain('option-pill__label">To do');
   });
 });

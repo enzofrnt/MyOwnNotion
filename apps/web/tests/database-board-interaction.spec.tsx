@@ -94,6 +94,11 @@ it("blocks repeated moves while pending, shows a refusal without claiming succes
         trigger.click();
         await new Promise((r) => setTimeout(r, 60));
       });
+      const move = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) =>
+        item.textContent?.includes("Déplacer dans un groupe"),
+      );
+      if (!move) throw new Error("Missing grouping destinations menu");
+      await act(async () => move.click());
       const choice = document.querySelector<HTMLElement>(`[data-board-destination="${b}"]`);
       if (!choice) throw new Error("Missing destination");
       return choice;

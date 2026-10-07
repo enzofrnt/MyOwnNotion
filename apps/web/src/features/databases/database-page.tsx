@@ -9,6 +9,7 @@ import type {
   DatabaseView,
   DefinitionImpact,
   PropertyOption,
+  RelationTargets,
   Uuid,
 } from "@myownnotion/domain";
 import {
@@ -18,7 +19,15 @@ import {
   pageBodyHoldsEditorialContent,
   readDocumentBody,
 } from "@myownnotion/domain";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import type { DatabaseViewPage, DatabaseViewResult } from "../../services/databases.ts";
 import { AppIcon } from "../../ui/icons.tsx";
@@ -35,9 +44,11 @@ import { defaultItemTitle } from "../workspace/default-item-title.ts";
 import { BoardView } from "./board-view.tsx";
 import { CalendarView } from "./calendar-view.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { DatabaseEntryOpenContext } from "./database-entry-open-context.tsx";
 import { DatabaseToolbar, replaceSavedView } from "./database-toolbar.tsx";
 import { FilterEditor } from "./filter-editor.tsx";
 import { type GalleryPreview, GalleryView } from "./gallery-view.tsx";
+import { GroupEditor } from "./group-editor.tsx";
 import { ListView } from "./list-view.tsx";
 import {
   isChoiceProperty,
@@ -61,7 +72,7 @@ import { columnPresentations, viewColumns } from "./view-columns.ts";
 
 const EMPTY_PROPERTY_DRAFT: DatabasePropertyDraft = { name: "", type: "text" };
 
-function withEntryPresentation(
+export function withEntryPresentation(
   page: DatabaseViewPage,
   entries: readonly DatabaseEntryDto[],
 ): DatabaseViewPage {
@@ -74,6 +85,9 @@ function withEntryPresentation(
         icon: entry.icon ?? null,
         holdsContent:
           entry.kind !== "folder" && pageBodyHoldsEditorialContent(entry.document?.body),
+        revisionId: entry.revisionId,
+        values: entry.values,
+        relationTargets: entry.relationTargets,
       },
     ]),
   );
@@ -81,7 +95,15 @@ function withEntryPresentation(
     ...page,
     rows: page.rows.map((row) => {
       const presentation = byId.get(row.entryId);
-      return presentation === undefined ? row : { ...row, ...presentation };
+      if (presentation === undefined) return row;
+      const { revisionId, values, relationTargets, ...appearance } = presentation;
+      // Query DTOs omit hidden properties. The expanded card edits the full
+      // entry, but must not replace a newer query with stale local values.
+      return {
+        ...row,
+        ...appearance,
+        ...(row.revisionId === revisionId ? { values, relationTargets } : {}),
+      };
     }),
   };
 }
@@ -127,10 +149,12 @@ export function DatabasePage({
   readonly onCreateEntry: (
     title: string,
     initialValues?: DatabaseEntryDto["values"],
+    relationTargets?: RelationTargets,
   ) => void | Promise<void | Uuid>;
   readonly onCreateFolder?: (
     title: string,
     initialValues?: DatabaseEntryDto["values"],
+    relationTargets?: RelationTargets,
   ) => void | Promise<void | Uuid>;
   readonly onOpenEntry: (entryId: Uuid, trigger?: HTMLElement | null) => void;
   readonly onUpdateEntry?: (entryId: Uuid, update: DatabaseCellUpdate) => void | Promise<void>;
@@ -590,10 +614,17 @@ export function DatabasePage({
     placeProperty(copy, propertyId, "after");
   };
 
+  const openDatabaseEntry = useContext(DatabaseEntryOpenContext);
   const openEntryFromView = (entryId: Uuid, trigger: HTMLElement | null): void => {
     viewContext.rememberTrigger(entryId, trigger);
     viewContext.openEntry(entryId);
-    onOpenEntry(entryId, trigger);
+    if (openDatabaseEntry === null) onOpenEntry(entryId, trigger);
+    else
+      openDatabaseEntry({
+        entryId,
+        trigger,
+        ...(database.sourceId === undefined ? {} : { sourceId: database.sourceId as Uuid }),
+      });
   };
 
   const addProperty = (submittedDraft: DatabasePropertyDraft): void => {
@@ -792,7 +823,17 @@ export function DatabasePage({
                   properties={definition.properties}
                   view={activeView}
                   onChange={saveView}
+                  showGrouping={false}
                 />
+                <section className="database-panel-section" aria-label="Grouper">
+                  <h3>Grouper</h3>
+                  <GroupEditor
+                    key={activeView.id}
+                    properties={definition.properties}
+                    view={activeView}
+                    onChange={saveView}
+                  />
+                </section>
               </div>
             )}
 
@@ -1106,12 +1147,13 @@ export function DatabasePage({
           />
         ) : activeView.type === "board" ? (
           <BoardView
-            onCreateInColumn={(kind, values) =>
+            onCreateInColumn={(kind, values, title, relations) =>
               kind === "folder"
-                ? onCreateFolder?.(defaultItemTitle("folder"), values)
-                : onCreateEntry(defaultItemTitle("page"), values)
+                ? onCreateFolder?.(title, values, relations)
+                : onCreateEntry(title, values, relations)
             }
             canCreateFolder={onCreateFolder !== undefined}
+            relationOptions={relationOptions}
             properties={definition.properties}
             view={activeView}
             page={page}

@@ -20,7 +20,9 @@ export function measureTableViewport(
     surface.closest(
       ".database-container-page, .editor-database-view-block, .workspace-page-canvas, .page-databases",
     ) !== null;
-  const element = (pageFlow ? surface.closest<HTMLElement>(".workspace-main") : null) ?? surface;
+  const element =
+    (pageFlow ? surface.closest<HTMLElement>("[data-editor-scrollport], .workspace-main") : null) ??
+    surface;
   const body = surface.querySelector(contentSelector);
   return {
     element,
@@ -76,7 +78,7 @@ export function useTableViewport(
       );
     });
     observer.observe(element);
-    const workspace = element.closest(".workspace-main");
+    const workspace = element.closest("[data-editor-scrollport], .workspace-main");
     if (workspace !== null) observer.observe(workspace);
     return () => observer.disconnect();
   }, [surface, contentSelector]);

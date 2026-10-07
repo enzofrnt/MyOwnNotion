@@ -241,7 +241,6 @@ export const DATABASE_COPY = {
   },
   board: {
     moveTo: "Déplacer vers",
-    groupingSettings: "Regroupement du Kanban",
     clearSelections: "Retirer toutes les sélections",
     noPropertyValue: (name: string) => `Sans ${name.toLocaleLowerCase(DATABASE_LOCALE)}`,
     cardsFor: (name: string) => `Cartes de ${name}`,
@@ -255,7 +254,6 @@ export const DATABASE_COPY = {
       "Choisissez une propriété active de statut, de sélection ou de sélection multiple pour utiliser cette vue.",
     moved: (title: string, column: string) => `${title} a été déplacé dans ${column}`,
     moveFailed: (title: string) => `${title} n'a pas pu être déplacé`,
-    groupingProperty: "Propriété de regroupement du Kanban",
     columnsGroupedBy: (name: string) => `Colonnes regroupées par ${name}`,
     expand: "Déplier",
     collapse: "Replier",

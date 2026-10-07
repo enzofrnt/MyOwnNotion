@@ -25,12 +25,14 @@ export function EntryChoicePicker({
   invalid,
   onChange,
   onOptions,
+  emptyLabel,
 }: {
   property: Extract<DatabaseProperty, { type: "select" | "status" | "multi-select" }>;
   input: ValueDraft;
   id: string;
   describedBy?: string | undefined;
   invalid: boolean;
+  emptyLabel?: string | undefined;
   onChange: (input: ValueDraft) => void;
   onOptions?: ((options: readonly PropertyOption[]) => Promise<void>) | undefined;
 }) {
@@ -104,7 +106,7 @@ export function EntryChoicePicker({
         aria-invalid={invalid || undefined}
       >
         {chosen.length === 0 ? (
-          <span className="option-menu__empty">Vide</span>
+          <span className="option-menu__empty">{emptyLabel ?? "Vide"}</span>
         ) : (
           <span className="option-pill-row">
             {chosen.map((o) => (

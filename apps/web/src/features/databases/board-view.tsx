@@ -1,6 +1,19 @@
-import type { DatabaseProperty, DatabaseView, PropertyOption, Uuid } from "@myownnotion/domain";
+import type {
+  DatabaseProperty,
+  DatabaseView,
+  PropertyOption,
+  RelationTargets,
+  Uuid,
+} from "@myownnotion/domain";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
-import { type MutableRefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type MutableRefObject,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
 import { AppIcon } from "../../ui/icons.tsx";
 import { ItemIcon } from "../../ui/item-icon.tsx";
@@ -12,20 +25,26 @@ import {
   MenuLabel,
   MenuRoot,
   MenuTrigger,
-  PopoverContent,
-  PopoverDismiss,
-  PopoverHeading,
-  PopoverRoot,
-  PopoverTrigger,
 } from "../../ui/primitives/index.ts";
-import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
+import { ConvertItemControl } from "../navigation/convert-item.tsx";
+import { type BoardCardDraft, BoardCardEditor } from "./board-card-editor.tsx";
+import { BoardCreateCard } from "./board-create-card.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
-import { OptionPill, optionTone } from "./option-appearance.tsx";
+import { DatabaseEntryActionsContext } from "./database-entry-actions-context.tsx";
+import {
+  choiceOptionsForRow,
+  isChoiceProperty,
+  OptionPill,
+  optionTone,
+  PropertyValue,
+} from "./option-appearance.tsx";
 import { observeTableScrollOffset } from "./table-scroll-observer.ts";
 import type { DatabaseCellUpdate } from "./table-view.tsx";
 import { usePageHeaders } from "./use-page-headers.ts";
 import { useTableViewport } from "./use-table-viewport.ts";
+import type { RelationOption } from "./value-editor.tsx";
+import { visibleViewColumns } from "./view-columns.ts";
 
 type BoardViewDefinition = Extract<DatabaseView, { type: "board" }>;
 type OptionProperty = Extract<
@@ -163,7 +182,11 @@ function BoardCardMenu({
   pending,
   multiSelect,
   onMove,
+  onEdit,
+  onOpenEntry,
 }: {
+  readonly onEdit: () => void;
+  readonly onOpenEntry: (entryId: Uuid, trigger: HTMLElement | null) => void;
   readonly row: DatabaseViewRow;
   readonly column: BoardColumn;
   readonly columns: readonly BoardColumn[];
@@ -175,68 +198,167 @@ function BoardCardMenu({
     sourceColumnId: Uuid | "missing",
   ) => Promise<void>;
 }) {
+  const actions = useContext(DatabaseEntryActionsContext);
+  const [moving, setMoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [actionPending, setActionPending] = useState(false);
+  const actionBusy = useRef(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const choosingDestination = useRef(false);
   const [open, setOpen] = useState(false);
+  const runAction = async (action: () => Promise<void>, fallback: string) => {
+    if (actionBusy.current) return;
+    actionBusy.current = true;
+    setActionPending(true);
+    setError(null);
+    try {
+      await action();
+      setOpen(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : fallback);
+    } finally {
+      actionBusy.current = false;
+      setActionPending(false);
+    }
+  };
   return (
     <MenuRoot
       open={open}
       setOpen={(next) => {
-        if (next) choosingDestination.current = false;
+        if (next) {
+          choosingDestination.current = false;
+          setMoving(false);
+          setError(null);
+        }
         setOpen(next);
       }}
     >
       <MenuTrigger
         ref={triggerRef}
         className="database-card__menu"
-        aria-label={DATABASE_COPY.board.moveToAnother(row.title)}
-        title={DATABASE_COPY.board.moveToAnother(row.title)}
+        aria-label={`Actions de ${row.title}`}
+        title="Actions de la carte"
         data-pending={pending || undefined}
       >
         <AppIcon name={pending ? "loading" : "more"} />
       </MenuTrigger>
       <MenuContent
-        unmountOnHide
         className="database-board-menu"
+        aria-busy={actionPending}
         data-board-menu-entry={row.entryId}
         autoFocusOnHide={() => !choosingDestination.current}
       >
-        <MenuLabel>{DATABASE_COPY.board.moveTo}</MenuLabel>
-        {columns.map((target) => (
-          <MenuItem
-            key={target.id}
-            disabled={pending || target.id === column.id}
-            data-board-destination={target.id}
-            shortcut={target.id === column.id ? <AppIcon name="check" size="small" /> : undefined}
-            onClick={() => {
-              // Return to the card before moving: its origin survives portal focus,
-              // and BoardView can return to the destination once rows refresh.
-              choosingDestination.current = true;
-              setOpen(false);
-              triggerRef.current?.focus({ preventScroll: true });
-              void onMove(row.entryId as Uuid, target.id, column.id);
-            }}
-          >
-            <span className="database-board-menu__destination">
-              {target.tone === undefined ? (
-                target.label
-              ) : (
-                <OptionPill label={target.label} tone={target.tone} />
-              )}
-              {target.id === "missing" && multiSelect ? (
-                <span className="database-board-menu__hint">
-                  {DATABASE_COPY.board.clearSelections}
-                </span>
-              ) : null}
-            </span>
+        {moving ? (
+          <MenuItem hideOnClick={false} onClick={() => setMoving(false)}>
+            <AppIcon name="arrowLeft" size="small" /> Actions de la carte
           </MenuItem>
-        ))}
+        ) : (
+          <>
+            {actions === null ? null : (
+              <MenuItem onClick={onEdit}>
+                <AppIcon name="edit" size="small" /> Modifier les propriétés
+              </MenuItem>
+            )}
+            {actions === null ? null : (
+              <MenuItem onClick={() => actions.editIcon(row.entryId as Uuid)}>
+                <AppIcon name="smile" size="small" /> Modifier l’icône
+              </MenuItem>
+            )}
+            <MenuItem onClick={() => onOpenEntry(row.entryId as Uuid, triggerRef.current)}>
+              <AppIcon name="sidePeek" size="small" /> Ouvrir en volet latéral
+            </MenuItem>
+            {actions === null ? null : (
+              <MenuItem onClick={() => actions.openFullPage(row.entryId as Uuid)}>
+                <AppIcon name="expand" size="small" /> Ouvrir en pleine page
+              </MenuItem>
+            )}
+            <MenuItem
+              hideOnClick={false}
+              disabled={actionPending}
+              onClick={() => {
+                void runAction(
+                  () =>
+                    navigator.clipboard.writeText(
+                      new URL(`/notes/${row.entryId}`, window.location.origin).href,
+                    ),
+                  "Le lien n’a pas pu être copié. Réessayez.",
+                );
+              }}
+            >
+              <AppIcon name="link" size="small" /> Copier le lien
+            </MenuItem>
+            <MenuItem hideOnClick={false} onClick={() => setMoving(true)}>
+              <AppIcon name="arrowRight" size="small" /> Déplacer dans un groupe
+              <AppIcon name="chevronRight" size="small" />
+            </MenuItem>
+            {actions === null ? null : (
+              <>
+                <ConvertItemControl
+                  itemId={row.entryId as Uuid}
+                  itemName={row.title}
+                  kind={row.itemKind ?? "page"}
+                  convert={actions.convert}
+                  finalFocus={triggerRef}
+                  variant="menu"
+                />
+                <MenuItem
+                  hideOnClick={false}
+                  disabled={actionPending}
+                  onClick={() => {
+                    void runAction(
+                      () => actions.trash(row.entryId as Uuid),
+                      "La suppression a échoué.",
+                    );
+                  }}
+                >
+                  <AppIcon name="delete" size="small" /> Déplacer dans la corbeille
+                </MenuItem>
+              </>
+            )}
+          </>
+        )}
+        {error === null ? null : <p role="alert">{error}</p>}
+        {moving ? <MenuLabel>{DATABASE_COPY.board.moveTo}</MenuLabel> : null}
+        {moving
+          ? columns.map((target) => (
+              <MenuItem
+                key={target.id}
+                disabled={pending || target.id === column.id}
+                data-board-destination={target.id}
+                shortcut={
+                  target.id === column.id ? <AppIcon name="check" size="small" /> : undefined
+                }
+                onClick={() => {
+                  // Return to the card before moving: its origin survives portal focus,
+                  // and BoardView can return to the destination once rows refresh.
+                  choosingDestination.current = true;
+                  setOpen(false);
+                  triggerRef.current?.focus({ preventScroll: true });
+                  void onMove(row.entryId as Uuid, target.id, column.id);
+                }}
+              >
+                <span className="database-board-menu__destination">
+                  {target.tone === undefined ? (
+                    target.label
+                  ) : (
+                    <OptionPill label={target.label} tone={target.tone} />
+                  )}
+                  {target.id === "missing" && multiSelect ? (
+                    <span className="database-board-menu__hint">
+                      {DATABASE_COPY.board.clearSelections}
+                    </span>
+                  ) : null}
+                </span>
+              </MenuItem>
+            ))
+          : null}
       </MenuContent>
     </MenuRoot>
   );
 }
 
 function BoardCards({
+  properties,
   column,
   columns,
   draggedCard,
@@ -245,7 +367,16 @@ function BoardCards({
   onMove,
   pendingEntryIds,
   multiSelect,
+  cardProperties,
+  editingEntryId,
+  onEditCard,
+  onCloseEditor,
 }: {
+  readonly properties: readonly DatabaseProperty[];
+  readonly cardProperties: readonly DatabaseProperty[];
+  readonly editingEntryId: string | null;
+  readonly onEditCard: (row: DatabaseViewRow) => void;
+  readonly onCloseEditor: () => void;
   readonly column: BoardColumn;
   readonly columns: readonly BoardColumn[];
   readonly draggedCard: MutableRefObject<{
@@ -264,6 +395,8 @@ function BoardCards({
     sourceColumnId: Uuid | "missing",
   ) => Promise<void>;
 }) {
+  const actions = useContext(DatabaseEntryActionsContext);
+  const editCard = onEditCard;
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewport = useTableViewport(scrollRef, ".database-card-list");
   const [focusedEntryId, setFocusedEntryId] = useState<Uuid | null>(null);
@@ -281,6 +414,8 @@ function BoardCards({
     overscan: 4,
     rangeExtractor: (range) => {
       const indexes = defaultRangeExtractor(range);
+      const editingIndex = column.rows.findIndex((row) => row.entryId === editingEntryId);
+      if (editingIndex >= 0 && !indexes.includes(editingIndex)) indexes.push(editingIndex);
       if (focusedIndex >= 0 && !indexes.includes(focusedIndex)) indexes.push(focusedIndex);
       return indexes.sort((left, right) => left - right);
     },
@@ -316,6 +451,7 @@ function BoardCards({
               aria-posinset={index + 1}
               aria-setsize={column.rows.length}
               className="database-card"
+              data-editing={editingEntryId === row.entryId || undefined}
               aria-busy={pendingEntryIds.has(row.entryId as Uuid) || undefined}
               style={
                 start === null
@@ -326,7 +462,11 @@ function BoardCards({
                       width: "100%",
                     }
               }
-              draggable={onUpdateEntry !== undefined && !pendingEntryIds.has(row.entryId as Uuid)}
+              draggable={
+                editingEntryId !== row.entryId &&
+                onUpdateEntry !== undefined &&
+                !pendingEntryIds.has(row.entryId as Uuid)
+              }
               onFocusCapture={() => setFocusedEntryId(row.entryId as Uuid)}
               onBlurCapture={(event) => {
                 if (
@@ -347,33 +487,137 @@ function BoardCards({
                 draggedCard.current = null;
               }}
             >
-              <StableActionButton
-                type="button"
-                className="link database-card__title"
-                variant="ghost"
-                data-entry-trigger={row.entryId}
-                data-entry-column={column.id}
-                onActivate={(trigger) => onOpenEntry(row.entryId as Uuid, trigger)}
-              >
-                {row.icon || row.itemKind === "folder" || row.holdsContent ? (
-                  <ItemIcon
-                    kind={row.itemKind === "folder" ? "folder" : "page"}
-                    icon={row.icon ?? null}
-                    holdsContent={row.holdsContent === true}
-                    size="tree"
-                  />
-                ) : null}
-                <span>{row.title}</span>
-              </StableActionButton>
-              {onUpdateEntry === undefined ? null : (
-                <BoardCardMenu
-                  row={row}
-                  column={column}
-                  columns={columns}
-                  pending={pendingEntryIds.has(row.entryId as Uuid)}
-                  multiSelect={multiSelect}
-                  onMove={onMove}
+              {editingEntryId === row.entryId && actions !== null ? (
+                <BoardCardEditor
+                  properties={properties}
+                  initial={{
+                    kind: row.itemKind ?? "page",
+                    title: row.title,
+                    values: row.values as BoardCardDraft["values"],
+                    relationTargets:
+                      row.relationTargets as unknown as BoardCardDraft["relationTargets"],
+                  }}
+                  label={`Nom de ${row.title}`}
+                  relationOptions={actions.relationOptions}
+                  canChooseKind
+                  entryId={row.entryId as Uuid}
+                  onConvert={actions.convert}
+                  onCancel={(restoreFocus = true) => {
+                    onCloseEditor();
+                    if (restoreFocus)
+                      requestAnimationFrame(() =>
+                        document
+                          .querySelector<HTMLElement>(`[data-entry-trigger="${row.entryId}"]`)
+                          ?.focus({ preventScroll: true }),
+                      );
+                  }}
+                  onSave={async (draft, _next, previous) => {
+                    await actions.save(
+                      {
+                        ...row,
+                        title: previous.title,
+                        values: previous.values as DatabaseViewRow["values"],
+                        relationTargets:
+                          previous.relationTargets as unknown as DatabaseViewRow["relationTargets"],
+                      },
+                      draft,
+                    );
+                  }}
                 />
+              ) : (
+                <>
+                  <StableActionButton
+                    type="button"
+                    className="link database-card__title"
+                    variant="ghost"
+                    data-entry-trigger={row.entryId}
+                    data-entry-column={column.id}
+                    onActivate={(trigger) => onOpenEntry(row.entryId as Uuid, trigger)}
+                  >
+                    <span className="database-card__identity">
+                      {row.icon || row.itemKind === "folder" || row.holdsContent ? (
+                        <ItemIcon
+                          kind={row.itemKind === "folder" ? "folder" : "page"}
+                          icon={row.icon ?? null}
+                          holdsContent={row.holdsContent === true}
+                          size="tree"
+                        />
+                      ) : null}
+                      <span>{row.title}</span>
+                    </span>
+                    <span className="database-card__properties">
+                      {cardProperties.map((property) => {
+                        const value = row.values[property.id];
+                        if (
+                          isChoiceProperty(property) &&
+                          choiceOptionsForRow(property, row).length === 0
+                        )
+                          return null;
+                        if (
+                          property.type !== "checkbox" &&
+                          value === undefined &&
+                          (row.relationTargets[property.id]?.length ?? 0) === 0
+                        )
+                          return null;
+                        return (
+                          <span
+                            key={property.id}
+                            className="database-card__property"
+                            title={property.name}
+                          >
+                            {property.type === "checkbox" ? (
+                              <span className="database-card__checkbox-value">
+                                <span
+                                  className="database-card__checkbox"
+                                  data-checked={
+                                    (value?.kind === "checkbox" && value.checked) || undefined
+                                  }
+                                  aria-hidden="true"
+                                >
+                                  {value?.kind === "checkbox" && value.checked ? (
+                                    <AppIcon name="check" size="small" />
+                                  ) : null}
+                                </span>
+                                <span>{property.name}</span>
+                              </span>
+                            ) : (
+                              <>
+                                <span className="sr-only">{property.name} : </span>
+                                <PropertyValue property={property} row={row} />
+                              </>
+                            )}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  </StableActionButton>
+                  {onUpdateEntry === undefined ? null : (
+                    <div className="database-card__actions">
+                      {actions === null ? null : (
+                        <Button
+                          className="database-card__edit"
+                          size="square"
+                          variant="ghost"
+                          aria-label={`Modifier ${row.title}`}
+                          title="Modifier les propriétés"
+                          onClick={() => editCard(row)}
+                        >
+                          <AppIcon name="edit" size="small" />
+                        </Button>
+                      )}
+                      <BoardCardMenu
+                        onEdit={() => editCard(row)}
+                        onOpenEntry={onOpenEntry}
+                        row={row}
+                        column={column}
+                        columns={columns}
+                        pending={pendingEntryIds.has(row.entryId as Uuid)}
+                        multiSelect={multiSelect}
+                        onMove={onMove}
+                      />
+                    </div>
+                  )}
+                </>
               )}
               {row.syncState === "synced" ? null : (
                 <span className={`database-sync database-sync--${row.syncState}`}>
@@ -399,6 +643,7 @@ export function BoardView({
   onChangeView,
   onCreateInColumn,
   canCreateFolder = false,
+  relationOptions = [],
   scrollTop = 0,
   onScroll,
 }: {
@@ -411,17 +656,36 @@ export function BoardView({
   readonly onCreateInColumn?: (
     kind: "page" | "folder",
     values: BoardInitialValues,
+    title: string,
+    relations: RelationTargets,
   ) => void | Uuid | Promise<void | Uuid>;
   readonly canCreateFolder?: boolean;
+  readonly relationOptions?: readonly RelationOption[];
   readonly scrollTop?: number;
   readonly onScroll?: (scrollTop: number) => void;
 }) {
+  const actions = useContext(DatabaseEntryActionsContext);
   const axes = properties.filter(
     (property): property is BoardAxisProperty =>
       property.state === "active" && isBoardAxisProperty(property),
   );
   const axis = axes.find(({ id }) => id === view.options.axisPropertyId);
-  const columns = axis === undefined ? [] : boardColumns(view, axis, page.rows);
+  const [editingCard, setEditingCard] = useState<{ row: DatabaseViewRow; columnId: string } | null>(
+    null,
+  );
+  const columns = (axis === undefined ? [] : boardColumns(view, axis, page.rows)).map((column) => {
+    if (editingCard === null) return column;
+    const rows = column.rows.filter((row) => row.entryId !== editingCard.row.entryId);
+    if (column.id === editingCard.columnId) {
+      const index = column.rows.findIndex((row) => row.entryId === editingCard.row.entryId);
+      rows.splice(
+        index < 0 ? rows.length : index,
+        0,
+        page.rows.find((row) => row.entryId === editingCard.row.entryId) ?? editingCard.row,
+      );
+    }
+    return { ...column, rows };
+  });
   const draggedCard = useRef<{ entryId: Uuid; sourceColumnId: Uuid | "missing" } | null>(null);
   const pendingRef = useRef(new Set<Uuid>());
   const [pendingEntryIds, setPendingEntryIds] = useState<ReadonlySet<Uuid>>(new Set());
@@ -432,17 +696,12 @@ export function BoardView({
   } | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [moveError, setMoveError] = useState(false);
-  const [savingAxis, setSavingAxis] = useState(false);
-  const [axisError, setAxisError] = useState(false);
   const scrollRef = useRef<HTMLElement>(null);
   const viewport = useTableViewport(scrollRef, ".database-board");
   const headerRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   usePageHeaders(scrollRef, viewport, headerRef, bodyRef);
   const previousViewId = useRef(view.id);
-  const creating = useRef(false);
-  const [creatingColumn, setCreatingColumn] = useState<string | null>(null);
-  const [createErrorColumn, setCreateErrorColumn] = useState<string | null>(null);
   useLayoutEffect(() => {
     const element = viewport.element;
     const changedView = previousViewId.current !== view.id;
@@ -471,6 +730,7 @@ export function BoardView({
   useLayoutEffect(() => {
     draggedCard.current = null;
     pendingFocus.current = null;
+    setEditingCard(null);
   }, [view.id, view.options.axisPropertyId]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: retry focus when asynchronous query rows replace the moved occurrence
   useLayoutEffect(() => {
@@ -490,51 +750,13 @@ export function BoardView({
       pendingFocus.current = null;
     }
   }, [page.rows, pendingEntryIds]);
-  const selectAxis = async (id: string): Promise<void> => {
-    const next = axes.find((p) => p.id === id);
-    if (next === undefined || savingAxis) return;
-    setSavingAxis(true);
-    setAxisError(false);
-    try {
-      await onChangeView({
-        ...view,
-        group: { propertyId: next.id },
-        options: {
-          axisPropertyId: next.id,
-          columnOrder: next.config.options.filter((o) => o.state === "active").map((o) => o.id),
-          collapsedColumnIds: [],
-        },
-      });
-    } catch {
-      setAxisError(true);
-    } finally {
-      setSavingAxis(false);
-    }
-  };
   if (axis === undefined) {
     return (
       <section className="database-view" aria-label={DATABASE_COPY.board.viewLabel(view.name)}>
         <AsyncState kind="unavailable" description={DATABASE_COPY.board.needsProperty} />
-        {axes.length > 0 ? (
-          <label>
-            {DATABASE_COPY.board.groupingProperty}
-            <NativeSelect
-              value=""
-              disabled={savingAxis}
-              onChange={(event) => void selectAxis(event.target.value)}
-            >
-              <option value="" disabled>
-                Choisir une propriété
-              </option>
-              {axes.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
-        ) : null}
-        {axisError ? <p role="alert">Le regroupement n’a pas pu être modifié. Réessayez.</p> : null}
+        <p className="muted">
+          Ouvrez « Grouper » dans les réglages de la vue pour choisir une propriété.
+        </p>
       </section>
     );
   }
@@ -578,31 +800,10 @@ export function BoardView({
     }
   };
 
-  const create = async (
-    kind: "page" | "folder",
-    columnId: Uuid | "missing",
-    trigger: HTMLElement,
-  ): Promise<void> => {
-    if (creating.current || onCreateInColumn === undefined) return;
-    const values = boardCreateValues(axis, columnId);
-    if (values === null) return;
-    creating.current = true;
-    setCreatingColumn(columnId);
-    setCreateErrorColumn(null);
-    try {
-      const id = await onCreateInColumn(kind, values);
-      if (typeof id === "string") onOpenEntry(id, trigger);
-    } catch {
-      setCreateErrorColumn(columnId);
-    } finally {
-      creating.current = false;
-      setCreatingColumn(null);
-    }
-  };
-
   const columnHeader = (column: BoardColumn, collapsed: boolean) => {
     const headingId = `board-column-${view.id}-${column.id}`;
     return (
+      // biome-ignore lint/a11y/noStaticElementInteractions: drop surface also has a keyboard move menu on each card.
       <header
         onDragOver={(event) => event.preventDefault()}
         onDrop={(event) => {
@@ -658,37 +859,6 @@ export function BoardView({
       data-page-flow={viewport.pageFlow || undefined}
       aria-label={DATABASE_COPY.board.viewLabel(view.name)}
     >
-      <div className="database-board__toolbar">
-        <PopoverRoot>
-          <PopoverTrigger
-            className="database-board__group-trigger"
-            aria-label={DATABASE_COPY.board.groupingSettings}
-          >
-            <AppIcon name="layers" size="small" />
-            <span>{axis.name}</span>
-            <AppIcon name="chevronDown" size="small" />
-          </PopoverTrigger>
-          <PopoverContent unmountOnHide className="database-board-settings">
-            <PopoverHeading>{DATABASE_COPY.board.groupingSettings}</PopoverHeading>
-            <PopoverDismiss />
-            <label>
-              {DATABASE_COPY.board.groupingProperty}
-              <NativeSelect
-                value={axis.id}
-                disabled={savingAxis}
-                onChange={(event) => void selectAxis(event.target.value)}
-              >
-                {axes.map((property) => (
-                  <option key={property.id} value={property.id}>
-                    {property.name}
-                  </option>
-                ))}
-              </NativeSelect>
-            </label>
-          </PopoverContent>
-        </PopoverRoot>
-      </div>
-      {axisError ? <p role="alert">Le regroupement n’a pas pu être modifié. Réessayez.</p> : null}
       {viewport.pageFlow ? (
         <div className="database-page-header database-board-headers">
           <div ref={headerRef} className="database-page-header-scroll">
@@ -740,10 +910,21 @@ export function BoardView({
                   }}
                 >
                   {viewport.pageFlow ? null : columnHeader(column, collapsed)}
-                  {collapsed ? null : column.rows.length === 0 ? (
-                    <p className="database-board__empty">{DATABASE_COPY.board.noCards}</p>
-                  ) : (
+                  {collapsed || column.rows.length === 0 ? null : (
                     <BoardCards
+                      properties={properties}
+                      editingEntryId={
+                        editingCard?.columnId === column.id ? editingCard.row.entryId : null
+                      }
+                      onEditCard={(row) => setEditingCard({ row, columnId: column.id })}
+                      onCloseEditor={() =>
+                        setEditingCard((current) =>
+                          current?.row.entryId === editingCard?.row.entryId ? null : current,
+                        )
+                      }
+                      cardProperties={visibleViewColumns(properties, view.properties).filter(
+                        (property) => property.type !== "title",
+                      )}
                       column={column}
                       columns={columns}
                       draggedCard={draggedCard}
@@ -755,48 +936,20 @@ export function BoardView({
                     />
                   )}
                   {collapsed || onCreateInColumn === undefined ? null : (
-                    <div
-                      className="database-board__create"
-                      role="group"
-                      aria-label={`Ajouter dans ${column.label}`}
-                      aria-busy={creatingColumn === column.id}
-                    >
-                      <Button
-                        type="button"
-                        size="compact"
-                        variant="ghost"
-                        aria-label={`Nouvelle page dans ${column.label}`}
-                        data-board-create="page"
-                        data-entry-column={column.id}
-                        disabled={creatingColumn !== null}
-                        onClick={(event) => void create("page", column.id, event.currentTarget)}
-                      >
-                        <AppIcon
-                          name={creatingColumn === column.id ? "loading" : "fileAdd"}
-                          size="small"
-                        />{" "}
-                        Page
-                      </Button>
-                      {canCreateFolder ? (
-                        <Button
-                          type="button"
-                          size="compact"
-                          variant="ghost"
-                          aria-label={`Nouveau dossier dans ${column.label}`}
-                          data-board-create="folder"
-                          data-entry-column={column.id}
-                          disabled={creatingColumn !== null}
-                          onClick={(event) => void create("folder", column.id, event.currentTarget)}
-                        >
-                          <AppIcon name="folderAdd" size="small" /> Dossier
-                        </Button>
-                      ) : null}
-                    </div>
-                  )}
-                  {createErrorColumn !== column.id ? null : (
-                    <p role="alert" className="database-board__create-error">
-                      {DATABASE_COPY.page.entryCreateFailed}
-                    </p>
+                    <BoardCreateCard
+                      columnLabel={column.label}
+                      canCreateFolder={canCreateFolder}
+                      properties={properties}
+                      initialValues={boardCreateValues(axis, column.id) ?? {}}
+                      relationOptions={
+                        relationOptions.length ? relationOptions : (actions?.relationOptions ?? [])
+                      }
+                      onCreate={async (kind, title, values, relations) => {
+                        if (boardCreateValues(axis, column.id) === null)
+                          throw new Error("Colonne indisponible");
+                        return await onCreateInColumn(kind, values, title, relations);
+                      }}
+                    />
                   )}
                   {column.id === "missing" && axis.type === "multi-select" ? (
                     <p className="database-board__drop-hint">

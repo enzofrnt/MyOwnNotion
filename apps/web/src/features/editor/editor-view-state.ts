@@ -19,7 +19,9 @@ function rootElement(root: ParentNode): Element | null {
 
 /** The workspace owns scrolling internally so its top chrome never moves. */
 export function editorScrollContainer(root: ParentNode = document): HTMLElement | null {
-  return rootElement(root)?.closest<HTMLElement>(".workspace-main") ?? null;
+  return (
+    rootElement(root)?.closest<HTMLElement>("[data-editor-scrollport], .workspace-main") ?? null
+  );
 }
 
 /**

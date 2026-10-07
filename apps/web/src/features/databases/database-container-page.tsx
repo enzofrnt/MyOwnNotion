@@ -797,9 +797,9 @@ export function DatabaseContainerPage({
       views: presentation.views.map((view) => (view.id === selected.id ? attach(view) : view)),
     });
   };
-  const applyViewSettings = (next: DatabaseView): void => {
+  const saveViewSettings = async (next: DatabaseView): Promise<void> => {
     if (presentation === undefined || selected === undefined) return;
-    void save({
+    await save({
       ...presentation,
       views: presentation.views.map((view) =>
         view.id === selected.id
@@ -813,7 +813,10 @@ export function DatabaseContainerPage({
             }
           : view,
       ),
-    }).catch((cause) =>
+    });
+  };
+  const applyViewSettings = (next: DatabaseView): void => {
+    void saveViewSettings(next).catch((cause) =>
       setError(cause instanceof Error ? cause.message : "La vue n’a pas pu être mise à jour."),
     );
   };
@@ -1223,6 +1226,7 @@ export function DatabaseContainerPage({
             }}
             onChangeFormat={changeFormat}
             onChangeView={applyViewSettings}
+            onChangeGrouping={saveViewSettings}
             onToggleProperty={setColumnVisible}
             onChangeSource={(sourceId) => {
               void changeSource(sourceId);

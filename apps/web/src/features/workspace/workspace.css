@@ -1220,3 +1220,80 @@
 .workspace-entry-canvas .entry-document > .workspace-page-editor {
   padding-top: 0;
 }
+
+/* Entry peek is a nonmodal reading surface; menus remain above it. */
+.database-entry-peek.ui-drawer[data-side="right"] {
+  display: flex;
+  flex-direction: column;
+  width: min(46rem, 58vw);
+  height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-left: 1px solid var(--ui-color-border);
+  border-radius: 0;
+  background: var(--ui-color-canvas);
+  box-shadow: var(--ui-shadow-dialog);
+  z-index: calc(var(--ui-layer-menu) - 1);
+  animation: database-peek-in var(--ui-duration-normal) var(--ui-ease-standard) both;
+}
+.database-entry-peek.ui-drawer[data-side="right"][data-closing] {
+  animation-name: database-peek-out;
+  pointer-events: none;
+}
+@keyframes database-peek-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes database-peek-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.database-entry-peek__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex: none;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-color-border);
+}
+.database-entry-peek__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  container-type: inline-size;
+}
+.database-entry-peek__document {
+  padding: var(--ui-space-8) clamp(1rem, 5cqi, 3rem) var(--ui-space-12);
+}
+.database-entry-peek__document .workspace-page-title {
+  margin-top: 0;
+}
+.database-entry-peek__document .workspace-page-title textarea {
+  font-size: var(--ui-text-2xl);
+}
+.database-entry-peek__document .entry-panel {
+  width: 100%;
+  max-width: none;
+}
+.database-entry-peek__document .entry-document {
+  margin-top: var(--ui-space-8);
+}
+@media (max-width: 700px) {
+  .database-entry-peek.ui-drawer[data-side="right"] {
+    width: 100%;
+  }
+  .database-entry-peek__document {
+    padding-inline: var(--ui-space-4);
+  }
+}

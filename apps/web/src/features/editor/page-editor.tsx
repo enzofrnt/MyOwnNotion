@@ -695,7 +695,12 @@ export function PageEditor({
       return;
     }
     const resolve = (): void => {
-      setHistoryHost(globalThis.document.getElementById(WORKSPACE_HISTORY_SLOT_ID));
+      const peek = editorHostRef.current?.closest(".database-entry-peek");
+      setHistoryHost(
+        peek === null || peek === undefined
+          ? globalThis.document.getElementById(WORKSPACE_HISTORY_SLOT_ID)
+          : null,
+      );
     };
     resolve();
     // Path chrome and the editor mount in the same commit; one frame covers

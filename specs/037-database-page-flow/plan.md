@@ -52,3 +52,7 @@ La translation par JavaScript à chaque scroll ne satisfait pas la stabilité de
 ## Mouvement horizontal commun après la quatrième revue
 
 Le corps devient l'unique source de scroll horizontal. Le rail d'en-têtes ne possède plus de scrollLeft indépendant : son contenu suit une ScrollTimeline du corps, exécutée par le navigateur. Mesurer la course horizontale au changement de layout et observer les contenus pour les redimensionnements de colonnes ; nettoyer l'animation au démontage. Router vers le corps les gestes horizontaux/focus sur l'en-tête. Prévoir le moteur sans ScrollTimeline : gestes horizontaux coordonnés dans le même handler, traduction directe de secours pour les déplacements programmatiques/barre. Le sticky vertical et les contrôles originaux sont conservés. Revue directe du geste sur 8082 selon ui-quality et lessons L009/010/015/019 ; pas de matrice ni de nouvelles suites.
+
+## Évolution 038 — création et volet
+
+La feature [038](../038-database-card-flow/spec.md) remplace la création Page/Dossier avec ouverture automatique par une carte de saisie dans la colonne, sans navigation. Les invariants de valeur initiale, scroll et en-têtes demeurent ; elle ajoute les propriétés affichées et le volet canonique.

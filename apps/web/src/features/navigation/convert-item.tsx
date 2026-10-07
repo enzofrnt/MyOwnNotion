@@ -63,12 +63,13 @@ export function ConvertItemControl({
   ) => Promise<ConvertOutcome>;
   readonly finalFocus?: RefObject<HTMLElement | null>;
   readonly onActiveChange?: (active: boolean) => void;
-  readonly variant?: "button" | "menu";
+  readonly variant?: "button" | "menu" | "switch";
 }) {
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
+  const running = useRef(false);
 
   const target: ConvertibleKind = kind === "page" ? "folder" : "page";
 
@@ -79,11 +80,24 @@ export function ConvertItemControl({
 
   const run = useCallback(
     async (confirmedDestruction: boolean) => {
+      if (running.current) return;
+      running.current = true;
       onActiveChange?.(true);
       setPending(true);
       setError(null);
-      const outcome = await convert(itemId, target, confirmedDestruction);
-      setPending(false);
+      let outcome: ConvertOutcome;
+      try {
+        outcome = await convert(itemId, target, confirmedDestruction);
+      } catch (cause) {
+        outcome = {
+          ok: false,
+          needsConfirmation: false,
+          message: cause instanceof Error ? cause.message : "La conversion n’a pas abouti.",
+        };
+      } finally {
+        running.current = false;
+        setPending(false);
+      }
 
       if (outcome.ok) {
         setConfirming(false);
@@ -110,7 +124,31 @@ export function ConvertItemControl({
         if (!open) close();
       }}
     >
-      {variant === "menu" ? (
+      {variant === "switch" ? (
+        <fieldset className="database-card-kind" aria-label="Type d’élément">
+          {(["page", "folder"] as const).map((choice) => (
+            <Button
+              key={choice}
+              size="compact"
+              variant="ghost"
+              ref={choice === target ? (trigger as Ref<HTMLButtonElement>) : undefined}
+              aria-pressed={kind === choice}
+              disabled={pending}
+              title={
+                choice === kind
+                  ? undefined
+                  : `Transformer en ${choice === "page" ? "page" : "dossier"}`
+              }
+              onClick={() => {
+                if (choice !== kind) void run(false);
+              }}
+            >
+              <AppIcon name={choice === "page" ? "file" : "folder"} size="small" />
+              {choice === "page" ? "Page" : "Dossier"}
+            </Button>
+          ))}
+        </fieldset>
+      ) : variant === "menu" ? (
         <MenuItem
           ref={trigger as Ref<HTMLDivElement>}
           disabled={pending}
@@ -120,7 +158,7 @@ export function ConvertItemControl({
             void run(false);
           }}
         >
-          <AppIcon name={kind === "page" ? "folder" : "fileText"} size="small" />
+          <AppIcon name={kind === "page" ? "convertToFolder" : "convertToPage"} />
           Transformer en {kind === "page" ? "dossier" : "page"}
         </MenuItem>
       ) : (
@@ -142,7 +180,7 @@ export function ConvertItemControl({
             void run(false);
           }}
         >
-          <AppIcon name={kind === "page" ? "folder" : "fileText"} size="small" />
+          <AppIcon name={kind === "page" ? "convertToFolder" : "convertToPage"} />
           <span className="ui-visually-hidden">{kind === "page" ? "en dossier" : "en page"}</span>
         </button>
       )}

@@ -789,7 +789,24 @@ export async function prepareProjectionWrite(
           "Database entry changed since values were prepared",
         );
       }
-      const structured = await normalizeStructuredCommandValues(db, database.definition, command);
+      const sourceId =
+        existingEntry?.sourceId ?? database.sourceId ?? ownedSourceIdFromItemId(command.databaseId);
+      const storedSource =
+        sourceId === (database.sourceId ?? ownedSourceIdFromItemId(command.databaseId))
+          ? storedDatabase
+          : await db.databaseSources.get(sourceId);
+      if (storedSource === undefined)
+        throw new LocalValidationError(
+          "database.source-unavailable",
+          "Source is not available locally",
+        );
+      const source = await codec.openDatabase(storedSource);
+      if (source.itemId !== command.databaseId)
+        throw new LocalValidationError(
+          "database.source-unavailable",
+          "Source belongs to another owner",
+        );
+      const structured = await normalizeStructuredCommandValues(db, source.definition, command);
       const revisionId = generateUuidV7();
       const history = await db.databaseEntryPairs
         .where("entryItemId")
@@ -803,6 +820,7 @@ export async function prepareProjectionWrite(
           key: databaseEntryPairKey(command.databaseId, command.entryId),
           entryItemId: command.entryId,
           databaseId: command.databaseId,
+          sourceId,
           availability: "present",
           valueVersion: nextVersion,
           values: { ...structured.values, preserved: existingEntry?.values.preserved ?? [] },

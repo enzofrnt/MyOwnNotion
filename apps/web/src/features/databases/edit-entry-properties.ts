@@ -7,6 +7,7 @@ import {
   type DefinitionImpact,
   jsonValuesEqual,
   type NonRelationPropertyValue,
+  ownedSourceIdFromItemId,
   type PropertyOption,
   previewDefinitionImpact,
   type RelationTargets,
@@ -89,7 +90,12 @@ export async function editEntrySourceDefinition(
     const revision = source.definitionRevisionId ?? item?.currentRevisionId;
     if (revision === undefined) throw new Error("La source n’est pas disponible sur cet appareil.");
     const candidate = edit(source.definition);
-    const entries = await service.listDatabaseEntries(databaseId);
+    const owner = await service.getDatabase(source.itemId);
+    const primarySourceId = owner?.sourceId ?? ownedSourceIdFromItemId(source.itemId);
+    const editedSourceId = source.sourceId ?? primarySourceId;
+    const entries = (await service.listDatabaseEntries(source.itemId)).filter(
+      (row) => (row.sourceId ?? primarySourceId) === editedSourceId,
+    );
     if (entries.some((row) => row.availability !== "present"))
       throw new Error("Chargez les valeurs de cette source avant de modifier ses propriétés.");
     const impact = await previewDefinitionImpact({

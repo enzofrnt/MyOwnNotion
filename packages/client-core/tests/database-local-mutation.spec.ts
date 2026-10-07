@@ -144,6 +144,23 @@ describe("atomic structured local mutation (T021)", () => {
     expect((await items.getItem(id))?.kind).toBe("folder");
     expect((await databases.getEntry(id))?.values?.values[propertyId]).toEqual(values[propertyId]);
     expect((await db.placements.where("itemId").equals(id).first())?.parentItemId).toBe(owner.id);
+    const current = required(await items.getItem(id));
+    expect(
+      (
+        await apply("database.entry.values.replace", {
+          databaseId: owner.id,
+          entryId: id,
+          baseRevisionId: current.currentRevisionId,
+          values: { [propertyId]: { kind: "multi-select", optionIds: [] } },
+          relationTargets: {},
+        })
+      ).ok,
+    ).toBe(true);
+    expect((await databases.getEntry(id))?.sourceId).toBe(sourceId);
+    expect((await databases.getEntry(id))?.values.values[propertyId]).toEqual({
+      kind: "multi-select",
+      optionIds: [],
+    });
     for (const targetSource of [generateUuidV7(), primary.sourceId]) {
       const rejectedId = generateUuidV7(),
         before = await db.outbox.count();

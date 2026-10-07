@@ -10,6 +10,7 @@ export function RelationDraftMenu({
   options,
   id,
   describedBy,
+  emptyLabel,
   onChange,
 }: {
   readonly property: Extract<DatabaseProperty, { type: "relation" }>;
@@ -17,6 +18,7 @@ export function RelationDraftMenu({
   readonly options: readonly RelationOption[];
   readonly id: string;
   readonly describedBy?: string;
+  readonly emptyLabel?: string | undefined;
   readonly onChange: (input: ValueDraft) => void;
 }) {
   const selected = new Set(Array.isArray(input) ? input : []);
@@ -35,7 +37,7 @@ export function RelationDraftMenu({
         aria-describedby={describedBy}
       >
         {chosen.length === 0 ? (
-          <span className="option-menu__empty">{DATABASE_COPY.common.noPage}</span>
+          <span className="option-menu__empty">{emptyLabel ?? DATABASE_COPY.common.noPage}</span>
         ) : (
           <span className="entry-relation-values">
             {chosen.map((option) => (

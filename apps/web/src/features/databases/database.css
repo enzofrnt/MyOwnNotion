@@ -626,7 +626,7 @@
   scrollbar-width: thin;
 }
 
-.database-container-page__tabs button {
+.database-container-page__tabs > button {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -635,7 +635,7 @@
   min-height: var(--ui-target-compact);
   padding: 0 var(--ui-space-3);
   border: 0;
-  border-radius: var(--ui-radius-round);
+  border-radius: var(--ui-radius-sm);
   color: var(--ui-color-text-muted);
   background: transparent;
   font-size: var(--ui-text-sm);
@@ -644,16 +644,17 @@
   white-space: nowrap;
 }
 
-.database-container-page__tabs button:hover,
-.database-container-page__tabs button:focus-visible {
-  color: var(--ui-color-text);
-  background: var(--ui-color-surface-hover);
-}
-
 .database-container-page__tabs button[aria-current="page"] {
   color: var(--ui-color-text);
   background: var(--ui-color-surface-active);
   font-weight: 600;
+}
+
+/* Whole-cell feedback also applies to the active tab. */
+.database-container-page__tabs > button:hover,
+.database-container-page__tabs > button:focus-visible {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
 }
 
 .database-container-page__add-view.ui-button {
@@ -2771,41 +2772,25 @@
   font-variant-numeric: tabular-nums;
 }
 
-.database-board__toolbar {
-  position: sticky;
-  inset-inline-start: 0;
+.database-group-settings__menu {
+  min-width: min(15rem, calc(100vw - 2rem));
+}
+
+.database-group-settings__menu .ui-menu__item-label {
   display: flex;
-  width: 100%;
-  justify-content: flex-end;
-}
-
-.database-board__group-trigger.ui-button {
-  gap: var(--ui-space-1);
-  min-height: var(--ui-target-compact);
-  max-width: 100%;
-  padding: var(--ui-space-1) var(--ui-space-2);
-  border-color: transparent;
-  background: transparent;
-  color: var(--ui-color-text-muted);
-  font-size: var(--ui-text-sm);
-  font-weight: 500;
-}
-
-.database-board__group-trigger > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.database-board-settings {
-  width: min(20rem, calc(100vw - 2rem));
-}
-
-.database-board-settings > label {
-  display: grid;
+  align-items: center;
   gap: var(--ui-space-2);
-  margin-top: var(--ui-space-4);
+  width: 100%;
+}
+
+.database-group-settings__choice {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.database-group-settings__error {
+  margin-top: var(--ui-space-3);
   font-size: var(--ui-text-sm);
 }
 
@@ -2830,7 +2815,13 @@
 }
 
 .database-board-menu {
-  min-width: min(15rem, calc(100vw - 2rem));
+  width: min(17rem, calc(100vw - 2rem));
+}
+
+.database-board-menu .ui-menu__item-label {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
 }
 
 .database-board-menu__destination {
@@ -2893,9 +2884,10 @@
 
 /* A long title must wrap within its column instead of widening the grid track. */
 .database-card {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: var(--ui-space-1);
   min-width: 0;
   padding: calc(var(--ui-space-2) - 1px) var(--ui-space-3);
@@ -2907,6 +2899,7 @@
 }
 
 .database-card:hover {
+  background: color-mix(in srgb, var(--pill-soft, var(--ui-color-surface)) 96%, white);
   border-color: color-mix(in srgb, var(--ui-color-border) 55%, var(--pill-soft, transparent) 45%);
 }
 
@@ -2921,6 +2914,7 @@
 }
 
 .database-card__title.ui-button {
+  grid-column: 1 / -1;
   justify-self: stretch;
   justify-content: flex-start;
   min-height: 24px;
@@ -2941,6 +2935,10 @@
   width: 100%;
   min-width: 0;
   text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ui-space-2);
 }
 
 .database-card__title .ui-button__label > span:last-child {
@@ -3136,11 +3134,6 @@
   padding: 2px;
   color: var(--ui-color-text-muted);
 }
-.database-card__menu::after {
-  content: "";
-  position: absolute;
-  inset: -4px;
-}
 
 .database-board__collapse.ui-button {
   flex: none;
@@ -3153,15 +3146,15 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .database-card__menu,
+  .database-card__actions,
   .database-board__collapse {
     opacity: 0;
   }
 
-  .database-card:hover .database-card__menu,
-  .database-card:focus-within .database-card__menu,
-  .database-card__menu[aria-expanded="true"],
-  .database-card__menu[data-pending],
+  .database-card:hover .database-card__actions,
+  .database-card:focus-within .database-card__actions,
+  .database-card__actions:has([aria-expanded="true"]),
+  .database-card__actions:has([data-pending]),
   .database-board__column:hover .database-board__collapse,
   .database-board__column:focus-within .database-board__collapse,
   .database-board__column[data-collapsed] .database-board__collapse {
@@ -3189,10 +3182,6 @@
     width: var(--ui-target);
     min-width: var(--ui-target);
     height: var(--ui-target);
-    min-height: var(--ui-target);
-  }
-
-  .database-board__group-trigger.ui-button {
     min-height: var(--ui-target);
   }
 }
@@ -3944,16 +3933,9 @@
   width: 100%;
 }
 
-.database-container-page .database-board-scroll[data-page-flow] > .database-board__toolbar {
-  box-sizing: border-box;
-  padding-inline-start: var(--database-rail-gutter, var(--database-table-gutter-start));
-  padding-inline-end: var(--database-table-pad-end);
-}
-
 .editor-database-drag-preview .database-page-header-scroll,
 .editor-database-drag-preview .database-table-body-scroll,
-.editor-database-drag-preview .database-board-body-scroll,
-.editor-database-drag-preview .database-board-scroll > .database-board__toolbar {
+.editor-database-drag-preview .database-board-body-scroll {
   padding-inline: 0;
 }
 
@@ -3981,6 +3963,7 @@
   border-radius: 14px 14px 0 0;
 }
 .database-board--headers .database-board__column[data-collapsed] {
+  padding-block: 0.625rem;
   border-radius: 14px;
 }
 .database-board-scroll[data-page-flow] .database-board-body-scroll .database-board__column {
@@ -3998,10 +3981,63 @@
   background: var(--ui-color-canvas);
 }
 .database-board__create {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ui-space-1);
   margin-top: var(--ui-space-2);
+}
+.database-board__add.ui-button {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  min-width: 0;
+  border-radius: var(--ui-radius-md);
+  width: 100%;
+  border: 1px solid var(--pill-border, var(--ui-color-border));
+  color: var(--pill-text, var(--ui-color-text-muted));
+  font-weight: 400;
+}
+.database-card--draft {
+  grid-template-columns: minmax(0, 1fr);
+  padding-block: var(--ui-space-1);
+}
+.database-card--draft .database-board__create-error {
+  grid-column: 1 / -1;
+}
+.database-card__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.database-card__properties {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  font-size: var(--ui-text-sm);
+  font-weight: 400;
+}
+.database-card__properties:empty {
+  display: none;
+}
+.database-card__property {
+  min-width: 0;
+}
+.database-card__checkbox-value {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+}
+.database-card__checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--ui-color-text-muted);
+  border-radius: 3px;
+}
+.database-card__checkbox[data-checked] {
+  color: var(--ui-color-text-inverse);
+  background: var(--ui-color-accent);
+  border-color: var(--ui-color-accent);
 }
 .database-board__create .ui-button__label {
   display: inline-flex;
@@ -4012,4 +4048,137 @@
   margin: var(--ui-space-2) 0 0;
   color: var(--ui-color-danger-text);
   font-size: var(--ui-text-xs);
+}
+
+.database-card__actions {
+  position: absolute;
+  top: var(--ui-space-2);
+  right: var(--ui-space-2);
+  display: flex;
+  gap: 0;
+  align-items: center;
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-color-surface);
+}
+.database-card__actions > .database-card__edit.ui-button {
+  border-right: 1px solid var(--ui-color-border);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.database-card__actions .database-card__menu.ui-button {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.database-card__actions .ui-button {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+}
+.database-card__edit.ui-button {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  padding: 2px;
+  color: var(--ui-color-text-muted);
+}
+.database-card-editor {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.database-card-editor__title {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.database-card-editor__title .ui-native-input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--ui-target-compact);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-weight: 600;
+}
+.database-card-editor__fields {
+  display: grid;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.database-card-editor__fields .database-field--card {
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 0 var(--ui-space-1);
+  align-items: center;
+  min-height: var(--ui-target-compact);
+}
+.database-card-editor__fields .database-field--card > label:not(.entry-checkbox-control) {
+  gap: 0;
+  padding: 0;
+}
+.database-field--card .database-field__error {
+  grid-column: 1 / -1;
+}
+.database-card-editor__fields
+  .database-field--card:has(input[type="checkbox"])
+  > label:first-child {
+  display: none;
+}
+.database-field--card .entry-checkbox-control {
+  padding: 0;
+  min-width: 16px;
+}
+.database-card-editor__fields .database-field--card > .database-card-editor__checkbox-name {
+  width: fit-content;
+  min-height: var(--ui-target-compact);
+  color: var(--ui-color-text);
+  cursor: pointer;
+}
+.database-card-editor__kind {
+  padding-top: var(--ui-space-1);
+}
+.database-card-kind {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 2px;
+  margin: 0;
+  min-width: 0;
+  gap: 2px;
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-color-surface-sunken);
+}
+.database-card-kind > .ui-button {
+  justify-content: center;
+  gap: var(--ui-space-1);
+  color: var(--ui-color-text-muted);
+}
+.database-card-kind > .ui-button[aria-pressed="true"] {
+  background: var(--ui-color-surface-active);
+  color: var(--ui-color-text);
+}
+.database-card-editor__error {
+  display: grid;
+  gap: var(--ui-space-1);
+}
+@media (pointer: coarse) {
+  .database-card__edit.ui-button {
+    min-width: var(--ui-target);
+    min-height: var(--ui-target);
+  }
+}
+.database-card__title.ui-button[data-variant="ghost"]:hover:not(:disabled),
+.database-card__title.ui-button[data-variant="ghost"]:active:not(:disabled),
+.database-card__title.ui-button[data-variant="ghost"]:focus-visible {
+  background: transparent;
 }

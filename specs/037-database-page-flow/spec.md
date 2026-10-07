@@ -93,3 +93,7 @@ Les remarques sont suffisamment précises, sans clarification supplémentaire. L
 ## Correction du propriétaire — seconde revue
 
 Ajout par colonne validé. Scroll Kanban et en-têtes non validés ; densité améliorée mais insuffisante. Les en-têtes doivent apparaître sous la barre fixe du chemin et garder cette position ; le Kanban pleine page utilise toute la largeur du viewport comme la table, avec défilement vertical uniquement sur la page. Une carte courte cible environ 42 px au pointeur, avec texte 14 px et espace haut/bas égal ; un titre long reste entier. La campagne de tests reste arrêtée à sa demande ; examiner la vraie page sur 8082 avant de conclure.
+
+## Évolution 038 — création et volet
+
+La feature [038](../038-database-card-flow/spec.md) remplace la création Page/Dossier avec ouverture automatique par une carte de saisie dans la colonne, sans navigation. Les invariants de valeur initiale, scroll et en-têtes demeurent ; elle ajoute les propriétés affichées et le volet canonique.

@@ -164,16 +164,19 @@ de domaine. Les éditeurs de brouillon qui gèrent eux-mêmes leur ref peuvent e
 
 ### Patron des formulaires
 
-Empiler les champs par défaut : libellé directement au-dessus du contrôle, aide
-et erreur à proximité. Garder chaque libellé explicitement associé (`htmlFor`/
-`id` ou `Field`) et regrouper les options conditionnelles sous le champ qui les
-active. Un formulaire étroit garde une seule colonne ; seuls les formulaires
-denses dont les paires sont évidentes utilisent des colonnes côte à côte. Le
-pied d'action vient après les champs, sépare Enregistrer de Annuler et conserve
-une action principale. Ne pas enfermer un formulaire dans une carte quand il
-occupe déjà un panneau. Réutiliser les primitives et tokens ci-dessus ; le CSS
-de la feature reste le seul propriétaire du layout spécifique. Garder saisie,
-erreur et cible tactile lisibles à 320 px.
+Choisir d'abord le protocole : l'édition d'un contenu existant s'enregistre
+automatiquement, avec écritures sérialisées et reprise locale après refus.
+Un éditeur inline se ferme au clic extérieur ou à Échap ; ses portails restent
+dans son périmètre. Aucun pied Enregistrer/Annuler dans ce parcours. Les
+créations atomiques et confirmations destructives gardent le protocole défini
+par leur spec, sans le recopier dans l'édition courante.
+
+Dans les cartes et propriétés, utiliser des rangées compactes icône/valeur,
+avec « Ajouter [propriété] » quand elle est vide et un nom accessible associé.
+Empiler les champs seulement lorsque leur format, aide ou largeur le demande.
+Garder aide et erreur près du contrôle, regrouper les options conditionnelles
+et vérifier à 320 px. Réutiliser les primitives ; le CSS de la feature reste
+le seul propriétaire du layout. Ne pas ajouter une carte autour d'un panneau.
 
 Une saisie inline possède son focus et sa sélection : placer le caret initial
 une seule fois dans son layout, sans le rejouer au frame suivant ou dans une
@@ -310,12 +313,18 @@ restent en place ; les nouveaux espacements communs utilisent l’échelle.
   Le rail Kanban peint les coins supérieurs complets sur un fond de canvas.
   Le Kanban pleine page partage le breakout 100cqi/gouttière de la table ;
   `data-page-flow` scope les surfaces du viewport vertical canonique.
-  Chaque colonne dépliée propose Page/Dossier après ses cartes, avec la
-  valeur initiale enregistrée dans la même commande que l’entrée.
-  Sur une carte Kanban, le titre et l'icône canonique sont prioritaires. Le bouton
-  « … » occupe une place réservée, apparaît au survol/focus et reste visible au
-  toucher ; son menu portal propose les destinations sans formulaire permanent.
-  Le regroupement se configure dans un popover compact. Les cibles de 32 px
+  Chaque colonne dépliée propose une carte de création après ses cartes, avec
+  Page/Dossier à l'intérieur et valeur initiale enregistrée atomiquement sur
+  Entrée/clic extérieur. Le crayon d'une carte existante déplie ses rangées
+  icône/valeur (ValueEditor presentation="card"), avec autosave sérialisé, type
+  permanent et fermeture extérieure reconnaissant ses portails. Une erreur
+  conserve la saisie et propose Réessayer. Aucun pied Enregistrer/Annuler.
+  Le titre et l'icône canonique sont prioritaires. Crayon et « … » partagent
+  une capsule bordée révélée au survol/focus, visible au toucher. Le menu portal
+  propose les actions prises en charge ; ConvertItemControl partage la
+  confirmation de l'arbre et ses icônes origine/flèche/destination.
+  Le regroupement se configure via « Grouper » dans les réglages de la vue,
+  avec un panneau dédié et une propriété appliquée immédiatement. Les cibles de 32 px
   passent à 44 px avec un pointeur tactile ; Échap rend le focus à l'origine et
   un déplacement réussi le rend à la carte dans la colonne de destination.
 - **Entrée de base** : `workspace-page-canvas.workspace-entry-canvas` contient

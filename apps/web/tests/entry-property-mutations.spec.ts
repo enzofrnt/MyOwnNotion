@@ -216,6 +216,39 @@ describe("source property operations", () => {
 });
 
 describe("source schema persistence and impact confirmation", () => {
+  it("does not include legacy primary memberships when editing a secondary source", async () => {
+    const { editEntrySourceDefinition } = await import(
+      "../src/features/databases/edit-entry-properties.ts"
+    );
+    const primarySourceId = generateUuidV7();
+    const secondarySourceId = generateUuidV7();
+    const revision = generateUuidV7();
+    const replace = vi.fn().mockResolvedValue({ ok: true });
+    const service = {
+      getDatabase: vi.fn(async (key) => ({
+        itemId: reviewDefinition.databaseId,
+        sourceId: key === secondarySourceId ? secondarySourceId : primarySourceId,
+        definitionRevisionId: revision,
+        definition: reviewDefinition,
+      })),
+      getItem: vi.fn().mockResolvedValue({ currentRevisionId: revision }),
+      listDatabaseEntries: vi
+        .fn()
+        .mockResolvedValue([
+          { availability: "offloaded" },
+          { sourceId: primarySourceId, availability: "offloaded" },
+        ]),
+      replaceDatabaseDefinition: replace,
+    } as unknown as LocalContentService;
+    const property = reviewDefinition.properties.find((p) => p.type === "text");
+    if (property === undefined) throw Error();
+    await editEntrySourceDefinition(service, secondarySourceId, (d) =>
+      updateEntryProperty(d, property.id, (p) => ({ ...p, name: "Secondary only" })),
+    );
+    expect(replace).toHaveBeenCalledOnce();
+    expect(replace.mock.calls[0]?.[1]).toMatchObject({ sourceId: secondarySourceId });
+  });
+
   it("targets the owned source and retains the complete presentation when renaming", async () => {
     const { editEntrySourceDefinition } = await import(
       "../src/features/databases/edit-entry-properties.ts"

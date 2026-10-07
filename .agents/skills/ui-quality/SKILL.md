@@ -121,16 +121,24 @@ y compris avec un texte long, une icône, un état vide et un message d'erreur.
 
 ## Formulaires
 
-- Par défaut, empiler les champs : un libellé se trouve immédiatement au-dessus
-  de son contrôle. Réserver les lignes libellé/champ côte à côte aux formulaires
-  denses dont les colonnes restent évidentes ; ne pas compter sur l'ordre DOM
-  pour former des paires visuelles implicites.
+- Définir le protocole avant le layout : édition d'un contenu existant,
+  création atomique ou opération destructive. L'édition courante applique les
+  changements automatiquement ; ne pas ajouter Enregistrer/Annuler par réflexe.
+  Sérialiser les écritures, conserver la saisie en cas de refus et proposer une
+  reprise locale. Fermer un éditeur inline au clic extérieur ou à Échap sans
+  annuler les changements ; ses menus et dialogues portalisés en font partie.
+- Dans une carte ou un panneau de propriétés, préférer des rangées compactes :
+  icône, nom/valeur et contrôle sur la même ligne. Une valeur vide propose
+  « Ajouter [propriété] ». Garder un nom accessible même si seule l'icône ou la
+  valeur est visible. Empiler libellé/champ uniquement si le format, une aide
+  longue ou la largeur disponible le justifie, après revue du contexte réel.
 - Regrouper les réglages conditionnels avec le champ qui les déclenche. Une aide
   précise le format ou l'effet attendu ; une erreur reste près du champ concerné,
   conserve le brouillon et propose une reprise claire.
-- Séparer les commandes de fin du contenu des champs, avec une action principale
-  explicite et une annulation secondaire. Garder ordre, taille et emplacement
-  stables pendant l'enregistrement.
+- Une création atomique ou une confirmation destructive peut nécessiter une
+  action explicite, selon la spec ; la distinguer de l'édition automatique.
+  Une carte de création peut être finalisée par Entrée ou au clic extérieur,
+  sans pied d'actions permanent et sans persister un brouillon vide.
 - Réutiliser `Field`, `NativeInput`, `NativeSelect` et les boutons existants.
   N'ajouter un cadre de formulaire que si le formulaire constitue vraiment une
   surface distincte dans l'écran ; éviter d'empiler des cartes dans un panneau.

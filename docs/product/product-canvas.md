@@ -768,6 +768,9 @@ multiple. Une entrée à plusieurs valeurs apparaît dans chaque colonne concern
 sans duplication canonique. Déplacer une occurrence remplace sa seule appartenance
 d’origine et conserve les autres ; retirer toutes les valeurs est explicite.
 La visibilité de la propriété ne désactive pas son rôle de regroupement (036).
+Le regroupement se règle dans les paramètres de la vue, avec une entrée
+« Grouper » et un panneau dédié indiquant la propriété actuelle ; aucun contrôle
+de regroupement indépendant au-dessus du Kanban (038).
 
 En pleine page et intégrée, tables et Kanbans suivent le défilement vertical
 de la page. Leurs en-têtes restent au sommet visible pendant la lecture de
@@ -775,6 +778,23 @@ la base et s’arrêtent à sa fin ; le défilement horizontal reste local. Les
 cartes Kanban sont compactes et grandissent selon leur titre. Chaque colonne
 dépliée permet de créer une page ou un dossier après ses cartes, avec la
 valeur de regroupement enregistrée dans la même opération canonique (037).
+La création se fait dans une carte au pied de la colonne sans ouvrir l’entrée ;
+Entrée valide le titre et prépare la saisie suivante, Échap annule le brouillon.
+La carte de création déplie toutes les propriétés éditables et le choix
+Page/Dossier ; le crayon d'une carte existante rouvre ce mode compact, avec
+propriétés sur une ligne et changements appliqués automatiquement, sans boutons
+de validation/annulation. Le choix Page/Dossier reste visible ; la conversion
+avertit quand elle supprime du contenu. Un clic extérieur ferme ce mode ; les
+menus de propriétés en font partie. Une création se termine par Entrée ou clic
+extérieur, sans entrée vide accidentelle. Les points de suspension
+regroupent les actions canoniques, dont la conversion selon les règles de l'arbre.
+Les cartes affichent les propriétés visibles de leur vue dans son ordre.
+Le clic sur une entrée depuis une vue ouvre un volet éditable à droite,
+avec accès à la pleine page ; fermer le volet conserve la base et son défilement
+(038).
+Le volet glisse à l'ouverture et à la fermeture, respecte la réduction des
+animations et offre fermeture/pleine page par deux icônes voisines. Les titres
+de table restent éditables au clic avec ouverture latérale au survol/focus.
 
 Chaque entrée d'une source est une page ou un dossier canonique placé
 directement sous la page d'origine de la source, même si elle est créée

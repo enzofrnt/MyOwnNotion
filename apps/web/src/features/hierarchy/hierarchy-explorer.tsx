@@ -68,6 +68,8 @@ import { DatabaseConflictResolution } from "../databases/database-conflict-resol
 import { DatabaseContainerPage } from "../databases/database-container-page.tsx";
 import { DATABASE_COPY } from "../databases/database-copy.ts";
 import { DatabaseCreateChoiceDialog } from "../databases/database-create-choice.tsx";
+import type { DatabaseEntryOpenRequest } from "../databases/database-entry-open-context.tsx";
+import { DatabaseEntryPeek } from "../databases/database-entry-peek.tsx";
 import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
 import {
   editEntrySourceDefinition,
@@ -420,7 +422,7 @@ export function HierarchyExplorer({
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseDto | null>(null);
   const [databaseEntries, setDatabaseEntries] = useState<readonly DatabaseEntryDto[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<
-    (DatabaseEntryDto & { readonly valuesAvailable?: boolean }) | null
+    (DatabaseEntryDto & { readonly valuesAvailable?: boolean; readonly sourceId?: Uuid }) | null
   >(null);
   const selectedDatabaseRef = useRef<DatabaseDto | null>(null);
   const selectedEntryRef = useRef<DatabaseEntryDto | null>(null);
@@ -779,6 +781,29 @@ export function HierarchyExplorer({
   const draggableTreeItems = useMemo(() => treeDragItems(tree), [tree]);
   const attachmentsByPage = useMemo(() => pageAttachmentsByPage(items), [items]);
   const { item: selectedItem, path: activePath } = useActiveItem(items, selectedId);
+  const [entryPeek, setEntryPeek] = useState<DatabaseEntryOpenRequest | null>(null);
+  const openDatabasePeek = useCallback(
+    (request: DatabaseEntryOpenRequest) => setEntryPeek(request),
+    [],
+  );
+  const closeDatabasePeek = useCallback(() => {
+    const origin = entryPeek;
+    setEntryPeek(null);
+    requestAnimationFrame(() => {
+      const trigger = origin?.trigger?.isConnected
+        ? origin.trigger
+        : origin === null
+          ? null
+          : document.querySelector<HTMLElement>(
+              `.workspace-main [data-entry-trigger="${origin.entryId}"]`,
+            );
+      trigger?.focus({ preventScroll: true });
+    });
+  }, [entryPeek]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: navigation ends the independent peek session.
+  useEffect(() => {
+    setEntryPeek(null);
+  }, [selectedId, graphMode]);
   const routedItemState = resolveRoutedItemState(items, trashedItems, selectedId, navigator.onLine);
   const iconPickerItem = useMemo(() => {
     if (iconPickerItemId === null) return null;
@@ -1045,7 +1070,7 @@ export function HierarchyExplorer({
         return;
       }
       const [ownerDatabase, relationTargets] = await Promise.all([
-        service.getDatabase(entryRow.databaseId),
+        service.getDatabase(entryRow.sourceId ?? entryRow.databaseId),
         service.getDatabaseEntryRelationTargets(entryRow.databaseId, selectedItem.id),
       ]);
       if (selectionChanged()) return;
@@ -1060,6 +1085,7 @@ export function HierarchyExplorer({
       setDatabaseEntries([]);
       setSelectedEntry({
         databaseId: entryRow.databaseId,
+        ...(entryRow.sourceId === undefined ? {} : { sourceId: entryRow.sourceId }),
         valuesAvailable: entryRow.availability === "present",
         entryId: selectedItem.id,
         kind: selectedItem.kind,
@@ -2328,6 +2354,143 @@ export function HierarchyExplorer({
 
   return (
     <WorkspaceShell
+      databaseEntryActions={{
+        relationOptions: items
+          .filter((item) => item.kind === "page" && item.lifecycle === "active")
+          .map((item) => ({ id: item.id, label: item.name })),
+        convert: convertItem,
+        openFullPage: selectItemById,
+        editIcon: setIconPickerItemId,
+        trash: async (id) => {
+          const item = await service.getItem(id);
+          if (item === null) throw new Error("Cette entrée est indisponible.");
+          const result = await service.mutate("item.trash", { itemId: id }, [
+            item.currentRevisionId,
+          ]);
+          if (!result.ok) throw new Error(result.error.title);
+          await refresh();
+        },
+        save: async (row, draft) => {
+          const membership = await service.getDatabaseEntry(row.entryId as Uuid);
+          const item = await service.getItem(row.entryId as Uuid);
+          if (membership === null || item === null)
+            throw new Error("Cette entrée est indisponible.");
+          if (draft.title !== row.title && item.name !== row.title && item.name !== draft.title)
+            throw new Error("Le titre a changé ailleurs. Votre saisie est conservée.");
+          if (draft.changedPropertyIds.length)
+            await saveEntryPropertyChanges(
+              service,
+              membership.databaseId,
+              row.entryId as Uuid,
+              draft.values,
+              draft.relationTargets,
+              {
+                propertyIds: draft.changedPropertyIds,
+                previousValues: row.values as Parameters<
+                  typeof saveEntryPropertyChanges
+                >[5]["previousValues"],
+                previousRelations: row.relationTargets as unknown as Parameters<
+                  typeof saveEntryPropertyChanges
+                >[5]["previousRelations"],
+              },
+            );
+          if (draft.title !== row.title && item.name !== draft.title) {
+            const current = await service.getItem(item.id);
+            if (current === null) throw new Error("Cette entrée est indisponible.");
+            if (current.name !== row.title && current.name !== draft.title)
+              throw new Error("Le titre a changé ailleurs. Votre saisie est conservée.");
+            if (current.name === draft.title) return;
+            const result = await service.mutate(
+              "item.rename",
+              { itemId: item.id, name: draft.title },
+              [current.currentRevisionId],
+            );
+            if (!result.ok) throw new Error(result.error.title);
+          }
+        },
+      }}
+      onOpenDatabaseEntry={openDatabasePeek}
+      entryOverlay={
+        entryPeek === null ? null : (
+          <DatabaseEntryPeek
+            key={entryPeek.entryId}
+            request={entryPeek}
+            service={service}
+            drafts={entryDraftSessions.current}
+            relationOptions={items
+              .filter((item) => item.kind === "page" && item.lifecycle === "active")
+              .map((item) => ({ id: item.id, label: item.name }))}
+            onClose={closeDatabasePeek}
+            onFullPage={(id) => {
+              setEntryPeek(null);
+              selectItemById(id);
+            }}
+            renderHeader={(item) => (
+              <PageTitleEditor
+                key={`peek-title-${item.id}`}
+                {...titleEditingProps(
+                  item.id,
+                  item.name,
+                  item.kind === "folder" ? "folder" : "page",
+                )}
+                kind={item.kind === "folder" ? "folder" : "page"}
+                icon={item.icon}
+                title={item.name}
+                onIconChange={(icon) => void changeItemIcon(item.id, icon)}
+              />
+            )}
+            renderContent={(item) =>
+              item.kind === "folder" ? (
+                <FolderChildrenList
+                  folderName={item.name}
+                  items={items
+                    .filter(
+                      (child) =>
+                        child.lifecycle === "active" &&
+                        child.placements.some(
+                          (placement) =>
+                            placement.kind === "hierarchy" && placement.parentItemId === item.id,
+                        ),
+                    )
+                    .map((child) => ({
+                      id: child.id,
+                      href: notePath(child.id),
+                      name: child.name,
+                      kind: child.kind,
+                      icon: child.icon,
+                      childCount: items.filter((descendant) =>
+                        descendant.placements.some(
+                          (placement) =>
+                            placement.kind === "hierarchy" && placement.parentItemId === child.id,
+                        ),
+                      ).length,
+                    }))}
+                  onOpen={(id) => openItem(id as Uuid)}
+                  onReorder={(request) =>
+                    handleTreeDrop({
+                      kind: "place",
+                      itemId: request.itemId,
+                      targetId: request.targetId,
+                      parentId: item.id,
+                      edge: request.edge,
+                    })
+                  }
+                />
+              ) : (
+                <WorkspacePageEditor
+                  service={service}
+                  itemId={item.id}
+                  items={items}
+                  createPage={createSubpage}
+                  createFolder={createSubfolder}
+                  createDatabase={createDatabaseChild}
+                  onOpenPage={openPageLink}
+                />
+              )
+            }
+          />
+        )
+      }
       changeStream={changeStream}
       contentMode={
         graphMode !== null
@@ -2821,7 +2984,7 @@ export function HierarchyExplorer({
                           definitionMutationQueue.current = queued.catch(() => undefined);
                           return queued;
                         }}
-                        onCreateEntry={async (title, initialValues = {}) => {
+                        onCreateEntry={async (title, initialValues = {}, initialRelations = {}) => {
                           const id = generateUuidV7();
                           const result = await service.createDatabaseEntry(selectedItem.id, {
                             id,
@@ -2832,7 +2995,12 @@ export function HierarchyExplorer({
                               body: {},
                             },
                             values: initialValues,
-                            relationTargets: {},
+                            relationTargets: Object.fromEntries(
+                              Object.entries(initialRelations).map(([id, targets]) => [
+                                id,
+                                [...targets],
+                              ]),
+                            ),
                           });
                           if (!result.ok) {
                             setProblem(result.error);
@@ -3021,7 +3189,7 @@ export function HierarchyExplorer({
                   onEditDefinition={(edit, confirmed) =>
                     editEntrySourceDefinition(
                       service,
-                      selectedEntry.databaseId as Uuid,
+                      (selectedEntry.sourceId ?? selectedEntry.databaseId) as Uuid,
                       edit,
                       confirmed,
                     )

@@ -345,19 +345,21 @@ export function DatabaseViewSurface({
         onQueryView={queryView}
         onPreviewDefinitionImpact={previewDefinition}
         onReplaceDefinition={replaceDefinition}
-        onCreateEntry={async (title, initialValues = {}) => {
+        onCreateEntry={async (title, initialValues = {}, initialRelations = {}) => {
           const id = generateUuidV7();
           const result = await service.createDatabaseEntry(loaded.source.itemId, {
             id,
             sourceId: loaded.view.sourceId,
             title,
             values: initialValues,
-            relationTargets: {},
+            relationTargets: Object.fromEntries(
+              Object.entries(initialRelations).map(([id, targets]) => [id, [...targets]]),
+            ),
           });
           if (!result.ok) throw new Error(result.error.title);
           return id;
         }}
-        onCreateFolder={async (title, initialValues = {}) => {
+        onCreateFolder={async (title, initialValues = {}, initialRelations = {}) => {
           const id = generateUuidV7();
           const result = await service.createDatabaseEntry(loaded.source.itemId, {
             id,
@@ -365,7 +367,9 @@ export function DatabaseViewSurface({
             title,
             kind: "folder",
             values: initialValues,
-            relationTargets: {},
+            relationTargets: Object.fromEntries(
+              Object.entries(initialRelations).map(([id, targets]) => [id, [...targets]]),
+            ),
           });
           if (!result.ok) throw new Error(result.error.title);
           return id;

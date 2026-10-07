@@ -1386,7 +1386,8 @@ export function TableView({
                                       pinDuringPointer
                                       size="square"
                                       variant="ghost"
-                                      aria-label={DATABASE_COPY.table.openEntry}
+                                      aria-label="Ouvrir en volet latéral"
+                                      title="Ouvrir en volet latéral"
                                       data-entry-trigger={row.original.entryId}
                                       tabIndex={-1}
                                       onKeyDown={(event) => event.stopPropagation()}
@@ -1394,7 +1395,7 @@ export function TableView({
                                         onOpenEntry(row.original.entryId as Uuid, trigger)
                                       }
                                     >
-                                      <AppIcon name="reference" size="small" />
+                                      <AppIcon name="sidePeek" size="small" />
                                     </StableActionButton>
                                   )}
                                 </div>

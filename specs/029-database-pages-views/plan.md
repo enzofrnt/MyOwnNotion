@@ -8,6 +8,12 @@ Faire d'une base un élément canonique de la hiérarchie. Une page de base poss
 
 ## Technical Context
 
+La présentation des entrées est complétée par
+[038](../038-database-card-flow/plan.md) : création atomique sans navigation,
+visibilité des propriétés existante et volet avec éditeur canonique.
+Les lectures et modifications de définition utilisent la source de
+l'appartenance, y compris pour une source secondaire du même conteneur.
+
 **Language/Version**: TypeScript 5.9, Bun 1.4.2, SQL PostgreSQL.
 
 **Primary Dependencies**: React, BlockNote/ProseMirror, Hono API, Drizzle ORM, Vitest, Playwright ; bibliothèques déjà présentes.
