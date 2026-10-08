@@ -22,7 +22,15 @@ export type SaveEntryValues = (
   changes: EntryValueChanges,
 ) => void | Promise<void>;
 
-export function entryValueDraft(property: DatabaseProperty, entry: DatabaseEntryDto): ValueDraft {
+export function entryValueDraft(
+  property: DatabaseProperty,
+  entry: {
+    readonly values: Readonly<
+      Record<string, DatabaseEntryDto["values"][string] | NonRelationPropertyValue>
+    >;
+    readonly relationTargets: Readonly<Record<string, readonly string[]>>;
+  },
+): ValueDraft {
   if (property.type === "relation") return entry.relationTargets[property.id] ?? [];
   const value = entry.values[property.id];
   if (value === undefined)

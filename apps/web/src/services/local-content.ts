@@ -24,6 +24,7 @@ import {
   LocalPageStateStore,
   LocalRecordCodec,
   LocalRepository,
+  META_KEYS,
   Outbox,
   openBrowserPageTabChannel,
   openLocalDatabase,
@@ -34,6 +35,7 @@ import {
   PageReconciler,
   type PageTabChannel,
   PendingFileTransferStore,
+  PROJECTION_WRITE_RESOURCE,
   type ProjectedItem,
   type ReconcileTransport,
   reconcile,
@@ -42,6 +44,7 @@ import {
   resolveDatabaseDefinitionConflictLocally,
   resolveDatabaseEntryConflictLocally,
   type SecureKeyStorage,
+  withLocalDatabaseLock,
 } from "@myownnotion/client-core";
 import type {
   CreateDatabaseRequestDto,
@@ -161,6 +164,9 @@ export interface LocalContentSnapshot {
   readonly recoveryPendingCount: number;
   readonly quarantinedRecoveryCount: number;
   readonly storagePersisted: boolean | null;
+  /** False while this device has discovered only a prefix of the workspace. */
+  readonly projectionComplete: boolean;
+  readonly projectionLoadFailed: boolean;
 }
 
 export type OpenOperationalPageResult =
@@ -263,6 +269,7 @@ export class LocalContentService {
   #recoveryPendingCount = 0;
   #quarantinedRecoveryCount = 0;
   #storagePersisted: boolean | null = null;
+  #projectionLoadFailed = false;
   #listeners = new Set<Listener>();
   #projectionListeners = new Set<ProjectionListener>();
   /** The complete reconciliation drain currently running, if any. See `synchronize`. */
@@ -291,6 +298,7 @@ export class LocalContentService {
   #pageCsrfToken: () => string | null = () => null;
   #unlocked: Promise<void> | null = null;
   #initialization: Promise<void> | null = null;
+  #startupSynchronizationScheduled = false;
 
   constructor(
     api: ContentApi = new ContentApi(),
@@ -348,6 +356,8 @@ export class LocalContentService {
       recoveryPendingCount: 0,
       quarantinedRecoveryCount: 0,
       storagePersisted: null,
+      projectionComplete: false,
+      projectionLoadFailed: false,
     };
     subscribeLocalKeyStorageCleared(() => this.lockLocalData());
   }
@@ -463,11 +473,19 @@ export class LocalContentService {
    * the first rather than proceed against a codec that cannot seal yet.
    */
   async #unlock(): Promise<void> {
-    this.#unlocked ??= (async () => {
-      await this.#keys.establish();
-      await resealPlaintextProjection(this.db, this.#codec);
-    })();
-    await this.#unlocked;
+    const unlocking =
+      this.#unlocked ??
+      (async () => {
+        await this.#keys.establish();
+        await resealPlaintextProjection(this.db, this.#codec);
+      })();
+    this.#unlocked = unlocking;
+    try {
+      await unlocking;
+    } catch (error) {
+      if (this.#unlocked === unlocking) this.#unlocked = null;
+      throw error;
+    }
   }
 
   subscribe = (listener: Listener): (() => void) => {
@@ -493,15 +511,16 @@ export class LocalContentService {
       this.#syncState = state;
     }
     const [
-      workspaceRows,
-      workspaceConflicts,
+      workspacePendingCount,
+      conflictIds,
       pageUpdates,
       legacyBranches,
       recoveries,
       pageAmbiguities,
+      projectionComplete,
     ] = await Promise.all([
-      this.outbox.all(),
-      this.outbox.activeConflicts(),
+      this.db.outbox.where("status").anyOf("pending", "sending", "blocked").count(),
+      this.db.conflicts.toCollection().primaryKeys(),
       this.pageOperationLog.countUpdates(["pending", "sending", "blocked"]),
       this.db.legacyOfflineBranches
         .where("status")
@@ -509,6 +528,7 @@ export class LocalContentService {
         .toArray(),
       this.db.legacySyncRecoveries.toArray(),
       this.db.pageAmbiguities.where("status").equals("open").count(),
+      this.repository.getMeta<boolean>(META_KEYS.projectionComplete),
     ]);
     this.#recoveryPendingCount = recoveries.filter(({ status }) =>
       ["pending", "converting"].includes(status),
@@ -530,17 +550,18 @@ export class LocalContentService {
     const independentLegacyBranches = legacyBranches.filter(
       ({ branchId }) => !recoveryBranchIds.has(branchId),
     ).length;
-    const workspaceWork = workspaceRows.filter(({ status }) =>
-      ["pending", "sending", "blocked"].includes(status),
-    );
+    // Status and conflict identities are routing metadata. Counting work must
+    // not decrypt every queued command or retained conflict on each edit.
+    const recoveringMutations = new Set(recoveries.map(({ mutationId }) => mutationId));
+    const activeConflictCount = conflictIds.filter((id) => !recoveringMutations.has(id)).length;
     this.#filePendingCount = this.#fileSynchronization.pendingIds.size;
     this.#pendingCount =
-      workspaceWork.length +
+      workspacePendingCount +
       pageUpdates +
       independentLegacyBranches +
       this.#recoveryPendingCount +
       this.#filePendingCount;
-    this.#conflictCount = workspaceConflicts.length + pageAmbiguities;
+    this.#conflictCount = activeConflictCount + pageAmbiguities;
     this.#attentionCount = this.#conflictCount + this.#quarantinedRecoveryCount;
     if (this.#pendingCount > 0 && this.#syncState === "synced") {
       this.#syncState = "pending";
@@ -562,6 +583,8 @@ export class LocalContentService {
       recoveryPendingCount: this.#recoveryPendingCount,
       quarantinedRecoveryCount: this.#quarantinedRecoveryCount,
       storagePersisted: this.#storagePersisted,
+      projectionComplete: projectionComplete === true,
+      projectionLoadFailed: this.#projectionLoadFailed,
     };
     // Replaced only when something actually differs, and this is not an
     // optimisation. `useSyncExternalStore` compares snapshots by reference, so
@@ -582,7 +605,9 @@ export class LocalContentService {
       next.attentionCount !== this.#snapshot.attentionCount ||
       next.recoveryPendingCount !== this.#snapshot.recoveryPendingCount ||
       next.quarantinedRecoveryCount !== this.#snapshot.quarantinedRecoveryCount ||
-      next.storagePersisted !== this.#snapshot.storagePersisted
+      next.storagePersisted !== this.#snapshot.storagePersisted ||
+      next.projectionComplete !== this.#snapshot.projectionComplete ||
+      next.projectionLoadFailed !== this.#snapshot.projectionLoadFailed
     ) {
       this.#snapshot = next;
     }
@@ -634,7 +659,7 @@ export class LocalContentService {
     };
   }
 
-  /** Opens local storage and reconciles once; concurrent boot callers coalesce. */
+  /** Makes local/root content available; catch-up continues independently. */
   async initialize(): Promise<void> {
     const initialization =
       this.#initialization ??
@@ -645,8 +670,16 @@ export class LocalContentService {
         // whole-document refusal flashes as a current collaboration conflict
         // even though v3 owns the page and recovery can proceed automatically.
         await this.legacyConflictRecovery.classify();
-        await this.synchronize();
-        await this.synchronizeOperationalPages();
+        await withLocalDatabaseLock(this.db, PROJECTION_WRITE_RESOURCE, async () => {
+          if ((await this.repository.getMeta(META_KEYS.projectionComplete)) === null) {
+            await this.repository.setMeta(META_KEYS.projectionComplete, false);
+          }
+        });
+        // A first device needs current roots before replaying thousands of
+        // mutations. This is only a prefetch: it never advances the feed
+        // cursor, and another tab's local work wins over the network response.
+        if ((await this.db.items.count()) === 0) await this.#prefetchRootItems();
+        await this.#notify();
         // Persistence is an eviction hint, not a content-readiness gate. Some
         // Firefox profiles leave this browser permission unsettled; update the
         // diagnostic when it answers without keeping the workspace behind it.
@@ -662,13 +695,62 @@ export class LocalContentService {
           });
       })();
     this.#initialization = initialization;
+    if (!this.#startupSynchronizationScheduled) {
+      this.#startupSynchronizationScheduled = true;
+      void initialization
+        .then(async () => {
+          // An early realtime caller may already own the initial drain. Join
+          // it without requesting a redundant follow-up pass.
+          await (this.#inFlightSync ?? this.synchronize());
+          await this.synchronizeOperationalPages();
+        })
+        .catch(() => {
+          // synchronize publishes background errors; local initialization
+          // failures are returned to the caller and remain retryable below.
+        });
+    }
     try {
       await initialization;
     } catch (error) {
       // A transient storage/key failure must remain retryable by a later boot
       // attempt, while successful initialization stays a one-time boundary.
-      if (this.#initialization === initialization) this.#initialization = null;
+      if (this.#initialization === initialization) {
+        this.#initialization = null;
+        this.#startupSynchronizationScheduled = false;
+      }
       throw error;
+    }
+  }
+
+  async #prefetchRootItems(): Promise<void> {
+    const [queued, conflicts] = await Promise.all([
+      this.db.outbox.count(),
+      this.db.conflicts.count(),
+    ]);
+    if (queued > 0 || conflicts > 0) return;
+    try {
+      const result = await this.api.listItems({ parentItemId: "root", lifecycle: "active" });
+      if (!result.ok) return;
+      let installed = false;
+      await withLocalDatabaseLock(this.db, PROJECTION_WRITE_RESOURCE, async () => {
+        const [items, pending, retained] = await Promise.all([
+          this.db.items.count(),
+          this.db.outbox.count(),
+          this.db.conflicts.count(),
+        ]);
+        if (items > 0 || pending > 0 || retained > 0) return;
+        await this.repository.applyServerItems(result.value.items);
+        installed = result.value.items.length > 0;
+      });
+      if (installed) {
+        await this.#emitProjection({
+          kind: "upsert",
+          itemIds: result.value.items.map(({ id }) => id as Uuid),
+        });
+      }
+    } catch {
+      // Root prefetch is optional acceleration. The ordered journal remains
+      // the retry and error authority; a failed prefetch must not prevent it.
     }
   }
 
@@ -914,9 +996,17 @@ export class LocalContentService {
       return await this.#inFlightSync;
     }
     let shared!: Promise<SyncState>;
-    shared = this.#drainSynchronization().finally(() => {
-      if (this.#inFlightSync === shared) this.#inFlightSync = null;
-    });
+    // Own the drain before awaiting initialization: an early realtime caller
+    // must coalesce with the boot request rather than trigger two passes.
+    shared = this.#drainSynchronization()
+      .catch(async (error: unknown) => {
+        this.#projectionLoadFailed = true;
+        await this.#notify("pending").catch(() => undefined);
+        throw error;
+      })
+      .finally(() => {
+        if (this.#inFlightSync === shared) this.#inFlightSync = null;
+      });
     this.#inFlightSync = shared;
     return await shared;
   }
@@ -935,9 +1025,15 @@ export class LocalContentService {
     // first notification reads queue counts; doing this in the opposite order
     // worked only while outbox payloads were plaintext and left every reload
     // stuck on the loading screen once they became protected.
-    await this.#unlock();
+    await this.initialize();
+    this.#projectionLoadFailed = false;
     await this.#notify("syncing");
-    const outcome = await reconcile(this.db, this.#transport(), this.#codec);
+    const outcome = await reconcile(this.db, this.#transport(), this.#codec, {
+      onProjectionCommitted: async ({ itemIds, rebuilt }) => {
+        await this.#emitProjection(rebuilt ? { kind: "rebuild" } : { kind: "upsert", itemIds });
+        await this.#notify();
+      },
+    });
     const historical = await this.legacyConflictRecovery.classify();
     if (historical.classified > 0) {
       // Do not await from inside the serialized workspace drain: converting a
@@ -1012,6 +1108,31 @@ export class LocalContentService {
    * when connectivity returns.
    */
   async #settlePageBeforeFolderConversion(itemId: Uuid): Promise<void> {
+    if (!this.#openingPages.has(itemId) && !this.#pageReconcilers.has(itemId)) {
+      const editorialWork = await this.db.transaction(
+        "r",
+        [this.db.pageOperationStates, this.db.pageOperationUpdates, this.db.legacyOfflineBranches],
+        async () =>
+          await Promise.all([
+            this.db.pageOperationStates.where("pageId").equals(itemId).count(),
+            this.db.pageOperationUpdates.where("pageId").equals(itemId).count(),
+            this.db.legacyOfflineBranches.where("pageId").equals(itemId).count(),
+          ]),
+      );
+      // An unopened card with no durable page authority is a normal workspace
+      // mutation. Its projection and outbox can commit without a network read;
+      // the local content guard and ordered server replay still apply. Check
+      // again after the storage read so an opening that started meanwhile keeps
+      // the full handover barrier below.
+      if (
+        editorialWork.every((count) => count === 0) &&
+        !this.#openingPages.has(itemId) &&
+        !this.#pageReconcilers.has(itemId)
+      ) {
+        return;
+      }
+    }
+
     const opening = this.#openingPages.get(itemId);
     if (opening !== undefined) await opening;
 
@@ -1798,6 +1919,7 @@ export class LocalContentService {
         ? {}
         : { databaseEntries: snapshot.value.databaseEntries }),
     });
+    await this.repository.setMeta(META_KEYS.projectionComplete, true);
     await this.#emitProjection({ kind: "rebuild" });
     await this.#notify("synced");
     return true;

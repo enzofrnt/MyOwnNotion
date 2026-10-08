@@ -49,18 +49,50 @@ export function replaceProjectedItem(
   readonly trashed: ProjectedItem[];
   readonly catalogChanged: boolean;
 } {
-  if (next !== null && next.placements.length === 0 && sourceItemIds.has(next.id)) next = null;
-  const previous =
-    items.find((item) => item.id === itemId) ?? trashed.find((item) => item.id === itemId) ?? null;
-  const nextItems = items.filter((item) => item.id !== itemId);
-  const nextTrashed = trashed.filter((item) => item.id !== itemId);
-  if (next !== null && next.lifecycle === "trashed") nextTrashed.push(next);
-  else if (next !== null && next.lifecycle === "active") nextItems.push(next);
-  const before = previous === null ? "" : navigationIdentityKey(previous);
-  const after = next === null || next.lifecycle === "purged" ? "" : navigationIdentityKey(next);
+  return replaceProjectedItems(
+    items,
+    trashed,
+    [itemId],
+    next === null ? [] : [next],
+    sourceItemIds,
+  );
+}
+
+/** Applies a committed batch with one catalog scan, retaining unaffected item objects. */
+export function replaceProjectedItems(
+  items: readonly ProjectedItem[],
+  trashed: readonly ProjectedItem[],
+  itemIds: readonly Uuid[],
+  projectedItems: readonly ProjectedItem[],
+  sourceItemIds: ReadonlySet<Uuid> = new Set(),
+): {
+  readonly items: ProjectedItem[];
+  readonly trashed: ProjectedItem[];
+  readonly catalogChanged: boolean;
+} {
+  const changedIds = new Set(itemIds);
+  const previousById = new Map<Uuid, ProjectedItem>();
+  for (const item of items) previousById.set(item.id, item);
+  for (const item of trashed) {
+    if (!previousById.has(item.id)) previousById.set(item.id, item);
+  }
+  const projectedById = new Map(projectedItems.map((item) => [item.id, item] as const));
+  const nextItems = items.filter((item) => !changedIds.has(item.id));
+  const nextTrashed = trashed.filter((item) => !changedIds.has(item.id));
+  let catalogChanged = false;
+  for (const itemId of changedIds) {
+    const previous = previousById.get(itemId) ?? null;
+    let next = projectedById.get(itemId) ?? null;
+    if (next !== null && next.placements.length === 0 && sourceItemIds.has(next.id)) next = null;
+    if (next !== null && next.lifecycle === "trashed") nextTrashed.push(next);
+    else if (next !== null && next.lifecycle === "active") nextItems.push(next);
+    const before = previous === null ? "" : navigationIdentityKey(previous);
+    const after = next === null || next.lifecycle === "purged" ? "" : navigationIdentityKey(next);
+    catalogChanged ||= before !== after;
+  }
   return {
     items: nextItems,
     trashed: nextTrashed,
-    catalogChanged: before !== after,
+    catalogChanged,
   };
 }

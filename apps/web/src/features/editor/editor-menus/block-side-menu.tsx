@@ -9,8 +9,13 @@ import {
   useExtension,
   useExtensionState,
 } from "@blocknote/react";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useRef } from "react";
 import { AppIcon } from "../../../ui/icons.tsx";
+import {
+  type BlockDragOrigin,
+  beginDatabaseDragPreview,
+  endDatabaseDragPreview,
+} from "../block-drag-preview.ts";
 import { beginSideMenuBlockReorder, endSideMenuBlockReorder } from "../block-drag-reorder.ts";
 import {
   deleteSelectedBlocks,
@@ -157,6 +162,7 @@ function MyOwnNotionDragHandleButton({
   const dictionary = useDictionary();
   const editor = useBlockNoteEditor() as unknown as EditorInstance;
   const sideMenu = useExtension(SideMenuExtension);
+  const dragOrigin = useRef<BlockDragOrigin | null>(null);
   if (components === undefined) return null;
 
   return (
@@ -167,29 +173,44 @@ function MyOwnNotionDragHandleButton({
       }}
       position="left"
     >
-      <components.Generic.Menu.Trigger>
-        <components.SideMenu.Button
-          label={dictionary.side_menu.drag_handle_label}
-          draggable={true}
-          onDragStart={(event) => {
-            sideMenu.blockDragStart(event, block as Parameters<typeof sideMenu.blockDragStart>[1]);
-            beginSideMenuBlockReorder(editor, block.id);
-          }}
-          onDragEnd={() => {
-            endSideMenuBlockReorder();
-            sideMenu.blockDragEnd();
-          }}
-          className="bn-button editor-block-handle"
-          icon={
-            <AppIcon
-              name="drag"
-              size="large"
-              className="editor-block-handle__icon"
-              data-test="dragHandle"
-            />
-          }
-        />
-      </components.Generic.Menu.Trigger>
+      <span
+        style={{ display: "contents" }}
+        onPointerDownCapture={(event) => {
+          dragOrigin.current = { clientX: event.clientX, clientY: event.clientY };
+        }}
+      >
+        <components.Generic.Menu.Trigger>
+          <components.SideMenu.Button
+            label={dictionary.side_menu.drag_handle_label}
+            draggable={true}
+            onDragStart={(event) => {
+              sideMenu.blockDragStart(
+                event,
+                block as Parameters<typeof sideMenu.blockDragStart>[1],
+              );
+              if (block.type === "databaseView") {
+                beginDatabaseDragPreview(editor, block.id, event, dragOrigin.current ?? event);
+              }
+              beginSideMenuBlockReorder(editor, block.id);
+            }}
+            onDragEnd={() => {
+              dragOrigin.current = null;
+              endDatabaseDragPreview();
+              endSideMenuBlockReorder();
+              sideMenu.blockDragEnd();
+            }}
+            className="bn-button editor-block-handle"
+            icon={
+              <AppIcon
+                name="drag"
+                size="large"
+                className="editor-block-handle__icon"
+                data-test="dragHandle"
+              />
+            }
+          />
+        </components.Generic.Menu.Trigger>
+      </span>
       <MyOwnNotionDragHandleMenu block={block} onError={onError} />
     </components.Generic.Menu.Root>
   );

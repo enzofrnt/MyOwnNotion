@@ -61,6 +61,12 @@ test("page, folder, database and entry URLs survive identity changes and history
   const entry = await createDatabaseEntry(page, entryName);
   await entry.click();
   await expect(page.locator(".entry-panel")).toBeVisible();
+  const peek = page.getByRole("dialog", { name: "Aperçu latéral de l’entrée" });
+  await expect(peek).toBeVisible();
+  await expect(page).toHaveURL(databaseUrl);
+  await peek.getByRole("button", { name: "Ouvrir en pleine page", exact: true }).click();
+  await expect(peek).toBeHidden();
+  await expect(page).not.toHaveURL(databaseUrl);
   const entryUrl = page.url();
   expect(new URL(entryUrl).pathname).toMatch(/^\/notes\/[0-9a-f-]+$/u);
   expect(entryUrl).not.toBe(databaseUrl);

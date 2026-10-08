@@ -1,33 +1,41 @@
-# Pre-implementation consistency analysis
+# Pre-implementation analysis — 2026-10-04
 
-2026-09-05: No blocking contradiction. FR001/003 map toT005/T012, FR002/009
-toT004–007, FR004/005 toT006/T009, FR006 toT008/T011, FR007/008 toT009–011,
-FR010 to canonical submissionT009, FR011 toT012. All three stories and four
-success criteria have tests.026's additive contracts are coordinated before
-code; its source/embedding semantics must land before target integration.
-Private real data is restricted to source-only inventory/preview.
+10 requirements, four success criteria, three stories and eight constitutional
+principles checked against plan and tasks. All mapped; no blocking ambiguity.
+Owner's direct request supersedes file-based scope; canvas and roadmap aligned.
+No Notion writes, background sync or new import UI authorized/required.
+The follow-up repairs opening/editing through the existing editor.
 
+Important risks assigned: multi-source head guards T033, complete property
+pagination T028, media SSRF T032, protected offline resume T034, reports of
+unsupported app semantics T030/T031/T036, isolation T026/T036. Reference brief
+is source material; current official API and live responses govern details.
+Historical evidence retained separately. No extension hooks configured.
 
-## T020 post-implementation consistency review
+Owner correction analysis: exclusions and hidden recovery archives refine
+US2/FR-004–006 consistently with canvas 27.1. T039–T043 cover them, the discovered
+databaseView activation prerequisite and UI-quality evidence. Recovery still
+keeps encrypted originals; legacy plans remain immutable and resumable. Cleanup
+must preserve IDs and owner edits. No new model, cover UI or people feature.
 
-CSV folder precedence corrects FR-004/FR-007 without changing supported formats
-or preview/apply authorization. Local ambiguity blocks apply; explicit paths
-and global fallback remain available when there is no local title match.
-Synthetic preview and canonical encrypted readback prove source/page identity
-separation and idempotent replay. All 22 task IDs remain unique. A fresh
-source-only personal preview after the correction still reports 342 files,
-278 pages, 8 databases, 110 memberships, 58 attachments, 284 retained originals
-and 202 issues with no blocking issue. No personal path, title or content is
-committed, and no personal apply ran. At this historical checkpoint, full
-integrated delivery remained pending; the final delivery evidence is recorded
-below.
+## Maintenance Matière — analyse de la correction
 
-## Clôture de cohérence de livraison — 2026-09-13
+FR-004/006/007/009/010, le repli explicitement nommé et la conservation des
+originaux gouvernent T049–T052. Le diagnostic réel confirme un axe multi-select
+dans une vue board, refusé par evaluateDatabaseView ; BoardView ne sait pas non
+plus le rendre. Les types admis par la conversion sont donc bornés au moteur
+et au rendu existants. Aucune nouvelle capacité de base, aucun schéma, UI,
+permission ou dépendance ajouté. La correction garde les propriétés visibles
+actuelles, compare tous les autres réglages au snapshot et préserve les onglets
+ajoutés. Tests d'évaluation native, backup puis CAS de présentation, readback
+et revue UI isolée couvrent le changement. Pas de conflit avec le canevas §14,
+la constitution ou 029/035.
 
-The exact integration SHA `52dfdc926164f392cf812ead302bddb9662ac356` passed the
-complete `bun run checks:local` gate. PR #175 passed in green run
-`34747879571` for that SHA and merged normally as
-`4d9d3b0cf2fdfd8d83319c688177d972e8a45b3f`, which records the local/PR
-portions of T021. Main run `34748994269` is not green and is not represented as
-a successful gate; final `main` verification remains open. Personal source
-application remains separate and was not performed.
+La réparation aligne également la copie de compatibilité des vues sur leur
+présentation actuelle, par commande canonique sous révision vérifiée ; une
+édition ultérieure de propriété ne restaure plus la configuration importée
+invalide. Le schéma de propriétés et les présentations restent identiques.
+
+## Révision native 036
+
+Le propriétaire a refusé le fallback Matière. La cohérence actuelle suit [036](../036-multi-select-boards/spec.md) : regroupement multi-select natif, import sans repli pour ce cas, restauration gardée de présentation et copie de vues. L’analyse de maintenance antérieure reste historique.

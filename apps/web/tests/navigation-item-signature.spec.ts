@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   navigationIdentityKey,
   replaceProjectedItem,
+  replaceProjectedItems,
 } from "../src/features/hierarchy/navigation-item-signature.ts";
 
 function item(id: Uuid, overrides: Partial<ProjectedItem> = {}): ProjectedItem {
@@ -104,6 +105,86 @@ describe("navigationIdentityKey", () => {
     expect(navigationIdentityKey(first)).not.toBe(
       navigationIdentityKey(item(id, { favourite: true })),
     );
+  });
+});
+
+describe("replaceProjectedItems", () => {
+  it("applies mixed rename, trash, restore and removal while retaining untouched objects", () => {
+    const unchanged = item(generateUuidV7(), { name: "Unchanged" });
+    const renamed = item(generateUuidV7(), { name: "Before" });
+    const removed = item(generateUuidV7(), { name: "Removed" });
+    const toTrash = item(generateUuidV7(), { name: "Trash me" });
+    const restore = item(generateUuidV7(), { name: "Restore me", lifecycle: "trashed" });
+    const unchangedTrash = item(generateUuidV7(), { name: "Still trashed", lifecycle: "trashed" });
+    const afterRename = { ...renamed, name: "After" };
+    const afterTrash = { ...toTrash, lifecycle: "trashed" as const };
+    const afterRestore = { ...restore, lifecycle: "active" as const };
+
+    const result = replaceProjectedItems(
+      [unchanged, renamed, removed, toTrash],
+      [restore, unchangedTrash],
+      [renamed.id, removed.id, toTrash.id, restore.id],
+      [afterRestore, afterRename, afterTrash],
+    );
+
+    expect(result.catalogChanged).toBe(true);
+    expect(result.items).toEqual([unchanged, afterRename, afterRestore]);
+    expect(result.trashed).toEqual([unchangedTrash, afterTrash]);
+    expect(result.items[0]).toBe(unchanged);
+    expect(result.trashed[0]).toBe(unchangedTrash);
+  });
+
+  it("deduplicates notified identities and ignores unrelated projected rows", () => {
+    const existing = item(generateUuidV7());
+    const next = { ...existing, name: "Changed once" };
+    const unrelated = item(generateUuidV7());
+
+    const result = replaceProjectedItems(
+      [existing],
+      [],
+      [existing.id, existing.id],
+      [next, unrelated],
+    );
+
+    expect(result.items).toEqual([next]);
+    expect(result.trashed).toEqual([]);
+    expect(result.catalogChanged).toBe(true);
+  });
+
+  it("keeps anchors invisible while retaining a legacy source host and removing purged items", () => {
+    const source = item(generateUuidV7(), { placements: [] });
+    const legacyHost = item(generateUuidV7());
+    const purged = item(generateUuidV7());
+    const sourceIds = new Set([source.id, legacyHost.id]);
+
+    const result = replaceProjectedItems(
+      [purged],
+      [],
+      [source.id, legacyHost.id, purged.id],
+      [source, legacyHost, { ...purged, lifecycle: "purged" }],
+      sourceIds,
+    );
+
+    expect(result.items).toEqual([legacyHost]);
+    expect(result.trashed).toEqual([]);
+    expect(result.catalogChanged).toBe(true);
+  });
+
+  it("does not signal a tree rebuild for revision-only changes across a batch", () => {
+    const first = item(generateUuidV7());
+    const second = item(generateUuidV7());
+    const result = replaceProjectedItems(
+      [first, second],
+      [],
+      [first.id, second.id],
+      [
+        { ...first, currentRevisionId: generateUuidV7() },
+        { ...second, currentRevisionId: generateUuidV7() },
+      ],
+    );
+
+    expect(result.catalogChanged).toBe(false);
+    expect(result.items.map(({ id }) => id)).toEqual([first.id, second.id]);
   });
 });
 

@@ -124,6 +124,50 @@ function source(
 }
 
 describe("local saved database queries", () => {
+  it("paginates unique multi-select board entries while reporting full membership counts and hidden-axis values", () => {
+    const base = definition();
+    const properties = base.properties.map((p) =>
+      p.type === "status" ? { ...p, type: "multi-select" as const } : p,
+    );
+    const currentView = base.views[0];
+    if (currentView === undefined) throw new Error("missing fixture view");
+    const view = {
+      ...currentView,
+      type: "board" as const,
+      filter: { mode: "all" as const, criteria: [] },
+      group: null,
+      properties: currentView.properties.map((p) => ({ ...p, visible: false })),
+      options: { axisPropertyId: ids.status, columnOrder: [], collapsedColumnIds: [] },
+    };
+    const entries = Array.from({ length: 131 }, (_, i) => ({
+      ...entry(generateUuidV7(), `Entry ${String(i).padStart(3, "0")}`, ids.todo),
+      values: { [ids.status]: { kind: "multi-select" as const, optionIds: [ids.todo, ids.done] } },
+    }));
+    const input = source(entries, { definition: { ...base, properties, views: [view] } });
+    const first = queryLocalDatabase(input, { viewId: view.id, limit: 100 });
+    expect(first.rows).toHaveLength(100);
+    expect(first.groups.map((g) => [g.label, g.count])).toEqual([
+      ["À faire", 131],
+      ["Terminé", 131],
+    ]);
+    expect(
+      first.rows.every(
+        (row) => row.groupId === null && row.values[ids.status]?.kind === "multi-select",
+      ),
+    ).toBe(true);
+    const second = queryLocalDatabase(input, {
+      viewId: view.id,
+      cursor: first.nextCursor ?? "missing-cursor",
+      limit: 100,
+    });
+    expect(second.rows).toHaveLength(31);
+    expect(new Set([...first.rows, ...second.rows].map((row) => row.entryId)).size).toBe(131);
+    expect(second.nextCursor).toBeNull();
+    const partial = queryLocalDatabase({ ...input, expectedCount: 132 }, { viewId: view.id });
+    expect(partial.coverage).toBe("partial");
+    expect(partial.groups).toEqual([]);
+    expect(partial.rows[0]?.values[ids.status]?.kind).toBe("multi-select");
+  });
   it.each(["unknown", "retired", "invalid filter"] as const)(
     "refuses a %s view instead of displaying misleading rows",
     (failure) => {

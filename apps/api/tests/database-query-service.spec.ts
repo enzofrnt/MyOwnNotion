@@ -154,6 +154,47 @@ function mutableDependencies(initial: readonly StructuredProjectionSource[]) {
 }
 
 describe("DatabaseQueryService", () => {
+  it("returns unique multi-select board pages with full filtered group counts even for a hidden legacy axis", async () => {
+    const board = view({
+      type: "board",
+      group: null,
+      filter: { mode: "all", criteria: [] },
+      properties: [],
+      options: { axisPropertyId: ids.status, columnOrder: [], collapsedColumnIds: [] },
+    });
+    const model = definition(board);
+    const data: StructuredProjectionSource = {
+      ...source([], ids.revision, board),
+      definition: {
+        ...model,
+        properties: model.properties.map((p) =>
+          p.type === "status" ? { ...p, type: "multi-select" } : p,
+        ),
+      },
+      entries: Array.from({ length: 131 }, (_, i) => ({
+        ...entry(
+          asUuid(`018f2000-0000-7002-8000-${String(i).padStart(12, "0")}`),
+          `Entry ${String(i).padStart(3, "0")}`,
+        ),
+        values: { [ids.status]: { kind: "multi-select", optionIds: [ids.todo, ids.done] } },
+      })),
+    };
+    const service = new DatabaseQueryService(mutableDependencies([data]).deps);
+    await service.rebuild();
+    const first = query(service, { limit: 100 });
+    expect(first.rows).toHaveLength(100);
+    expect(first.groups.map((g) => [g.label, g.count])).toEqual([
+      ["À faire", 131],
+      ["Terminé", 131],
+    ]);
+    expect(
+      first.rows.every((r) => r.groupId === null && r.values[ids.status]?.kind === "multi-select"),
+    ).toBe(true);
+    const second = query(service, { limit: 100, cursor: first.nextCursor ?? "missing-cursor" });
+    expect(second.rows).toHaveLength(31);
+    expect(new Set([...first.rows, ...second.rows].map((r) => r.entryId)).size).toBe(131);
+    expect(second.nextCursor).toBeNull();
+  });
   it("never drops a canonical result when the equality operand needs normalization", async () => {
     const model = definition(
       view({

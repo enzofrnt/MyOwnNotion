@@ -172,6 +172,7 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 
 - [x] T070 Garder Réglages visible dans la sidebar avec un arbre long, défilement local bureau/tiroir mobile, selon FR-022 et canevas §12 ; correction dans les propriétaires CSS existants, parcours ciblé et preuves ui-quality + lessons. Preuve : verification, section « Sidebar et accès Source après fusion ».
 - [x] T071 Griser et désactiver Source dans le menu clic/clic droit et les paramètres en réutilisant le verrou existant, selon FR-023 et 029 ; raison accessible, déverrouillage conservé, tests ciblés et preuves ui-quality + lessons. Preuve : verification, section « Sidebar et accès Source après fusion ».
+- [x] T080 Retour du 7 octobre, FR023 : renforcer le gris de toute la ligne Source désactivée dès le repos, en cohérence avec les primitives ; appliquer ui-quality + lessons, vérifier rendu clair/sombre et refus d'activation sur 8082, sans changement du verrou ni des données. Preuve : verification, « Ligne Source nettement désactivée ».
 
 ## Phase 18: Diagnostic et stabilisation de la CI de PR 181
 
@@ -187,3 +188,14 @@ La passe complète ne s’arrête pas à cet incrément. Pas de délégation né
 - [x] T078 Attendre le niveau racine réellement appliqué après la commande de déplacement dans le helper E2E, avant les actions sur la nouvelle ligne : préserver dépliement/scroll natif/sélection, cycles refusés et page redevenue feuille ; vérifier les deux consommateurs sur cinq profils sans retry, terminer la lane WebKit bureau complète et consigner trace/preuves selon FR-008/022 et le plan de stabilisation CI. Preuve : verification, section « Lanceur Linux partagé et déplacement à la racine ».
 
 - [x] T079 Diagnostiquer la restauration Firefox du run de `671f6869` : vérifier pourquoi les changements de route relancent l'hydratation de l'explorateur vide, conserver le callback de navigation courant sans réinitialiser son cycle, prouver absence de nouveau seed et restauration des identités ; tests rouge/vert et parcours sur cinq profils, ui-quality + lessons pour les états réels, sans changement de stockage/protocole/budgets. Preuve : verification, section « Navigation conservée pendant la restauration ». La confirmation CI reste un gate distinct à obtenir sur la dernière révision.
+## Ajustement des liens et commandes — 035
+
+Le retour du propriétaire du 4 octobre est défini dans
+[035/spec.md](../035-item-links-database-insertion/spec.md), avec approche et
+suivi dans ses plan.md/tasks.md. Il remplace les libellés précédents par les
+créations « Page/Dossier/Base de données imbriqué(e) », élargit « Lien vers un
+autre élément » aux bases, et fusionne les commandes d'affichage intégré et lié
+dans un dialogue de choix. Le concept de vue liée et la propriété des sources
+restent inchangés. L'import respecte is_inline et corrige les références
+historiques inchangées ; la validation locale propre à035 ne revalide pas les
+anciennes phases de cette feature.

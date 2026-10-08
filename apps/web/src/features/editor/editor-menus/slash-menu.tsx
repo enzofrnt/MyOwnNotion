@@ -6,11 +6,9 @@ import {
   SuggestionMenuController,
   useBlockNoteEditor,
 } from "@blocknote/react";
-import { generateUuidV7 } from "@myownnotion/domain";
 import type { ReactElement } from "react";
 import { FR_COPY } from "../../../ui/copy/fr.ts";
 import { AppIcon, type AppIconName } from "../../../ui/icons.tsx";
-import { ItemIcon } from "../../../ui/item-icon.tsx";
 import { createEditorTable } from "../custom-blocks/table.tsx";
 
 const US2_TITLES = new Set([
@@ -75,26 +73,6 @@ export type CreateInlineDatabase = (
 
 function slashIcon(name: AppIconName): ReactElement {
   return <AppIcon name={name} size="medium" />;
-}
-
-export async function createInlineDatabaseFromSlash(
-  editor: Pick<SlashEditor, "getTextCursorPosition" | "updateBlock">,
-  createDatabase: CreateInlineDatabase,
-): Promise<void> {
-  const current = editor.getTextCursorPosition().block;
-  // Reuse the block identity so a retry after a durable create but failed
-  // editor commit reattaches the same owner instead of leaving another child.
-  const ownerId = current.id;
-  const viewId = generateUuidV7();
-  const created = await createDatabase({
-    id: ownerId,
-    title: "Nouvelle base de données",
-    initialViewId: viewId,
-  });
-  editor.updateBlock(current.id, {
-    type: "databaseView",
-    props: { containerItemId: created.id, viewId: created.viewId },
-  });
 }
 
 /**
@@ -196,8 +174,7 @@ export function buildCustomSlashMenuItems({
   onCreateSubpage,
   onCreateSubfolder,
   onCreateFullPageDatabase,
-  onCreateInlineDatabase,
-  onCreateLinkedDatabaseView,
+  onInsertInlineDatabase,
   onSubpageCreated,
   onError,
 }: {
@@ -207,8 +184,7 @@ export function buildCustomSlashMenuItems({
   readonly onCreateSubpage?: CreateSubpage | undefined;
   readonly onCreateSubfolder?: CreateSubpage | undefined;
   readonly onCreateFullPageDatabase?: CreateSubpage | undefined;
-  readonly onCreateInlineDatabase?: CreateInlineDatabase | undefined;
-  readonly onCreateLinkedDatabaseView?: ((blockId: string) => void) | undefined;
+  readonly onInsertInlineDatabase?: ((blockId: string) => void) | undefined;
   readonly onSubpageCreated?:
     | ((child: { readonly id: string; readonly title: string }) => void | Promise<void>)
     | undefined;
@@ -257,9 +233,18 @@ export function buildCustomSlashMenuItems({
           {
             title: copy.pageLink.title,
             subtext: copy.pageLink.description,
-            aliases: ["lien page", "page-link", "référence", "interne"],
+            aliases: [
+              "lien",
+              "lien page",
+              "lien dossier",
+              "lien base",
+              "élément",
+              "page-link",
+              "référence",
+              "interne",
+            ],
             group: copy.linksGroup,
-            icon: slashIcon("link"),
+            icon: slashIcon("reference"),
             onItemClick: () => prepareLinkFromSlash(slashEditor, onCreatePageLink),
           },
         ]),
@@ -271,7 +256,7 @@ export function buildCustomSlashMenuItems({
             subtext: copy.webBookmark.description,
             aliases: ["lien web", "url", "bookmark", "site"],
             group: copy.linksGroup,
-            icon: slashIcon("reference"),
+            icon: slashIcon("link"),
             onItemClick: () => prepareLinkFromSlash(slashEditor, onCreateWebBookmark),
           },
         ]),
@@ -283,7 +268,7 @@ export function buildCustomSlashMenuItems({
           {
             title: copy.fullPageDatabase.title,
             subtext: copy.fullPageDatabase.description,
-            aliases: ["base", "database", "pleine page"],
+            aliases: ["base", "database", "base imbriquée", "base imbriquee", "pleine page"],
             group: copy.databaseGroup,
             icon: slashIcon("layersAdd"),
             onItemClick: () => {
@@ -298,38 +283,45 @@ export function buildCustomSlashMenuItems({
             },
           },
         ]),
-    ...(onCreateInlineDatabase === undefined
+    ...(onInsertInlineDatabase === undefined
       ? []
       : [
           {
             title: copy.inlineDatabase.title,
             subtext: copy.inlineDatabase.description,
-            aliases: ["base intégrée", "base inline", "database inline"],
+            aliases: [
+              "base intégrée",
+              "base integree",
+              "base inline",
+              "database inline",
+              "vue liée",
+              "base existante",
+              "linked database",
+            ],
             group: copy.databaseGroup,
-            icon: slashIcon("layersAdd"),
-            onItemClick: () => {
-              void createInlineDatabaseFromSlash(slashEditor, onCreateInlineDatabase).catch(
-                (error: unknown) =>
-                  reportCreationError(error, copy.inlineDatabase.creationFailed, onError),
-              );
-            },
-          },
-        ]),
-    ...(onCreateLinkedDatabaseView === undefined
-      ? []
-      : [
-          {
-            title: copy.linkedDatabase.title,
-            subtext: copy.linkedDatabase.description,
-            aliases: ["vue liée", "base existante", "linked database"],
-            group: copy.databaseGroup,
-            icon: <ItemIcon kind="database_view" size="inline" />,
-            onItemClick: () =>
-              onCreateLinkedDatabaseView(slashEditor.getTextCursorPosition().block.id),
+            icon: slashIcon("layers"),
+            onItemClick: () => prepareLinkFromSlash(slashEditor, onInsertInlineDatabase),
           },
         ]),
   ];
   const advanced: DefaultReactSuggestionItem[] = [
+    {
+      title: copy.contents.title,
+      subtext: copy.contents.description,
+      aliases: ["sommaire", "toc", "table of contents", "titres"],
+      group: copy.advancedGroup,
+      icon: slashIcon("list"),
+      onItemClick: () => insertRichBlock(editor, { type: "tableOfContents" }),
+    },
+    {
+      title: copy.equation.title,
+      subtext: copy.equation.description,
+      aliases: ["equation", "latex", "math", "formule"],
+      group: copy.advancedGroup,
+      icon: slashIcon("code"),
+      onItemClick: () =>
+        insertRichBlock(slashEditor, { type: "equation", props: { expression: "" } }),
+    },
     {
       title: copy.toggle.title,
       subtext: copy.toggle.description,
@@ -387,8 +379,7 @@ export function FrenchSlashMenu({
   onCreateSubpage,
   onCreateSubfolder,
   onCreateFullPageDatabase,
-  onCreateInlineDatabase,
-  onCreateLinkedDatabaseView,
+  onInsertInlineDatabase,
   onSubpageCreated,
   onError,
 }: {
@@ -397,8 +388,7 @@ export function FrenchSlashMenu({
   readonly onCreateSubpage?: CreateSubpage | undefined;
   readonly onCreateSubfolder?: CreateSubpage | undefined;
   readonly onCreateFullPageDatabase?: CreateSubpage | undefined;
-  readonly onCreateInlineDatabase?: CreateInlineDatabase | undefined;
-  readonly onCreateLinkedDatabaseView?: ((blockId: string) => void) | undefined;
+  readonly onInsertInlineDatabase?: ((blockId: string) => void) | undefined;
   readonly onSubpageCreated?:
     | ((child: { readonly id: string; readonly title: string }) => void | Promise<void>)
     | undefined;
@@ -424,8 +414,7 @@ export function FrenchSlashMenu({
               onCreateSubpage,
               onCreateSubfolder,
               onCreateFullPageDatabase,
-              onCreateInlineDatabase,
-              onCreateLinkedDatabaseView,
+              onInsertInlineDatabase,
               onSubpageCreated,
               onError,
             }),

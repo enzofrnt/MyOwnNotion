@@ -158,7 +158,7 @@ test("configures entry properties directly, shares symbols, and preserves indepe
     path: testInfo.outputPath("ordered-entry-properties.png"),
     contentType: "image/png",
   });
-  await page.getByRole("button", { name: "Fermer l'entrée", exact: true }).click();
+  await page.getByRole("button", { name: "Fermer le volet", exact: true }).click();
   await expect
     .poll(() => page.locator(".database-grid th .database-column-label__name").allTextContents())
     .toEqual(originalColumns.map((name) => (name === "Notes" ? "Brief" : name)));

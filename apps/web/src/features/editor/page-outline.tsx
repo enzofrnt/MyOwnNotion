@@ -1,149 +1,107 @@
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, type RefObject, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { FR_COPY } from "../../ui/copy/fr.ts";
+import { editorScrollContainer } from "./editor-view-state.ts";
+import {
+  activeHeadingId,
+  type HeadingsEditor,
+  headingElement,
+  scrollToPageHeading,
+  usePageHeadings,
+} from "./page-headings.ts";
 
-export interface PageHeading {
-  readonly id: string;
-  readonly level: 1 | 2 | 3 | 4;
-  readonly text: string;
-}
+export { activeHeadingId, collectPageHeadings, type PageHeading } from "./page-headings.ts";
 
-interface WalkableBlock {
-  readonly id?: unknown;
-  readonly type?: unknown;
-  readonly props?: { readonly level?: unknown };
-  readonly content?: unknown;
-  readonly children?: readonly WalkableBlock[];
-}
+const MIN_OUTLINE_WORKSPACE_WIDTH = 960;
 
-function inlineText(content: unknown): string {
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((part) => {
-      if (typeof part !== "object" || part === null) return "";
-      if ("text" in part && typeof part.text === "string") return part.text;
-      if ("content" in part) return inlineText(part.content);
-      return "";
-    })
-    .join("");
-}
-
-export function collectPageHeadings(document: readonly unknown[]): PageHeading[] {
-  const headings: PageHeading[] = [];
-  const walk = (blocks: readonly unknown[]) => {
-    for (const block of blocks) {
-      if (typeof block !== "object" || block === null) continue;
-      const candidate = block as WalkableBlock;
-      if (candidate.type === "heading" && typeof candidate.id === "string") {
-        const level = candidate.props?.level;
-        if (level === 1 || level === 2 || level === 3 || level === 4) {
-          headings.push({
-            id: candidate.id,
-            level,
-            text: inlineText(candidate.content).trim(),
-          });
-        }
-      }
-      if (Array.isArray(candidate.children)) walk(candidate.children);
-    }
-  };
-  walk(document);
-  return headings;
-}
-
-/** The last heading that has reached the reading line, otherwise the first. */
-export function activeHeadingId(
-  headings: readonly { readonly id: string; readonly top: number }[],
-  threshold: number,
-): string | null {
-  let active: string | null = headings[0]?.id ?? null;
-  for (const heading of headings) {
-    if (heading.top <= threshold) active = heading.id;
-  }
-  return active;
-}
-
-interface OutlineEditor {
-  readonly document: readonly unknown[];
-  onChange(callback: () => void): () => void;
-}
-
-function headingElement(id: string): HTMLElement | null {
-  return document.querySelector<HTMLElement>(`.bn-block[data-id="${CSS.escape(id)}"]`);
-}
-
-export function PageOutline({ editor }: { readonly editor: OutlineEditor }) {
-  const [headings, setHeadings] = useState(() => collectPageHeadings(editor.document));
+export function PageOutline({
+  editor,
+  hostRef,
+}: {
+  readonly editor: HeadingsEditor;
+  readonly hostRef: RefObject<HTMLElement | null>;
+}) {
+  const headings = usePageHeadings(editor);
   const [activeId, setActiveId] = useState<string | null>(null);
-
-  useEffect(
-    () =>
-      editor.onChange(() => {
-        setHeadings(collectPageHeadings(editor.document));
-      }),
-    [editor],
-  );
-
+  const [hasRoom, setHasRoom] = useState(false);
   useEffect(() => {
-    if (headings.length < 2) return;
-    const root = document.getElementById("workspace-main");
-    if (root === null) return;
+    const host = hostRef.current;
+    const scroller = host === null ? null : editorScrollContainer(host);
+    if (host === null || scroller === null || headings.length < 2) {
+      setActiveId(null);
+      setHasRoom(false);
+      return;
+    }
+    let frame = 0;
     const update = () => {
-      const threshold = root.getBoundingClientRect().top + 48;
+      frame = 0;
+      setHasRoom(
+        window.innerWidth > MIN_OUTLINE_WORKSPACE_WIDTH &&
+          scroller.clientWidth > MIN_OUTLINE_WORKSPACE_WIDTH,
+      );
       const positions = headings.flatMap((heading) => {
-        const element = headingElement(heading.id);
-        return element === null
+        const element = headingElement(host, heading.id);
+        return element === null || element.getClientRects().length === 0
           ? []
           : [{ id: heading.id, top: element.getBoundingClientRect().top }];
       });
-      setActiveId(activeHeadingId(positions, threshold));
+      const bottom =
+        scroller.scrollTop > 0 &&
+        scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+      setActiveId(
+        bottom
+          ? (positions.at(-1)?.id ?? null)
+          : activeHeadingId(positions, scroller.getBoundingClientRect().top + 96),
+      );
     };
-    update();
-    root.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
+    const schedule = () => {
+      if (frame === 0) frame = requestAnimationFrame(update);
+    };
+    schedule();
+    scroller.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    const resize = new ResizeObserver(schedule);
+    resize.observe(host);
+    resize.observe(scroller);
     return () => {
-      root.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
+      cancelAnimationFrame(frame);
+      resize.disconnect();
+      scroller.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
     };
-  }, [headings]);
-
+  }, [headings, hostRef]);
   if (headings.length < 2) return null;
-
   return createPortal(
     <nav
       className="page-outline"
       aria-label={FR_COPY.editor.outline.label}
       data-testid="page-outline"
+      data-space-available={hasRoom ? "true" : "false"}
     >
       <ol className="page-outline__list">
-        {headings.map((heading) => {
-          const label =
-            heading.text.length > 0 ? heading.text : FR_COPY.editor.outline.emptyHeading;
-          return (
-            <li
-              key={heading.id}
-              className="page-outline__item"
-              data-active={heading.id === activeId ? "true" : "false"}
-              style={{ "--outline-depth": String(heading.level - 1) } as CSSProperties}
+        {headings.map((heading) => (
+          <li
+            key={heading.id}
+            className="page-outline__item"
+            data-active={heading.id === activeId ? "true" : "false"}
+            style={{ "--outline-depth": String(heading.level - 1) } as CSSProperties}
+          >
+            <button
+              type="button"
+              className="page-outline__link"
+              aria-current={heading.id === activeId ? "location" : undefined}
+              onClick={() => {
+                const host = hostRef.current;
+                if (host !== null) scrollToPageHeading(host, heading.id);
+              }}
             >
-              <button
-                type="button"
-                className="page-outline__link"
-                onClick={() => {
-                  headingElement(heading.id)?.scrollIntoView({
-                    block: "start",
-                    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-                      ? "auto"
-                      : "smooth",
-                  });
-                }}
-              >
-                <span className="page-outline__mark" aria-hidden="true" />
-                <span className="page-outline__label">{label}</span>
-              </button>
-            </li>
-          );
-        })}
+              <span className="page-outline__mark" aria-hidden="true" />
+              <span className="page-outline__label">
+                {heading.text || FR_COPY.editor.outline.emptyHeading}
+              </span>
+            </button>
+          </li>
+        ))}
       </ol>
     </nav>,
     document.body,

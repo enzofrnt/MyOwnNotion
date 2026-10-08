@@ -209,3 +209,8 @@ Feature 025 preserves file identities, verified deduplication, resumable offsets
 See the [canonical plan](../025-storage-coherence-audit/plan.md) and
 [implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
 does not mark that follow-up implemented or delivered.
+
+## Publication maintenance — stable attachment actions (2026-10-07)
+
+- [x] T061 Reproduce the late-usage pointer race, keep the action group before changing facts with a viewport-bounded popover width in `attachment-panel.tsx` and `navigation.css`, and preserve semantic click/cancellation and the sandbox per FR-002/010/013 and ui-quality/lessons.
+- [x] T062 Repeat held-response, cancellation and keyboard journeys on all five profiles, inspect light/dark/320 px captures, run the publication gates and record evidence in `validation.md` per SC-005/006 and ui-quality/lessons.

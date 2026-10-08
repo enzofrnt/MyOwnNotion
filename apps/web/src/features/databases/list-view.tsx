@@ -1,11 +1,12 @@
 import type { DatabaseProperty, DatabaseView, Uuid } from "@myownnotion/domain";
-import { useLayoutEffect, useRef } from "react";
+import { type CSSProperties, useLayoutEffect, useRef } from "react";
 import type { DatabaseViewPage } from "../../services/databases.ts";
+import { ItemIcon } from "../../ui/item-icon.tsx";
 import { AsyncState } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { displayDatabaseValue } from "./database-value.ts";
 import { PropertyValue } from "./option-appearance.tsx";
-import { DatabasePropertyIcon } from "./property-icon.tsx";
 
 export function ListView({
   properties,
@@ -58,6 +59,11 @@ export function ListView({
       ) : (
         <ul
           className={`database-list database-list--${view.type === "list" ? view.options.density : "comfortable"}`}
+          style={
+            {
+              "--database-list-columns": `minmax(min(40%, 18rem), 1fr) ${secondary.map(() => "fit-content(14rem)").join(" ")}`,
+            } as CSSProperties
+          }
         >
           {page.rows.map((row) => (
             <li key={row.entryId} className="database-list__entry">
@@ -66,32 +72,36 @@ export function ListView({
                 type="button"
                 className="link database-list__title"
                 data-entry-trigger={row.entryId}
+                title={row.title}
                 onActivate={(trigger) => onOpenEntry(row.entryId as Uuid, trigger)}
               >
-                {row.title}
+                <ItemIcon
+                  kind={row.itemKind ?? "page"}
+                  icon={row.icon ?? null}
+                  holdsContent={row.holdsContent ?? true}
+                  size="inline"
+                />
+                <span className="database-list__title-text">{row.title}</span>
               </StableActionButton>
               {secondary.length === 0 ? null : (
-                <dl>
+                <dl className="database-list__properties">
                   {secondary.map((property) => (
-                    <div key={property.id}>
-                      <dt className="database-property-caption">
-                        {property.icon == null ? null : (
-                          <DatabasePropertyIcon type={property.type} icon={property.icon} />
-                        )}
-                        {property.name}
-                      </dt>
-                      <dd>
+                    <div
+                      key={property.id}
+                      className="database-list__property"
+                      title={`${property.name} : ${displayDatabaseValue(row, property)}`}
+                    >
+                      <dt className="sr-only">{property.name}</dt>
+                      <dd className="database-list__value">
                         <PropertyValue property={property} row={row} />
                       </dd>
                     </div>
                   ))}
                 </dl>
               )}
-              {row.syncState === "synced" ? null : (
-                <span className={`database-sync database-sync--${row.syncState}`}>
-                  {row.syncState === "pending"
-                    ? DATABASE_COPY.common.savedLocally
-                    : DATABASE_COPY.common.conflict}
+              {row.syncState !== "conflict" ? null : (
+                <span className="database-sync database-sync--conflict">
+                  {DATABASE_COPY.common.conflict}
                 </span>
               )}
             </li>

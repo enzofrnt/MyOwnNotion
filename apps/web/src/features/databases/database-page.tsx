@@ -1,10 +1,15 @@
-import type { DatabaseDto, DatabaseEntryDto } from "@myownnotion/contracts";
+import {
+  type DatabaseDto,
+  type DatabaseEntryDto,
+  presentDatabaseQuery,
+} from "@myownnotion/contracts";
 import type {
   DatabaseDefinition,
   DatabaseProperty,
   DatabaseView,
   DefinitionImpact,
   PropertyOption,
+  RelationTargets,
   Uuid,
 } from "@myownnotion/domain";
 import {
@@ -14,9 +19,21 @@ import {
   pageBodyHoldsEditorialContent,
   readDocumentBody,
 } from "@myownnotion/domain";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
-import type { DatabaseViewPage, DatabaseViewResult } from "../../services/databases.ts";
+import type {
+  DatabaseViewPage,
+  DatabaseViewResult,
+  DatabaseViewRow,
+} from "../../services/databases.ts";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
   AsyncState,
@@ -31,9 +48,11 @@ import { defaultItemTitle } from "../workspace/default-item-title.ts";
 import { BoardView } from "./board-view.tsx";
 import { CalendarView } from "./calendar-view.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { DatabaseEntryOpenContext } from "./database-entry-open-context.tsx";
 import { DatabaseToolbar, replaceSavedView } from "./database-toolbar.tsx";
 import { FilterEditor } from "./filter-editor.tsx";
 import { type GalleryPreview, GalleryView } from "./gallery-view.tsx";
+import { GroupEditor } from "./group-editor.tsx";
 import { ListView } from "./list-view.tsx";
 import {
   isChoiceProperty,
@@ -57,7 +76,7 @@ import { columnPresentations, viewColumns } from "./view-columns.ts";
 
 const EMPTY_PROPERTY_DRAFT: DatabasePropertyDraft = { name: "", type: "text" };
 
-function withEntryPresentation(
+export function withEntryPresentation(
   page: DatabaseViewPage,
   entries: readonly DatabaseEntryDto[],
 ): DatabaseViewPage {
@@ -70,6 +89,9 @@ function withEntryPresentation(
         icon: entry.icon ?? null,
         holdsContent:
           entry.kind !== "folder" && pageBodyHoldsEditorialContent(entry.document?.body),
+        revisionId: entry.revisionId,
+        values: entry.values,
+        relationTargets: entry.relationTargets,
       },
     ]),
   );
@@ -77,7 +99,15 @@ function withEntryPresentation(
     ...page,
     rows: page.rows.map((row) => {
       const presentation = byId.get(row.entryId);
-      return presentation === undefined ? row : { ...row, ...presentation };
+      if (presentation === undefined) return row;
+      const { revisionId, values, relationTargets, ...appearance } = presentation;
+      // Query DTOs omit hidden properties. The expanded card edits the full
+      // entry, but must not replace a newer query with stale local values.
+      return {
+        ...row,
+        ...appearance,
+        ...(row.revisionId === revisionId ? { values, relationTargets } : {}),
+      };
     }),
   };
 }
@@ -102,6 +132,8 @@ export function DatabasePage({
   relationOptions = [],
   queryPage,
   queryState,
+  discoveryState,
+  onRetryDiscovery,
   onQueryView,
   returnFocusEntryId,
   onReturnFocusRestored,
@@ -120,13 +152,24 @@ export function DatabasePage({
   readonly onPreviewDefinitionImpact?: (
     definition: DatabaseDefinition,
   ) => DefinitionImpact | null | Promise<DefinitionImpact | null>;
-  readonly onCreateEntry: (title: string) => void | Promise<void | Uuid>;
-  readonly onCreateFolder?: (title: string) => void | Promise<void | Uuid>;
+  readonly onCreateEntry: (
+    title: string,
+    initialValues?: DatabaseEntryDto["values"],
+    relationTargets?: RelationTargets,
+  ) => void | Promise<void | Uuid>;
+  readonly onCreateFolder?: (
+    title: string,
+    initialValues?: DatabaseEntryDto["values"],
+    relationTargets?: RelationTargets,
+  ) => void | Promise<void | Uuid>;
   readonly onOpenEntry: (entryId: Uuid, trigger?: HTMLElement | null) => void;
   readonly onUpdateEntry?: (entryId: Uuid, update: DatabaseCellUpdate) => void | Promise<void>;
   readonly relationOptions?: readonly RelationOption[];
   readonly queryPage?: DatabaseViewPage | null;
   readonly queryState?: "loading" | "ready" | "invalid" | "degraded";
+  /** Known local rows remain usable while workspace membership is still being discovered. */
+  readonly discoveryState?: "loading" | "offline" | "error";
+  readonly onRetryDiscovery?: () => void;
   readonly onQueryView?: (viewId: Uuid, cursor?: string) => Promise<DatabaseViewResult>;
   readonly returnFocusEntryId?: Uuid | null;
   readonly onReturnFocusRestored?: () => void;
@@ -194,6 +237,23 @@ export function DatabasePage({
       ({ id, state }) => id === viewContext.context.activeViewId && state === "active",
     ) ?? definition.views.find(({ state }) => state === "active");
   const activeViewId = activeView?.id;
+  const creationRows = useMemo<readonly DatabaseViewRow[]>(
+    () =>
+      entries.map((entry) => ({
+        entryId: entry.entryId,
+        revisionId: entry.revisionId,
+        title: entry.title,
+        values: entry.values,
+        relationTargets: entry.relationTargets,
+        groupId: null,
+        syncState: "pending",
+        itemKind: entry.kind === "folder" ? "folder" : "page",
+        icon: entry.icon ?? null,
+        holdsContent:
+          entry.kind !== "folder" && pageBodyHoldsEditorialContent(entry.document?.body),
+      })),
+    [entries],
+  );
   const entryRevisionKey = entries
     .map(({ entryId, revisionId }) => `${entryId}:${revisionId}`)
     .join("|");
@@ -227,6 +287,16 @@ export function DatabasePage({
     );
     if (!evaluated.ok) return null;
     const byId = new Map(entries.map((entry) => [entry.entryId, entry]));
+    const projected = presentDatabaseQuery({
+      definition,
+      view: activeView,
+      entries: evaluated.value.rows.flatMap((row) => {
+        const entry = byId.get(row.entryId);
+        return entry === undefined ? [] : [{ ...row, revisionId: entry.revisionId as Uuid }];
+      }),
+      groups: evaluated.value.groups,
+      includeGroups: true,
+    });
     return {
       databaseId: database.databaseId,
       viewId: activeView.id,
@@ -235,25 +305,8 @@ export function DatabasePage({
       coverage: "complete",
       availableCount: entries.length,
       expectedCount: entries.length,
-      rows: evaluated.value.rows.flatMap((row) => {
-        const entry = byId.get(row.entryId);
-        return entry === undefined
-          ? []
-          : [
-              {
-                entryId: entry.entryId,
-                revisionId: entry.revisionId,
-                title: entry.title,
-                values: entry.values,
-                relationTargets: entry.relationTargets,
-                groupId:
-                  evaluated.value.groups.find((group) => group.entryIds.includes(row.entryId))
-                    ?.id ?? null,
-                syncState: "synced" as const,
-              },
-            ];
-      }),
-      groups: [],
+      rows: projected.rows.map((row) => ({ ...row, syncState: "synced" as const })),
+      groups: projected.groups,
       nextCursor: null,
       source: "local",
       staleCursorRecovered: false,
@@ -298,7 +351,11 @@ export function DatabasePage({
       : effectiveQueryState === "ready" && loadedPage?.viewId === activeView?.id
         ? loadedPage
         : fallbackPage;
-  const page = resolvedPage === null ? null : withEntryPresentation(resolvedPage, entries);
+  const presentedPage = resolvedPage === null ? null : withEntryPresentation(resolvedPage, entries);
+  const page =
+    presentedPage === null || discoveryState === undefined
+      ? presentedPage
+      : { ...presentedPage, coverage: "partial" as const, groups: [] };
   const loadMore = useCallback(async (): Promise<void> => {
     if (
       loadingMore ||
@@ -401,9 +458,21 @@ export function DatabasePage({
     };
 
     const restore = (): void => {
-      const trigger = sectionRef.current?.querySelector<HTMLElement>(
-        `[data-entry-trigger="${returnFocusEntryId}"]`,
-      );
+      const savedColumn = viewContext.context.returnColumnId;
+      const columnTrigger =
+        savedColumn === undefined
+          ? null
+          : (sectionRef.current?.querySelector<HTMLElement>(
+              `[data-board-column="${savedColumn}"] [data-entry-trigger="${returnFocusEntryId}"]`,
+            ) ??
+            sectionRef.current?.querySelector<HTMLElement>(
+              `[data-board-column="${savedColumn}"] [data-board-create="page"]`,
+            ));
+      const trigger =
+        columnTrigger ??
+        sectionRef.current?.querySelector<HTMLElement>(
+          `[data-entry-trigger="${returnFocusEntryId}"]`,
+        );
       const activeElement = document.activeElement;
       const userMovedFocus =
         activeElement instanceof HTMLElement &&
@@ -445,6 +514,7 @@ export function DatabasePage({
     onReturnFocusRestored,
     returnFocusEntryId,
     viewContext.finishEntryReturn,
+    viewContext.context.returnColumnId,
   ]);
 
   const saveView = async (view: NonNullable<typeof activeView>): Promise<void> => {
@@ -574,10 +644,17 @@ export function DatabasePage({
     placeProperty(copy, propertyId, "after");
   };
 
+  const openDatabaseEntry = useContext(DatabaseEntryOpenContext);
   const openEntryFromView = (entryId: Uuid, trigger: HTMLElement | null): void => {
     viewContext.rememberTrigger(entryId, trigger);
     viewContext.openEntry(entryId);
-    onOpenEntry(entryId, trigger);
+    if (openDatabaseEntry === null) onOpenEntry(entryId, trigger);
+    else
+      openDatabaseEntry({
+        entryId,
+        trigger,
+        ...(database.sourceId === undefined ? {} : { sourceId: database.sourceId as Uuid }),
+      });
   };
 
   const addProperty = (submittedDraft: DatabasePropertyDraft): void => {
@@ -659,7 +736,17 @@ export function DatabasePage({
         ),
       })),
     };
-    const preview = await onPreviewDefinitionImpact?.(candidate);
+    let preview: DefinitionImpact | null | undefined;
+    try {
+      preview = await onPreviewDefinitionImpact?.(candidate);
+    } catch (cause) {
+      setSchemaError(
+        cause instanceof Error
+          ? cause.message
+          : "L’impact de cette modification ne peut pas être vérifié.",
+      );
+      return;
+    }
     if (preview?.destructive) {
       setPendingDefinition(candidate);
       setImpact(preview);
@@ -688,7 +775,17 @@ export function DatabasePage({
       ...definition,
       properties: replaceChoiceOptions(definition.properties, propertyId, options),
     };
-    const preview = await onPreviewDefinitionImpact?.(candidate);
+    let preview: DefinitionImpact | null | undefined;
+    try {
+      preview = await onPreviewDefinitionImpact?.(candidate);
+    } catch (cause) {
+      setSchemaError(
+        cause instanceof Error
+          ? cause.message
+          : "L’impact de cette modification ne peut pas être vérifié.",
+      );
+      return;
+    }
     if (preview?.destructive) {
       setPendingDefinition(candidate);
       setImpact(preview);
@@ -736,23 +833,6 @@ export function DatabasePage({
             {embeddingId === undefined ? DATABASE_COPY.page.contents : database.name}
           </h2>
         </div>
-        {activeView?.type === "table" ? null : (
-          <div className="database-page__actions">
-            <Button
-              type="button"
-              size="compact"
-              variant="ghost"
-              disabled={savingProperty}
-              onClick={() => {
-                setSettingsOpen(true);
-                setEditingProperty(true);
-              }}
-            >
-              <AppIcon name="add" size="small" />
-              {DATABASE_COPY.page.addProperty}
-            </Button>
-          </div>
-        )}
       </header>
 
       <div className="database-settings">
@@ -782,21 +862,6 @@ export function DatabasePage({
                 onChange={replaceDefinition}
               />
             )}
-            {editingProperty ? (
-              <PropertyEditor
-                draft={propertyDraft}
-                error={propertyError}
-                onChange={(draft) => {
-                  propertyDraftRef.current = draft;
-                  setPropertyDraft(draft);
-                  setPropertyError(null);
-                }}
-                onSubmit={addProperty}
-                onCancel={() => setEditingProperty(false)}
-                submitting={savingProperty}
-              />
-            ) : null}
-
             {activeView === undefined ? null : (
               <div className="database-view-config">
                 <FilterEditor
@@ -808,7 +873,17 @@ export function DatabasePage({
                   properties={definition.properties}
                   view={activeView}
                   onChange={saveView}
+                  showGrouping={false}
                 />
+                <section className="database-panel-section" aria-label="Grouper">
+                  <h3>Grouper</h3>
+                  <GroupEditor
+                    key={activeView.id}
+                    properties={definition.properties}
+                    view={activeView}
+                    onChange={saveView}
+                  />
+                </section>
               </div>
             )}
 
@@ -843,9 +918,40 @@ export function DatabasePage({
               className="database-schema database-panel-section"
               aria-labelledby={`database-schema-heading-${embeddingId ?? database.databaseId}`}
             >
-              <h3 id={`database-schema-heading-${embeddingId ?? database.databaseId}`}>
-                {DATABASE_COPY.page.properties}
-              </h3>
+              <div className="database-schema__heading">
+                <h3 id={`database-schema-heading-${embeddingId ?? database.databaseId}`}>
+                  {DATABASE_COPY.page.properties}
+                </h3>
+                {activeView?.type === "table" ? null : (
+                  <Button
+                    type="button"
+                    size="compact"
+                    variant="ghost"
+                    disabled={savingProperty}
+                    onClick={() => {
+                      setPropertyError(null);
+                      setEditingProperty(true);
+                    }}
+                  >
+                    <AppIcon name="add" size="small" />
+                    {DATABASE_COPY.page.addProperty}
+                  </Button>
+                )}
+              </div>
+              {editingProperty ? (
+                <PropertyEditor
+                  draft={propertyDraft}
+                  error={propertyError}
+                  onChange={(draft) => {
+                    propertyDraftRef.current = draft;
+                    setPropertyDraft(draft);
+                    setPropertyError(null);
+                  }}
+                  onSubmit={addProperty}
+                  onCancel={() => setEditingProperty(false)}
+                  submitting={savingProperty}
+                />
+              ) : null}
               <ul>
                 {activeProperties.map((property) => (
                   <li key={property.id} className="database-schema__property">
@@ -950,42 +1056,66 @@ export function DatabasePage({
         </section>
       ) : null}
 
-      <div className="database-entry-create">
-        {/* biome-ignore lint/a11y/useSemanticElements: Action choices are a labelled button group, not form controls. */}
-        <div className="database-entry-kind" role="group" aria-label="Type du nouvel élément">
-          <Button
-            type="button"
-            size="compact"
-            variant="ghost"
-            aria-label="Nouvelle page"
-            disabled={savingEntry}
-            onClick={() => void createKind("page")}
-          >
-            <AppIcon name="fileAdd" size="small" />
-            Page
-          </Button>
-          {onCreateFolder === undefined ? null : (
+      {activeView?.type === "board" ? null : (
+        <div className="database-entry-create">
+          {/* biome-ignore lint/a11y/useSemanticElements: Action choices are a labelled button group, not form controls. */}
+          <div className="database-entry-kind" role="group" aria-label="Type du nouvel élément">
             <Button
               type="button"
               size="compact"
               variant="ghost"
-              aria-label="Nouveau dossier"
+              aria-label="Nouvelle page"
               disabled={savingEntry}
-              onClick={() => void createKind("folder")}
+              onClick={() => void createKind("page")}
             >
-              <AppIcon name="folderAdd" size="small" />
-              Dossier
+              <AppIcon name="fileAdd" size="small" />
+              Page
             </Button>
+            {onCreateFolder === undefined ? null : (
+              <Button
+                type="button"
+                size="compact"
+                variant="ghost"
+                aria-label="Nouveau dossier"
+                disabled={savingEntry}
+                onClick={() => void createKind("folder")}
+              >
+                <AppIcon name="folderAdd" size="small" />
+                Dossier
+              </Button>
+            )}
+          </div>
+          {entryError === null ? null : (
+            <p className="database-field__error" role="alert">
+              {entryError}
+            </p>
           )}
         </div>
-        {entryError === null ? null : (
-          <p className="database-field__error" role="alert">
-            {entryError}
-          </p>
-        )}
-      </div>
+      )}
 
       <div className="database-view-status" aria-live="polite">
+        {discoveryState === undefined ? null : (
+          <AsyncState
+            compact
+            testId="database-discovery-state"
+            state={discoveryState}
+            kind={discoveryState === "loading" ? "info" : discoveryState}
+            description={
+              discoveryState === "offline"
+                ? "Données locales disponibles. Reconnectez-vous pour charger les autres entrées."
+                : discoveryState === "error"
+                  ? "Les entrées n’ont pas pu être actualisées. Les données locales restent disponibles."
+                  : "Chargement des autres entrées… Les données locales restent disponibles."
+            }
+            action={
+              discoveryState === "loading" || onRetryDiscovery === undefined ? undefined : (
+                <Button size="compact" onClick={onRetryDiscovery}>
+                  Réessayer
+                </Button>
+              )
+            }
+          />
+        )}
         {effectiveQueryState === "loading" ? (
           <AsyncState compact kind="loading" description={DATABASE_COPY.page.loadingView} />
         ) : null}
@@ -1002,6 +1132,7 @@ export function DatabasePage({
         {page === null ||
         effectiveQueryState === "loading" ||
         effectiveQueryState === "degraded" ||
+        discoveryState !== undefined ||
         page.coverage === "complete" ? null : (
           <AsyncState
             compact
@@ -1051,6 +1182,7 @@ export function DatabasePage({
           />
         ) : activeView.type === "table" ? (
           <TableView
+            totalKnown={discoveryState === undefined}
             {...(returnFocusEntryId === undefined ? {} : { returnFocusEntryId })}
             renameEntryId={renameEntryId}
             onRenameStarted={clearRename}
@@ -1089,6 +1221,14 @@ export function DatabasePage({
           />
         ) : activeView.type === "board" ? (
           <BoardView
+            creationRows={creationRows}
+            onCreateInColumn={(kind, values, title, relations) =>
+              kind === "folder"
+                ? onCreateFolder?.(title, values, relations)
+                : onCreateEntry(title, values, relations)
+            }
+            canCreateFolder={onCreateFolder !== undefined}
+            relationOptions={relationOptions}
             properties={definition.properties}
             view={activeView}
             page={page}

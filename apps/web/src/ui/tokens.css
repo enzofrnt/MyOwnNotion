@@ -137,25 +137,183 @@
   );
   --ui-overlay-scrollbar-size: 3px;
 
-  /* Content colors belong to user content, not application status. */
+  /* Editorial text keeps its readable palette; accents belong to content, not status. */
   --ui-content-gray: #5f5b55;
-  --ui-content-gray-soft: #ebe9e5;
   --ui-content-brown: #795548;
-  --ui-content-brown-soft: #eee5df;
   --ui-content-orange: #a54808;
-  --ui-content-orange-soft: #ffead8;
   --ui-content-yellow: #765d00;
-  --ui-content-yellow-soft: #fff3bf;
   --ui-content-green: #276749;
-  --ui-content-green-soft: #ddf3e5;
   --ui-content-blue: #245ea8;
-  --ui-content-blue-soft: #e2edfb;
   --ui-content-purple: #7148a0;
-  --ui-content-purple-soft: #eee5f8;
   --ui-content-pink: #9c3f72;
-  --ui-content-pink-soft: #f8e3ef;
   --ui-content-red: #ad3029;
-  --ui-content-red-soft: #fae5e3;
+
+  /* Measured accent seeds share one set of surface recipes in both themes. */
+  --ui-content-gray-accent: #8e8b86;
+  --ui-content-brown-accent: #b68965;
+  --ui-content-orange-accent: #d5803b;
+  --ui-content-yellow-accent: #d8a32f;
+  --ui-content-green-accent: #46a171;
+  --ui-content-blue-accent: #2783de;
+  --ui-content-purple-accent: #b577d6;
+  --ui-content-pink-accent: #db6999;
+  --ui-content-red-accent: #e56458;
+  --ui-content-wash-weight: 4%;
+  --ui-content-soft-weight: 8%;
+  --ui-content-badge-weight: 16%;
+  --ui-content-border-weight: 15%;
+  --ui-content-foreground-weight: 52%;
+  --ui-content-hover-lightness: -2.5;
+
+  /* Keep the arguments in a variable so the build's color-mix fallback cannot
+   * collapse unresolved theme variables into the first (full accent) color.
+   * Browsers resolve the complete recipe after selecting the theme. */
+  /* Gray is a neutral support; its badge still shares the accent recipe. */
+  --ui-content-gray-wash-mix: in srgb, var(--ui-color-canvas), var(--ui-color-surface);
+  --ui-content-gray-wash: color-mix(var(--ui-content-gray-wash-mix));
+  --ui-content-gray-soft: var(--ui-color-surface);
+  --ui-content-gray-badge-mix:
+    in srgb, var(--ui-content-gray-accent) var(--ui-content-badge-weight),
+    var(--ui-color-surface-active);
+  --ui-content-gray-badge: color-mix(var(--ui-content-gray-badge-mix));
+  --ui-content-gray-border: var(--ui-color-border);
+  --ui-content-gray-foreground-mix:
+    in srgb, var(--ui-content-gray-accent) var(--ui-content-foreground-weight), var(--ui-color-text);
+  --ui-content-gray-foreground: color-mix(var(--ui-content-gray-foreground-mix));
+
+  --ui-content-brown-wash-mix:
+    in srgb, var(--ui-content-brown-accent) var(--ui-content-wash-weight), var(--ui-color-canvas);
+  --ui-content-brown-wash: color-mix(var(--ui-content-brown-wash-mix));
+  --ui-content-brown-soft-mix:
+    in srgb, var(--ui-content-brown-accent) var(--ui-content-soft-weight), var(--ui-color-canvas);
+  --ui-content-brown-soft: color-mix(var(--ui-content-brown-soft-mix));
+  --ui-content-brown-badge-mix:
+    in srgb, var(--ui-content-brown-accent) var(--ui-content-badge-weight),
+    var(--ui-color-surface-active);
+  --ui-content-brown-badge: color-mix(var(--ui-content-brown-badge-mix));
+  --ui-content-brown-border-mix:
+    in srgb, var(--ui-content-brown-accent) var(--ui-content-border-weight), transparent;
+  --ui-content-brown-border: color-mix(var(--ui-content-brown-border-mix));
+  --ui-content-brown-foreground-mix:
+    in srgb, var(--ui-content-brown-accent) var(--ui-content-foreground-weight),
+    var(--ui-color-text);
+  --ui-content-brown-foreground: color-mix(var(--ui-content-brown-foreground-mix));
+  --ui-content-orange-wash-mix:
+    in srgb, var(--ui-content-orange-accent) var(--ui-content-wash-weight), var(--ui-color-canvas);
+  --ui-content-orange-wash: color-mix(var(--ui-content-orange-wash-mix));
+  --ui-content-orange-soft-mix:
+    in srgb, var(--ui-content-orange-accent) var(--ui-content-soft-weight), var(--ui-color-canvas);
+  --ui-content-orange-soft: color-mix(var(--ui-content-orange-soft-mix));
+  --ui-content-orange-badge-mix:
+    in srgb, var(--ui-content-orange-accent) var(--ui-content-badge-weight),
+    var(--ui-color-surface-active);
+  --ui-content-orange-badge: color-mix(var(--ui-content-orange-badge-mix));
+  --ui-content-orange-border-mix:
+    in srgb, var(--ui-content-orange-accent) var(--ui-content-border-weight), transparent;
+  --ui-content-orange-border: color-mix(var(--ui-content-orange-border-mix));
+  --ui-content-orange-foreground-mix:
+    in srgb, var(--ui-content-orange-accent) var(--ui-content-foreground-weight),
+    var(--ui-color-text);
+  --ui-content-orange-foreground: color-mix(var(--ui-content-orange-foreground-mix));
+  --ui-content-yellow-wash-mix:
+    in srgb, var(--ui-content-yellow-accent) var(--ui-content-wash-weight), var(--ui-color-canvas);
+  --ui-content-yellow-wash: color-mix(var(--ui-content-yellow-wash-mix));
+  --ui-content-yellow-soft-mix:
+    in srgb, var(--ui-content-yellow-accent) var(--ui-content-soft-weight), var(--ui-color-canvas);
+  --ui-content-yellow-soft: color-mix(var(--ui-content-yellow-soft-mix));
+  --ui-content-yellow-badge-mix:
+    in srgb, var(--ui-content-yellow-accent) var(--ui-content-badge-weight),
+    var(--ui-color-surface-active);
+  --ui-content-yellow-badge: color-mix(var(--ui-content-yellow-badge-mix));
+  --ui-content-yellow-border-mix:
+    in srgb, var(--ui-content-yellow-accent) var(--ui-content-border-weight), transparent;
+  --ui-content-yellow-border: color-mix(var(--ui-content-yellow-border-mix));
+  --ui-content-yellow-foreground-mix:
+    in srgb, var(--ui-content-yellow-accent) var(--ui-content-foreground-weight),
+    var(--ui-color-text);
+  --ui-content-yellow-foreground: color-mix(var(--ui-content-yellow-foreground-mix));
+  --ui-content-green-wash-mix:
+    in srgb, var(--ui-content-green-accent) var(--ui-content-wash-weight), var(--ui-color-canvas);
+  --ui-content-green-wash: color-mix(var(--ui-content-green-wash-mix));
+  --ui-content-green-soft-mix:
+    in srgb, var(--ui-content-green-accent) var(--ui-content-soft-weight), var(--ui-color-canvas);
+  --ui-content-green-soft: color-mix(var(--ui-content-green-soft-mix));
+  --ui-content-green-badge-mix:
+    in srgb, var(--ui-content-green-accent) var(--ui-content-badge-weight),
+    var(--ui-color-surface-active);
+  --ui-content-green-badge: color-mix(var(--ui-content-green-badge-mix));
+  --ui-content-green-border-mix:
+    in srgb, var(--ui-content-green-accent) var(--ui-content-border-weight), transparent;
+  --ui-content-green-border: color-mix(var(--ui-content-green-border-mix));
+  --ui-content-green-foreground-mix:
+    in srgb, var(--ui-content-green-accent) var(--ui-content-foreground-weight),
+    var(--ui-color-text);
+  --ui-content-green-foreground: color-mix(var(--ui-content-green-foreground-mix));
+  --ui-content-blue-wash-mix:
+    in srgb, var(--ui-content-blue-accent) var(--ui-content-wash-weight), var(--ui-color-canvas);
+  --ui-content-blue-wash: color-mix(var(--ui-content-blue-wash-mix));
+  --ui-content-blue-soft-mix:
+    in srgb, var(--ui-content-blue-accent) var(--ui-content-soft-weight), var(--ui-color-canvas);
+  --ui-content-blue-soft: color-mix(var(--ui-content-blue-soft-mix));
+  --ui-content-blue-badge-mix:
+    in srgb, var(--ui-content-blue-accent) var(--ui-content-badge-weight),
+    var(--ui-color-surface-active);
+  --ui-content-blue-badge: color-mix(var(--ui-content-blue-badge-mix));
+  --ui-content-blue-border-mix:
+    in srgb, var(--ui-content-blue-accent) var(--ui-content-border-weight), transparent;
+  --ui-content-blue-border: color-mix(var(--ui-content-blue-border-mix));
+  --ui-content-blue-foreground-mix:
+    in srgb, var(--ui-content-blue-accent) var(--ui-content-foreground-weight), var(--ui-color-text);
+  --ui-content-blue-foreground: color-mix(var(--ui-content-blue-foreground-mix));
+  --ui-content-purple-wash-mix:
+    in srgb, var(--ui-content-purple-accent) var(--ui-content-wash-weight), var(--ui-color-canvas);
+  --ui-content-purple-wash: color-mix(var(--ui-content-purple-wash-mix));
+  --ui-content-purple-soft-mix:
+    in srgb, var(--ui-content-purple-accent) var(--ui-content-soft-weight), var(--ui-color-canvas);
+  --ui-content-purple-soft: color-mix(var(--ui-content-purple-soft-mix));
+  --ui-content-purple-badge-mix:
+    in srgb, var(--ui-content-purple-accent) var(--ui-content-badge-weight),
+    var(--ui-color-surface-active);
+  --ui-content-purple-badge: color-mix(var(--ui-content-purple-badge-mix));
+  --ui-content-purple-border-mix:
+    in srgb, var(--ui-content-purple-accent) var(--ui-content-border-weight), transparent;
+  --ui-content-purple-border: color-mix(var(--ui-content-purple-border-mix));
+  --ui-content-purple-foreground-mix:
+    in srgb, var(--ui-content-purple-accent) var(--ui-content-foreground-weight),
+    var(--ui-color-text);
+  --ui-content-purple-foreground: color-mix(var(--ui-content-purple-foreground-mix));
+  --ui-content-pink-wash-mix:
+    in srgb, var(--ui-content-pink-accent) var(--ui-content-wash-weight), var(--ui-color-canvas);
+  --ui-content-pink-wash: color-mix(var(--ui-content-pink-wash-mix));
+  --ui-content-pink-soft-mix:
+    in srgb, var(--ui-content-pink-accent) var(--ui-content-soft-weight), var(--ui-color-canvas);
+  --ui-content-pink-soft: color-mix(var(--ui-content-pink-soft-mix));
+  --ui-content-pink-badge-mix:
+    in srgb, var(--ui-content-pink-accent) var(--ui-content-badge-weight),
+    var(--ui-color-surface-active);
+  --ui-content-pink-badge: color-mix(var(--ui-content-pink-badge-mix));
+  --ui-content-pink-border-mix:
+    in srgb, var(--ui-content-pink-accent) var(--ui-content-border-weight), transparent;
+  --ui-content-pink-border: color-mix(var(--ui-content-pink-border-mix));
+  --ui-content-pink-foreground-mix:
+    in srgb, var(--ui-content-pink-accent) var(--ui-content-foreground-weight), var(--ui-color-text);
+  --ui-content-pink-foreground: color-mix(var(--ui-content-pink-foreground-mix));
+  --ui-content-red-wash-mix:
+    in srgb, var(--ui-content-red-accent) var(--ui-content-wash-weight), var(--ui-color-canvas);
+  --ui-content-red-wash: color-mix(var(--ui-content-red-wash-mix));
+  --ui-content-red-soft-mix:
+    in srgb, var(--ui-content-red-accent) var(--ui-content-soft-weight), var(--ui-color-canvas);
+  --ui-content-red-soft: color-mix(var(--ui-content-red-soft-mix));
+  --ui-content-red-badge-mix:
+    in srgb, var(--ui-content-red-accent) var(--ui-content-badge-weight),
+    var(--ui-color-surface-active);
+  --ui-content-red-badge: color-mix(var(--ui-content-red-badge-mix));
+  --ui-content-red-border-mix:
+    in srgb, var(--ui-content-red-accent) var(--ui-content-border-weight), transparent;
+  --ui-content-red-border: color-mix(var(--ui-content-red-border-mix));
+  --ui-content-red-foreground-mix:
+    in srgb, var(--ui-content-red-accent) var(--ui-content-foreground-weight), var(--ui-color-text);
+  --ui-content-red-foreground: color-mix(var(--ui-content-red-foreground-mix));
 
   /*
    * Stable public API documented in contracts/ui-system.md. Internal `--ui-*`
@@ -254,16 +412,16 @@
   color-scheme: dark;
   --ui-color-canvas: #191919;
   --ui-color-sidebar: #20201e;
-  --ui-color-surface: #252522;
-  --ui-color-surface-raised: #2b2b28;
-  --ui-color-surface-sunken: #151514;
-  --ui-color-surface-hover: #30302d;
-  --ui-color-surface-active: #3a3935;
+  --ui-color-surface: #202020;
+  --ui-color-surface-raised: #252525;
+  --ui-color-surface-sunken: #151515;
+  --ui-color-surface-hover: #262626;
+  --ui-color-surface-active: #373737;
   --ui-color-overlay: rgb(0 0 0 / 62%);
-  --ui-color-border: #3e3d38;
+  --ui-color-border: #32322f;
   --ui-color-border-strong: #595750;
-  --ui-color-text: #f2f0eb;
-  --ui-color-text-muted: #b9b5ad;
+  --ui-color-text: #f0efed;
+  --ui-color-text-muted: #bcbab6;
   --ui-color-text-subtle: #aaa69e;
   --ui-color-text-disabled: #7e7a73;
   --ui-color-text-inverse: #ffffff;
@@ -286,24 +444,23 @@
   --ui-shadow-dialog: 0 26px 76px rgb(0 0 0 / 58%), 0 4px 16px rgb(0 0 0 / 34%);
   --ui-shadow-drag: 0 20px 52px rgb(0 0 0 / 54%), 0 3px 12px rgb(0 0 0 / 34%);
   --ui-focus-ring: none;
+  --ui-content-wash-weight: 6%;
+  --ui-content-soft-weight: 20%;
+  --ui-content-badge-weight: 46%;
+  --ui-content-border-weight: 25%;
+  --ui-content-foreground-weight: 80%;
+  --ui-content-hover-lightness: 2.5;
+  --ui-content-gray-border-mix: in srgb, var(--ui-color-text) 8%, transparent;
+  --ui-content-gray-border: color-mix(var(--ui-content-gray-border-mix));
   --ui-content-gray: #b9b5ad;
-  --ui-content-gray-soft: #30302d;
   --ui-content-brown: #d2a58f;
-  --ui-content-brown-soft: #49362d;
   --ui-content-orange: #ffb173;
-  --ui-content-orange-soft: #4b3322;
   --ui-content-yellow: #e7cc70;
-  --ui-content-yellow-soft: #433b20;
   --ui-content-green: #8bd6aa;
-  --ui-content-green-soft: #263e30;
   --ui-content-blue: #9cc5fa;
-  --ui-content-blue-soft: #273a50;
   --ui-content-purple: #c5a4ea;
-  --ui-content-purple-soft: #3c304b;
   --ui-content-pink: #eba5ca;
-  --ui-content-pink-soft: #493040;
   --ui-content-red: #f3a49e;
-  --ui-content-red-soft: #4a2d2a;
 }
 
 /* Correct fallback when the bootstrap cannot execute. */
@@ -312,16 +469,16 @@
     color-scheme: dark;
     --ui-color-canvas: #191919;
     --ui-color-sidebar: #20201e;
-    --ui-color-surface: #252522;
-    --ui-color-surface-raised: #2b2b28;
-    --ui-color-surface-sunken: #151514;
-    --ui-color-surface-hover: #30302d;
-    --ui-color-surface-active: #3a3935;
+    --ui-color-surface: #202020;
+    --ui-color-surface-raised: #252525;
+    --ui-color-surface-sunken: #151515;
+    --ui-color-surface-hover: #262626;
+    --ui-color-surface-active: #373737;
     --ui-color-overlay: rgb(0 0 0 / 62%);
-    --ui-color-border: #3e3d38;
+    --ui-color-border: #32322f;
     --ui-color-border-strong: #595750;
-    --ui-color-text: #f2f0eb;
-    --ui-color-text-muted: #b9b5ad;
+    --ui-color-text: #f0efed;
+    --ui-color-text-muted: #bcbab6;
     --ui-color-text-subtle: #aaa69e;
     --ui-color-text-disabled: #7e7a73;
     --ui-color-text-inverse: #ffffff;
@@ -344,24 +501,23 @@
     --ui-shadow-dialog: 0 26px 76px rgb(0 0 0 / 58%), 0 4px 16px rgb(0 0 0 / 34%);
     --ui-shadow-drag: 0 20px 52px rgb(0 0 0 / 54%), 0 3px 12px rgb(0 0 0 / 34%);
     --ui-focus-ring: none;
+    --ui-content-wash-weight: 6%;
+    --ui-content-soft-weight: 20%;
+    --ui-content-badge-weight: 46%;
+    --ui-content-border-weight: 25%;
+    --ui-content-foreground-weight: 80%;
+    --ui-content-hover-lightness: 2.5;
+    --ui-content-gray-border-mix: in srgb, var(--ui-color-text) 8%, transparent;
+    --ui-content-gray-border: color-mix(var(--ui-content-gray-border-mix));
     --ui-content-gray: #b9b5ad;
-    --ui-content-gray-soft: #30302d;
     --ui-content-brown: #d2a58f;
-    --ui-content-brown-soft: #49362d;
     --ui-content-orange: #ffb173;
-    --ui-content-orange-soft: #4b3322;
     --ui-content-yellow: #e7cc70;
-    --ui-content-yellow-soft: #433b20;
     --ui-content-green: #8bd6aa;
-    --ui-content-green-soft: #263e30;
     --ui-content-blue: #9cc5fa;
-    --ui-content-blue-soft: #273a50;
     --ui-content-purple: #c5a4ea;
-    --ui-content-purple-soft: #3c304b;
     --ui-content-pink: #eba5ca;
-    --ui-content-pink-soft: #493040;
     --ui-content-red: #f3a49e;
-    --ui-content-red-soft: #4a2d2a;
   }
 }
 

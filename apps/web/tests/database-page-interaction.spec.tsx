@@ -1,13 +1,24 @@
 // @vitest-environment jsdom
-import type { DatabaseDto } from "@myownnotion/contracts";
-import { type DatabaseDefinition, generateUuidV7 } from "@myownnotion/domain";
+
+import type { LocalDatabaseRow } from "@myownnotion/client-core";
+import type { DatabaseDto, DatabaseEntryDto } from "@myownnotion/contracts";
+import {
+  DATABASE_DEFINITION_FORMAT,
+  DATABASE_PRESENTATION_FORMAT,
+  type DatabaseDefinition,
+  type DatabaseView,
+  generateUuidV7,
+  type Uuid,
+} from "@myownnotion/domain";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DatabaseContainerPage } from "../src/features/databases/database-container-page.tsx";
 import { DatabasePage } from "../src/features/databases/database-page.tsx";
 import { DatabaseToolbar } from "../src/features/databases/database-toolbar.tsx";
 import type { DatabaseViewPage, DatabaseViewResult } from "../src/services/databases.ts";
+import type { LocalContentService } from "../src/services/local-content.ts";
 
 function input(input: HTMLInputElement, value: string): void {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
@@ -55,6 +66,106 @@ function database(): DatabaseDto {
   } as DatabaseDto;
 }
 
+function sourceView(id: Uuid, propertyId: Uuid, name: string): DatabaseView {
+  return {
+    id,
+    name,
+    type: "table",
+    positionKey: name,
+    state: "active",
+    properties: [{ propertyId, visible: true, positionKey: "a" }],
+    filter: { mode: "all", criteria: [] },
+    sorts: [],
+    group: null,
+    options: { density: "comfortable", freezeTitle: true },
+  };
+}
+
+function sourceRow(
+  itemId: Uuid,
+  sourceId: Uuid,
+  sourceName: string,
+  view: DatabaseView,
+  propertyId: Uuid,
+): LocalDatabaseRow {
+  const definition: DatabaseDefinition = {
+    format: DATABASE_DEFINITION_FORMAT,
+    formatVersion: 1,
+    databaseId: itemId,
+    name: sourceName,
+    properties: [
+      {
+        id: propertyId,
+        name: "Title",
+        type: "title",
+        positionKey: "a",
+        state: "active",
+        config: {},
+      },
+    ],
+    views: [view],
+    taskRoles: null,
+  };
+  return {
+    itemId,
+    sourceId,
+    definitionVersion: 1,
+    definitionRevisionId: generateUuidV7(),
+    definition,
+  };
+}
+
+function integratedDatabase(withLinkedSource: boolean) {
+  const containerId = generateUuidV7();
+  const ownSourceId = generateUuidV7();
+  const ownPropertyId = generateUuidV7();
+  const ownView = sourceView(generateUuidV7(), ownPropertyId, "Vue propriétaire");
+  const ownSource = sourceRow(containerId, ownSourceId, "Tâches", ownView, ownPropertyId);
+  const linkedItemId = generateUuidV7();
+  const linkedSourceId = generateUuidV7();
+  const linkedPropertyId = generateUuidV7();
+  const linkedView = sourceView(generateUuidV7(), linkedPropertyId, "Vue liée");
+  const linkedSource = sourceRow(
+    linkedItemId,
+    linkedSourceId,
+    "Archives",
+    linkedView,
+    linkedPropertyId,
+  );
+  const container: LocalDatabaseRow = {
+    ...ownSource,
+    presentationVersion: 1,
+    presentationRevisionId: generateUuidV7(),
+    presentation: {
+      format: DATABASE_PRESENTATION_FORMAT,
+      formatVersion: 1,
+      containerItemId: containerId,
+      views: [
+        { ...ownView, sourceId: ownSourceId },
+        ...(withLinkedSource ? [{ ...linkedView, sourceId: linkedSourceId }] : []),
+      ],
+    },
+  };
+  const service = {
+    subscribe: () => () => {},
+    getSnapshot: () => ({
+      projectionComplete: true,
+      projectionLoadFailed: false,
+      syncState: "synced",
+    }),
+    getDatabase: async (id: Uuid) =>
+      id === containerId ? container : id === linkedItemId ? linkedSource : null,
+    listDatabases: async () => [container, ...(withLinkedSource ? [linkedSource] : [])],
+    subscribeProjection: () => () => {},
+    getItem: async (id: Uuid) => ({ id, lifecycle: "active", kind: "database" }),
+    listDatabaseEntries: async () => [],
+    getItems: async () => [],
+    getDatabaseEntryRelations: async () => new Map(),
+    outbox: { all: async () => [], activeConflicts: async () => [] },
+  } as unknown as LocalContentService;
+  return { containerId, service };
+}
+
 describe("database page interaction durability", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -70,6 +181,57 @@ describe("database page interaction durability", () => {
     act(() => root.unmount());
     container.remove();
     vi.restoreAllMocks();
+  });
+
+  it("shows the source title inside an integrated database with one source", async () => {
+    const { containerId, service } = integratedDatabase(false);
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <DatabaseContainerPage
+            containerItemId={containerId}
+            service={service}
+            onOpenEntry={vi.fn()}
+          />
+        </MemoryRouter>,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    const title = container.querySelector<HTMLTextAreaElement>(
+      '[data-testid="current-source-title"]',
+    );
+    expect(title?.value).toBe("Tâches");
+    const tabs = container.querySelector(".database-container-page__tabs");
+    expect(title?.compareDocumentPosition(tabs as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("updates the integrated source title when switching to a linked source", async () => {
+    const { containerId, service } = integratedDatabase(true);
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <DatabaseContainerPage
+            containerItemId={containerId}
+            service={service}
+            onOpenEntry={vi.fn()}
+          />
+        </MemoryRouter>,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    const linkedTab = [
+      ...container.querySelectorAll<HTMLButtonElement>(".database-container-page__tab"),
+    ].find((tab) => tab.textContent?.includes("Vue liée"));
+    expect(linkedTab).toBeDefined();
+    await act(async () => {
+      linkedTab?.click();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    const title = container.querySelector<HTMLElement>('[data-testid="current-source-title"]');
+    expect(title?.textContent).toContain("Archives");
+    expect(title?.tagName).toBe("P");
   });
 
   it.each(["accepted", "rejected"] as const)(
@@ -251,6 +413,77 @@ describe("database page interaction durability", () => {
       options: [{ label: "To do", tone: "gray" }, { label: "En cours" }, { label: "Terminé" }],
     });
   });
+
+  it.each(["fallback-loading", "fallback-degraded", "queried"] as const)(
+    "normalizes %s rows as locally readable with an unknown discovery total",
+    async (phase) => {
+      const value = database();
+      const viewId = value.definition.views[0]?.id;
+      if (viewId === undefined) throw new Error("Missing view");
+      const entry: DatabaseEntryDto = {
+        databaseId: value.databaseId,
+        entryId: generateUuidV7(),
+        kind: "page",
+        revisionId: generateUuidV7(),
+        lifecycle: "active",
+        title: "Readable local entry",
+        document: null,
+        values: {},
+        relationTargets: {},
+      };
+      const page: DatabaseViewPage = {
+        databaseId: value.databaseId,
+        viewId,
+        definitionRevisionId: value.definitionRevisionId,
+        generation: 1,
+        coverage: "complete",
+        availableCount: 1,
+        expectedCount: 1,
+        rows: [{ ...entry, groupId: null, syncState: "synced" }],
+        groups: [],
+        nextCursor: null,
+        source: "local",
+        staleCursorRecovered: false,
+      };
+      const retry = vi.fn();
+      const query = vi.fn<() => Promise<DatabaseViewResult>>(() => new Promise(() => undefined));
+      const render = (partial: boolean) => (
+        <MemoryRouter>
+          <DatabasePage
+            database={value}
+            entries={[entry]}
+            {...(phase === "queried" ? { queryPage: page } : {})}
+            queryState={
+              phase === "fallback-loading"
+                ? "loading"
+                : phase === "fallback-degraded"
+                  ? "degraded"
+                  : "ready"
+            }
+            {...(partial ? { discoveryState: "offline" as const, onRetryDiscovery: retry } : {})}
+            onQueryView={query}
+            onReplaceDefinition={vi.fn()}
+            onCreateEntry={vi.fn()}
+            onOpenEntry={vi.fn()}
+          />
+        </MemoryRouter>
+      );
+      await act(async () => root.render(render(true)));
+      const trigger = container.querySelector("[data-entry-trigger]");
+      expect(trigger).not.toBeNull();
+      expect(container.textContent).toContain("Readable local entry");
+      expect(container.querySelector('[role="grid"]')?.getAttribute("aria-rowcount")).toBe("-1");
+      const notice = container.querySelector('[data-testid="database-discovery-state"]');
+      expect(notice?.textContent).toContain("Données locales disponibles");
+      expect(container.textContent).not.toContain("1 sur 1");
+      act(() => notice?.querySelector<HTMLButtonElement>("button")?.click());
+      expect(retry).toHaveBeenCalledTimes(1);
+      await act(async () => root.render(render(false)));
+      expect(container.querySelector("[data-entry-trigger]")).toBe(trigger);
+      expect(container.querySelector('[role="grid"]')?.getAttribute("aria-rowcount")).toBe("2");
+      expect(container.querySelector('[data-testid="database-discovery-state"]')).toBeNull();
+    },
+  );
 
   it("keeps the entry loading region mounted during projection refresh", () => {
     const value = database();

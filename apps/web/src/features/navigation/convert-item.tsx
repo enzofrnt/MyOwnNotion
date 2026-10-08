@@ -15,8 +15,9 @@
  * **It does not warn about a page that holds nothing.** Every page has a
  * document from the moment it is created, so warning on that basis would fire
  * on a page made a minute ago and never typed in — which is precisely how an
- * owner learns to dismiss the warning that matters. The server decides; this
- * asks only when it must.
+ * owner learns to dismiss the warning that matters. A positive projection hint
+ * opens the warning immediately; the canonical command still checks the latest
+ * content before any write, including when that hint is missing or stale.
  *
  * The dialog is a real one: it takes focus, traps it, closes on Escape, and
  * returns focus to the control that opened it (FR-018).
@@ -48,6 +49,7 @@ export function ConvertItemControl({
   itemId,
   itemName,
   kind,
+  holdsContent,
   convert,
   finalFocus,
   onActiveChange,
@@ -56,6 +58,7 @@ export function ConvertItemControl({
   readonly itemId: Uuid;
   readonly itemName: string;
   readonly kind: ConvertibleKind;
+  readonly holdsContent?: boolean | undefined;
   readonly convert: (
     itemId: Uuid,
     targetKind: ConvertibleKind,
@@ -63,27 +66,54 @@ export function ConvertItemControl({
   ) => Promise<ConvertOutcome>;
   readonly finalFocus?: RefObject<HTMLElement | null>;
   readonly onActiveChange?: (active: boolean) => void;
-  readonly variant?: "button" | "menu";
+  readonly variant?: "button" | "menu" | "switch";
 }) {
-  const [pending, setPending] = useState(false);
+  const [pendingKind, setPendingKind] = useState<ConvertibleKind | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [returnFocus, setReturnFocus] = useState<"pointer" | "keyboard" | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
+  const running = useRef(false);
+  const openedWithPointer = useRef(false);
 
   const target: ConvertibleKind = kind === "page" ? "folder" : "page";
+  const pending = pendingKind !== null;
 
   const close = useCallback(() => {
+    if (running.current) return;
     setConfirming(false);
+    setReturnFocus(
+      variant === "switch" ? (openedWithPointer.current ? "pointer" : "keyboard") : null,
+    );
     onActiveChange?.(false);
-  }, [onActiveChange]);
+  }, [onActiveChange, variant]);
 
   const run = useCallback(
     async (confirmedDestruction: boolean) => {
+      if (running.current) return;
+      if (!confirmedDestruction && target === "folder" && holdsContent === true) {
+        setError(null);
+        onActiveChange?.(true);
+        setConfirming(true);
+        return;
+      }
+      running.current = true;
       onActiveChange?.(true);
-      setPending(true);
+      setPendingKind(target);
       setError(null);
-      const outcome = await convert(itemId, target, confirmedDestruction);
-      setPending(false);
+      let outcome: ConvertOutcome;
+      try {
+        outcome = await convert(itemId, target, confirmedDestruction);
+      } catch (cause) {
+        outcome = {
+          ok: false,
+          needsConfirmation: false,
+          message: cause instanceof Error ? cause.message : "La conversion n’a pas abouti.",
+        };
+      } finally {
+        running.current = false;
+        setPendingKind(null);
+      }
 
       if (outcome.ok) {
         setConfirming(false);
@@ -91,16 +121,15 @@ export function ConvertItemControl({
         return;
       }
       if (outcome.needsConfirmation) {
-        // The server refused because this page holds content. Only now is the
-        // owner asked — so an empty page converts without ever seeing a
-        // warning about content it does not have.
+        // The projection hint was absent or stale. The canonical refusal still
+        // protects newly added content without an optimistic destructive write.
         setConfirming(true);
         return;
       }
       setError(outcome.message ?? "La conversion n’a pas abouti.");
       onActiveChange?.(false);
     },
-    [convert, itemId, target, onActiveChange],
+    [convert, itemId, target, holdsContent, onActiveChange],
   );
 
   return (
@@ -110,7 +139,45 @@ export function ConvertItemControl({
         if (!open) close();
       }}
     >
-      {variant === "menu" ? (
+      {variant === "switch" ? (
+        <fieldset
+          className="database-card-kind"
+          aria-label="Type d’élément"
+          aria-busy={pending || undefined}
+          data-pending-kind={pendingKind ?? undefined}
+          data-quiet-return-focus={returnFocus === "pointer" || undefined}
+          data-keyboard-return-focus={returnFocus === "keyboard" || undefined}
+          onKeyDownCapture={() => setReturnFocus(null)}
+          onPointerDownCapture={() => setReturnFocus(null)}
+          onBlurCapture={() => setReturnFocus(null)}
+        >
+          {(["page", "folder"] as const).map((choice) => (
+            <Button
+              key={choice}
+              size="compact"
+              variant="ghost"
+              ref={choice === target ? (trigger as Ref<HTMLButtonElement>) : undefined}
+              aria-pressed={kind === choice}
+              disabled={pending}
+              title={
+                choice === kind
+                  ? undefined
+                  : `Transformer en ${choice === "page" ? "page" : "dossier"}`
+              }
+              onClick={(event) => {
+                if (choice !== kind) {
+                  openedWithPointer.current = event.detail > 0;
+                  setReturnFocus(null);
+                  void run(false);
+                }
+              }}
+            >
+              <AppIcon name={choice === "page" ? "file" : "folder"} size="small" />
+              {choice === "page" ? "Page" : "Dossier"}
+            </Button>
+          ))}
+        </fieldset>
+      ) : variant === "menu" ? (
         <MenuItem
           ref={trigger as Ref<HTMLDivElement>}
           disabled={pending}
@@ -120,7 +187,7 @@ export function ConvertItemControl({
             void run(false);
           }}
         >
-          <AppIcon name={kind === "page" ? "folder" : "fileText"} size="small" />
+          <AppIcon name={kind === "page" ? "convertToFolder" : "convertToPage"} />
           Transformer en {kind === "page" ? "dossier" : "page"}
         </MenuItem>
       ) : (
@@ -142,7 +209,7 @@ export function ConvertItemControl({
             void run(false);
           }}
         >
-          <AppIcon name={kind === "page" ? "folder" : "fileText"} size="small" />
+          <AppIcon name={kind === "page" ? "convertToFolder" : "convertToPage"} />
           <span className="ui-visually-hidden">{kind === "page" ? "en dossier" : "en page"}</span>
         </button>
       )}
@@ -152,6 +219,8 @@ export function ConvertItemControl({
           role="alertdialog"
           finalFocus={finalFocus ?? trigger}
           size="medium"
+          hideOnEscape={!pending}
+          hideOnInteractOutside={!pending}
           className="convert-dialog"
           data-testid="convert-confirmation"
         >
@@ -180,7 +249,7 @@ export function ConvertItemControl({
             >
               Supprimer le contenu et convertir
             </Button>
-            <Button data-testid="cancel-convert" onClick={close}>
+            <Button disabled={pending} data-testid="cancel-convert" onClick={close}>
               Conserver cette page
             </Button>
           </div>

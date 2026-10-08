@@ -6,6 +6,42 @@ import {
 } from "../src/features/databases/update-database-cell.ts";
 import type { LocalContentService } from "../src/services/local-content.ts";
 
+it("resolves a board move against full current values and keeps memberships absent from a stale card", () => {
+  const propertyId = generateUuidV7();
+  const a = generateUuidV7(),
+    b = generateUuidV7(),
+    c = generateUuidV7();
+  const values = { [propertyId]: { kind: "multi-select" as const, optionIds: [a, b] } };
+  const moved = updatedCellProperties(
+    values,
+    {},
+    { kind: "property", propertyId, optionMove: { from: a, to: c } },
+  );
+  expect(moved.values[propertyId]).toEqual({ kind: "multi-select", optionIds: [b, c].sort() });
+  expect(
+    updatedCellProperties(
+      values,
+      {},
+      { kind: "property", propertyId, optionMove: { from: a, to: b } },
+    ).values[propertyId],
+  ).toEqual({ kind: "multi-select", optionIds: [b] });
+  expect(
+    updatedCellProperties(
+      values,
+      {},
+      { kind: "property", propertyId, optionMove: { from: a, to: "missing" } },
+    ).values[propertyId],
+  ).toBeUndefined();
+  expect(() =>
+    updatedCellProperties(
+      values,
+      {},
+      { kind: "property", propertyId, optionMove: { from: c, to: b } },
+    ),
+  ).toThrow();
+  expect(values[propertyId]?.optionIds).toEqual([a, b]);
+});
+
 it("replaces a relation with a scalar, clears absent values and preserves the source projection", () => {
   const propertyId = generateUuidV7();
   const otherProperty = generateUuidV7();

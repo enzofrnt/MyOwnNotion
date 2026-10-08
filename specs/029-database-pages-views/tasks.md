@@ -89,7 +89,7 @@
 ## Phase 8 — Échanges durables et convergence
 
 - [ ] T040 Adapter export canonique, contrats, sauvegarde/restauration et fixtures au modèle 029 dans `packages/domain/src/export/canonical-export.ts`, `packages/contracts/src/content-api.ts`, `apps/api/src/routes/export.ts`, `apps/api/src/backup/database-restore-target.ts` et tests associés.
-- [ ] T041 Adapter aperçu/import Notion 028 : propriétaires visibles, IDs déterministes distincts, membres directs, `.base` liés et reprise chiffrée dans `apps/api/src/imports/notion/{plan,apply,markdown}.ts` et `apps/api/tests/notion-import.integration.spec.ts`.
+- [ ] T041 Adapter import Notion 028 au modèle 029 : suivi remplacé par les tâches API T031/T033/T034/T038/T040 dans `specs/028-notion-import/tasks.md`. Les anciens adaptateurs de fichiers et `.base` sont supprimés à la demande du propriétaire ; vérifier propriétaires, sources distinctes, membres directs, activation des blocs de base intégrée et reprise chiffrée dans `apps/api/tests/notion-api.integration.spec.ts`.
 - [ ] T042 Exécuter un reset uniquement sur une installation de test isolée après inventaire du périmètre, puis vérifier export/restauration/sync/import selon `specs/029-database-pages-views/quickstart.md` et `specs/029-database-pages-views/validation.md`.
 - [ ] T043 Exécuter tests ciblés, migrations, Playwright et gate local de `docs/development.md` ; réparer jusqu'au vert et consigner les preuves dans `specs/029-database-pages-views/validation.md`.
 - [ ] T044 Faire l'analyse de convergence spec/plan/tâches/code, corriger tout écart fonctionnel ou UI matériel et cocher uniquement les tâches prouvées dans `specs/029-database-pages-views/tasks.md`.
@@ -115,3 +115,69 @@ Les tâches T030 et T035 à T039 décrivent le modèle à une source et le bloc 
 T001–T002 précèdent les fondations. T003–T011 précèdent les stories. Ordre de référence : US1 → US2 → US3 → US4 → US5, chaque story gardant son test indépendant. Les adaptations d'échange T040–T041 peuvent commencer une fois les contrats et modèles stabilisés, mais doivent être validées avec l'ensemble. Les tâches `[P]` portent sur des fichiers distincts et peuvent être étudiées en parallèle sans fusion de mutations dépendantes. Chaque tâche UI de T017/T023/T028/T034/T039 a son gate visuel propre.
 
 **MVP vérifiable** : US1 après les fondations. La feature entière exige les cinq stories, T040–T044 et la phase 9, parce que la session du 30 septembre change la propriété des sources, la base intégrée et les suppressions.
+
+
+## Ajustement des liens et commandes — 035
+
+Le retour du propriétaire du 4 octobre est défini dans
+[035/spec.md](../035-item-links-database-insertion/spec.md), avec approche et
+suivi dans ses plan.md/tasks.md. Il remplace les libellés précédents par les
+créations « Page/Dossier/Base de données imbriqué(e) », élargit « Lien vers un
+autre élément » aux bases, et fusionne les commandes d'affichage intégré et lié
+dans un dialogue de choix. Le concept de vue liée et la propriété des sources
+restent inchangés. L'import respecte is_inline et corrige les références
+historiques inchangées ; la validation locale propre à035 ne revalide pas les
+anciennes phases de cette feature.
+
+## Extension 036 — 2026-10-04
+
+[036](../036-multi-select-boards/spec.md) ajoute le regroupement Kanban par sélection multiple, sans repli table pour ce cas. Les anciennes preuves Matière restent historiques ; la restauration ciblée et la validation native sont suivies dans 036.
+
+## Maintenance — action d'ajout de propriété selon la vue
+
+- [ ] T052 Déplacer l'ajout de propriété des vues non tabulaires de la bande
+  d'actions de page vers le titre de la section « Propriétés » dans le panneau
+  de configuration ; conserver le bouton plus contextuel des colonnes de table,
+  adapter les repères de parcours et documenter la revue réelle.
+
+## Maintenance UI — retour du 2026-10-06
+
+- [ ] T053 Élargir le conteneur des bases pleine page en conservant l'alignement
+  du titre et des vues, puis refaire le formulaire propriété avec champs
+  empilés, options lisibles, actions séparées et erreurs près du formulaire ;
+  actualiser le patron transversal dans `ui-quality` et `docs/design/ui-system.md`.
+- [ ] T054 Appliquer ui-quality : vérifier desktop, 320 px, clair/sombre,
+  clavier/tactile, état d'erreur et types à options ; consigner une capture
+  réelle authentifiée de l'instance isolée avant convergence.
+- [x] T055 Équilibrer puis affiner les marges latérales du titre et du contenu
+  d'une base pleine page sans modifier celles des pages éditoriales ou intégrées.
+
+## Maintenance UI — titre de source dans une base intégrée (2026-10-06)
+
+- [x] T056 Toujours afficher dans le bloc intégré le titre de la source de la
+  vue sélectionnée au-dessus de la barre des vues ; suivre les changements de
+  source et conserver l'édition uniquement pour une source possédée, dans
+  `apps/web/src/features/databases/database-container-page.tsx`.
+- [ ] T057 Ajouter une régression pour le titre à source unique et son
+  changement quand l'onglet passe à une source liée, puis appliquer
+  `ui-quality`/lessons et consigner les preuves desktop, 320 px, clair/sombre,
+  propriétaire et liée dans `apps/web/tests/database-page-interaction.spec.tsx`
+  et `specs/029-database-pages-views/validation.md`.
+
+## Maintenance UI — déplacer une base intégrée (2026-10-06)
+
+- [x] T058 Garder la poignée/le protocole de déplacement natifs et neutraliser
+  le calque de sélection éditoriale inadapté sur le bloc interactif dans
+  `apps/web/src/features/editor/editor.css`.
+- [ ] T059 Appliquer `ui-quality`/lessons et vérifier sur une page réelle que
+  le fantôme reprend fidèlement la base et que le bloc entier se déplace sans
+  sélection fragmentée ; consigner l'observation et les contrôles dans la
+  validation 029 avant de changer son image native.
+- [x] T060 Corriger la position visible du clone de la base intégrée avec
+  un overlay attaché au point saisi sur la poignée ; contrôler son rendu
+  pendant le drag, le dépôt et l'annulation, après scroll et à largeur réduite avec
+  `ui-quality`/lessons L-010, L-012 et L-023, puis consigner les preuves et limites.
+- [x] T061 Faire correspondre la largeur du fantôme à la base saisie, sans
+  limite compacte ni padding ajouté ; appliquer `ui-quality`/lessons et vérifier
+  visuellement les largeurs source/clone et l'ancrage sur desktop, après scroll
+  et à 320 px, puis consigner les captures et le nettoyage à l'annulation.

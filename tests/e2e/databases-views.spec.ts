@@ -50,8 +50,11 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     await expect(panel).toBeVisible();
     await chooseEntryOptions(page, "Status", [status]);
     await waitForEntryAutosave(page);
-    await page.getByRole("button", { name: "Fermer l'entrée" }).click();
-    await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+    await page.getByRole("button", { name: "Fermer le volet" }).click();
+    await expect(page.locator(".database-entry-peek")).toBeHidden();
+    await expect(
+      page.getByTestId("workspace-page-canvas").getByTestId("active-item-title"),
+    ).toHaveValue(databaseName);
     await expect(entryTrigger(page, title).first()).toBeFocused({ timeout: 15_000 });
   };
 
@@ -104,14 +107,11 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await expect(page.locator("[data-entry-trigger]")).toHaveCount(3);
   await waitForDatabaseDefinitionSaved(page);
 
-  const sortEditor = page
-    .locator(".database-rule-editor")
-    .filter({ hasText: /^Tri et regroupement/ });
+  const sortEditor = page.locator(".database-rule-editor").filter({ hasText: /^Trier/ });
   await sortEditor.locator("summary").click();
   await sortEditor.getByRole("button", { name: "Ajouter un tri" }).click();
   await sortEditor.getByLabel("Direction").selectOption("descending");
-  await sortEditor.getByLabel("Regrouper par").selectOption({ label: "Status" });
-  await sortEditor.getByRole("button", { name: "Enregistrer le tri et le regroupement" }).click();
+  await sortEditor.getByRole("button", { name: "Enregistrer les tris", exact: true }).click();
   await expect
     .poll(
       async () =>
@@ -122,18 +122,52 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     .toEqual([entries.gamma, entries.beta, entries.alpha]);
   await waitForDatabaseDefinitionSaved(page);
 
+  const grouping = page.getByRole("region", { name: "Grouper", exact: true });
+  await grouping.getByRole("button", { name: "Grouper par Aucun", exact: true }).click();
+  await page
+    .getByRole("menu", { name: "Grouper par", exact: true })
+    .getByRole("menuitem", { name: "Status", exact: true })
+    .click();
+  await expect(
+    grouping.getByRole("button", { name: "Grouper par Status", exact: true }),
+  ).toBeVisible();
+  await waitForDatabaseDefinitionSaved(page);
+
   await page.keyboard.press("Escape");
-  const columnsButton = page.getByRole("button", { name: "Afficher ou masquer les propriétés" });
+  const columnsButton = page.getByRole("button", {
+    name: "Afficher ou masquer les propriétés",
+    exact: true,
+  });
+  // Grouping leaves the detached table header scrolled to its last column.
+  // Keyboard focus reveals its command through the body rail before clicking.
+  await columnsButton.focus();
+  await expect(columnsButton).toBeFocused();
+  await expect
+    .poll(() =>
+      columnsButton.evaluate((node) => {
+        const control = node.getBoundingClientRect();
+        const rail = node.closest(".database-page-header-scroll")?.getBoundingClientRect();
+        return (
+          rail !== undefined &&
+          control.left >= Math.max(0, rail.left) &&
+          control.right <= Math.min(innerWidth, rail.right) &&
+          control.top >= Math.max(0, rail.top) &&
+          control.bottom <= Math.min(innerHeight, rail.bottom)
+        );
+      }),
+    )
+    .toBe(true);
+  await expect(columnsButton).toBeInViewport();
   await columnsButton.click();
   const columns = page.locator(".database-property-visibility");
   await columns.getByRole("switch", { name: "Afficher Status dans cette vue" }).click();
   await expect(
-    page.locator(".database-grid").getByRole("columnheader", { name: /Status/ }),
+    page.getByTestId("database-view-surface").getByRole("columnheader", { name: /Status/ }),
   ).toHaveCount(0);
   await waitForDatabaseDefinitionSaved(page);
   await columns.getByRole("switch", { name: "Afficher Status dans cette vue" }).click();
   await expect(
-    page.locator(".database-grid").getByRole("columnheader", { name: /Status/ }),
+    page.getByTestId("database-view-surface").getByRole("columnheader", { name: /Status/ }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
   // Reordering is offered by the view's visibility screen and persists independently of the source schema.
@@ -143,7 +177,10 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await settings.getByRole("button", { name: "Déplacer la colonne Status vers la gauche" }).click();
   await waitForDatabaseDefinitionSaved(page);
   const columnNames = () =>
-    page.locator(".database-grid th .database-column-label__name").allTextContents();
+    page
+      .getByTestId("database-view-surface")
+      .locator("th .database-column-label__name")
+      .allTextContents();
   await expect.poll(columnNames).toEqual(["Status", "Titre"]);
   const originalViewport = page.viewportSize();
   for (const theme of ["light", "dark"] as const) {
@@ -208,7 +245,10 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     await expect(second.page.locator("[data-entry-trigger]")).toHaveCount(3);
     await expect
       .poll(() =>
-        second.page.locator(".database-grid th .database-column-label__name").allTextContents(),
+        second.page
+          .getByTestId("database-view-surface")
+          .locator("th .database-column-label__name")
+          .allTextContents(),
       )
       .toEqual(["Status", "Titre"]);
     await databaseViewButton(second.page, /Planning/).click();

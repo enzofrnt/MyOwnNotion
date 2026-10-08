@@ -7,10 +7,12 @@
  * being wrong means an attachment can read everything its owner has written.
  */
 
+import { writeFile } from "node:fs/promises";
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   dropEditorFile,
+  expectNoHorizontalOverflow,
   openAttachmentDetails,
   openPageAttachments,
   openWorkspace,
@@ -18,6 +20,124 @@ import {
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`keeps attachment actions stable during a late usage update in ${colorScheme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 320, height: 909 });
+    await page.emulateMedia({ colorScheme });
+    const fileName = `${uniqueName("stable-preview")}.svg`;
+    await pageWithFile(
+      page,
+      fileName,
+      '<svg xmlns="http://www.w3.org/2000/svg"/>',
+      "image/svg+xml",
+    );
+    const details = page.getByTestId(`attachment-details-${fileName}`);
+    await page.keyboard.press("Escape");
+    await expect(details).not.toBeVisible();
+
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let entered = false;
+    let holding = true;
+    const usages = /\/v1\/files\/[^/]+\/usages$/u;
+    await page.route(usages, async (route) => {
+      if (!holding) {
+        await route.continue();
+        return;
+      }
+      holding = false;
+      const response = await route.fetch();
+      const body = await response.json();
+      entered = true;
+      await gate;
+      await route.fulfill({
+        response,
+        json: {
+          ...body,
+          usages: body.usages.map((usage: { usedByName: string }) => ({
+            ...usage,
+            usedByName: `Long usage update that wraps across several lines: ${usage.usedByName}`,
+          })),
+        },
+      });
+    });
+    try {
+      await openAttachmentDetails(page, fileName);
+      await expect.poll(() => entered).toBe(true);
+      const preview = details.getByTestId(`preview-file-${fileName}`);
+      const held = await preview.elementHandle();
+      const before = await preview.boundingBox();
+      if (before === null) throw new Error("Preview action is not visible");
+      await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+      await page.mouse.down();
+      release();
+      await expect(details.getByTestId(`attachment-usages-${fileName}`)).toContainText(
+        "Long usage update",
+      );
+      const after = await preview.boundingBox();
+      if (after === null) throw new Error("Preview action disappeared during usage update");
+      const connected = await held?.evaluate((element) => element.isConnected);
+      const displacement = Math.max(
+        ...["x", "y", "width", "height"].map((key) =>
+          Math.abs(after[key as keyof typeof after] - before[key as keyof typeof before]),
+        ),
+      );
+      const measurement = testInfo.outputPath("attachment-action-stability.json");
+      await writeFile(
+        measurement,
+        JSON.stringify({ connected, displacement, before, after }, null, 2),
+      );
+      await testInfo.attach("attachment-action-stability", {
+        path: measurement,
+        contentType: "application/json",
+      });
+      expect(connected).toBe(true);
+      expect(displacement).toBeLessThanOrEqual(1);
+      await page.screenshot({
+        path: testInfo.outputPath(`attachment-context-${colorScheme}-320.png`),
+      });
+      const containment = await details.evaluate((panel) => {
+        const drawer = panel.closest(".workspace-sidebar-drawer");
+        if (drawer === null) throw new Error("Narrow attachment panel is outside its modal drawer");
+        const bounds = panel.getBoundingClientRect();
+        const boundary = drawer.getBoundingClientRect();
+        return {
+          left: bounds.left - boundary.left,
+          right: boundary.right - bounds.right,
+          top: bounds.top - boundary.top,
+          bottom: boundary.bottom - bounds.bottom,
+        };
+      });
+      await writeFile(
+        testInfo.outputPath("attachment-containment.json"),
+        JSON.stringify(containment, null, 2),
+      );
+      expect(Math.min(...Object.values(containment))).toBeGreaterThanOrEqual(0);
+      await expectNoHorizontalOverflow(page);
+      await page.mouse.move(0, 0);
+      await page.mouse.up();
+      await expect(page.getByTestId("file-preview")).toHaveCount(0);
+
+      await preview.click();
+      await expect(page.getByTestId("file-preview")).toHaveCount(1);
+      await expect(page.getByTestId("file-preview")).toHaveAttribute("sandbox", "allow-scripts");
+      await preview.click();
+      await expect(page.getByTestId("file-preview")).toHaveCount(0);
+      await preview.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByTestId("file-preview")).toHaveCount(1);
+      await expect(page.getByTestId("file-preview")).toHaveAttribute("sandbox", "allow-scripts");
+    } finally {
+      release();
+      await page.unrouteAll({ behavior: "wait" });
+    }
+  });
+}
 
 /** An SVG that tries to read the page it is rendered in. */
 const HOSTILE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">

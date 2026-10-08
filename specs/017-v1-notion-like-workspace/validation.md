@@ -1184,3 +1184,104 @@ d'architecture, scénarios manuels et essai d'utilisabilité.
 
 La tranche prouve donc le parcours de synchronisation implémenté aujourd'hui ;
 elle ferme US6 mais ne prétend pas encore que toute la V1 est terminée.
+
+## Logo et favicon — 2026-10-06 (T323–T325)
+
+Le générateur d'images intégré a créé un M de pages pliées blanc, avec un coin
+bleu et une tuile indigo. Le maître PNG 1254 × 1254 px et les dérivés 16, 32 et
+180 px avec alpha sont conservés dans `apps/web/assets/brand/`, avec le prompt
+exact et leur provenance. Le README affiche ce maître à 160 px et utilise
+désormais le titre MyOwnNotion. Les métadonnées HTML utilisent les dérivés
+locaux ; aucune dépendance à une image distante n'est introduite.
+
+Revue `ui-quality`/L-010 : le maître est inspecté après génération, puis les
+fichiers réellement servis par 8082 sont affichés dans Chromium à 160, 16 et
+32 px sur fond clair et sombre. Le M reste reconnaissable aux deux tailles de
+favicon, sans disparition sur le fond sombre. La capture de contrôle est
+[brand-logo-light-dark.png](assets/brand-logo-light-dark.png). Il s'agit d'une
+planche de contrôle des ressources servies, pas d'une capture du chrome natif
+du navigateur ni du rendu GitHub du README.
+
+Depuis une URL de note imbriquée, les deux liens `rel=icon` et le lien tactile
+résolvent correctement vers les assets, avec HTTP 200 et `image/png`. Le build
+Bun émet les trois PNG avec URL versionnée et les inclut tous dans le précache
+Workbox : 33 sorties Web et 23 fichiers précachés. Les favicons pèsent 763 et
+1765 octets. L'ajout de `png` au glob de précache couvre ces nouvelles ressources
+du shell sans modifier les règles de stockage du contenu.
+
+Biome sur `apps/web/build.ts`, build Web et `git diff --check` passent. Le
+périmètre de contrôle est limité aux assets, métadonnées HTML, README et émission
+du bundle ; aucune interaction ni donnée métier ne change. Aucune suite
+applicative n'est lancée. Seul le Web isolé 8082 est recréé ; l'API isolée et les
+conteneurs de l'instance principale conservent leurs dates de démarrage.
+Cette maintenance ne clôt aucune autre tâche de convergence V1.
+
+## Notifications du sommaire et durabilité — 2026-10-07 (T326–T328)
+
+Le propriétaire demande commit, tous les contrôles, push et PR. Le sixième
+gate du candidat `e8f432c1` est interrompu après un vrai échec E2E : le dernier
+caractère d'une saisie hors ligne disparaît à la projection suivant la
+reconnexion. La trace contient une erreur React 185 pendant cette dernière
+frappe, avant la fin de `pressSequentially`. Les source maps localisent
+`usePageHeadings` (`page-headings.ts:62`), notification BlockNote antérieure à
+celle de l'adaptateur durable. Une erreur dans ce callback interrompt les
+listeners suivants ; la présence du texte dans le DOM ne prouve donc pas sa
+durabilité. Les phases précédentes de ce gate ont passé couverture,
+performance, intégrations, migrations et contrats ; elles ne constituent pas
+un succès global ni une validation du candidat corrigé.
+
+La projection commune au sommaire latéral et aux tables des matières regroupe
+désormais les notifications par frame hors de la transaction et ne publie que
+les changements d'identité, niveau, texte ou ordre. Le cleanup retire la
+subscription et annule la frame en attente. Les opérations éditoriales restent
+immédiates et leur durabilité ne dépend pas de cette projection UI. Le journey
+de migration exige le texte complet dans le journal avant reconnexion et
+l'absence d'erreur JavaScript ; celui des sommaires protège aussi cette absence.
+Les délais artificiels d'encryption utilisés pour diagnostiquer sont retirés.
+
+Tests avant correction : deux assertions de notification synchrone/inutile
+échouent. Après correction : 33 tests passent dans quatre fichiers (dont six
+du hook), couvrant aussi les notifications pendant un commit React, changements
+de titres, ordre/niveau/identité, changement d'éditeur, démontage, batching
+d'entrée et projection distante. Format/lint ciblés et types Web/workspace
+passent. Preuves privées : `publication-headings-red.log`,
+`publication-headings-green.log`, `publication-headings-feedback-green.log` et
+`publication-headings-source-map-proof.json` sous `work/notion-api/`.
+La reprise passe ensuite 100 cas migration/sommaires sur les cinq profils,
+sans retry, avec captures réelles examinées selon ui-quality/lessons. Le gate
+final du candidat 758945b8 passe également ; voir la preuve partagée de
+[publication](../038-database-card-flow/validation.md#publication-locale-finale--2026-10-07).
+T326–T328 sont terminées ; aucune tâche de release V1 indépendante n'est
+clôturée par cette maintenance.
+
+## Maintenance de publication — collage ProseMirror (T329), 2026-10-07
+
+Le gate complet du candidat `e4a5d7e1` passe les cinq profils E2E
+(1576 cas, zéro retry), le desktop natif, les builds et les images, puis échoue
+sur l'audit de `prosemirror-view@1.42.2` :
+[GHSA-c8x8-7fp4-3x9w](https://github.com/ProseMirror/prosemirror-view/security/advisories/GHSA-c8x8-7fp4-3x9w).
+Ce run reste un échec global ; les contrôles de sécurité suivants ne sont pas
+atteints. Aucun push n'est effectué sur cette preuve partielle.
+
+L'override partagé fixe uniquement `prosemirror-view` à 1.42.3 ; le lock est
+régénéré avec Bun 1.4.2 sans changement des autres packages. Le test
+`editor-clipboard-security.spec.ts` exerce `EditorView.pasteHTML` et observe
+le contexte réellement reconstruit au hook `handlePaste`. Sur 1.42.2, le
+contexte valide passe et le cas invalide échoue : l'attribut refusé est encore
+présent. Sur 1.42.3, les deux cas passent ; le contexte invalide est retiré,
+le texte reste présent et les attributs valides sont conservés. Le test n'exécute
+aucun script du presse-papiers : son attribut DOM est inerte.
+
+Deux installations `bun ci` consécutives laissent le lock byte-identique ; le
+graphe résolu contient une seule version de prosemirror-view, 1.42.3.
+Biome ciblé, types workspace et audit production au seuil high passent :
+aucune vulnérabilité bloquante parmi 385 packages, sept résultats sous ce seuil.
+Les logs rouge/vert, installation figée, versions, types et audit sont conservés
+en privé sous `work/notion-api/publication-clipboard-*`. La dépendance partagée
+justifie un nouveau `checks:local` complet et un nouveau scan Trivy avant push.
+Les deux terminent avec succès sur 758945b8 : aucun HIGH/CRITICAL avec correctif
+disponible dans l'image API courante. Le rapport complet conserve 46 résultats
+HIGH sans correctif, correspondant à huit avis système ; aucune exception
+n'est ajoutée. Voir la preuve partagée de
+[publication](../038-database-card-flow/validation.md#publication-locale-finale--2026-10-07).
+T329 est terminée. Aucun contrat, migration ou contenu propriétaire n'est modifié.

@@ -17,6 +17,7 @@ import { DATABASE_COPY } from "./database-copy.ts";
 import { DatabaseIconPicker } from "./database-icon-picker.tsx";
 import { EntrySchemaImpact } from "./edit-entry-properties.ts";
 import { FilterEditor } from "./filter-editor.tsx";
+import { GroupEditor, groupingPropertyId } from "./group-editor.tsx";
 import { PropertyConfiguration } from "./property-configuration.tsx";
 import {
   type DatabasePropertyDraft,
@@ -39,6 +40,7 @@ export type ViewSettingsScreen =
   | "visibility"
   | "filter"
   | "sort"
+  | "group"
   | "source"
   | "manage"
   | "properties";
@@ -58,6 +60,7 @@ const SCREEN_TITLE: Record<ViewSettingsScreen, string> = {
   visibility: "Visibilité des propriétés",
   filter: "Filtrer",
   sort: "Trier",
+  group: "Grouper",
   source: "Source",
   manage: "Sources de données",
   properties: "Propriétés",
@@ -85,7 +88,7 @@ export function CurrentSourceTitle({
   useEffect(() => {
     if (!focused.current) setDraft(name);
   }, [name]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const node = field.current;
     if (node === null || !editable) return;
     node.rows = Math.max(1, draft.split("\n").length);
@@ -205,6 +208,7 @@ export function ViewSettingsPanel({
   onChangeFormat,
   onChangeSource,
   onChangeView,
+  onChangeGrouping,
   onClose,
   onCommitIcon,
   onCommitName,
@@ -251,6 +255,7 @@ export function ViewSettingsPanel({
   readonly onCommitIcon: (icon: string | null) => void;
   readonly onChangeFormat: (type: DatabaseView["type"]) => void;
   readonly onChangeView: (view: DatabaseView) => void;
+  readonly onChangeGrouping: (view: DatabaseView) => Promise<void>;
   readonly onToggleProperty: (propertyId: Uuid, visible: boolean) => void;
   readonly onChangeSource: (sourceId: Uuid) => void;
   readonly onCreateSource: () => void;
@@ -520,6 +525,15 @@ export function ViewSettingsPanel({
               aside={sortCount > 0 ? String(sortCount) : undefined}
               onClick={() => onScreen("sort")}
             />
+            <SettingsRow
+              icon="kanban"
+              label="Grouper"
+              aside={
+                activeProperties.find((property) => property.id === groupingPropertyId(view))
+                  ?.name ?? (groupingPropertyId(view) === undefined ? "Aucun" : "Indisponible")
+              }
+              onClick={() => onScreen("group")}
+            />
             <hr className="database-view-settings__rule" />
             <p className="database-view-settings__section">Paramètres de la source de données</p>
             <SettingsRow
@@ -627,7 +641,22 @@ export function ViewSettingsPanel({
         ) : null}
         {screen === "sort" ? (
           <div className="database-view-settings__body">
-            <SortGroupEditor properties={properties} view={view} onChange={onChangeView} />
+            <SortGroupEditor
+              properties={properties}
+              view={view}
+              onChange={onChangeView}
+              showGrouping={false}
+            />
+          </div>
+        ) : null}
+        {screen === "group" ? (
+          <div className="database-view-settings__body">
+            <GroupEditor
+              key={view.id}
+              properties={properties}
+              view={view}
+              onChange={onChangeGrouping}
+            />
           </div>
         ) : null}
         {screen === "manage" ? (

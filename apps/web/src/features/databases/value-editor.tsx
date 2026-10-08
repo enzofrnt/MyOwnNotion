@@ -8,7 +8,8 @@ import {
   type PropertyOption,
   type Uuid,
 } from "@myownnotion/domain";
-import { type InputHTMLAttributes, useLayoutEffect, useRef } from "react";
+import { type InputHTMLAttributes, useLayoutEffect, useRef, useState } from "react";
+import { Button } from "../../ui/primitives/button.tsx";
 import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { EntryChoicePicker } from "./entry-choice-picker.tsx";
@@ -116,6 +117,15 @@ export interface RelationOption {
   readonly label: string;
 }
 
+/** Native date-time controls show local time; persistence keeps a zoned instant. */
+function localDateTimeInput(instant: string): string {
+  if (instant === "") return "";
+  const date = new Date(instant);
+  if (!Number.isFinite(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, -1);
+}
+
 /** Preserve a native edit that arrives just before React receives its input event. */
 function DraftTextInput({
   value,
@@ -153,6 +163,7 @@ export function ValueEditor({
   relationOptions = [],
   idSuffix,
   presentation = "field",
+  cardShowIcon = true,
   onBlur,
   labelContent,
   onChangeOptions,
@@ -163,47 +174,66 @@ export function ValueEditor({
   readonly error: string | null;
   readonly relationOptions?: readonly RelationOption[];
   readonly idSuffix?: string;
-  readonly presentation?: "field" | "inline" | "entry";
+  readonly presentation?: "field" | "inline" | "entry" | "card";
+  readonly cardShowIcon?: boolean;
   readonly onBlur?: () => void;
   readonly labelContent?: React.ReactNode;
   readonly onChangeOptions?: ((options: readonly PropertyOption[]) => Promise<void>) | undefined;
   readonly onChange: (input: ValueDraft) => void;
 }) {
+  const entryPresentation = presentation === "entry" || presentation === "card";
+  const [editingCardDate, setEditingCardDate] = useState(false);
   const suffix = idSuffix === undefined ? "" : `-${idSuffix}`;
   const errorId = `database-value-error-${property.id}${suffix}`;
   const controlId = `database-value-${property.id}${suffix}`;
   const describedBy = error === null ? undefined : errorId;
   const inlineLabel =
-    presentation === "inline" || labelContent !== undefined ? property.name : undefined;
+    presentation === "inline" || presentation === "card" || labelContent !== undefined
+      ? property.name
+      : undefined;
   let control: React.ReactNode;
 
-  if (property.type === "checkbox") {
+  if (presentation === "card" && property.type === "date" && input === "" && !editingCardDate) {
+    control = (
+      <Button
+        id={controlId}
+        className="option-menu__trigger"
+        size="compact"
+        variant="ghost"
+        aria-label={property.name}
+        aria-describedby={describedBy}
+        onClick={() => setEditingCardDate(true)}
+      >
+        <span className="option-menu__empty">Ajouter {property.name}</span>
+      </Button>
+    );
+  } else if (property.type === "checkbox") {
     const checkbox = (
       <input
         id={controlId}
         type="checkbox"
         checked={typeof input === "boolean" && input}
-        aria-label={presentation === "entry" ? property.name : inlineLabel}
+        aria-label={entryPresentation ? property.name : inlineLabel}
         aria-describedby={describedBy}
         onBlur={onBlur}
         onChange={(event) => onChange(event.target.checked)}
       />
     );
-    control =
-      presentation === "entry" ? (
-        <label className="entry-checkbox-control" htmlFor={controlId}>
-          {checkbox}
-        </label>
-      ) : (
-        checkbox
-      );
-  } else if (presentation === "entry" && isChoiceProperty(property)) {
+    control = entryPresentation ? (
+      <label className="entry-checkbox-control" htmlFor={controlId}>
+        {checkbox}
+      </label>
+    ) : (
+      checkbox
+    );
+  } else if (entryPresentation && isChoiceProperty(property)) {
     control = (
       <EntryChoicePicker
         property={property}
         input={input}
         id={controlId}
         describedBy={describedBy}
+        emptyLabel={presentation === "card" ? `Ajouter ${property.name}` : undefined}
         invalid={error !== null}
         onChange={onChange}
         onOptions={onChangeOptions}
@@ -243,12 +273,13 @@ export function ValueEditor({
           ))}
       </NativeSelect>
     );
-  } else if (property.type === "relation" && presentation === "entry") {
+  } else if (property.type === "relation" && entryPresentation) {
     control = (
       <RelationDraftMenu
         property={property}
         input={input}
         options={relationOptions}
+        emptyLabel={presentation === "card" ? `Ajouter ${property.name}` : undefined}
         id={controlId}
         {...(describedBy === undefined ? {} : { describedBy })}
         onChange={onChange}
@@ -282,29 +313,48 @@ export function ValueEditor({
       </NativeSelect>
     );
   } else {
+    const localInstant =
+      entryPresentation && property.type === "date" && property.config.mode === "instant";
     control = (
       <DraftTextInput
         id={controlId}
-        type={property.type === "date" && property.config.mode === "date" ? "date" : "text"}
-        autoFocus={presentation === "inline"}
+        type={
+          property.type === "date" && property.config.mode === "date"
+            ? "date"
+            : localInstant
+              ? "datetime-local"
+              : "text"
+        }
+        step={localInstant ? "any" : undefined}
+        autoFocus={presentation === "inline" || editingCardDate}
         className={presentation === "inline" ? "database-cell-inline-input" : "ui-native-input"}
         data-size={presentation !== "inline" ? "compact" : undefined}
         inputMode={property.type === "number" ? "decimal" : undefined}
-        value={typeof input === "string" ? input : ""}
+        value={typeof input === "string" ? (localInstant ? localDateTimeInput(input) : input) : ""}
         placeholder={
           presentation !== "field" && property.type !== "date"
-            ? DATABASE_COPY.value.emptyPlaceholder
+            ? presentation === "card"
+              ? `Ajouter ${property.name}`
+              : DATABASE_COPY.value.emptyPlaceholder
             : undefined
         }
         aria-label={inlineLabel}
         aria-describedby={describedBy}
-        onBlur={onBlur}
+        onBlur={() => {
+          if (input === "") setEditingCardDate(false);
+          onBlur?.();
+        }}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.nativeEvent.isComposing) {
             event.currentTarget.blur();
           }
         }}
-        onChange={(event) => onChange(event.target.value)}
+        onInput={(event) => {
+          // Read every native input event, including a date-picker edit after
+          // a projected value was written to this uncontrolled control.
+          const value = event.currentTarget.value;
+          onChange(localInstant && value !== "" ? new Date(value).toISOString() : value);
+        }}
       />
     );
   }
@@ -314,8 +364,8 @@ export function ValueEditor({
       className={
         presentation === "inline"
           ? "database-cell-inline-field"
-          : presentation === "entry"
-            ? "database-field database-field--entry"
+          : entryPresentation
+            ? `database-field database-field--entry${presentation === "card" ? ` database-field--card${cardShowIcon ? "" : " database-field--card-value"}` : ""}`
             : "database-field"
       }
     >
@@ -323,13 +373,22 @@ export function ValueEditor({
         ? null
         : (labelContent ?? (
             <label htmlFor={controlId}>
-              {presentation === "entry" ? (
+              {entryPresentation && (presentation !== "card" || cardShowIcon) ? (
                 <DatabasePropertyIcon type={property.type} icon={property.icon} />
               ) : null}
-              {property.name}
+              {presentation === "card" ? (
+                <span className="sr-only">{property.name}</span>
+              ) : (
+                property.name
+              )}
             </label>
           ))}
       {control}
+      {presentation === "card" && property.type === "checkbox" ? (
+        <label htmlFor={controlId} className="database-card-editor__checkbox-name">
+          {property.name}
+        </label>
+      ) : null}
       {error !== null ? (
         <span id={errorId} className="database-field__error" role="alert">
           {error}

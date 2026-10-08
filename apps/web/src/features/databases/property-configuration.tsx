@@ -153,9 +153,9 @@ export function PropertyOptionSettings({
           <span
             className="property-option-settings__swatch"
             style={{
-              color: `var(--ui-content-${tone})`,
+              color: `var(--ui-content-${tone}-accent)`,
               backgroundColor: `var(--ui-content-${tone}-soft)`,
-              borderColor: `var(--ui-content-${tone})`,
+              borderColor: `var(--ui-content-${tone}-border)`,
             }}
             aria-hidden="true"
           >

@@ -79,6 +79,7 @@ function losslessLegacyMark(mark: MarkV3): Mark | null {
       return { type: "link", href: mark.href };
     case "pageLink":
       return { type: "pageLink", targetItemId: mark.targetItemId };
+    case "equation":
     case "underline":
     case "textColor":
     case "backgroundColor":

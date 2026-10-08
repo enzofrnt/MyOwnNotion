@@ -1,5 +1,23 @@
 # Implementation Plan: Expérience V1 proche de Notion et convergence locale
 
+## Maintenance — logo et favicon (2026-10-06)
+
+Créer avec `imagegen` un monogramme M fait de pages pliées, blanc et bleu sur
+une tuile indigo, sans mot-symbole dans le favicon. Conserver le maître PNG
+dans `apps/web/assets/brand/` ; produire les tailles de favicon depuis ce
+maître et référencer les fichiers depuis `index.html` pour leur prise en
+charge par Vite et Bun. Le README affiche le même maître avec le nom de
+l'application. Le bundle conserve ces images dans le shell hors ligne.
+
+Appliquer [ui-quality](../../.agents/skills/ui-quality/SKILL.md) et son
+[journal](../../.agents/skills/ui-quality/lessons.md), notamment L-010 :
+inspecter le maître et les rendus réels à 16/32 px sur fonds clair/sombre,
+vérifier les URL de favicon servies sur l'instance isolée 8082 ainsi que leur
+émission dans le bundle. Vérifier le format des fichiers modifiés et le build
+Web. Aucune donnée privée n'est envoyée au générateur ; aucune migration,
+nouvelle dépendance applicative ni modification de l'instance 8080.
+
+
 **Phases UI** : charger le [skill UI partagé](../../.agents/skills/ui-quality/SKILL.md)
 pour la conception, la réalisation et la revue. Conserver les états, critères
 et preuves propres à cette feature dans ses artefacts ; cette référence ne
@@ -405,6 +423,23 @@ Le SSE reste un signal de position. Les clients récupèrent les updates par HTT
 et version vector ; aucun WebSocket, WebRTC ou fournisseur hébergé n'est requis.
 
 ### 5. Adaptateur BlockNote
+
+Maintenance de publication du 2026-10-07 (FR-052, FR-059, FR-064/065) : le gate
+complet a révélé une frappe visible mais absente du journal durable après une
+erreur React de profondeur maximale. Les source maps localisent le callback du
+sommaire, exécuté avant celui de l'adaptateur pendant la transaction BlockNote.
+Le sommaire et le bloc table des matières doivent partager une projection des
+titres actualisée après la transaction, regroupée par frame et comparée par
+identité, niveau, texte et ordre avant toute actualisation React. Le cleanup
+annule le travail différé lors d'un changement d'éditeur ou démontage. Cette
+maintenance ne change ni le protocole ni la garantie de durabilité : le test de
+bascule legacy contrôle le dernier caractère dans le journal avant reconnexion,
+l'absence d'erreur JavaScript puis la projection convergée après reconnexion.
+Appliquer [ui-quality](../../.agents/skills/ui-quality/SKILL.md) et son
+[journal](../../.agents/skills/ui-quality/lessons.md) : titres de sommaire à jour,
+aucun déplacement de la surface éditoriale ni changement visuel de son chrome.
+Vérifier le hook par tests composant, les journeys de sommaire et de migration
+sur les cinq profils, puis le gate complet sur le commit de publication.
 
 BlockNote ne lit ni n'écrit directement Dexie, l'API ou le document canonique.
 `editor-adapter.ts` expose :
@@ -865,3 +900,18 @@ Le centrage sur la première ligne est lu par `block-side-menu-layout.ts`
 dans le middleware du BlockPopover, avec sa hauteur réelle. Les titres longs
 et vides ont leurs preuves/tests dans 033, sans offsets fixes par niveau ni
 écriture dans le DOM éditorial.
+
+## Maintenance de publication — collage ProseMirror, 7 octobre 2026
+
+L'audit du gate complet relève GHSA-c8x8-7fp4-3x9w dans
+`prosemirror-view@1.42.2`. Cette maintenance satisfait FR-021 et le principe IV :
+les attributs d'un contexte de collage doivent respecter les validateurs du
+schéma. Fixer `prosemirror-view` à la version corrigée 1.42.3 dans les overrides
+existants, puis régénérer le lock avec Bun 1.4.2. Conserver BlockNote/Tiptap et
+leurs autres versions. Régression rouge/verte avec le moteur réellement installé,
+contexte valide et invalide, contenu textuel préservé ; audit sans exception,
+installation figée, types et gate complet avant push. Les changements de lock
+exigent aussi une nouvelle preuve Trivy sur l'image API. Aucun contrat,
+migration ou changement de données propriétaire.
+
+Référence primaire : [avis du mainteneur](https://github.com/ProseMirror/prosemirror-view/security/advisories/GHSA-c8x8-7fp4-3x9w).

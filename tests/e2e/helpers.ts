@@ -5,6 +5,7 @@
  * secret, and readiness helpers the feature-002 journeys need (T003).
  */
 import {
+  type BlockDocumentV3,
   type DatabasePropertyType,
   generateUuidV7,
   type PageDocument,
@@ -353,7 +354,10 @@ interface E2ELocalContentService {
   };
   readonly pageOperationLog: {
     getState(pageId: string): Promise<{ readonly status: string } | null>;
-    getLegacyBranch(pageId: string): Promise<{ readonly status: string } | null>;
+    getLegacyBranch(pageId: string): Promise<{
+      readonly status: string;
+      readonly branch: { readonly localDocument: BlockDocumentV3 };
+    } | null>;
   };
 }
 
@@ -1015,12 +1019,40 @@ export async function addDatabaseProperty(
   type: Exclude<DatabasePropertyType, "title">,
   options?: readonly string[],
 ): Promise<void> {
-  await page.getByRole("button", { name: "Ajouter une propriété", exact: true }).click();
+  const add = page.getByRole("button", { name: "Ajouter une propriété", exact: true });
+  await expect(add).toBeEnabled();
+  // Header focus reveals the control through the body's horizontal scroll,
+  // including on mobile engines without mouse.wheel support.
+  await add.focus();
+  await expect(add).toBeFocused();
+  // WebKit quantizes intersection widths on transformed rails even when all
+  // four edges fit (28 px reported as 27.9844 px). Check the actual bounds,
+  // retaining the native visibility check and click rather than relaxing them.
+  await expect
+    .poll(() =>
+      add.evaluate((node) => {
+        const control = node.getBoundingClientRect();
+        const rail = node.closest(".database-page-header-scroll")?.getBoundingClientRect();
+        return (
+          rail !== undefined &&
+          control.left >= Math.max(0, rail.left) &&
+          control.right <= Math.min(innerWidth, rail.right) &&
+          control.top >= Math.max(0, rail.top) &&
+          control.bottom <= Math.min(innerHeight, rail.bottom)
+        );
+      }),
+    )
+    .toBe(true);
+  await expect(add).toBeInViewport();
+  await add.click();
   const form = page.getByRole("form", { name: "Éditeur de propriété" });
   await form.getByLabel("Nom", { exact: true }).fill(name);
-  await form
-    .getByLabel("Type", { exact: true })
-    .selectOption(type === "status" || type === "multi-select" ? "select" : type);
+  // The native select's wrapping label also contains its option text. Use
+  // its accessible combobox name rather than the label's full text content.
+  const typeControl = form.getByRole("combobox", { name: "Type", exact: true });
+  const draftType = type === "status" || type === "multi-select" ? "select" : type;
+  await typeControl.selectOption(draftType);
+  await expect(typeControl).toHaveValue(draftType);
   if (options !== undefined) {
     const inputs = form.getByLabel("Nom de l'option", { exact: true });
     while ((await inputs.count()) > options.length) {
@@ -1065,6 +1097,31 @@ export async function openPropertyConfiguration(page: Page, name: string): Promi
 
 export function databaseViewButton(scope: Page | Locator, name: string | RegExp): Locator {
   return scope.locator(".database-container-page__tabs").getByRole("button", { name, exact: true });
+}
+
+/** Opens the card action menu and its destinations through the real controls. */
+export async function openBoardMoveMenu(
+  page: Page,
+  scope: Page | Locator,
+  title: string,
+  keyboard = false,
+): Promise<Locator> {
+  const trigger = scope.getByRole("button", { name: `Actions de ${title}`, exact: true });
+  if (keyboard) await trigger.press("Enter");
+  else await trigger.click();
+  const menu = page.getByRole("menu");
+  const move = menu.getByRole("menuitem", { name: "Déplacer dans un groupe", exact: true });
+  if (keyboard) {
+    await expect(menu.getByRole("menuitem").first()).toBeFocused();
+    for (let index = 0; index < 12; index += 1) {
+      if (await move.evaluate((node) => node === document.activeElement)) break;
+      await page.keyboard.press("ArrowDown");
+    }
+    await expect(move).toBeFocused();
+    await page.keyboard.press("Enter");
+  } else await move.click();
+  await expect(menu.locator("[data-board-destination]").first()).toBeVisible();
+  return menu;
 }
 
 export async function openDatabaseTools(page: Page): Promise<void> {

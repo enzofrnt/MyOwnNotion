@@ -441,8 +441,13 @@ export async function readCurrentDatabaseDefinition(
   executor: Executor,
   databaseId: Uuid,
   resolve?: (revisionId: Uuid) => Promise<Record<string, unknown> | null>,
+  sourceId?: Uuid,
 ): Promise<DatabaseDefinition | null> {
-  const record = await readDatabaseRecord(executor, databaseId);
+  const record =
+    sourceId === undefined
+      ? await readDatabaseRecord(executor, databaseId)
+      : await readDatabaseRecordBySourceId(executor, sourceId);
+  if (sourceId !== undefined && record?.databaseId !== databaseId) return null;
   let snapshot: Readonly<Record<string, unknown>> | null;
   if (record?.definitionRevisionId) {
     snapshot = await revisionSnapshot(executor, record.definitionRevisionId, resolve);

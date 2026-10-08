@@ -103,6 +103,63 @@ describe("database query presentation", () => {
     expect(result.rows[0]?.relationTargets[ids.relation]).toEqual([ids.entry]);
   });
 
+  it("keeps hidden board axis values and never assigns one arbitrary group to a multi-member row", () => {
+    const second = generateUuidV7();
+    const board: DatabaseView = {
+      ...view,
+      type: "board",
+      group: null,
+      properties: view.properties.map((p) => ({ ...p, visible: false })),
+      options: { axisPropertyId: ids.tags, columnOrder: [], collapsedColumnIds: [] },
+    };
+    const model: DatabaseDefinition = {
+      ...definition,
+      properties: definition.properties.map((p) =>
+        p.type === "status"
+          ? {
+              ...p,
+              type: "multi-select",
+              config: {
+                options: [
+                  ...p.config.options,
+                  { id: second, label: "Autre", positionKey: "b", tone: "blue", state: "active" },
+                ],
+              },
+            }
+          : p,
+      ),
+    };
+    const result = presentDatabaseQuery({
+      definition: model,
+      view: board,
+      entries: [
+        {
+          entryId: ids.entry,
+          revisionId: ids.revision,
+          title: "Entrée",
+          values: {
+            [ids.tags]: { kind: "multi-select", optionIds: [ids.option, second] },
+            [ids.hidden]: { kind: "text", value: "Hidden" },
+          },
+          relationTargets: {},
+        },
+      ],
+      groups: [
+        { id: ids.option, entryIds: [ids.entry] },
+        { id: second, entryIds: [ids.entry] },
+      ],
+      includeGroups: true,
+    });
+    expect(result.rows[0]?.values).toEqual({
+      [ids.tags]: { kind: "multi-select", optionIds: [ids.option, second] },
+    });
+    expect(result.rows[0]?.groupId).toBeNull();
+    expect(result.groups.map((g) => [g.label, g.count])).toEqual([
+      ["À faire", 1],
+      ["Autre", 1],
+    ]);
+  });
+
   it("keeps incomplete coverage under caller control and labels absent or deleted options", () => {
     const groups = [
       { id: "missing", entryIds: [] },

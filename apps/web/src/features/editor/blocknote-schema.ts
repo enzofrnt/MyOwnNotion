@@ -15,11 +15,14 @@ import { calloutBlockSpec } from "./custom-blocks/callout.tsx";
 import { codeBlockSpec } from "./custom-blocks/code-block.tsx";
 import { embedBlockSpec } from "./custom-blocks/embed.tsx";
 import { databaseViewBlockSpec } from "./custom-blocks/embedded-database-block.tsx";
+import { equationBlockSpec } from "./custom-blocks/equation.tsx";
 import { fileEmbedBlockSpec } from "./custom-blocks/file-embed.tsx";
 import { imageBlockSpec } from "./custom-blocks/image.tsx";
 import { tableBlockSpec, tableCellBlockSpec, tableRowBlockSpec } from "./custom-blocks/table.tsx";
+import { tableOfContentsBlockSpec } from "./custom-blocks/table-of-contents.tsx";
 import { toggleBlockSpec } from "./custom-blocks/toggle.tsx";
 import { unknownBlockSpec } from "./custom-blocks/unknown-block.tsx";
+import { equationInlineContentSpec } from "./equation-inline-content.tsx";
 import { pageLinkInlineContentSpec } from "./page-link-inline-content.ts";
 
 type NonToggleHeadingProps = Omit<
@@ -63,13 +66,27 @@ export const blockNoteSchema = BlockNoteSchema.create({
     fileEmbed: fileEmbedBlockSpec(),
     embed: embedBlockSpec(),
     databaseView: databaseViewBlockSpec(),
+    equation: equationBlockSpec(),
+    tableOfContents: tableOfContentsBlockSpec(),
     unknown: unknownBlockSpec(),
   },
   inlineContentSpecs: {
     ...defaultInlineContentSpecs,
+    inlineEquation: equationInlineContentSpec,
     pageLink: pageLinkInlineContentSpec,
   },
 });
+
+// An underline must be inside both a link and its text color: decorations take
+// the color of the element drawing them, not that of a colored descendant.
+// BlockNote assigns style priorities when building the schema, so extend the
+// resolved mark here. Link has priority 100; the default styles have 101.
+const underlineStyle = blockNoteSchema.styleSpecs["underline"];
+if (underlineStyle) {
+  underlineStyle.implementation.mark = underlineStyle.implementation.mark.extend({
+    priority: 99,
+  });
+}
 
 interface OpaqueEditorBlock {
   readonly id: string;
@@ -100,7 +117,9 @@ interface RichEditorBlock {
     | "image"
     | "fileEmbed"
     | "embed"
-    | "databaseView";
+    | "databaseView"
+    | "equation"
+    | "tableOfContents";
   readonly props: Record<string, boolean | number | string | undefined>;
   readonly content: unknown;
   readonly children: readonly EditorBlock[];

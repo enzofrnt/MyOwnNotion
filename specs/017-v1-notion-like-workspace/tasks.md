@@ -777,3 +777,23 @@ travail ; elles n'autorisent pas à réintroduire leurs sections.
 - [X] T320 [US1] Adapter les parcours de synchronisation et de connexion à l'état réel du service et au bouton d'information de la note ; confirmer par tests composant et E2E l'absence de statut de barre latérale per FR-007, FR-076, SC-028 et skill UI quality.
 - [X] T321 [US5] Couvrir les déplacements et changements de largeur de table avec et sans colonnes héritées, y compris cibles manquantes pendant la reprise hors ligne, sans masquer une perte de données per FR-026 et Definition of Done.
 - [ ] T322 [US1] Vérifier l'interface sur les profils desktop/mobile, clair/sombre selon [UI quality](../../.agents/skills/ui-quality/SKILL.md) et son [journal de leçons](../../.agents/skills/ui-quality/lessons.md), lancer le gate `checks:local` complet, puis observer les contrôles de la PR et de main après fusion per Definition of Done.
+
+## Maintenance — logo et favicon (2026-10-06)
+
+- [x] T323 Créer et inspecter le logo MyOwnNotion puis conserver le maître et
+  les variantes de favicon dans `apps/web/assets/brand/`.
+- [x] T324 Intégrer le même dessin au favicon Web et au README ; garantir
+  l'émission et la disponibilité hors ligne des fichiers dans le build.
+- [x] T325 Appliquer `ui-quality` et son journal : vérifier visuellement le
+  maître et les tailles 16/32 px en clair/sombre, contrôler les ressources
+  servies sur 8082 et le bundle, puis consigner les preuves dans `validation.md`.
+
+## Maintenance — notifications du sommaire et durabilité de la frappe (2026-10-07)
+
+- [x] T326 [US2] Reproduire avant correction les actualisations React inutiles et synchrones du sommaire ; couvrir regroupement de frappes, changements de texte/niveau/ordre/identité, suppression, changement d'éditeur et annulation au démontage dans `apps/web/tests/page-headings-hook.spec.tsx` per FR-052 et FR-059.
+- [x] T327 [US2] Différer et comparer la projection partagée des titres hors des callbacks de transaction BlockNote dans `apps/web/src/features/editor/page-headings.ts`, sans différer les opérations durables ; renforcer le journey legacy par l'absence d'erreur JavaScript et la présence du dernier caractère dans le journal avant reconnexion per FR-052, FR-064 et FR-065.
+- [x] T328 [US2] Appliquer [ui-quality](../../.agents/skills/ui-quality/SKILL.md) et son [journal](../../.agents/skills/ui-quality/lessons.md), vérifier sommaires et migration sur les cinq profils et le gate complet, consigner preuves et commit dans `validation.md`, sans fermer les tâches V1 indépendantes restantes.
+
+## Maintenance de publication — dépendance de collage
+
+- [x] T329 Reproduire le contournement des validateurs d'attributs par un contexte de presse-papiers, fixer prosemirror-view à 1.42.3 dans package.json/bun.lock, vérifier contenu valide/invalide et versions figées, puis audit, gate complet et nouveau scan Trivy ; consigner les preuves dans validation.md per FR-021 et Constitution IV/VII.

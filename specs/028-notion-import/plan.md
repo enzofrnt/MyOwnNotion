@@ -1,146 +1,180 @@
-# Implementation Plan: Notion import CLI
+# Implementation Plan: Notion API replacement
 
-**Evolution 029 (2026-09-27)**: This plan records the historical import
-implementation against database model 026. The
-[029 specification](../029-database-pages-views/spec.md) supersedes that model;
-029 planning must include adaptation of import apply and preview to canonical
-database owners and hierarchical entries before V1 use.
+**Branch**: `codex/notion-api-import` · **Date**: 2026-10-04 · [Spec](spec.md)
 
-**Branch**: `codex/028-notion-import` | **Date**: 2026-09-05 | **Spec**: [spec.md](spec.md)
+## Technical context and constitution check
 
-## Summary and technical context
+Bun 1.4.2, TypeScript strict, PostgreSQL 18, existing canonical mutation pipeline,
+ProtectedRecordService and ProtectedFileService. Replace source adapters/tests;
+retain verified backup, readiness, durable feed and transactional checkpoints.
+No new dependency or SQL migration anticipated. Constitution I–VIII satisfied:
+canonical offline/sync writes, one 028 directory, explicit loss accounting,
+encrypted originals, bounded remote access, Bun-only checks and product alignment.
+Canvas §§6.1/27.1/47 and roadmap updated; 029's import task redirected here.
 
-Bun 1.4.2/TypeScript, existing Fastify-independent canonical mutation services,
-PostgreSQL/Drizzle and protected record/file services. A standalone local CLI
-entrypoint is preview-only by default and opens no target connection until
-explicit apply. No new HTTP/UI surface. Native Markdown/CSV and converted
-Obsidian directories normalize to one immutable import plan.
-
-## Constitution check
-
-All eight principles considered: one independent spec, source ownership,
-canonical offline/sync projection, private encrypted storage, bounded untrusted
-input, incremental tests, Bun-only runtime and recorded product direction.
-No user UI is added, so CLI/API tests cover the changed journey; the integration
-branch retains the full local delivery gates. No exception is requested.
+UI quality skill and lessons read:
+`.agents/skills/ui-quality/{SKILL,lessons}.md`.
+No changed CSS or new interface. Owner validation exposed an editor activation
+failure on imported inline databases. Follow ui-quality and its lessons for
+error/loading/success inspection, editing/reopen, narrow viewport and both
+themes. Visual evidence stays private; record aggregate evidence in this feature.
 
 ## Architecture
 
-- `apps/api/src/imports/notion/source.ts`: bounded immutable source inventory.
-  Directories use lstat, realpath containment and no-follow file handles; ZIP
-  central-directory metadata is inspected before any decompression. Yauzl lazy
-  entry processing validates sizes; reject symlink/special/encrypted entries,
-  escapes, normalization collisions and excessive compression ratios. Archives
-  are read in memory, never extracted as plaintext on the target filesystem.
-- `model.ts`, `plan.ts`, `markdown.ts`: normalize native CSV/Markdown, YAML
-  frontmatter and Obsidian Bases/wikilinks. Maintained parsers are
-  mdast-util-from-markdown with GFM, csv-parse and yaml (alias budget zero).
-  No evaluation of YAML tags, Bases formula expressions or embedded HTML.
-  Unsupported Markdown is preserved as inert source text plus original file.
-- IDs derive from a caller-visible import UUID and normalized source identity;
-  operation IDs are deterministic. The snapshot and plan digests bind resume.
-  All files, local links, property conversions, memberships and unsupported
-  settings receive report records. Summary output contains counts/safe codes;
-  explicit JSON report contains owner-directed source paths and mappings.
-- `apply.ts`: obtain a PostgreSQL advisory lock per import job; validate target
-  ready state, migrations, external key and rotation/maintenance guards. Reuse
-  assertFullRestoreActivated at target open and before every operation, including
-  resumed jobs that retain their first backup. Take
-  FullBackupService024 verified snapshot before every new job, including an
-  empty workspace. This covers concurrent owner writes without an occupancy
-  check race; resumed jobs retain their first verified receipt.
-- Submit ordinary create/document/definition/value commands through
-  submitCanonicalMutation. File originals and attachments use existing
-  ProtectedFileService.ingest and the shared publishCanonicalFile finalization
-  used by ordinary resumable uploads,
-  keeping acceptedWriteGuards, revisions and canonical notifications. Protect
-  checkpoints in the same transaction as accepted operations.
-- ProtectedRecordService entity `import.job` stores fingerprint, backup reference
-  and completion; `import.provenance` stores the full report, `import.step` one
-  accepted operation, and `import.head` each last imported revision. Separate
-  operation records avoid repeatedly rewriting a growing checkpoint. Source
-  heads use026 definitionRevisionId; editorial pages use currentRevisionId. Original source files are encrypted canonical
-  attachments in the dedicated import root so complete portable exports retain
-  every unsupported source representation. No SQL migration expected;0018 is
-  reserved only if concrete storage evidence requires it.
-- Database creation requires026's independent source and hostPageId embedding.
-  Entry pages use database.entry.create and definitionRevisionId for updates.
-  Infer only safely typed scalar values; preserve ambiguous values as text.
-  Property labels, status option labels and view order follow exported data.
-  Persons are ordinary values. Absent view/preview/task-role settings are marked
-  missing; a baseline table is labeled as an import default.
-- `cli.ts`: `--source PATH [--id UUID] [--json] [--dry-run] [--apply]`.
-  Apply requires explicit import ID and configured DATABASE_URL/blob/key paths;
-  no fallback to a developer database. Dry-run overrides apply. Error output
-  contains only fixed codes; a new ID is an explicit separate import, never an
-  implicit title-based merge. Compile as `dist/imports/notion/cli.js` and expose
-  root `import:notion` command.
+Owner follow-up: skip people property pagination/conversion, authorship fields
+(created_by/last_edited_by) and cover downloads;
+ignore cover slots from older encrypted collections as well. Keep the original
+JSON inside import.snapshot, without a canonical technical file/folder. Legacy
+version-2 plans remain resumable unchanged. Clean the delivered instance through
+canonical mutations and a verified backup, retaining page IDs and later edits.
 
-La lecture d'un répertoire prend une identité `lstat` de la racine et de
-chaque ancêtre avant puis après l'ouverture de chaque fichier. Toute variation,
-ancêtre devenu lien symbolique ou perte de frontière refuse le snapshot. Cette
-barrière portable détecte les remplacements de répertoires pendant la lecture ;
-elle ne prétend pas fournir un verrouillage du système de fichiers contre un
-attaquant capable de restaurer exactement la même identité entre deux contrôles.
+Editor prerequisite: `initialiseKnownBlockPayload` in page-state/block-tree.ts
+omits databaseView's containerItemId/viewId. The projection expects both and
+throws during activation. Initialize those properties and include them in
+domain/document/block-properties.ts so insert/property changes and checkpoints
+retain them. Cover operational roundtrip and actual activation of an imported
+page, then test the owner-reported page and other pages with inline databases.
 
-## Bounds and recovery
+Integration evidence exposed first-source fallback on protected schema/entry
+reads. Repair `packages/database/src/{repositories/database-repository,
+mutations/database-commands}.ts` to select the requested/membership source and
+scope impact preview to that source. Preserve existing command contracts;
+cover this prerequisite through encrypted multi-source import/readback tests.
+Source collection runs from a bundled immutable copy inside the isolated
+container: Docker Desktop's live bind mounts can expose truncated files after
+host replacement. This was reproduced before any live canonical writes.
 
-Initial documented limits:10,000 source entries,32 path levels,8 MiB per text
-file,64 MiB per file/archive,256 MiB expanded total and100:1 compression ratio.
-Frontmatter YAML is additionally limited to 64 semantic nesting levels and
-100,000 AST nodes before conversion, with the same fixed `import.invalid-yaml`
-refusal as other unsafe YAML.
-No network fetching; unsupported nested archives stay opaque attachments.
-Snapshot bytes are immutable for the run; resume refuses changed fingerprints.
-New imported content is grouped under one root. Committed progress is durable;
-replay never overwrites a completed operation or newer owner edits. Safety
-backup is preserved independently from later import failure.
+- `api-client.ts`: fixed Notion HTTPS origin, explicit `2026-03-11` confirmed
+  live; credential-scoped 350 ms scheduler, timeout, abort, bounded 429/5xx retry
+  honoring Retry-After; pagination guards. GET and read-only POST search/query
+  only. Fixed safe error codes; no SDK stacking.
+- `collect.ts`: discovery, explicit roots/all, recursive blocks and pages,
+  distinct database/data sources, complete row property pagination, synced
+  block cycle guards, views. Bound count/depth/bytes; second metadata read
+  detects edits. Preview stays in memory, no plaintext source cache.
+  A 403/404 specifically on a synced block's external original yields an explicit
+  unavailable placeholder and retained source reference. Selected page/body/schema
+  failures, including failures deeper inside an accessible original, still block.
+  Cover every discovered object in all-mode and every discovered child of a
+  selected source, including pages absent from its query results. A live
+  coverage comparison found nine such accessible pages, with no template flag.
+- `media.ts`: Notion-hosted HTTPS only, DNS/IP checks, manual redirects,
+  bounded streams without credentials. External URLs remain reported links.
+  Stable source slot identities; snapshot includes bytes for offline resume.
+- `blocks.ts`, `properties.ts`, `views.ts`, `plan.ts`: pure canonical v3
+  conversion. Reserve IDs first. Multiple sources share one owner with distinct
+  source IDs. Relations/documents applied after targets exist. Unsupported
+  values become text snapshots plus originals, never live formulas. Incompatible
+  view configuration yields an explicitly named fallback and notice.
+  Scope owned views by their database parent; bind linked displays after all
+  referenced sources exist. Active quick filters and unsupported grouping
+  controls are reported, never silently omitted as a faithful saved view.
+  Adapt soft breaks to separate/native child paragraphs and normalize the
+  exclusive inline code mark with explicit notices; table/code line breaks stay
+  native. Report nested database pages' direct-child membership implication.
+- `source.ts`/`model.ts`: bounded snapshot and typed plan/report.
+- `apply.ts`: protected import.snapshot before canonical application;
+  resume reads it without Notion. Keep job lock, verified backup, source binding,
+  revision guards, canonical files and transactional checkpoints. Track source
+  heads by source ID; schema before entries, then relations/documents. Abort
+  before each operation.
+- `cli.ts`: discover, repeatable root UUID or all, id, apply/dry-run, resume,
+  json. Secret from NOTION_TOKEN or NOTION_TOKEN_FILE only. Explicit target
+  config. Remove source option. Counts/fixed codes by default, intentional
+  private detail through json.
+  `target.ts` supports packaged SQL layout and optional
+  MYOWNNOTION_MIGRATIONS_DIR, retaining the source-execution package fallback.
 
-## Validation
+## Isolation and validation
 
-Synthetic native ZIP/CSV and Obsidian fixtures; malformed CSV/YAML/archives,
-symlink/traversal/bomb/normalization conflicts; exact reports and source hashes;
-encrypted disposable integration for ordinary readback/files/database026,
-backup-before-write failure, interruption/replay and conflicting fingerprints.
-The real folder is inventory/preview only, with no private fixtures committed.
+### Audit opérationnel du 5 octobre 2026
 
-## Implementation decisions
+Le propriétaire demande un import neuf sur 8082 et une comparaison directe
+avec Notion. T053–T055 suivent sauvegarde vérifiée, nouvelle collecte stable,
+retrait canonique de l'ancienne branche et nouvel import. ui-quality et son
+journal guident la revue des parcours, rendus et erreurs ; le canvas §§14/27.1
+reste la référence. Les preuves privées restent dans `work/notion-api/1005-*`.
+Les suites automatisées ne sont pas relancées selon l'instruction du propriétaire.
 
-Bases displays share a source only when their normalized exported membership
-reference matches. Identical current member sets are insufficient. Each display
-retains its own first table name and property order. Other exported settings
-are reported and kept in the encrypted original; missing original Notion
-settings are listed separately. No0018 migration was required.
+L'[audit comparatif](audit-2026-10-05.md) révèle notamment que l'une des neuf
+pages hors requête est un modèle dans le navigateur, malgré l'absence de champ
+`is_template` dans la réponse API. La décision antérieure de toutes les traiter
+comme des entrées ne permet donc pas une fidélité 1:1. Les replis de vues,
+intervalles de dates, projections et présentations restent des écarts concrets
+à traiter ; leur archive ne prouve pas une équivalence fonctionnelle. Cet audit
+est terminé, mais ne déclare pas ces capacités implémentées. Aucun changement
+des données Notion ni de l'instance UI 8080 n'est autorisé par cette opération.
 
-The parser accounts for empty source directories as well as files. Pages added
-for missing CSV bodies or display hosts are identified as synthesized in the
-report. Detailed reports expose canonical page/file parents, memberships and
-property conversions intentionally to the owner; ordinary output uses counts.
+### Maintenance Matière — historique remplacé par 036
 
-## Separate-process change notification
+Le repli décrit ci-dessous appartient à l'intervention antérieure refusée par le propriétaire. Le comportement actuel conserve les Kanbans multi-select selon 036 ; sa restauration et ses preuves sont dans [036/validation.md](../036-multi-select-boards/validation.md).
 
-The CLI commits the ordinary durable change feed but its in-process notifier
-cannot reach the API process. The existing SSE heartbeat therefore verifies
-revocation, reads the canonical current sequence, and announces an advanced
-cursor only when it exceeds the latest announced value. Local notifications
-keep their immediate path. A single pending heartbeat prevents overlapping
-reads; completed work after closure is ignored. Errors close the stream without
-logging sensitive data so ordinary reconnection rechecks access and catches up
-from the durable cursor. No bus or additional infrastructure is introduced.
+`views.ts` limite les axes Kanban au statut/sélection et les regroupements
+table au statut/sélection/case, conformément au moteur existant. Les autres
+types et références d'axe absentes produisent une table avec `group: null`,
+copie explicite et avis `import.view-grouping-preserved-as-table`, en conservant
+les filtres/tris/presentations compatibles. Pas de changement du moteur ni du
+modèle canonique. Tests de conversion puis évaluation de leurs résultats dans
+`notion-content.spec.ts`. ui-quality/lessons et guide UI déjà référencés
+gouvernent la revue de la table réelle : erreur initiale puis succès,
+clair/sombre et 320px, avec preuve privée ignorée. Les états vide/chargement
+et les interactions du tableau existant ne changent pas.
 
-A real Bun child writer and an already-open API SSE connection demonstrate the
-process boundary. Reconnection announces the canonical position; the client's
-existing online handler performs its ordinary workspace synchronization. An
-idle stream emits keep-alives without redundant advanced events.
+Comparer vue par vue l'ancien plan protégé et le nouveau à la présentation
+actuelle ; ne remplacer que les réglages incompatibles encore identiques. Les
+propriétés visibles peuvent avoir été nettoyées ou éditées depuis : conserver
+leur liste actuelle dans le résultat et comparer tous les autres champs.
+Préserver les autres onglets et leurs identités. Sauvegarde vérifiée avant mutation
+canonique de présentation avec version attendue, aucune requête Notion.
+La définition de compatibilité conserve aussi une copie des vues : la remettre
+en cohérence avec la présentation actuelle via mutation canonique, en vérifiant
+la révision de présentation dans la transaction et sans changer les propriétés.
+Sinon une édition ultérieure des propriétés pourrait restaurer l'ancien axe.
+Consigner la preuve dans `validation-matiere.md`, puis types/static/tests API et build API,
+image isolée et smoke navigateur. Aucun redémarrage de l'autre instance.
 
-## T020 — Native CSV membership scope
+Checkout 3f48; Compose project myownnotion-notion-api; DB 55433, HTTP 8082,
+HTTPS 8445 with explicit origins. Browser origin http://127.0.0.1:8082 also
+isolates cookies from the UI instance's localhost host. Project-scoped volumes,
+fresh deployment key, independently tagged image with immutable API bundle.
+Override in ignored work/notion-api. Never use
+default Compose or dev:stack:reset. Inspect mounts before writes.
 
-A synthetic export containing `Tasks.csv`, `Task.md` and
-`Tasks/Task <notion-id>.md` reproduces a wrong membership without any blocking
-notice: global title resolution chooses the unrelated root note. Native CSV
-matching must first inspect same-title pages in the CSV's corresponding export
-folder. One match wins; several matches are ambiguous and block apply even if
-a globally unique note exists. Only absence of local matches permits the
-existing explicit-link/global fallback. Preserve originals, deterministic page
-IDs and properties; never coalesce entries from different database folders by
-title. No source writes or personal apply are needed to prove this correction.
+Focused network/conversion/CLI tests and real canonical integration;
+backup/encryption/restart/edit-preservation, API build and strict types.
+Full checks:local for cross-cutting publication. No push implied. Real probes
+emit aggregates; no private fixtures/screenshots committed.
+
+## Corrections de contenu et hiérarchie — dépendance034
+
+Convertir equation/table_of_contents et rich_text equation dans les types natifs
+v3 de034, avec identité inline stable et source exacte. Le mark code exclusif
+cède à l'équation lorsqu'une annotation Notion cumule les deux ; le snapshot
+conserve l'annotation et le rapport le signale. Pour les parents block_id,
+construire une carte propriétaire de bloc depuis les forêts de pages collectées ;
+ne pas appliquer cette résolution à database_id/data_source_id, qui indiquent
+une appartenance de source. L'option CLI répétable --exclude-database sélectionne
+explicitement une base et ses descendants/sources/membres/médias, sans exclusion
+universelle du nom People. La reprise utilise la sélection du plan historique.
+
+Réparation sur8082 après sauvegarde vérifiée, via commandes/updates canoniques :
+conversion des seuls fallbacks inchangés, identités et éditions préservées,
+déplacements de parents et corbeille de People. Snapshot source original conservé.
+Les preuves natives/navigateur et différences sont dans034/validation.md.
+
+
+## Ajustement des liens et commandes — 035
+
+Le retour du propriétaire du 4 octobre est défini dans
+[035/spec.md](../035-item-links-database-insertion/spec.md), avec approche et
+suivi dans ses plan.md/tasks.md. Il remplace les libellés précédents par les
+créations « Page/Dossier/Base de données imbriqué(e) », élargit « Lien vers un
+autre élément » aux bases, et fusionne les commandes d'affichage intégré et lié
+dans un dialogue de choix. Le concept de vue liée et la propriété des sources
+restent inchangés. L'import respecte is_inline et corrige les références
+historiques inchangées ; la validation locale propre à035 ne revalide pas les
+anciennes phases de cette feature.
+
+## Extension 036 — 2026-10-04
+
+[036](../036-multi-select-boards/spec.md) ajoute le regroupement Kanban par sélection multiple, sans repli table pour ce cas. Les anciennes preuves Matière restent historiques ; la restauration ciblée et la validation native sont suivies dans 036.

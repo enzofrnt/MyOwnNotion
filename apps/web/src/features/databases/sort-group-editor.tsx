@@ -18,17 +18,25 @@ export function SortGroupEditor({
   properties,
   view,
   onChange,
+  showGrouping = true,
 }: {
   readonly properties: readonly DatabaseProperty[];
   readonly view: DatabaseView;
   readonly onChange: (view: DatabaseView) => void | Promise<void>;
+  readonly showGrouping?: boolean;
 }) {
   const active = properties.filter(({ state }) => state === "active");
   const groupable = active.filter(
-    ({ type }) => type === "status" || type === "select" || type === "checkbox",
+    ({ type }) =>
+      type === "status" ||
+      type === "select" ||
+      type === "multi-select" ||
+      (view.type !== "board" && type === "checkbox"),
   );
+  const effectiveGroup =
+    view.type === "board" ? { propertyId: view.options.axisPropertyId } : view.group;
   const [sorts, setSorts] = useState(view.sorts);
-  const [group, setGroup] = useState<GroupCriterion | null>(view.group);
+  const [group, setGroup] = useState<GroupCriterion | null>(effectiveGroup);
   const [saving, setSaving] = useState(false);
   const sortsRef = useRef(sorts);
   const groupRef = useRef(group);
@@ -48,7 +56,9 @@ export function SortGroupEditor({
     setGroup(next);
   };
   useEffect(() => {
-    const incomingSignature = draftSignature(view.sorts, view.group);
+    const incomingGroup =
+      view.type === "board" ? { propertyId: view.options.axisPropertyId } : view.group;
+    const incomingSignature = draftSignature(view.sorts, incomingGroup);
     if (pendingSignature.current !== null) {
       if (pendingSignature.current === incomingSignature) {
         pendingSignature.current = null;
@@ -60,10 +70,10 @@ export function SortGroupEditor({
     }
     if (dirty.current) return;
     sortsRef.current = view.sorts;
-    groupRef.current = view.group;
+    groupRef.current = incomingGroup;
     setSorts(view.sorts);
-    setGroup(view.group);
-  }, [view.group, view.sorts]);
+    setGroup(incomingGroup);
+  }, [view.group, view.sorts, view.type, view.options]);
   const updateSort = (index: number, change: Partial<SortCriterion>): void => {
     updateSorts((current) =>
       current.map((sort, position) => (position === index ? { ...sort, ...change } : sort)),
@@ -85,7 +95,11 @@ export function SortGroupEditor({
 
   return (
     <details className="database-rule-editor">
-      <summary>{DATABASE_COPY.sort.summary(sorts.length, group !== null)}</summary>
+      <summary>
+        {showGrouping
+          ? DATABASE_COPY.sort.summary(sorts.length, group !== null)
+          : `Trier · ${sorts.length} ${sorts.length === 1 ? "tri" : "tris"}`}
+      </summary>
       <fieldset className="database-rule-controls" disabled={saving} aria-busy={saving}>
         <ol className="database-rules">
           {sorts.map((sort, index) => {
@@ -198,25 +212,29 @@ export function SortGroupEditor({
         >
           {DATABASE_COPY.sort.add}
         </Button>
-        <label>
-          {DATABASE_COPY.sort.groupBy}
-          <NativeSelect
-            density="compact"
-            value={group?.propertyId ?? ""}
-            onChange={(event) =>
-              updateGroup(
-                event.target.value === "" ? null : { propertyId: event.target.value as Uuid },
-              )
-            }
-          >
-            <option value="">{DATABASE_COPY.sort.noGrouping}</option>
-            {groupable.map((property) => (
-              <option key={property.id} value={property.id}>
-                {property.name}
-              </option>
-            ))}
-          </NativeSelect>
-        </label>
+        {showGrouping ? (
+          <label>
+            {DATABASE_COPY.sort.groupBy}
+            <NativeSelect
+              density="compact"
+              value={group?.propertyId ?? ""}
+              onChange={(event) =>
+                updateGroup(
+                  event.target.value === "" ? null : { propertyId: event.target.value as Uuid },
+                )
+              }
+            >
+              {view.type === "board" ? null : (
+                <option value="">{DATABASE_COPY.sort.noGrouping}</option>
+              )}
+              {groupable.map((property) => (
+                <option key={property.id} value={property.id}>
+                  {property.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+        ) : null}
         <Button
           size="compact"
           variant="primary"
@@ -224,14 +242,36 @@ export function SortGroupEditor({
           onClick={() => {
             pendingSignature.current = draftSignature(sorts, group);
             setSaving(true);
-            void Promise.resolve(onChange({ ...view, sorts, group }))
+            const next = !showGrouping
+              ? { ...view, sorts }
+              : view.type === "board" && group !== null
+                ? {
+                    ...view,
+                    sorts,
+                    group,
+                    options: {
+                      ...view.options,
+                      axisPropertyId: group.propertyId,
+                      ...(group.propertyId === view.options.axisPropertyId
+                        ? {}
+                        : { columnOrder: [], collapsedColumnIds: [] }),
+                    },
+                  }
+                : { ...view, sorts, group };
+            void Promise.resolve(onChange(next))
               .catch(() => {
                 pendingSignature.current = null;
               })
               .finally(() => setSaving(false));
           }}
         >
-          {saving ? DATABASE_COPY.sort.saving : DATABASE_COPY.sort.save}
+          {showGrouping
+            ? saving
+              ? DATABASE_COPY.sort.saving
+              : DATABASE_COPY.sort.save
+            : saving
+              ? "Enregistrement des tris…"
+              : "Enregistrer les tris"}
         </Button>
       </fieldset>
     </details>

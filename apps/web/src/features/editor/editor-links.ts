@@ -27,7 +27,7 @@ export interface EditorPageLinkOption {
   readonly id: string;
   readonly name: string;
   readonly path: string;
-  readonly kind?: "page" | "folder";
+  readonly kind?: "page" | "folder" | "database" | "database_view";
   readonly icon?: string | null;
   readonly parentItemId?: string | null;
 }

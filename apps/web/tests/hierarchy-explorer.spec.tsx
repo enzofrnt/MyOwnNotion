@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import type { ProjectedItem } from "@myownnotion/client-core";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  readParentDatabaseEntries,
   resolveInitialRoutedItemId,
   resolveRoutedItemState,
 } from "../src/features/hierarchy/hierarchy-explorer.tsx";
+import type { LocalContentService } from "../src/services/local-content.ts";
 
 function routedItem(id: Uuid, lifecycle: ProjectedItem["lifecycle"] = "active"): ProjectedItem {
   return { id, lifecycle } as ProjectedItem;
@@ -40,6 +42,115 @@ describe("route-controlled hierarchy selection", () => {
     expect(resolveRoutedItemState(items, trash, missingId, false)).toBe("unavailable-local");
     expect(resolveRoutedItemState(items, trash, missingId, true)).toBe("not-found");
     expect(resolveRoutedItemState(items, trash, null, true)).toBe("none");
+  });
+
+  it("keeps a not-yet-downloaded destination pending until discovery finishes", () => {
+    const target = generateUuidV7();
+    expect(resolveRoutedItemState([], [], target, true, false)).toBe("loading");
+    expect(resolveRoutedItemState([], [], target, false, false)).toBe("unavailable-local");
+    expect(resolveRoutedItemState([routedItem(target)], [], target, true, false)).toBe("active");
+    expect(resolveRoutedItemState([], [routedItem(target, "trashed")], target, true, false)).toBe(
+      "trashed",
+    );
+    expect(resolveRoutedItemState([], [], target, true, true)).toBe("not-found");
+  });
+
+  it("restores the last destination before its partial projection arrives", () => {
+    const target = generateUuidV7();
+    expect(resolveInitialRoutedItemId(null, target, [], false)).toBe(target);
+    expect(resolveInitialRoutedItemId(null, target, [], true)).toBeNull();
+  });
+});
+
+describe("selected database entry ownership", () => {
+  it.each(["database", "database_view"] as const)(
+    "leaves %s entry hydration to its native container without reading private entry data twice",
+    async (kind) => {
+      const service = {
+        listDatabaseEntries: vi.fn<LocalContentService["listDatabaseEntries"]>(),
+        getItem: vi.fn<LocalContentService["getItem"]>(),
+        getDatabaseEntryRelationTargets:
+          vi.fn<LocalContentService["getDatabaseEntryRelationTargets"]>(),
+      };
+
+      expect(await readParentDatabaseEntries(service, { id: generateUuidV7(), kind })).toEqual([]);
+      expect(service.listDatabaseEntries).not.toHaveBeenCalled();
+      expect(service.getItem).not.toHaveBeenCalled();
+      expect(service.getDatabaseEntryRelationTargets).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retains the legacy base's complete entry projection, relation targets and row order", async () => {
+    const databaseId = generateUuidV7();
+    const pageId = generateUuidV7();
+    const missingId = generateUuidV7();
+    const folderId = generateUuidV7();
+    const propertyId = generateUuidV7();
+    const targetId = generateUuidV7();
+    const page = {
+      id: pageId,
+      kind: "page",
+      name: "Legacy task",
+      icon: "✅",
+      currentRevisionId: generateUuidV7(),
+      lifecycle: "active",
+      pageDocument: { body: { text: "Retained content" } },
+    } as unknown as ProjectedItem;
+    const folder = {
+      id: folderId,
+      kind: "folder",
+      name: "Legacy folder",
+      currentRevisionId: generateUuidV7(),
+      lifecycle: "active",
+    } as ProjectedItem;
+    const rows = [pageId, missingId, folderId].map((entryItemId) => ({
+      entryItemId,
+      values: { values: { [propertyId]: { kind: "checkbox", checked: true } } },
+    }));
+    const service = {
+      listDatabaseEntries: vi
+        .fn<LocalContentService["listDatabaseEntries"]>()
+        .mockResolvedValue(rows as never),
+      getItem: vi
+        .fn<LocalContentService["getItem"]>()
+        .mockImplementation(async (id) => (id === pageId ? page : id === folderId ? folder : null)),
+      getDatabaseEntryRelationTargets: vi
+        .fn<LocalContentService["getDatabaseEntryRelationTargets"]>()
+        .mockResolvedValue({ [propertyId]: [targetId] }),
+    };
+
+    const entries = await readParentDatabaseEntries(service, { id: databaseId, kind: "page" });
+
+    expect(service.listDatabaseEntries).toHaveBeenCalledWith(databaseId);
+    expect(entries).toEqual([
+      {
+        databaseId,
+        entryId: pageId,
+        kind: "page",
+        icon: page.icon,
+        revisionId: page.currentRevisionId,
+        lifecycle: "active",
+        title: page.name,
+        document: page.pageDocument,
+        values: rows[0]?.values.values,
+        relationTargets: { [propertyId]: [targetId] },
+      },
+      {
+        databaseId,
+        entryId: folderId,
+        kind: "folder",
+        icon: null,
+        revisionId: folder.currentRevisionId,
+        lifecycle: "active",
+        title: folder.name,
+        document: undefined,
+        values: rows[2]?.values.values,
+        relationTargets: { [propertyId]: [targetId] },
+      },
+    ]);
+    expect(service.getItem).toHaveBeenCalledTimes(3);
+    for (const id of [pageId, missingId, folderId])
+      expect(service.getDatabaseEntryRelationTargets).toHaveBeenCalledWith(databaseId, id);
   });
 });
 

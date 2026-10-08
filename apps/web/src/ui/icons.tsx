@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronsRight,
   CircleAlert,
   CircleCheck,
   CircleHelp,
@@ -43,6 +44,7 @@ import {
   LockKeyhole,
   type LucideIcon,
   type LucideProps,
+  Maximize2,
   Menu,
   Minus,
   Monitor,
@@ -50,6 +52,7 @@ import {
   PanelLeft,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelRightOpen,
   Paperclip,
   Pencil,
   Plus,
@@ -83,6 +86,18 @@ const ViewBoard = createLucideIcon("view-board", [
   ["rect", { x: "14", y: "2", width: "8", height: "20", rx: "2", key: "right" }],
 ]);
 
+/** Source above, directional arrow and destination below; readable at 18px. */
+const ConvertToFolder = createLucideIcon("convert-to-folder", [
+  ["path", { d: "M3 10V2h6l3 3v5M9 2v3h3", key: "page" }],
+  ["path", { d: "M15 5h5v8m-3-3 3 3 3-3", key: "arrow" }],
+  ["path", { d: "M3 14h6l2 2h10v6H3z", key: "folder" }],
+]);
+const ConvertToPage = createLucideIcon("convert-to-page", [
+  ["path", { d: "M2 2h5l2 2h4v6H2z", key: "folder" }],
+  ["path", { d: "M15 5h5v8m-3-3 3 3 3-3", key: "arrow" }],
+  ["path", { d: "M4 13h6l3 3v6H4zM10 13v3h3", key: "page" }],
+]);
+
 const KnowledgeGraph = createLucideIcon("knowledge-graph", [
   ["line", { x1: "10.54", y1: "9.92", x2: "6.25", y2: "5.5", key: "hub-nw" }],
   ["line", { x1: "14.17", y1: "12.16", x2: "18.73", y2: "13.58", key: "hub-e" }],
@@ -111,9 +126,14 @@ export const APP_ICONS = {
   check: Check,
   chevronDown: ChevronDown,
   chevronRight: ChevronRight,
+  peekClose: ChevronsRight,
+  expand: Maximize2,
+  sidePeek: PanelRightOpen,
   close: X,
   code: Code2,
   conflict: CircleAlert,
+  convertToFolder: ConvertToFolder,
+  convertToPage: ConvertToPage,
   copy: Copy,
   delete: Trash2,
   download: Download,
@@ -191,9 +211,14 @@ export const APP_ICON_LABELS: Readonly<Record<AppIconName, string>> = {
   check: "Validé",
   chevronDown: "Chevron vers le bas",
   chevronRight: "Chevron vers la droite",
+  peekClose: "Fermer le volet",
+  expand: "Ouvrir en pleine page",
+  sidePeek: "Ouvrir en volet latéral",
   close: "Fermer",
   code: "Code",
   conflict: "Conflit",
+  convertToFolder: "Convertir une page en dossier",
+  convertToPage: "Convertir un dossier en page",
   copy: "Copier",
   delete: "Supprimer",
   download: "Télécharger",

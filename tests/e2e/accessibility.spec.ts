@@ -23,6 +23,7 @@ import {
   ensureNavigationVisible,
   entryTrigger,
   openAttachmentDetails,
+  openBoardMoveMenu,
   openItemActions,
   openNoteInformation,
   openPageAttachments,
@@ -436,7 +437,7 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await due.fill(currentMonthDate);
     await expect(due).toHaveValue(currentMonthDate);
     await waitForEntryAutosave(page);
-    await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+    await page.getByRole("button", { name: "Fermer le volet" }).click();
     await expect(panel).toBeHidden();
     // The entry projection can still refresh after its durable write is
     // acknowledged. Reloading proves the values survived and lets the view
@@ -479,10 +480,12 @@ test.describe("structured database view accessibility (feature 009)", () => {
     }
 
     await databaseViewButton(page, /Kanban/).click();
-    await expect(page.getByLabel(`Déplacer ${entryName} dans une autre colonne`)).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: `Déplacer ${entryName} dans la colonne suivante` }),
-    ).toBeVisible();
+    const actions = page.getByRole("button", { name: `Actions de ${entryName}`, exact: true });
+    await expect(actions).toBeVisible();
+    await openBoardMoveMenu(page, page, entryName, true);
+    await expect(page.getByRole("menuitem", { name: "Done", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(actions).toBeFocused();
     await databaseViewButton(page, /Calendrier/).click();
     await expect(page.getByLabel(`Planifier ${entryName}`)).toBeVisible();
     await expect(

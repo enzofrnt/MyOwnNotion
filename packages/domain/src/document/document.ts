@@ -328,6 +328,8 @@ export function markKeyV3(
       return `link:${mark.href}`;
     case "pageLink":
       return `pageLink:${mark.targetItemId}`;
+    case "equation":
+      return `equation:${mark.equationId}:${mark.expression}`;
     case "textColor":
     case "backgroundColor":
       return `${mark.type}:${mark.color}`;
@@ -436,6 +438,8 @@ export function normaliseBlockV3(block: CanonicalBlockV3): CanonicalBlockV3 {
     case "fileEmbed":
     case "embed":
     case "databaseView":
+    case "equation":
+    case "tableOfContents":
       return block;
   }
 }
@@ -445,6 +449,8 @@ export function normaliseDocumentV3(document: BlockDocumentV3): BlockDocumentV3 
 }
 
 function serialiseMarkV3(mark: MarkV3, canonicalOpaque: boolean): JsonObject {
+  if (mark.type === "equation")
+    return { type: mark.type, equationId: mark.equationId, expression: mark.expression };
   if (mark.type === "unknown") {
     return canonicalOpaque ? (canonicalOpaqueValue(mark.raw) as JsonObject) : mark.raw;
   }
@@ -614,6 +620,12 @@ function serialiseBlockV3(block: CanonicalBlockV3, canonicalOpaque: boolean): Js
         sourceUrl: block.sourceUrl,
         caption: block.caption,
       };
+      break;
+    case "equation":
+      known = { type: block.type, id: block.id, expression: block.expression };
+      break;
+    case "tableOfContents":
+      known = { type: block.type, id: block.id };
       break;
     case "databaseView":
       known = {

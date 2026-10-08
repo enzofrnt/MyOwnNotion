@@ -1,9 +1,11 @@
+import { writeFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   addDatabaseProperty,
   chooseEntryOptions,
   chooseEntryRelation,
+  closeMobileNavigation,
   createDatabaseEntry,
   createRootDatabase,
   createRootItem,
@@ -32,34 +34,58 @@ async function openSearch(page: Page, query: string) {
 for (const cancel of [false, true]) {
   test(`keeps a property action stable while a new database opens${cancel ? " and permits cancellation" : ""}`, async ({
     page,
-  }) => {
+  }, testInfo) => {
     await openWorkspace(page);
-    await createRootDatabase(page, uniqueName("Stable property"));
-    await expect(page.locator(".database-grid")).toBeVisible();
+    const databaseName = uniqueName("Stable property");
+    await createRootDatabase(page, databaseName);
+    // Naming the owner also renames its source asynchronously. Finish that
+    // distinct edit before measuring the geometry of a property gesture.
+    await expect(
+      page.getByRole("textbox", { name: "Titre de la source", exact: true }),
+    ).toHaveValue(databaseName);
+    await expect(
+      page.getByTestId("database-view-surface").getByRole("columnheader").first(),
+    ).toBeVisible();
     // Classification is known at creation. A page-editor placeholder above the
     // database would move this action after the owner has already pressed it.
     await expect(page.getByTestId("editor-loading-skeleton")).not.toBeVisible();
     const addProperty = page.getByRole("button", { name: "Ajouter une propriété" });
     const stopObserving = await addProperty.evaluateHandle((button) => {
-      const positions = [button.getBoundingClientRect().top];
+      const position = () => ({
+        top: button.getBoundingClientRect().top,
+        ownerScrollTop: button.closest(".workspace-main")?.scrollTop ?? 0,
+        pageScrollY: window.scrollY,
+      });
+      const positions = [position()];
       let connected = true;
       const sample = () => {
         connected &&= button.isConnected;
-        if (button.isConnected) positions.push(button.getBoundingClientRect().top);
+        if (button.isConnected) positions.push(position());
       };
       const observer = new MutationObserver(sample);
       observer.observe(document.body, { subtree: true, childList: true, attributes: true });
       return () => {
         sample();
         observer.disconnect();
-        return { connected, displacement: Math.max(...positions) - Math.min(...positions) };
+        const tops = positions.map(({ top }) => top);
+        return {
+          connected,
+          displacement: Math.max(...tops) - Math.min(...tops),
+          positions,
+        };
       };
     });
     await addProperty.click();
     const form = page.getByRole("form", { name: "Éditeur de propriété" });
-    await form.getByLabel("Nom").fill("Notes");
+    await form.getByLabel("Nom", { exact: true }).fill("Notes");
     const stability = await stopObserving.evaluate((stop) => stop());
     await stopObserving.dispose();
+    const stabilityPath = testInfo.outputPath("property-action-stability.json");
+    await writeFile(stabilityPath, JSON.stringify(stability, null, 2));
+    await testInfo.attach("property-action-stability", {
+      path: stabilityPath,
+      contentType: "application/json",
+    });
     expect(stability.connected).toBe(true);
     expect(stability.displacement).toBeLessThanOrEqual(1);
     const save = form.getByRole("button", { name: "Enregistrer la propriété" });
@@ -76,7 +102,7 @@ for (const cancel of [false, true]) {
     await page.mouse.up();
     if (cancel) {
       await expect(form).toBeVisible();
-      await expect(form.getByLabel("Nom")).toHaveValue("Notes");
+      await expect(form.getByLabel("Nom", { exact: true })).toHaveValue("Notes");
       await save.focus();
       await page.keyboard.press("Enter");
     }
@@ -89,7 +115,7 @@ for (const cancel of [false, true]) {
 
 test("tracks one task page through roles, notes, relations, search and an independent checkbox", async ({
   page,
-}) => {
+}, testInfo) => {
   await openWorkspace(page);
   const databaseName = uniqueName("Tasks");
   const taskName = uniqueName("Ship task roles");
@@ -150,8 +176,59 @@ test("tracks one task page through roles, notes, relations, search and an indepe
     .filter({ hasText: editorialNote })
     .last();
   await editorialBlock.click({ button: "right" });
+  const blockMenu = page.getByRole("menu", { name: "Actions du bloc" });
+  await expect(blockMenu).toBeVisible();
+  const expectMenuInViewport = async () => {
+    await expect
+      .poll(() =>
+        blockMenu.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return (
+            rect.left >= 0 &&
+            rect.top >= 0 &&
+            rect.right <= innerWidth &&
+            rect.bottom <= innerHeight
+          );
+        }),
+      )
+      .toBe(true);
+  };
+  await expectMenuInViewport();
+  await blockMenu.focus();
+  await page.keyboard.press("Escape");
+  await expect(blockMenu).toBeHidden();
+  await expect(page.locator(".database-entry-peek")).toBeVisible();
+  const viewport = page.viewportSize();
+  if (viewport === null) throw new Error("Menu geometry requires a configured viewport");
+  try {
+    for (const width of new Set([viewport.width, 320])) {
+      await page.setViewportSize({ width, height: viewport.height });
+      await closeMobileNavigation(page);
+      for (const colorScheme of ["light", "dark"] as const) {
+        await page.emulateMedia({ colorScheme });
+        await editorialBlock.click({ button: "right" });
+        await expect(blockMenu).toBeVisible();
+        await expectMenuInViewport();
+        await page.screenshot({
+          path: testInfo.outputPath(`side-peek-menu-${width}-${colorScheme}.png`),
+        });
+        await blockMenu.focus();
+        await page.keyboard.press("Escape");
+        await expect(blockMenu).toBeHidden();
+        await expect(page.locator(".database-entry-peek")).toBeVisible();
+      }
+    }
+  } finally {
+    await page.setViewportSize(viewport);
+    await page.emulateMedia({ colorScheme: null });
+  }
+  await editorialBlock.click({ button: "right" });
+  await expect(blockMenu).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("side-peek-editor-menu.png") });
   const beforeTaskConversion = await editorApplyCount(page);
   await page.getByRole("menuitem", { name: "Liste de tâches" }).click();
+  await expect(blockMenu).toBeHidden();
+  await expect(page.locator(".database-entry-peek")).toBeVisible();
   await waitForEditorSettled(page, { afterApplyCount: beforeTaskConversion });
   const documentCheckbox = page
     .locator('[data-testid="block-editor"]:visible')
@@ -180,6 +257,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await expect(result).toContainText("Propriété correspondante : Workflow");
   await result.getByRole("button").click();
   await expect(entryPanel).toBeVisible();
+  await expect(page.locator(".database-entry-peek")).toBeHidden();
 
   await chooseEntryOptions(page, "Workflow", ["Done"]);
   await waitForEntryAutosave(page);

@@ -9,6 +9,7 @@ import {
   databaseViewButton,
   ensureNavigationVisible,
   entryTrigger,
+  openBoardMoveMenu,
   openSecondDevice,
   openWorkspace,
   selectItem,
@@ -40,7 +41,7 @@ async function createEntry(
     await expect(due).toHaveValue(values.due);
   }
   await waitForEntryAutosave(page);
-  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
   await expect(trigger).toBeFocused({ timeout: 15_000 });
 }
 
@@ -95,7 +96,7 @@ test("preserves native property input across a remote projection before input de
     await expect(summary).toHaveValue("Native pending summary");
     await summary.dispatchEvent("input");
     await waitForEntryAutosave(page);
-    await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+    await page.getByRole("button", { name: "Fermer le volet" }).click();
     await trigger.click();
     await expect(summary).toHaveValue("Native pending summary");
   } finally {
@@ -130,19 +131,16 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   const canonicalEntryId = await alphaBoardTrigger.getAttribute("data-entry-trigger");
   expect(canonicalEntryId).not.toBeNull();
 
-  const doneColumn = page
-    .locator("[data-board-column]")
-    .filter({ has: page.getByRole("heading", { name: /^Done ·/ }) });
-  await page.getByRole("button", { name: `Déplacer ${alpha} dans la colonne suivante` }).click();
+  const doneColumn = page.getByRole("region", { name: /^Done ·/ });
+  await openBoardMoveMenu(page, page, alpha);
+  await page.getByRole("menuitem", { name: "Done", exact: true }).click();
   await expect(doneColumn.locator(".database-card").filter({ hasText: alpha })).toBeVisible({
     timeout: 15_000,
   });
   await waitForSynchronized(page);
 
-  const betaMove = page.getByRole("button", {
-    name: `Déplacer ${beta} dans la colonne suivante`,
-  });
-  await betaMove.press("Enter");
+  await openBoardMoveMenu(page, page, beta, true);
+  await page.getByRole("menuitem", { name: "Done", exact: true }).press("Enter");
   await expect(doneColumn.locator(".database-card").filter({ hasText: beta })).toBeVisible({
     timeout: 15_000,
   });
@@ -156,8 +154,10 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
     canonicalEntryId as string,
   );
   await alphaGalleryCard.locator("[data-entry-trigger]").click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(alpha);
-  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+  await expect(
+    page.locator(".entry-panel").getByRole("textbox", { name: "Titre de la page", exact: true }),
+  ).toHaveValue(alpha);
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
   await expect(page.locator(`[data-entry-trigger="${canonicalEntryId as string}"]`)).toBeFocused();
 
   await createView(page, "Nouvelle vue calendrier", /Calendrier/);
@@ -212,5 +212,7 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
     .getByRole("button");
   await narrowCardTrigger.focus();
   await narrowCardTrigger.press("Enter");
-  await expect(page.getByTestId("active-item-title")).toHaveValue(alpha);
+  await expect(
+    page.locator(".entry-panel").getByRole("textbox", { name: "Titre de la page", exact: true }),
+  ).toHaveValue(alpha);
 });

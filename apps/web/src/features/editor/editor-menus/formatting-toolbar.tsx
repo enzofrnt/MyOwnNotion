@@ -9,6 +9,7 @@ import {
   useComponentsContext,
 } from "@blocknote/react";
 import { type RefObject, useCallback, useEffect } from "react";
+import { FR_COPY } from "../../../ui/copy/fr.ts";
 import { AppIcon } from "../../../ui/icons.tsx";
 import type { EditorInstance } from "../blocknote-schema.ts";
 import {
@@ -82,10 +83,12 @@ function MyOwnNotionFormattingToolbar({
           className="bn-button"
           data-testid="open-page-link-picker"
           label={
-            selectedLink?.kind === "page" ? "Modifier le lien vers la page" : "Lien vers une page"
+            selectedLink?.kind === "page"
+              ? FR_COPY.editor.itemLink.edit
+              : FR_COPY.editor.slashMenu.pageLink.title
           }
-          mainTooltip="Lien vers une page"
-          icon={<AppIcon name="fileText" />}
+          mainTooltip={FR_COPY.editor.slashMenu.pageLink.title}
+          icon={<AppIcon name="reference" />}
           isSelected={selectedLink?.kind === "page"}
           onClick={openPageLinkFlow}
         />

@@ -319,11 +319,12 @@ the guard to force startup. The new-model export/backup and restore journey is
 validated on a fresh installation as described in
 [`specs/029-database-pages-views/quickstart.md`](../specs/029-database-pages-views/quickstart.md).
 
-### Notion import CLI
+### Notion API import CLI
 
-`bun run import:notion --source PATH` performs a source-only preview. Explicit
+`bun run import:notion --discover --json` lists accessible Notion objects;
+`bun run import:notion --all --id UUID` previews a read-only API snapshot. Explicit
 apply uses canonical mutation services, protected files and a verified complete
-safety backup. See the [source formats, setup, reports and resume guide](notion-import.md).
+safety backup. See the [API access, selection, reports and encrypted resume guide](notion-import.md).
 
 ### Backup and recovery commands
 
@@ -1217,3 +1218,34 @@ It blocks installation while local changes remain pending, checks SHA-512 again
 before handing the installer to the operating system, and asks the owner to
 complete installation and restart. Opening the installer is not reported as a
 completed upgrade. Linux reveals the downloaded AppImage for manual installation.
+
+
+## Workflow Spec Kit
+
+Les exigences vivent dans `specs/<feature>/spec.md`, les choix techniques dans
+`plan.md` et l’avancement dans `tasks.md`. Lire d’abord la constitution,
+le canevas produit et les artefacts existants : une reprise par un autre agent
+continue la même fonctionnalité, sans régénérer ni dupliquer ses documents.
+
+Ordre de travail : spécifier → clarifier si nécessaire → planifier → générer les
+tâches → analyser → implémenter → converger. Dans Codex, appeler
+`$speckit-specify`, `$speckit-clarify`, `$speckit-plan`, `$speckit-tasks`,
+`$speckit-analyze`, `$speckit-implement` et `$speckit-converge` ; dans Cursor,
+utiliser les mêmes noms avec le préfixe `/`. Les décisions durables et les preuves
+restent dans les artefacts ; ne jamais réinitialiser des changements pour passer
+d’un agent à l’autre.
+
+Le CLI Specify sert seulement à installer, rafraîchir ou diagnostiquer les
+intégrations. Le dépôt a été généré avec Spec Kit v0.16.0 :
+
+```text
+uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.16.0
+specify version
+specify integration upgrade codex
+specify integration upgrade cursor-agent
+specify integration status
+```
+
+Relire le diff après une mise à jour. Les artefacts canoniques sous
+`.specify/memory/` et `specs/` doivent être conservés ; ne pas modifier à la main
+les compétences générées dans `.agents/skills/` ou `.cursor/skills/`.

@@ -142,11 +142,16 @@ test("keeps structured content out of local storage, addresses and diagnostics",
   const panel = page.locator(".entry-panel");
   await panel.getByLabel(SENTINELS.property, { exact: true }).fill(SENTINELS.offline);
   await waitForEntryAutosave(page, { synchronize: false });
+  // The side peek occupies the whole viewport on touch widths. Leave it
+  // before opening navigation, then reopen the same durable local entry.
+  await page.getByRole("button", { name: "Fermer le volet", exact: true }).click();
+  await expect(page.locator(".database-entry-peek")).toBeHidden();
   await openWorkspaceDiagnostics(page);
   await expect(page.getByTestId("pending-mutations")).toContainText(
     "database.entry.values.replace",
   );
   await returnToWorkspace(page);
+  await entryTrigger(page, SENTINELS.entry).first().click();
   await expect(panel.getByLabel(SENTINELS.property, { exact: true })).toHaveValue(
     SENTINELS.offline,
   );

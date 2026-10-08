@@ -122,11 +122,9 @@ function GalleryCard({
           ))}
         </dl>
       )}
-      {row.syncState === "synced" ? null : (
-        <span className={`database-sync database-sync--${row.syncState}`}>
-          {row.syncState === "pending"
-            ? DATABASE_COPY.common.savedLocally
-            : DATABASE_COPY.common.conflict}
+      {row.syncState !== "conflict" ? null : (
+        <span className="database-sync database-sync--conflict">
+          {DATABASE_COPY.common.conflict}
         </span>
       )}
     </li>

@@ -38,7 +38,7 @@ async function linkSelectionToPage(page: Page, targetName: string): Promise<void
   await toolbar.getByTestId("open-page-link-picker").click();
   const picker = page.getByTestId("page-link-picker");
   await expect(picker).toBeVisible();
-  const search = picker.getByLabel("Rechercher une page");
+  const search = picker.getByLabel("Rechercher un élément");
   await expect(search).toBeFocused();
   await search.fill(targetName);
   await expect(picker.getByRole("option").filter({ hasText: targetName })).toHaveCount(1);
@@ -237,7 +237,7 @@ test("edits and removes a page link from its context menu without deleting text 
   await page.getByTestId("context-edit-link").click();
   const picker = page.getByTestId("page-link-picker");
   await expect(picker).toBeVisible();
-  const search = picker.getByLabel("Rechercher une page");
+  const search = picker.getByLabel("Rechercher un élément");
   await search.fill(secondTarget);
   await search.press("Enter");
   await expect(picker).toBeHidden();
@@ -342,12 +342,14 @@ test("keeps page and Web actions separate and shows a caret on an empty line", a
   await page.keyboard.press("Delete");
   await editor.pressSequentially("/lien");
   const slashMenu = page.getByRole("listbox");
-  await expect(slashMenu.getByRole("option", { name: /^Lien vers une page/u })).toHaveCount(1);
+  await expect(slashMenu.getByRole("option", { name: /^Lien vers un autre élément/u })).toHaveCount(
+    1,
+  );
   await expect(slashMenu.getByRole("option", { name: /^Lien Web/u })).toHaveCount(1);
-  await slashMenu.getByRole("option", { name: /^Lien vers une page/u }).click();
+  await slashMenu.getByRole("option", { name: /^Lien vers un autre élément/u }).click();
 
   const picker = page.getByTestId("page-link-picker");
-  const search = picker.getByLabel("Rechercher une page");
+  const search = picker.getByLabel("Rechercher un élément");
   await expect(search).toBeFocused();
   await search.fill(target);
   await search.press("Enter");

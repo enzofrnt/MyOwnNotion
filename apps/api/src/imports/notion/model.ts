@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import type {
   DatabaseDefinition,
+  DatabaseView,
   NonRelationPropertyValue,
   PageDocument,
   RelationTargets,
   Uuid,
 } from "@myownnotion/domain";
 import type { ImportSnapshot } from "./source.ts";
-
 export function importId(namespace: string, value: string): Uuid {
   const bytes = createHash("sha256")
     .update(`myownnotion.import.v1\0${namespace}\0${value}`)
@@ -24,20 +24,16 @@ export interface ImportIssue {
   detail?: string;
   blocking?: boolean;
 }
-export interface ImportLink {
-  sourcePath: string;
-  sourceTarget: string;
-  targetId: Uuid | null;
-  status: "resolved" | "external" | "missing" | "ambiguous" | "unsafe";
-}
 export interface ImportPage {
   id: Uuid;
   path: string;
   title: string;
   parentId: Uuid;
   document: PageDocument;
-  properties: Record<string, unknown>;
   databaseId?: Uuid;
+  sourceId?: Uuid;
+  icon?: string;
+  positionKey: string;
   values?: Record<Uuid, NonRelationPropertyValue>;
   relationTargets?: RelationTargets;
 }
@@ -54,78 +50,43 @@ export interface ImportFolder {
   name: string;
   parentId: Uuid | null;
 }
-export interface ImportDatabase {
+export interface ImportDataSource {
   id: Uuid;
-  sourceId: Uuid;
-  hostPageId: Uuid;
-  path: string;
   name: string;
   titlePropertyId: Uuid;
   initialViewId: Uuid;
-  embeddingId: Uuid;
   definition: DatabaseDefinition;
-  memberIds: Uuid[];
-  linkedDisplays: Array<{
-    id: Uuid;
-    hostPageId: Uuid;
-    viewId: Uuid;
-    name: string;
-    view: import("@myownnotion/domain").DatabaseView;
-  }>;
+}
+export interface ImportDatabase {
+  id: Uuid;
+  parentId: Uuid;
+  path: string;
+  name: string;
+  icon?: string;
+  sources: ImportDataSource[];
+  positionKey: string;
+  views: Array<DatabaseView & { sourceId: Uuid }>;
 }
 export interface ImportReport {
-  adapter: "notion" | "obsidian";
-  snapshotDigest: string;
+  adapter: "notion-api";
   importId: Uuid;
+  snapshotDigest: string;
   totals: {
-    sourceFiles: number;
-    sourceBytes: number;
     pages: number;
-    folders: number;
+    databases: number;
+    sources: number;
+    memberships: number;
     attachments: number;
     originals: number;
-    databases: number;
-    memberships: number;
-    links: number;
+    sourceBytes: number;
     issues: number;
   };
-  pages: Array<{
-    sourcePath: string;
-    id: Uuid;
-    title: string;
-    parentId: Uuid;
-    databaseId: Uuid | null;
-    blocks: number;
-    synthesized: boolean;
-  }>;
-  folders: ImportFolder[];
-  files: Array<{
-    path: string;
-    bytes: number;
-    sha256: string;
-    outcome: string;
-    canonicalId: Uuid;
-    parentId: Uuid;
-    original: boolean;
-  }>;
-  links: ImportLink[];
-  properties: Array<{ sourcePath: string; name: string; representation: string }>;
-  databases: Array<{
-    path: string;
-    id: Uuid;
-    hostPageId: Uuid;
-    members: number;
-    memberIds: Uuid[];
-    embeddingId: Uuid;
-    membershipReference: string;
-    retained: string[];
-    presentation: "exported-table" | "default-table";
-    missing: string[];
-  }>;
+  identities: Array<{ sourceId: string; targetId: Uuid; kind: string }>;
   issues: ImportIssue[];
 }
 export interface ImportPlan {
-  version: 1;
+  version: 2;
+  excludedDatabaseIds?: readonly string[];
   id: Uuid;
   rootId: Uuid;
   fingerprint: string;

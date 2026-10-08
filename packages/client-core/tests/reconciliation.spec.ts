@@ -9,6 +9,7 @@ import {
   type LocalDatabase,
   LocalDatabaseRepository,
   LocalRepository,
+  META_KEYS,
   Outbox,
   openLocalDatabase,
   type ReconcileTransport,
@@ -75,6 +76,18 @@ function serverItem(name: string): ItemDto {
       { id: generateUuidV7(), itemId: id, kind: "hierarchy", parentItemId: null, positionKey: "V" },
     ],
   } as ItemDto;
+}
+
+function changeOf(
+  sequence: number,
+  changedItems?: ItemDto[],
+): ChangesResponseDto["changes"][number] {
+  return {
+    sequence,
+    mutationId: generateUuidV7(),
+    revisionIds: [],
+    ...(changedItems === undefined ? {} : { changedItems }),
+  };
 }
 
 /** Scriptable in-memory server double with duplicate-delivery accounting. */
@@ -208,6 +221,308 @@ class FakeTransport implements ReconcileTransport {
 }
 
 describe("reconciliation (T044)", () => {
+  // Creating and reconciling 101 encrypted writes can exceed the default CI
+  // deadline under coverage. This case checks batching, not a performance budget.
+  it("limits independent offline writes to causal batches of one hundred", async () => {
+    const mutationIds: Uuid[] = [];
+    for (let index = 0; index < 101; index += 1) {
+      mutationIds.push(await enqueueCreate(`Offline item ${index}`));
+    }
+    const transport = new FakeTransport();
+    const outcome = await reconcile(db, transport, codec);
+    expect(transport.submissions.map((batch) => batch.length)).toEqual([100, 1]);
+    expect(transport.submissions.flat().map(({ mutationId }) => mutationId)).toEqual(mutationIds);
+    expect(outcome).toMatchObject({ submitted: 101, accepted: 101, retained: 0 });
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(true);
+  }, 15_000);
+
+  it.each(["write_blocked", "rotation.write-blocked"])(
+    "retains a write refused by %s as blocked rather than a conflict",
+    async (code) => {
+      const mutationId = await enqueueCreate("Preserved during rotation");
+      const transport = new FakeTransport();
+      transport.submitMutationBatch = async () => ({
+        ok: true,
+        value: {
+          results: [
+            {
+              mutationId,
+              status: "rejected",
+              problem: { type: "about:blank", status: 503, code, title: "Rotation in progress" },
+            },
+          ],
+        },
+      });
+      const outcome = await reconcile(db, transport, codec);
+      expect(outcome).toMatchObject({ accepted: 0, blocked: 1, conflicts: 0 });
+      expect((await outbox.all()).find((row) => row.mutationId === mutationId)).toMatchObject({
+        status: "blocked",
+        blockedReason: "Rotation in progress",
+      });
+      expect(await db.conflicts.count()).toBe(0);
+    },
+  );
+
+  it("acknowledges older acceptance responses without revision identities", async () => {
+    const mutationId = await enqueueCreate("Accepted on an older server");
+    const transport = new FakeTransport();
+    transport.submitMutationBatch = async () => ({
+      ok: true,
+      value: { results: [{ mutationId, status: "accepted" }] },
+    });
+    await expect(reconcile(db, transport, codec)).resolves.toMatchObject({ accepted: 1 });
+    expect(await db.outbox.get(mutationId)).toBeUndefined();
+    expect(await repository.listItems()).toHaveLength(1);
+  });
+
+  it("publishes a rebuilt snapshot only after its durable replacement and keeps catch-up ordered", async () => {
+    await repository.setMeta(META_KEYS.lastChangeCursor, "compacted");
+    const old = serverItem("Old local projection");
+    await repository.applyServerItems([old]);
+    const fresh = serverItem("Current snapshot");
+    const final = serverItem("After snapshot");
+    const transport = new FakeTransport();
+    transport.compactedCursors.add("compacted");
+    transport.snapshot = {
+      workspaceId: generateUuidV7(),
+      schemaVersion: 1,
+      cursor: "100",
+      digest: "a".repeat(64),
+      items: [fresh],
+      relationships: [],
+      databases: [],
+      databaseEntries: [],
+    };
+    transport.changePages = [
+      { changes: [changeOf(101, [final])], nextCursor: "101", hasMore: false },
+    ];
+    const commits: Array<{ cursor: string; rebuilt: boolean; complete: boolean }> = [];
+    const outcome = await reconcile(db, transport, codec, {
+      onProjectionCommitted: async (commit) => {
+        commits.push({
+          cursor: await repository.getLastChangeCursor(),
+          rebuilt: commit.rebuilt,
+          complete: commit.complete,
+        });
+        expect(await repository.getItem(fresh.id as Uuid)).toMatchObject({ name: fresh.name });
+        expect(await repository.getItem(old.id as Uuid)).toBeNull();
+        if (commit.rebuilt) expect(commit.itemIds).toEqual([fresh.id]);
+      },
+    });
+    expect(commits).toEqual([
+      { cursor: "100", rebuilt: true, complete: true },
+      { cursor: "101", rebuilt: false, complete: true },
+    ]);
+    expect(outcome).toMatchObject({ caughtUpTo: "101", usedSnapshotFallback: true });
+    expect(await repository.getItem(final.id as Uuid)).toMatchObject({ name: final.name });
+  });
+
+  it("yields a compacted snapshot to an edit made during its request without advancing coverage", async () => {
+    await repository.setMeta(META_KEYS.lastChangeCursor, "compacted");
+    const fresh = serverItem("Remote snapshot must wait");
+    const transport = new FakeTransport();
+    transport.compactedCursors.add("compacted");
+    let localMutationId: Uuid | undefined;
+    transport.currentSnapshot = async () => {
+      localMutationId = await enqueueCreate("Created while snapshot was downloading");
+      return {
+        ok: true,
+        value: {
+          workspaceId: generateUuidV7(),
+          schemaVersion: 1,
+          cursor: "100",
+          digest: "a".repeat(64),
+          items: [fresh],
+          relationships: [],
+          databases: [],
+          databaseEntries: [],
+        },
+      };
+    };
+    const commits: unknown[] = [];
+    await expect(
+      reconcile(db, transport, codec, {
+        onProjectionCommitted: (commit) => void commits.push(commit),
+      }),
+    ).resolves.toMatchObject({ retained: 1, caughtUpTo: "compacted", usedSnapshotFallback: false });
+    expect(commits).toEqual([]);
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(false);
+    expect(await repository.getItem(fresh.id as Uuid)).toBeNull();
+    expect(await db.outbox.get(localMutationId as Uuid)).toMatchObject({ status: "pending" });
+    expect((await repository.listItems()).map(({ name }) => name)).toEqual([
+      "Created while snapshot was downloading",
+    ]);
+  });
+
+  it("resumes after a publication failure from the committed cursor rather than replaying its page", async () => {
+    const first = serverItem("Already durable");
+    const second = serverItem("Remaining discovery");
+    const transport = new FakeTransport();
+    transport.changePages = [
+      { changes: [changeOf(1, [first])], nextCursor: "1", hasMore: true },
+      { changes: [changeOf(2, [second])], nextCursor: "2", hasMore: false },
+    ];
+    await expect(
+      reconcile(db, transport, codec, {
+        onProjectionCommitted: async () => {
+          throw new Error("surface was disposed");
+        },
+      }),
+    ).rejects.toThrow("surface was disposed");
+    expect(await repository.getLastChangeCursor()).toBe("1");
+    expect(await repository.getItem(first.id as Uuid)).toMatchObject({ name: first.name });
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(false);
+    const publishedIds: string[] = [];
+    await reconcile(db, transport, codec, {
+      onProjectionCommitted: ({ itemIds }) => void publishedIds.push(...itemIds),
+    });
+    expect(publishedIds).toEqual([second.id]);
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(true);
+  });
+
+  it("allows a projection listener to persist local work before the next page can replace it", async () => {
+    const first = serverItem("First durable page");
+    const stale = serverItem("Second page predates the new write");
+    const transport = new FakeTransport();
+    transport.changePages = [
+      { changes: [changeOf(1, [first])], nextCursor: "1", hasMore: true },
+      { changes: [changeOf(2, [stale])], nextCursor: "2", hasMore: false },
+    ];
+    const publishedIds: string[] = [];
+    const outcome = await reconcile(db, transport, codec, {
+      onProjectionCommitted: async ({ itemIds }) => {
+        publishedIds.push(...itemIds);
+        await enqueueCreate("Local edit from an already available surface");
+      },
+    });
+    expect(publishedIds).toEqual([first.id]);
+    expect(outcome).toMatchObject({ retained: 1, caughtUpTo: "1" });
+    expect(await repository.getItem(stale.id as Uuid)).toBeNull();
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(false);
+    expect(await outbox.pending()).toHaveLength(1);
+  });
+
+  it("preserves completed discovery through a nonfinal confirmation with no changed items", async () => {
+    await repository.setMeta(META_KEYS.projectionComplete, true);
+    const transport = new FakeTransport();
+    transport.changePages = [
+      {
+        changes: [changeOf(1)],
+        nextCursor: "1",
+        hasMore: true,
+      },
+    ];
+    const commits: unknown[] = [];
+    await reconcile(db, transport, codec, {
+      onProjectionCommitted: (commit) => void commits.push(commit),
+    });
+    expect(commits).toEqual([
+      { itemIds: [], rebuilt: false, complete: true },
+      { itemIds: [], rebuilt: false, complete: true },
+    ]);
+    expect(await repository.getLastChangeCursor()).toBe("1");
+  });
+
+  it("keeps a markerless legacy cursor incomplete until catch-up finishes", async () => {
+    await repository.setMeta(META_KEYS.lastChangeCursor, "127");
+    const transport = new FakeTransport();
+    transport.failChanges = true;
+    await reconcile(db, transport, codec);
+    expect(await repository.getLastChangeCursor()).toBe("127");
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(false);
+    transport.failChanges = false;
+    await reconcile(db, transport, codec);
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(true);
+  });
+  it("publishes each page only after its rows and cursor are durable", async () => {
+    const first = serverItem("First batch");
+    const second = serverItem("Second batch");
+    const transport = new FakeTransport();
+    transport.changePages = [first, second].map((item, index) => ({
+      changes: [
+        {
+          sequence: index + 1,
+          mutationId: generateUuidV7(),
+          revisionIds: [],
+          changedItems: [item],
+        },
+      ],
+      nextCursor: String(index + 1),
+      hasMore: index === 0,
+    }));
+    const published: Array<{ ids: readonly Uuid[]; cursor: string; complete: boolean }> = [];
+    await reconcile(db, transport, codec, {
+      onProjectionCommitted: async (commit) => {
+        for (const itemId of commit.itemIds)
+          expect(await repository.getItem(itemId)).not.toBeNull();
+        published.push({
+          ids: commit.itemIds,
+          cursor: await repository.getLastChangeCursor(),
+          complete: (await repository.getMeta<boolean>(META_KEYS.projectionComplete)) === true,
+        });
+      },
+    });
+    expect(published).toEqual([
+      { ids: [first.id], cursor: "1", complete: false },
+      { ids: [second.id], cursor: "2", complete: true },
+    ]);
+  });
+
+  it("keeps interrupted discovery incomplete and resumes from the committed cursor", async () => {
+    const item = serverItem("Received before interruption");
+    const transport = new FakeTransport();
+    transport.changePages = [
+      {
+        changes: [
+          { sequence: 1, mutationId: generateUuidV7(), revisionIds: [], changedItems: [item] },
+        ],
+        nextCursor: "1",
+        hasMore: true,
+      },
+    ];
+    const outcome = await reconcile(db, transport, codec, {
+      onProjectionCommitted: () => {
+        transport.failChanges = true;
+      },
+    });
+    expect(outcome.offline).toBe(true);
+    expect(await repository.getLastChangeCursor()).toBe("1");
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(false);
+    expect(await repository.getItem(item.id as Uuid)).not.toBeNull();
+    transport.failChanges = false;
+    await reconcile(db, transport, codec);
+    expect(await repository.getLastChangeCursor()).toBe("1");
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(true);
+  });
+
+  it("does not publish or complete a response superseded by a local mutation", async () => {
+    const transport = new FakeTransport();
+    const item = serverItem("Remote response");
+    transport.changePages = [
+      {
+        changes: [
+          { sequence: 1, mutationId: generateUuidV7(), revisionIds: [], changedItems: [item] },
+        ],
+        nextCursor: "1",
+        hasMore: false,
+      },
+    ];
+    transport.beforeNextChangePage = async () => {
+      await enqueueCreate("Local intent");
+    };
+    const published: string[] = [];
+    await reconcile(db, transport, codec, {
+      onProjectionCommitted: (commit) => {
+        published.push(...commit.itemIds);
+      },
+    });
+    expect(published).toEqual([]);
+    expect(await repository.getItem(item.id as Uuid)).toBeNull();
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(false);
+    expect(await repository.getLastChangeCursor()).toBe("");
+    expect(await outbox.pending()).toHaveLength(1);
+  });
+
   it("submits pending mutations once logically and acknowledges them", async () => {
     await enqueueCreate("One");
     await enqueueCreate("Two");
@@ -439,6 +754,7 @@ describe("reconciliation (T044)", () => {
     const outcome = await reconcile(db, transport, codec);
     expect(outcome.usedSnapshotFallback).toBe(true);
     expect(outcome.caughtUpTo).toBe("100");
+    expect(await repository.getMeta(META_KEYS.projectionComplete)).toBe(true);
     expect((await repository.getItem(fresh.id as Uuid))?.name).toBe("Fresh from snapshot");
     expect((await outbox.conflicts()).length).toBe(1);
   });
@@ -623,6 +939,121 @@ describe("the automatic merge (feature 006)", () => {
     expect(created.ok).toBe(true);
     return itemId;
   }
+
+  it.each(["no revision reader", "no competing head", "multiple competing heads"])(
+    "preserves the original edit for owner review with %s",
+    async (caseName) => {
+      const ancestorId = generateUuidV7();
+      const remoteId = generateUuidV7();
+      const itemId = await pageWithBody([{ id: BLOCK_A, text: "original" }]);
+      const mutationId = await enqueueEdit(itemId, ancestorId, [{ id: BLOCK_A, text: "local" }]);
+      const transport = new FakeTransport();
+      const competing =
+        caseName === "no competing head"
+          ? []
+          : caseName === "multiple competing heads"
+            ? [remoteId, generateUuidV7()]
+            : [remoteId];
+      transport.conflictIds.set(mutationId, competing);
+      const transportWithoutRevisionReader: ReconcileTransport = {
+        submitMutationBatch: transport.submitMutationBatch.bind(transport),
+        listChanges: transport.listChanges.bind(transport),
+        currentSnapshot: transport.currentSnapshot.bind(transport),
+      };
+      const outcome = await reconcile(
+        db,
+        caseName === "no revision reader" ? transportWithoutRevisionReader : transport,
+        codec,
+      );
+      expect(outcome.conflicts).toBe(1);
+      const conflict = (await outbox.conflicts()).find((row) => row.mutationId === mutationId);
+      expect(conflict).toMatchObject({ competingRevisionIds: competing });
+      expect(JSON.stringify(conflict?.payload)).toContain("local");
+      expect(
+        transport.submissions.flat().filter((row) => row.mutationId === mutationId),
+      ).toHaveLength(1);
+    },
+  );
+
+  it.each(["null", "missing body", "legacy body", "remote unavailable"])(
+    "does not guess a page merge when retained state has %s",
+    async (caseName) => {
+      const ancestorId = generateUuidV7();
+      const remoteId = generateUuidV7();
+      const itemId = await pageWithBody([{ id: BLOCK_A, text: "original" }]);
+      const mutationId = await enqueueEdit(itemId, ancestorId, [{ id: BLOCK_A, text: "local" }]);
+      const transport = new FakeTransport();
+      transport.conflictIds.set(mutationId, [remoteId]);
+      transport.revisions.set(
+        ancestorId,
+        caseName === "null"
+          ? null
+          : caseName === "missing body"
+            ? {}
+            : caseName === "legacy body"
+              ? { pageDocument: { body: { text: "legacy original" } } }
+              : { pageDocument: { body: body([{ id: BLOCK_A, text: "original" }]) } },
+      );
+      if (caseName !== "remote unavailable") {
+        transport.revisions.set(remoteId, {
+          pageDocument: { body: body([{ id: BLOCK_A, text: "remote" }]) },
+        });
+      }
+      await expect(reconcile(db, transport, codec)).resolves.toMatchObject({ conflicts: 1 });
+      expect(
+        (await outbox.conflicts()).find((row) => row.mutationId === mutationId)?.payload,
+      ).toMatchObject({
+        document: { body: body([{ id: BLOCK_A, text: "local" }]) },
+      });
+      expect((await repository.getItem(itemId))?.pageDocument?.body).toEqual(
+        body([{ id: BLOCK_A, text: "local" }]),
+      );
+    },
+  );
+
+  it("bounds automatic rebasing when another device advances again during submission", async () => {
+    const ancestorId = generateUuidV7();
+    const remoteId = generateUuidV7();
+    const itemId = await pageWithBody([{ id: BLOCK_A, text: "original" }]);
+    const mutationId = await enqueueEdit(itemId, ancestorId, [
+      { id: BLOCK_A, text: "original" },
+      { id: BLOCK_B, text: "local addition" },
+    ]);
+    await db.outbox.where("mutationId").notEqual(mutationId).delete();
+    const transport = new FakeTransport();
+    transport.revisions.set(ancestorId, {
+      pageDocument: { body: body([{ id: BLOCK_A, text: "original" }]) },
+    });
+    transport.revisions.set(remoteId, {
+      pageDocument: { body: body([{ id: BLOCK_A, text: "remote" }]) },
+    });
+    transport.submitMutationBatch = async (mutations) => {
+      transport.submissions.push(mutations);
+      return {
+        ok: true,
+        value: {
+          results: mutations.map((mutation) => ({
+            mutationId: mutation.mutationId,
+            status: "conflict",
+            competingRevisionIds: [remoteId],
+          })),
+        },
+      };
+    };
+    await expect(reconcile(db, transport, codec)).resolves.toMatchObject({
+      conflicts: 1,
+      retained: 0,
+    });
+    expect(transport.submissions).toHaveLength(2);
+    const replacementId = transport.submissions[1]?.[0]?.mutationId;
+    expect(replacementId).not.toBe(mutationId);
+    expect(
+      (await outbox.conflicts()).find((row) => row.mutationId === replacementId),
+    ).toMatchObject({
+      errorCode: "mutation.conflict",
+    });
+    expect(await outbox.pending()).toEqual([]);
+  });
 
   it("requeues the merged edit when the two sides touched different blocks", async () => {
     const ancestorId = generateUuidV7();

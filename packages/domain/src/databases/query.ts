@@ -282,12 +282,27 @@ function compareByCriterion(
   return criterion.direction === "ascending" ? comparison : -comparison;
 }
 
-function groupId(property: DatabaseProperty, entry: DatabaseQueryEntry): string {
+function groupIds(property: DatabaseProperty, entry: DatabaseQueryEntry): readonly string[] {
   const value = valueFor(property, entry);
-  if (value === undefined) return "missing";
-  if (value.kind === "status" || value.kind === "select") return value.optionId;
-  if (value.kind === "checkbox") return value.checked ? "checked" : "unchecked";
-  return "missing";
+  if (value?.kind === "checkbox") return [value.checked ? "checked" : "unchecked"];
+  if (
+    property.type === "status" ||
+    property.type === "select" ||
+    property.type === "multi-select"
+  ) {
+    const active = new Set(
+      property.config.options.filter((o) => o.state === "active").map((o) => o.id),
+    );
+    const ids =
+      value?.kind === "multi-select"
+        ? value.optionIds
+        : value?.kind === "status" || value?.kind === "select"
+          ? [value.optionId]
+          : [];
+    const members = [...new Set(ids)].filter((id) => active.has(id));
+    if (members.length > 0) return members;
+  }
+  return ["missing"];
 }
 
 function orderedGroups(
@@ -296,11 +311,14 @@ function orderedGroups(
 ): readonly EvaluatedDatabaseGroup[] {
   const grouped = new Map<string, Uuid[]>();
   for (const row of rows) {
-    const id = groupId(property, row);
-    grouped.set(id, [...(grouped.get(id) ?? []), row.entryId]);
+    for (const id of groupIds(property, row)) {
+      const members = grouped.get(id) ?? [];
+      members.push(row.entryId);
+      grouped.set(id, members);
+    }
   }
   const order =
-    property.type === "status" || property.type === "select"
+    property.type === "status" || property.type === "select" || property.type === "multi-select"
       ? property.config.options
           .filter((option) => option.state === "active")
           .sort(
@@ -436,15 +454,21 @@ export function evaluateDatabaseView(
   };
   // Group counts describe the entire filtered result, so grouped views keep
   // the full order. Ungrouped first pages can safely retain only their top K.
-  const rows = sortedTopK(filtered, view.group === null ? options.maxRows : undefined, compareRows);
+  const groupingId = view.type === "board" ? view.options.axisPropertyId : view.group?.propertyId;
+  const rows = sortedTopK(
+    filtered,
+    groupingId === undefined ? options.maxRows : undefined,
+    compareRows,
+  );
 
-  if (view.group === null) return ok({ rows, groups: [], totalCount: filtered.length });
-  const groupingProperty = properties.get(view.group.propertyId);
+  if (groupingId === undefined) return ok({ rows, groups: [], totalCount: filtered.length });
+  const groupingProperty = properties.get(groupingId);
   if (
     groupingProperty === undefined ||
     groupingProperty.state !== "active" ||
     (groupingProperty.type !== "status" &&
       groupingProperty.type !== "select" &&
+      groupingProperty.type !== "multi-select" &&
       groupingProperty.type !== "checkbox")
   ) {
     return queryError("group.propertyId", "property-unavailable");

@@ -16,6 +16,7 @@ import {
   EMBED_PROVIDERS,
   generateUuidV7,
   isHeadingLevel,
+  isUuid,
   normaliseDocument,
   normaliseDocumentV3,
   normaliseInlineV3,
@@ -69,6 +70,7 @@ function stylesForMarks(marks: readonly MarkV3[] | undefined): Record<string, bo
       case "link":
       case "pageLink":
       case "unknown":
+      case "equation":
         break;
     }
   }
@@ -78,6 +80,18 @@ function stylesForMarks(marks: readonly MarkV3[] | undefined): Record<string, bo
 function inlineToBlockNote(content: readonly InlineV3[]): unknown[] {
   const result: unknown[] = [];
   for (const inline of normaliseInlineV3(content)) {
+    const equation = inline.marks?.find((mark) => mark.type === "equation");
+    if (equation?.type === "equation") {
+      result.push({
+        type: "inlineEquation",
+        props: {
+          equationId: equation.equationId,
+          expression: equation.expression,
+          marksJson: JSON.stringify(inline.marks?.filter((mark) => mark.type !== "equation") ?? []),
+        },
+      });
+      continue;
+    }
     const styles = stylesForMarks(inline.marks);
     const link = inline.marks?.find((mark) => mark.type === "link" || mark.type === "pageLink");
     const text = { type: "text", text: inline.text, styles };
@@ -185,6 +199,14 @@ function blockToBlockNote(block: CanonicalBlockV3): EditorPartialBlock {
         props: { language: block.language ?? "" },
         content: block.text,
       });
+    case "equation":
+      return partialBlock({
+        id: block.id,
+        type: block.type,
+        props: { expression: block.expression },
+      });
+    case "tableOfContents":
+      return partialBlock({ id: block.id, type: block.type });
     case "divider":
       return partialBlock({ id: block.id, type: "divider" });
     case "toggle":
@@ -298,6 +320,28 @@ export function blockNoteInlineToCanonical(content: unknown): readonly InlineV3[
   const result: InlineV3[] = [];
   for (const entry of content as VisibleInline[]) {
     if (entry === null || typeof entry !== "object") continue;
+    if (entry.type === "inlineEquation") {
+      const equationId = entry.props?.["equationId"],
+        expression = entry.props?.["expression"];
+      if (!isUuid(equationId) || typeof expression !== "string") continue;
+      let extra: unknown = [];
+      try {
+        extra = JSON.parse(String(entry.props?.["marksJson"] ?? "[]"));
+      } catch {}
+      const text = expression.replace(/[\r\n\t]/g, " ") || "\uFFFC";
+      const candidate = validateDocumentV3({
+        blocks: [{ type: "paragraph", id: generateUuidV7(), content: [{ text, marks: extra }] }],
+      });
+      const safeExtra =
+        candidate.ok && candidate.document.blocks[0]?.type === "paragraph"
+          ? (candidate.document.blocks[0].content[0]?.marks ?? [])
+          : [];
+      result.push({
+        text,
+        marks: [...safeExtra, { type: "equation", equationId: equationId as Uuid, expression }],
+      });
+      continue;
+    }
     if (entry.type === "text") {
       const text = "text" in entry && typeof entry.text === "string" ? entry.text : "";
       const styles = "styles" in entry ? (entry.styles as Record<string, unknown>) : undefined;
@@ -481,6 +525,10 @@ export function blockNoteBlockToCanonical(block: VisibleBlock): CanonicalBlockV3
         language: typeof language === "string" && language !== "" ? language : null,
       };
     }
+    case "equation":
+      return { type: "equation", id, expression: String(propsOf(block)["expression"] ?? "") };
+    case "tableOfContents":
+      return { type: "tableOfContents", id };
     case "divider":
       return { type: "divider", id };
     case "toggleListItem":
@@ -641,6 +689,8 @@ function blockV3ToV2(block: CanonicalBlockV3): BlockDocument["blocks"][number] {
     case "table":
     case "image":
     case "embed":
+    case "equation":
+    case "tableOfContents":
     case "databaseView":
       return {
         type: "unknown",

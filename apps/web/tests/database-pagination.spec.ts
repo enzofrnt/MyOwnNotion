@@ -1,6 +1,7 @@
 import type { LocalDatabaseRow } from "@myownnotion/client-core";
 import { type DatabaseDefinition, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { describe, expect, it, vi } from "vitest";
+import type { ContentApi } from "../src/services/content-api.ts";
 import { DatabaseViewService, mergeDatabaseViewRows } from "../src/services/databases.ts";
 import type { LocalContentService } from "../src/services/local-content.ts";
 
@@ -59,9 +60,11 @@ function fixture(partial = false, filtered = false) {
     definition,
   };
   const api = {
-    queryDatabase: vi
-      .fn()
-      .mockResolvedValue({ ok: false, problem: { code: "network.offline", title: "Offline" } }),
+    queryDatabase: vi.fn<ContentApi["queryDatabase"]>().mockResolvedValue({
+      ok: false,
+      offline: true,
+      problem: { type: "about:blank", status: 503, code: "network.offline", title: "Offline" },
+    }),
   };
   let update: (() => void) | undefined;
   const local = {
@@ -91,11 +94,116 @@ function fixture(partial = false, filtered = false) {
     id,
     viewId,
     entries,
+    local,
     update: () => update?.(),
   };
 }
 
 describe("saved database cursor pagination", () => {
+  it("renders a complete first page while the server is unavailable without requesting it", async () => {
+    const context = fixture();
+    context.api.queryDatabase.mockImplementation(() => new Promise(() => {}));
+    try {
+      const result = await context.service.query(context.id, {
+        viewId: context.viewId,
+        limit: 20,
+      });
+      expect(result.ok && result.value).toMatchObject({
+        source: "local",
+        coverage: "complete",
+        staleCursorRecovered: false,
+      });
+      expect(result.ok && result.value.rows).toHaveLength(20);
+      expect(context.api.queryDatabase).not.toHaveBeenCalled();
+    } finally {
+      context.service.dispose();
+    }
+  });
+
+  it("keeps pending and conflict states on complete local and empty sources", async () => {
+    const context = fixture();
+    const pending = context.entries[0];
+    const conflicting = context.entries[1];
+    if (pending === undefined || conflicting === undefined) throw new Error("Missing entries");
+    vi.spyOn(context.local.outbox, "all").mockResolvedValue([
+      { payload: { entryId: pending.id } },
+    ] as Awaited<ReturnType<LocalContentService["outbox"]["all"]>>);
+    vi.spyOn(context.local.outbox, "activeConflicts").mockResolvedValue([
+      { payload: { entryId: conflicting.id } },
+    ] as Awaited<ReturnType<LocalContentService["outbox"]["activeConflicts"]>>);
+    try {
+      const result = await context.service.query(context.id, { viewId: context.viewId });
+      expect(result.ok && result.value.rows.slice(0, 2).map((row) => row.syncState)).toEqual([
+        "pending",
+        "conflict",
+      ]);
+      context.entries.splice(0);
+      context.update();
+      const empty = await context.service.query(context.id, { viewId: context.viewId });
+      expect(empty.ok && empty.value).toMatchObject({
+        rows: [],
+        source: "local",
+        coverage: "complete",
+      });
+      expect(context.api.queryDatabase).not.toHaveBeenCalled();
+    } finally {
+      context.service.dispose();
+    }
+  });
+
+  it("still requests partial coverage and server cursors and preserves the remote page", async () => {
+    const context = fixture(true);
+    const serverPage = {
+      databaseId: context.id,
+      viewId: context.viewId,
+      rows: [],
+      groups: [],
+      nextCursor: "server.next",
+      coverage: "partial" as const,
+      availableCount: 0,
+      expectedCount: 2000,
+      definitionRevisionId: generateUuidV7(),
+      generation: 14,
+    };
+    context.api.queryDatabase.mockResolvedValue({ ok: true, value: serverPage });
+    try {
+      const request = { viewId: context.viewId, limit: 100, cursor: "server.current" };
+      const result = await context.service.query(context.id, request);
+      expect(context.api.queryDatabase).toHaveBeenCalledWith(context.id, request);
+      expect(result.ok && result.value).toMatchObject({ ...serverPage, source: "merged" });
+      await context.service.query(context.id, { viewId: context.viewId });
+      expect(context.api.queryDatabase).toHaveBeenCalledTimes(2);
+    } finally {
+      context.service.dispose();
+    }
+  });
+
+  it("does not skip a server cursor on complete coverage or hide a view absent locally", async () => {
+    const context = fixture();
+    const remoteViewId = generateUuidV7();
+    const serverPage = {
+      databaseId: context.id,
+      viewId: remoteViewId,
+      rows: [],
+      groups: [],
+      nextCursor: null,
+      coverage: "complete" as const,
+      availableCount: 0,
+      expectedCount: 0,
+      definitionRevisionId: generateUuidV7(),
+      generation: 2,
+    };
+    context.api.queryDatabase.mockResolvedValue({ ok: true, value: serverPage });
+    try {
+      const cursorRequest = { viewId: context.viewId, cursor: "server.current" };
+      await context.service.query(context.id, cursorRequest);
+      expect(context.api.queryDatabase).toHaveBeenCalledWith(context.id, cursorRequest);
+      const remote = await context.service.query(context.id, { viewId: remoteViewId });
+      expect(remote.ok && remote.value).toMatchObject({ ...serverPage, source: "server" });
+    } finally {
+      context.service.dispose();
+    }
+  });
   it("overlays optimistic rows only when the server selected the same page", () => {
     const first = generateUuidV7();
     const second = generateUuidV7();
@@ -178,7 +286,7 @@ describe("saved database cursor pagination", () => {
       expect(next.value.rows.map((row) => row.title)).toEqual(["Entry 1000", "Entry 1001"]);
       expect(next.value.nextCursor).toBeNull();
       expect(next.value.staleCursorRecovered).toBe(false);
-      expect(context.api.queryDatabase).toHaveBeenCalledTimes(1);
+      expect(context.api.queryDatabase).not.toHaveBeenCalled();
       context.update();
       const unchanged = await context.service.query(context.id, {
         viewId: context.viewId,

@@ -2,6 +2,14 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { AppIcon } from "../../ui/icons.tsx";
 import { Button } from "../../ui/primitives/index.ts";
 import {
+  type DatabaseEntryActions,
+  DatabaseEntryActionsContext,
+} from "../databases/database-entry-actions-context.tsx";
+import {
+  DatabaseEntryOpenContext,
+  type DatabaseEntryOpenRequest,
+} from "../databases/database-entry-open-context.tsx";
+import {
   ResponsiveSidebar,
   SIDEBAR_MOTION_DURATION_MS,
   type SidebarMode,
@@ -13,6 +21,9 @@ import {
 } from "../sync/use-change-stream.ts";
 
 export interface WorkspaceShellProps {
+  readonly databaseEntryActions?: DatabaseEntryActions;
+  readonly onOpenDatabaseEntry?: (request: DatabaseEntryOpenRequest) => void;
+  readonly entryOverlay?: ReactNode;
   readonly changeStream?: ChangeStreamStatus | null;
   readonly children: ReactNode;
   readonly header: ReactNode;
@@ -33,6 +44,9 @@ function currentSidebarMode(): SidebarMode {
 
 export function WorkspaceShell({
   changeStream = null,
+  databaseEntryActions,
+  onOpenDatabaseEntry,
+  entryOverlay,
   children,
   contentMode = "bounded",
   header,
@@ -138,7 +152,12 @@ export function WorkspaceShell({
           data-testid="workspace-main"
         >
           <WorkspaceChangeStreamContext.Provider value={changeStream}>
-            <div className="workspace-reading-column">{children}</div>
+            <DatabaseEntryOpenContext.Provider value={onOpenDatabaseEntry ?? null}>
+              <DatabaseEntryActionsContext.Provider value={databaseEntryActions ?? null}>
+                <div className="workspace-reading-column">{children}</div>
+                {entryOverlay}
+              </DatabaseEntryActionsContext.Provider>
+            </DatabaseEntryOpenContext.Provider>
           </WorkspaceChangeStreamContext.Provider>
         </main>
       </div>

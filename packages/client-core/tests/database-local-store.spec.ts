@@ -1,6 +1,7 @@
 import {
   LOCAL_SCHEMA_VERSION,
   type LocalDatabase,
+  type LocalDatabaseEntryRow,
   LocalDatabaseRepository,
   type LocalDatabaseRow,
   openLocalDatabase,
@@ -9,12 +10,13 @@ import {
 } from "@myownnotion/client-core";
 import { createInitialDatabaseDefinition, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { Dexie } from "dexie";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestCodec } from "./helpers/codec.ts";
 
 const databasesToDelete = new Set<string>();
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const name of databasesToDelete) await Dexie.delete(name);
   databasesToDelete.clear();
 });
@@ -562,6 +564,45 @@ describe("owned sources and retained memberships", () => {
     db.close();
   });
 
+  it("keeps a newer primary definition while inheriting the container's current presentation", async () => {
+    const { db, codec, repository, ownerId, sourceId, container } = await setup();
+    if (container.presentation === undefined) throw new Error("Missing presentation fixture");
+    const primary: LocalDatabaseRow = {
+      ...container,
+      definitionVersion: 7,
+      definitionRevisionId: generateUuidV7(),
+      definition: { ...container.definition, name: "Newer primary source" },
+      presentationVersion: 1,
+      presentationRevisionId: generateUuidV7(),
+      presentation: { ...container.presentation, views: [] },
+    };
+    await db.databaseSources.put(await codec.sealDatabase(primary));
+    const extra: LocalDatabaseRow = {
+      ...primary,
+      sourceId: generateUuidV7(),
+      definition: { ...primary.definition, name: "Independent secondary source" },
+    };
+    await db.databaseSources.put(await codec.sealDatabase(extra));
+
+    expect(await repository.listDatabases()).toEqual([
+      {
+        ...primary,
+        presentation: container.presentation,
+        presentationVersion: container.presentationVersion,
+        presentationRevisionId: container.presentationRevisionId,
+      },
+      {
+        ...extra,
+        presentation: container.presentation,
+        presentationVersion: container.presentationVersion,
+        presentationRevisionId: container.presentationRevisionId,
+      },
+    ]);
+    expect(primary.itemId).toBe(ownerId);
+    expect(primary.sourceId).toBe(sourceId);
+    db.close();
+  });
+
   it("recovers a retained source without an available owner and distinguishes a missing source", async () => {
     const { db, repository, ownerId, sourceId, container } = await setup();
     await db.databases.delete(ownerId);
@@ -707,4 +748,223 @@ describe("owned sources and retained memberships", () => {
       db.close();
     },
   );
+});
+
+describe("batched structured entry reads", () => {
+  async function setup() {
+    const name = `batched-database-${generateUuidV7()}`;
+    databasesToDelete.add(name);
+    const db = openLocalDatabase(name);
+    const { codec } = await createTestCodec();
+    const repository = new LocalDatabaseRepository(db, codec);
+    const databaseId = generateUuidV7();
+    const sourceId = generateUuidV7();
+    async function membership(
+      entryId: Uuid,
+      options: {
+        kind?: "page" | "folder" | "database_view";
+        lifecycle?: "active" | "trashed";
+        availability?: LocalDatabaseEntryRow["availability"];
+        missingItem?: boolean;
+        missingValues?: boolean;
+      } = {},
+    ) {
+      if (!options.missingItem) {
+        await db.items.put(
+          await codec.sealItem({
+            id: entryId,
+            kind: options.kind ?? "page",
+            name: "Synthetic benchmark entry",
+            icon: null,
+            lifecycle: options.lifecycle ?? "active",
+            currentRevisionId: generateUuidV7(),
+            trashedAt: null,
+            purgeAfter: null,
+            favourite: false,
+            offlineIntent: false,
+            localAvailability: "present",
+            pageDocument: null,
+            file: null,
+          }),
+        );
+      }
+      await db.placements.add({
+        id: generateUuidV7(),
+        itemId: entryId,
+        kind: "hierarchy",
+        parentItemId: databaseId,
+        parentKey: databaseId,
+        positionKey: "z",
+      });
+      if (options.missingValues) return;
+      await repository.putEntry({
+        entryItemId: entryId,
+        databaseId,
+        sourceId,
+        valueVersion: 2,
+        availability: options.availability ?? "present",
+        values: {
+          format: "myownnotion.database-entry-values+json",
+          formatVersion: 1,
+          databaseId,
+          entryId,
+          values: {},
+          preserved: [],
+        },
+      });
+      if (options.availability !== undefined && options.availability !== "present") {
+        await db.databaseEntryPairs.update(`${databaseId}:${entryId}`, { sealedValues: null });
+      }
+    }
+    return { db, codec, repository, databaseId, sourceId, membership };
+  }
+
+  it("reads only active memberships and preserves order, source identity and missing values", async () => {
+    const { db, codec, repository, databaseId, sourceId, membership } = await setup();
+    const present = generateUuidV7();
+    const folder = generateUuidV7();
+    const offloaded = generateUuidV7();
+    const neverFetched = generateUuidV7();
+    const synthetic = generateUuidV7();
+    const missing = generateUuidV7();
+    const trashed = generateUuidV7();
+    const wrongKind = generateUuidV7();
+    await membership(present);
+    await membership(folder, { kind: "folder" });
+    await membership(offloaded, { availability: "offloaded" });
+    await membership(neverFetched, { availability: "never-fetched" });
+    await membership(synthetic, { missingValues: true });
+    await membership(missing, { missingItem: true });
+    await membership(trashed, { lifecycle: "trashed" });
+    await membership(wrongKind, { kind: "database_view" });
+    const foreignDatabaseId = generateUuidV7();
+    await repository.putEntry({
+      entryItemId: synthetic,
+      databaseId: foreignDatabaseId,
+      valueVersion: 9,
+      availability: "present",
+      values: {
+        format: "myownnotion.database-entry-values+json",
+        formatVersion: 1,
+        databaseId: foreignDatabaseId,
+        entryId: synthetic,
+        values: {},
+        preserved: [],
+      },
+    });
+    // A retained projection can contain duplicate memberships; batching must
+    // preserve its current row order instead of silently deduplicating it.
+    await db.placements.add({
+      id: generateUuidV7(),
+      itemId: present,
+      kind: "hierarchy",
+      parentItemId: databaseId,
+      parentKey: databaseId,
+      positionKey: "a",
+    });
+    const valid = new Set([present, folder, offloaded, neverFetched, synthetic]);
+    const expectedIds = (await db.placements.where("parentKey").equals(databaseId).toArray())
+      .map((row) => row.itemId)
+      .filter((id) => valid.has(id));
+    const perEntry = vi
+      .spyOn(db.databaseEntryPairs, "get")
+      .mockRejectedValue(new Error("Per-entry reads are forbidden"));
+    const fullScan = vi
+      .spyOn(db.databaseEntryPairs, "toArray")
+      .mockRejectedValue(new Error("Foreign retained values must not be scanned"));
+    const lookup = vi.spyOn(db.databaseEntryPairs, "bulkGet");
+    const open = vi.spyOn(codec, "openDatabaseEntry");
+
+    const entries = await repository.listEntries(databaseId);
+
+    expect(entries.map((entry) => entry.entryItemId)).toEqual(expectedIds);
+    expect(perEntry).not.toHaveBeenCalled();
+    expect(fullScan).not.toHaveBeenCalled();
+    expect(lookup).toHaveBeenCalledExactlyOnceWith(expectedIds.map((id) => `${databaseId}:${id}`));
+    expect(open.mock.calls.map(([row]) => row.entryItemId)).toEqual(
+      expectedIds.filter((id) => id !== synthetic),
+    );
+    expect(
+      entries
+        .filter((entry) => entry.entryItemId !== synthetic)
+        .every((entry) => entry.sourceId === sourceId && entry.valueVersion === 2),
+    ).toBe(true);
+    expect(entries.find((entry) => entry.entryItemId === offloaded)?.availability).toBe(
+      "offloaded",
+    );
+    expect(entries.find((entry) => entry.entryItemId === neverFetched)?.availability).toBe(
+      "never-fetched",
+    );
+    expect(entries.find((entry) => entry.entryItemId === synthetic)).toEqual({
+      key: `${databaseId}:${synthetic}`,
+      entryItemId: synthetic,
+      databaseId,
+      valueVersion: 0,
+      availability: "present",
+      values: {
+        format: "myownnotion.database-entry-values+json",
+        formatVersion: 1,
+        databaseId,
+        entryId: synthetic,
+        values: {},
+        preserved: [],
+      },
+    });
+    db.close();
+  });
+
+  it("opens at most 64 values concurrently outside the transaction while keeping row order", async () => {
+    const { db, codec, repository, databaseId, membership } = await setup();
+    for (let index = 0; index < 130; index += 1) await membership(generateUuidV7());
+    const expectedIds = (await db.placements.where("parentKey").equals(databaseId).toArray()).map(
+      (row) => row.itemId,
+    );
+    const original = codec.openDatabaseEntry.bind(codec);
+    const releases: (() => void)[] = [];
+    let active = 0;
+    let peak = 0;
+    vi.spyOn(codec, "openDatabaseEntry").mockImplementation(async (row) => {
+      expect(Dexie.currentTransaction).toBeNull();
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise<void>((resolve) => releases.push(resolve));
+      try {
+        return await original(row);
+      } finally {
+        active -= 1;
+      }
+    });
+    const result = repository.listEntries(databaseId);
+    await vi.waitFor(() => expect(releases).toHaveLength(64));
+    for (const release of releases.slice(0, 64).reverse()) release();
+    await vi.waitFor(() => expect(releases).toHaveLength(128));
+    for (const release of releases.slice(64, 128).reverse()) release();
+    await vi.waitFor(() => expect(releases).toHaveLength(130));
+    for (const release of releases.slice(128).reverse()) release();
+
+    expect((await result).map((entry) => entry.entryItemId)).toEqual(expectedIds);
+    expect(peak).toBe(64);
+    expect(active).toBe(0);
+    db.close();
+  });
+
+  it("rejects an unreadable value rather than publishing a partial list", async () => {
+    const { db, repository, databaseId, membership } = await setup();
+    const valid = generateUuidV7();
+    const damaged = generateUuidV7();
+    await membership(valid);
+    await membership(damaged);
+    const key = `${databaseId}:${damaged}`;
+    const stored = await db.databaseEntryPairs.get(key);
+    if (stored?.sealedValues == null) throw new Error("Missing sealed fixture");
+    await db.databaseEntryPairs.update(key, {
+      sealedValues: { ...stored.sealedValues, ciphertext: "invalid ciphertext" },
+    });
+    const before = await db.databaseEntryPairs.toArray();
+
+    await expect(repository.listEntries(databaseId)).rejects.toThrow();
+
+    expect(await db.databaseEntryPairs.toArray()).toEqual(before);
+    db.close();
+  });
 });

@@ -47,6 +47,8 @@ export type TransformableBlockType = Extract<
   | "toggle"
   | "callout"
   | "databaseView"
+  | "equation"
+  | "tableOfContents"
 >;
 
 export interface OperationalBlockPlacement {
@@ -200,6 +202,10 @@ function initialiseKnownBlockPayload(
     case "quote":
     case "toggle":
     case "divider":
+    case "tableOfContents":
+      break;
+    case "equation":
+      setKnownProperty(props, "expression", block.expression);
       break;
     case "heading":
       setKnownProperty(props, "level", block.level);
@@ -238,6 +244,10 @@ function initialiseKnownBlockPayload(
       setKnownProperty(props, "provider", block.provider);
       setKnownProperty(props, "sourceUrl", block.sourceUrl);
       setKnownProperty(props, "caption", block.caption);
+      break;
+    case "databaseView":
+      setKnownProperty(props, "containerItemId", block.containerItemId);
+      setKnownProperty(props, "viewId", block.viewId);
       break;
   }
 }
@@ -540,6 +550,16 @@ function materialiseCanonicalNode(node: LoroTreeNode): CanonicalBlockV3 {
         ...extra,
       };
       break;
+    case "equation":
+      if (children.length > 0) throw new BlockTreeOperationError(`equation ${id} has children`);
+      candidate = {
+        type,
+        id,
+        expression: requiredProperty(props, "expression", `block ${id}`),
+        ...extra,
+      };
+      break;
+    case "tableOfContents":
     case "divider":
       if (children.length > 0) throw new BlockTreeOperationError(`divider ${id} has children`);
       candidate = { type, id, ...extra };
@@ -1197,6 +1217,8 @@ const TRANSFORMABLE_BLOCK_TYPES: ReadonlySet<KnownBlockTypeV3> = new Set([
   "toggle",
   "callout",
   "databaseView",
+  "equation",
+  "tableOfContents",
 ]);
 
 export function isTransformableBlockType(value: unknown): value is TransformableBlockType {
@@ -1205,6 +1227,8 @@ export function isTransformableBlockType(value: unknown): value is Transformable
 
 function defaultPropertiesForType(type: TransformableBlockType): JsonObject {
   switch (type) {
+    case "equation":
+      return { expression: "" };
     case "heading":
       return { level: 1 };
     case "checkbox":
@@ -1234,7 +1258,7 @@ export function transformOperationalBlockType(
     throw new BlockTreeOperationError(`${blockType} cannot retain the children of ${blockId}`);
   }
   if (
-    (blockType === "divider" || blockType === "databaseView") &&
+    ["divider", "databaseView", "equation", "tableOfContents"].includes(blockType) &&
     node.data.ensureMergeableText(CONTENT_KEY).toString() !== ""
   ) {
     throw new BlockTreeOperationError(`${blockType} can only replace an empty text block`);
@@ -1275,6 +1299,9 @@ export function operationalTextForBlock(
   }
   if (
     isKnownBlockTypeV3(type) &&
+    type !== "equation" &&
+    type !== "tableOfContents" &&
+    type !== "databaseView" &&
     type !== "divider" &&
     type !== "table" &&
     type !== "image" &&

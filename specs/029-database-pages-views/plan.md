@@ -8,6 +8,12 @@ Faire d'une base un élément canonique de la hiérarchie. Une page de base poss
 
 ## Technical Context
 
+La présentation des entrées est complétée par
+[038](../038-database-card-flow/plan.md) : création atomique sans navigation,
+visibilité des propriétés existante et volet avec éditeur canonique.
+Les lectures et modifications de définition utilisent la source de
+l'appartenance, y compris pour une source secondaire du même conteneur.
+
 **Language/Version**: TypeScript 5.9, Bun 1.4.2, SQL PostgreSQL.
 
 **Primary Dependencies**: React, BlockNote/ProseMirror, Hono API, Drizzle ORM, Vitest, Playwright ; bibliothèques déjà présentes.
@@ -78,6 +84,22 @@ Ce plan applique [ui-quality](../../.agents/skills/ui-quality/SKILL.md) et son [
 
 Vérifier chaque surface en clair/sombre, à 320 px et desktop, clavier/focus. Le bloc intégré reste aligné au texte et son contenu large défile en interne. Les `+` respectent la contenance. Tests Playwright et revue visuelle consignés dans `validation.md` avant clôture des tâches UI.
 
+## Maintenance UI — largeur et création de propriétés (2026-10-06)
+
+Une base pleine page élargit à la largeur disponible le même conteneur partagé
+par le titre et la vue ; des gouttières latérales égales réduisent l'asymétrie
+induite par le menu de navigation. Les pages de prose et les blocs intégrés
+restent bornés à leur colonne de lecture et conservent leurs gouttières.
+La variante pleine page réutilise `--workspace-reading-width` et définit ses
+deux gouttières sous le propriétaire CSS `features/databases/database.css`.
+
+`PropertyEditor` garde son protocole de brouillon et FormData, mais présente
+Nom et Type comme champs empilés et associés, puis les réglages conditionnels.
+Les options restent contenues dans le panneau et le pied d'action sépare
+Enregistrer d'Annuler. Tokens et primitives existants portent contraste et
+cibles tactiles. Propriétaire visuel unique : `features/databases/database.css` ;
+patrons durables dans `ui-quality` et le guide du système UI.
+
 ## Project Structure
 
 ### Documentation
@@ -112,3 +134,83 @@ révisions, projections, documents et hiérarchie inchangés. Propriétaires CSS
 database.css (panneau/valeurs/prise) et workspace.css (colonne de lecture).
 ui-quality/lessons et preuves/tests ciblés dans 033 ; E2E différés à la demande
 explicite du propriétaire, sans push ni release.
+
+## Extension034
+
+Voir[034/plan.md](../034-notion-content-navigation/plan.md) pour le modèle
+mathématique, les sommaires dérivés, la navigation scopée et le propriétaire
+CSS des rangées de liste. Les primitives, thèmes et parcours existants sont
+réutilisés ; la couche034 dispose de sa propre preuve ui-quality et lessons.
+
+
+## Ajustement des liens et commandes — 035
+
+Le retour du propriétaire du 4 octobre est défini dans
+[035/spec.md](../035-item-links-database-insertion/spec.md), avec approche et
+suivi dans ses plan.md/tasks.md. Il remplace les libellés précédents par les
+créations « Page/Dossier/Base de données imbriqué(e) », élargit « Lien vers un
+autre élément » aux bases, et fusionne les commandes d'affichage intégré et lié
+dans un dialogue de choix. Le concept de vue liée et la propriété des sources
+restent inchangés. L'import respecte is_inline et corrige les références
+historiques inchangées ; la validation locale propre à035 ne revalide pas les
+anciennes phases de cette feature.
+
+## Extension 036 — 2026-10-04
+
+[036](../036-multi-select-boards/spec.md) ajoute le regroupement Kanban par sélection multiple, sans repli table pour ce cas. Les anciennes preuves Matière restent historiques ; la restauration ciblée et la validation native sont suivies dans 036.
+
+## Retour UI — ajout de propriété dans le contexte du schéma
+
+Sur les vues non tabulaires, l'action de création appartient au panneau des
+propriétés de la source, pas à la bande sous les onglets de vue. Le panneau de
+configuration réutilise la même édition et sauvegarde existantes. La table
+garde son bouton plus dans l'en-tête des colonnes, où il agit comme une colonne
+contextuelle.
+
+## Maintenance UI — titre de source dans une base intégrée
+
+Le canevas §14 et FR-034 exigent que le nom de la source de la vue active soit
+visible dans le bloc intégré, même lorsque ce bloc n'affiche qu'une source.
+`DatabaseContainerPage` résout déjà la source à partir de l'onglet sélectionné
+et réutilise `CurrentSourceTitle` : le titre se place au-dessus de la barre des
+vues, suit leur sélection, reste éditable pour la source possédée et en lecture
+seule pour une source liée. Le rendu garde le propriétaire CSS existant
+`features/databases/database.css`. Appliquer `ui-quality` et son journal de
+leçons, en particulier L-009 (propriétaire CSS unique), L-010 (preuve réelle)
+et L-012 (node view ProseMirror) ; consigner les états et limites dans la
+validation 029.
+
+## Maintenance UI — déplacement d'une base intégrée
+
+Le canevas §14 et FR-035 exigent un déplacement du bloc intégré en tant qu'unité,
+sans calque de sélection inadapté ni fantôme déformé. Conserver la poignée
+BlockNote et son protocole de drop. La tentative de remplacer son image clonée
+par le `.bn-block-outer` vivant a rendu le déplacement inutilisable ; elle est
+annulée. Garder la neutralisation de la surbrillance de sélection dans
+`features/editor/editor.css`. Appliquer ui-quality/lessons L-009, L-010 et L-012 ;
+tester manuellement le clone natif sur une base intégrée avant de choisir une
+nouvelle stratégie de rendu et de convergence.
+
+Correction de l'ancrage : le calcul du hotspot seul n'a pas résolu le placement
+du bitmap natif, d'après le retour du propriétaire. Conserver le clone BlockNote
+et son rendu, mais l'afficher en overlay fixe du viewport. Mémoriser le point
+saisi au pointerdown de la poignée, puis conserver son écart au contenu cloné
+par une translation mise à jour sur les événements dragover. Remplacer le
+bitmap natif par un canvas transparent d'un pixel. Tenir compte du padding et
+de la poignée extérieure. Ne toucher ni au DOM ProseMirror ni au protocole
+de dépôt ; cacher l'overlay à l'annulation/au dépôt, laisser BlockNote supprimer
+son clone et nettoyer les écouteurs. Dans le clone seulement, neutraliser les
+gouttières des rails pleine page, qui repoussent la première colonne hors de
+sa surface locale ; les styles restent possédés par `database.css`.
+Vérifier le fantôme visible sur la page réelle
+`01a112d2-5758-7000-81a8-60d69c00f34a`, puis après défilement et à largeur
+réduite ; appliquer ui-quality/lessons L-010, L-012 et L-023.
+
+Largeur du fantôme : mesurer la surface de base réelle au début du drag et
+figer cette largeur en pixels sur le clone. Retirer sa limite compacte de
+28 rem et son padding d'aperçu dans `editor.css`, puis mesurer l'ancrage après
+cette mise en largeur pour garder son placement au curseur. La base et le
+contenu du clone doivent avoir la même largeur à chaque viewport contrôlé ;
+pas de transform de mise à l'échelle. Appliquer `ui-quality`/lessons L-009,
+L-010 et L-012 ; vérifier les deux géométries et le rendu visible pendant des
+gestes réels, puis le nettoyage à l'annulation.

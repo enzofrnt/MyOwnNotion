@@ -1,0 +1,5 @@
+# UI contract
+
+`DatabasePage.onCreateEntry/onCreateFolder(title, initialValues?)` retourne l'identité canonique ou échoue ; transmet initialValues à `createDatabaseEntry` sans mutation secondaire. `BoardView.onCreateInColumn(kind, values)` retourne l'identité ; BoardView gère pending/refus près du déclencheur, ouvre le succès via onOpenEntry.
+
+Scroll de page pleine/intégrée : workspace visible ; surface locale dans le lab. Les en-têtes interactifs uniques vivent dans un rail CSS sticky, hors du scrollport horizontal du corps et borné à l'étendue de la base. Les rails ont les mêmes largeurs. Le corps est l'unique source de scroll horizontal ; le contenu d'en-têtes suit sa ScrollTimeline native, avec traduction/gestes coordonnés de secours sur un moteur sans support. Le rail d'en-têtes clippé ne possède pas de scroll indépendant ; son geste/focus horizontal agit sur le corps. Aucune écriture de position pendant le défilement vertical. Retrait, gouttière et course sont mesurés au changement de layout. Les éléments masqués ne restaurent/observent pas le viewport courant. Les commandes de regroupement/repli/déplacement conservent leur contrat 036.

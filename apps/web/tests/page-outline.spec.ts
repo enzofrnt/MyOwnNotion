@@ -32,6 +32,31 @@ describe("page outline", () => {
     ]);
   });
 
+  it("reads canonical and editor headings with inline equations and links", () => {
+    expect(
+      collectPageHeadings([
+        {
+          type: "heading",
+          id: "a",
+          level: 2,
+          content: [{ text: " Énergie " }, { text: "E=mc^2" }],
+        },
+        {
+          type: "heading",
+          id: "b",
+          props: { level: 3 },
+          content: [
+            { type: "link", content: [{ text: "Lire " }] },
+            { type: "inlineEquation", props: { expression: "x+y" } },
+          ],
+        },
+      ]),
+    ).toEqual([
+      { id: "a", level: 2, text: "Énergie E=mc^2" },
+      { id: "b", level: 3, text: "Lire x+y" },
+    ]);
+  });
+
   it("marks the last heading that has reached the reading line", () => {
     const headings = [
       { id: "a", top: 20 },

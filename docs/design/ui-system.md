@@ -28,14 +28,16 @@ première installation et adresse du serveur. Leurs actions s’arrêtent dans
 l’exemple local avant une requête ou une cérémonie passkey. L’aperçu d’adresse
 du serveur est réservé au navigateur, afin de préserver le profil desktop.
 Sous les couleurs de contenu, le sélecteur de démonstration utilise les mêmes
-tokens : fond `-soft`, contour et point central en couleur de contenu, nom et
-choix explicites. Il ne définit pas une nouvelle palette ni une API globale.
+tokens : fond `-soft`, contour `-border`, point central `-accent`, nom et choix
+explicites. Il ne définit pas une nouvelle palette locale.
 
 Le lien « Parcourir les interfaces » ouvre `?review=conflicts`. Dix parcours
 utilisent les composants de production : conflits, fichiers, historique, bases,
 propriétés, éditeur, récupération, desktop, sauvegardes et états de l’app.
 Les vues `?review=database&format=gallery` acceptent `table`, `board`, `gallery`,
 `list` et `calendar`. Les callbacks et autorités de document sont en mémoire ;
+en Kanban, `mutation=pending` ou `mutation=refused` simule l'attente ou le refus
+d'un déplacement pour vérifier les commandes et leur reprise sans données serveur.
 l’éditeur de revue désactive les transferts de fichiers. Les exemples desktop
 montrent le renderer, sans déclencher installation, rotation ou coffre natif.
 
@@ -160,6 +162,22 @@ formulaire composé, `NativeInput` apporte la même peinture sans imposer de wra
 de domaine. Les éditeurs de brouillon qui gèrent eux-mêmes leur ref peuvent employer
 `.ui-native-input`, sans changer leur protocole d’édition.
 
+### Patron des formulaires
+
+Choisir d'abord le protocole : l'édition d'un contenu existant s'enregistre
+automatiquement, avec écritures sérialisées et reprise locale après refus.
+Un éditeur inline se ferme au clic extérieur ou à Échap ; ses portails restent
+dans son périmètre. Aucun pied Enregistrer/Annuler dans ce parcours. Les
+créations atomiques et confirmations destructives gardent le protocole défini
+par leur spec, sans le recopier dans l'édition courante.
+
+Dans les cartes et propriétés, utiliser des rangées compactes icône/valeur,
+avec « Ajouter [propriété] » quand elle est vide et un nom accessible associé.
+Empiler les champs seulement lorsque leur format, aide ou largeur le demande.
+Garder aide et erreur près du contrôle, regrouper les options conditionnelles
+et vérifier à 320 px. Réutiliser les primitives ; le CSS de la feature reste
+le seul propriétaire du layout. Ne pas ajouter une carte autour d'un panneau.
+
 Une saisie inline possède son focus et sa sélection : placer le caret initial
 une seule fois dans son layout, sans le rejouer au frame suivant ou dans une
 microtask du parent. Une sélection, une saisie native ou un focus pris ailleurs
@@ -218,7 +236,7 @@ dans leur domaine. `ReadTable` sert uniquement aux comparaisons de lecture.
 | Texte | `--ui-font-sans`, `--ui-font-mono`, `--ui-text-xs…3xl`, `--ui-leading-tight/normal/relaxed` |
 | Géométrie partagée | `--ui-space-0…12`, `--ui-radius-*`, `--ui-target` (44 px), `--ui-target-compact` (32 px), `--ui-reading-width` |
 | Superpositions / mouvement | `--ui-layer-*`, `--ui-shadow-*`, `--ui-focus-ring`, `--ui-duration-*`, `--ui-ease-*` |
-| Couleurs de contenu | `--ui-content-{gray,brown,orange,yellow,green,blue,purple,pink,red}` et `-soft` |
+| Couleurs de contenu | `--ui-content-{gray,brown,orange,yellow,green,blue,purple,pink,red}` (texte), `-accent` (repère), `-foreground` (texte de commande), `-wash` (support faible), `-soft` (contenu), `-badge` (option), `-border` (contour) |
 
 Les aliases `--color-*`, `--space-*`, etc. sont conservés pour les consommateurs
 existants, y compris les styles inline. Nouveau CSS : `--ui-*`. Les couleurs et
@@ -228,8 +246,18 @@ neutre et `--ui-focus-ring: none`, sans glow. Pour du texte coloré, utiliser
 `--ui-color-accent-text` / `--ui-color-danger-text` : leurs variantes conservent
 un contraste lisible sur les surfaces de chaque thème. Le bouton principal
 emploie `--ui-color-accent-solid` / `-solid-hover` pour son texte blanc ; les
-repères de sélection et traits de dépôt gardent `--ui-color-accent`. La palette des propriétés
-`--ui-content-*` reste inchangée. Une nouvelle valeur de thème doit
+repères de sélection et traits de dépôt gardent `--ui-color-accent`. Les
+couleurs `--ui-content-*` restent les textes éditoriaux lisibles. Les graines
+`-accent` et les coefficients communs `--ui-content-*-weight` produisent les
+fonds `-wash` (colonne), `-soft` (carte/highlight), `-badge` (option) et le
+contour `-border` sans palette locale. `-foreground` mélange l’accent au texte
+principal dans les deux thèmes ; les commandes et compteurs restent lisibles tandis que
+les points et sélecteurs conservent la teinte de base. La palette de propriété s'applique aussi
+quand le badge est posé sur une carte d'une autre couleur. Le gris utilise les
+surfaces neutres. Un contour ne reprend jamais le texte clair d'un badge.
+Le survol dérive la luminosité du support avec `--ui-content-hover-lightness`,
+sans modifier teinte ni géométrie. Voir [041](../../specs/041-content-color-system/plan.md).
+Une nouvelle valeur de thème doit
 être vérifiée dans `:root`, `[data-theme="dark"]` et le fallback sombre sans JS.
 
 Les tokens `--ui-graph-*-dark`, `--ui-color-retire-accent-dark`,
@@ -274,12 +302,36 @@ restent en place ; les nouveaux espacements communs utilisent l’échelle.
   borné garde son scroll vertical local. Conserver l'origine du tbody et
   l'étendue calculée pendant les remplacements de lignes virtualisées, afin
   de garder pagination et retour/focus accessibles après 1 000 entrées.
-  Le kanban possède ses scrollports ; ne pas donner
-  `overflow: visible` au scrollport du kanban en voulant libérer le tableau.
-  Sur une carte Kanban, le titre est une action ghost alignée au texte. Le select
-  compact et les flèches de déplacement partagent une ligne ; les flèches gardent
-  un nom accessible décrivant la destination et une aide au survol. Les cibles
-  de 32 px passent à 44 px avec un pointeur tactile.
+  Le Kanban pleine page/intégré suit aussi le viewport de page ; chaque liste
+  observe son origine et garde sa hauteur virtuelle avec un gap mesuré. Seul
+  le lab borné garde le scroll vertical local. Les en-têtes table/Kanban vivent
+  dans un rail CSS sticky, frère du corps à défilement horizontal, et s'arrêtent
+  à la fin de la base. `usePageHeaders` mesure le retrait sous le chemin, la
+  gouttière et la course horizontale lors d'un changement de layout. Le corps
+  est l'unique source de scroll horizontal : une ScrollTimeline anime le
+  contenu de l'en-tête directement depuis cette source, sans copier scrollLeft
+  après chaque événement. Le rail d'en-têtes est clippé et ne défile pas seul.
+  Un moteur sans ScrollTimeline coordonne le geste horizontal et sa traduction
+  dans le même handler. Aucun calcul de position d'en-tête pendant le scroll
+  vertical. Les commandes
+  restent uniques ; la table partage ses largeurs via les mêmes colgroups.
+  Le rail Kanban peint les coins supérieurs complets sur un fond de canvas.
+  Le Kanban pleine page partage le breakout 100cqi/gouttière de la table ;
+  `data-page-flow` scope les surfaces du viewport vertical canonique.
+  Chaque colonne dépliée propose une carte de création après ses cartes, avec
+  Page/Dossier à l'intérieur et valeur initiale enregistrée atomiquement sur
+  Entrée/clic extérieur. Le crayon d'une carte existante déplie ses rangées
+  icône/valeur (ValueEditor presentation="card"), avec autosave sérialisé, type
+  permanent et fermeture extérieure reconnaissant ses portails. Une erreur
+  conserve la saisie et propose Réessayer. Aucun pied Enregistrer/Annuler.
+  Le titre et l'icône canonique sont prioritaires. Crayon et « … » partagent
+  une capsule bordée révélée au survol/focus, visible au toucher. Le menu portal
+  propose les actions prises en charge ; ConvertItemControl partage la
+  confirmation de l'arbre et ses icônes origine/flèche/destination.
+  Le regroupement se configure via « Grouper » dans les réglages de la vue,
+  avec un panneau dédié et une propriété appliquée immédiatement. Les cibles de 32 px
+  passent à 44 px avec un pointeur tactile ; Échap rend le focus à l'origine et
+  un déplacement réussi le rend à la carte dans la colonne de destination.
 - **Entrée de base** : `workspace-page-canvas.workspace-entry-canvas` contient
   `EntryPanel` avec `renderHeader(onClose)` → `PageTitleEditor` (titre/icône,
   chemin et retour). `entry-properties` et le document/dossier suivent la même

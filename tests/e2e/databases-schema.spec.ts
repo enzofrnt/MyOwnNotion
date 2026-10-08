@@ -45,7 +45,9 @@ test("creates a typed database whose entry and relations keep canonical page ide
 
   await createRootDatabase(page, databaseName);
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeAttached({ timeout: 15_000 });
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await expect(
+    page.getByTestId("workspace-page-canvas").getByTestId("active-item-title"),
+  ).toHaveValue(databaseName);
   await waitForSynchronized(page);
 
   await addDatabaseProperty(page, "Notes", "text");
@@ -61,7 +63,9 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await waitForSynchronized(page);
   await entryButton.click();
 
-  await expect(page.getByTestId("active-item-title")).toHaveValue(entryName);
+  await expect(
+    page.locator(".entry-panel").getByRole("textbox", { name: "Titre de la page", exact: true }),
+  ).toHaveValue(entryName);
   const entryPanel = page.locator(".entry-panel");
   await entryPanel
     .getByLabel("Notes", { exact: true })
@@ -75,8 +79,11 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await chooseEntryRelation(page, "Related", targetName);
   await waitForEntryAutosave(page);
 
-  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
+  await expect(page.locator(".database-entry-peek")).toBeHidden();
+  await expect(
+    page.getByTestId("workspace-page-canvas").getByTestId("active-item-title"),
+  ).toHaveValue(databaseName);
 
   await selectItem(page, targetName);
   // Eight prior schema writes can delay this batch in a full browser matrix;
@@ -113,7 +120,9 @@ test("trashes and restores the owner with the same direct entry pages", async ({
 
   await ensureNavigationVisible(page);
   await createRootDatabase(page, databaseName);
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await expect(
+    page.getByTestId("workspace-page-canvas").getByTestId("active-item-title"),
+  ).toHaveValue(databaseName);
 
   for (const entryName of entryNames) {
     await createDatabaseEntry(page, entryName);
@@ -130,7 +139,9 @@ test("trashes and restores the owner with the same direct entry pages", async ({
   await confirmation.getByTestId("cancel-trash").click();
   await expect(confirmation).toBeHidden();
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible();
-  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
+  await expect(
+    page.getByTestId("workspace-page-canvas").getByTestId("active-item-title"),
+  ).toHaveValue(databaseName);
   await trashItem(page, databaseName);
   await openSettingsSection(page, "trash");
   // Routing must retain the initialized workspace even when every item is in

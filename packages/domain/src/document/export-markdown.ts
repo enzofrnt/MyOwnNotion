@@ -106,8 +106,8 @@ export function exportMarkdownV3(document: BlockDocumentV3): string {
   const lines: string[] = [];
   for (const block of document.blocks) renderBlockV3(block, 0, lines, { counter: 0 });
   return `${lines
+    .filter((line, index) => line !== "" || lines[index - 1] !== "")
     .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
     .trim()}\n`;
 }
 
@@ -159,6 +159,12 @@ function renderBlockV3(
         "",
       );
       break;
+    case "equation":
+      lines.push(`${indent}$$`, block.expression, `${indent}$$`, "");
+      break;
+    case "tableOfContents":
+      lines.push(`${indent}<!-- table-of-contents -->`, "");
+      break;
     case "embed":
       lines.push(
         `${indent}[${escapeText(block.caption ?? block.provider)}](${block.sourceUrl})`,
@@ -209,6 +215,8 @@ function renderInlineV3(content: readonly InlineV3[]): string {
 
 function renderNodeV3(node: InlineV3): string {
   const marks = node.marks ?? [];
+  const equation = marks.find((mark) => mark.type === "equation");
+  if (equation?.type === "equation") return `$${equation.expression}$`;
   if (marks.some((mark) => mark.type === "code")) return `\`${node.text}\``;
 
   let text = escapeText(node.text);

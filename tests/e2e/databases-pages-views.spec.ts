@@ -12,6 +12,7 @@ import {
   nameNewlyCreatedItem,
   openRootDatabaseCreation,
   openWorkspace,
+  saveDocument,
   selectItem,
   trashItem,
   typeIntoEditor,
@@ -192,7 +193,15 @@ test("the slash commands create one inline block or one full-page child link", a
   await editor.pressSequentially("/base intégrée");
   await page
     .getByRole("listbox")
-    .getByRole("option", { name: /^Base de données — intégrée/u })
+    .getByRole("option", { name: /^Base de données intégrée/u })
+    .click();
+  const insertion = page.getByRole("dialog", { name: "Base de données intégrée" });
+  await expect(
+    insertion.getByRole("button", { name: "Afficher une source existante" }),
+  ).toBeVisible();
+  await page
+    .getByRole("dialog", { name: "Base de données intégrée" })
+    .getByRole("button", { name: "Créer une nouvelle source" })
     .click();
   const block = page
     .locator('[data-testid="block-editor"]:visible')
@@ -218,12 +227,55 @@ test("the slash commands create one inline block or one full-page child link", a
   await editor.pressSequentially("/base");
   await page
     .getByRole("listbox")
-    .getByRole("option", { name: /^Base de données — pleine page/u })
+    .getByRole("option", { name: /^Base de données imbriquée/u })
     .click();
   await expect(page.getByRole("navigation", { name: "Vues de la base" })).toBeVisible();
   await selectItem(page, fullParent);
   await expect(editor.locator('a[href^="#page="]')).toHaveCount(1);
   await expect(editor.getByTestId("database-view-block")).toHaveCount(0);
+});
+
+test("item links navigate to folders and database owners without integrating their sources", async ({
+  page,
+}) => {
+  await openWorkspace(page);
+  const owner = uniqueName("Link database");
+  await createRootDatabase(page, owner);
+  const folder = uniqueName("Link folder");
+  await createRootItem(page, "folder", folder);
+  const host = uniqueName("Link host");
+  await createRootItem(page, "page", host);
+  const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
+  await editor.click();
+  await editor.pressSequentially("/base intégrée");
+  await page.getByRole("option", { name: /^Base de données intégrée/u }).click();
+  await page
+    .getByRole("dialog", { name: "Base de données intégrée" })
+    .getByRole("button", { name: "Annuler" })
+    .click();
+  await expect(editor).toBeFocused();
+  await expect(editor.locator('[data-testid="database-view-block"]')).toHaveCount(0);
+  for (const name of [folder, owner]) {
+    await editor.pressSequentially("/lien");
+    await page.getByRole("option", { name: /^Lien vers un autre élément/u }).click();
+    const picker = page.getByTestId("page-link-picker");
+    await picker.getByLabel("Rechercher un élément").fill(name);
+    await picker.getByLabel("Rechercher un élément").press("Enter");
+    const link = editor.locator("a[data-page-link-target]").filter({ hasText: name });
+    await expect(link).toHaveCount(1);
+    await expect(link.locator(".item-icon")).toBeVisible();
+    await expect(editor.locator('[data-testid="database-view-block"]')).toHaveCount(0);
+    await waitForSynchronized(page);
+    await link.click();
+    if (name === owner) await expect(page.locator(".database-container-page")).toBeVisible();
+    else await expect(page.locator(".workspace-page-title__body:visible")).toContainText(folder);
+    await selectItem(page, host);
+    await editor.press("ControlOrMeta+End");
+    await editor.press("ControlOrMeta+Alt+Enter");
+  }
+  await page.reload();
+  await selectItem(page, host);
+  await expect(editor.locator("a[data-page-link-target]")).toHaveCount(2);
 });
 
 test("a linked block shares its source and warns after its owner is trashed", async ({ page }) => {
@@ -236,6 +288,9 @@ test("a linked block shares its source and warns after its owner is trashed", as
 
   const host = uniqueName("Linked host");
   await createRootItem(page, "page", host);
+  await waitForSynchronized(page);
+  await saveDocument(page, { until: "synced" });
+  await page.context().setOffline(true);
   const editor = page.locator('[data-testid="block-editor"]:visible').locator(".ProseMirror");
   await editor.click();
   await page.keyboard.press("ControlOrMeta+a");
@@ -243,10 +298,11 @@ test("a linked block shares its source and warns after its owner is trashed", as
   await editor.pressSequentially("/vue liée");
   await page
     .getByRole("listbox")
-    .getByRole("option", { name: /^Vue liée de base de données/u })
+    .getByRole("option", { name: /^Base de données intégrée/u })
     .click();
-  const picker = page.getByTestId("linked-database-picker");
-  await picker.getByLabel("Source").selectOption({ label: owner });
+  const picker = page.getByRole("dialog", { name: "Base de données intégrée" });
+  await picker.getByRole("button", { name: "Afficher une source existante" }).click();
+  await picker.getByLabel("Source existante").selectOption({ label: owner });
   await picker.getByRole("button", { name: "Insérer la vue" }).click();
   await expect(
     page
@@ -258,6 +314,9 @@ test("a linked block shares its source and warns after its owner is trashed", as
       .locator('[data-testid="block-editor"]:visible')
       .locator('[data-testid="database-view-block"][contenteditable="false"]'),
   ).toContainText(entry);
+  await saveDocument(page);
+  await page.context().setOffline(false);
+  await saveDocument(page, { until: "synced" });
   await waitForSynchronized(page);
   await page.reload();
   await selectItem(page, host);

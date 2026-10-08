@@ -214,6 +214,15 @@ function typeCommand(before: EditorBlock, after: EditorBlock): PageCommand | nul
         blockType: "code",
         properties: { language: next.language },
       };
+    case "equation":
+      return {
+        type: "set-block-type",
+        blockId: after.id as Uuid,
+        blockType: next.type,
+        properties: { expression: next.expression },
+      };
+    case "tableOfContents":
+      return { type: "set-block-type", blockId: after.id as Uuid, blockType: next.type };
     case "divider":
       return { type: "set-block-type", blockId: after.id as Uuid, blockType: "divider" };
     case "toggle":
@@ -260,6 +269,18 @@ function propertyCommands(before: EditorBlock, after: EditorBlock): PageCommand[
   const newBlock = blockNoteBlockToCanonical(after);
   if (oldBlock.type !== newBlock.type) return [];
   const commands: PageCommand[] = [];
+  if (
+    oldBlock.type === "equation" &&
+    newBlock.type === "equation" &&
+    oldBlock.expression !== newBlock.expression
+  ) {
+    commands.push({
+      type: "set-block-property",
+      blockId: after.id as Uuid,
+      key: "expression",
+      value: newBlock.expression,
+    });
+  }
   if (
     oldBlock.type === "heading" &&
     newBlock.type === "heading" &&
@@ -661,7 +682,7 @@ export function commandsFromBlockNoteChanges(input: {
     // Other text-capable transforms keep their type-first ordering.
     const clearsTextForNonTextBlock =
       changedType?.type === "set-block-type" &&
-      (changedType.blockType === "divider" || changedType.blockType === "databaseView");
+      ["divider", "databaseView", "equation", "tableOfContents"].includes(changedType.blockType);
     commands.push(...markPhases.beforeText);
     if (clearsTextForNonTextBlock && replacement !== null) {
       commands.push({

@@ -1,5 +1,18 @@
 # Feature Specification: Expérience V1 proche de Notion et convergence locale
 
+## Maintenance — identité visuelle de l'application (2026-10-06)
+
+Demande du propriétaire : proposer et créer le logo de MyOwnNotion, puis
+l'utiliser comme favicon et dans le README. Cette finition concrétise le
+canevas produit §3 (espace de connaissances personnel) et §2/11 (interface
+cohérente). Elle ne change aucun contenu, parcours ou droit utilisateur.
+
+Critères : un signe distinctif évoque les pages et blocs, reste reconnaissable
+à 16 et 32 px sur fond clair/sombre et reprend le même dessin dans le README.
+Les fichiers restent dans le dépôt et sont disponibles en développement et
+dans le bundle de production, sans service externe pour leur affichage.
+
+
 **Feature Branch**: `codex/017-v1-notion-like-workspace`
 
 **Created**: 2026-08-20

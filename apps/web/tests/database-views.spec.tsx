@@ -91,6 +91,19 @@ function definition(views: readonly DatabaseView[] = [tableView()]): DatabaseDef
 }
 
 describe("saved database views (T041)", () => {
+  it("creates a Kanban when the only choice property is multi-select", () => {
+    const original = definition();
+    const properties = original.properties
+      .filter((p) => p.type === "title" || p.type === "status")
+      .map((p) => (p.type === "status" ? { ...p, type: "multi-select" as const } : p));
+    const base = { ...original, properties };
+    const result = createSavedView(base, tableView(), "board", "Matières");
+    expect(result.views.at(-1)).toMatchObject({
+      type: "board",
+      group: { propertyId: ids.status },
+      options: { axisPropertyId: ids.status },
+    });
+  });
   it("creates independent table/list views without duplicating entries", () => {
     const base = definition();
     const withList = createSavedView(base, base.views[0] as DatabaseView, "list", "Compact list");
@@ -253,6 +266,7 @@ describe("saved database views (T041)", () => {
               revisionId: generateUuidV7(),
               lifecycle: "active",
               title: "Alpha",
+              icon: "📌",
               document: null,
               values: { [ids.status]: { kind: "status", optionId: ids.todo } },
               relationTargets: {},
@@ -266,7 +280,10 @@ describe("saved database views (T041)", () => {
     );
     expect(markup).toContain("database-list");
     expect(markup).toContain("Alpha");
-    expect(markup).toContain("Status");
+    expect(markup).toContain('<dt class="sr-only">Status</dt>');
+    expect(markup).toContain('title="Status : To do"');
+    expect(markup).toContain("📌");
+    expect(markup).toContain('title="Alpha"');
     expect(markup).toContain('option-pill__label">To do');
   });
 

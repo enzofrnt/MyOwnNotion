@@ -99,6 +99,8 @@ export function CompactAttachmentList({
                 data-testid={`attachment-details-${row.item.name}`}
                 portalElement={attachmentPopoverContainer}
               >
+                {/* Late usage facts must not move a command during a pointer gesture. */}
+                <span className="workspace-attachment-file__actions">{actions(row)}</span>
                 <span data-testid={`attachment-type-${row.item.name}`}>
                   {attachmentMediaType(row)}
                 </span>
@@ -129,7 +131,6 @@ export function CompactAttachmentList({
                     <AttachmentUsages usages={row.usages} onOpenUsage={onOpenUsage} />
                   )}
                 </span>
-                <span className="workspace-attachment-file__actions">{actions(row)}</span>
               </PopoverContent>
             </PopoverRoot>
           </span>

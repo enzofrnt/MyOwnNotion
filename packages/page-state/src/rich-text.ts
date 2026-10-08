@@ -37,6 +37,7 @@ export function configureRichText(doc: LoroDoc): void {
     // boundary may inherit the old target — otherwise deleting a linked line
     // and immediately rewriting it resurrects that page link on the new text.
     pageLink: { expand: "none" },
+    equation: { expand: "none" },
     [UNKNOWN_MARKS_ATTRIBUTE]: { expand: "none" },
   });
 }
@@ -63,6 +64,9 @@ function attributesForMarks(
         break;
       case "pageLink":
         attributes["pageLink"] = { itemId: mark.targetItemId };
+        break;
+      case "equation":
+        attributes["equation"] = { equationId: mark.equationId, expression: mark.expression };
         break;
       case "textColor":
       case "backgroundColor":
@@ -144,6 +148,13 @@ function marksFromAttributes(attributes: Record<string, Value> | undefined): rea
   booleanMark("strike", "strikethrough");
   booleanMark("code", "code");
 
+  const equationId = objectAttribute(attributes, "equation", "equationId");
+  if (equationId !== undefined) {
+    const expression = objectAttribute(attributes, "equation", "expression");
+    if (!isUuid(equationId) || expression === undefined)
+      throw new RichTextOperationError("invalid equation attribute");
+    marks.push({ type: "equation", equationId: equationId as Uuid, expression });
+  }
   const href = objectAttribute(attributes, "link", "href");
   if (href !== undefined) marks.push({ type: "link", href });
   const targetItemId = objectAttribute(attributes, "pageLink", "itemId");
@@ -184,6 +195,7 @@ function marksFromAttributes(attributes: Record<string, Value> | undefined): rea
   }
 
   const knownAttributes = new Set([
+    "equation",
     "bold",
     "italic",
     "underline",
@@ -274,6 +286,8 @@ function markAttribute(mark: Exclude<MarkV3, { type: "unknown" }>): [string, Val
       return ["link", { href: mark.href }];
     case "pageLink":
       return ["pageLink", { itemId: mark.targetItemId }];
+    case "equation":
+      return ["equation", { equationId: mark.equationId, expression: mark.expression }];
     case "textColor":
     case "backgroundColor":
       return [mark.type, mark.color];
@@ -347,6 +361,7 @@ export function setRichTextMark(
       "strike",
       "link",
       "pageLink",
+      "equation",
       "textColor",
       "backgroundColor",
       UNKNOWN_MARKS_ATTRIBUTE,

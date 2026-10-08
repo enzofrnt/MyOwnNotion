@@ -1,4 +1,5 @@
 /* Application stylesheet manifest. Order is deliberate; see docs/design/ui-system.md. */
+@import "katex/dist/katex.min.css";
 @import "tailwindcss";
 @import "./ui/tokens.css";
 @import "./ui/base.css";

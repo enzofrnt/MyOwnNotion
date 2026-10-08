@@ -23,14 +23,14 @@ import {
   type DatabasePresentationDefinition,
   type DatabaseProperty,
   type DatabaseView,
-  databasePageTitleMode,
   generateUuidV7,
+  jsonValuesEqual,
   keyAfterAll,
   ownedSourceIdFromItemId,
   type Uuid,
   viewDeletionOffer,
 } from "@myownnotion/domain";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
@@ -53,6 +53,7 @@ import { createSavedView } from "./database-toolbar.tsx";
 import { definitionViewsPreservingPresentation } from "./definition-view-merge.ts";
 import { editEntrySourceDefinition } from "./edit-entry-properties.ts";
 import { duplicateEntryProperty } from "./entry-property-list.tsx";
+import { createProjectionRefresh } from "./projection-refresh.ts";
 import { updateEntryProperty } from "./property-configuration.tsx";
 import { propertyFromDraft, validatePropertyDraft } from "./property-editor.tsx";
 import { ViewMark } from "./view-icon.tsx";
@@ -295,6 +296,7 @@ export function DatabaseContainerPage({
   const [renameDraft, setRenameDraft] = useState("");
   const renameClosed = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [addViewOpen, setAddViewOpen] = useState(false);
   const [retireChoiceOpen, setRetireChoiceOpen] = useState(false);
   const [retireChoice, setRetireChoice] = useState<"view" | "source">("source");
@@ -311,19 +313,36 @@ export function DatabaseContainerPage({
   );
   const skipSelectAfterDrag = useRef(false);
   const [pendingOrder, setPendingOrder] = useState<readonly Uuid[] | null>(null);
-  const refresh = useCallback(async () => {
-    const [container, sources] = await Promise.all([
-      service.getDatabase(containerItemId),
-      service.listDatabases(),
-    ]);
-    if (container !== null) setSnapshot({ container, sources });
-  }, [containerItemId, service]);
+  const refreshQueue = useMemo(
+    () =>
+      createProjectionRefresh({
+        load: async () => {
+          const [container, sources] = await Promise.all([
+            service.getDatabase(containerItemId),
+            service.listDatabases(),
+          ]);
+          return container === null ? null : { container, sources };
+        },
+        publish: (next) => {
+          if (next !== null) setSnapshot(next);
+          setRefreshError(null);
+        },
+        onError: () => setRefreshError("Cette base ne peut pas être actualisée pour le moment."),
+      }),
+    [containerItemId, service],
+  );
+  const refresh = refreshQueue.refresh;
   useEffect(() => {
-    void refresh();
-    return service.subscribeProjection(() => {
-      void refresh();
+    refreshQueue.activate();
+    void refresh().catch(() => undefined);
+    const unsubscribe = service.subscribeProjection(() => {
+      void refresh().catch(() => undefined);
     });
-  }, [refresh, service]);
+    return () => {
+      refreshQueue.deactivate();
+      unsubscribe();
+    };
+  }, [refreshQueue, refresh, service]);
 
   const presentation = snapshot?.container.presentation;
   const storedViews =
@@ -615,6 +634,14 @@ export function DatabaseContainerPage({
   ): Promise<void> => {
     const source = activeSources.find((candidate) => candidate.sourceId === sourceId);
     if (source?.sourceId === undefined) throw new Error("Source indisponible");
+    const sourceChanged =
+      !jsonValuesEqual(definition.properties, source.definition.properties) ||
+      !jsonValuesEqual(definition.taskRoles, source.definition.taskRoles);
+    if (sourceChanged && !service.getSnapshot().projectionComplete) {
+      throw new Error(
+        "Attendez la fin du chargement des entrées avant de modifier la structure de la base.",
+      );
+    }
     const result = await service.replaceDatabaseDefinition(source.itemId, {
       baseRevisionId: source.definitionRevisionId ?? source.itemId,
       sourceId: source.sourceId,
@@ -798,9 +825,9 @@ export function DatabaseContainerPage({
       views: presentation.views.map((view) => (view.id === selected.id ? attach(view) : view)),
     });
   };
-  const applyViewSettings = (next: DatabaseView): void => {
+  const saveViewSettings = async (next: DatabaseView): Promise<void> => {
     if (presentation === undefined || selected === undefined) return;
-    void save({
+    await save({
       ...presentation,
       views: presentation.views.map((view) =>
         view.id === selected.id
@@ -814,7 +841,10 @@ export function DatabaseContainerPage({
             }
           : view,
       ),
-    }).catch((cause) =>
+    });
+  };
+  const applyViewSettings = (next: DatabaseView): void => {
+    void saveViewSettings(next).catch((cause) =>
       setError(cause instanceof Error ? cause.message : "La vue n’a pas pu être mise à jour."),
     );
   };
@@ -904,7 +934,11 @@ export function DatabaseContainerPage({
   };
 
   if (snapshot === null || presentation === undefined)
-    return <p role="status">Chargement de la base de données…</p>;
+    return (
+      <p role={refreshError === null ? "status" : "alert"}>
+        {refreshError ?? "Chargement de la base de données…"}
+      </p>
+    );
   if (selected === undefined) {
     return (
       <section className="database-container-page" aria-label="Base de données">
@@ -921,22 +955,22 @@ export function DatabaseContainerPage({
     [];
   const hasBoardAxis = sourceProperties.some(
     (property) =>
-      property.state === "active" && (property.type === "status" || property.type === "select"),
+      property.state === "active" &&
+      (property.type === "status" ||
+        property.type === "select" ||
+        property.type === "multi-select"),
   );
   const hasCalendarDate = sourceProperties.some(
     (property) => property.state === "active" && property.type === "date",
   );
   const currentSource = activeSources.find((source) => source.sourceId === selected.sourceId);
-  const currentSourceName = currentSource?.definition.name ?? "";
-  const showSourceUnderPageTitle =
-    databasePageTitleMode(new Set(views.map((view) => view.sourceId)).size) === "page-and-source" &&
-    currentSourceName.trim().length > 0;
+  const currentSourceName = currentSource?.definition.name?.trim() || "Sans nom";
   const menuView = views.find((view) => view.id === viewMenu?.viewId);
   const menuSourceName =
     activeSources.find((source) => source.sourceId === menuView?.sourceId)?.definition.name ?? "";
   return (
     <section className="database-container-page" aria-label="Base de données">
-      {showSourceUnderPageTitle && currentSource?.sourceId !== undefined ? (
+      {currentSource?.sourceId !== undefined ? (
         <CurrentSourceTitle
           name={currentSourceName}
           editable={currentSource.itemId === containerItemId}
@@ -1064,6 +1098,7 @@ export function DatabaseContainerPage({
         </div>
       </div>
       {error !== null ? <p role="alert">{error}</p> : null}
+      {refreshError !== null ? <p role="alert">{refreshError}</p> : null}
       {retireChoiceOpen ? (
         <RetireOwnedSourceDialog
           sourceName={
@@ -1224,6 +1259,7 @@ export function DatabaseContainerPage({
             }}
             onChangeFormat={changeFormat}
             onChangeView={applyViewSettings}
+            onChangeGrouping={saveViewSettings}
             onToggleProperty={setColumnVisible}
             onChangeSource={(sourceId) => {
               void changeSource(sourceId);

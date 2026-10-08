@@ -297,6 +297,7 @@ export const COLOR_TOKENS = [
 export type ColorToken = (typeof COLOR_TOKENS)[number];
 
 export type KnownMarkV3 =
+  | { readonly type: "equation"; readonly equationId: Uuid; readonly expression: string }
   | { readonly type: "bold" }
   | { readonly type: "italic" }
   | { readonly type: "underline" }
@@ -318,6 +319,7 @@ export type MarkV3 = KnownMarkV3 | UnknownMarkV3;
 export type KnownMarkTypeV3 = KnownMarkV3["type"];
 
 export const MARK_ORDER_V3: readonly KnownMarkTypeV3[] = [
+  "equation",
   "bold",
   "italic",
   "underline",
@@ -454,7 +456,18 @@ export interface DatabaseViewBlockV3 extends KnownBlockV3Base {
   readonly viewId: Uuid;
 }
 
+export interface EquationBlockV3 extends KnownBlockV3Base {
+  readonly type: "equation";
+  readonly expression: string;
+}
+
+export interface TableOfContentsBlockV3 extends KnownBlockV3Base {
+  readonly type: "tableOfContents";
+}
+
 export type KnownBlockV3 =
+  | EquationBlockV3
+  | TableOfContentsBlockV3
   | ParagraphBlockV3
   | HeadingBlockV3
   | BulletedListItemBlockV3
@@ -476,6 +489,8 @@ export type CanonicalBlockV3 = KnownBlockV3 | UnknownBlockV3;
 export type KnownBlockTypeV3 = KnownBlockV3["type"];
 
 export const KNOWN_BLOCK_TYPES_V3: readonly KnownBlockTypeV3[] = [
+  "equation",
+  "tableOfContents",
   "paragraph",
   "heading",
   "bulletedListItem",
@@ -495,6 +510,8 @@ export const KNOWN_BLOCK_TYPES_V3: readonly KnownBlockTypeV3[] = [
 
 /** Wire-field order for known blocks; opaque properties are appended afterwards. */
 export const BLOCK_FIELD_ORDER_V3: Readonly<Record<KnownBlockTypeV3, readonly string[]>> = {
+  equation: ["type", "id", "expression"],
+  tableOfContents: ["type", "id"],
   paragraph: ["type", "id", "content"],
   heading: ["type", "id", "level", "content"],
   bulletedListItem: ["type", "id", "content", "children"],

@@ -10,12 +10,14 @@ import {
   previewDefinitionImpact,
   type Uuid,
 } from "@myownnotion/domain";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { DatabaseRowSyncState } from "../../../services/databases.ts";
 import type { LocalContentService } from "../../../services/local-content.ts";
+import { AsyncState, Button } from "../../../ui/primitives/index.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../../databases/database-page.tsx";
 import { definitionViewsPreservingPresentation } from "../../databases/definition-view-merge.ts";
 import { PageViewQuery } from "../../databases/page-view-query.ts";
+import { createProjectionRefresh } from "../../databases/projection-refresh.ts";
 import type { DatabaseCellUpdate } from "../../databases/table-view.tsx";
 import { updateDatabaseCell } from "../../databases/update-database-cell.ts";
 
@@ -30,7 +32,7 @@ interface LoadedView {
   readonly queryGeneration?: number;
 }
 
-async function loadView(
+export async function loadView(
   service: LocalContentService,
   containerItemId: Uuid,
   viewId: Uuid,
@@ -40,29 +42,37 @@ async function loadView(
     (candidate) => candidate.id === viewId && candidate.state === "active",
   );
   if (container === null || view === undefined) return "missing-view";
-  const sources = await service.listDatabases();
-  const source = sources.find(
-    (candidate) =>
-      (candidate.sourceId ?? ownedSourceIdFromItemId(candidate.itemId)) === view.sourceId,
-  );
-  if (source === undefined) return "missing-source";
+  let source = await service.getDatabase(view.sourceId);
+  if (source === null) {
+    // Older projections can name the derived primary source without storing
+    // that source identity as a key. Modern sources never need this inventory.
+    source =
+      (await service.listDatabases()).find(
+        (candidate) =>
+          (candidate.sourceId ?? ownedSourceIdFromItemId(candidate.itemId)) === view.sourceId,
+      ) ?? null;
+  }
+  if (source === null) return "missing-source";
   const owner = await service.getItem(source.itemId);
   if (owner === null) return "missing-source";
-  const ownerContainer = await service.getDatabase(source.itemId);
+  const [ownerContainer, entryRows, queued, conflicts] = await Promise.all([
+    source.itemId === containerItemId
+      ? Promise.resolve(container)
+      : service.getDatabase(source.itemId),
+    owner.lifecycle === "active" ? service.listDatabaseEntries(source.itemId) : Promise.resolve([]),
+    service.outbox.all(),
+    service.outbox.activeConflicts(),
+  ]);
   const primarySourceId =
     ownerContainer?.sourceId ?? source.sourceId ?? ownedSourceIdFromItemId(source.itemId);
   const memberships =
     owner.lifecycle === "active"
-      ? (await service.listDatabaseEntries(source.itemId)).filter(
-          (membership) => (membership.sourceId ?? primarySourceId) === view.sourceId,
-        )
+      ? entryRows.filter((membership) => (membership.sourceId ?? primarySourceId) === view.sourceId)
       : [];
   const ids = memberships.map((entry) => entry.entryItemId);
-  const [items, relations, queued, conflicts] = await Promise.all([
+  const [items, relations] = await Promise.all([
     service.getItems(ids),
     service.getDatabaseEntryRelations(source.itemId, ids),
-    service.outbox.all(),
-    service.outbox.activeConflicts(),
   ]);
   const states = new Map<Uuid, DatabaseRowSyncState>();
   for (const [mutations, state] of [
@@ -142,27 +152,59 @@ export function DatabaseViewSurface({
   readonly onReturnFocusRestored?: () => void;
   readonly formatPlacement?: "panel" | "chrome";
 }) {
+  const readProjectionState = useCallback(() => {
+    const snapshot = service.getSnapshot();
+    if (snapshot.projectionComplete) return "complete";
+    if (snapshot.projectionLoadFailed) return "error";
+    return snapshot.syncState === "offline" ? "offline" : "loading";
+  }, [service]);
+  const projectionState = useSyncExternalStore(
+    service.subscribe,
+    readProjectionState,
+    readProjectionState,
+  );
+  const projectionComplete = projectionState === "complete";
   // A cursor belongs to one service, container and view; crossing that boundary resets it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: these identities define the lifetime of the cursor store.
   const query = useMemo(() => new PageViewQuery(), [service, containerItemId, viewId]);
-  const [loaded, setLoaded] = useState<LoadedView | "missing-source" | "missing-view" | null>(null);
-  const [ready, setReady] = useState(false);
+  // Keep a readable local snapshot during discovery and refresh, but never
+  // reuse another view's contents or promote partial data before its new read.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: these identities define one accepted view snapshot.
+  const readScope = useMemo(() => ({}), [service, containerItemId, viewId]);
+  const [viewSnapshot, setViewSnapshot] = useState<{
+    readonly scope: object;
+    readonly complete: boolean;
+    readonly value: LoadedView | "missing-source" | "missing-view";
+  } | null>(null);
+  const loaded = viewSnapshot?.scope === readScope ? viewSnapshot.value : null;
+  const acceptedComplete = viewSnapshot?.scope === readScope && viewSnapshot.complete;
+  const [readyScope, setReadyScope] = useState<object | null>(null);
+  const ready = readyScope === readScope;
   const [error, setError] = useState<string | null>(null);
-  const refresh = useCallback(async () => {
-    try {
-      const next = await loadView(service, containerItemId, viewId);
-      setLoaded(
-        typeof next === "string"
-          ? next
-          : { ...next, queryGeneration: query.update(next.querySource, next.states) },
-      );
-      setError(null);
-    } catch {
-      setError("Cette vue ne peut pas être chargée pour le moment.");
-    } finally {
-      setReady(true);
-    }
-  }, [service, containerItemId, viewId, query]);
+  const refreshQueue = useMemo(
+    () =>
+      createProjectionRefresh({
+        load: () => loadView(service, containerItemId, viewId),
+        publish: (next) => {
+          setViewSnapshot({
+            scope: readScope,
+            complete: projectionComplete,
+            value:
+              typeof next === "string"
+                ? next
+                : { ...next, queryGeneration: query.update(next.querySource, next.states) },
+          });
+          setError(null);
+          setReadyScope(readScope);
+        },
+        onError: () => {
+          setError("Cette vue ne peut pas être chargée pour le moment.");
+          setReadyScope(readScope);
+        },
+      }),
+    [service, containerItemId, viewId, query, readScope, projectionComplete],
+  );
+  const refresh = refreshQueue.refresh;
   const queryGeneration =
     typeof loaded === "object" && loaded !== null ? loaded.queryGeneration : undefined;
   // DatabasePage reloads its first page when the underlying snapshot changes.
@@ -171,19 +213,57 @@ export function DatabaseViewSurface({
     (id: Uuid, cursor?: string) => query.query(id, cursor),
     [query, queryGeneration],
   );
-  useEffect(() => {
-    void refresh();
-    return service.subscribeProjection(() => {
-      void refresh();
-    });
+  const retryDiscovery = useCallback(() => {
+    void service
+      .synchronize()
+      .then(refresh)
+      .catch(() => undefined);
   }, [service, refresh]);
+  useEffect(() => {
+    refreshQueue.activate();
+    void refresh().catch(() => undefined);
+    const unsubscribe = service.subscribeProjection(() => {
+      void refresh().catch(() => undefined);
+    });
+    return () => {
+      refreshQueue.deactivate();
+      unsubscribe();
+    };
+  }, [service, refreshQueue, refresh]);
+  const hasKnownEntries =
+    typeof loaded === "object" && loaded !== null && loaded.entries.length > 0;
+  if (!projectionComplete && !hasKnownEntries)
+    return (
+      <div className="editor-database-view-block" data-testid="database-view-surface">
+        <AsyncState
+          compact
+          kind={error !== null ? "error" : projectionState}
+          loadingLayout="table"
+          loadingRows={3}
+          description={
+            error !== null || projectionState === "error"
+              ? "Cette base de données n’a pas pu être chargée."
+              : projectionState === "offline"
+                ? "Cette base de données n’est pas encore disponible sur cet appareil. Reconnectez-vous pour la charger."
+                : "Chargement de la base de données…"
+          }
+          action={
+            projectionState === "loading" && error === null ? undefined : (
+              <Button size="compact" onClick={retryDiscovery}>
+                Réessayer
+              </Button>
+            )
+          }
+        />
+      </div>
+    );
   if (!ready)
     return (
       <div className="editor-database-view-block" data-testid="database-view-surface">
         Chargement de la base…
       </div>
     );
-  if (error !== null)
+  if (error !== null && !hasKnownEntries)
     return (
       <div className="editor-database-view-block" data-testid="database-view-surface" role="alert">
         {error}
@@ -204,6 +284,14 @@ export function DatabaseViewSurface({
         La vue ou sa source n’est plus disponible.
       </div>
     );
+  const discoveryState =
+    error !== null
+      ? "error"
+      : !projectionComplete
+        ? projectionState
+        : !acceptedComplete
+          ? "loading"
+          : undefined;
   const definition: DatabaseDefinition = {
     ...loaded.source.definition,
     views: [loaded.view],
@@ -236,6 +324,11 @@ export function DatabaseViewSurface({
     const sourceChanged =
       !jsonValuesEqual(candidate.properties, currentSource.definition.properties) ||
       !jsonValuesEqual(candidate.taskRoles, currentSource.definition.taskRoles);
+    if (sourceChanged && !service.getSnapshot().projectionComplete) {
+      throw new Error(
+        "Attendez la fin du chargement des entrées avant de modifier la structure de la base.",
+      );
+    }
     const presentationViews =
       (containerItemId === currentSource.itemId
         ? currentPresentation.views
@@ -342,30 +435,37 @@ export function DatabaseViewSurface({
         {...(onReturnFocusRestored === undefined ? {} : { onReturnFocusRestored })}
         database={database}
         entries={loaded.entries}
+        {...(discoveryState === undefined
+          ? {}
+          : { discoveryState, onRetryDiscovery: retryDiscovery })}
         onQueryView={queryView}
         onPreviewDefinitionImpact={previewDefinition}
         onReplaceDefinition={replaceDefinition}
-        onCreateEntry={async (title) => {
+        onCreateEntry={async (title, initialValues = {}, initialRelations = {}) => {
           const id = generateUuidV7();
           const result = await service.createDatabaseEntry(loaded.source.itemId, {
             id,
             sourceId: loaded.view.sourceId,
             title,
-            values: {},
-            relationTargets: {},
+            values: initialValues,
+            relationTargets: Object.fromEntries(
+              Object.entries(initialRelations).map(([id, targets]) => [id, [...targets]]),
+            ),
           });
           if (!result.ok) throw new Error(result.error.title);
           return id;
         }}
-        onCreateFolder={async (title) => {
+        onCreateFolder={async (title, initialValues = {}, initialRelations = {}) => {
           const id = generateUuidV7();
           const result = await service.createDatabaseEntry(loaded.source.itemId, {
             id,
             sourceId: loaded.view.sourceId,
             title,
             kind: "folder",
-            values: {},
-            relationTargets: {},
+            values: initialValues,
+            relationTargets: Object.fromEntries(
+              Object.entries(initialRelations).map(([id, targets]) => [id, [...targets]]),
+            ),
           });
           if (!result.ok) throw new Error(result.error.title);
           return id;

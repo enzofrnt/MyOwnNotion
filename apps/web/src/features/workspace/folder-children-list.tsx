@@ -28,7 +28,7 @@ export interface FolderChild {
   readonly kind: ItemIconKind;
   readonly icon?: string | null;
   /** Number of direct children, shown as a hint for folders. */
-  readonly childCount: number;
+  readonly childCount: number | null;
 }
 
 export interface FolderReorderRequest {
@@ -58,6 +58,7 @@ function childLabel(child: FolderChild): string {
 
 function childHint(child: FolderChild): string {
   if (child.kind !== "folder") return KIND_LABEL[child.kind];
+  if (child.childCount === null) return "Dossier";
   if (child.childCount === 0) return "Dossier vide";
   return child.childCount === 1 ? "1 élément" : `${child.childCount} éléments`;
 }

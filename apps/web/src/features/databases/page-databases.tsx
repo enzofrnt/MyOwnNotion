@@ -185,13 +185,15 @@ function EmbeddedDatabase({
             replaceDatabaseEmbeddingDefinition(source.row.definition, embedding.id, candidate),
           )
         }
-        onCreateEntry={async (title) => {
+        onCreateEntry={async (title, initialValues = {}, initialRelations = {}) => {
           const id = generateUuidV7();
           const result = await service.createDatabaseEntry(source.row.itemId, {
             id,
             title,
-            values: {},
-            relationTargets: {},
+            values: initialValues,
+            relationTargets: Object.fromEntries(
+              Object.entries(initialRelations).map(([id, targets]) => [id, [...targets]]),
+            ),
           });
           if (!result.ok) throw new Error(result.error.title);
           return id;

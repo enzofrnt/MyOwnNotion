@@ -157,7 +157,7 @@ const injected = await injectManifest({
   swSrc: serviceWorkerPath,
   swDest: serviceWorkerPath,
   globDirectory: outdir,
-  globPatterns: ["**/*.{js,css,html,svg,woff2,wasm,webmanifest}"],
+  globPatterns: ["**/*.{js,css,html,png,svg,woff,woff2,ttf,wasm,webmanifest}"],
   maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
 });
 if (injected.count === 0) {

@@ -116,6 +116,14 @@ test.describe("offline workspace search (US2)", () => {
     await typeIntoEditor(page, releasedBodyPhrase);
     await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
+    // The route-controlled E2E bundle deliberately has no service worker to
+    // precache the lazy search asset. Open search online before the outage,
+    // then prove that its existing index cannot leak the released body.
+    const initialSearch = await searchFor(page, releasedBodyPhrase);
+    await expect(
+      initialSearch.getByRole("listitem").filter({ hasText: offloadedPage }),
+    ).toHaveCount(1);
+    await initialSearch.getByRole("button", { name: "Fermer la recherche" }).click();
     await releasePageBodyFromDevice(page, offloadedPage);
 
     // Open the page that stays local before disconnecting, so editing it needs

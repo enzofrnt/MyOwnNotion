@@ -12,6 +12,7 @@ import {
   DEFAULT_SIDEBAR_WIDTH,
   GRAPH_TAB_ID,
   isGraphTabId,
+  META_KEYS,
   neighbourTab,
   normalizeWorkspacePresentationState,
   openTab,
@@ -51,10 +52,15 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { notePath } from "../../routing/paths.ts";
 import { DatabaseViewService } from "../../services/databases.ts";
-import { type LocalProjectionChange, localContent } from "../../services/local-content.ts";
+import {
+  type LocalContentService,
+  type LocalProjectionChange,
+  localContent,
+} from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { WorkspaceSearchService } from "../../services/search.ts";
 import { FR_COPY } from "../../ui/copy/index.ts";
@@ -68,6 +74,8 @@ import { DatabaseConflictResolution } from "../databases/database-conflict-resol
 import { DatabaseContainerPage } from "../databases/database-container-page.tsx";
 import { DATABASE_COPY } from "../databases/database-copy.ts";
 import { DatabaseCreateChoiceDialog } from "../databases/database-create-choice.tsx";
+import type { DatabaseEntryOpenRequest } from "../databases/database-entry-open-context.tsx";
+import { DatabaseEntryPeek } from "../databases/database-entry-peek.tsx";
 import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
 import {
   editEntrySourceDefinition,
@@ -75,6 +83,7 @@ import {
 } from "../databases/edit-entry-properties.ts";
 import { type EntryDrafts, EntryPanel } from "../databases/entry-panel.tsx";
 import { PageDatabases } from "../databases/page-databases.tsx";
+import { restoreEntryPeekFocus } from "../databases/restore-entry-peek-focus.ts";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
 import { updatedCellProperties } from "../databases/update-database-cell.ts";
 import { initializeEditorFileTransfers } from "../editor/editor-file-state.tsx";
@@ -116,7 +125,7 @@ import { WorkspacePageEditor } from "../workspace/workspace-page-editor.tsx";
 import { WorkspaceShell } from "../workspace/workspace-shell.tsx";
 import { WorkspaceState } from "../workspace/workspace-state.tsx";
 import { FileNode } from "./file-node.tsx";
-import { pageHoldsTreeContent, replaceProjectedItem } from "./navigation-item-signature.ts";
+import { pageHoldsTreeContent, replaceProjectedItems } from "./navigation-item-signature.ts";
 import {
   holdsStructuredCanvas,
   nextWarmedPageIds,
@@ -152,7 +161,13 @@ interface TitleDraftSession {
   readonly focused: boolean;
 }
 
-export type RoutedItemState = "none" | "active" | "trashed" | "unavailable-local" | "not-found";
+export type RoutedItemState =
+  | "none"
+  | "active"
+  | "trashed"
+  | "loading"
+  | "unavailable-local"
+  | "not-found";
 export type GraphMode =
   | { readonly kind: "global" }
   | { readonly kind: "local"; readonly centerId: Uuid };
@@ -161,11 +176,13 @@ export function resolveInitialRoutedItemId(
   routeItemId: Uuid | null,
   lastVisitedItemId: string | null,
   items: readonly ProjectedItem[],
+  projectionComplete = true,
 ): Uuid | null {
   if (routeItemId !== null) return routeItemId;
   return lastVisitedItemId !== null &&
     isUuid(lastVisitedItemId) &&
-    items.some((item) => item.id === lastVisitedItemId && item.lifecycle === "active")
+    (!projectionComplete ||
+      items.some((item) => item.id === lastVisitedItemId && item.lifecycle === "active"))
     ? lastVisitedItemId
     : null;
 }
@@ -175,11 +192,47 @@ export function resolveRoutedItemState(
   trashedItems: readonly ProjectedItem[],
   routeItemId: Uuid | null,
   online: boolean,
+  projectionComplete = true,
 ): RoutedItemState {
   if (routeItemId === null) return "none";
   if (items.some((item) => item.id === routeItemId && item.lifecycle === "active")) return "active";
   if (trashedItems.some((item) => item.id === routeItemId)) return "trashed";
-  return online ? "not-found" : "unavailable-local";
+  return online ? (projectionComplete ? "not-found" : "loading") : "unavailable-local";
+}
+
+/** Native containers own their entry projection; the legacy base still needs it here. */
+export async function readParentDatabaseEntries(
+  service: Pick<
+    LocalContentService,
+    "listDatabaseEntries" | "getItem" | "getDatabaseEntryRelationTargets"
+  >,
+  selectedItem: Pick<ProjectedItem, "id" | "kind">,
+): Promise<DatabaseEntryDto[]> {
+  if (selectedItem.kind === "database" || selectedItem.kind === "database_view") return [];
+  const rows = await service.listDatabaseEntries(selectedItem.id);
+  const entries = await Promise.all(
+    rows.map(async (row): Promise<DatabaseEntryDto | null> => {
+      const [item, relationTargets] = await Promise.all([
+        service.getItem(row.entryItemId),
+        service.getDatabaseEntryRelationTargets(selectedItem.id, row.entryItemId),
+      ]);
+      return item === null
+        ? null
+        : ({
+            databaseId: selectedItem.id,
+            entryId: row.entryItemId,
+            kind: item.kind,
+            icon: item.icon ?? null,
+            revisionId: item.currentRevisionId,
+            lifecycle: item.lifecycle,
+            title: item.name,
+            document: item.pageDocument,
+            values: row.values.values,
+            relationTargets,
+          } as unknown as DatabaseEntryDto);
+    }),
+  );
+  return entries.filter((entry): entry is DatabaseEntryDto => entry !== null);
 }
 
 function buildTree(items: ProjectedItem[]): TreeNode[] {
@@ -237,8 +290,12 @@ function buildTree(items: ProjectedItem[]): TreeNode[] {
  * that an empty page is a document the owner is reading, not a container they
  * are looking into.
  */
-function isBranch(node: TreeNode): boolean {
-  return node.item.kind === "folder" || node.children.length > 0;
+function isBranch(node: TreeNode, projectionComplete = true): boolean {
+  return (
+    node.item.kind === "folder" ||
+    node.children.length > 0 ||
+    (!projectionComplete && node.item.kind !== "file")
+  );
 }
 
 export interface ExpandableTreeItem {
@@ -353,6 +410,25 @@ export function HierarchyExplorer({
   }, [pageOperationCsrfToken]);
   useRealtimeSync(service);
   const changeStream = useChangeStream(service);
+  // Completeness belongs to the catalogue rendered here. A transport can
+  // finish before its final IndexedDB read/decryption has reached React.
+  const [projectionComplete, setProjectionComplete] = useState(false);
+  const projectionCompleteRef = useRef(false);
+  const syncState = useSyncExternalStore(
+    service.subscribe,
+    () => service.getSnapshot().syncState,
+    () => service.getSnapshot().syncState,
+  );
+  const projectionLoadFailed = useSyncExternalStore(
+    service.subscribe,
+    () => service.getSnapshot().projectionLoadFailed,
+    () => service.getSnapshot().projectionLoadFailed,
+  );
+  const discoveryState = projectionLoadFailed
+    ? "error"
+    : syncState === "offline"
+      ? "offline"
+      : "loading";
   const databaseViews = useMemo(() => new DatabaseViewService(service), [service]);
   const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
   const activeRef = useRef(active);
@@ -409,6 +485,7 @@ export function HierarchyExplorer({
     [service],
   );
   const refreshGeneration = useRef(0);
+  const pendingProjectionItemIds = useRef(new Set<Uuid>());
   const refreshMounted = useRef(false);
   useEffect(() => {
     refreshMounted.current = true;
@@ -420,7 +497,7 @@ export function HierarchyExplorer({
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseDto | null>(null);
   const [databaseEntries, setDatabaseEntries] = useState<readonly DatabaseEntryDto[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<
-    (DatabaseEntryDto & { readonly valuesAvailable?: boolean }) | null
+    (DatabaseEntryDto & { readonly valuesAvailable?: boolean; readonly sourceId?: Uuid }) | null
   >(null);
   const selectedDatabaseRef = useRef<DatabaseDto | null>(null);
   const selectedEntryRef = useRef<DatabaseEntryDto | null>(null);
@@ -585,23 +662,43 @@ export function HierarchyExplorer({
   const refresh = useCallback(
     async (change?: LocalProjectionChange): Promise<ProjectedItem[]> => {
       const generation = ++refreshGeneration.current;
+      if (change?.kind === "upsert") {
+        for (const itemId of change.itemIds) pendingProjectionItemIds.current.add(itemId);
+      }
+      // Read the boundary first: a read started while discovery was partial
+      // must not prune navigation just because the final commit overtook it.
+      const readComplete =
+        (await service.repository.getMeta<boolean>(META_KEYS.projectionComplete)) === true;
       if (change?.kind === "upsert" && itemsRef.current.length > 0) {
-        let nextItems = itemsRef.current;
-        let nextTrash = trashedItemsRef.current;
-        let catalogChanged = false;
-        const sourceIds = new Set(await service.db.databases.toCollection().primaryKeys());
-        for (const itemId of change.itemIds) {
-          const next = await service.getItem(itemId);
-          const patched = replaceProjectedItem(nextItems, nextTrash, itemId, next, sourceIds);
-          nextItems = patched.items;
-          nextTrash = patched.trashed;
-          catalogChanged = catalogChanged || patched.catalogChanged;
-        }
+        // A superseded read leaves its identities pending. The newest refresh
+        // includes them too, so overlapping notifications cannot lose one batch.
+        const itemIds = [...pendingProjectionItemIds.current];
+        const [projectedItems, sourceKeys] = await Promise.all([
+          service.getItems(itemIds),
+          service.db.databases.toCollection().primaryKeys(),
+        ]);
+        const sourceIds = new Set(sourceKeys);
+        const {
+          items: nextItems,
+          trashed: nextTrash,
+          catalogChanged,
+        } = replaceProjectedItems(
+          itemsRef.current,
+          trashedItemsRef.current,
+          itemIds,
+          projectedItems,
+          sourceIds,
+        );
         if (refreshMounted.current && generation === refreshGeneration.current) {
+          pendingProjectionItemIds.current.clear();
+          projectionCompleteRef.current = readComplete;
+          setProjectionComplete(readComplete);
           setDatabaseSourceIds((current) =>
             sameItemIds(current, sourceIds) ? current : sourceIds,
           );
           if (catalogChanged) {
+            itemsRef.current = nextItems;
+            trashedItemsRef.current = nextTrash;
             setItems(nextItems);
             setTrashedItems(nextTrash);
           }
@@ -625,6 +722,11 @@ export function HierarchyExplorer({
       // newer refresh: doing so can briefly remove the selected entry and
       // remount its form, discarding an unsaved property draft.
       if (refreshMounted.current && generation === refreshGeneration.current) {
+        pendingProjectionItemIds.current.clear();
+        projectionCompleteRef.current = readComplete;
+        setProjectionComplete(readComplete);
+        itemsRef.current = activeItems;
+        trashedItemsRef.current = trash;
         setItems(activeItems);
         setTrashedItems(trash);
         const sourceIds = new Set(sourceKeys);
@@ -645,12 +747,9 @@ export function HierarchyExplorer({
       setLoadPhase("initializing");
       await service.initialize();
       await initializeEditorFileTransfers(service);
-      // First boot on this device: seed the projection when reachable.
+      // initialize makes local/root data available; catch-up continues without
+      // holding navigation behind the workspace's complete download.
       setLoadPhase("reading-local");
-      if ((await service.listActiveItems()).length === 0) {
-        setLoadPhase("seeding");
-        await service.seedFromServer();
-      }
       // Which branches were open is device ergonomics, not content: it lives
       // in the local projection and never syncs. Restoring it is what makes
       // returning to the workspace feel like returning (FR-014).
@@ -679,12 +778,13 @@ export function HierarchyExplorer({
       presentationRef.current = navigation;
       setNavigationLoaded(true);
       setLoadPhase("refreshing");
-      const activeItems = await refresh();
+      await refresh();
       if (!cancelled) {
         const initialItemId = resolveInitialRoutedItemId(
           selectedIdRef.current,
           navigation.lastVisitedItemId,
-          activeItems,
+          itemsRef.current,
+          projectionCompleteRef.current,
         );
         if (
           activeRef.current &&
@@ -703,8 +803,8 @@ export function HierarchyExplorer({
     })().catch(() => {
       if (!cancelled) setLoadState("error");
     });
-    const unsubscribeProjection = service.subscribeProjection((change) => {
-      void refresh(change).catch(() => {
+    const unsubscribeProjection = service.subscribeProjection(async (change) => {
+      await refresh(change).catch(() => {
         if (!cancelled) setLoadState("error");
       });
     });
@@ -779,7 +879,30 @@ export function HierarchyExplorer({
   const draggableTreeItems = useMemo(() => treeDragItems(tree), [tree]);
   const attachmentsByPage = useMemo(() => pageAttachmentsByPage(items), [items]);
   const { item: selectedItem, path: activePath } = useActiveItem(items, selectedId);
-  const routedItemState = resolveRoutedItemState(items, trashedItems, selectedId, navigator.onLine);
+  const [entryPeek, setEntryPeek] = useState<DatabaseEntryOpenRequest | null>(null);
+  const openDatabasePeek = useCallback(
+    (request: DatabaseEntryOpenRequest) => setEntryPeek(request),
+    [],
+  );
+  const closeDatabasePeek = useCallback(() => {
+    const origin = entryPeek;
+    const closingPeek = document.activeElement?.closest(".database-entry-peek") ?? null;
+    setEntryPeek(null);
+    requestAnimationFrame(() => {
+      restoreEntryPeekFocus(origin, closingPeek);
+    });
+  }, [entryPeek]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: navigation ends the independent peek session.
+  useEffect(() => {
+    setEntryPeek(null);
+  }, [selectedId, graphMode]);
+  const routedItemState = resolveRoutedItemState(
+    items,
+    trashedItems,
+    selectedId,
+    syncState !== "offline" && navigator.onLine,
+    projectionComplete,
+  );
   const iconPickerItem = useMemo(() => {
     if (iconPickerItemId === null) return null;
     const item = items.find((candidate) => candidate.id === iconPickerItemId);
@@ -802,14 +925,14 @@ export function HierarchyExplorer({
   }, [items, replaceTitleDraftSession, titleDraftSession]);
 
   useEffect(() => {
-    if (loadState !== "ready") return;
+    if (loadState !== "ready" || !projectionComplete) return;
     const expandableItems = allNodes.map((node) => ({
       id: node.item.id,
       kind: node.item.kind,
       childCount: node.children.length,
     }));
     setExpanded((current) => retainExpandableItemIds(current, expandableItems));
-  }, [allNodes, loadState]);
+  }, [allNodes, loadState, projectionComplete]);
 
   // Opening a page, folder, database or linked view adds its tab. Opening the
   // graph adds its own tab. An already-open tab simply becomes active.
@@ -827,7 +950,7 @@ export function HierarchyExplorer({
   // A trashed or deleted item leaves the strip. When it was the active tab the
   // neighbour takes over, so the owner is not left on a dead route.
   useEffect(() => {
-    if (loadState !== "ready") return;
+    if (loadState !== "ready" || !projectionComplete) return;
     const openable = new Set<string>(
       items.filter((item) => item.kind !== "file").map((item) => item.id),
     );
@@ -852,7 +975,16 @@ export function HierarchyExplorer({
       }
     }
     setOpenTabIds(pruned);
-  }, [items, loadState, onOpenGraph, openTabIds, selectedId, selectItemById, trashedItems]);
+  }, [
+    items,
+    loadState,
+    onOpenGraph,
+    openTabIds,
+    projectionComplete,
+    selectedId,
+    selectItemById,
+    trashedItems,
+  ]);
 
   const closeOpenTab = useCallback(
     (itemId: string) => {
@@ -892,9 +1024,9 @@ export function HierarchyExplorer({
       name: child.item.name,
       kind: databaseSourceIds.has(child.item.id) ? ("database" as const) : child.item.kind,
       icon: child.item.icon,
-      childCount: child.children.length,
+      childCount: projectionComplete ? child.children.length : null,
     }));
-  }, [allNodes, databaseSourceIds, selectedItem]);
+  }, [allNodes, databaseSourceIds, projectionComplete, selectedItem]);
 
   useEffect(() => {
     onActiveItemChange(selectedItem);
@@ -980,35 +1112,18 @@ export function HierarchyExplorer({
         const databaseRow = await service.getDatabase(selectedItem.id);
         if (selectionChanged()) return;
         if (databaseRow === null) {
+          if (!projectionComplete) {
+            clearStructuredSelection();
+            setStructuredSelectionLoading(true);
+            return;
+          }
           structuredKindByItemId.current.set(selectedItem.id, "page");
           clearStructuredSelection();
           structuredSelectionItemId.current = selectedItem.id;
           setStructuredSelectionLoading(false);
           return;
         }
-        const rows = await service.listDatabaseEntries(selectedItem.id);
-        const entries = await Promise.all(
-          rows.map(async (row): Promise<DatabaseEntryDto | null> => {
-            const [item, relationTargets] = await Promise.all([
-              service.getItem(row.entryItemId),
-              service.getDatabaseEntryRelationTargets(selectedItem.id, row.entryItemId),
-            ]);
-            return item === null
-              ? null
-              : ({
-                  databaseId: selectedItem.id,
-                  entryId: row.entryItemId,
-                  kind: item.kind,
-                  icon: item.icon ?? null,
-                  revisionId: item.currentRevisionId,
-                  lifecycle: item.lifecycle,
-                  title: item.name,
-                  document: item.pageDocument,
-                  values: row.values.values,
-                  relationTargets,
-                } as unknown as DatabaseEntryDto);
-          }),
-        );
+        const entries = await readParentDatabaseEntries(service, selectedItem);
         if (selectionChanged()) return;
         const optimistic =
           optimisticDatabaseDefinition.current?.databaseId === selectedItem.id
@@ -1021,7 +1136,7 @@ export function HierarchyExplorer({
           name: selectedItem.name,
           definition: optimistic ?? databaseRow.definition,
         } as unknown as DatabaseDto);
-        setDatabaseEntries(entries.filter((entry): entry is DatabaseEntryDto => entry !== null));
+        setDatabaseEntries(entries);
         setSelectedEntry(null);
         setEntryDefinition(null);
         structuredSelectionItemId.current = selectedItem.id;
@@ -1045,7 +1160,7 @@ export function HierarchyExplorer({
         return;
       }
       const [ownerDatabase, relationTargets] = await Promise.all([
-        service.getDatabase(entryRow.databaseId),
+        service.getDatabase(entryRow.sourceId ?? entryRow.databaseId),
         service.getDatabaseEntryRelationTargets(entryRow.databaseId, selectedItem.id),
       ]);
       if (selectionChanged()) return;
@@ -1060,6 +1175,7 @@ export function HierarchyExplorer({
       setDatabaseEntries([]);
       setSelectedEntry({
         databaseId: entryRow.databaseId,
+        ...(entryRow.sourceId === undefined ? {} : { sourceId: entryRow.sourceId }),
         valuesAvailable: entryRow.availability === "present",
         entryId: selectedItem.id,
         kind: selectedItem.kind,
@@ -1079,7 +1195,7 @@ export function HierarchyExplorer({
     return () => {
       cancelled = true;
     };
-  }, [projectionRevision, service, selectedItem]);
+  }, [projectionComplete, projectionRevision, service, selectedItem]);
 
   const selectedStructuredKind =
     selectedItem === null ? undefined : structuredKindByItemId.current.get(selectedItem.id);
@@ -1675,6 +1791,7 @@ export function HierarchyExplorer({
       if (existing !== null) {
         if (
           existing.kind !== "database" ||
+          existing.lifecycle !== "active" ||
           !existing.placements.some(
             (placement) =>
               placement.kind === "hierarchy" && placement.parentItemId === parentItemId,
@@ -1682,13 +1799,12 @@ export function HierarchyExplorer({
         ) {
           throw new Error("Cette identité appartient déjà à un autre élément.");
         }
+        const storedView = (await service.getDatabase(itemId))?.presentation?.views[0];
+        if (storedView === undefined) throw new Error(FR_COPY.editor.databaseInsertion.missingView);
         return {
           id: itemId,
           title: existing.name,
-          viewId:
-            request.initialViewId ??
-            (await service.getDatabase(itemId))?.presentation?.views[0]?.id ??
-            "",
+          viewId: storedView.id,
         };
       }
       const keys = items
@@ -1788,8 +1904,8 @@ export function HierarchyExplorer({
         targetKind,
         confirmedDestruction,
       });
-      await refresh();
       if (result.ok) {
+        await refresh({ kind: "upsert", itemIds: [itemId] });
         return { ok: true, needsConfirmation: false };
       }
       const needsConfirmation = result.error.code === "conversion.confirmation-required";
@@ -1887,12 +2003,12 @@ export function HierarchyExplorer({
         id: node.item.id,
         name: node.item.name,
         level: 1,
-        hasChildren: isBranch(node),
+        hasChildren: isBranch(node, projectionComplete),
         expanded: expanded.has(node.item.id),
         parentId:
           node.item.placements.find((entry) => entry.kind === "hierarchy")?.parentItemId ?? null,
       })),
-    [visibleNodes, expanded],
+    [visibleNodes, expanded, projectionComplete],
   );
 
   const toggleBranch = useCallback((id: string, open: boolean) => {
@@ -1956,7 +2072,7 @@ export function HierarchyExplorer({
 
   const renderNode = (node: TreeNode, level: number): React.ReactElement => {
     const isSelected = selectedId === node.item.id;
-    const branch = isBranch(node);
+    const branch = isBranch(node, projectionComplete);
     const branchOpen = branch && expanded.has(node.item.id);
     const parentPlacement = node.item.placements.find((entry) => entry.kind === "hierarchy");
     const parentId = parentPlacement?.parentItemId ?? null;
@@ -1974,9 +2090,20 @@ export function HierarchyExplorer({
         ) : (
           <BranchState
             containerKind={node.item.kind === "folder" ? "folder" : "page"}
-            kind={problem !== null ? "error" : navigator.onLine ? "empty" : "offline"}
+            kind={
+              problem !== null
+                ? "error"
+                : !projectionComplete
+                  ? discoveryState
+                  : navigator.onLine
+                    ? "empty"
+                    : "offline"
+            }
           />
         )}
+        {!projectionComplete && node.children.length > 0 ? (
+          <BranchState kind={discoveryState} />
+        ) : null}
       </CollapsibleRegion>
     ) : null;
     return (
@@ -2170,6 +2297,7 @@ export function HierarchyExplorer({
                                   itemId={node.item.id}
                                   itemName={node.item.name}
                                   kind={node.item.kind as ConvertibleKind}
+                                  holdsContent={pageHoldsTreeContent(node.item)}
                                   convert={convertItem}
                                   finalFocus={returnFocus}
                                   onActiveChange={onActiveChange}
@@ -2270,6 +2398,8 @@ export function HierarchyExplorer({
         <BranchState kind="loading" />
       ) : loadState === "error" ? (
         <p className="muted">Stockage local indisponible.</p>
+      ) : tree.length === 0 && !projectionComplete ? (
+        <BranchState kind={discoveryState} />
       ) : tree.length === 0 ? (
         <p className="workspace-navigation__empty" data-testid="empty-state">
           Aucune page pour le moment.
@@ -2291,6 +2421,18 @@ export function HierarchyExplorer({
           </ul>
         </TreeDragDropProvider>
       )}
+      {loadState === "ready" && !projectionComplete && tree.length > 0 ? (
+        <BranchState kind={discoveryState} />
+      ) : null}
+      {loadState === "ready" && !projectionComplete && discoveryState !== "loading" ? (
+        <Button
+          variant="ghost"
+          size="compact"
+          onClick={() => void service.synchronize().catch(() => undefined)}
+        >
+          Réessayer le chargement
+        </Button>
+      ) : null}
     </div>
   );
 
@@ -2328,6 +2470,143 @@ export function HierarchyExplorer({
 
   return (
     <WorkspaceShell
+      databaseEntryActions={{
+        relationOptions: items
+          .filter((item) => item.kind === "page" && item.lifecycle === "active")
+          .map((item) => ({ id: item.id, label: item.name })),
+        convert: convertItem,
+        openFullPage: selectItemById,
+        editIcon: setIconPickerItemId,
+        trash: async (id) => {
+          const item = await service.getItem(id);
+          if (item === null) throw new Error("Cette entrée est indisponible.");
+          const result = await service.mutate("item.trash", { itemId: id }, [
+            item.currentRevisionId,
+          ]);
+          if (!result.ok) throw new Error(result.error.title);
+          await refresh();
+        },
+        save: async (row, draft) => {
+          const membership = await service.getDatabaseEntry(row.entryId as Uuid);
+          const item = await service.getItem(row.entryId as Uuid);
+          if (membership === null || item === null)
+            throw new Error("Cette entrée est indisponible.");
+          if (draft.title !== row.title && item.name !== row.title && item.name !== draft.title)
+            throw new Error("Le titre a changé ailleurs. Votre saisie est conservée.");
+          if (draft.changedPropertyIds.length)
+            await saveEntryPropertyChanges(
+              service,
+              membership.databaseId,
+              row.entryId as Uuid,
+              draft.values,
+              draft.relationTargets,
+              {
+                propertyIds: draft.changedPropertyIds,
+                previousValues: row.values as Parameters<
+                  typeof saveEntryPropertyChanges
+                >[5]["previousValues"],
+                previousRelations: row.relationTargets as unknown as Parameters<
+                  typeof saveEntryPropertyChanges
+                >[5]["previousRelations"],
+              },
+            );
+          if (draft.title !== row.title && item.name !== draft.title) {
+            const current = await service.getItem(item.id);
+            if (current === null) throw new Error("Cette entrée est indisponible.");
+            if (current.name !== row.title && current.name !== draft.title)
+              throw new Error("Le titre a changé ailleurs. Votre saisie est conservée.");
+            if (current.name === draft.title) return;
+            const result = await service.mutate(
+              "item.rename",
+              { itemId: item.id, name: draft.title },
+              [current.currentRevisionId],
+            );
+            if (!result.ok) throw new Error(result.error.title);
+          }
+        },
+      }}
+      onOpenDatabaseEntry={openDatabasePeek}
+      entryOverlay={
+        entryPeek === null ? null : (
+          <DatabaseEntryPeek
+            key={entryPeek.entryId}
+            request={entryPeek}
+            service={service}
+            drafts={entryDraftSessions.current}
+            relationOptions={items
+              .filter((item) => item.kind === "page" && item.lifecycle === "active")
+              .map((item) => ({ id: item.id, label: item.name }))}
+            onClose={closeDatabasePeek}
+            onFullPage={(id) => {
+              setEntryPeek(null);
+              selectItemById(id);
+            }}
+            renderHeader={(item) => (
+              <PageTitleEditor
+                key={`peek-title-${item.id}`}
+                {...titleEditingProps(
+                  item.id,
+                  item.name,
+                  item.kind === "folder" ? "folder" : "page",
+                )}
+                kind={item.kind === "folder" ? "folder" : "page"}
+                icon={item.icon}
+                title={item.name}
+                onIconChange={(icon) => void changeItemIcon(item.id, icon)}
+              />
+            )}
+            renderContent={(item) =>
+              item.kind === "folder" ? (
+                <FolderChildrenList
+                  folderName={item.name}
+                  items={items
+                    .filter(
+                      (child) =>
+                        child.lifecycle === "active" &&
+                        child.placements.some(
+                          (placement) =>
+                            placement.kind === "hierarchy" && placement.parentItemId === item.id,
+                        ),
+                    )
+                    .map((child) => ({
+                      id: child.id,
+                      href: notePath(child.id),
+                      name: child.name,
+                      kind: child.kind,
+                      icon: child.icon,
+                      childCount: items.filter((descendant) =>
+                        descendant.placements.some(
+                          (placement) =>
+                            placement.kind === "hierarchy" && placement.parentItemId === child.id,
+                        ),
+                      ).length,
+                    }))}
+                  onOpen={(id) => openItem(id as Uuid)}
+                  onReorder={(request) =>
+                    handleTreeDrop({
+                      kind: "place",
+                      itemId: request.itemId,
+                      targetId: request.targetId,
+                      parentId: item.id,
+                      edge: request.edge,
+                    })
+                  }
+                />
+              ) : (
+                <WorkspacePageEditor
+                  service={service}
+                  itemId={item.id}
+                  items={items}
+                  createPage={createSubpage}
+                  createFolder={createSubfolder}
+                  createDatabase={createDatabaseChild}
+                  onOpenPage={openPageLink}
+                />
+              )
+            }
+          />
+        )
+      }
       changeStream={changeStream}
       contentMode={
         graphMode !== null
@@ -2537,7 +2816,10 @@ export function HierarchyExplorer({
                 <WorkspaceState kind="loading" phase={loadPhase} />
               )
             ) : selectedItem === null ? (
-              routedItemState === "unavailable-local" ? (
+              routedItemState === "loading" ||
+              (selectedId === null && items.length === 0 && !projectionComplete) ? (
+                <WorkspaceState kind={discoveryState} phase="discovering" />
+              ) : routedItemState === "unavailable-local" ? (
                 <WorkspaceState
                   kind="offline"
                   detail="Cette note n’est pas présente sur cet appareil. Reconnectez-vous pour la charger."
@@ -2678,7 +2960,30 @@ export function HierarchyExplorer({
                       <DatabasePage
                         database={selectedDatabase}
                         entries={databaseEntries}
+                        {...(projectionComplete
+                          ? {}
+                          : {
+                              discoveryState,
+                              onRetryDiscovery: () => {
+                                void service.synchronize().catch(() => undefined);
+                              },
+                            })}
                         onPreviewDefinitionImpact={async (definition) => {
+                          if (
+                            !projectionComplete &&
+                            (!jsonValuesEqual(
+                              definition.properties,
+                              selectedDatabase.definition.properties,
+                            ) ||
+                              !jsonValuesEqual(
+                                definition.taskRoles,
+                                selectedDatabase.definition.taskRoles,
+                              ))
+                          ) {
+                            throw new Error(
+                              "Attendez la fin du chargement pour modifier la structure de cette base.",
+                            );
+                          }
                           const current = await service.getItem(selectedItem.id);
                           return current === null
                             ? null
@@ -2692,6 +2997,21 @@ export function HierarchyExplorer({
                           definition: DatabaseDefinition,
                           confirmation?: DefinitionConfirmation,
                         ) => {
+                          if (
+                            !projectionComplete &&
+                            (!jsonValuesEqual(
+                              definition.properties,
+                              selectedDatabase.definition.properties,
+                            ) ||
+                              !jsonValuesEqual(
+                                definition.taskRoles,
+                                selectedDatabase.definition.taskRoles,
+                              ))
+                          ) {
+                            throw new Error(
+                              "Attendez la fin du chargement pour modifier la structure de cette base.",
+                            );
+                          }
                           const previousDatabase = selectedDatabase;
                           optimisticDatabaseDefinition.current = {
                             databaseId: selectedItem.id,
@@ -2821,7 +3141,7 @@ export function HierarchyExplorer({
                           definitionMutationQueue.current = queued.catch(() => undefined);
                           return queued;
                         }}
-                        onCreateEntry={async (title) => {
+                        onCreateEntry={async (title, initialValues = {}, initialRelations = {}) => {
                           const id = generateUuidV7();
                           const result = await service.createDatabaseEntry(selectedItem.id, {
                             id,
@@ -2831,8 +3151,13 @@ export function HierarchyExplorer({
                               formatVersion: 1,
                               body: {},
                             },
-                            values: {},
-                            relationTargets: {},
+                            values: initialValues,
+                            relationTargets: Object.fromEntries(
+                              Object.entries(initialRelations).map(([id, targets]) => [
+                                id,
+                                [...targets],
+                              ]),
+                            ),
                           });
                           if (!result.ok) {
                             setProblem(result.error);
@@ -3021,7 +3346,7 @@ export function HierarchyExplorer({
                   onEditDefinition={(edit, confirmed) =>
                     editEntrySourceDefinition(
                       service,
-                      selectedEntry.databaseId as Uuid,
+                      (selectedEntry.sourceId ?? selectedEntry.databaseId) as Uuid,
                       edit,
                       confirmed,
                     )
@@ -3128,20 +3453,25 @@ export function HierarchyExplorer({
                   title={selectedItem.name}
                   onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
                 />
-                <FolderChildrenList
-                  folderName={selectedItem.name}
-                  items={folderChildren}
-                  onOpen={(id) => openItem(id as Uuid)}
-                  onReorder={(request) =>
-                    handleTreeDrop({
-                      kind: "place",
-                      itemId: request.itemId,
-                      targetId: request.targetId,
-                      parentId: selectedItem.id,
-                      edge: request.edge,
-                    })
-                  }
-                />
+                {projectionComplete || folderChildren.length > 0 ? (
+                  <FolderChildrenList
+                    folderName={selectedItem.name}
+                    items={folderChildren}
+                    onOpen={(id) => openItem(id as Uuid)}
+                    onReorder={(request) =>
+                      handleTreeDrop({
+                        kind: "place",
+                        itemId: request.itemId,
+                        targetId: request.targetId,
+                        parentId: selectedItem.id,
+                        edge: request.edge,
+                      })
+                    }
+                  />
+                ) : null}
+                {!projectionComplete ? (
+                  <BranchState kind={discoveryState} containerKind="folder" />
+                ) : null}
               </article>
             ) : null}
           </div>

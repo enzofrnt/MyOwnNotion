@@ -1,163 +1,209 @@
-# Import Notion en ligne de commande
+# Import Notion par API
 
-L’import accepte une archive ZIP native Markdown/CSV de Notion ou un dossier
-local, y compris un export converti pour Obsidian. Il crée un dossier « Import
-Notion » contenant des pages, fichiers et bases ordinaires, modifiables et
-synchronisés avec les clients. Le serveur annonce les écritures du processus
-CLI au prochain heartbeat SSE (20 secondes par défaut) ; une
-reconnexion ou un retour en ligne rattrape le journal canonique. L’import ne
-réalise aucune synchronisation avec Notion.
+L'import de fichiers Markdown/CSV/ZIP et de dossiers Obsidian est supprimé.
+La CLI lit maintenant Notion directement, sans modifier les données source.
+L'import est ponctuel ; ce n'est pas une synchronisation continue.
 
-## Préparer la source et examiner le rapport
+## Accès et découverte
 
-Dans Notion, exporter le contenu au format **Markdown & CSV**, avec les
-sous-pages nécessaires. Un export partiel ne contient pas nécessairement tous
-les fichiers ou pages référencés. Consulter les
-[instructions d’export de Notion](https://www.notion.com/help/export-your-content).
-Les liens externes et images distantes ne sont jamais téléchargés.
-
-Lancer depuis le dépôt avec Bun 1.4.2 :
+Créer une intégration Notion disposant de la lecture des contenus et lui
+partager les pages/bases à importer. Seuls les objets accessibles sont visibles.
+Le jeton est lu depuis `NOTION_TOKEN` ou un fichier privé (0600) désigné par
+`NOTION_TOKEN_FILE`. Il n'est jamais accepté comme argument de commande,
+enregistré dans l'import ou affiché dans les journaux. Ne pas le mettre dans Git.
 
 ```bash
-bun run import:notion --source /chemin/vers/export.zip
-bun run import:notion --source /chemin/vers/dossier --json
+export NOTION_TOKEN_FILE=/chemin/prive/notion-token
+bun run import:notion --discover --json
 ```
 
-Ces commandes lisent uniquement la source. Aucun paramètre de cible n’est
-nécessaire et aucune connexion à une base de données n’est ouverte. `--dry-run`
-impose ce comportement même si `--apply` est présent.
+`--json` contient les titres et identités privées, destinés au propriétaire.
+Sans cette option, la sortie contient uniquement des comptes et codes sûrs.
+La version d'API testée est `2026-03-11`.
 
-Le résumé donne un identifiant d’import stable et les totaux. `--json` produit
-le rapport privé complet : chemins et empreintes de chaque fichier, identités
-canoniques, hiérarchie des pages et fichiers, pages synthétisées, liens résolus
-ou incertains, conversions de propriétés, membres de chaque source et affichages.
-Ce rapport contient les titres et noms de fichiers de la source : le conserver
-dans un emplacement privé si vous le redirigez vers un fichier.
-
-Les observations bloquantes empêchent l’application. Les autres décrivent une
-conversion limitée ou un lien à corriger après import. Un lien manquant ou
-ambigu n’est jamais associé arbitrairement à une page homonyme.
-
-## Appliquer à une installation explicitement choisie
-
-L’administrateur exécute la commande sur un hôte qui accède à la base PostgreSQL,
-au stockage de fichiers et à la clé externe de l’installation. L’installation
-doit être initialisée, avec un propriétaire actif, toutes ses migrations
-appliquées et les écritures autorisées. Une cible restaurée doit avoir terminé
-son activation locale ; ce contrôle est répété pendant la reprise. Les outils PostgreSQL 18 `pg_dump` et
-`pg_restore` doivent être disponibles dans `PATH`, comme pour les
-[sauvegardes complètes](deployment/backups.md).
-
-Configurer explicitement les quatre variables pour cette cible :
-
-| Variable | Valeur |
-| --- | --- |
-| `DATABASE_URL` | Connexion à la base de l’installation choisie |
-| `MYOWNNOTION_BLOB_ROOT` | Racine de son stockage de fichiers |
-| `MYOWNNOTION_DEPLOYMENT_KEY_FILE` | Chemin de sa clé de déploiement |
-| `MYOWNNOTION_BACKUP_ROOT` | Racine de ses sauvegardes ; les complètes utilisent le sous-dossier `full` |
-
-La commande ne choisit aucune base de développement par défaut. Utiliser
-l’identifiant affiché par l’aperçu, ou choisir explicitement un nouvel UUID :
+## Aperçu puis application
 
 ```bash
-bun run import:notion --source /chemin/vers/export.zip --id UUID_DE_L_APERCU --apply
+bun run import:notion --root UUID_NOTION --id UUID_IMPORT
+bun run import:notion --all --id UUID_IMPORT --json
 ```
 
-Après compilation API, le même parcours est disponible avec :
+Plusieurs `--root` peuvent être fournis. Pour exclure une base précise, ajouter
+`--exclude-database UUID_BASE_NOTION` (répétable) à l'aperçu et à l'application.
+La base, ses sources, membres et descendants sont omis de la projection ; aucune
+exclusion universelle par nom n'est faite. La sélection exclue est conservée
+avec le plan pour la reprise. La collecte peut encore lire ces objets en mode
+`--all`, avant le filtrage ; l'option ne modifie jamais Notion.
+
+Plusieurs racines peuvent être sélectionnées. `--all` sélectionne les objets
+accessibles. Une source sélectionnée entraîne la lecture de son propriétaire
+et des autres sources de cette base pour conserver une seule page de base.
+L'aperçu n'ouvre pas la base MyOwnNotion et n'écrit aucun cache privé sur disque.
+`--dry-run` a priorité sur `--apply`.
+
+Examiner les avis de conversion, puis fournir les paramètres explicites de la
+cible : `DATABASE_URL`, `MYOWNNOTION_BLOB_ROOT`, `MYOWNNOTION_BACKUP_ROOT` et
+`MYOWNNOTION_DEPLOYMENT_KEY_FILE`. Pour les exécutions locales, PostgreSQL 18
+`pg_dump` et `pg_restore` doivent être dans PATH. Le conteneur API les fournit.
 
 ```bash
-bun apps/api/dist/imports/notion/cli.js --help
+bun run import:notion --all --id UUID_IMPORT --apply
 ```
 
-Chaque nouvel import prend une sauvegarde complète vérifiée **avant le premier
-changement**, y compris sur une cible vide. Une sauvegarde indisponible ou
-échouée empêche l’import. Le reçu de réussite contient l’identifiant de cette
-sauvegarde et du dossier créé.
+Chaque nouvelle application prend une sauvegarde complète vérifiée. Le serveur
+refuse une installation inactive, une migration en attente, une clé indisponible
+ou une politique d'écriture bloquée. Les objets sont regroupés sous « Import
+Notion ». Contenu, fichiers, originaux et snapshot sont chiffrés au repos.
+L'archive originale reste dans le snapshot privé de récupération : elle
+n'ajoute ni dossier « Sources importées » ni fichier JSON à l'arborescence.
+Le compteur d'originaux du rapport désigne cette archive privée.
 
-Les mutations utilisent les services canoniques et les protections habituelles.
-Les pages, propriétés, pièces jointes, originaux et informations de reprise sont
-chiffrés au repos. L’événement final d’audit identifie une commande de
-l’administrateur d’hébergement ; aucun cookie propriétaire n’est requis.
+Une nouvelle collecte peut observer des modifications ou de nouvelles URL de
+médias. Après un début d'application, utiliser la reprise du snapshot original :
 
-## Reprendre ou examiner une interruption
+```bash
+bun run import:notion --resume --id UUID_IMPORT
+bun run import:notion --resume --id UUID_IMPORT --dry-run --json
+```
 
-Relancer exactement la même commande avec **le même UUID et les mêmes octets
-source**. Chaque opération validée possède un point de reprise chiffré, écrit
-dans sa transaction. La reprise conserve la première sauvegarde et ne recrée
-pas les éléments déjà importés. Deux processus ne peuvent pas traiter
-simultanément le même import.
+La reprise ne contacte pas Notion, conserve les identités et n'écrase pas les
+éditions locales ultérieures. Une collecte interrompue avant application ne
+crée aucun contenu local ; la relancer. Ctrl+C annule la collecte ou arrête
+entre les opérations canoniques. Les opérations déjà acceptées restent durables.
 
-Une importation déjà terminée indique « already complete » sans remplacer les
-modifications ultérieures du propriétaire. Pendant une reprise, une page ou
-définition de base modifiée depuis sa dernière opération importée provoque
-`import.target-changed`. Une source différente provoque `import.source-changed`.
-Ne supprimer ni les données partielles ni leurs points de reprise pour forcer
-le passage : examiner le dossier créé et le rapport, puis choisir explicitement
-une nouvelle importation si une seconde copie est souhaitée.
+## Fidélité et limites
 
-L’import est progressif ; une interruption peut laisser un dossier partiellement
-rempli. La sauvegarde complète reste disponible indépendamment de cet état.
-La restauration complète suit son parcours normal de vérification et
-d’activation, avec les conséquences sur la confiance des appareils décrites
-dans sa documentation. L’import ne déclenche aucune restauration automatique.
+Pages/sous-pages, texte riche, listes, cases, toggles, callouts, code, tableaux,
+images et pièces jointes, équations de bloc/en ligne, sommaires, mentions de pages
+et liens internes deviennent des objets
+natifs. Chaque base garde ses sources et chaque ligne sa propre appartenance.
+Les options/couleurs et les relations accessibles sont conservées.
 
-Les erreurs courantes sont des codes sans contenu de notes :
+Les types de propriétés natifs sont titre, texte, nombre, date/instant, statut,
+sélection, sélection multiple, case et relation. Les propriétés Personne,
+auteur et dernier éditeur sont ignorées. Les couvertures des pages et bases
+sont exclues ; MyOwnNotion ne prévoit pas de couvertures de page.
+Les fichiers de propriété,
+formules, agrégations, URL et métadonnées sans type natif conservent une valeur
+lisible et leur original JSON protégé. Les formules ne sont pas exécutées.
+Les plages de dates et fuseaux ne sont pas entièrement représentables.
+Les propriétés texte gardent leur texte simple ; leurs marques originales,
+groupes de statuts et formats de nombres non traduits sont conservés et signalés.
+Les pages découvertes mais absentes d'une requête de source sont également
+collectées. Les modèles identifiés deviennent des pages ordinaires, sans règle
+de création automatique.
 
-| Code | Action |
-| --- | --- |
-| `import.preview-blocked` | Examiner les observations bloquantes du rapport JSON |
-| `import.target-configuration-required` | Configurer les quatre paramètres de la cible |
-| `import.pending-migrations` | Mettre à niveau l’installation selon le parcours normal |
-| `import.target-not-ready` | Rétablir l’état prêt et un propriétaire actif |
-| `import.already-running` | Laisser terminer le processus qui utilise cet UUID |
-| `import.source-changed` / `import.target-changed` | Examiner le changement avant de choisir une nouvelle importation |
-| `import.unavailable` | Vérifier clé externe, stockage, connexion et outils de sauvegarde |
+Les vues simples table/Kanban/galerie/liste/calendrier sont traduites quand
+leurs propriétés sont compatibles. Les filtres simples et tris compatibles sont
+traduits. Les requêtes ou configurations non traduites produisent une table
+clairement nommée comme fallback et un avis ; leurs réglages d'origine sont dans
+le snapshot. Le Kanban natif accepte les axes statut, sélection simple et
+sélection multiple (comme « Matière »). Une entrée portant plusieurs options
+apparaît dans chaque colonne, sans duplication canonique. Déplacer une carte
+remplace son appartenance d'origine et conserve les autres sélections ; la
+destination « Sans valeur » retire explicitement toutes les sélections.
+La table accepte le regroupement par statut/sélection simple/sélection multiple/case.
+Un regroupement par texte ou propriété indisponible devient
+une « table sans regroupement (import) » ; les valeurs, filtres et tris
+compatibles sont conservés. Le support natif et la restauration gardée des vues
+historiques sont suivis dans [036](../specs/036-multi-select-boards/spec.md).
+Timeline, chart, form, map et
+dashboard demanderaient une extension de MyOwnNotion.
 
-## Représentations conservées et limites
+Les synced blocks sont matérialisés ; leur synchronisation Notion n'est pas
+reproduite. Un original non partagé devient un placeholder « inaccessible » et
+un avis, avec sa référence conservée. Les colonnes sont mises en séquence.
+Les bases enfants conservent leur présentation : `is_inline: false` devient un
+lien vers la base native ; `true` garde un affichage intégré si sa vue est
+représentable. Si l'indicateur manque ou aucune vue ne peut être affichée, la
+base reste accessible par son lien ; un indicateur absent est signalé.
+`/lien` permet de référencer une page, un dossier ou une base sans l'intégrer.
+Les créations se nomment « Page imbriquée », « Dossier imbriqué » et « Base de
+données imbriquée ». « Base de données intégrée » ouvre le choix entre une
+nouvelle source et une source existante ; elle remplace l'entrée de vue liée.
+Les équations conservent exactement leur source LaTeX et se rendent localement
+avec KaTeX ; elles sont éditables, même si leur syntaxe est invalide ou dépasse
+le sous-ensemble rendu. Les commandes de lien/HTML non fiables sont désactivées.
+`/équation` crée un bloc mathématique et `/sommaire` un sommaire dérivé des
+titres de la page. Les blocs inconnus restent des fallbacks lisibles, accompagnés
+de leur représentation source. Les retours à la ligne des paragraphes deviennent des paragraphes
+distincts ; les lignes supplémentaires d'une liste ou d'un toggle restent dans
+ses sous-blocs. Les cellules de tableau et blocs de code gardent leurs sauts de
+ligne. Le code en ligne garde le style code, exclusif dans notre format ; les
+autres marques originales sont conservées et signalées. Les en-têtes de
+tableau, icônes de fichier et certaines mises en forme sont signalés.
+Les permissions d'équipe, commentaires et historique Notion ne sont pas importés.
 
-Markdown prend en charge titres, paragraphes, styles usuels, listes, cases à
-cocher, citations, code, séparateurs, liens locaux et fichiers. Les liens wiki
-sont interprétés dans le texte, sans modifier les exemples de code. Les ancres
-internes ne sont pas reconstruites. HTML, tableaux Markdown et autres éléments
-non représentables restent du texte inerte, avec une observation. Chaque fichier
-Markdown, CSV et Bases original est également conservé dans « Sources importées »
-avec ses sous-dossiers. Les pièces jointes restent des fichiers canoniques.
+Les médias hébergés sur les hôtes Notion autorisés sont téléchargés sans jeton.
+Les autres médias restent des liens signalés. Une erreur de média conserve le
+lien et produit un avis ; une erreur d'accès aux pages/schémas bloque la collecte.
+Les fichiers ont une limite de 64 MiB, la collecte de 10 000 objets, profondeur
+32 et 256 MiB de snapshot. Les téléchargements expirés doivent être recollectés
+avant application ; une reprise a déjà les bytes enregistrés.
 
-Le CSV natif utilise sa première colonne comme titre. Les lignes correspondent
-aux sous-pages exportées lorsqu’elles sont identifiables sans ambiguïté ; sinon
-une entrée vide identifiée comme synthétisée conserve les propriétés de la ligne.
-Les personnes restent des valeurs ; l’import ne crée aucun compte utilisateur.
-Les valeurs booléennes, numériques, dates simples et statuts sont typées quand
-l’export les décrit sans ambiguïté ; les autres valeurs restent du texte. Les
-listes de liens wiki deviennent des relations lorsque chaque cible est résolue.
+## Instance indépendante de développement
 
-Pour Obsidian, le filtre Bases reconnu est `note["base"] == link("Référence")`
-(ou `note.base`), seul ou dans un `and` contenant cette seule expression. Il
-associe les notes dont la propriété `base` correspond. Aucun code ni formule
-n’est évalué. Plusieurs affichages de la **même référence de sélection** utilisent
-une source réutilisable unique ; deux sélections distinctes ne sont pas fusionnées
-parce qu’elles contiennent actuellement les mêmes pages. Chaque premier affichage
-table conserve son nom et son ordre de propriétés. Les autres réglages et vues
-exportés sont signalés et préservés dans l’original chiffré.
+Ne pas lancer `dev:stack:reset` contre l'instance personnelle. Employer un nom
+Compose, ports, volumes et secret de déploiement distincts, plus un checkout
+indépendant. La validation de 028 utilise `myownnotion-notion-api`, HTTP 8082,
+HTTPS 8445 et PostgreSQL 55433 ; elle n'utilise aucun volume de l'instance UI.
+L'accès navigateur est `http://127.0.0.1:8082`, avec des cookies de développement
+distincts du domaine localhost utilisé par l'instance UI.
+Les options de stack et secrets locaux restent dans des répertoires ignorés.
 
-Un CSV ne fournit pas la configuration des vues Notion : une table est donc
-explicitement nommée « Import — table par défaut ». L’import ne prétend pas
-reconstruire des tableaux Kanban, calendriers, aperçus de galerie, automatisations,
-permissions, historiques ou rôles de tâches absents de l’export. Les associations
-de base impossibles à représenter et les dépendances cycliques empêchent
-l’application.
+## Différences à examiner pour faire évoluer l'application
 
-| Limite | Maximum |
-| --- | --- |
-| Entrées source, fichiers et dossiers | 10 000 |
-| Profondeur de chemin | 32 niveaux |
-| Un fichier Markdown, CSV ou Bases | 8 Mio |
-| Un autre fichier ou l’archive ZIP | 64 Mio |
-| Contenu décompressé total | 256 Mio |
-| Rapport de compression d’une entrée ZIP | 100:1 |
+Ces différences décrivent le modèle de MyOwnNotion et les conversions de cet
+importeur. Elles ne supposent pas qu'un original JSON puisse reproduire un
+comportement interactif absent de l'application.
 
-Les liens symboliques, chemins absolus ou traversants, collisions de noms après
-normalisation, archives chiffrées ou corrompues et alias/tags YAML non sûrs sont
-refusés. Les archives imbriquées restent des pièces jointes opaques. La source
-n’est jamais modifiée et les archives ne sont pas extraites en clair sur disque.
+| Élément Notion | Résultat dans MyOwnNotion | Évolution nécessaire pour une fidélité complète |
+| --- | --- | --- |
+| Bases, sources, lignes, options et relations accessibles | Objets natifs modifiables, sans fusion par titre | Aucune pour la structure prise en charge |
+| Base directement imbriquée dans une autre base | Hiérarchie conservée ; la page de base enfant peut aussi être exposée comme entrée du parent par les parcours locaux fondés sur les enfants directs | Distinguer explicitement conteneur imbriqué et appartenance à une source dans ces parcours |
+| Personne, auteur, dernier éditeur | Propriétés ignorées ; noms présents dans le texte conservés comme texte | Exclusion demandée par le propriétaire |
+| Formules, rollups, fichiers de propriété, URL et métadonnées | Valeur figée en texte et original protégé | Nouveaux types de propriétés ; moteur de calcul pour formules et rollups |
+| Dates avec fin/fuseau ou mélange date/instant | Début natif ; fin/fuseau conservés dans l'original ; date seule convertie à minuit UTC dans une colonne instant | Valeur date avec intervalle, fuseau et précision par valeur |
+| Groupes de statuts, format de nombre | Options/couleurs et nombres natifs ; réglages originaux signalés | Groupes de statuts et formats de présentation |
+| Vues table, Kanban, galerie, liste, calendrier | Vues natives quand compatibles ; requête incompatible remplacée par une table explicitement sans filtre | Filtres imbriqués/relatifs, contrôles rapides, sous-groupes et options de présentation manquantes |
+| Timeline, graphiques, formulaires, cartes, tableaux de bord | Table de remplacement et configuration originale | Nouveaux types de vues |
+| Blocs synchronisés et modèles | Contenu matérialisé ou page ordinaire ; original inaccessible explicitement indiqué | Réutilisation de blocs et modèles, plus partage Notion pour les originaux inaccessibles |
+| Équations de bloc/en ligne et sommaires | Blocs/marks natifs avec source intacte, édition et rendu local ; sommaire actualisé | Commandes LaTeX hors du sous-ensemble KaTeX restent corrigeables comme source |
+| Colonnes, blocs inconnus et certains embeds | Colonnes en séquence ; texte, lien ou placeholder avec original | Colonnes et nouveaux blocs/providers |
+| Sauts de ligne dans un paragraphe, styles cumulés avec code | Paragraphes distincts ; style code seul | Extension du document canonique et de l'éditeur |
+| Couvertures des pages et bases | Ignorées, sans téléchargement ni pièce jointe | Exclusion permanente du produit |
+| Icônes de fichier | Pièces jointes lorsque téléchargeables ; emoji natif | Métadonnées d'icône correspondantes |
+| Permissions, commentaires, historique, automatisations | Non importés | Fonctionnalités dédiées et accès API correspondant ; permissions d'équipe hors direction mono-propriétaire |
+
+Dans la source testée le 2026-10-04, les schémas comportent notamment cinq
+propriétés Personne, désormais ignorées, et une propriété de date de création,
+convertie en texte.
+Les limites de dates, blocs synchronisés, colonnes et filtres de vues
+ont aussi été rencontrées. Formules et rollups sont pris en compte par la
+conversion statique, mais aucun schéma de ce type n'a été observé dans ce test.
+Les résultats et contrôles sont dans
+[la validation de 028](../specs/028-notion-import/validation-api.md) et
+[les corrections de contenu et listes de 034](../specs/034-notion-content-navigation/validation.md).
+La correction du 4 octobre conserve Archive > Lycée > Simple Note, y compris
+lorsque Notion utilise un parent `block_id` dans une colonne. People est exclue
+explicitement de cette instance de test : neuf bases restent actives.
+La correction 035 rétablit huit liens vers des bases enfants sur six pages,
+dont CNAM → Suivi des tâches, et conserve la base réellement intégrée. Une
+sauvegarde et une comparaison aux blocs initiaux précèdent la réparation ;
+aucune base, source ou entrée n'est recréée. Voir [validation035](../specs/035-item-links-database-insertion/validation.md).
+
+Deux limites viennent aussi de l'accès à la source : deux originaux de blocs
+synchronisés sont inaccessibles à l'intégration et 35 blocs sont déclarés
+`unsupported` par l'API. L'original conservé est la réponse reçue de l'API,
+pas une copie de contenu que Notion n'a pas transmis. Étendre MyOwnNotion ne
+suffirait donc pas à récupérer automatiquement ces contenus manquants.
+
+## Références vérifiées
+
+[Obsidian Importer](https://github.com/obsidianmd/obsidian-importer),
+[guide Obsidian](https://help.obsidian.md/import/notion),
+[versionnement Notion](https://developers.notion.com/reference/versioning),
+[limites de requêtes](https://developers.notion.com/reference/request-limits),
+[bases et sources](https://developers.notion.com/reference/retrieve-database),
+[propriétés paginées](https://developers.notion.com/reference/retrieve-a-page-property),
+[vues](https://developers.notion.com/reference/view).

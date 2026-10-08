@@ -4,7 +4,9 @@ import { type DatabaseDefinition, generateUuidV7 } from "@myownnotion/domain";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DatabaseEntryPeek } from "../src/features/databases/database-entry-peek.tsx";
 import { EntryPanel } from "../src/features/databases/entry-panel.tsx";
+import type { LocalContentService } from "../src/services/local-content.ts";
 
 function typeInto(input: HTMLInputElement, value: string) {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
@@ -70,6 +72,7 @@ describe("entry autosave and native draft durability", () => {
     container.remove();
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
   const wait = async () => {
     await act(async () => {
@@ -81,6 +84,69 @@ describe("entry autosave and native draft durability", () => {
     if (input === null) throw new Error("field missing");
     return input;
   };
+  it("cancels a keyboard property drag before Escape dismisses the side peek", async () => {
+    const f = fixture();
+    const close = vi.fn();
+    const source = vi.fn().mockResolvedValue({ definition: f.definition });
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+    const service = {
+      getItem: async () => ({
+        id: f.entry.entryId,
+        kind: "page",
+        lifecycle: "active",
+        name: f.entry.title,
+        currentRevisionId: f.entry.revisionId,
+        pageDocument: null,
+      }),
+      getDatabaseEntry: async () => ({
+        sourceId: f.definition.databaseId,
+        databaseId: f.definition.databaseId,
+        availability: "present",
+        values: { values: {} },
+      }),
+      getDatabase: source,
+      getDatabaseEntryRelationTargets: async () => ({}),
+      subscribeProjection: () => () => {},
+    } as unknown as LocalContentService;
+    await act(async () =>
+      root.render(
+        <DatabaseEntryPeek
+          request={{ entryId: f.entry.entryId, trigger: null }}
+          service={service}
+          drafts={new Map()}
+          relationOptions={[]}
+          renderHeader={() => <h1>Migration</h1>}
+          renderContent={() => <p>Body</p>}
+          onClose={close}
+          onFullPage={() => {}}
+        />,
+      ),
+    );
+    await wait();
+    const handle = document.querySelector<HTMLButtonElement>('button[aria-label="Déplacer Notes"]');
+    const row = handle?.closest(".entry-property-row");
+    if (!handle || !row) throw new Error("Missing property drag handle");
+    const key = (code: string) =>
+      act(() =>
+        handle.dispatchEvent(
+          new KeyboardEvent("keydown", { code, key: code === "Space" ? " " : code, bubbles: true }),
+        ),
+      );
+    act(() => handle.focus());
+    key("Space");
+    await wait();
+    expect(row.getAttribute("data-dragging")).toBe("true");
+    key("Escape");
+    await wait();
+    expect(row.getAttribute("data-dragging")).toBeNull();
+    expect(close).not.toHaveBeenCalled();
+    // Editing the definition would start a second source read. Cancellation
+    // leaves the original projection untouched and issues no edit command.
+    expect(source).toHaveBeenCalledOnce();
+    key("Escape");
+    await wait();
+    expect(close).toHaveBeenCalledOnce();
+  });
   it("coalesces typing and automatically saves the final input without a save button", async () => {
     const f = fixture(),
       save = vi.fn().mockResolvedValue(undefined);

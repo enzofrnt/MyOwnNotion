@@ -190,6 +190,8 @@ Observer sur l’instance courante et disposer de règles réellement vérifiée
   paramètres. Le contrôle indique « Ajoutez une deuxième vue pour changer sa
   source ». Dès que le verrou existant est levé, les deux accès sont actifs.
   La gestion des sources reste distincte et les vues liées gardent leurs règles.
+  L'état désactivé se distingue dès le repos sur toute la ligne (libellé,
+  valeur, icône et chevron), dans les deux thèmes, sans attendre le survol.
 
 ### Key Entities
 
@@ -225,3 +227,25 @@ Observer sur l’instance courante et disposer de règles réellement vérifiée
 - Le 2026-10-03, le propriétaire lève le report des E2E et autorise la publication
   de la branche et l’ouverture d’une PR, avec correction jusqu’à une CI verte.
   Les anciennes notes « sans E2E » décrivent les étapes précédentes uniquement.
+
+## Suivi034 — contenus et présentation
+
+La feature[034](../034-notion-content-navigation/spec.md) étend les contenus
+natifs avec équations/sommaires et corrige l'outline actif et la présentation
+ListView. Les valeurs secondaires restent celles de la vue ; leurs noms sont
+masqués visuellement sur chaque rangée. Aucune nouvelle identité, source ou
+vue n'est créée par cette présentation. Les preuves UI de034 couvrent ces
+surfaces modifiées ; elles ne remplacent pas la validation historique entière.
+
+
+## Ajustement des liens et commandes — 035
+
+Le retour du propriétaire du 4 octobre est défini dans
+[035/spec.md](../035-item-links-database-insertion/spec.md), avec approche et
+suivi dans ses plan.md/tasks.md. Il remplace les libellés précédents par les
+créations « Page/Dossier/Base de données imbriqué(e) », élargit « Lien vers un
+autre élément » aux bases, et fusionne les commandes d'affichage intégré et lié
+dans un dialogue de choix. Le concept de vue liée et la propriété des sources
+restent inchangés. L'import respecte is_inline et corrige les références
+historiques inchangées ; la validation locale propre à035 ne revalide pas les
+anciennes phases de cette feature.
