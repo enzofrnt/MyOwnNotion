@@ -6,6 +6,7 @@ import playwrightConfig from "../../playwright.config.js";
 import { commandsForVitestGroup } from "../../scripts/ci/run-affected-vitest.js";
 import {
   createImpactPlan,
+  e2eMatrixFor,
   loadImpactPolicy,
   parseNameStatusDiff,
   renderImpactSummary,
@@ -67,6 +68,25 @@ describe("impact policy", () => {
     expect(policy.e2eProjects).toEqual(playwrightConfig.projects?.map(({ name }) => name));
   });
 
+  it("derives one uniform shard total from the selected journey count", () => {
+    const journeys = policy.e2eJourneys.length;
+    const expectedTotal = Math.min(
+      policy.e2eShard.maxShards,
+      Math.max(1, Math.ceil(journeys / policy.e2eShard.journeysPerShard)),
+    );
+    const matrix = e2eMatrixFor(policy, journeys);
+    expect(new Set(matrix.map(({ total }) => total))).toEqual(new Set([expectedTotal]));
+    expect(matrix.map(({ project }) => project)).toEqual(
+      policy.e2eProjects.flatMap((project) => Array.from({ length: expectedTotal }, () => project)),
+    );
+    expect(e2eMatrixFor(policy, 1).every(({ total }) => total === 1)).toBe(true);
+    expect(
+      e2eMatrixFor(policy, policy.e2eShard.maxShards * policy.e2eShard.journeysPerShard).every(
+        ({ total }) => total === policy.e2eShard.maxShards,
+      ),
+    ).toBe(true);
+  });
+
   it("keeps the isolated browser preview off Vite's transient compression path", () => {
     const webServers = Array.isArray(playwrightConfig.webServer)
       ? playwrightConfig.webServer
@@ -126,7 +146,7 @@ describe("pull-request selection", () => {
   ])("selects the stale-notice journey when %s changes", (source) => {
     const plan = pullRequestPlan([source]);
     expect(plan.e2e.testFiles).toContain("tests/e2e/backup.spec.ts");
-    expect(plan.e2e.matrix.map(({ project }) => project)).toEqual(policy.e2eProjects);
+    expect(plan.e2e.matrix).toEqual(e2eMatrixFor(policy, plan.e2e.testFiles.length));
   });
 
   it.each([
@@ -137,14 +157,14 @@ describe("pull-request selection", () => {
   ])("selects the bounded menu journey when %s changes", (source) => {
     const plan = pullRequestPlan([source]);
     expect(plan.e2e.testFiles).toContain("tests/e2e/editor-suggestion-menu.spec.ts");
-    expect(plan.e2e.matrix.map(({ project }) => project)).toEqual(policy.e2eProjects);
+    expect(plan.e2e.matrix).toEqual(e2eMatrixFor(policy, plan.e2e.testFiles.length));
   });
 
   it("uses an explicit no-op for documentation-only changes", () => {
     const plan = pullRequestPlan(["README.md", "docs/development.md"]);
     expect(plan.mode).toBe("none");
     expect(plan.vitest).toEqual({ mode: "none", sourceFiles: [], testFiles: [], groups: [] });
-    expect(plan.e2e.matrix).toEqual([{ project: "none" }]);
+    expect(plan.e2e.matrix).toEqual([{ project: "none", shard: 1, total: 1 }]);
   });
 
   it("uses Vitest relationships and explicit E2E owners for narrow source changes", () => {

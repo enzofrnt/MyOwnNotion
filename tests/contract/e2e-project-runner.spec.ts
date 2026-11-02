@@ -114,7 +114,9 @@ describe("shared E2E project runner", () => {
     const run = step?.split("- uses: actions/upload-artifact@")[0];
     expect(run).toContain("jq -r '.e2e.testFiles[]' test-impact.json");
     expect(run).toContain("bash scripts/e2e/run-container-project.sh");
-    expect(run).toContain(`--project="$PLAYWRIGHT_PROJECT" "\${journeys[@]}"`);
+    expect(run).toContain(`--project="$PLAYWRIGHT_PROJECT"`);
+    expect(run).toContain(`--shard="\${PLAYWRIGHT_SHARD}/\${PLAYWRIGHT_TOTAL}"`);
+    expect(run).toContain(`"\${journeys[@]}"`);
     expect(run).not.toContain("bun run --bun playwright test");
   });
 });

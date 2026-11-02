@@ -1031,7 +1031,32 @@ When adding or renaming a Playwright `tests/e2e/*.spec.ts` journey, add it to
 `e2eJourneys` in the same change. Policy contract tests fail if any maintained
 journey is missing, duplicated, ownerless, or points to a nonexistent consumer.
 
+### E2E runner shards
+
+Each selected browser project is partitioned into the same number of
+independent runner shards. The total is derived automatically from the number
+of selected journeys: `ceil(journeys / e2eShard.journeysPerShard)`, capped by
+`e2eShard.maxShards` in `ci/test-impact.json`. There is no per-project shard
+table to maintain, and adding journeys raises parallelism on its own; a narrow
+pull request that selects one journey still runs one job per project.
+
+A shard is a complete isolated stack — its own runner, PostgreSQL service,
+migration, web build, browser and report — so the slowest variant no longer
+serializes the matrix on one machine.
+
+`scripts/e2e/run-container-project.sh` passes an explicit `--shard` through
+unchanged; without one it keeps the local WebKit process-recycling behavior.
+Reports are uploaded as `playwright-report-<project>-<shard>-<total>`, and an
+empty selection produces the single `none 1/1` no-op entry. Shard sizing is
+measured against the reference CI and must be re-measured when the journey
+corpus or a browser runtime changes.
+
 ### CI cache boundaries
+
+CI runner images are pinned to `ubuntu-24.04`, the Ubuntu release supported by
+`scripts/ci/install-postgres-client.sh` and the pinned base images. The
+`ubuntu-latest` alias moved to Ubuntu 26 on 2026-10-19 and broke every job that
+installs the pinned PostgreSQL 18 client, so workflows must not use it.
 
 Every JavaScript/TypeScript job uses the repository's pinned Bun setup action.
 The official action keeps its own exact Bun executable cache enabled, then the

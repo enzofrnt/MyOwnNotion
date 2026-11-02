@@ -135,8 +135,10 @@ logic in YAML.
    budgets measure the application rather than V8 instrumentation, and its job
    starts alongside the other test groups.
 3. The E2E job uses a dynamic matrix containing the selected browser/viewport
-   variants. An empty plan produces one `{ "project": "none" }` entry so the
-   required job remains present.
+   variants, expanded into a uniform shard total derived from the selected
+   journey count and the `e2eShard` sizing policy. An empty plan produces one
+   `{ "project": "none", "shard": 1, "total": 1 }` entry so the required job
+   remains present.
 4. API and web image builds use BuildKit caches scoped by target and trust owner.
    Scanning and publication reuse only compatible trusted evidence.
 5. The quality gate accepts only successful prerequisite jobs and continues to

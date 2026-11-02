@@ -206,3 +206,9 @@ obsolete PR run continues consuming runners.
 ## Governance maintenance — 2026-10-04
 
 - [x] T035 Align FR-018/020, plan and quickstart with Constitution 4.0.0 and the owner's impact-based local validation policy; retain the existing planner/full-command behavior and verify documents without application suites. Evidence: 033 verification, section “Validation proportionnée et publication documentaire”.
+
+## Post-validation CI regression maintenance — sharded browser matrix
+
+- [x] T036 Declare the automatic `e2eShard` sizing policy in `ci/test-impact.json` and expand the impact-plan E2E matrix to `{ project, shard, total }` entries, including the `none 1/1` sentinel.
+- [x] T037 Run one isolated CI job per shard with `--shard=<shard>/<total>`, unique `playwright-report-<project>-<shard>-<total>` evidence, and a bounded job timeout.
+- [x] T038 Extend the impact-plan schema and the impact/release-gates/E2E-runner contract tests for sharded matrices, and document shard ownership in `docs/development.md`.

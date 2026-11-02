@@ -254,7 +254,12 @@ describe("affected test topology", () => {
   it("uses a dynamic E2E matrix with an explicit no-op sentinel", () => {
     expect(ci).toContain(`include: ${gha("fromJSON(needs.impact.outputs.e2e_matrix)")}`);
     expect(ci).toContain("if: matrix.project == 'none'");
-    expect(ci).toContain(`playwright-report-${gha("matrix.project")}`);
+    expect(ci).toContain(`PLAYWRIGHT_SHARD: ${gha("matrix.shard")}`);
+    expect(ci).toContain(`PLAYWRIGHT_TOTAL: ${gha("matrix.total")}`);
+    expect(ci).toMatch(/--shard="\$\{PLAYWRIGHT_SHARD\}\/\$\{PLAYWRIGHT_TOTAL\}"/);
+    expect(ci).toContain(
+      `playwright-report-${gha("matrix.project")}-${gha("matrix.shard")}-${gha("matrix.total")}`,
+    );
   });
 
   it("cancels only superseded runs for the same pull request", () => {

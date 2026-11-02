@@ -67,7 +67,7 @@ A contributor can see why each suite ran or did not run, which cache scopes were
 
 1. **Given** a pull-request CI execution is still running, **When** a newer commit for the same pull request starts, **Then** the obsolete execution is cancelled without cancelling an unrelated pull request, `main`, or release execution.
 2. **Given** an impact plan selected or omitted suites, **When** a contributor reads the run summary, **Then** the changed paths, selection mode, selected suites, and conservative fallback reasons are available.
-3. **Given** browser journeys are selected, **When** they execute, **Then** required browser and viewport variants run concurrently in isolated environments and retain distinct failure evidence.
+3. **Given** browser journeys are selected, **When** they execute, **Then** required browser and viewport variants run concurrently in isolated environments, may be partitioned into independently scheduled shards, and retain distinct failure evidence.
 4. **Given** no browser journey is selected, **When** the required browser-test check executes, **Then** one explicit successful no-op result is produced without installing browsers or starting the application stack.
 
 ### Edge Cases
@@ -109,6 +109,7 @@ A contributor can see why each suite ran or did not run, which cache scopes were
 - **FR-020**: Formatting, lint, type, migration, build, Compose, security, and publication gates MUST remain required where applicable under the governing impact policy. Documentation-only local updates MUST NOT launch application tests, builds or containers. Required PR, main and release gates remain blocking; their workflow behavior is not changed by this documentary amendment.
 - **FR-021**: The repository MUST validate that every maintained end-to-end journey and every non-executable exception is represented by the impact policy before selection can pass.
 - **FR-022**: Performance benchmarks MUST execute outside coverage instrumentation, MUST remain part of every complete trusted and local gate, and MUST run as an independently observable required CI job that supports the same affected/full/no-op plan contract as the other Vitest groups.
+- **FR-023**: A selected browser project MAY be partitioned into independently scheduled runner shards whose uniform total is derived from the number of selected journeys and a versioned sizing policy. Every shard MUST own its isolated database, application build and report, and an explicit shard argument MUST never be combined with the local WebKit process-recycling fallback.
 
 ### Key Entities
 

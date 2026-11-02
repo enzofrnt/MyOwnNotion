@@ -59,7 +59,7 @@ Machine-readable output consumed by CI jobs.
 | `vitest.groups` | enum array | `unit`, `integration`, and/or `contract`. |
 | `e2e.mode` | enum | `none`, `selected`, or `full`. |
 | `e2e.testFiles` | path array | Selected journeys. |
-| `e2e.matrix` | project array | Browser/viewport variants, or the `none` sentinel. |
+| `e2e.matrix` | shard array | `{ project, shard, total }` entries, or the `none 1/1` sentinel. |
 | `cacheScope` | string | Trust owner used for BuildKit cache scopes. |
 | `reasons` | strings | Human-readable selection rationale. |
 | `unknownPaths` | paths | Inputs that forced conservative fallback. |

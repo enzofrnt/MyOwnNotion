@@ -27,6 +27,11 @@ export interface ImpactPolicy {
   e2eJourneys: Array<{ test: string; owners: PathRules }>;
   e2eIgnored: string[];
   e2eProjects: string[];
+  /** Automatic shard sizing derived from the selected journey count. */
+  e2eShard: {
+    journeysPerShard: number;
+    maxShards: number;
+  };
 }
 
 export interface ImpactInput {
@@ -56,7 +61,7 @@ export interface ImpactPlan {
   e2e: {
     mode: "none" | "selected" | "full";
     testFiles: string[];
-    matrix: Array<{ project: string }>;
+    matrix: Array<{ project: string; shard: number; total: number }>;
   };
   cacheScope: string;
   reasons: string[];
@@ -157,12 +162,35 @@ function fullPlan(policy: ImpactPolicy, input: ImpactInput, reasons: string[]): 
     e2e: {
       mode: "full",
       testFiles: sortedUnique(policy.e2eJourneys.map(({ test }) => test)),
-      matrix: policy.e2eProjects.map((project) => ({ project })),
+      matrix: e2eMatrixFor(policy, policy.e2eJourneys.length),
     },
     cacheScope: cacheScopeFor(input),
     reasons: sortedUnique(reasons),
     unknownPaths: [],
   };
+}
+
+/**
+ * Expand every Playwright project into the same number of independent runner
+ * shards. The total is derived from the number of selected journeys and a
+ * single policy constant, so adding journeys raises parallelism automatically
+ * instead of requiring a per-project shard table.
+ */
+export function e2eMatrixFor(
+  policy: ImpactPolicy,
+  journeyCount: number,
+): ImpactPlan["e2e"]["matrix"] {
+  const total = Math.min(
+    policy.e2eShard.maxShards,
+    Math.max(1, Math.ceil(journeyCount / policy.e2eShard.journeysPerShard)),
+  );
+  return policy.e2eProjects.flatMap((project) =>
+    Array.from({ length: total }, (_, index) => ({
+      project,
+      shard: index + 1,
+      total,
+    })),
+  );
 }
 
 export function loadImpactPolicy(repoRoot: string): ImpactPolicy {
@@ -275,6 +303,18 @@ export function validateImpactPolicy(policy: ImpactPolicy, repoRoot: string): st
     policy.e2eProjects.includes("none")
   ) {
     failures.push("e2eProjects must contain unique project names and reserve the none sentinel");
+  }
+  const shard = policy.e2eShard;
+  if (
+    shard === undefined ||
+    !Number.isInteger(shard.journeysPerShard) ||
+    shard.journeysPerShard < 1 ||
+    shard.journeysPerShard > 200 ||
+    !Number.isInteger(shard.maxShards) ||
+    shard.maxShards < 1 ||
+    shard.maxShards > 16
+  ) {
+    failures.push("e2eShard must declare integer journeysPerShard (1..200) and maxShards (1..16)");
   }
 
   return sortedUnique(failures);
@@ -457,8 +497,8 @@ export function createImpactPlan(policy: ImpactPolicy, rawInput: ImpactInput): I
       testFiles: selectedE2e,
       matrix:
         e2eMode === "none"
-          ? [{ project: "none" }]
-          : policy.e2eProjects.map((project) => ({ project })),
+          ? [{ project: "none", shard: 1, total: 1 }]
+          : e2eMatrixFor(policy, selectedE2e.length),
     },
     cacheScope: cacheScopeFor(input),
     reasons: sortedUnique(reasons),
@@ -535,6 +575,10 @@ export function renderImpactSummary(plan: ImpactPlan): string {
     `- Cache trust scope: \`${plan.cacheScope}\``,
     `- Vitest: **${plan.vitest.mode}** (${plan.vitest.groups.join(", ") || "no groups"})`,
     `- E2E: **${plan.e2e.mode}**`,
+    "",
+    "### E2E shards",
+    "",
+    listOrNone(plan.e2e.matrix.map(({ project, shard, total }) => `${project} ${shard}/${total}`)),
     "",
     "### Changed paths",
     "",

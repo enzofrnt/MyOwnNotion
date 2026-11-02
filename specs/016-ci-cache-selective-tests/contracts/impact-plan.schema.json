@@ -62,8 +62,12 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["project"],
-            "properties": { "project": { "type": "string", "minLength": 1 } }
+            "required": ["project", "shard", "total"],
+            "properties": {
+              "project": { "type": "string", "minLength": 1 },
+              "shard": { "type": "integer", "minimum": 1 },
+              "total": { "type": "integer", "minimum": 1 }
+            }
           }
         }
       }
