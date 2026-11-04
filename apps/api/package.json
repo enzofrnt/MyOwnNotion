@@ -13,7 +13,7 @@
     "admin": "bun src/admin/admin-cli.ts"
   },
   "dependencies": {
-    "@fastify/multipart": "^9.4.0",
+    "@fastify/multipart": "^10.1.6",
     "@fastify/websocket": "^11.3.0",
     "@modelcontextprotocol/server": "2.3.0",
     "@myownnotion/blob-store": "workspace:*",
