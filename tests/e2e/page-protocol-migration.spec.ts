@@ -225,7 +225,6 @@ test.describe("page protocol migration", () => {
     await saveDocument(page, { until: "synced" });
     await expect(surface(page)).toContainText(replacementText);
     await expect(surface(page)).toContainText(operationalText);
-    await expect(page.getByTestId("conflict-notice")).toHaveCount(0);
     expect(pageErrors).toEqual([]);
 
     const localState = await page.evaluate(

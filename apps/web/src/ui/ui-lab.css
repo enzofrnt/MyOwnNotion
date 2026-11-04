@@ -36,7 +36,7 @@
 }
 
 .ui-lab__eyebrow {
-  color: var(--ui-color-accent);
+  color: var(--ui-color-accent-text);
   font-size: var(--ui-text-xs);
   font-weight: 700;
   letter-spacing: 0.08em;

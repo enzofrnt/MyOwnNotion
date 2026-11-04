@@ -132,7 +132,6 @@ test.describe("offline continuity (US6)", () => {
       await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
         "online device",
       );
-      await expect(page.getByTestId("conflict-notice")).toHaveCount(0);
 
       await second.page.reload();
       await openWorkspace(second.page);

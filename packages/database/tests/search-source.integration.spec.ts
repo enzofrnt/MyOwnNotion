@@ -6,7 +6,13 @@ import {
   schema,
   submitMutation,
 } from "@myownnotion/database";
-import { generateUuidV7, initialKeys, type MutationCommand, type Uuid } from "@myownnotion/domain";
+import {
+  generateUuidV7,
+  initialKeys,
+  type MutationCommand,
+  ownedSourceIdFromItemId,
+  type Uuid,
+} from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
@@ -254,6 +260,7 @@ describe("search source repository", () => {
     const sources = await readSearchSources(context.handle.db, context.workspaceId, [databaseId]);
     expect(sources.map(({ itemId }) => itemId)).toEqual([databaseId, entryId]);
     expect(sources.find(({ itemId }) => itemId === entryId)?.databaseEntry).toEqual({
+      sourceId: ownedSourceIdFromItemId(databaseId),
       databaseId,
       definitionVersion: 1,
       valueVersion: 1,

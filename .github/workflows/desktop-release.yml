@@ -26,7 +26,7 @@ jobs:
 
   verify-candidate:
     name: Verify the gate ran on this commit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: quality-gate
     permissions:
       contents: read
@@ -145,7 +145,7 @@ jobs:
       - verify-candidate
       - package
     if: needs.quality-gate.result == 'success' && needs.verify-candidate.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     env:

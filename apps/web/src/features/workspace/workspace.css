@@ -1138,7 +1138,7 @@
 }
 
 .page-outline__item[data-active="true"] .page-outline__label {
-  color: var(--ui-color-accent);
+  color: var(--ui-color-accent-text);
 }
 
 .page-outline__link:focus-visible {

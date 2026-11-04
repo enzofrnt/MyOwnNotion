@@ -1,0 +1,69 @@
+:root {
+  color-scheme: light dark;
+}
+
+.startup-failure {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: 2rem 1rem;
+  background: var(--ui-color-canvas);
+  color: var(--ui-color-text);
+}
+
+.startup-failure__panel {
+  width: min(34rem, 100%);
+  padding: 2rem;
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-color-surface);
+  box-shadow: var(--ui-shadow-panel);
+}
+
+.startup-failure__title {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+.startup-failure__message {
+  margin: 0 0 0.75rem;
+  color: var(--ui-color-text-muted);
+}
+
+.startup-failure__hint {
+  margin: 0 0 1.25rem;
+  color: var(--ui-color-text-muted);
+}
+
+.startup-failure__reload {
+  min-height: var(--ui-target);
+  padding: 0 1rem;
+  border: 1px solid var(--ui-color-border-strong);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-color-surface-raised);
+  color: var(--ui-color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.startup-failure__reload:hover {
+  background: var(--ui-color-surface-hover);
+}
+
+.startup-failure__reload:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 2px;
+}
+
+.startup-failure__details {
+  margin-top: 1rem;
+  color: var(--ui-color-text-muted);
+}
+
+.startup-failure__details pre {
+  overflow: auto;
+  max-height: 12rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+}

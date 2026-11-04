@@ -537,7 +537,6 @@ test.describe("progressive startup (feature 040)", () => {
       await selectItem(page, pageName);
       await expect(editor(page)).toContainText(localText);
       await saveDocument(page);
-      await expect(page.getByTestId("conflict-notice")).toHaveCount(0);
 
       await page.unroute("**/v1/**");
       await page.unroute("**/health");

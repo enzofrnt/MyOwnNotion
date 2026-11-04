@@ -1033,6 +1033,11 @@ journey is missing, duplicated, ownerless, or points to a nonexistent consumer.
 
 ### CI cache boundaries
 
+CI runner images are pinned to `ubuntu-24.04`, the Ubuntu release supported by
+`scripts/ci/install-postgres-client.sh` and the pinned base images. The
+`ubuntu-latest` alias moved to Ubuntu 26 on 2026-10-19 and broke every job that
+installs the pinned PostgreSQL 18 client, so workflows must not use it.
+
 Every JavaScript/TypeScript job uses the repository's pinned Bun setup action.
 The official action keeps its own exact Bun executable cache enabled, then the
 repository action always executes `bun ci`. It deliberately does not persist

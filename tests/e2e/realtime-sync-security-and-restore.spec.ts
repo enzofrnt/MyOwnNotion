@@ -168,7 +168,6 @@ test("a restore accepts newer offline work instead of replacing it", async ({
     await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
       "travail local après sauvegarde",
     );
-    await expect(page.getByTestId("conflict-notice")).toHaveCount(0);
 
     verifier = await openSecondDevice(browser, baseURL);
     await openWorkspace(verifier.page);

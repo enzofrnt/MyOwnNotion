@@ -30,6 +30,8 @@ export interface SearchSourceRecord {
     readonly body: Readonly<Record<string, unknown>>;
   } | null;
   readonly databaseEntry?: {
+    /** The entry's source owns the definition envelope, not the host page. */
+    readonly sourceId: Uuid;
     readonly databaseId: Uuid;
     readonly definitionVersion: number;
     readonly valueVersion: number;
@@ -50,6 +52,7 @@ type SearchSourceRow = {
   readonly documentFormatVersion: number | null;
   readonly documentBody: unknown;
   readonly databaseId: string | null;
+  readonly sourceId: string | null;
   readonly definitionVersion: number | null;
   readonly valueVersion: number | null;
 };
@@ -69,9 +72,13 @@ function mapSearchSource(row: SearchSourceRow): SearchSourceRecord {
             body: row.documentBody as Readonly<Record<string, unknown>>,
           },
     databaseEntry:
-      row.databaseId === null || row.definitionVersion === null || row.valueVersion === null
+      row.sourceId === null ||
+      row.databaseId === null ||
+      row.definitionVersion === null ||
+      row.valueVersion === null
         ? null
         : {
+            sourceId: row.sourceId as Uuid,
             databaseId: row.databaseId as Uuid,
             definitionVersion: row.definitionVersion,
             valueVersion: row.valueVersion,
@@ -88,6 +95,7 @@ const searchSourceSelection = {
   documentFormatVersion: pageDocuments.formatVersion,
   documentBody: pageDocuments.body,
   databaseId: databaseEntries.databaseId,
+  sourceId: databaseEntries.sourceId,
   definitionVersion: databases.definitionVersion,
   valueVersion: databaseEntries.valueVersion,
 };
@@ -102,7 +110,7 @@ export async function listSearchSources(
     .from(items)
     .leftJoin(pageDocuments, eq(pageDocuments.pageId, items.id))
     .leftJoin(databaseEntries, eq(databaseEntries.entryItemId, items.id))
-    .leftJoin(databases, eq(databases.itemId, databaseEntries.databaseId))
+    .leftJoin(databases, eq(databases.sourceId, databaseEntries.sourceId))
     .where(
       and(eq(items.workspaceId, workspaceId), eq(items.lifecycle, "active"), visibleEditorialItem),
     )
@@ -138,7 +146,7 @@ export async function readSearchSources(
     .from(items)
     .leftJoin(pageDocuments, eq(pageDocuments.pageId, items.id))
     .leftJoin(databaseEntries, eq(databaseEntries.entryItemId, items.id))
-    .leftJoin(databases, eq(databases.itemId, databaseEntries.databaseId))
+    .leftJoin(databases, eq(databases.sourceId, databaseEntries.sourceId))
     .where(
       and(
         eq(items.workspaceId, workspaceId),

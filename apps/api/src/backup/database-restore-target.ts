@@ -337,15 +337,16 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
         throw new Error("a restored database has no journal identity");
       }
       restoredDatabases.set(database.databaseId, database);
+      const sourceId = database.sourceId ?? ownedSourceIdFromItemId(database.databaseId);
       await options.tx.insert(schema.databases).values({
         itemId: database.databaseId,
-        sourceId: database.sourceId ?? ownedSourceIdFromItemId(database.databaseId),
+        sourceId,
         definitionRevisionId: database.definitionRevisionId ?? journalItem.currentRevisionId,
         workspaceId: options.workspaceId,
         definitionVersion: database.definitionVersion,
       });
       await options.protectedContent?.writeDatabaseDefinition(options.tx, {
-        databaseId: database.databaseId,
+        sourceId,
         definitionVersion: database.definitionVersion,
         definition: database.definition,
       });

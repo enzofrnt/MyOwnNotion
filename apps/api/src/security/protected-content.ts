@@ -16,9 +16,11 @@ import type { Database, Transaction } from "@myownnotion/database";
 import {
   type DatabaseDefinition,
   type EntryValues,
+  ownedSourceIdFromItemId,
   type ProtectedFileIdentity,
   type ProtectedFileManifest,
   readProtectedFileManifest,
+  type Uuid,
 } from "@myownnotion/domain";
 import type { ProtectedRecordService } from "./protected-record-service.ts";
 
@@ -356,30 +358,53 @@ export class ProtectedContent {
     );
   }
 
-  /** Seals a database schema, its views and task-role mapping. */
+  /**
+   * Seals a database schema, its views and task-role mapping.
+   *
+   * The envelope is keyed by the *source*, not by the owner page: a database
+   * page can own several independent sources, each with its own definition
+   * version starting at 1. Keying by the page made two sources overwrite one
+   * another and let readers resolve an arbitrary definition.
+   */
   async writeDatabaseDefinition(
     executor: Database | Transaction,
-    input: { databaseId: string; definitionVersion: number; definition: DatabaseDefinition },
+    input: { sourceId: string; definitionVersion: number; definition: DatabaseDefinition },
   ): Promise<void> {
     await this.#write(
       executor,
       PROTECTED_ENTITY_TYPES.databaseDefinition,
-      input.databaseId,
+      input.sourceId,
       input.definitionVersion,
       input.definition,
     );
   }
 
+  /**
+   * Opens a source definition envelope.
+   *
+   * `legacyDatabaseId` is the compatibility fallback for the single default
+   * source: before the source-keyed envelope, the default source's definition
+   * was stored under its owner page id. The fallback applies only when
+   * `sourceId` really is that page's default source, so a secondary source can
+   * never silently open the former host's definition.
+   */
   async readDatabaseDefinition(
     executor: Database | Transaction,
-    databaseId: string,
-    definitionVersion?: number,
+    input: { sourceId: string; definitionVersion?: number; legacyDatabaseId?: string },
   ): Promise<DatabaseDefinition | null> {
+    const value = await this.#read<DatabaseDefinition>(
+      executor,
+      PROTECTED_ENTITY_TYPES.databaseDefinition,
+      input.sourceId,
+      input.definitionVersion,
+    );
+    if (value !== null || input.legacyDatabaseId === undefined) return value;
+    if (input.sourceId !== ownedSourceIdFromItemId(input.legacyDatabaseId as Uuid)) return null;
     return await this.#read<DatabaseDefinition>(
       executor,
       PROTECTED_ENTITY_TYPES.databaseDefinition,
-      databaseId,
-      definitionVersion,
+      input.legacyDatabaseId,
+      input.definitionVersion,
     );
   }
 

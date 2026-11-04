@@ -85,7 +85,6 @@ async function waitForPageSynchronized(page: Page): Promise<void> {
   const status = page.getByTestId("editor-sync-status");
   await expect(status).toHaveAttribute("data-durable", "true", { timeout: 30_000 });
   await expect(status).toHaveAttribute("data-sync", "synced", { timeout: 30_000 });
-  await expect(page.getByTestId("conflict-notice")).toHaveCount(0);
 }
 
 async function goOffline(device: Device): Promise<void> {

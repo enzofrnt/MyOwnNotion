@@ -26,14 +26,27 @@ Les décisions transversales validées seront consignées ici sous forme de docu
   locale reconstruisible, backlinks, périmètres et rendu borné sans nouvelle
   source de vérité.
 
-## Frontières envisagées
+## Frontières actuelles
 
 - `apps/web` : expérience utilisateur web et orchestration côté client.
-- `apps/api` : API, authentification, partage et synchronisation distante sous Bun.
-- `packages/editor` : modèle et interface d’édition par blocs, avec Tiptap comme candidat initial.
-- `packages/graph` : projection pure et déterministe des liens, backlinks,
-  périmètres et dispositions du graphe.
-- `packages/database` : schémas, migrations et accès à la persistance.
-- `packages/mcp` : surface MCP séparée du cœur métier.
+- `apps/api` : API HTTP, authentification, synchronisation distante et surface MCP sous Bun.
+- `apps/desktop` : hôte Electron (fenêtre, IPC, mises à jour, politiques de navigation).
+- `packages/contracts` : schémas et DTO partagés entre l'API, le client et les tests de contrat.
+- `packages/domain` : modèle canonique, règles métier et crypto ; **aucune dépendance workspace**.
+- `packages/database` : schémas Drizzle, migrations et repositories PostgreSQL.
+- `packages/page-state` : état de page convergent (Loro, blocs, projections).
+- `packages/client-core` : outbox, stockage local, réconciliation et orchestration hors ligne.
+- `packages/blob-store` : stockage adressé par contenu, chiffrement des blocs et uploads partiels.
+- `packages/graph` : projection pure et déterministe des liens, backlinks, périmètres et dispositions.
+- `packages/test-utils` : fixtures PostgreSQL et générateurs de propriétés.
 
-Ces frontières sont provisoires. Le premier `plan.md` concerné doit les confirmer, les modifier ou les supprimer selon les besoins de la spec. Une technologie n’est considérée comme choisie que lorsqu’un plan approuvé la documente.
+Règles de dépendance vérifiées au HEAD : `domain` ne dépend d'aucun package du
+dépôt ; `contracts`, `graph`, `page-state`, `blob-store` et `database` dépendent
+de `domain` ; `client-core` dépend de `contracts`, `domain`, `graph` et
+`page-state` ; `api` dépend de `blob-store`, `contracts`, `database`, `domain` et
+`page-state` ; `web` dépend de `client-core`, `contracts`, `domain`, `graph` et
+`page-state`. Aucun cycle de production n'est admis. `apps/desktop` importe
+aujourd'hui le numéro de protocole de `packages/domain` par chemin relatif sans
+déclarer la dépendance workspace : toute nouvelle frontière desktop doit passer
+par `@myownnotion/domain` dans `apps/desktop/package.json`.
+
