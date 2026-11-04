@@ -134,7 +134,7 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2.10.2-alpine
+    image: caddy:2.11.7-alpine
     depends_on:
       api:
         condition: service_healthy
