@@ -90,7 +90,7 @@ jobs:
             --head "$HEAD_SHA" \
             --pr-number "$PR_NUMBER" \
             --output test-impact.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-impact-plan
           path: test-impact.json
@@ -159,7 +159,7 @@ jobs:
           name: test-impact-plan
       - if: needs.impact.outputs.unit_mode != 'none'
         run: bun run ci:test:affected --plan test-impact.json --group unit
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && needs.impact.outputs.unit_mode == 'full'
         with:
           name: coverage
@@ -357,7 +357,7 @@ jobs:
           fi
           bash scripts/e2e/run-container-project.sh \
             --project="$PLAYWRIGHT_PROJECT" "${journeys[@]}"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && matrix.project != 'none'
         with:
           name: playwright-report-${{ matrix.project }}
@@ -386,7 +386,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Read pinned build inputs
         id: bases
         run: |
@@ -402,7 +402,7 @@ jobs:
           echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
       - name: Build API for every pinned platform
         id: build-api
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/api.Dockerfile
@@ -417,7 +417,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=api-${{ needs.impact.outputs.cache_scope }},ignore-error=true
       - name: Build web for every pinned platform
         id: build-web
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/web.Dockerfile
@@ -449,7 +449,7 @@ jobs:
               images: { api: $api, web: $web }
             }' > image-build.json
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: image-build
           path: image-build.json
@@ -473,7 +473,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-bun
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Read pinned runtime base
         id: base
         run: |
@@ -482,7 +482,7 @@ jobs:
           [[ "$runtime_base" =~ ^[^@]+@sha256:[0-9a-f]{64}$ ]]
           echo "bun=$runtime_base" >> "$GITHUB_OUTPUT"
       - name: Build the native packaged API
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/api.Dockerfile
@@ -500,7 +500,7 @@ jobs:
           set -euo pipefail
           bash scripts/ci/smoke-api-image.sh myownnotion-api:recovery-smoke 2>&1 | tee image-runtime.log
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: image-runtime-${{ matrix.arch }}
           path: image-runtime.log
@@ -535,7 +535,7 @@ jobs:
         # that never ran.
         run: bun run security:audit --json > dependency-audit.json || (cat dependency-audit.json; exit 1)
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dependency-audit
           path: dependency-audit.json
@@ -570,7 +570,7 @@ jobs:
           sarif_file: secret-scan.sarif
           category: secret-scan
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: secret-scan
           path: secret-scan.sarif
@@ -596,7 +596,7 @@ jobs:
           sarif_file: static-security.sarif
           category: static-security-analysis
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: static-security
           path: static-security.sarif
@@ -618,7 +618,7 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Read the pinned base image
         id: bases
         # The Dockerfile takes its base as a build argument with no default, so
@@ -628,7 +628,7 @@ jobs:
         # to supply the digest, including this one.
         run: echo "bun=$(jq -r '.bases.bun | "\(.ref)@\(.digest)"' docker/base-images.json)" >> "$GITHUB_OUTPUT"
       - name: Build the API image for scanning
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/api.Dockerfile
@@ -704,7 +704,7 @@ jobs:
           # replace the first.
           category: container-vulnerability-scan
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: container-scan
           path: container-scan.sarif
@@ -721,7 +721,7 @@ jobs:
       - uses: ./.github/actions/setup-bun
       - run: bun run security:licenses
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: license-policy
           path: license-policy.json
@@ -799,8 +799,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -823,7 +823,7 @@ jobs:
           echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
       - name: Publish immutable API image
         id: publish-api
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/api.Dockerfile
@@ -848,7 +848,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=api-main,ignore-error=true
       - name: Publish immutable web image
         id: publish-web
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/web.Dockerfile
@@ -891,7 +891,7 @@ jobs:
                }
              }' > published-images.json
           cat published-images.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: published-images
           path: published-images.json
