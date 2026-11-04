@@ -111,10 +111,13 @@ describe("shared E2E project runner", () => {
     const workflow = readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
     const step = workflow.split("- name: Run selected journeys in this isolated project")[1];
     expect(step).toBeDefined();
+    expect(step).toContain("PLAYWRIGHT_SHARD: ${{ matrix.shard }}");
     const run = step?.split("- uses: actions/upload-artifact@")[0];
     expect(run).toContain("jq -r '.e2e.testFiles[]' test-impact.json");
     expect(run).toContain("bash scripts/e2e/run-container-project.sh");
-    expect(run).toContain(`--project="$PLAYWRIGHT_PROJECT" "\${journeys[@]}"`);
+    expect(run).toContain(`--project="$PLAYWRIGHT_PROJECT"`);
+    expect(run).toContain(`--shard="$PLAYWRIGHT_SHARD"`);
+    expect(run).toContain('"${journeys[@]}"');
     expect(run).not.toContain("bun run --bun playwright test");
   });
 });

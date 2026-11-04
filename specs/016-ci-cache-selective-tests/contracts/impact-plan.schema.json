@@ -62,8 +62,12 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["project"],
-            "properties": { "project": { "type": "string", "minLength": 1 } }
+            "required": ["project", "shard", "shardId"],
+            "properties": {
+              "project": { "type": "string", "minLength": 1 },
+              "shard": { "type": "string", "pattern": "^[1-9][0-9]*/(?:[1-9][0-9]*)$" },
+              "shardId": { "type": "string", "pattern": "^[1-9][0-9]*-[1-9][0-9]*$" }
+            }
           }
         }
       }

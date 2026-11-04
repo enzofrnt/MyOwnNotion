@@ -40,6 +40,17 @@ function pullRequestPlan(
   });
 }
 
+function expectedMatrix(selectedCount: number) {
+  return policy.e2eProjects.flatMap((project) => {
+    const total = Math.min(policy.e2eShards?.[project] ?? 1, Math.max(1, selectedCount));
+    return Array.from({ length: total }, (_, index) => ({
+      project,
+      shard: `${index + 1}/${total}`,
+      shardId: `${index + 1}-${total}`,
+    }));
+  });
+}
+
 describe("impact policy", () => {
   it("is complete and internally valid", () => {
     expect(validateImpactPolicy(policy, repoRoot)).toEqual([]);
@@ -65,6 +76,33 @@ describe("impact policy", () => {
 
   it("keeps the E2E matrix aligned with Playwright projects", () => {
     expect(policy.e2eProjects).toEqual(playwrightConfig.projects?.map(({ name }) => name));
+  });
+
+  it("expands measured shards without scheduling an empty job", () => {
+    const full = pullRequestPlan(["apps/api/src/app.ts"]);
+    expect(full.e2e.mode).toBe("full");
+    expect(full.e2e.matrix).toEqual(expectedMatrix(full.e2e.testFiles.length));
+    expect(
+      full.e2e.matrix
+        .filter(({ project }) => project === "webkit-desktop")
+        .map(({ shard }) => shard),
+    ).toEqual(["1/3", "2/3", "3/3"]);
+    expect(full.e2e.matrix.filter(({ project }) => project === "chromium-desktop")).toEqual([
+      { project: "chromium-desktop", shard: "1/1", shardId: "1-1" },
+    ]);
+
+    const narrow = pullRequestPlan(["apps/api/src/routes/authentication.ts"]);
+    expect(narrow.e2e.testFiles).toEqual(["tests/e2e/authentication.spec.ts"]);
+    expect(narrow.e2e.matrix).toEqual(expectedMatrix(1));
+    expect(narrow.e2e.matrix.every(({ shard }) => shard === "1/1")).toBe(true);
+  });
+
+  it("rejects unknown or non-positive shard counts", () => {
+    const invalid = structuredClone(policy);
+    invalid.e2eShards = { "webkit-desktop": 0, unknown: 2 };
+    const failures = validateImpactPolicy(invalid, repoRoot);
+    expect(failures).toContain("e2eShards.webkit-desktop must be an integer between 1 and 8");
+    expect(failures).toContain("e2eShards declares unknown project: unknown");
   });
 
   it("keeps the isolated browser preview off Vite's transient compression path", () => {
@@ -126,7 +164,7 @@ describe("pull-request selection", () => {
   ])("selects the stale-notice journey when %s changes", (source) => {
     const plan = pullRequestPlan([source]);
     expect(plan.e2e.testFiles).toContain("tests/e2e/backup.spec.ts");
-    expect(plan.e2e.matrix.map(({ project }) => project)).toEqual(policy.e2eProjects);
+    expect(plan.e2e.matrix).toEqual(expectedMatrix(plan.e2e.testFiles.length));
   });
 
   it.each([
@@ -137,14 +175,14 @@ describe("pull-request selection", () => {
   ])("selects the bounded menu journey when %s changes", (source) => {
     const plan = pullRequestPlan([source]);
     expect(plan.e2e.testFiles).toContain("tests/e2e/editor-suggestion-menu.spec.ts");
-    expect(plan.e2e.matrix.map(({ project }) => project)).toEqual(policy.e2eProjects);
+    expect(plan.e2e.matrix).toEqual(expectedMatrix(plan.e2e.testFiles.length));
   });
 
   it("uses an explicit no-op for documentation-only changes", () => {
     const plan = pullRequestPlan(["README.md", "docs/development.md"]);
     expect(plan.mode).toBe("none");
     expect(plan.vitest).toEqual({ mode: "none", sourceFiles: [], testFiles: [], groups: [] });
-    expect(plan.e2e.matrix).toEqual([{ project: "none" }]);
+    expect(plan.e2e.matrix).toEqual([{ project: "none", shard: "1/1", shardId: "1-1" }]);
   });
 
   it("uses Vitest relationships and explicit E2E owners for narrow source changes", () => {

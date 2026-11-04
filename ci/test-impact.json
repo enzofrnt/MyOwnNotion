@@ -1375,5 +1375,9 @@
     "webkit-desktop",
     "chromium-mobile",
     "webkit-mobile"
-  ]
+  ],
+  "e2eShards": {
+    "webkit-desktop": 3,
+    "webkit-mobile": 3
+  }
 }
