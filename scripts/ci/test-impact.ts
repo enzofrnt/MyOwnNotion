@@ -27,6 +27,13 @@ export interface ImpactPolicy {
   e2eJourneys: Array<{ test: string; owners: PathRules }>;
   e2eIgnored: string[];
   e2eProjects: string[];
+  /**
+   * Per-project shard counts. A project absent from the map runs as one job.
+   * Only WebKit is sharded today because its engine needs a fresh process per
+   * third of a full corpus; the count is capped by the selected file count so a
+   * narrow PR never creates an empty shard.
+   */
+  e2eShards?: Record<string, number>;
 }
 
 export interface ImpactInput {
@@ -56,7 +63,7 @@ export interface ImpactPlan {
   e2e: {
     mode: "none" | "selected" | "full";
     testFiles: string[];
-    matrix: Array<{ project: string }>;
+    matrix: Array<{ project: string; shard: string }>;
   };
   cacheScope: string;
   reasons: string[];
@@ -157,7 +164,7 @@ function fullPlan(policy: ImpactPolicy, input: ImpactInput, reasons: string[]): 
     e2e: {
       mode: "full",
       testFiles: sortedUnique(policy.e2eJourneys.map(({ test }) => test)),
-      matrix: policy.e2eProjects.map((project) => ({ project })),
+      matrix: e2eMatrix(policy, "full", policy.e2eJourneys.length),
     },
     cacheScope: cacheScopeFor(input),
     reasons: sortedUnique(reasons),
@@ -276,8 +283,40 @@ export function validateImpactPolicy(policy: ImpactPolicy, repoRoot: string): st
   ) {
     failures.push("e2eProjects must contain unique project names and reserve the none sentinel");
   }
+  for (const [project, total] of Object.entries(policy.e2eShards ?? {})) {
+    if (!policy.e2eProjects.includes(project)) {
+      failures.push(`e2eShards declares unknown project: ${project}`);
+    }
+    if (!Number.isInteger(total) || total < 1 || total > 8) {
+      failures.push(`e2eShards.${project} must be an integer between 1 and 8`);
+    }
+  }
 
   return sortedUnique(failures);
+}
+
+/**
+ * Expands the selected projects into CI matrix entries.
+ *
+ * A project with no configured count runs as `1/1`; a configured count is
+ * capped by the number of selected journey files so a narrow impact plan never
+ * schedules a shard with no tests. The mapping is static and reviewable: no
+ * heuristic reads file sizes or durations at plan time.
+ */
+function e2eMatrix(
+  policy: ImpactPolicy,
+  mode: ImpactPlan["e2e"]["mode"],
+  selectedCount: number,
+): Array<{ project: string; shard: string }> {
+  if (mode === "none") return [{ project: "none", shard: "1/1" }];
+  const available = Math.max(1, selectedCount);
+  return policy.e2eProjects.flatMap((project) => {
+    const total = Math.min(policy.e2eShards?.[project] ?? 1, available);
+    return Array.from({ length: total }, (_, index) => ({
+      project,
+      shard: `${index + 1}/${total}`,
+    }));
+  });
 }
 
 export function createImpactPlan(policy: ImpactPolicy, rawInput: ImpactInput): ImpactPlan {
@@ -455,10 +494,7 @@ export function createImpactPlan(policy: ImpactPolicy, rawInput: ImpactInput): I
     e2e: {
       mode: e2eMode,
       testFiles: selectedE2e,
-      matrix:
-        e2eMode === "none"
-          ? [{ project: "none" }]
-          : policy.e2eProjects.map((project) => ({ project })),
+      matrix: e2eMatrix(policy, e2eMode, selectedE2e.length),
     },
     cacheScope: cacheScopeFor(input),
     reasons: sortedUnique(reasons),

@@ -961,8 +961,12 @@ bun run test:e2e:browser-container -- --project=webkit-desktop
 bun run test:e2e:browser-container -- --project=webkit-mobile
 ```
 
-A complete WebKit lane is split into three sequential shards, both in the
-local Linux container and on the Linux CI runner. Both invoke
+A complete WebKit lane is split into three shards. The local Linux container
+runs them sequentially to recycle the engine. In CI, the `e2eShards` map in
+`ci/test-impact.json` expands each WebKit project into three parallel jobs;
+every job gets its own database, server and fresh WebKit process. The shard
+count is capped by the number of selected journey files, so a narrow impact plan
+never schedules an empty shard. All invocations go through
 `scripts/e2e/run-container-project.sh` with the exact selected journey files.
 Each shard starts a fresh WebKit process, which bounds the engine's
 long-corpus resource accumulation while preserving `--fail-on-flaky-tests`.
