@@ -1,0 +1,144 @@
+# Dependabot configuration.
+#
+# The repository is a Bun workspace with one committed text `bun.lock`. The
+# `bun` ecosystem updates it; `npm` must not be used, because Dependabot
+# refuses a `bun.lock` under the npm ecosystem. Bun version updates are
+# supported, but **Bun security updates are not**: GitHub only creates
+# Dependabot security-update PRs for npm-family lockfiles. `bun run
+# security:audit` in the required CI gate remains the blocking security check,
+# and alerts still fire from the dependency graph.
+#
+# Docker base images are pinned by manifest-list digest in
+# `docker/base-images.json` and updated deliberately with
+# `bun run images:build --resolve`; the Dockerfiles consume them as build
+# arguments, so there is intentionally no `docker` entry for them. Compose
+# images are covered below.
+
+version: 2
+
+updates:
+  # Runtime, desktop and workspace dependencies. One grouped PR for minor and
+  # patch updates keeps the weekly signal readable; major updates stay
+  # individual so their migration can be reviewed on its own.
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 5
+    assignees:
+      - "enzofrnt"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+        applies-to: "version-updates"
+    ignore:
+      # Tiptap and ProseMirror are pinned by the root `overrides` for BlockNote
+      # compatibility. Dependabot cannot edit overrides, so a version PR here
+      # would break `bun ci`; the CI dependency audit still blocks a vulnerable
+      # pin and the override is updated by hand in the same change.
+      - dependency-name: "@tiptap/*"
+      - dependency-name: "prosemirror-*"
+      # Editor, CRDT and desktop majors change a compatibility contract.
+      - dependency-name: "@blocknote/*"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "loro-crdt"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "electron"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "@modelcontextprotocol/*"
+        update-types:
+          - "version-update:semver-major"
+      # Bun type definitions track the pinned Bun runtime (1.4.2), not the
+      # latest release. Patch-level type fixes may still flow.
+      - dependency-name: "@types/bun"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+      - dependency-name: "bun-types"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+
+  # Every workflow action is SHA-pinned with a version comment, which Dependabot
+  # understands. Grouped version updates and a separate security-update group
+  # avoid a stream of one-action PRs.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:30"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 3
+    assignees:
+      - "enzofrnt"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+        applies-to: "version-updates"
+      actions-security:
+        patterns:
+          - "*"
+        applies-to: "security-updates"
+
+  # Compose files pin PostgreSQL, Caddy and the published application images.
+  # The application images are release-selected, and a PostgreSQL major needs a
+  # migration and backup rehearsal, so both are excluded from automatic bumps.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 3
+    assignees:
+      - "enzofrnt"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      compose-images:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+        applies-to: "version-updates"
+    ignore:
+      - dependency-name: "ghcr.io/enzofrnt/myownnotion-api"
+      - dependency-name: "ghcr.io/enzofrnt/myownnotion-web"
+      - dependency-name: "myownnotion/api"
+      - dependency-name: "myownnotion/web"
+      - dependency-name: "myownnotion/dev"
+      - dependency-name: "postgres"
+        update-types:
+          - "version-update:semver-major"
