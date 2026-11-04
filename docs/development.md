@@ -87,6 +87,20 @@ Playwright remain specialized dependencies, but Bun installs and launches
 them. Imports from `node:*` use Bun's compatibility APIs and do not imply a
 Node.js process.
 
+### Dependency update automation
+
+`.github/dependabot.yml` configures version updates for the Bun workspace (the
+text `bun.lock`), GitHub Actions and the Compose images. Bun minor and patch
+updates are grouped; majors stay individual. Packages pinned by the root
+`overrides` (Tiptap and ProseMirror) or by a native/CRDT compatibility contract
+are excluded from automatic updates so `bun ci` remains the arbiter.
+
+GitHub does not create Dependabot **security-update** pull requests for the Bun
+ecosystem. Dependabot alerts are enabled on the repository, and the blocking
+`bun run security:audit` job remains the security control. Docker base images
+are digest-pinned in `docker/base-images.json` and updated deliberately with
+`bun run images:build --resolve`, not by Dependabot.
+
 ### Desktop Electron host
 
 The Windows, macOS and Linux host lives in `apps/desktop`. Install it with the

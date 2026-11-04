@@ -31,6 +31,7 @@ Ubuntu 26 du 2026-10-19.
 | R04 — code mort et assertions vides | ✅ cluster `save-state`, `single-instance.ts` et 8 assertions vides supprimés |
 | R09 — doc d'architecture obsolète | ✅ frontières réelles documentées |
 | R08 — runners CI | ✅ Linux épinglé à `ubuntu-24.04` sur les 26 jobs concernés (Windows reste à décider) |
+| Dependabot | ✅ `.github/dependabot.yml` (Bun, Actions, Compose) + alertes et correctifs automatiques activés |
 | R01 / R11 — plafond `unit`, shards | n/a sur `main` (artefacts de la branche jetée) |
 | R03 — orchestrateur de migration non câblé | ⏸️ décision produit requise (non modifié) |
 | D02–D05, rétention, restauration | ⏸️ travaux de feature, hors correctif immédiat |
@@ -153,6 +154,26 @@ Les runners Windows (`windows-latest`, `windows-11-arm`) restent des alias :
 c'est un choix à trancher séparément, et le label explicite doit être vérifié
 sur l'offre GitHub actuelle avant de le remplacer.
 
+### 9. Dependabot
+
+`.github/dependabot.yml` est ajouté avec trois écosystèmes :
+
+- **Bun** (`bun.lock` texte, workspace racine) : mises à jour hebdomadaires,
+  groupe `minor-and-patch`, cooldown de 5 jours, limite de 5 PR. Les paquets
+  épinglés par les `overrides` racine (Tiptap/ProseMirror) sont exclus des
+  mises à jour automatiques, car Dependabot ne sait pas modifier un override et
+  une PR casserait `bun ci`. Les majeures d'Electron, Loro, BlockNote et MCP
+  restent manuelles ; `@types/bun`/`bun-types` suivent le runtime Bun épinglé.
+- **GitHub Actions** : groupe des mises à jour mineures/correctives, groupe
+  séparé pour les correctifs de sécurité, actions SHA-épinglées comprises.
+- **Docker Compose** : images PostgreSQL/Caddy, avec exclusion des images
+  applicatives publiées (sélectionnées par release) et des majeures PostgreSQL.
+
+Les alertes Dependabot et les correctifs automatiques sont activés sur le
+dépôt. GitHub ne crée **pas** de PR de sécurité Dependabot pour un lockfile
+Bun : le job bloquant `bun run security:audit` reste le contrôle de sécurité.
+Le label `dependencies` a été créé pour ces PR.
+
 ## Vérifications exécutées
 
 | Gate | Résultat |
@@ -163,22 +184,25 @@ sur l'offre GitHub actuelle avant de le remplacer.
 | Tests unitaires hors DB | ✅ **302 fichiers / 3 130 tests** |
 | Tests web | ✅ 155 fichiers / 1 039 tests |
 | Contrats de release (workflows) | ✅ 36 tests (`release-gates`, `desktop-release-artifacts`) |
+| Configuration Dependabot | ✅ YAML parsé et validé contre le schéma SchemaStore |
 | `bun run build` | ✅ 11 artefacts ; web 43 sorties, 88 assets précachés |
 | `bun run security:audit` | ✅ aucune vulnérabilité (`--audit-level=high --prod`) |
 | `bun run toolchain:check` | ✅ 2 539 fichiers suivis |
+| CI PR #184 | ✅ unit, DB integration, API/contrats, sécurité, builds, performance, desktop ; Playwright en cours |
 
 ## Non exécuté — limites explicites
 
-- **Aucun test PostgreSQL** : Docker et PostgreSQL sont indisponibles. Les
-  suites `database-integration`, `api-contract`, `workspace-contract`,
-  migrations, contrats de sécurité et E2E n'ont pas tourné. Le correctif D01 est
-  vérifié par le typecheck, les tests d'enveloppe ajoutés et la lecture, pas par
-  une exécution réelle.
-- **Aucune capture visuelle** : les changements de tokens et de couleurs
-  doivent être confirmés par les captures Playwright existantes (les tests
-  `workspace-shell-visual` et `v1-surface-visuals` peuvent révéler un écart).
-- **Aucun test desktop** : le retrait de `single-instance.ts` est vérifié par
-  `grep` (aucune référence) et le typecheck, pas par un parcours Electron.
+- **PostgreSQL en local** : Docker et PostgreSQL sont indisponibles sur la
+  machine d'audit. En revanche, la CI de la PR #184 a exécuté et validé les
+  suites `database-integration`, `api-contract` et `workspace-contract`, y
+  compris les tests D01.
+- **Aucune capture visuelle locale** : les changements de tokens et de couleurs
+  doivent être confirmés par les captures Playwright de la CI (les tests
+  `workspace-shell-visual` et `v1-surface-visuals` peuvent révéler un écart) ;
+  ces jobs étaient encore en cours au moment de la rédaction.
+- **Desktop en local** : aucun parcours Electron n'a été exécuté ici. En CI, les
+  cinq jobs desktop sont verts ; le retrait de `single-instance.ts` reste
+  vérifié par `grep` (aucune référence) et le typecheck.
 - **Aucune mesure de bundle en CI** : le build local donne 435 Ko de CSS brut ;
   un garde-fou de build empêche la ré-inlining, mais aucun budget chiffré n'est
   encore ajouté aux gates.
