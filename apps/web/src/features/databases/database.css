@@ -145,7 +145,7 @@
 .database-view-tab-menu .database-view-tab-menu__danger:hover,
 .database-view-tab-menu .database-view-tab-menu__danger[data-active-item],
 .database-view-tab-menu .database-view-tab-menu__danger:focus-visible {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 
 .database-container-page__stage {
@@ -884,7 +884,7 @@
   justify-self: start;
   border: 0;
   padding: 0;
-  color: var(--ui-color-accent);
+  color: var(--ui-color-accent-text);
   background: transparent;
   cursor: pointer;
 }
@@ -1368,7 +1368,7 @@
 }
 
 .database-column-menu__actions .ui-button[aria-pressed="true"] {
-  color: var(--ui-color-accent);
+  color: var(--ui-color-accent-text);
 }
 
 .database-container-page .database-table tbody tr:hover td,
@@ -2010,7 +2010,7 @@
 
 .database-field__error {
   grid-column: 2;
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
   font-size: 0.85rem;
 }
 
@@ -2145,7 +2145,7 @@
 
 .database-rule--invalid {
   border-color: var(--ui-color-danger);
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 
 .database-view-status {
@@ -2477,7 +2477,7 @@
 .database-cell-inline-field .database-field__error {
   display: block;
   margin-top: 0.15rem;
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
   font-size: 0.75rem;
 }
 
@@ -3267,7 +3267,7 @@
 }
 
 .database-sync--conflict {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 
 .database-shortcut {
@@ -3455,7 +3455,7 @@
 
 .entry-properties__error {
   margin: var(--ui-space-2) 0 0;
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
   font-size: var(--ui-text-sm);
 }
 
@@ -3592,7 +3592,7 @@
 .entry-properties__schema-error {
   margin: var(--ui-space-2) auto;
   max-width: 48rem;
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 .entry-property-impact__heading {
   font-weight: 600;
@@ -3637,7 +3637,7 @@
 }
 .property-settings__validation {
   display: block;
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
   font-size: var(--ui-text-xs);
 }
 .property-settings__type {
@@ -3707,7 +3707,7 @@
 }
 .property-settings__danger.ui-button:hover,
 .property-settings__danger.ui-button:focus-visible {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 .property-option-settings .ui-native-input {
   width: 100%;

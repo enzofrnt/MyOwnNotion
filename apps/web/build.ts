@@ -1,4 +1,5 @@
-import { access, readFile, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import tailwind from "bun-plugin-tailwind";
@@ -103,6 +104,46 @@ if (graphWorkerOutput === undefined) {
 }
 const graphWorkerUrl = publicUrl(graphWorkerOutput.path);
 
+/**
+ * Moves base64 font faces out of the built stylesheets.
+ *
+ * KaTeX's stylesheet embeds sixty woff2/woff/ttf faces as `data:` URIs. Bun
+ * inlines every one of them, which put 1.4 MB of base64 into the
+ * render-blocking CSS. The files are content-addressed, served from the
+ * immutable `/assets/` cache location, and fetched by the browser only when a
+ * glyph actually uses them. The guard fails the build if a future bundler
+ * starts inlining again, because that silently restores the regression.
+ */
+async function externalizeEmbeddedFonts(build: Bun.BuildOutput): Promise<number> {
+  const fontDirectory = path.join(outdir, "assets", "fonts");
+  const fonts = new Map<string, Uint8Array>();
+  let replacedFaces = 0;
+
+  for (const output of build.outputs) {
+    if (!output.path.endsWith(".css")) continue;
+    const css = await readFile(output.path, "utf8");
+    const rewritten = css.replace(
+      /url\(data:(font\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)\)/g,
+      (_match, mime: string, base64: string) => {
+        const bytes = Buffer.from(base64, "base64");
+        const extension = mime.slice("font/".length);
+        const name = `${createHash("sha256").update(bytes).digest("hex").slice(0, 16)}.${extension}`;
+        fonts.set(name, bytes);
+        replacedFaces += 1;
+        return `url(/assets/fonts/${name})`;
+      },
+    );
+    if (rewritten !== css) await writeFile(output.path, rewritten);
+  }
+
+  if (fonts.size === 0) return 0;
+  await mkdir(fontDirectory, { recursive: true });
+  await Promise.all(
+    [...fonts].map(([name, bytes]) => writeFile(path.join(fontDirectory, name), bytes)),
+  );
+  return replacedFaces;
+}
+
 const applicationBuild = await requireSuccessfulBuild(
   "the web application",
   await Bun.build({
@@ -135,6 +176,13 @@ const applicationBuild = await requireSuccessfulBuild(
     },
   }),
 );
+
+const externalizedFontFaces = await externalizeEmbeddedFonts(applicationBuild);
+if (externalizedFontFaces === 0) {
+  throw new Error(
+    "The web build no longer externalizes its embedded fonts; the render-blocking CSS budget regressed.",
+  );
+}
 
 await requireSuccessfulBuild(
   "the service worker",

@@ -62,7 +62,11 @@ export async function resolveSnapshotPayload(
   const database = await readDatabaseRecord(tx, itemId as Uuid);
   if (database !== null && resolved["databaseDefinition"] === undefined) {
     resolved["databaseDefinition"] = required(
-      await content.readDatabaseDefinition(tx, itemId, database.definitionVersion),
+      await content.readDatabaseDefinition(tx, {
+        sourceId: database.sourceId,
+        definitionVersion: database.definitionVersion,
+        legacyDatabaseId: itemId,
+      }),
     );
     resolved["databaseDefinitionVersion"] = database.definitionVersion;
   }

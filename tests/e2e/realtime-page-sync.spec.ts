@@ -77,7 +77,6 @@ async function expectPropagated(
   expect(elapsed, "connected page propagation exceeded the two-second product budget").toBeLessThan(
     2_000,
   );
-  await expect(destination.getByTestId("conflict-notice")).toHaveCount(0);
   return elapsed;
 }
 

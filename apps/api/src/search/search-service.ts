@@ -486,23 +486,28 @@ export function createDatabaseSearchService(input: {
         } => source.databaseEntry !== undefined && source.databaseEntry !== null,
       );
       const definitionMetadata = new Map(
-        databaseEntries.map(({ databaseEntry }) => [databaseEntry.databaseId, databaseEntry]),
+        databaseEntries.map(({ databaseEntry }) => [databaseEntry.sourceId, databaseEntry]),
       );
       const definitions = new Map<Uuid, DatabaseDefinition>();
       await Promise.all(
-        [...definitionMetadata].map(async ([databaseId, metadata]) => {
-          const sealed = await input.protectedContent?.readDatabaseDefinition(
-            input.db,
-            databaseId,
-            metadata.definitionVersion,
-          );
+        [...definitionMetadata].map(async ([sourceId, metadata]) => {
+          const sealed = await input.protectedContent?.readDatabaseDefinition(input.db, {
+            sourceId,
+            definitionVersion: metadata.definitionVersion,
+            legacyDatabaseId: metadata.databaseId,
+          });
           const definition =
             input.protectedContent !== undefined
               ? sealed
-              : await readCurrentDatabaseDefinition(input.db, databaseId);
+              : await readCurrentDatabaseDefinition(
+                  input.db,
+                  metadata.databaseId,
+                  undefined,
+                  sourceId,
+                );
           if (definition === null || definition === undefined)
             throw new Error("Protected database definition is unavailable");
-          definitions.set(databaseId, definition);
+          definitions.set(sourceId, definition);
         }),
       );
       const structuredValues = new Map<Uuid, EntryValues>();
@@ -538,9 +543,7 @@ export function createDatabaseSearchService(input: {
             source.databaseEntry === undefined || source.databaseEntry === null
               ? null
               : {
-                  definition: definitions.get(
-                    source.databaseEntry.databaseId,
-                  ) as DatabaseDefinition,
+                  definition: definitions.get(source.databaseEntry.sourceId) as DatabaseDefinition,
                   values: structuredValues.get(source.itemId) as EntryValues,
                 },
         };

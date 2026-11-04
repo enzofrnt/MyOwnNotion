@@ -136,7 +136,7 @@
 }
 
 .editor-sync-status[data-requires-action="true"] {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 
 .editor-sync-status[data-requires-action="true"] summary {
@@ -655,7 +655,7 @@ html[data-block-grabbing="true"] .bn-formatting-toolbar {
 
 .page-link-picker__error,
 .web-bookmark-dialog__error {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 
 .page-link-picker__actions {
@@ -666,7 +666,7 @@ html[data-block-grabbing="true"] .bn-formatting-toolbar {
 
 .page-editor a.page-link-deleted,
 .page-editor a.page-link-unknown {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
   background: transparent;
   text-decoration: underline wavy;
   text-decoration-thickness: 0.08em;
@@ -1041,7 +1041,7 @@ html[data-block-grabbing="true"] .bn-formatting-toolbar {
   flex: 0 0 0.75rem;
   align-items: center;
   justify-content: center;
-  color: var(--ui-color-accent);
+  color: var(--ui-color-accent-text);
 }
 
 .editor-code-language-option__check .ui-icon {
@@ -1079,7 +1079,7 @@ html[data-block-grabbing="true"] .bn-formatting-toolbar {
 }
 
 .editor-code-feedback[data-state="failed"] {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 
 .editor-code-toolbar select,
@@ -1500,7 +1500,7 @@ html[data-block-grabbing="true"] .bn-formatting-toolbar {
   flex-direction: column;
   max-width: 100%;
   gap: var(--ui-space-1);
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
   font-size: var(--ui-text-sm);
 }
 .editor-math-error > code {

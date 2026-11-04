@@ -175,11 +175,11 @@ async function resolveHistoricalDatabaseDefinition(
   allowLegacyPlaintext: boolean,
 ) {
   if (!allowLegacyPlaintext) return resolveDatabaseDefinition(tx, record, content);
-  const sealed = await content.readDatabaseDefinition(
-    tx,
-    record.databaseId,
-    record.definitionVersion,
-  );
+  const sealed = await content.readDatabaseDefinition(tx, {
+    sourceId: record.sourceId,
+    definitionVersion: record.definitionVersion,
+    legacyDatabaseId: record.databaseId,
+  });
   return resolveDatabaseDefinition(tx, record, sealed === null ? undefined : content);
 }
 
@@ -397,7 +397,7 @@ export async function protectCanonicalMetadata(
     }
     if (value.database !== null)
       await content.writeDatabaseDefinition(tx, {
-        databaseId: id,
+        sourceId: value.database.record.sourceId,
         definitionVersion: value.database.record.definitionVersion,
         definition: value.database.definition,
       });

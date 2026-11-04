@@ -46,7 +46,7 @@ jobs:
 
   verify-candidate:
     name: Verify the gate ran on this commit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: quality-gate
     permissions:
       contents: read
@@ -75,7 +75,7 @@ jobs:
 
   publish-release-images:
     name: Publish version-tagged images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - quality-gate
       - verify-candidate

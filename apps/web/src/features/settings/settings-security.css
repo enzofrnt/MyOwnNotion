@@ -448,7 +448,7 @@
 }
 
 .settings-content[data-section="security"] .security-settings__note[data-kind="error"] {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 
 .settings-content[data-section="security"] .security-settings__note[data-kind="success"] {

@@ -176,8 +176,12 @@ export async function resolveDatabaseDefinition(
   // plaintext after cutover.
   const definition =
     content === undefined
-      ? await readCurrentDatabaseDefinition(executor, record.databaseId)
-      : await content.readDatabaseDefinition(executor, record.databaseId, record.definitionVersion);
+      ? await readCurrentDatabaseDefinition(executor, record.databaseId, undefined, record.sourceId)
+      : await content.readDatabaseDefinition(executor, {
+          sourceId: record.sourceId,
+          definitionVersion: record.definitionVersion,
+          legacyDatabaseId: record.databaseId,
+        });
   if (definition === null) throw new ProtectedContentUnavailableError(record.databaseId);
   if (definition.name !== undefined) return definition;
   const revision =

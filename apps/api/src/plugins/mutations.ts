@@ -16,6 +16,7 @@ import {
   readCurrentDatabaseEntryValues,
   readDatabaseEntryRecord,
   readDatabaseRecord,
+  readDatabaseRecordBySourceId,
   readItem,
   readRelationshipMetadata,
   readRevisionSnapshots,
@@ -23,7 +24,13 @@ import {
   submitMutation,
   type Transaction,
 } from "@myownnotion/database";
-import { isUuid, type MutationCommand, type SafeError, type Uuid } from "@myownnotion/domain";
+import {
+  isUuid,
+  type MutationCommand,
+  ownedSourceIdFromItemId,
+  type SafeError,
+  type Uuid,
+} from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { shareFullFileMutation } from "../backup/full/locks.ts";
@@ -154,14 +161,39 @@ async function sealPayloads(
   if (
     command.type === "database.create" ||
     command.type === "database.definition.replace" ||
-    command.type === "database.definition.resolve-conflict"
+    command.type === "database.definition.resolve-conflict" ||
+    command.type === "database.source.create"
   ) {
-    const databaseId = command.type === "database.create" ? command.id : command.databaseId;
-    const record = await readDatabaseRecord(tx, databaseId);
-    const definition = await readCurrentDatabaseDefinition(tx, databaseId, resolveSnapshot);
-    if (record !== null && definition !== null) {
+    const databaseId =
+      command.type === "database.source.create"
+        ? command.ownerItemId
+        : command.type === "database.create"
+          ? command.id
+          : command.databaseId;
+    // The definition envelope is keyed by its source. An omitted source means
+    // the default source of a newly created database, or the oldest source of
+    // a legacy definition update; the source that actually changed is sealed.
+    const requestedSourceId =
+      command.type === "database.create" || command.type === "database.definition.replace"
+        ? command.sourceId
+        : command.type === "database.source.create"
+          ? command.sourceId
+          : undefined;
+    const lookupSourceId =
+      requestedSourceId ??
+      (command.type === "database.create" ? ownedSourceIdFromItemId(command.id) : undefined);
+    const record =
+      lookupSourceId === undefined
+        ? await readDatabaseRecord(tx, databaseId)
+        : await readDatabaseRecordBySourceId(tx, lookupSourceId);
+    const sourceId = lookupSourceId ?? record?.sourceId;
+    const definition =
+      sourceId === undefined
+        ? null
+        : await readCurrentDatabaseDefinition(tx, databaseId, resolveSnapshot, sourceId);
+    if (sourceId !== undefined && record !== null && definition !== null) {
       await protectedContent.writeDatabaseDefinition(tx, {
-        databaseId,
+        sourceId,
         definitionVersion: record.definitionVersion,
         definition,
       });

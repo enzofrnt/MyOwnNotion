@@ -100,10 +100,10 @@
     "fast-json-stringify": {
       "fast-uri": "4.1.4"
     },
-    "@fastify/busboy": "3.2.1",
+    "@fastify/busboy": "3.2.4",
     "@grpc/grpc-js@1": "1.14.5",
     "brace-expansion@2": "2.1.6",
-    "undici@7": "7.29.1",
+    "undici@7": "7.30.1",
     "prosemirror-view": "1.42.3",
     "@tiptap/core": "3.30.5",
     "@tiptap/extension-blockquote": "3.30.5",

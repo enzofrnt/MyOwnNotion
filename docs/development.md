@@ -87,6 +87,20 @@ Playwright remain specialized dependencies, but Bun installs and launches
 them. Imports from `node:*` use Bun's compatibility APIs and do not imply a
 Node.js process.
 
+### Dependency update automation
+
+`.github/dependabot.yml` configures version updates for the Bun workspace (the
+text `bun.lock`), GitHub Actions and the Compose images. Bun minor and patch
+updates are grouped; majors stay individual. Packages pinned by the root
+`overrides` (Tiptap and ProseMirror) or by a native/CRDT compatibility contract
+are excluded from automatic updates so `bun ci` remains the arbiter.
+
+GitHub does not create Dependabot **security-update** pull requests for the Bun
+ecosystem. Dependabot alerts are enabled on the repository, and the blocking
+`bun run security:audit` job remains the security control. Docker base images
+are digest-pinned in `docker/base-images.json` and updated deliberately with
+`bun run images:build --resolve`, not by Dependabot.
+
 ### Desktop Electron host
 
 The Windows, macOS and Linux host lives in `apps/desktop`. Install it with the
@@ -1032,6 +1046,11 @@ When adding or renaming a Playwright `tests/e2e/*.spec.ts` journey, add it to
 journey is missing, duplicated, ownerless, or points to a nonexistent consumer.
 
 ### CI cache boundaries
+
+CI runner images are pinned to `ubuntu-24.04`, the Ubuntu release supported by
+`scripts/ci/install-postgres-client.sh` and the pinned base images. The
+`ubuntu-latest` alias moved to Ubuntu 26 on 2026-10-19 and broke every job that
+installs the pinned PostgreSQL 18 client, so workflows must not use it.
 
 Every JavaScript/TypeScript job uses the repository's pinned Bun setup action.
 The official action keeps its own exact Bun executable cache enabled, then the

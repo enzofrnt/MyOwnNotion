@@ -1,9 +1,8 @@
 import { type ReactNode, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./global.css";
+import { AppErrorBoundary, StartupFailure } from "./ui/error-boundary.tsx";
 import { ThemeProvider } from "./ui/theme-provider.tsx";
-import { UiLab } from "./ui/ui-lab.tsx";
-import { UiLabAuthPreview } from "./ui/ui-lab-auth.tsx";
 
 declare const __MYOWNNOTION_E2E__: boolean;
 
@@ -17,9 +16,24 @@ const root = createRoot(container);
 function render(content: ReactNode): void {
   root.render(
     <StrictMode>
-      <ThemeProvider>{content}</ThemeProvider>
+      <AppErrorBoundary>
+        <ThemeProvider>{content}</ThemeProvider>
+      </AppErrorBoundary>
     </StrictMode>,
   );
+}
+
+function loadInto<T>(factory: () => Promise<T>, consume: (value: T) => void): void {
+  void factory()
+    .then(consume)
+    .catch((error: unknown) => {
+      render(
+        <StartupFailure
+          message="Le module demandé n’a pas pu être chargé. Vérifiez votre connexion puis rechargez la page."
+          {...(error instanceof Error ? { detail: error.message } : {})}
+        />,
+      );
+    });
 }
 
 if (window.location.pathname === "/__ui-lab") {
@@ -27,21 +41,37 @@ if (window.location.pathname === "/__ui-lab") {
   const surface = query.get("surface");
   const review = query.get("review");
   if (review !== null) {
-    void import("./ui/ui-lab-review.tsx").then(({ UiLabReview, isReviewSurface }) =>
-      render(isReviewSurface(review) ? <UiLabReview surface={review} /> : <UiLab />),
+    loadInto(
+      async () => {
+        const [{ UiLabReview, isReviewSurface }, { UiLab }] = await Promise.all([
+          import("./ui/ui-lab-review.tsx"),
+          import("./ui/ui-lab.tsx"),
+        ]);
+        return { UiLabReview, isReviewSurface, UiLab };
+      },
+      ({ UiLabReview, isReviewSurface, UiLab }) =>
+        render(isReviewSurface(review) ? <UiLabReview surface={review} /> : <UiLab />),
     );
-  } else
-    render(
-      surface === "login" || surface === "setup" || surface === "connection" ? (
-        <UiLabAuthPreview surface={surface} />
-      ) : (
-        <UiLab compositionView={query.get("view") === "board" ? "board" : "table"} />
-      ),
+  } else if (surface === "login" || surface === "setup" || surface === "connection") {
+    loadInto(
+      () => import("./ui/ui-lab-auth.tsx"),
+      ({ UiLabAuthPreview }) => render(<UiLabAuthPreview surface={surface} />),
     );
+  } else {
+    loadInto(
+      () => import("./ui/ui-lab.tsx"),
+      ({ UiLab }) =>
+        render(<UiLab compositionView={query.get("view") === "board" ? "board" : "table"} />),
+    );
+  }
 } else {
-  // The deterministic UI lab must stay independent from API and CRDT startup.
-  // The normal workspace remains a separate chunk and is loaded only here.
-  void import("./routing/app-router.tsx").then(({ AppRouter }) => render(<AppRouter />));
+  // The deterministic UI lab stays out of the production entry. The normal
+  // workspace and its editor are loaded only when the application route needs
+  // them, and a failed module load now has a readable recovery screen.
+  loadInto(
+    () => import("./routing/app-router.tsx"),
+    ({ AppRouter }) => render(<AppRouter />),
+  );
 }
 
 // Playwright intercepts requests at the page/context layer, while requests made

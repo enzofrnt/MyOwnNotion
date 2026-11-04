@@ -17,7 +17,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { SCRUBBED_PLACEHOLDER } from "@myownnotion/database";
-import { generateUuidV7 } from "@myownnotion/domain";
+import {
+  type DatabaseDefinition,
+  generateUuidV7,
+  ownedSourceIdFromItemId,
+} from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PROTECTED_PAYLOAD } from "../src/security/canonical-payloads.ts";
@@ -653,8 +657,9 @@ describe("structured database envelopes", () => {
       preserved: [],
     };
 
+    const sourceId = ownedSourceIdFromItemId(databaseId);
     await protectedContent.writeDatabaseDefinition(harness.built.database.db, {
-      databaseId,
+      sourceId,
       definitionVersion: 2,
       definition,
     });
@@ -670,11 +675,79 @@ describe("structured database envelopes", () => {
     expect(await envelopeText()).not.toContain("Portefeuille secret");
     expect(await envelopeText()).not.toContain("Projection privée");
     expect(
-      await protectedContent.readDatabaseDefinition(harness.built.database.db, databaseId, 2),
+      await protectedContent.readDatabaseDefinition(harness.built.database.db, {
+        sourceId,
+        definitionVersion: 2,
+      }),
     ).toEqual(definition);
     expect(
       await protectedContent.readDatabaseEntryValues(harness.built.database.db, entryId, 4),
     ).toEqual(values);
+  });
+
+  it("keys each source definition by its source and never reopens the host page envelope", async () => {
+    const protectedContent = harness.built.context.protectedContent;
+    if (protectedContent === undefined) throw new Error("security harness is not configured");
+    const databaseId = generateUuidV7();
+    const firstSourceId = ownedSourceIdFromItemId(databaseId);
+    const secondSourceId = generateUuidV7();
+    const makeDefinition = (name: string): DatabaseDefinition => ({
+      format: "myownnotion.database-definition+json",
+      formatVersion: 1,
+      databaseId,
+      name,
+      properties: [],
+      views: [],
+      taskRoles: null,
+    });
+    const first = makeDefinition("First source");
+    const second = makeDefinition("Second source");
+
+    // The pre-fix layout stored the default source's definition under the
+    // owner page. That envelope remains readable for that one source only.
+    await protectedContent.writeDatabaseDefinition(harness.built.database.db, {
+      sourceId: databaseId,
+      definitionVersion: 1,
+      definition: first,
+    });
+    expect(
+      await protectedContent.readDatabaseDefinition(harness.built.database.db, {
+        sourceId: firstSourceId,
+        definitionVersion: 1,
+        legacyDatabaseId: databaseId,
+      }),
+    ).toEqual(first);
+    expect(
+      await protectedContent.readDatabaseDefinition(harness.built.database.db, {
+        sourceId: secondSourceId,
+        definitionVersion: 1,
+        legacyDatabaseId: databaseId,
+      }),
+    ).toBeNull();
+
+    // Two sources of one page now advance independently.
+    await protectedContent.writeDatabaseDefinition(harness.built.database.db, {
+      sourceId: firstSourceId,
+      definitionVersion: 1,
+      definition: first,
+    });
+    await protectedContent.writeDatabaseDefinition(harness.built.database.db, {
+      sourceId: secondSourceId,
+      definitionVersion: 1,
+      definition: second,
+    });
+    expect(
+      await protectedContent.readDatabaseDefinition(harness.built.database.db, {
+        sourceId: firstSourceId,
+        definitionVersion: 1,
+      }),
+    ).toEqual(first);
+    expect(
+      await protectedContent.readDatabaseDefinition(harness.built.database.db, {
+        sourceId: secondSourceId,
+        definitionVersion: 1,
+      }),
+    ).toEqual(second);
   });
 
   it("seals database routes, entry values and property metadata in their commit", async () => {

@@ -247,7 +247,7 @@ describe("SQL loading of encrypted database projections", () => {
     if (database === null) throw new Error("Missing database fixture");
     const definitionScope = and(
       eq(schema.protectedEnvelopes.entityType, "database.definition"),
-      eq(schema.protectedEnvelopes.entityId, databaseId),
+      eq(schema.protectedEnvelopes.entityId, database.sourceId),
       eq(schema.protectedEnvelopes.recordVersion, database.definitionVersion),
     );
     const [definitionEnvelope] = await input.db

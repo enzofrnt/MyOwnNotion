@@ -301,7 +301,7 @@
 
 .editor-table-handle[data-dragging] {
   opacity: 1;
-  color: var(--ui-color-accent);
+  color: var(--ui-color-accent-text);
   cursor: grabbing;
   touch-action: none;
 }
@@ -452,7 +452,7 @@
 }
 
 .editor-table-menu__item[data-tone="danger"]:not(:disabled) {
-  color: var(--ui-color-danger);
+  color: var(--ui-color-danger-text);
 }
 
 .editor-table-menu__separator {

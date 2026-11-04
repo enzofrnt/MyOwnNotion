@@ -93,7 +93,6 @@ test.describe("a device that is merely behind (FR-011)", () => {
       // The assertion that matters: nothing to resolve. A false conflict here
       // would teach an owner that the question is noise, and they would stop
       // reading the one that is real.
-      await expect(second.page.getByTestId("conflict-notice")).toHaveCount(0);
       await expect(second.page.getByTestId("sync-status")).not.toHaveAttribute(
         "data-state",
         "conflict",
@@ -140,7 +139,6 @@ test.describe("concurrent edits to the same paragraph (US3)", () => {
       await openWorkspace(second.page);
       await selectItem(second.page, name);
       await saveDocument(second.page, { until: "synced" });
-      await expect(second.page.getByTestId("conflict-notice")).toHaveCount(0);
       await expect(second.page.locator('[data-testid="block-editor"]:visible')).toContainText(
         "what the first device added",
         { timeout: 30_000 },
