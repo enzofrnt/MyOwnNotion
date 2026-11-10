@@ -109,6 +109,16 @@ export function UiLab({
         <LinkButton href="/__ui-lab?review=conflicts">Parcourir les interfaces</LinkButton>
       </section>
 
+      <section className="ui-lab__section" aria-labelledby="ui-lab-menus">
+        <h2 id="ui-lab-menus">Menus et actions</h2>
+        <p className="ui-lab__hint">
+          Identité commune des menus : survol en voile translucide, action destructive en rouge au
+          survol, raccourcis alignés à droite, même hauteur et mêmes rayons dans les menus de
+          l’éditeur, des bases et de la navigation.
+        </p>
+        <LinkButton href="/__ui-lab?overlay=menu">Voir le menu de référence</LinkButton>
+      </section>
+
       <section className="ui-lab__section" aria-labelledby="ui-lab-auth">
         <h2 id="ui-lab-auth">Connexion et installation</h2>
         <p className="ui-lab__hint">

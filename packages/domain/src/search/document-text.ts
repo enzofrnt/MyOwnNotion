@@ -138,7 +138,13 @@ function searchablePropertyValue(
   taskRole: TaskRole | null,
 ): string | null {
   if (value === undefined) return null;
-  if (property.type === "text" && value.kind === "text") {
+  if (
+    (property.type === "text" ||
+      property.type === "url" ||
+      property.type === "email" ||
+      property.type === "phone") &&
+    value.kind === "text"
+  ) {
     return cleanVisibleText(value.value);
   }
   if (taskRole === "dueDate" && property.type === "date") {
@@ -166,7 +172,15 @@ export function extractSearchablePropertyText(
   return definition.properties.flatMap((property): SearchPropertyText[] => {
     if (property.state !== "active") return [];
     const taskRole = roleByProperty.get(property.id) ?? null;
-    if (property.type !== "text" && taskRole === null) return [];
+    if (
+      property.type !== "text" &&
+      property.type !== "url" &&
+      property.type !== "email" &&
+      property.type !== "phone" &&
+      taskRole === null
+    ) {
+      return [];
+    }
     const text = searchablePropertyValue(property, values.values[property.id], taskRole);
     return text === null || text.length === 0
       ? []

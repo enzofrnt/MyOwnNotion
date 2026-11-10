@@ -143,6 +143,28 @@ export function PageEditor({
 }) {
   const { resolvedTheme } = useTheme();
   const [editorError, setEditorError] = useState<string | null>(null);
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Backspace" && event.key !== "Delete") return;
+      // The focused element is ProseMirror's editor root, not the cell: the
+      // caret position only exists in the DOM selection. Read the cell from
+      // there, otherwise Backspace merges an empty cell and deletes it.
+      const anchor = globalThis.document.getSelection()?.anchorNode ?? null;
+      const selected = anchor instanceof Element ? anchor : (anchor?.parentElement ?? null);
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const cell =
+        selected?.closest(".editor-table-cell__content") ??
+        target?.closest(".editor-table-cell__content") ??
+        null;
+      if (cell === null) return;
+      const text = (cell.textContent ?? "").replace(/\u200b/g, "").trim();
+      if (text.length > 0) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
   const [pageLinkPicker, setPageLinkPicker] = useState<PageLinkPickerRequest | null>(null);
   const [webBookmarkDialog, setWebBookmarkDialog] = useState<WebBookmarkRequest | null>(null);
   const [integratedDatabaseBlockId, setIntegratedDatabaseBlockId] = useState<string | null>(null);

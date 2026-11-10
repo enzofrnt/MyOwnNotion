@@ -7,6 +7,7 @@ import { AppIcon } from "../../ui/icons.tsx";
 import { AsyncState, Button, DrawerContent, DrawerRoot } from "../../ui/primitives/index.ts";
 import type { DatabaseEntryOpenRequest } from "./database-entry-open-context.tsx";
 import { editEntrySourceDefinition, saveEntryPropertyChanges } from "./edit-entry-properties.ts";
+import { uploadDatabaseFile } from "./file-upload.ts";
 import { type EntryDrafts, EntryPanel } from "./entry-panel.tsx";
 import type { RelationOption } from "./value-editor.tsx";
 
@@ -39,6 +40,7 @@ export function DatabaseEntryPeek({
   readonly onFullPage: (entryId: Uuid) => void;
 }) {
   const [projection, setProjection] = useState<PeekProjection | null>(null);
+  const [fileNames, setFileNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [error, setError] = useState(false);
   const [closing, setClosing] = useState(false);
   const beginClose = () => {
@@ -73,6 +75,19 @@ export function DatabaseEntryPeek({
       ]);
       if (source === null) throw new Error("Source indisponible");
       if (generation.current !== current) return;
+      const fileIds = Object.values(row.values.values).flatMap((value) =>
+        value.kind === "files" ? value.fileIds : [],
+      );
+      if (fileIds.length > 0) {
+        const files = await service.getItems(fileIds);
+        setFileNames(
+          new Map(
+            files
+              .filter((file) => file.kind === "file")
+              .map((file) => [file.id, file.name] as const),
+          ),
+        );
+      }
       setProjection({
         item,
         sourceId,
@@ -84,6 +99,9 @@ export function DatabaseEntryPeek({
           kind: item.kind,
           icon: item.icon ?? null,
           revisionId: item.currentRevisionId,
+          ...(row.entryNumber === undefined ? {} : { entryNumber: row.entryNumber }),
+          ...(row.createdAt === undefined ? {} : { createdAt: row.createdAt }),
+          ...(row.updatedAt === undefined ? {} : { updatedAt: row.updatedAt }),
           lifecycle: item.lifecycle,
           title: item.name,
           document: item.pageDocument,
@@ -172,6 +190,13 @@ export function DatabaseEntryPeek({
                 definition={projection.definition}
                 valuesAvailable={projection.valuesAvailable}
                 relationOptions={relationOptions}
+                fileNames={fileNames}
+                onUploadFile={async (file) => {
+                  const uploaded = await uploadDatabaseFile(file, request.entryId);
+                  if (!uploaded.ok) return null;
+                  setFileNames((current) => new Map(current).set(uploaded.file.id, uploaded.file.name));
+                  return uploaded.file;
+                }}
                 {...(drafts.has(request.entryId)
                   ? { initialDrafts: drafts.get(request.entryId) as EntryDrafts }
                   : {})}

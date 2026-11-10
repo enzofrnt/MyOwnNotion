@@ -57,6 +57,9 @@ async function readSource(
       kind: item.kind === "folder" ? "folder" : "page",
       icon: item.icon ?? null,
       revisionId: item.currentRevisionId,
+      ...(membership.entryNumber === undefined ? {} : { entryNumber: membership.entryNumber }),
+      ...(membership.createdAt === undefined ? {} : { createdAt: membership.createdAt }),
+      ...(membership.updatedAt === undefined ? {} : { updatedAt: membership.updatedAt }),
       lifecycle: item.lifecycle,
       title: item.name,
       document: item.pageDocument,
@@ -185,8 +188,8 @@ function EmbeddedDatabase({
             replaceDatabaseEmbeddingDefinition(source.row.definition, embedding.id, candidate),
           )
         }
-        onCreateEntry={async (title, initialValues = {}, initialRelations = {}) => {
-          const id = generateUuidV7();
+        onCreateEntry={async (title, initialValues = {}, initialRelations = {}, entryId) => {
+          const id = entryId ?? generateUuidV7();
           const result = await service.createDatabaseEntry(source.row.itemId, {
             id,
             title,

@@ -903,7 +903,7 @@ export async function createDatabaseEntry(
   title: string,
   kind: "page" | "folder" = "page",
 ): Promise<Locator> {
-  const form = page.locator(".database-entry-create");
+  const form = page.locator(".database-entry-create, .database-table-add-entry");
   const button = form.getByRole("button", {
     name: kind === "folder" ? "Nouveau dossier" : "Nouvelle page",
   });

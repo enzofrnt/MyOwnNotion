@@ -73,7 +73,7 @@ import {
   VIEW_TYPE_LABEL,
 } from "./view-tab-names.ts";
 
-const VIEW_TYPE_CHOICES = ["table", "board", "gallery", "list", "calendar"] as const;
+const VIEW_TYPE_CHOICES = ["table", "board", "gallery", "list", "calendar", "map"] as const;
 
 interface Snapshot {
   readonly container: LocalDatabaseRow;
@@ -282,6 +282,7 @@ export function DatabaseContainerPage({
   returnFocusEntryId,
   onReturnFocusRestored,
   linked = false,
+  hideSingleSourceTitle = false,
 }: {
   readonly containerItemId: Uuid;
   readonly service: LocalContentService;
@@ -289,6 +290,8 @@ export function DatabaseContainerPage({
   readonly returnFocusEntryId?: Uuid | null;
   readonly onReturnFocusRestored?: () => void;
   readonly linked?: boolean;
+  /** A full-page database already renders the container title; hide the twin. */
+  readonly hideSingleSourceTitle?: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selectedViewId, setSelectedViewId] = useContainerView(containerItemId);
@@ -399,6 +402,22 @@ export function DatabaseContainerPage({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [beginCloseSettings, settingsClosing, settingsScreen]);
+  useEffect(() => {
+    if (settingsScreen === null || settingsClosing) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (
+        target.closest(".database-view-settings") !== null ||
+        target.closest("[data-view-settings-trigger]") !== null
+      ) {
+        return;
+      }
+      beginCloseSettings();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [beginCloseSettings, settingsClosing, settingsScreen]);
   const presentationRef = useRef(presentation);
   presentationRef.current = presentation;
@@ -787,7 +806,24 @@ export function DatabaseContainerPage({
     if (presentation === undefined || selected === undefined) return;
     const source = activeSources.find((candidate) => candidate.sourceId === selected.sourceId);
     if (source === undefined) return;
-    const validation = validatePropertyDraft(draft);
+    const title = source.definition.properties.find(
+      (property) => property.type === "title" && property.state === "active",
+    );
+    const relation = source.definition.properties.find(
+      (property) => property.type === "relation" && property.state === "active",
+    );
+    const completedDraft = {
+      ...draft,
+      ...(draft.type === "formula" && (draft.expression ?? "").trim() === ""
+        ? { expression: `prop(${JSON.stringify(title?.name ?? "Titre")})` }
+        : {}),
+      ...(draft.type === "rollup" &&
+      (draft.relationPropertyId ?? "") === "" &&
+      relation !== undefined
+        ? { relationPropertyId: relation.id }
+        : {}),
+    };
+    const validation = validatePropertyDraft(completedDraft);
     if (!validation.ok) throw new Error(validation.error);
     const property = propertyFromDraft(
       validation,
@@ -960,17 +996,33 @@ export function DatabaseContainerPage({
         property.type === "select" ||
         property.type === "multi-select"),
   );
+  const hasPlaceProperty = sourceProperties.some(
+    (property) => property.state === "active" && property.type === "place",
+  );
   const hasCalendarDate = sourceProperties.some(
     (property) => property.state === "active" && property.type === "date",
   );
   const currentSource = activeSources.find((source) => source.sourceId === selected.sourceId);
   const currentSourceName = currentSource?.definition.name?.trim() || "Sans nom";
+  // The source title is a disambiguator: it only earns its place when the
+  // views actually show more than one source. A database with one source,
+  // however many views, already has its name in the page title.
+  const viewSourceIds = new Set(
+    views
+      .map((view) => view.sourceId)
+      .filter((sourceId): sourceId is Uuid => sourceId !== undefined),
+  );
+  const showSourceTitle = hideSingleSourceTitle ? viewSourceIds.size > 1 : true;
   const menuView = views.find((view) => view.id === viewMenu?.viewId);
   const menuSourceName =
     activeSources.find((source) => source.sourceId === menuView?.sourceId)?.definition.name ?? "";
   return (
-    <section className="database-container-page" aria-label="Base de données">
-      {currentSource?.sourceId !== undefined ? (
+    <section
+      className="database-container-page"
+      aria-label="Base de données"
+      data-settings-open={settingsScreen === null || settingsClosing ? undefined : ""}
+    >
+      {currentSource?.sourceId !== undefined && showSourceTitle ? (
         <CurrentSourceTitle
           name={currentSourceName}
           editable={currentSource.itemId === containerItemId}
@@ -1037,11 +1089,14 @@ export function DatabaseContainerPage({
                 {VIEW_TYPE_CHOICES.map((type) => {
                   const unavailable =
                     (type === "board" && !hasBoardAxis) ||
-                    (type === "calendar" && !hasCalendarDate);
+                    (type === "calendar" && !hasCalendarDate) ||
+                    (type === "map" && !hasPlaceProperty);
                   const reason =
                     type === "board"
                       ? DATABASE_COPY.toolbar.boardNeedsProperty
-                      : DATABASE_COPY.toolbar.calendarNeedsProperty;
+                      : type === "calendar"
+                        ? DATABASE_COPY.toolbar.calendarNeedsProperty
+                        : "Ajoutez d'abord une propriété Lieu";
                   return (
                     <button
                       key={type}
@@ -1084,6 +1139,7 @@ export function DatabaseContainerPage({
             className="database-chrome-trigger"
             aria-label="Options de la vue"
             title="Options de la vue"
+            data-view-settings-trigger=""
             aria-expanded={settingsScreen !== null}
             onClick={() => {
               if (settingsScreen === null || settingsClosing) {
@@ -1093,7 +1149,18 @@ export function DatabaseContainerPage({
               beginCloseSettings();
             }}
           >
-            <AppIcon name="settings" size="small" />
+            <AppIcon name="viewOptions" size="small" />
+          </Button>
+          <Button
+            type="button"
+            size="compact"
+            className="database-create-entry"
+            onClick={() =>
+              window.dispatchEvent(new CustomEvent("myownnotion:create-database-entry"))
+            }
+          >
+            <AppIcon name="add" size="small" />
+            Nouveau
           </Button>
         </div>
       </div>
@@ -1129,6 +1196,7 @@ export function DatabaseContainerPage({
           containerItemId={containerItemId}
           viewId={selected.id}
           formatPlacement="chrome"
+          onOpenViewSettings={() => openSettings("visibility")}
           service={service}
           openItem={onOpenEntry}
           {...(returnFocusEntryId === undefined ? {} : { returnFocusEntryId })}
@@ -1233,6 +1301,7 @@ export function DatabaseContainerPage({
             sourceLocked={sourceLocked}
             boardAvailable={hasBoardAxis}
             calendarAvailable={hasCalendarDate}
+            placeAvailable={hasPlaceProperty}
             revealOwnedSource={!linked && selected.sourceId !== ownedSourceId}
             creatingSource={creatingSource}
             filterCount={selected.filter.criteria.length}

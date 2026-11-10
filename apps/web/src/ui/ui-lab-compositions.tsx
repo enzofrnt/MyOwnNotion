@@ -1,3 +1,4 @@
+import type { DatabaseEntryDto } from "@myownnotion/contracts";
 import { asUuid, type DatabaseProperty, type DatabaseView, type Uuid } from "@myownnotion/domain";
 import { useState } from "react";
 import { BoardView } from "../features/databases/board-view.tsx";
@@ -35,6 +36,9 @@ const properties: readonly DatabaseProperty[] = [
     state: "active",
     config: { options },
   },
+  { id: id(13), name: "Lien", type: "url", positionKey: "c", state: "active", config: {} },
+  { id: id(14), name: "Contact", type: "email", positionKey: "d", state: "active", config: {} },
+  { id: id(15), name: "Téléphone", type: "phone", positionKey: "e", state: "active", config: {} },
 ];
 const table: Extract<DatabaseView, { type: "table" }> = {
   id: id(3),
@@ -45,6 +49,9 @@ const table: Extract<DatabaseView, { type: "table" }> = {
   properties: [
     { propertyId: id(1), visible: true, positionKey: "a", width: 320 },
     { propertyId: id(2), visible: true, positionKey: "b", width: 200 },
+    { propertyId: id(13), visible: true, positionKey: "c", width: 220 },
+    { propertyId: id(14), visible: true, positionKey: "d", width: 220 },
+    { propertyId: id(15), visible: true, positionKey: "e", width: 180 },
   ],
   filter: { mode: "all", criteria: [] },
   sorts: [],
@@ -71,7 +78,12 @@ const initialPage: DatabaseViewPage = {
       entryId: id(7),
       revisionId: id(6),
       title: "Préparer la prochaine version",
-      values: { [id(2)]: { kind: "status", optionId: id(11) } },
+      values: {
+        [id(2)]: { kind: "status", optionId: id(11) },
+        [id(13)]: { kind: "text", value: "https://exemple.fr/roadmap" },
+        [id(14)]: { kind: "text", value: "nom@exemple.fr" },
+        [id(15)]: { kind: "text", value: "+33 6 12 34 56 78" },
+      },
       relationTargets: {},
       groupId: null,
       syncState: "synced",
@@ -80,7 +92,15 @@ const initialPage: DatabaseViewPage = {
       entryId: id(8),
       revisionId: id(6),
       title: "Un projet avec un nom particulièrement long qui garde ses actions accessibles",
-      values: { [id(2)]: { kind: "status", optionId: id(10) } },
+      values: {
+        [id(2)]: { kind: "status", optionId: id(10) },
+        [id(13)]: {
+          kind: "text",
+          value: "https://exemple.fr/un-lien-particulierement-long-pour-verifier-la-troncature",
+        },
+        [id(14)]: { kind: "text", value: "prenom.nom@exemple.fr" },
+        [id(15)]: { kind: "text", value: "+33 1 23 45 67 89" },
+      },
       relationTargets: {},
       groupId: null,
       syncState: "synced",
@@ -121,10 +141,11 @@ export function UiLabCompositions({
         const values = { ...row.values };
         if (update.value === undefined) delete values[update.propertyId];
         else
-          values[update.propertyId] =
+          values[update.propertyId] = (
             update.value.kind === "multi-select"
               ? { ...update.value, optionIds: [...update.value.optionIds] }
-              : update.value;
+              : update.value
+          ) as unknown as DatabaseEntryDto["values"][string];
         return { ...row, values };
       }),
     }));

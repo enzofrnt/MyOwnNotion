@@ -175,8 +175,10 @@ describe("entry property configuration menus", () => {
     await act(async () => remove.click());
     await delay();
     expect(edits).toHaveBeenCalledTimes(2);
-    expect(button("Modifier la propriété Texte").querySelector("[data-icon]")).toBeNull();
-    expect(button("Modifier la propriété Texte").textContent).toContain("Aa");
+    expect(
+      button("Modifier la propriété Texte").querySelector('[data-icon="type"]'),
+    ).not.toBeNull();
+    expect(button("Modifier la propriété Texte").textContent).not.toContain("Aa");
     expect(saves).not.toHaveBeenCalled();
   });
   it("creates and selects an option from the value picker without a save step", async () => {

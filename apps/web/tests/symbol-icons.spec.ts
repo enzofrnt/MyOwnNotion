@@ -3,7 +3,7 @@ import { pageSymbolIcon, SYMBOL_ICON_CHOICES, symbolIconChoice } from "../src/ui
 
 describe("shared symbol catalog", () => {
   it("keeps one id list for pages, properties and views", () => {
-    expect(SYMBOL_ICON_CHOICES.length).toBeGreaterThanOrEqual(200);
+    expect(SYMBOL_ICON_CHOICES.length).toBeGreaterThanOrEqual(2000);
     const ids = SYMBOL_ICON_CHOICES.map((choice) => choice.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const choice of SYMBOL_ICON_CHOICES) {
@@ -16,6 +16,7 @@ describe("shared symbol catalog", () => {
 
   it("still resolves icons saved before the catalog grew", () => {
     expect(symbolIconChoice("lightbulb")?.label).toBe("ampoule");
+    expect(symbolIconChoice("airplay")?.label).toBe("airplay");
     expect(symbolIconChoice("symbol:star")?.id).toBe("star");
     expect(symbolIconChoice("symbol:")).toBeNull();
     expect(pageSymbolIcon("folder")).toBe("symbol:folder");

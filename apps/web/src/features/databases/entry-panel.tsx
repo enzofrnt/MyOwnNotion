@@ -10,6 +10,7 @@ import {
   DialogRoot,
 } from "../../ui/primitives/dialog.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { evaluateFormula, formatFormulaValue, type FormulaContext } from "./formula.ts";
 import { type EditEntryDefinition, EntrySchemaImpact } from "./edit-entry-properties.ts";
 import { type EntryDefinitionEdit, EntryPropertyList } from "./entry-property-list.tsx";
 import type { RelationOption } from "./value-editor.tsx";
@@ -30,6 +31,8 @@ export function EntryPanel({
   onSaveValues,
   onEditDefinition,
   onClose,
+  fileNames,
+  onUploadFile,
 }: {
   readonly entry: DatabaseEntryDto;
   readonly definition: DatabaseDefinition;
@@ -44,6 +47,10 @@ export function EntryPanel({
   readonly onSaveValues: SaveEntryValues;
   readonly onEditDefinition?: EditEntryDefinition;
   readonly onClose: () => void;
+  readonly fileNames?: ReadonlyMap<string, string> | undefined;
+  readonly onUploadFile?:
+    | ((file: File) => Promise<{ id: string; name: string } | null>)
+    | undefined;
 }) {
   const [localDefinition, setLocalDefinition] = useState(definition);
   const [schemaError, setSchemaError] = useState<string | null>(null);
@@ -91,6 +98,32 @@ export function EntryPanel({
     onSave: onSaveValues,
   });
   const { drafts, errors } = autosave;
+  const rollupValues = useMemo(() => {
+    const values = new Map<string, string>();
+    for (const property of localDefinition.properties) {
+      if (property.type !== "rollup" || property.state !== "active") continue;
+      const targets = entry.relationTargets[property.config.relationPropertyId] ?? [];
+      values.set(property.id, String(targets.length));
+    }
+    return values;
+  }, [entry, localDefinition]);
+  const formulaValues = useMemo(() => {
+    const values = new Map<string, string>();
+    for (const property of localDefinition.properties) {
+      if (property.type !== "formula" || property.state !== "active") continue;
+      const result = evaluateFormula(property.config.expression, {
+        title: entry.title,
+        properties: localDefinition.properties,
+        values: entry.values as unknown as FormulaContext["values"],
+        relationTargets: entry.relationTargets as unknown as FormulaContext["relationTargets"],
+        ...(entry.createdAt === undefined ? {} : { createdAt: entry.createdAt }),
+        ...(entry.updatedAt === undefined ? {} : { updatedAt: entry.updatedAt }),
+        revisionId: entry.revisionId,
+      });
+      values.set(property.id, result.ok ? formatFormulaValue(result.value) : "—");
+    }
+    return values;
+  }, [entry, localDefinition]);
 
   return (
     <section
@@ -125,6 +158,13 @@ export function EntryPanel({
                   edit={onEditDefinition === undefined ? undefined : editDefinition}
                   onChange={autosave.update}
                   onBlur={autosave.flush}
+                  revisionId={entry.revisionId}
+                  createdAt={entry.createdAt}
+                  entryNumber={entry.entryNumber}
+                  formulaValues={formulaValues}
+                  rollupValues={rollupValues}
+                  fileNames={fileNames}
+                  onUploadFile={onUploadFile}
                 />
               </>
             ) : (
@@ -136,6 +176,13 @@ export function EntryPanel({
                 edit={onEditDefinition === undefined ? undefined : editDefinition}
                 onChange={autosave.update}
                 onBlur={autosave.flush}
+                revisionId={entry.revisionId}
+                createdAt={entry.createdAt}
+                entryNumber={entry.entryNumber}
+                formulaValues={formulaValues}
+                rollupValues={rollupValues}
+                fileNames={fileNames}
+                onUploadFile={onUploadFile}
               />
             )}
             <div

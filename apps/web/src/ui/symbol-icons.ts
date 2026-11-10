@@ -135,6 +135,7 @@ import {
   Lock,
   LockOpen,
   type LucideIcon,
+  type LucideProps,
   Luggage,
   Magnet,
   Mail,
@@ -236,6 +237,9 @@ import {
   Wrench,
   Zap,
 } from "lucide-react";
+import { iconNames } from "lucide-react/dist/esm/DynamicIcon.mjs";
+import { createElement } from "react";
+import { LazyDynamicIcon } from "./lazy-dynamic-icon.tsx";
 
 export interface SymbolIconChoice {
   readonly id: string;
@@ -481,12 +485,29 @@ const CHOICES: readonly SymbolIconChoice[] = [
   { id: "zap", label: "éclair", Icon: Zap },
 ];
 
-const BY_ID = new Map(CHOICES.map((choice) => [choice.id, choice]));
+const STATIC_IDS = new Set(CHOICES.map((choice) => choice.id));
+
+function dynamicChoice(id: string): SymbolIconChoice {
+  const Icon = (props: LucideProps) =>
+    createElement(LazyDynamicIcon, { ...props, name: id }) as React.ReactElement;
+  return {
+    id,
+    label: id.replaceAll("-", " "),
+    Icon: Icon as unknown as LucideIcon,
+  };
+}
+
+/** Curated French-labelled choices stay first; every other Lucide icon follows. */
+const EXTRA_CHOICES = iconNames.filter((id) => !STATIC_IDS.has(id)).map((id) => dynamicChoice(id));
+
+const ALL_CHOICES = [...CHOICES, ...EXTRA_CHOICES];
+
+const BY_ID = new Map(ALL_CHOICES.map((choice) => [choice.id, choice]));
 
 /** Page icons store this prefix so a symbol id never collides with an emoji. */
 export const PAGE_SYMBOL_PREFIX = "symbol:";
 
-export const SYMBOL_ICON_CHOICES = CHOICES;
+export const SYMBOL_ICON_CHOICES = ALL_CHOICES;
 
 export function symbolIconChoice(value: string | null | undefined): SymbolIconChoice | null {
   if (value == null || value === "") return null;

@@ -1,0 +1,6 @@
+{
+  "steps": [
+    { "action": "mouseMove", "x": 650, "y": 250, "ms": 700 },
+    { "action": "click", "role": "button", "name": "Ouvrir le menu du bloc", "ms": 700 }
+  ]
+}

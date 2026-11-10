@@ -104,6 +104,30 @@ describe("saved database views (T041)", () => {
       options: { axisPropertyId: ids.status },
     });
   });
+  it("creates a map view scoped to the active place property", () => {
+    const placeId = generateUuidV7();
+    const base = definition();
+    const withPlace = {
+      ...base,
+      properties: [
+        ...base.properties,
+        {
+          id: placeId,
+          name: "Lieu",
+          type: "place" as const,
+          positionKey: "c",
+          state: "active" as const,
+          config: {},
+        },
+      ],
+    };
+    const result = createSavedView(withPlace, tableView(), "map", "Carte");
+    expect(result.views.at(-1)).toMatchObject({
+      type: "map",
+      options: { placePropertyId: placeId },
+    });
+  });
+
   it("creates independent table/list views without duplicating entries", () => {
     const base = definition();
     const withList = createSavedView(base, base.views[0] as DatabaseView, "list", "Compact list");

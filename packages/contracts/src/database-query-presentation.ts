@@ -40,6 +40,15 @@ export function presentDatabaseQuery(input: {
   const visiblePropertyIds = new Set(
     input.view.properties.filter(({ visible }) => visible).map(({ propertyId }) => propertyId),
   );
+  // A property the view has never listed is rendered as a new visible column
+  // by `viewColumns`. Its value must travel with the row too, otherwise a brand
+  // new column looks populated in the editor but empty in the grid.
+  const presentedPropertyIds = new Set(input.view.properties.map(({ propertyId }) => propertyId));
+  for (const property of input.definition.properties) {
+    if (property.state === "active" && !presentedPropertyIds.has(property.id)) {
+      visiblePropertyIds.add(property.id);
+    }
+  }
   // Hidden board properties still determine membership and movement. Visibility
   // controls display, not the values needed to operate the chosen layout.
   if (input.view.type === "board") visiblePropertyIds.add(input.view.options.axisPropertyId);
@@ -56,6 +65,9 @@ export function presentDatabaseQuery(input: {
     rows: input.entries.map((entry) => ({
       entryId: entry.entryId,
       revisionId: entry.revisionId,
+      ...(entry.entryNumber === undefined ? {} : { entryNumber: entry.entryNumber }),
+      ...(entry.createdAt === undefined ? {} : { createdAt: entry.createdAt }),
+      ...(entry.updatedAt === undefined ? {} : { updatedAt: entry.updatedAt }),
       title: entry.title,
       values: Object.fromEntries(
         Object.entries(entry.values)

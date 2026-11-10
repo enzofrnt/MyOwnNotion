@@ -28,6 +28,41 @@ function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): b
   return Object.keys(value).every((key) => allowed.has(key)) && keys.every((key) => key in value);
 }
 
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE = /^\+?[0-9 ().-]{3,40}$/;
+
+/** URL values keep a real http(s) address; trimming is the only rewriting. */
+export function normalizeUrl(input: string): DomainResult<string> {
+  const value = input.trim();
+  if (value.length === 0 || value.length > 2048) return invalid("url", "invalid-url");
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return invalid("url", "invalid-url");
+    }
+    return ok(value);
+  } catch {
+    return invalid("url", "invalid-url");
+  }
+}
+
+export function normalizeEmail(input: string): DomainResult<string> {
+  const value = input.trim();
+  if (value.length === 0 || value.length > 254 || !EMAIL.test(value)) {
+    return invalid("email", "invalid-email");
+  }
+  return ok(value);
+}
+
+export function normalizePhone(input: string): DomainResult<string> {
+  const value = input.trim();
+  const digits = value.replace(/\D/g, "");
+  if (value.length === 0 || value.length > 40 || digits.length < 3 || !PHONE.test(value)) {
+    return invalid("phone", "invalid-phone");
+  }
+  return ok(value);
+}
+
 export function normalizeDecimal(input: string): DomainResult<string> {
   if (input.length === 0 || input.length > 512 || !DECIMAL_INPUT.test(input)) {
     return invalid("decimal", "invalid-decimal");
@@ -133,6 +168,32 @@ export function normalizePropertyValue(
         hasOnlyKeys(input, ["kind", "value"])
         ? ok({ kind: "text", value: input["value"] })
         : invalid("value", "type-mismatch");
+    case "created-time":
+    case "last-edited-time":
+    case "formula":
+    case "rollup":
+    case "unique-id":
+      return invalid("value", "read-only");
+    case "url":
+    case "email":
+    case "phone": {
+      if (
+        input["kind"] !== "text" ||
+        typeof input["value"] !== "string" ||
+        !hasOnlyKeys(input, ["kind", "value"])
+      ) {
+        return invalid("value", "type-mismatch");
+      }
+      const text = input["value"];
+      if (intent === "decode") return ok({ kind: "text", value: text });
+      const normalized =
+        property.type === "url"
+          ? normalizeUrl(text)
+          : property.type === "email"
+            ? normalizeEmail(text)
+            : normalizePhone(text);
+      return normalized.ok ? ok({ kind: "text", value: normalized.value }) : normalized;
+    }
     case "number": {
       if (
         input["kind"] !== "number" ||
@@ -149,22 +210,46 @@ export function normalizePropertyValue(
         if (
           input["kind"] !== "date" ||
           typeof input["date"] !== "string" ||
-          !hasOnlyKeys(input, ["kind", "date"])
+          !Object.keys(input).every((key) => key === "kind" || key === "date" || key === "endDate")
         ) {
           return invalid("value", "type-mismatch");
         }
         const date = normalizeCivilDate(input["date"]);
-        return date.ok ? ok({ kind: "date", date: date.value }) : date;
+        if (input["endDate"] !== undefined && typeof input["endDate"] !== "string") {
+          return invalid("endDate", "type-mismatch");
+        }
+        const endDate =
+          input["endDate"] === undefined ? undefined : normalizeCivilDate(input["endDate"]);
+        if (!date.ok) return date;
+        if (endDate !== undefined && !endDate.ok) return endDate;
+        return ok({
+          kind: "date",
+          date: date.value,
+          ...(endDate === undefined ? {} : { endDate: endDate.value }),
+        });
       }
       if (
         input["kind"] !== "instant" ||
         typeof input["instant"] !== "string" ||
-        !hasOnlyKeys(input, ["kind", "instant"])
+        !Object.keys(input).every(
+          (key) => key === "kind" || key === "instant" || key === "endInstant",
+        )
       ) {
         return invalid("value", "type-mismatch");
       }
       const instant = normalizeInstant(input["instant"]);
-      return instant.ok ? ok({ kind: "instant", instant: instant.value }) : instant;
+      if (input["endInstant"] !== undefined && typeof input["endInstant"] !== "string") {
+        return invalid("endInstant", "type-mismatch");
+      }
+      const endInstant =
+        input["endInstant"] === undefined ? undefined : normalizeInstant(input["endInstant"]);
+      if (!instant.ok) return instant;
+      if (endInstant !== undefined && !endInstant.ok) return endInstant;
+      return ok({
+        kind: "instant",
+        instant: instant.value,
+        ...(endInstant === undefined ? {} : { endInstant: endInstant.value }),
+      });
     }
     case "status":
     case "select": {
@@ -199,12 +284,82 @@ export function normalizePropertyValue(
       }
       return ok({ kind: "multi-select", optionIds: optionIds as never });
     }
+    case "files": {
+      if (
+        input["kind"] !== "files" ||
+        !Array.isArray(input["fileIds"]) ||
+        (input["externalUrls"] !== undefined && !Array.isArray(input["externalUrls"])) ||
+        !Object.keys(input).every(
+          (key) => key === "kind" || key === "fileIds" || key === "externalUrls",
+        )
+      ) {
+        return invalid("value", "type-mismatch");
+      }
+      const fileIds = [...new Set(input["fileIds"])];
+      if (
+        fileIds.length !== input["fileIds"].length ||
+        fileIds.length > 20 ||
+        !fileIds.every(isUuid)
+      ) {
+        return invalid("fileIds", "invalid-identifier");
+      }
+      const rawUrls = (input["externalUrls"] as unknown[] | undefined) ?? [];
+      if (!rawUrls.every((url): url is string => typeof url === "string")) {
+        return invalid("externalUrls", "invalid-url");
+      }
+      const externalUrls: string[] = [];
+      for (const raw of rawUrls) {
+        const normalized = normalizeUrl(raw);
+        if (!normalized.ok) return normalized;
+        if (!externalUrls.includes(normalized.value)) externalUrls.push(normalized.value);
+      }
+      if (externalUrls.length !== rawUrls.length || fileIds.length + externalUrls.length > 20) {
+        return invalid("externalUrls", "invalid-url");
+      }
+      return ok({
+        kind: "files",
+        fileIds: fileIds as never,
+        ...(externalUrls.length === 0 ? {} : { externalUrls }),
+      });
+    }
     case "checkbox":
       return input["kind"] === "checkbox" &&
         typeof input["checked"] === "boolean" &&
         hasOnlyKeys(input, ["kind", "checked"])
         ? ok({ kind: "checkbox", checked: input["checked"] })
         : invalid("value", "type-mismatch");
+    case "place": {
+      if (
+        input["kind"] !== "place" ||
+        typeof input["placeId"] !== "string" ||
+        input["placeId"].trim().length === 0 ||
+        input["placeId"].length > 512 ||
+        typeof input["name"] !== "string" ||
+        input["name"].trim().length === 0 ||
+        input["name"].length > 512 ||
+        (input["address"] !== null && typeof input["address"] !== "string") ||
+        (typeof input["address"] === "string" && input["address"].length > 1024) ||
+        typeof input["latitude"] !== "number" ||
+        !Number.isFinite(input["latitude"]) ||
+        input["latitude"] < -90 ||
+        input["latitude"] > 90 ||
+        typeof input["longitude"] !== "number" ||
+        !Number.isFinite(input["longitude"]) ||
+        input["longitude"] < -180 ||
+        input["longitude"] > 180 ||
+        !hasOnlyKeys(input, ["kind", "placeId", "name", "address", "latitude", "longitude"])
+      ) {
+        return invalid("value", "type-mismatch");
+      }
+      return ok({
+        kind: "place",
+        placeId: input["placeId"],
+        name: input["name"],
+        address: input["address"] as string | null,
+        latitude: input["latitude"],
+        longitude: input["longitude"],
+      });
+    }
   }
 }
 
@@ -235,6 +390,17 @@ export function isPropertyValueCompatible(
   if (property.type === "date") {
     return value.kind === property.config.mode;
   }
+  if (property.type === "url" || property.type === "email" || property.type === "phone") {
+    return value.kind === "text";
+  }
+  if (
+    property.type === "created-time" ||
+    property.type === "last-edited-time" ||
+    property.type === "formula" ||
+    property.type === "rollup" ||
+    property.type === "unique-id"
+  )
+    return false;
   return property.type !== "title" && property.type !== "relation" && value.kind === property.type;
 }
 
@@ -248,7 +414,12 @@ export function normalizeEntryValueMap(
     const property = properties.get(propertyId as Uuid);
     if (property === undefined || property.type === "title" || property.type === "relation")
       return err("validation.invalid-payload", "Structured value property is unavailable");
-    const normalized = normalizePropertyValue(property, rawValue);
+    // Existing values survive a replace payload even after their property is
+    // retired. The UI never edits a retired field, and rejecting the whole map
+    // made every entry save fail once one retired property had a value.
+    const normalized = normalizePropertyValue(property, rawValue, {
+      intent: property.state === "retired" ? "decode" : "write",
+    });
     if (!normalized.ok || normalized.value === undefined)
       return normalized.ok
         ? err("validation.invalid-payload", "Structured value is absent")

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  type DatabaseProperty,
   type DomainResult,
+  isPropertyValueCompatible,
   normalizeCivilDate,
   normalizeDecimal,
+  normalizeEntryValueMap,
   normalizeInstant,
   normalizePropertyValue,
   normalizeRelationTargets,
@@ -218,5 +221,233 @@ describe("decimal normalisation edge cases", () => {
     const negZero = normalizeDecimal("-0");
     expect(negZero.ok).toBe(true);
     if (negZero.ok) expect(negZero.value).toBe("0");
+  });
+});
+
+describe("contact property values", () => {
+  const contact = (type: "url" | "email" | "phone"): DatabaseProperty => ({
+    id: IDS.todo,
+    name: type,
+    positionKey: "a00000",
+    state: "active",
+    type,
+    config: {},
+  });
+
+  it("trims and accepts valid contact values", () => {
+    expect(
+      unwrap(
+        normalizePropertyValue(contact("url"), { kind: "text", value: "  https://exemple.fr/a  " }),
+      ),
+    ).toEqual({
+      kind: "text",
+      value: "https://exemple.fr/a",
+    });
+    expect(
+      unwrap(normalizePropertyValue(contact("email"), { kind: "text", value: " nom@exemple.fr " })),
+    ).toEqual({
+      kind: "text",
+      value: "nom@exemple.fr",
+    });
+    expect(
+      unwrap(
+        normalizePropertyValue(contact("phone"), { kind: "text", value: "+33 6 12 34 56 78" }),
+      ),
+    ).toEqual({
+      kind: "text",
+      value: "+33 6 12 34 56 78",
+    });
+  });
+
+  it("refuses malformed contact values on write", () => {
+    for (const [type, value] of [
+      ["url", "exemple.fr"],
+      ["url", "ftp://exemple.fr"],
+      ["url", "   "],
+      ["email", "sans-arobase"],
+      ["email", "a@b"],
+      ["phone", "abc"],
+      ["phone", "+1"],
+    ] as const) {
+      expect(normalizePropertyValue(contact(type), { kind: "text", value }), value).toMatchObject({
+        ok: false,
+        error: { code: "validation.invalid-payload" },
+      });
+    }
+    expect(normalizePropertyValue(contact("url"), { kind: "number", decimal: "1" }).ok).toBe(false);
+  });
+
+  it("keeps a legacy value readable when it no longer matches the format", () => {
+    const legacy = { kind: "text", value: "not a url" } as const;
+    expect(unwrap(normalizePropertyValue(contact("url"), legacy, { intent: "decode" }))).toEqual(
+      legacy,
+    );
+  });
+
+  it("treats the three types as text-compatible only", () => {
+    expect(isPropertyValueCompatible(contact("url"), { kind: "text", value: "https://a.fr" })).toBe(
+      true,
+    );
+    expect(isPropertyValueCompatible(contact("email"), { kind: "text", value: "a@b.fr" })).toBe(
+      true,
+    );
+    expect(isPropertyValueCompatible(contact("phone"), { kind: "text", value: "+3312" })).toBe(
+      true,
+    );
+    expect(isPropertyValueCompatible(contact("url"), { kind: "number", decimal: "1" })).toBe(false);
+  });
+});
+
+describe("read-only time properties", () => {
+  it("refuses a stored value and stays incompatible with any value", () => {
+    const property: DatabaseProperty = {
+      id: IDS.todo,
+      name: "Dernière modification",
+      positionKey: "a00000",
+      state: "active",
+      type: "last-edited-time",
+      config: {},
+    };
+    expect(normalizePropertyValue(property, { kind: "text", value: "2026-11-04" }).ok).toBe(false);
+    expect(isPropertyValueCompatible(property, { kind: "text", value: "2026-11-04" })).toBe(false);
+  });
+
+  it("refuses a stored value for the creation time too", () => {
+    const property: DatabaseProperty = {
+      id: IDS.todo,
+      name: "Date de création",
+      positionKey: "a00001",
+      state: "active",
+      type: "created-time",
+      config: {},
+    };
+    expect(normalizePropertyValue(property, { kind: "text", value: "2026-11-04" }).ok).toBe(false);
+    expect(isPropertyValueCompatible(property, { kind: "text", value: "2026-11-04" })).toBe(false);
+  });
+});
+
+describe("files property values", () => {
+  const property: DatabaseProperty = {
+    id: IDS.todo,
+    name: "Pièces jointes",
+    positionKey: "a00000",
+    state: "active",
+    type: "files",
+    config: {},
+  };
+
+  it("accepts unique canonical file identities", () => {
+    expect(
+      unwrap(normalizePropertyValue(property, { kind: "files", fileIds: [IDS.high] })),
+    ).toEqual({
+      kind: "files",
+      fileIds: [IDS.high],
+    });
+  });
+
+  it("refuses malformed, duplicated or oversized file sets", () => {
+    expect(normalizePropertyValue(property, { kind: "files", fileIds: ["nope"] }).ok).toBe(false);
+    expect(
+      normalizePropertyValue(property, { kind: "files", fileIds: [IDS.high, IDS.high] }).ok,
+    ).toBe(false);
+    expect(normalizePropertyValue(property, { kind: "text", value: "x" }).ok).toBe(false);
+  });
+});
+
+describe("rollup property values", () => {
+  it("refuses a stored value on an aggregate property", () => {
+    const property: DatabaseProperty = {
+      id: IDS.todo,
+      name: "Entrées liées",
+      positionKey: "a00000",
+      state: "active",
+      type: "rollup",
+      config: { relationPropertyId: IDS.relationA, aggregate: "count" },
+    };
+    expect(normalizePropertyValue(property, { kind: "number", decimal: "1" }).ok).toBe(false);
+  });
+});
+
+describe("unique id property values", () => {
+  it("refuses a stored value on an auto-numbered property", () => {
+    const property: DatabaseProperty = {
+      id: IDS.todo,
+      name: "Identifiant",
+      positionKey: "a00000",
+      state: "active",
+      type: "unique-id",
+      config: {},
+    };
+    expect(normalizePropertyValue(property, { kind: "number", decimal: "1" }).ok).toBe(false);
+  });
+});
+
+describe("entry value maps", () => {
+  it("preserves values of retired properties during a replace", () => {
+    const retired = { ...property("text"), state: "retired" as const };
+    const properties = new Map([[retired.id, retired]]);
+    const result = normalizeEntryValueMap(properties, {
+      [retired.id]: { kind: "text", value: "historical" },
+    });
+    expect(unwrap(result)).toEqual({
+      [retired.id]: { kind: "text", value: "historical" },
+    });
+  });
+
+  it("normalizes a place value", () => {
+    const place = {
+      id: "018f0000-0000-7000-8000-000000000099" as never,
+      name: "Lieu",
+      type: "place" as const,
+      positionKey: "z-place",
+      state: "active" as const,
+      config: {},
+    };
+    const properties = new Map([[place.id, place]]);
+    const value = {
+      kind: "place" as const,
+      placeId: "ChIJIQBpAG2ahYAR_6128GcTUEo",
+      name: "Paris",
+      address: "Paris, France",
+      latitude: 48.8566,
+      longitude: 2.3522,
+    };
+    expect(unwrap(normalizeEntryValueMap(properties, { [place.id]: value }))).toEqual({
+      [place.id]: value,
+    });
+  });
+});
+
+describe("files external links", () => {
+  it("normalizes links and rejects non-http URLs", () => {
+    const files: DatabaseProperty = {
+      id: "018f0000-0000-7000-8000-0000000000f1" as never,
+      name: "Fichiers",
+      type: "files",
+      positionKey: "z-files",
+      state: "active",
+      config: {},
+    };
+    expect(
+      normalizePropertyValue(files, {
+        kind: "files",
+        fileIds: [],
+        externalUrls: ["https://exemple.fr/a", "http://exemple.fr/b"],
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        kind: "files",
+        fileIds: [],
+        externalUrls: ["https://exemple.fr/a", "http://exemple.fr/b"],
+      },
+    });
+    expect(
+      normalizePropertyValue(files, {
+        kind: "files",
+        fileIds: [],
+        externalUrls: ["javascript:alert(1)"],
+      }).ok,
+    ).toBe(false);
   });
 });

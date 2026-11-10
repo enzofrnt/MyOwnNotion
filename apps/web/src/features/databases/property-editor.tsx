@@ -2,7 +2,12 @@ import {
   DATABASE_PROPERTY_TYPES,
   type DatabaseProperty,
   type DatabasePropertyType,
+  DEFAULT_DATE_FORMAT,
+  DEFAULT_NUMBER_CONFIG,
+  DEFAULT_TIME_FORMAT,
   generateUuidV7,
+  inferStatusGroup,
+  type Uuid,
 } from "@myownnotion/domain";
 import { type FormEvent, useId, useRef, useState } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
@@ -29,9 +34,12 @@ export interface PropertyOptionDraft {
 export interface DatabasePropertyDraft {
   readonly name: string;
   readonly type: EditablePropertyType;
+  readonly icon?: string | null;
   readonly options?: readonly PropertyOptionDraft[];
   readonly dateMode?: "date" | "instant";
   readonly relationCardinality?: "one" | "many";
+  readonly expression?: string;
+  readonly relationPropertyId?: string;
 }
 
 const CHOICE_PROPERTY_TYPES = ["status", "select", "multi-select"] as const;
@@ -70,6 +78,12 @@ export function validatePropertyDraft(draft: DatabasePropertyDraft): PropertyDra
   if (normalizedName.length > 512) {
     return { ok: false, draft, error: DATABASE_COPY.property.nameTooLong };
   }
+  if (draft.type === "formula" && (draft.expression ?? "").trim().length === 0) {
+    return { ok: false, draft, error: DATABASE_COPY.property.expressionRequired };
+  }
+  if (draft.type === "rollup" && (draft.relationPropertyId ?? "").length === 0) {
+    return { ok: false, draft, error: DATABASE_COPY.property.rollupRelationRequired };
+  }
   if (isChoiceType(draft.type)) {
     const labels = (draft.options ?? []).map((option) => option.label.trim()).filter(Boolean);
     if (new Set(labels.map((label) => label.toLocaleLowerCase())).size !== labels.length) {
@@ -83,23 +97,65 @@ export function propertyFromDraft(
   validation: Extract<PropertyDraftValidation, { ok: true }>,
   positionKey: string,
 ): DatabaseProperty {
+  const draft = validation.draft;
   const common = {
     id: generateUuidV7(),
     name: validation.normalizedName,
     positionKey,
     state: "active" as const,
+    ...(draft.icon === undefined || draft.icon === null ? {} : { icon: draft.icon }),
   };
-  const draft = validation.draft;
   switch (draft.type) {
     case "date":
-      return { ...common, type: "date", config: { mode: draft.dateMode ?? "date" } };
+      return {
+        ...common,
+        type: "date",
+        config: {
+          mode: draft.dateMode ?? "date",
+          dateFormat: DEFAULT_DATE_FORMAT,
+          timeFormat: DEFAULT_TIME_FORMAT,
+        },
+      };
     case "relation":
       return {
         ...common,
         type: "relation",
         config: { cardinality: draft.relationCardinality ?? "many" },
       };
-    case "status":
+    case "formula":
+      return {
+        ...common,
+        type: "formula",
+        config: { expression: (draft.expression ?? "").trim() },
+      };
+    case "rollup":
+      return {
+        ...common,
+        type: "rollup",
+        config: {
+          relationPropertyId: (draft.relationPropertyId ?? "") as Uuid,
+          aggregate: "count",
+        },
+      };
+    case "status": {
+      const options = (draft.options ?? [])
+        .map((option) => ({ ...option, label: option.label.trim() }))
+        .filter((option) => option.label.length > 0)
+        .map((option, index) => ({
+          id: generateUuidV7(),
+          label: option.label,
+          positionKey: `option-${String(index).padStart(6, "0")}`,
+          tone: optionTone(option.tone),
+          state: "active" as const,
+          group: inferStatusGroup(option.label),
+        }));
+      const defaultOptionId = options[0]?.id;
+      return {
+        ...common,
+        type: "status",
+        config: { options, ...(defaultOptionId === undefined ? {} : { defaultOptionId }) },
+      };
+    }
     case "select":
     case "multi-select":
       return {
@@ -118,9 +174,18 @@ export function propertyFromDraft(
             })),
         },
       };
-    case "text":
     case "number":
+      return { ...common, type: "number", config: { ...DEFAULT_NUMBER_CONFIG } };
+    case "text":
     case "checkbox":
+    case "url":
+    case "email":
+    case "phone":
+    case "created-time":
+    case "last-edited-time":
+    case "files":
+    case "unique-id":
+    case "place":
       return { ...common, type: draft.type, config: {} };
   }
 }
@@ -163,6 +228,22 @@ export function propertyDraftFromFormData(
         label: stringFormValue(data, `option-label-${key}`, ""),
         tone: optionTone(stringFormValue(data, `option-tone-${key}`, "gray")),
       })),
+    };
+  }
+  if (type === "formula") {
+    return {
+      ...common,
+      expression: stringFormValue(data, "property-expression", fallback.expression ?? ""),
+    };
+  }
+  if (type === "rollup") {
+    return {
+      ...common,
+      relationPropertyId: stringFormValue(
+        data,
+        "property-rollup-relation",
+        fallback.relationPropertyId ?? "",
+      ),
     };
   }
   if (type === "date") {
@@ -211,8 +292,12 @@ export function PropertyEditor({
   onSubmit,
   onCancel,
   submitting = false,
+  properties = [],
+  hideType = false,
 }: {
   readonly draft: DatabasePropertyDraft;
+  readonly hideType?: boolean;
+  readonly properties?: readonly DatabaseProperty[];
   readonly error: string | null;
   readonly onChange: (draft: DatabasePropertyDraft) => void;
   readonly onSubmit: (draft: DatabasePropertyDraft) => void;
@@ -274,41 +359,90 @@ export function PropertyEditor({
             }
           />
         </label>
-        <label className="property-editor__field" htmlFor={`${fieldId}-type`}>
-          <span>{DATABASE_COPY.property.type}</span>
+        {hideType ? null : (
+          <label className="property-editor__field" htmlFor={`${fieldId}-type`}>
+            <span>{DATABASE_COPY.property.type}</span>
+            <NativeSelect
+              density="compact"
+              id={`${fieldId}-type`}
+              name="property-type"
+              defaultValue={visibleDraft.type}
+              onChange={(event) =>
+                changeDraft((current) => {
+                  const type = event.target.value as EditablePropertyType;
+                  if (!isChoiceType(type)) return { ...current, type };
+                  return {
+                    ...current,
+                    type,
+                    options:
+                      current.options !== undefined && current.options.length > 0
+                        ? current.options
+                        : defaultSelectionOptions(),
+                  };
+                })
+              }
+            >
+              {!PROPERTY_TYPE_CHOICES.includes(visibleDraft.type) ? (
+                <option value={visibleDraft.type}>
+                  {DATABASE_COPY.property.typeLabels[visibleDraft.type].replace(/^./, (first) =>
+                    first.toUpperCase(),
+                  )}{" "}
+                  (actuel)
+                </option>
+              ) : null}
+              {PROPERTY_TYPE_CHOICES.map((type) => (
+                <option key={type} value={type}>
+                  {DATABASE_COPY.property.typeLabels[type].replace(/^./, (first) =>
+                    first.toUpperCase(),
+                  )}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+        )}
+      </div>
+
+      {visibleDraft.type === "rollup" ? (
+        <label className="property-editor__field">
+          <span>{DATABASE_COPY.property.rollupRelation}</span>
           <NativeSelect
             density="compact"
-            id={`${fieldId}-type`}
-            name="property-type"
-            defaultValue={visibleDraft.type}
-            onChange={(event) =>
-              changeDraft((current) => {
-                const type = event.target.value as EditablePropertyType;
-                if (!isChoiceType(type)) return { ...current, type };
-                return {
-                  ...current,
-                  type,
-                  options:
-                    current.options !== undefined && current.options.length > 0
-                      ? current.options
-                      : defaultSelectionOptions(),
-                };
-              })
-            }
+            name="property-rollup-relation"
+            aria-label={DATABASE_COPY.property.rollupRelation}
+            value={visibleDraft.relationPropertyId ?? ""}
+            onChange={(event) => {
+              const relationPropertyId = event.target.value;
+              changeDraft((current) => ({ ...current, relationPropertyId }));
+            }}
           >
-            {!PROPERTY_TYPE_CHOICES.includes(visibleDraft.type) ? (
-              <option value={visibleDraft.type}>
-                {DATABASE_COPY.property.typeLabels[visibleDraft.type]} (actuel)
-              </option>
-            ) : null}
-            {PROPERTY_TYPE_CHOICES.map((type) => (
-              <option key={type} value={type}>
-                {DATABASE_COPY.property.typeLabels[type]}
-              </option>
-            ))}
+            <option value="">{DATABASE_COPY.property.rollupRelationRequired}</option>
+            {properties
+              .filter((candidate) => candidate.type === "relation" && candidate.state === "active")
+              .map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name}
+                </option>
+              ))}
           </NativeSelect>
         </label>
-      </div>
+      ) : null}
+
+      {visibleDraft.type === "formula" ? (
+        <label className="property-editor__field">
+          <span>{DATABASE_COPY.property.expression}</span>
+          <NativeInput
+            density="compact"
+            name="property-expression"
+            aria-label={DATABASE_COPY.property.expression}
+            defaultValue={visibleDraft.expression ?? ""}
+            placeholder='prop("Titre")'
+            onChange={(event) =>
+              changeDraft((current) => ({ ...current, expression: event.target.value }))
+            }
+          />
+          <span className="property-editor__hint">{DATABASE_COPY.property.expressionHint}</span>
+        </label>
+      ) : null}
 
       {usesOptions ? (
         <fieldset className="property-editor__options">

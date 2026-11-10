@@ -1,0 +1,25 @@
+{
+  "steps": [
+    { "action": "wait", "ms": 2500 },
+    {
+      "action": "evaluate",
+      "script": "(() => { document.documentElement.setAttribute('data-theme', 'light'); localStorage.setItem('myownnotion.theme', 'light'); })()",
+      "ms": 300
+    },
+    {
+      "action": "evaluate",
+      "script": "(() => { for (const el of document.querySelectorAll('.database-table-body-scroll, .database-table-header-scroll, [class*=scroll]')) { if (el.scrollWidth > el.clientWidth) el.scrollLeft = el.scrollWidth; } })()",
+      "ms": 600
+    },
+    {
+      "action": "click",
+      "selector": "th:has-text('Formule') .database-column-header",
+      "ms": 800
+    },
+    {
+      "action": "evaluate",
+      "script": "(() => { const menus = [...document.querySelectorAll('.database-column-editor')].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }); menus.at(-1)?.setAttribute('data-parity-menu', ''); })()",
+      "ms": 300
+    }
+  ]
+}

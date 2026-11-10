@@ -114,6 +114,11 @@ services:
       MYOWNNOTION_MAX_REQUEST_BYTES: ${MYOWNNOTION_MAX_REQUEST_BYTES:-1048576}
       MYOWNNOTION_MAX_BODY_BYTES: ${MYOWNNOTION_MAX_BODY_BYTES:-1048576}
       MYOWNNOTION_MAX_FILE_BYTES: ${MYOWNNOTION_MAX_FILE_BYTES:-104857600}
+      # Google Places (New) server search and the public Maps JS browser key.
+      # The server key stays server-side; the browser key is delivered to the
+      # authenticated owner by /v1/maps/config for the map view.
+      MYOWNNOTION_GOOGLE_MAPS_API_KEY: ${MYOWNNOTION_GOOGLE_MAPS_API_KEY:-}
+      MYOWNNOTION_GOOGLE_MAPS_BROWSER_KEY: ${MYOWNNOTION_GOOGLE_MAPS_BROWSER_KEY:-}
     secrets:
       - deployment-key
     volumes:

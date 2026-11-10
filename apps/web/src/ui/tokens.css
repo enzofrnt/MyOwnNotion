@@ -102,6 +102,9 @@
   --ui-color-focus: var(--ui-color-text-muted);
   --ui-color-danger: #d56c5e;
   --ui-color-danger-text: #a94338;
+  --ui-menu-item-height: 2rem;
+  --ui-menu-item-hover-bg: color-mix(in srgb, var(--ui-color-text) 6%, transparent);
+  --ui-menu-item-danger-hover-bg: color-mix(in srgb, var(--ui-color-danger-text) 12%, transparent);
   --ui-color-danger-hover: #bf594c;
   --ui-color-danger-soft: #fcebea;
   --ui-color-warning: #8a4b08;

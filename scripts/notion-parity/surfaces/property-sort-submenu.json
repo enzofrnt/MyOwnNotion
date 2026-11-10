@@ -1,0 +1,19 @@
+{
+  "name": "property-sort-submenu",
+  "reference": {
+    "profile": ".notion-lab/profile",
+    "url": "https://app.notion.com/p/3e8d891cc8ef8008b2d2d5b80c3791b4?v=3e8d891cc8ef8093bfd8000cf1dbb1a5",
+    "steps": "scripts/notion-parity/recipes/notion-property-sort-submenu.json",
+    "selector": "[data-parity-submenu]",
+    "item": "[data-parity-submenu] [role=menuitem]"
+  },
+  "candidate": {
+    "profile": ".notion-lab/app-profile-8080",
+    "url": "http://127.0.0.1:8080/notes/01a1a75e-1cae-7000-b1ed-32c769dc8e37",
+    "steps": "scripts/notion-parity/recipes/myownnotion-property-sort-submenu.json",
+    "selector": "[data-property-submenu]",
+    "item": "[data-property-submenu] button"
+  },
+  "outOfScope": [],
+  "outDir": ".notion-lab/parity/property-sort-submenu"
+}

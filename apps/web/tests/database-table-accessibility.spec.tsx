@@ -84,7 +84,7 @@ describe("database table accessibility (T042)", () => {
     expect(markup("lightbulb")).toContain('data-icon="lightbulb"');
     expect(markup("future-symbol")).not.toContain('data-icon="future-symbol"');
     expect(markup(null)).not.toContain('data-icon="lightbulb"');
-    expect(markup(null)).toContain("Aa");
+    expect(markup(null)).toContain('data-icon="type"');
   });
   it("keeps the returned entry button's cell active after clearing the temporary return target", () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

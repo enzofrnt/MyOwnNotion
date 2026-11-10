@@ -8,7 +8,7 @@ import {
 } from "@myownnotion/domain";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DATABASE_COPY } from "./database-copy.ts";
-import { type ValueDraft, validateValueDraft } from "./value-editor.tsx";
+import { encodeDateRange, type ValueDraft, validateValueDraft } from "./value-editor.tsx";
 
 export type EntryDrafts = Readonly<Record<string, ValueDraft>>;
 export interface EntryValueChanges {
@@ -41,9 +41,9 @@ export function entryValueDraft(
     case "number":
       return value.decimal;
     case "date":
-      return value.date;
+      return encodeDateRange(value.date, value.endDate);
     case "instant":
-      return value.instant;
+      return encodeDateRange(value.instant, value.endInstant);
     case "status":
     case "select":
       return value.optionId;
@@ -51,6 +51,10 @@ export function entryValueDraft(
       return value.optionIds;
     case "checkbox":
       return value.checked;
+    case "files":
+      return [...value.fileIds, ...(value.externalUrls ?? [])];
+    case "place":
+      return JSON.stringify(value);
   }
 }
 
@@ -253,7 +257,14 @@ export function useEntryAutosave({
     });
     onDraftsChange?.({ ...current.pending });
     if (current.timer !== undefined) clearTimeout(current.timer);
-    if (property.type === "text" || property.type === "number" || property.type === "date")
+    if (
+      property.type === "text" ||
+      property.type === "number" ||
+      property.type === "date" ||
+      property.type === "url" ||
+      property.type === "email" ||
+      property.type === "phone"
+    )
       current.timer = setTimeout(() => void flushRef.current(), 350);
     else void flushRef.current();
   };

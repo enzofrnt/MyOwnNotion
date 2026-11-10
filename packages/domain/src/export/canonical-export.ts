@@ -262,6 +262,16 @@ const DATABASE_PROPERTY_TYPES_SET = new Set([
   "select",
   "multi-select",
   "checkbox",
+  "url",
+  "email",
+  "phone",
+  "created-time",
+  "last-edited-time",
+  "formula",
+  "files",
+  "rollup",
+  "unique-id",
+  "place",
   "relation",
 ]);
 
@@ -286,15 +296,21 @@ function validEntryPropertyValue(value: unknown): boolean {
       );
     case "date":
       return (
-        hasExactKeys(value, ["kind", "date"]) &&
+        Object.keys(value).every((key) => key === "kind" || key === "date" || key === "endDate") &&
         typeof value["date"] === "string" &&
-        normalizeCivilDate(value["date"]).ok
+        normalizeCivilDate(value["date"]).ok &&
+        (value["endDate"] === undefined ||
+          (typeof value["endDate"] === "string" && normalizeCivilDate(value["endDate"]).ok))
       );
     case "instant":
       return (
-        hasExactKeys(value, ["kind", "instant"]) &&
+        Object.keys(value).every(
+          (key) => key === "kind" || key === "instant" || key === "endInstant",
+        ) &&
         typeof value["instant"] === "string" &&
-        normalizeInstant(value["instant"]).ok
+        normalizeInstant(value["instant"]).ok &&
+        (value["endInstant"] === undefined ||
+          (typeof value["endInstant"] === "string" && normalizeInstant(value["endInstant"]).ok))
       );
     case "status":
     case "select":
@@ -308,6 +324,37 @@ function validEntryPropertyValue(value: unknown): boolean {
       );
     case "checkbox":
       return hasExactKeys(value, ["kind", "checked"]) && typeof value["checked"] === "boolean";
+    case "files":
+      return (
+        Object.keys(value).every(
+          (key) => key === "kind" || key === "fileIds" || key === "externalUrls",
+        ) &&
+        Array.isArray(value["fileIds"]) &&
+        value["fileIds"].length <= 20 &&
+        value["fileIds"].every(isIdentifier) &&
+        new Set(value["fileIds"]).size === value["fileIds"].length &&
+        (value["externalUrls"] === undefined ||
+          (Array.isArray(value["externalUrls"]) &&
+            value["externalUrls"].length + value["fileIds"].length <= 20 &&
+            value["externalUrls"].every((url) => typeof url === "string")))
+      );
+    case "place":
+      return (
+        hasExactKeys(value, ["kind", "placeId", "name", "address", "latitude", "longitude"]) &&
+        typeof value["placeId"] === "string" &&
+        value["placeId"] !== "" &&
+        typeof value["name"] === "string" &&
+        value["name"] !== "" &&
+        (value["address"] === null || typeof value["address"] === "string") &&
+        typeof value["latitude"] === "number" &&
+        Number.isFinite(value["latitude"]) &&
+        value["latitude"] >= -90 &&
+        value["latitude"] <= 90 &&
+        typeof value["longitude"] === "number" &&
+        Number.isFinite(value["longitude"]) &&
+        value["longitude"] >= -180 &&
+        value["longitude"] <= 180
+      );
     default:
       return false;
   }

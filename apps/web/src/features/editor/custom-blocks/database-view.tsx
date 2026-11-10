@@ -16,6 +16,7 @@ import type { LocalContentService } from "../../../services/local-content.ts";
 import { AsyncState, Button } from "../../../ui/primitives/index.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../../databases/database-page.tsx";
 import { definitionViewsPreservingPresentation } from "../../databases/definition-view-merge.ts";
+import { type LocalRollupContext, loadLocalRollupContext } from "../../databases/local-rollup.ts";
 import { PageViewQuery } from "../../databases/page-view-query.ts";
 import { createProjectionRefresh } from "../../databases/projection-refresh.ts";
 import type { DatabaseCellUpdate } from "../../databases/table-view.tsx";
@@ -29,6 +30,7 @@ interface LoadedView {
   readonly entries: readonly DatabaseEntryDto[];
   readonly querySource: Omit<LocalDatabaseQuerySource, "generation">;
   readonly states: ReadonlyMap<Uuid, DatabaseRowSyncState>;
+  readonly rollupContext: LocalRollupContext | null;
   readonly queryGeneration?: number;
 }
 
@@ -101,6 +103,9 @@ export async function loadView(
         kind: item.kind,
         icon: item.icon ?? null,
         revisionId: item.currentRevisionId,
+        ...(membership.entryNumber === undefined ? {} : { entryNumber: membership.entryNumber }),
+        ...(membership.createdAt === undefined ? {} : { createdAt: membership.createdAt }),
+        ...(membership.updatedAt === undefined ? {} : { updatedAt: membership.updatedAt }),
         lifecycle: item.lifecycle,
         title: item.name,
         document: item.pageDocument,
@@ -118,12 +123,20 @@ export async function loadView(
     entries: entries.map((entry) => ({
       entryId: entry.entryId as Uuid,
       revisionId: entry.revisionId as Uuid,
+      ...(entry.entryNumber === undefined ? {} : { entryNumber: entry.entryNumber }),
+      ...(entry.createdAt === undefined ? {} : { createdAt: entry.createdAt }),
+      ...(entry.updatedAt === undefined ? {} : { updatedAt: entry.updatedAt }),
       title: entry.title,
       availability: availability.get(entry.entryId as Uuid) ?? "never-fetched",
       values: entry.values as LocalDatabaseQuerySource["entries"][number]["values"],
       relationTargets: relations.get(entry.entryId as Uuid) ?? {},
     })),
   };
+  const rollupContext = source.definition.properties.some(
+    (property) => property.state === "active" && property.type === "rollup",
+  )
+    ? await loadLocalRollupContext(service)
+    : null;
   return {
     container,
     source,
@@ -132,6 +145,7 @@ export async function loadView(
     entries,
     querySource,
     states,
+    rollupContext,
   };
 }
 
@@ -142,6 +156,7 @@ export function DatabaseViewSurface({
   openItem,
   returnFocusEntryId,
   onReturnFocusRestored,
+  onOpenViewSettings,
   formatPlacement = "panel",
 }: {
   readonly containerItemId: Uuid;
@@ -150,6 +165,7 @@ export function DatabaseViewSurface({
   readonly openItem: (itemId: Uuid) => void;
   readonly returnFocusEntryId?: Uuid | null;
   readonly onReturnFocusRestored?: () => void;
+  readonly onOpenViewSettings?: () => void;
   readonly formatPlacement?: "panel" | "chrome";
 }) {
   const readProjectionState = useCallback(() => {
@@ -192,7 +208,14 @@ export function DatabaseViewSurface({
             value:
               typeof next === "string"
                 ? next
-                : { ...next, queryGeneration: query.update(next.querySource, next.states) },
+                : {
+                    ...next,
+                    queryGeneration: query.update(
+                      next.querySource,
+                      next.states,
+                      next.rollupContext,
+                    ),
+                  },
           });
           setError(null);
           setReadyScope(readScope);
@@ -431,6 +454,7 @@ export function DatabaseViewSurface({
         {...(formatPlacement === "chrome"
           ? { toolsSlotId: `database-view-tools-${containerItemId}` }
           : {})}
+        {...(onOpenViewSettings === undefined ? {} : { onOpenViewSettings })}
         {...(returnFocusEntryId === undefined ? {} : { returnFocusEntryId })}
         {...(onReturnFocusRestored === undefined ? {} : { onReturnFocusRestored })}
         database={database}
@@ -441,8 +465,8 @@ export function DatabaseViewSurface({
         onQueryView={queryView}
         onPreviewDefinitionImpact={previewDefinition}
         onReplaceDefinition={replaceDefinition}
-        onCreateEntry={async (title, initialValues = {}, initialRelations = {}) => {
-          const id = generateUuidV7();
+        onCreateEntry={async (title, initialValues = {}, initialRelations = {}, entryId) => {
+          const id = entryId ?? generateUuidV7();
           const result = await service.createDatabaseEntry(loaded.source.itemId, {
             id,
             sourceId: loaded.view.sourceId,
@@ -455,8 +479,8 @@ export function DatabaseViewSurface({
           if (!result.ok) throw new Error(result.error.title);
           return id;
         }}
-        onCreateFolder={async (title, initialValues = {}, initialRelations = {}) => {
-          const id = generateUuidV7();
+        onCreateFolder={async (title, initialValues = {}, initialRelations = {}, entryId) => {
+          const id = entryId ?? generateUuidV7();
           const result = await service.createDatabaseEntry(loaded.source.itemId, {
             id,
             sourceId: loaded.view.sourceId,

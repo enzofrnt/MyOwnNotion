@@ -312,6 +312,9 @@ export async function resolveDatabaseProjectionEntries(
     return {
       entryId: record.entryId,
       revisionId: record.revisionId,
+      ...(record.entryNumber === null ? {} : { entryNumber: record.entryNumber }),
+      ...(record.createdAt === undefined ? {} : { createdAt: record.createdAt.toISOString() }),
+      ...(record.updatedAt === undefined ? {} : { updatedAt: record.updatedAt.toISOString() }),
       title,
       values: entryValues.values,
       relationTargets: Object.fromEntries(

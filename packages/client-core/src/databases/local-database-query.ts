@@ -12,6 +12,9 @@ import {
 export interface LocalDatabaseQueryEntry {
   readonly entryId: Uuid;
   readonly revisionId: Uuid;
+  readonly entryNumber?: number;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
   readonly title: string;
   readonly availability: "present" | "offloaded" | "never-fetched";
   readonly values: Readonly<Record<Uuid, NonRelationPropertyValue>>;

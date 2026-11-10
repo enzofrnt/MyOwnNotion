@@ -12,6 +12,7 @@ import {
   readItem,
 } from "@myownnotion/database";
 import {
+  computeRollupValue,
   type DatabaseDefinition,
   type DatabaseFilterOperand,
   type DatabaseProperty,
@@ -21,6 +22,7 @@ import {
   evaluateDatabaseView,
   type FilterCriterion,
   prepareDatabaseFilterOperand,
+  type RollupCell,
   type SafeErrorCode,
   type Uuid,
 } from "@myownnotion/domain";
@@ -618,6 +620,50 @@ export class DatabaseQueryService {
     const pageRows = rows.slice(offset, offset + limit);
     const nextOffset = offset + pageRows.length;
     const last = pageRows.at(-1);
+    const sources = [...active.sources.values()];
+    const rollupEntries = new Map(
+      sources.flatMap((candidate) =>
+        candidate.entries.map((entry) => [entry.entryId, entry] as const),
+      ),
+    );
+    const propertiesById = new Map<Uuid, DatabaseProperty>();
+    for (const candidate of sources) {
+      for (const property of candidate.definition.properties) {
+        if (property.state === "active") propertiesById.set(property.id, property);
+      }
+    }
+    const rollupProperties = [...propertiesById.values()]
+      .filter(
+        (property) =>
+          property.type !== "relation" && property.type !== "rollup" && property.type !== "formula",
+      )
+      .map((property) => ({ id: property.id, name: property.name, type: property.type }));
+    const rollupDefinitions = source.definition.properties.filter(
+      (property): property is Extract<DatabaseProperty, { type: "rollup" }> =>
+        property.state === "active" && property.type === "rollup",
+    );
+    const presented = presentDatabaseQuery({
+      definition: source.definition,
+      view,
+      entries: pageRows,
+      groups: evaluated.value.groups,
+      includeGroups: true,
+    });
+    const rowsWithRollups = presented.rows.map((row) => {
+      const rollupValues: Record<string, RollupCell> = {};
+      const entry = rollupEntries.get(row.entryId as Uuid);
+      if (entry !== undefined) {
+        for (const property of rollupDefinitions) {
+          const targetProperty =
+            property.config.targetPropertyId === undefined
+              ? undefined
+              : propertiesById.get(property.config.targetPropertyId);
+          const value = computeRollupValue(property, entry, targetProperty, rollupEntries);
+          if (value !== null) rollupValues[property.id] = value;
+        }
+      }
+      return Object.keys(rollupValues).length === 0 ? row : { ...row, rollupValues };
+    });
     return {
       databaseId,
       viewId: request.viewId,
@@ -626,13 +672,9 @@ export class DatabaseQueryService {
       coverage: "complete",
       availableCount: source.entries.length,
       expectedCount: source.entries.length,
-      ...presentDatabaseQuery({
-        definition: source.definition,
-        view,
-        entries: pageRows,
-        groups: evaluated.value.groups,
-        includeGroups: true,
-      }),
+      ...presented,
+      rows: rowsWithRollups,
+      ...(rollupProperties.length === 0 ? {} : { rollupProperties }),
       nextCursor:
         nextOffset < evaluated.value.totalCount && last !== undefined
           ? this.#encodeCursor({

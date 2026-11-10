@@ -1,10 +1,5 @@
 import { type RefObject, useLayoutEffect, useRef } from "react";
 
-type ScrollTimelineConstructor = new (options: {
-  source: HTMLElement;
-  axis: "x";
-}) => AnimationTimeline;
-
 /** Native sticky on Y; the body's scroll timeline owns the header's X motion. */
 export function usePageHeaders(
   surface: RefObject<HTMLElement | null>,
@@ -30,9 +25,9 @@ export function usePageHeaders(
 
     const track = headerRail.firstElementChild;
     if (!(track instanceof HTMLElement)) return;
-    const Timeline = (window as Window & { ScrollTimeline?: ScrollTimelineConstructor })
-      .ScrollTimeline;
-    const timeline = Timeline === undefined ? null : new Timeline({ source: bodyRail, axis: "x" });
+    // Keep the header on the same frame as the body. A ScrollTimeline runs on
+    // the compositor and visibly lags the native scroll on wide tables.
+    const timeline = null;
     let animation: Animation | null = null;
     let previousRange = -1;
     const syncFallback = () => {
@@ -102,11 +97,9 @@ export function usePageHeaders(
       else if (control.right > right) bodyRail.scrollLeft += control.right - right;
       syncFallback();
     };
-    if (timeline === null) {
-      bodyRail.addEventListener("scroll", syncFallback, { passive: true });
-      // On older engines the gesture moves body and header in the same turn.
-      bodyRail.addEventListener("wheel", horizontalGesture, { passive: false });
-    }
+    bodyRail.addEventListener("scroll", syncFallback, { passive: true });
+    // Drive the gesture in the same turn as the body, even before scroll fires.
+    bodyRail.addEventListener("wheel", horizontalGesture, { passive: false });
     headerRail.addEventListener("wheel", horizontalGesture, { passive: false });
     headerRail.addEventListener("focusin", revealHeaderControl);
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);

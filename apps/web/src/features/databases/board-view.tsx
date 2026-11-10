@@ -25,6 +25,7 @@ import {
   MenuItem,
   MenuLabel,
   MenuRoot,
+  MenuSeparator,
   MenuTrigger,
 } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
@@ -260,6 +261,7 @@ function BoardCardMenu({
           </MenuItem>
         ) : (
           <>
+            <MenuLabel>Carte</MenuLabel>
             {actions === null ? null : (
               <MenuItem onClick={onEdit}>
                 <AppIcon name="edit" size="small" /> Modifier les propriétés
@@ -278,6 +280,7 @@ function BoardCardMenu({
                 <AppIcon name="expand" size="small" /> Ouvrir en pleine page
               </MenuItem>
             )}
+            <MenuSeparator />
             <MenuItem
               hideOnClick={false}
               disabled={actionPending}
@@ -297,6 +300,7 @@ function BoardCardMenu({
               <AppIcon name="arrowRight" size="small" /> Déplacer dans un groupe
               <AppIcon name="chevronRight" size="small" />
             </MenuItem>
+            <MenuSeparator />
             {actions === null ? null : (
               <>
                 <ConvertItemControl
@@ -309,6 +313,7 @@ function BoardCardMenu({
                   variant="menu"
                 />
                 <MenuItem
+                  destructive
                   hideOnClick={false}
                   disabled={actionPending}
                   onClick={() => {
@@ -607,7 +612,11 @@ function BoardCards({
                           ) : (
                             <>
                               <span className="sr-only">{property.name} : </span>
-                              <PropertyValue property={property} row={row} />
+                              <PropertyValue
+                                property={property}
+                                row={row}
+                                properties={properties}
+                              />
                             </>
                           )}
                         </span>

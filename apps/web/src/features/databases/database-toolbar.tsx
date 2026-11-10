@@ -104,6 +104,15 @@ export function createSavedView(
         preview: "page",
       },
     };
+  } else if (type === "map") {
+    const placeProperty = activeProperties.find((property) => property.type === "place");
+    if (placeProperty === undefined) return definition;
+    created = {
+      ...common,
+      type,
+      group: null,
+      options: { placePropertyId: placeProperty.id },
+    };
   } else {
     const dateProperty = activeProperties.find((property) => property.type === "date");
     if (dateProperty === undefined) return definition;

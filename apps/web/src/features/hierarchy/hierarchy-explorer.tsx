@@ -2955,6 +2955,7 @@ export function HierarchyExplorer({
                         returnFocusEntryId={entryReturnFocusId}
                         onReturnFocusRestored={clearEntryReturnFocus}
                         linked={selectedItem.kind === "database_view"}
+                        hideSingleSourceTitle
                       />
                     ) : selectedDatabase !== null && showSelectedDatabase ? (
                       <DatabasePage
@@ -3141,8 +3142,13 @@ export function HierarchyExplorer({
                           definitionMutationQueue.current = queued.catch(() => undefined);
                           return queued;
                         }}
-                        onCreateEntry={async (title, initialValues = {}, initialRelations = {}) => {
-                          const id = generateUuidV7();
+                        onCreateEntry={async (
+                          title,
+                          initialValues = {},
+                          initialRelations = {},
+                          entryId,
+                        ) => {
+                          const id = entryId ?? generateUuidV7();
                           const result = await service.createDatabaseEntry(selectedItem.id, {
                             id,
                             title,

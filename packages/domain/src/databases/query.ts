@@ -79,6 +79,10 @@ function comparableScalar(
       return value.instant;
     case "checkbox":
       return value.checked;
+    case "files":
+      return String(value.fileIds.length);
+    case "place":
+      return value.name;
     case "status":
     case "select": {
       if (
@@ -184,6 +188,9 @@ export function prepareDatabaseFilterOperand(
     }
     return queryError(`filter.${criterion.id}`, "invalid-operand");
   }
+  if (property.type === "place" && criterion.operand?.kind === "text") {
+    return ok(criterion.operand);
+  }
   const normalized = normalizePropertyValue(property, criterion.operand, { intent: "decode" });
   if (!normalized.ok || normalized.value === undefined) {
     return queryError(`filter.${criterion.id}`, "invalid-operand");
@@ -197,6 +204,10 @@ function validOperator(property: DatabaseProperty, operator: FilterCriterion["op
     return (
       property.type === "title" ||
       property.type === "text" ||
+      property.type === "url" ||
+      property.type === "email" ||
+      property.type === "phone" ||
+      property.type === "place" ||
       property.type === "multi-select" ||
       property.type === "relation"
     );
@@ -210,6 +221,12 @@ function validOperator(property: DatabaseProperty, operator: FilterCriterion["op
 function contains(value: ComparableValue, operand: ComparableValue): boolean {
   if (value.kind === "text" && operand.kind === "text") {
     return textKey(value.value).includes(textKey(operand.value));
+  }
+  if (value.kind === "place" && operand.kind === "text") {
+    return textKey(value.name).includes(textKey(operand.value));
+  }
+  if (value.kind === "place" && operand.kind === "place") {
+    return textKey(value.name).includes(textKey(operand.name));
   }
   if (value.kind === "multi-select" && operand.kind === "multi-select") {
     return operand.optionIds.every((optionId) => value.optionIds.includes(optionId));
@@ -236,6 +253,12 @@ function matchesCriterion(
       comparePresent(property, value, operand.from) >= 0 &&
       comparePresent(property, value, operand.to) <= 0
     );
+  }
+  if (property.type === "place" && operand.kind === "text") {
+    if (criterion.operator === "equals")
+      return textKey(value.kind === "place" ? value.name : "") === textKey(operand.value);
+    if (criterion.operator === "not-equals")
+      return textKey(value.kind === "place" ? value.name : "") !== textKey(operand.value);
   }
   switch (criterion.operator) {
     case "equals":
@@ -446,6 +469,22 @@ export function evaluateDatabaseView(
     for (const criterion of view.sorts) {
       const comparison = compareByCriterion(properties, criterion, left, right, normalizedText);
       if (comparison !== 0) return comparison;
+    }
+    // Notion appends a new entry at the end of an unsorted view. The stable
+    // default order is therefore creation order, not title order; entries
+    // without a timestamp keep the historical title-then-identity order.
+    const leftCreated = left.createdAt;
+    const rightCreated = right.createdAt;
+    if (leftCreated !== undefined && rightCreated !== undefined) {
+      if (leftCreated !== rightCreated) return leftCreated < rightCreated ? -1 : 1;
+      if (
+        left.entryNumber !== undefined &&
+        right.entryNumber !== undefined &&
+        left.entryNumber !== right.entryNumber
+      ) {
+        return left.entryNumber - right.entryNumber;
+      }
+      return left.entryId.localeCompare(right.entryId);
     }
     return (
       compareText(left.title, right.title, normalizedText) ||

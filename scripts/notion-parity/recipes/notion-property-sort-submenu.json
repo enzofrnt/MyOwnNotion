@@ -1,0 +1,20 @@
+{
+  "steps": [
+    { "action": "wait", "ms": 5000 },
+    {
+      "action": "click",
+      "selector": ".notion-table-view-header-cell:has-text('Formule')",
+      "ms": 900
+    },
+    {
+      "action": "click",
+      "selector": "[role=menuitem]:has-text('Trier')",
+      "ms": 900
+    },
+    {
+      "action": "evaluate",
+      "script": "(() => { const menus = [...document.querySelectorAll('[role=menu]')].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }); menus.at(-1)?.setAttribute('data-parity-submenu', ''); })()",
+      "ms": 300
+    }
+  ]
+}

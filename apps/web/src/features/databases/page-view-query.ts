@@ -5,6 +5,7 @@ import {
 } from "@myownnotion/client-core";
 import type { Uuid } from "@myownnotion/domain";
 import type { DatabaseRowSyncState, DatabaseViewResult } from "../../services/databases.ts";
+import { type LocalRollupContext, withLocalRollups } from "./local-rollup.ts";
 
 /** A page-backed display queries its selected source with its own view settings. */
 export class PageViewQuery {
@@ -12,10 +13,12 @@ export class PageViewQuery {
   #signature = "";
   #generation = 0;
   #states: ReadonlyMap<Uuid, DatabaseRowSyncState> = new Map();
+  #rollups: LocalRollupContext | null = null;
 
   update(
     source: Omit<LocalDatabaseQuerySource, "generation">,
     states: ReadonlyMap<Uuid, DatabaseRowSyncState>,
+    rollups: LocalRollupContext | null = null,
   ): number {
     const signature = JSON.stringify(source);
     if (signature !== this.#signature) {
@@ -23,6 +26,7 @@ export class PageViewQuery {
       this.#source = { ...source, generation: ++this.#generation };
     }
     this.#states = states;
+    this.#rollups = rollups;
     return this.#generation;
   }
 
@@ -48,6 +52,9 @@ export class PageViewQuery {
       }
       page = queryLocalDatabase(this.#source, { viewId, limit: 100 });
       recovered = true;
+    }
+    if (this.#rollups !== null) {
+      page = withLocalRollups(page, this.#source.definition, this.#rollups);
     }
     return {
       ok: true,

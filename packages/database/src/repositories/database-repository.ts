@@ -39,6 +39,7 @@ export interface DatabaseEntryRecord {
   readonly valueVersion: number;
   readonly addedRevisionId: Uuid;
   readonly valueRevisionId: Uuid;
+  readonly entryNumber: number | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -132,6 +133,7 @@ function entryModel(row: typeof databaseEntries.$inferSelect): DatabaseEntryReco
     valueVersion: row.valueVersion,
     addedRevisionId: row.addedRevisionId as Uuid,
     valueRevisionId: row.valueRevisionId as Uuid,
+    entryNumber: row.entryNumber,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -602,6 +604,9 @@ export async function replaceDatabaseRelationships(
 export interface DatabaseProjectionEntryRecord {
   readonly entryId: Uuid;
   readonly revisionId: Uuid;
+  readonly entryNumber: number | null;
+  readonly createdAt?: Date;
+  readonly updatedAt?: Date;
   readonly storedName: string;
   readonly valueVersion: number;
   readonly storedValues: EntryValues | null;
@@ -617,6 +622,9 @@ export async function listDatabaseProjectionEntries(
     .select({
       entryId: items.id,
       revisionId: items.currentRevisionId,
+      entryNumber: databaseEntries.entryNumber,
+      createdAt: items.createdAt,
+      updatedAt: items.updatedAt,
       storedName: items.name,
       valueVersion: databaseEntries.valueVersion,
       storedValues: sql<EntryValues | null>`${revisions.snapshot}->'databaseEntryValues'`,
