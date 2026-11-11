@@ -80,6 +80,7 @@ Ces écarts sont documentés, pas présentés comme parité atteinte.
   - `relationship-security.integration.spec.ts`, `database.integration.spec.ts` : verts ;
   - `restore.integration.spec.ts` et `reference-backups.integration.spec.ts` : verts.
 - **Domain** `canonical-export-sources.spec.ts` + `canonical-export.spec.ts` : **85/85**.
+- **Menu de relation** (`relation-value-menu.spec.tsx`) : 3 tests — seule la source configurée est listée, recherche sans résultat, ajout, retrait d'un lien conservé hors source, liste historique préservée sans source.
 - **Relations / menu / agrégation** : `relation-source.spec.ts` 7, `relation-catalog.spec.tsx` 2, `relation-property-settings.spec.tsx` 1, `rollup-settings.spec.tsx` 5, `local-rollup-source.spec.ts` 4, `database-rollup.spec.ts` 4, `property-configuration-async.spec.tsx` 6, `database-view-loading.spec.tsx` 29.
 - **API projection** : `database-query-service`, `database-query-rollups`, `database-query-source-loading` verts.
 - **Biome** : vert sur tous les fichiers 057 (seuls restent deux avertissements `organizeImports` préexistants dans `graph-canvas-paint.spec.ts` et `knowledge-graph-global.spec.tsx`, hors périmètre).
