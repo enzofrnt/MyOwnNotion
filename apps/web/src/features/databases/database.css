@@ -1244,6 +1244,24 @@
   background: var(--ui-color-surface-hover);
 }
 
+/* Column headers are grabbed and dropped like view tabs. */
+.database-table th[data-column-draggable] {
+  cursor: grab;
+}
+
+.database-container-page .database-table th[data-dragging],
+.editor-database-view-block .database-table th[data-dragging],
+.database-table th[data-dragging] {
+  z-index: 3;
+  background: var(--ui-color-surface-raised);
+  cursor: grabbing;
+  opacity: 0.9;
+}
+
+.database-table th[data-dragging] .database-column-resize {
+  visibility: hidden;
+}
+
 .database-container-page .database-table th.database-table-filler,
 .database-container-page .database-table td.database-table-filler,
 .editor-database-view-block .database-table th.database-table-filler,
@@ -3818,131 +3836,219 @@
   white-space: nowrap;
 }
 
-.formula-editor {
-  display: grid;
-  gap: var(--ui-space-3);
-  width: min(52rem, calc(100vw - 2 * var(--ui-space-3)));
-  max-height: min(42rem, calc(100dvh - 2 * var(--ui-space-3)));
-  overflow-y: auto;
+/* Formula editor: Notion's panel (740 px) — expression, preview, then reference. */
+.formula-editor.ui-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: min(46.25rem, calc(100vw - 2 * var(--ui-space-3)));
+  height: min(34rem, calc(100dvh - 2 * var(--ui-space-3)));
+  padding: 0;
+  overflow: hidden;
+}
+.formula-editor__header {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3) var(--ui-space-3) var(--ui-space-2) var(--ui-space-4);
+}
+.formula-editor__header .ui-overlay__heading {
+  margin: 0 auto 0 0;
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+}
+.formula-editor__header .ui-overlay__dismiss {
+  position: static;
 }
 .formula-editor__field {
-  display: grid;
-}
-.formula-editor__input {
-  width: 100%;
-  min-height: 8rem;
-  padding: var(--ui-space-2);
+  position: relative;
+  flex: none;
+  margin: 0 var(--ui-space-3);
   border: 1px solid var(--ui-color-border);
-  border-radius: var(--ui-radius-sm);
+  border-radius: var(--ui-radius-md);
   background: var(--ui-color-surface-sunken);
-  color: var(--ui-color-text);
+}
+.formula-editor__field:focus-within {
+  border-color: var(--ui-color-focus);
+  box-shadow: 0 0 0 1px var(--ui-color-focus);
+}
+.formula-editor__mirror,
+.formula-editor__input {
+  margin: 0;
+  padding: var(--ui-space-3);
+  border: 0;
   font-family: var(--ui-font-mono);
   font-size: var(--ui-text-sm);
   line-height: 1.5;
-  resize: vertical;
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
 }
-.formula-editor__input:focus-visible {
-  border-color: var(--ui-color-focus);
+.formula-editor__mirror {
+  min-height: 6rem;
+  max-height: 10rem;
+  overflow: hidden;
+  color: transparent;
+  pointer-events: none;
+}
+.formula-editor__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  color: var(--ui-color-text);
+  resize: none;
   outline: none;
 }
-.formula-editor__panels {
+.formula-editor__fault {
+  text-decoration: underline wavy var(--ui-color-danger);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+}
+.formula-editor__preview {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border-bottom: 1px solid var(--ui-color-border);
+  font-size: var(--ui-text-sm);
+}
+.formula-editor__preview-controls,
+.formula-editor__result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--ui-space-3);
+  min-height: 1.5rem;
 }
-.formula-editor__panel {
+.formula-editor__debug {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  white-space: nowrap;
+}
+.formula-editor__value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--ui-space-1);
   min-width: 0;
+  overflow-wrap: anywhere;
 }
-.formula-editor__panel h3 {
-  margin: 0 0 var(--ui-space-1);
+.formula-editor__debug-type {
+  color: var(--ui-color-text-muted);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-xs);
+}
+.formula-editor__type {
+  flex: none;
+  padding: 1px var(--ui-space-2);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-color-surface-hover);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+.formula-editor__error {
+  color: var(--ui-color-danger-text);
+}
+.formula-editor__reference {
+  display: grid;
+  grid-template-columns: minmax(0, 14.25rem) minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.formula-editor__list {
+  padding: var(--ui-space-2) var(--ui-space-1);
+  border-right: 1px solid var(--ui-color-border);
+  overflow-y: auto;
+}
+.formula-editor__list h3 {
+  margin: var(--ui-space-2) var(--ui-space-2) var(--ui-space-1);
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-xs);
   font-weight: 500;
 }
-.formula-editor__chips {
+.formula-editor__item {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--ui-space-1);
-}
-.formula-editor__chip {
-  padding: 2px var(--ui-space-2);
-  border: 1px solid var(--ui-color-border);
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-color-surface);
-  color: var(--ui-color-text);
-  font: inherit;
-  font-size: var(--ui-text-xs);
-  cursor: pointer;
-}
-.formula-editor__chip:hover {
-  background: var(--ui-color-surface-hover);
-}
-.formula-editor__function-groups {
-  display: grid;
+  align-items: center;
   gap: var(--ui-space-2);
-  max-height: 16rem;
-  overflow-y: auto;
-}
-.formula-editor__function-group h4 {
-  margin: 0 0 2px;
-  color: var(--ui-color-text-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.formula-editor__function-group .formula-editor__functions {
-  max-height: none;
-  overflow: visible;
-}
-.formula-editor__functions {
-  display: grid;
-  gap: 2px;
-  max-height: 14rem;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  list-style: none;
-}
-.formula-editor__function {
-  display: grid;
-  gap: 1px;
   width: 100%;
-  padding: var(--ui-space-1) var(--ui-space-2);
+  min-height: 1.75rem;
+  padding: 0 var(--ui-space-2);
   border: 0;
   border-radius: var(--ui-radius-sm);
   background: transparent;
   color: var(--ui-color-text);
   font: inherit;
+  font-size: var(--ui-text-sm);
   text-align: left;
   cursor: pointer;
 }
-.formula-editor__function:hover {
-  background: var(--ui-menu-item-hover-bg);
+.formula-editor__item[aria-selected="true"] {
+  background: var(--ui-color-surface-hover);
 }
-.formula-editor__function code {
-  font-family: var(--ui-font-mono);
-  font-size: var(--ui-text-xs);
-}
-.formula-editor__function span {
+.formula-editor__item-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-xs);
 }
-.formula-editor__preview {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--ui-space-2);
-  padding: var(--ui-space-2);
-  border: 1px solid var(--ui-color-border);
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-color-surface-sunken);
+.formula-editor__item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.formula-editor__item-hint {
+  color: var(--ui-color-text-muted);
+}
+.formula-editor__empty {
+  margin: var(--ui-space-3) var(--ui-space-2);
   font-size: var(--ui-text-sm);
 }
-.formula-editor__actions {
+.formula-editor__doc {
+  padding: var(--ui-space-3) var(--ui-space-4);
+  overflow-y: auto;
+  font-size: var(--ui-text-sm);
+}
+.formula-editor__doc h3 {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: var(--ui-space-1);
+  margin: 0 0 var(--ui-space-2);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+}
+.formula-editor__doc p {
+  margin: 0 0 var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+}
+.formula-editor__doc ul {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.formula-editor__doc li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--ui-space-2);
+  padding: var(--ui-space-1) var(--ui-space-1) var(--ui-space-1) var(--ui-space-2);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-sm);
+}
+.formula-editor__doc code {
+  min-width: 0;
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-xs);
+  overflow-wrap: anywhere;
 }
 
 .property-settings__status {
@@ -5766,7 +5872,7 @@
   overflow-y: auto;
   list-style: none;
 }
-.place-property-field__results button {
+.place-property-field__result {
   display: flex;
   align-items: center;
   gap: var(--ui-space-1);
@@ -5780,14 +5886,18 @@
   text-align: left;
   cursor: pointer;
 }
-.place-property-field__results button:hover {
+.place-property-field__result:hover,
+.place-property-field__result[aria-selected="true"] {
   background: var(--ui-menu-item-hover-bg);
 }
-.place-property-field__results button span {
+.place-property-field__result[aria-disabled="true"] {
+  cursor: progress;
+}
+.place-property-field__result span {
   display: grid;
   min-width: 0;
 }
-.place-property-field__results button span span {
+.place-property-field__result span span {
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-xs);
 }
@@ -5798,14 +5908,22 @@
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-xs);
 }
+.formula-editor__header .ui-button {
+  font-weight: 400;
+}
+.formula-editor__header .ui-overlay__heading {
+  white-space: nowrap;
+}
 .formula-editor__preview-picker select {
-  height: 26px;
+  height: 28px;
+  padding: 0 var(--ui-space-2);
   max-width: 16rem;
   border: 1px solid var(--ui-color-border);
   border-radius: var(--ui-radius-sm);
   background: var(--ui-color-surface);
   color: var(--ui-color-text);
   font: inherit;
+  line-height: 1.2;
 }
 @media (max-width: 640px) {
   .database-map {
@@ -5820,8 +5938,27 @@
   .database-map__toolbar label {
     min-width: 0;
   }
-  .formula-editor__panels {
+  .formula-editor__reference {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+  .formula-editor__list {
+    border-right: 0;
+    border-bottom: 1px solid var(--ui-color-border);
+  }
+  .formula-editor__preview-controls {
+    flex-wrap: wrap;
+  }
+  .formula-editor__header {
+    flex-wrap: wrap;
+  }
+  /* The close control stays on the title row; « Annuler… » drops below it. */
+  .formula-editor__header .ui-overlay__dismiss {
+    order: 1;
+  }
+  .formula-editor__header > .ui-button:not(.ui-overlay__dismiss) {
+    order: 2;
+    margin-left: calc(-1 * var(--ui-space-2));
   }
 }
 .file-property-field__link {
@@ -5869,4 +6006,149 @@
   align-items: center;
   justify-content: center;
   line-height: 0;
+}
+
+/* Rollup configuration: Notion's three menu rows (relation, target, calculation). */
+.rollup-settings {
+  display: grid;
+  gap: 1px;
+}
+.rollup-settings__row:disabled {
+  color: var(--ui-color-text-muted);
+  cursor: default;
+  opacity: 0.6;
+}
+.rollup-settings__row:disabled:hover {
+  background: transparent;
+}
+.rollup-settings__row .property-settings__type-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  max-width: 55%;
+}
+.ui-menu.rollup-settings__menu {
+  width: min(15.5rem, calc(100vw - 1rem));
+  max-height: min(24rem, calc(100dvh - 1rem));
+  overflow-y: auto;
+}
+.rollup-settings__menu .ui-menu__item-label {
+  flex: 1;
+  min-width: 0;
+}
+.rollup-settings__menu .rollup-settings__check {
+  margin-left: auto;
+  color: var(--ui-color-text-muted);
+}
+.rollup-settings__issue {
+  margin: var(--ui-space-2) var(--ui-space-1) 0;
+}
+
+/* Place picker: Notion's « Emplacement actuel » row and explicit search states. */
+.place-property-field__search:focus-within {
+  border-color: var(--ui-color-focus);
+}
+.place-property-field__current {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  width: 100%;
+  min-height: var(--ui-target-compact);
+  padding: 0 var(--ui-space-1);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-color-text);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.place-property-field__current:hover:not(:disabled) {
+  background: var(--ui-menu-item-hover-bg);
+}
+.place-property-field__current:disabled {
+  color: var(--ui-color-text-muted);
+  cursor: default;
+}
+.place-property-field__state {
+  margin: 0;
+  padding: var(--ui-space-1);
+  font-size: var(--ui-text-sm);
+}
+.place-property-field__failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.place-property-field__failure p {
+  flex: 1 1 12rem;
+  margin: 0;
+}
+.place-property-field__source {
+  margin: 0;
+  padding: 0 var(--ui-space-1);
+  font-size: var(--ui-text-xs);
+}
+.database-map__failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.database-map__failure p {
+  margin: 0;
+}
+.database-map__list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.database-map__list button {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  width: 100%;
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.database-map__list button:hover {
+  background: var(--ui-menu-item-hover-bg);
+}
+.database-map__list button > span {
+  display: grid;
+  min-width: 0;
+}
+.database-map__list button > span > span {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+.place-property-field__search input:focus,
+.place-property-field__search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.place-property-field__result {
+  padding: var(--ui-space-1) var(--ui-space-2);
+  font-size: var(--ui-text-sm);
+  line-height: 1.35;
+}
+.place-property-field__result strong {
+  font-weight: 500;
+}
+.place-property-field__result strong,
+.place-property-field__result span span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

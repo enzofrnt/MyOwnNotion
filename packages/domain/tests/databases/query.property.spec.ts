@@ -77,11 +77,10 @@ describe("saved database query evaluation", () => {
       ...entry,
       createdAt: stamp,
     }));
-    expect(idsFor(view, [created[1], created[2], created[0]])).toEqual([
-      IDS.entryA,
-      IDS.entryB,
-      IDS.entryC,
-    ]);
+    const [first, second, third] = created;
+    if (first === undefined || second === undefined || third === undefined)
+      throw new Error("Missing fixture entry");
+    expect(idsFor(view, [second, third, first])).toEqual([IDS.entryA, IDS.entryB, IDS.entryC]);
   });
 
   it("sorts numbers canonically, then normalized/raw title, then entry identity", () => {

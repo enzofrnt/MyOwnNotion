@@ -332,7 +332,11 @@ export type DatabaseProperty =
     })
   | (DatabasePropertyBase & {
       readonly type: "relation";
-      readonly config: { readonly cardinality: "one" | "many" };
+      readonly config: {
+        readonly cardinality: "one" | "many";
+        /** Canonical data source, never its host item or a linked view. Absent on legacy relations. */
+        readonly targetSourceId?: Uuid;
+      };
     });
 
 export type TextPropertyValue = { readonly kind: "text"; readonly value: string };

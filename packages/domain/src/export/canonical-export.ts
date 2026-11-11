@@ -20,10 +20,11 @@ import {
   type Relationship,
 } from "../content/types.ts";
 import { validateDatabaseDefinition, validateDatabasePresentation } from "../databases/schema.ts";
-import type {
-  DatabaseDefinition,
-  DatabasePresentationDefinition,
-  EntryValues,
+import {
+  type DatabaseDefinition,
+  type DatabasePresentationDefinition,
+  type EntryValues,
+  ownedSourceIdFromItemId,
 } from "../databases/types.ts";
 import {
   normalizeCivilDate,
@@ -154,7 +155,11 @@ export function buildCanonicalExport(input: BuildExportInput): CanonicalExportMa
   }));
   const relationships = sortById(input.relationships);
   const revisions = sortById(input.revisions);
-  const databases = sortByKey(input.databases ?? [], (database) => database.databaseId);
+  const databases = sortByKey(
+    input.databases ?? [],
+    (database) =>
+      `${database.databaseId}:${database.sourceId ?? ownedSourceIdFromItemId(database.databaseId)}`,
+  );
   const databasePresentations = sortByKey(
     input.databasePresentations ?? [],
     (row) => row.containerItemId,
@@ -963,15 +968,18 @@ export function validateCanonicalExport(
     }
   }
 
-  const seenDatabaseIds = new Set<Uuid>();
+  // A container may own several sources. Pre-029 exports have no sourceId;
+  // restore assigns them the same deterministic bridge identity used here.
+  const databasesBySourceId = new Map<Uuid, ExportedDatabase>();
   for (const database of databases) {
-    if (seenDatabaseIds.has(database.databaseId)) {
+    const sourceId = database.sourceId ?? ownedSourceIdFromItemId(database.databaseId);
+    if (databasesBySourceId.has(sourceId)) {
       issues.push({
         code: "database.duplicate",
-        detail: `Database ${database.databaseId} is listed more than once`,
+        detail: `Database source ${sourceId} is listed more than once`,
       });
     }
-    seenDatabaseIds.add(database.databaseId);
+    databasesBySourceId.set(sourceId, database);
     if (!itemIds.has(database.databaseId)) {
       issues.push({
         code: "database.item-missing",
@@ -1017,8 +1025,6 @@ export function validateCanonicalExport(
       });
     }
   }
-  const databasesById = new Map(databases.map((database) => [database.databaseId, database]));
-
   const sourceIds = new Set(
     databases.map((database) => database.sourceId).filter((id): id is Uuid => id !== undefined),
   );
@@ -1132,8 +1138,15 @@ export function validateCanonicalExport(
         detail: `Database entry ${entry.entryId} carries mismatched values`,
       });
     }
-    const database = databasesById.get(entry.databaseId);
-    if (database !== undefined) {
+    const sourceId = entry.sourceId ?? ownedSourceIdFromItemId(entry.databaseId);
+    const database = databasesBySourceId.get(sourceId);
+    if (database === undefined || database.databaseId !== entry.databaseId) {
+      issues.push({
+        code: "database-entry.source-mismatch",
+        detail: `Database entry ${entry.entryId} has no source owned by its database`,
+      });
+    }
+    if (database !== undefined && database.databaseId === entry.databaseId) {
       const propertiesById = new Map(
         database.definition.properties.map((property) => [property.id, property]),
       );

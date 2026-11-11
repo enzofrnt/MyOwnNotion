@@ -724,3 +724,17 @@ validation explicite du propriétaire (correction vue ensemble).
 - Preuve : evidence/add-property-panel-ellipsis-816.png,
   add-property-panel-open-1440.png ; 816 px ouvert → bouton 74 px, libellé
   34 px (contenu 120 px) + « … » ; 1440 px ouvert → 120 px entier.
+
+### L-053 — Émoji de titre : badge de retrait proportionnel, déclenché par l'icône
+- Statut : validée (retour propriétaire, 2026-11-11)
+- Surface : titre de page, sélecteur d'icône
+- Anti-pattern : croix de 24 px sur un émoji de 45 px, révélée par
+  `.workspace-page-title__body:hover` (toute la zone du titre) : elle apparaît
+  quand la souris est encore loin et couvre une grosse part de l'émoji.
+- Règle : badge 18 px avec croix 12 px, coin à 2 px, uniquement sur le
+  sélecteur `[data-picker-variant="page"]` ; la visibilité suit le survol/focus
+  du sélecteur d'icône, jamais du corps du titre ; les variantes compactes
+  conservent leur cible 24 px.
+- Preuve : evidence/emoji-clear-before.png, emoji-clear-hover-far-before.png,
+  emoji-clear-after-dark.png, emoji-clear-after-light.png ; 24→18 px, survol
+  du texte = opacité 0, focus clavier = visible.

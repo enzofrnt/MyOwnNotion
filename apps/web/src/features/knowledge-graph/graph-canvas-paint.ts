@@ -1,18 +1,30 @@
 import type { GraphLayout, GraphLayoutPosition, GraphProjection } from "@myownnotion/graph";
 import { GRAPH_COPY } from "./graph-copy.ts";
 
-/** World-space type size: labels shrink on screen when zoomed out, like Obsidian. */
+/** World-space type size when zoomed in. */
 export const GRAPH_LABEL_FONT = 12;
+/** Smallest on-screen type size: names stay legible while zoomed out. */
+export const GRAPH_LABEL_MIN_SCREEN_FONT = 11;
+
+/**
+ * World-space font size for a zoom level. Zoomed in, labels scale with the
+ * map; zoomed out, they stop shrinking so a name can still be read without
+ * zooming back in.
+ */
+export function graphLabelFont(zoom: number): number {
+  const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  return Math.max(GRAPH_LABEL_FONT, GRAPH_LABEL_MIN_SCREEN_FONT / safeZoom);
+}
 
 export function shortGraphLabel(value: string | null): string {
   const label = value?.trim() || GRAPH_COPY.noName;
   return label.length <= 26 ? label : `${label.slice(0, 23)}…`;
 }
 
-/** Obsidian text-fade at default multiplier 0: ghosted when zoomed out, solid when close. */
+/** Names fade in early: ghosted only on a far overview, solid from half zoom. */
 export function graphLabelAlpha(zoom: number, pinned: boolean): number {
   if (pinned) return 1;
-  return Math.min(1, Math.max(0, (zoom - 0.55) / 0.5));
+  return Math.min(1, Math.max(0, (zoom - 0.2) / 0.3));
 }
 
 interface LabelBox {
@@ -22,10 +34,10 @@ interface LabelBox {
   readonly bottom: number;
 }
 
-function labelBox(x: number, y: number, radius: number, text: string): LabelBox {
-  const width = Math.max(24, text.length * GRAPH_LABEL_FONT * 0.58);
-  const height = GRAPH_LABEL_FONT * 1.2;
-  const top = y + radius + 4;
+function labelBox(x: number, y: number, radius: number, text: string, font: number): LabelBox {
+  const width = Math.max(2 * font, text.length * font * 0.58);
+  const height = font * 1.2;
+  const top = y + radius + font / 3;
   return {
     left: x - width / 2,
     right: x + width / 2,
@@ -76,15 +88,18 @@ export function visibleGraphLabelIds(
   });
   const occupied: LabelBox[] = [];
   const visible = new Set<string>();
-  const pad = fade < 0.45 ? 4 : 14;
-  const maxUnpinned = fade < 0.12 ? 0 : zoom < 0.85 ? 12 : zoom < 1.2 ? 22 : 40;
+  const font = graphLabelFont(zoom);
+  // Padding is a screen distance, so it grows in world units as the map shrinks.
+  const pad = (fade < 0.45 ? 4 : 10) / Math.min(1, zoom);
+  // Overlap already thins labels out; the cap only bounds the work on huge maps.
+  const maxUnpinned = fade < 0.12 ? 0 : zoom < 0.5 ? 40 : zoom < 1.2 ? 80 : 140;
   let unpinned = 0;
   for (const node of ranked) {
     const position = positions.get(node.id);
     if (position === undefined) continue;
     const radius = position.radius;
     const text = shortGraphLabel(node.name);
-    const box = labelBox(position.x, position.y, radius, text);
+    const box = labelBox(position.x, position.y, radius, text, font);
     const mustShow = pinned.has(node.id);
     if (!mustShow) {
       if (unpinned >= maxUnpinned) continue;
@@ -205,7 +220,10 @@ export function paintGraphLayout(
       nodeId === projection.focusId ||
       (highlightedIds?.has(nodeId) ?? false);
     const opacity = labeledIds.has(nodeId) ? graphLabelAlpha(zoom, labelPinned) : 0;
+    const font = graphLabelFont(zoom);
     label.setAttribute("opacity", String(opacity));
-    label.setAttribute("y", String(position.radius + (nodeId === hoveredId ? 16 : 13)));
+    // Inline style: the stylesheet's font-size would beat a presentation attribute.
+    label.style.fontSize = `${font}px`;
+    label.setAttribute("y", String(position.radius + font + (nodeId === hoveredId ? 4 : 1)));
   }
 }

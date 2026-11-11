@@ -66,10 +66,17 @@
 
 /* Same compact ghost control as the in-sidebar close (panelClose) — not a
    large floating CTA. */
+/* Beats the square button's own minimum so the icon sits exactly where the
+   in-sidebar toggle was. */
+.workspace-sidebar-desktop-trigger.ui-button[data-size="square"] {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+}
+
 .workspace-sidebar-desktop-trigger {
   position: absolute;
   top: 50%;
-  left: var(--ui-space-2);
+  left: var(--ui-space-1);
   z-index: var(--ui-layer-menu);
   width: var(--ui-target-compact);
   height: var(--ui-target-compact);
@@ -98,7 +105,7 @@
     visibility 0ms linear;
 }
 
-.workspace-navigation__search-row .workspace-sidebar-close.ui-button[data-size="square"] {
+.workspace-sidebar-close.ui-button[data-size="square"] {
   flex: 0 0 auto;
   width: var(--ui-target-compact);
   height: var(--ui-target-compact);
@@ -157,8 +164,17 @@
   background: var(--ui-color-sidebar);
 }
 
-.workspace-sidebar-drawer > .ui-overlay__dismiss {
-  z-index: 1;
+/* Touch surface: the close control gets the comfortable target. */
+.workspace-sidebar-drawer .workspace-sidebar-close.ui-button[data-size="square"] {
+  width: var(--ui-target);
+  height: var(--ui-target);
+  min-width: var(--ui-target);
+  min-height: var(--ui-target);
+}
+
+/* No keyboard on a touch drawer: the shortcut hint would only add noise. */
+.workspace-sidebar-drawer .workspace-navigation__search kbd {
+  display: none;
 }
 
 .workspace-navigation {
@@ -167,9 +183,9 @@
   display: flex;
   height: 100%;
   min-height: 0;
-  padding: var(--ui-space-2) var(--ui-space-2) var(--ui-space-2) var(--ui-space-1);
+  padding: 0 var(--ui-space-2) var(--ui-space-2) var(--ui-space-1);
   flex-direction: column;
-  gap: var(--ui-space-2);
+  gap: 0;
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-xs);
   font-weight: 450;
@@ -189,11 +205,17 @@
   gap: var(--ui-space-2);
 }
 
-.workspace-navigation__search-row {
+/* Mirrors the stage top bar (--workspace-chrome-height + its hairline). */
+.workspace-navigation__header {
+  position: relative;
   display: flex;
   min-width: 0;
+  min-height: calc(2.5rem + 1px);
+  flex-shrink: 0;
   align-items: center;
+  justify-content: space-between;
   gap: var(--ui-space-1);
+  overflow: visible;
 }
 
 .workspace-navigation__search,
@@ -205,12 +227,6 @@
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-xs);
   font-weight: 500;
-}
-
-.workspace-navigation__search-row .workspace-navigation__search {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: auto;
 }
 
 .workspace-navigation__search .ui-button__label,
@@ -622,6 +638,65 @@ html[data-tree-grabbing="true"] * {
 .workspace-navigation .tree-row[aria-selected="true"] .tree-name {
   color: var(--ui-color-text);
   font-weight: 520;
+}
+
+/* A file's type and size are secondary to its name: one line, and the first
+   thing to give way (with an ellipsis) when the row's actions take room. */
+.workspace-navigation .tree-file-meta {
+  min-width: 0;
+  max-width: 45%;
+  flex: 0 100 auto;
+  overflow: hidden;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The rename field sits where the name is read, so the row keeps its geometry
+   and the item stays identifiable while its name changes. The row is shorter
+   than --ui-target-compact; the field is sized to the row, not to the target,
+   and only at coarse pointers grows to a comfortable touch height (L-005). */
+.tree-inline-rename {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+
+.workspace-navigation .tree-inline-rename__input.ui-native-input {
+  --tree-rename-inset: calc(var(--ui-space-1) + 1px);
+
+  width: calc(100% + var(--tree-rename-inset));
+  min-height: 1.375rem;
+  /* Pulled back by its own inset so the text stays exactly where the name was. */
+  margin-inline-start: calc(-1 * var(--tree-rename-inset));
+  padding: 0 var(--ui-space-1);
+  color: var(--ui-color-text);
+  background: var(--ui-color-canvas);
+  border: 1px solid var(--ui-color-border-strong);
+  border-radius: var(--ui-radius-sm);
+  font-size: var(--ui-text-xs);
+  font-weight: 450;
+  line-height: 1.3;
+}
+
+/* One neutral hairline, no halo: a single edge marks the field as active. */
+.workspace-navigation .tree-inline-rename__input.ui-native-input:focus,
+.workspace-navigation .tree-inline-rename__input.ui-native-input:focus-visible {
+  border-color: var(--ui-color-focus);
+  outline: none;
+  box-shadow: none;
+}
+
+.workspace-navigation .tree-inline-rename__input.ui-native-input[aria-busy="true"] {
+  opacity: 0.7;
+}
+
+@media (pointer: coarse) {
+  .workspace-navigation .tree-inline-rename__input.ui-native-input {
+    min-height: 1.5rem;
+  }
 }
 
 /* Overlay on the row so invisible hover actions do not steal title width. */
@@ -1172,6 +1247,11 @@ html[data-tree-grabbing="true"] * {
 .collapsible-region__inner {
   min-width: 0;
   min-height: 0;
+  /* Room for the insertion line of the first child, which sits 2px above its
+     row: the padding keeps that line inside the clipped box, and the matching
+     negative margin keeps the layout unchanged. */
+  padding-top: 0.125rem;
+  margin-top: -0.125rem;
   /* `hidden` creates a programmatically scrollable box. A nested drop target
      extends two pixels for its before/after hit zones, so focusing or hovering
      a child could make the browser scroll this otherwise invisible scroller

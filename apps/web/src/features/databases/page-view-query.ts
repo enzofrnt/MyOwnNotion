@@ -5,7 +5,11 @@ import {
 } from "@myownnotion/client-core";
 import type { Uuid } from "@myownnotion/domain";
 import type { DatabaseRowSyncState, DatabaseViewResult } from "../../services/databases.ts";
-import { type LocalRollupContext, withLocalRollups } from "./local-rollup.ts";
+import {
+  type LocalRollupContext,
+  localDerivedOptions,
+  withRollupMetadata,
+} from "./local-rollup.ts";
 
 /** A page-backed display queries its selected source with its own view settings. */
 export class PageViewQuery {
@@ -34,9 +38,10 @@ export class PageViewQuery {
     if (this.#source === null) throw new Error("Source unavailable");
     let recovered = false;
     const request = { viewId, limit: 100, ...(cursor === undefined ? {} : { cursor }) };
+    const derived = this.#rollups === null ? undefined : localDerivedOptions(this.#rollups);
     let page: ReturnType<typeof queryLocalDatabase>;
     try {
-      page = queryLocalDatabase(this.#source, request);
+      page = queryLocalDatabase(this.#source, request, derived);
     } catch (error) {
       if (!(error instanceof LocalDatabaseQueryError)) throw error;
       if (error.code !== "database.cursor-stale") {
@@ -50,11 +55,15 @@ export class PageViewQuery {
           },
         };
       }
-      page = queryLocalDatabase(this.#source, { viewId, limit: 100 });
+      page = queryLocalDatabase(this.#source, { viewId, limit: 100 }, derived);
       recovered = true;
     }
     if (this.#rollups !== null) {
-      page = withLocalRollups(page, this.#source.definition, this.#rollups);
+      page = withRollupMetadata(
+        page,
+        { properties: this.#source.definition.properties, entries: this.#source.entries },
+        this.#rollups,
+      );
     }
     return {
       ok: true,

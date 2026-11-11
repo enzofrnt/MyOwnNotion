@@ -12,8 +12,13 @@ export interface PathCrumb {
 }
 
 export interface PathBreadcrumbsProps {
-  /** Root first, current item last. */
+  /** Root first, current item last (or nearest ancestor last with `ancestorsOnly`). */
   readonly path: readonly PathCrumb[];
+  /**
+   * The path stops at the parent: every segment is a link and a trailing
+   * separator hands over to the page title, which names the current item.
+   */
+  readonly ancestorsOnly?: boolean;
   readonly onOpen: (itemId: string) => void;
 }
 
@@ -39,7 +44,7 @@ function Separator() {
  * folds the rest into one "…" menu. Measurement reacts to resizes and to
  * renames, and does nothing in environments without layout (SSR, jsdom).
  */
-export function PathBreadcrumbs({ onOpen, path }: PathBreadcrumbsProps) {
+export function PathBreadcrumbs({ ancestorsOnly = false, onOpen, path }: PathBreadcrumbsProps) {
   const container = useRef<HTMLElement | null>(null);
   const measure = useRef<HTMLOListElement | null>(null);
   const [layout, setLayout] = useState<BreadcrumbLayout | null>(null);
@@ -54,14 +59,15 @@ export function PathBreadcrumbs({ onOpen, path }: PathBreadcrumbsProps) {
       const separator = list.querySelector<HTMLElement>("[data-measure='separator']");
       const ellipsis = list.querySelector<HTMLElement>("[data-measure='ellipsis']");
       const widths = items.map((item) => item.getBoundingClientRect().width);
-      const available = nav.getBoundingClientRect().width;
-      if (available === 0 || widths.every((width) => width === 0)) {
+      const separatorWidth = separator?.getBoundingClientRect().width ?? 0;
+      const available = nav.getBoundingClientRect().width - (ancestorsOnly ? separatorWidth : 0);
+      if (available <= 0 || widths.every((width) => width === 0)) {
         setLayout(null);
         return;
       }
       const next = selectVisibleCrumbs({
         widths,
-        separatorWidth: separator?.getBoundingClientRect().width ?? 0,
+        separatorWidth,
         ellipsisWidth: ellipsis?.getBoundingClientRect().width ?? 0,
         available,
       });
@@ -78,7 +84,7 @@ export function PathBreadcrumbs({ onOpen, path }: PathBreadcrumbsProps) {
     const observer = new ResizeObserver(() => compute());
     observer.observe(nav);
     return () => observer.disconnect();
-  }, [path]);
+  }, [ancestorsOnly, path]);
 
   const resolved = useMemo<BreadcrumbLayout>(() => {
     if (layout === null || layout.visible.length + layout.hidden.length !== path.length) {
@@ -102,7 +108,7 @@ export function PathBreadcrumbs({ onOpen, path }: PathBreadcrumbsProps) {
   });
 
   const renderCrumb = (crumb: PathCrumb, index: number) => {
-    const current = index === lastIndex;
+    const current = !ancestorsOnly && index === lastIndex;
     return (
       <li
         className="workspace-path__crumb"
@@ -183,6 +189,7 @@ export function PathBreadcrumbs({ onOpen, path }: PathBreadcrumbsProps) {
             {slot.kind === "crumb" ? renderCrumb(slot.crumb, slot.index) : renderFolded()}
           </Fragment>
         ))}
+        {ancestorsOnly ? <Separator /> : null}
       </ol>
     </nav>
   );

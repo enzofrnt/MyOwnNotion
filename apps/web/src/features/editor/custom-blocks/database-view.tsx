@@ -16,7 +16,11 @@ import type { LocalContentService } from "../../../services/local-content.ts";
 import { AsyncState, Button } from "../../../ui/primitives/index.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../../databases/database-page.tsx";
 import { definitionViewsPreservingPresentation } from "../../databases/definition-view-merge.ts";
-import { type LocalRollupContext, loadLocalRollupContext } from "../../databases/local-rollup.ts";
+import {
+  hasDerivedProperties,
+  type LocalRollupContext,
+  loadLocalRollupContext,
+} from "../../databases/local-rollup.ts";
 import { PageViewQuery } from "../../databases/page-view-query.ts";
 import { createProjectionRefresh } from "../../databases/projection-refresh.ts";
 import type { DatabaseCellUpdate } from "../../databases/table-view.tsx";
@@ -132,9 +136,7 @@ export async function loadView(
       relationTargets: relations.get(entry.entryId as Uuid) ?? {},
     })),
   };
-  const rollupContext = source.definition.properties.some(
-    (property) => property.state === "active" && property.type === "rollup",
-  )
+  const rollupContext = hasDerivedProperties(source.definition.properties)
     ? await loadLocalRollupContext(service)
     : null;
   return {
@@ -329,8 +331,7 @@ export function DatabaseViewSurface({
   };
   const planSourceWrite = async (candidate: DatabaseDefinition) => {
     const currentContainer = await service.getDatabase(containerItemId as Uuid);
-    const currentSource = await service.getDatabase(loaded.source.itemId);
-    if (currentContainer === null || currentSource === null) throw new Error("Base indisponible");
+    if (currentContainer === null) throw new Error("Base indisponible");
     const currentPresentation = currentContainer.presentation;
     const currentView = currentPresentation?.views.find((view) => view.id === viewId);
     const presentationRevisionId = currentContainer.presentationRevisionId;
@@ -341,6 +342,10 @@ export function DatabaseViewSurface({
     ) {
       throw new Error("Vue indisponible");
     }
+    // A container can own several sources: its primary definition is not
+    // necessarily the source displayed by this view.
+    const currentSource = await service.getDatabase(currentView.sourceId);
+    if (currentSource === null) throw new Error("Source indisponible");
     const nextView = candidate.views[0];
     const { sourceId: _sourceId, ...currentViewSettings } = currentView;
     const viewChanged = nextView !== undefined && !jsonValuesEqual(nextView, currentViewSettings);
@@ -429,7 +434,12 @@ export function DatabaseViewSurface({
     const plan = await planSourceWrite(candidate);
     if (!plan.sourceChanged) return null;
     const revisionId = plan.currentSource.definitionRevisionId ?? plan.currentSource.itemId;
-    const entries = await service.listDatabaseEntries(plan.currentSource.itemId);
+    const sourceId =
+      plan.currentSource.sourceId ?? ownedSourceIdFromItemId(plan.currentSource.itemId);
+    const entries = (await service.listDatabaseEntries(plan.currentSource.itemId)).filter(
+      (entry) =>
+        (entry.sourceId ?? ownedSourceIdFromItemId(plan.currentSource.itemId)) === sourceId,
+    );
     if (entries.some((entry) => entry.availability !== "present")) return null;
     return previewDefinitionImpact({
       baseRevisionId: revisionId,

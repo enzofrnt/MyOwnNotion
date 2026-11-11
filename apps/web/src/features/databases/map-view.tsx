@@ -1,8 +1,9 @@
 import type { DatabaseProperty, DatabaseView, PlacePropertyValue, Uuid } from "@myownnotion/domain";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DatabaseViewPage } from "../../services/databases.ts";
 import { loadMapsBrowserKey } from "../../services/places.ts";
 import { AppIcon } from "../../ui/icons.tsx";
+import { Button } from "../../ui/primitives/button.tsx";
 import { useTheme } from "../../ui/theme-provider.tsx";
 
 type MapViewDefinition = Extract<DatabaseView, { type: "map" }>;
@@ -123,11 +124,31 @@ function loadGoogleMaps(key: string): Promise<GoogleMapsApi | null> {
         finish(window.google?.maps ?? null);
       }, 8_000);
     };
-    script.onerror = () => resolve(null);
+    script.onerror = () => {
+      script.remove();
+      resolve(null);
+    };
     document.head.append(script);
   });
-  return mapsLoader;
+  const attempt = mapsLoader;
+  // A failed load is not remembered: « Réessayer » must really try again.
+  void attempt.then((maps) => {
+    if (maps === null && mapsLoader === attempt) mapsLoader = null;
+  });
+  return attempt;
 }
+
+/** Notion shows at most this many places on a map at once. */
+const MAP_MARKER_LIMIT = 100;
+
+type MapStatus = "loading" | "ready" | "unconfigured" | "config-error" | "script-error";
+
+const MAP_STATUS_MESSAGES: Readonly<Record<Exclude<MapStatus, "loading" | "ready">, string>> = {
+  unconfigured:
+    "La carte n’est pas configurée sur ce serveur (clé Google Maps navigateur absente).",
+  "config-error": "La configuration de la carte n’a pas pu être chargée.",
+  "script-error": "La carte Google Maps n’a pas pu être chargée. Vérifiez la connexion.",
+};
 
 function placeValueOf(
   row: DatabaseViewPage["rows"][number],
@@ -156,28 +177,53 @@ export function MapView({
   );
   const property =
     placeProperties.find(({ id }) => id === view.options.placePropertyId) ?? placeProperties[0];
-  const [browserKey, setBrowserKey] = useState<string | null | undefined>(undefined);
+  const [browserKey, setBrowserKey] = useState<string | null>(null);
+  const [status, setStatus] = useState<MapStatus>("loading");
+  const [attempt, setAttempt] = useState(0);
   const { resolvedTheme } = useTheme();
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<GoogleMap | null>(null);
   const markers = useRef<GoogleMarker[]>([]);
+  const locatedRows = useMemo(
+    () =>
+      property === undefined
+        ? []
+        : page.rows.flatMap((row) => {
+            const place = placeValueOf(row, property.id);
+            return place === null ? [] : [{ row, place }];
+          }),
+    [page.rows, property],
+  );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` restarts the load on retry.
   useEffect(() => {
     let cancelled = false;
-    void loadMapsBrowserKey().then((key) => {
-      if (!cancelled) setBrowserKey(key);
-    });
+    setStatus("loading");
+    loadMapsBrowserKey().then(
+      (key) => {
+        if (cancelled) return;
+        setBrowserKey(key);
+        if (key === null) setStatus("unconfigured");
+      },
+      () => {
+        if (!cancelled) setStatus("config-error");
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` rebuilds the map on retry.
   useEffect(() => {
-    if (browserKey === null) return;
-    if (browserKey === undefined || container.current === null || property === undefined) return;
+    if (browserKey === null || container.current === null || property === undefined) return;
     let cancelled = false;
     void loadGoogleMaps(browserKey).then((maps) => {
-      if (cancelled || maps === undefined || maps === null || container.current === null) return;
+      if (cancelled || container.current === null) return;
+      if (maps === null || typeof maps.Map !== "function") {
+        setStatus("script-error");
+        return;
+      }
       const instance = new maps.Map(container.current, {
         center: { lat: 46.6, lng: 2.4 },
         zoom: 5,
@@ -187,24 +233,28 @@ export function MapView({
         ...(resolvedTheme === "dark" ? { styles: DARK_MAP_STYLES } : {}),
       });
       map.current = instance;
-      for (const marker of markers.current) marker.setMap(instance);
-      for (const row of page.rows) {
-        const place = placeValueOf(row, property.id);
-        if (place === null) continue;
+      const bounds = new maps.LatLngBounds();
+      const shown = locatedRows.slice(0, MAP_MARKER_LIMIT);
+      for (const { row, place } of shown) {
+        const position = { lat: place.latitude, lng: place.longitude };
         const marker = new maps.Marker({
-          position: { lat: place.latitude, lng: place.longitude },
+          position,
           map: instance,
           title: `${row.title} — ${place.name}`,
         });
         marker.addListener("click", () => onOpenEntry(row.entryId as Uuid, null));
         markers.current.push(marker);
+        bounds.extend(position);
       }
-      const bounds = new maps.LatLngBounds();
-      for (const markerRow of page.rows) {
-        const place = placeValueOf(markerRow, property.id);
-        if (place !== null) bounds.extend({ lat: place.latitude, lng: place.longitude });
+      const only = shown.length === 1 ? shown[0] : undefined;
+      if (only !== undefined) {
+        // Fitting a single point would zoom to the building: keep the street in view.
+        instance.setCenter({ lat: only.place.latitude, lng: only.place.longitude });
+        instance.setZoom(14);
+      } else if (shown.length > 1) {
+        instance.fitBounds(bounds);
       }
-      if (markers.current.length > 0) instance.fitBounds(bounds);
+      setStatus("ready");
     });
     return () => {
       cancelled = true;
@@ -212,9 +262,7 @@ export function MapView({
       markers.current = [];
       map.current = null;
     };
-    // The map is rebuilt when its place property changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [browserKey, property, page.rows, onOpenEntry, resolvedTheme]);
+  }, [browserKey, property, locatedRows, onOpenEntry, resolvedTheme, attempt]);
 
   if (property === undefined) {
     return (
@@ -226,7 +274,8 @@ export function MapView({
       </section>
     );
   }
-  const located = page.rows.filter((row) => placeValueOf(row, property.id) !== null).length;
+  const located = locatedRows.length;
+  const failed = status !== "loading" && status !== "ready";
   return (
     <section className="database-view database-map" aria-label={property.name}>
       <div className="database-map__toolbar">
@@ -252,16 +301,55 @@ export function MapView({
           {located} page{located === 1 ? "" : "s"} localisée{located === 1 ? "" : "s"}
         </span>
       </div>
-      {browserKey === undefined ? (
-        <p className="database-map__state">Chargement de la carte…</p>
-      ) : null}
-      {browserKey === null ? (
-        <p className="database-map__state database-field__error">
-          Clé Google Maps navigateur absente. Ajoute-la dans .env puis redémarre l’API.
+      {status === "loading" ? (
+        <p className="database-map__state" role="status">
+          Chargement de la carte…
         </p>
       ) : null}
-      <div ref={container} className="database-map__canvas" data-testid="database-map" />
-      {browserKey === null || located > 0 ? null : (
+      {failed ? (
+        <div className="database-map__state database-map__failure" role="alert">
+          <p className="database-field__error">{MAP_STATUS_MESSAGES[status]}</p>
+          {status === "unconfigured" ? null : (
+            <Button type="button" size="compact" onClick={() => setAttempt((value) => value + 1)}>
+              Réessayer
+            </Button>
+          )}
+        </div>
+      ) : null}
+      {located > MAP_MARKER_LIMIT && !failed ? (
+        <p className="database-map__state muted">
+          La carte affiche {MAP_MARKER_LIMIT} lieux à la fois. Filtrez la vue pour voir les autres.
+        </p>
+      ) : null}
+      <div
+        ref={container}
+        className="database-map__canvas"
+        data-testid="database-map"
+        hidden={failed}
+      />
+      {failed && located > 0 ? (
+        // The places are stored locally: they stay readable without the map.
+        <ul className="database-map__list" aria-label="Lieux de cette vue">
+          {locatedRows.map(({ row, place }) => (
+            <li key={row.entryId}>
+              <button
+                type="button"
+                onClick={(event) => onOpenEntry(row.entryId as Uuid, event.currentTarget)}
+              >
+                <AppIcon name="mapPin" size="small" />
+                <span>
+                  <strong>{row.title === "" ? "Sans titre" : row.title}</strong>
+                  <span>
+                    {place.name}
+                    {place.address === null ? "" : ` — ${place.address}`}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {located > 0 ? null : (
         <p className="database-map__state">Aucune page avec un lieu pour l’instant.</p>
       )}
     </section>

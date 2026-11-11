@@ -1,6 +1,6 @@
 import type { ProjectedItem } from "@myownnotion/client-core";
 import type { Uuid } from "@myownnotion/domain";
-import type { GraphCoverage, GraphScope } from "@myownnotion/graph";
+import type { GraphCoverage, GraphNodeKind, GraphScope } from "@myownnotion/graph";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 import { AppIcon } from "../../ui/icons.tsx";
@@ -8,6 +8,7 @@ import { Button, PopoverContent, PopoverRoot, PopoverTrigger } from "../../ui/pr
 import { GraphCanvas, type GraphCanvasHandle } from "./graph-canvas.tsx";
 import {
   createDefaultGraphControlState,
+  type GraphControlState,
   GraphControls,
   type GraphStructuredDimension,
   graphControlFilterCount,
@@ -16,6 +17,7 @@ import {
 import { GRAPH_COPY } from "./graph-copy.ts";
 import { GraphForceControls } from "./graph-force-controls.tsx";
 import { GraphInspector } from "./graph-inspector.tsx";
+import { GraphLegend } from "./graph-legend.tsx";
 import {
   type GraphPreferences,
   readGraphPreferences,
@@ -92,6 +94,31 @@ export function GraphCoverageNotice({
   );
 }
 
+/**
+ * Controls a graph opens with.
+ *
+ * The global graph resumes the filters the owner last left on it. A local
+ * graph is a question about one element, so it starts from that element's own
+ * defaults: filters saved on the global graph (a kind, a relation type) must
+ * never hide the element it was opened on, or what surrounds it.
+ */
+export function initialGraphControls(
+  initialScope: GraphScope,
+  centerKind: GraphNodeKind | null,
+  preferences: GraphPreferences,
+): GraphControlState {
+  const initial = createDefaultGraphControlState(initialScope, centerKind);
+  if (initialScope.kind === "neighborhood") {
+    initial.scope = { ...initialScope, depth: preferences.depth };
+    return initial;
+  }
+  initial.edgeLayers = [...preferences.edgeLayers];
+  initial.nodeKinds = [...preferences.nodeKinds];
+  initial.relationTypes = [...preferences.relationTypes];
+  initial.includeIsolated = preferences.includeIsolated;
+  return initial;
+}
+
 export function KnowledgeGraphView({
   service,
   items,
@@ -105,46 +132,32 @@ export function KnowledgeGraphView({
 }) {
   const [preferences, setPreferences] = useState<GraphPreferences>(() => readGraphPreferences());
   const [controlsOpen, setControlsOpen] = useState(false);
-  const [controls, setControls] = useState(() => {
-    const initial = createDefaultGraphControlState(initialScope);
-    initial.edgeLayers = [...preferences.edgeLayers];
-    initial.nodeKinds = [...preferences.nodeKinds];
-    initial.relationTypes = [...preferences.relationTypes];
-    initial.includeIsolated = preferences.includeIsolated;
-    return initial;
-  });
+  const centerKind: GraphNodeKind | null =
+    initialScope.kind === "neighborhood"
+      ? (items.find(({ id }) => id === initialScope.centerId)?.kind ?? null)
+      : null;
+  const [controls, setControls] = useState(() =>
+    initialGraphControls(initialScope, centerKind, preferences),
+  );
   const [selectedId, setSelectedId] = useState<Uuid | null>(
     initialScope.kind === "neighborhood" ? initialScope.centerId : null,
   );
-  const query = useMemo(() => {
-    const next = graphQueryFromControls(controls);
-    if (next.scope.kind === "neighborhood") {
-      next.scope = { ...next.scope, depth: preferences.depth };
-    }
-    next.filters.edgeLayers = [...preferences.edgeLayers];
-    next.filters.nodeKinds = [...preferences.nodeKinds];
-    next.filters.relationTypes = [...preferences.relationTypes];
-    next.filters.includeIsolated = preferences.includeIsolated || controls.includeIsolated;
-    return next;
-  }, [controls, preferences]);
+  const query = useMemo(() => graphQueryFromControls(controls), [controls]);
   const graph = useKnowledgeGraph(service, query);
   const canvasRef = useRef<GraphCanvasHandle>(null);
+  const preferencesRef = useRef(preferences);
+  preferencesRef.current = preferences;
 
+  // Opening another element (or the global graph) starts from that view's own
+  // defaults. Changing a filter must not: it would undo the owner's choice.
+  const openedScopeKey = JSON.stringify([initialScope, centerKind]);
+  const appliedScopeKey = useRef(openedScopeKey);
   useEffect(() => {
-    const next = createDefaultGraphControlState(initialScope);
-    next.edgeLayers = [...preferences.edgeLayers];
-    next.nodeKinds = [...preferences.nodeKinds];
-    next.relationTypes = [...preferences.relationTypes];
-    next.includeIsolated = preferences.includeIsolated;
-    setControls(next);
+    if (appliedScopeKey.current === openedScopeKey) return;
+    appliedScopeKey.current = openedScopeKey;
+    setControls(initialGraphControls(initialScope, centerKind, preferencesRef.current));
     setSelectedId(initialScope.kind === "neighborhood" ? initialScope.centerId : null);
-  }, [
-    initialScope,
-    preferences.edgeLayers,
-    preferences.includeIsolated,
-    preferences.nodeKinds,
-    preferences.relationTypes,
-  ]);
+  }, [centerKind, initialScope, openedScopeKey]);
 
   useEffect(() => {
     if (graph.projection === null) return;
@@ -153,8 +166,6 @@ export function KnowledgeGraphView({
     setSelectedId(graph.projection.focusId ?? graph.projection.nodes[0]?.id ?? null);
   }, [graph.projection, selectedId]);
 
-  const preferencesRef = useRef(preferences);
-  preferencesRef.current = preferences;
   const zoomSaveTimer = useRef(0);
   useEffect(() => () => window.clearTimeout(zoomSaveTimer.current), []);
   const setPreference = (next: GraphPreferences): void => {
@@ -220,6 +231,7 @@ export function KnowledgeGraphView({
             <PopoverRoot placement="bottom-end">
               <PopoverTrigger
                 className="knowledge-graph__chrome-btn"
+                title="Affichage et forces"
                 data-size="square"
                 data-testid="graph-status-toggle"
                 data-tone={
@@ -231,13 +243,13 @@ export function KnowledgeGraphView({
                 }
                 aria-label={
                   graph.projection.truncation.truncated
-                    ? `Informations du graphe, vue bornée : ${graph.projection.truncation.omittedNodes} éléments et ${graph.projection.truncation.omittedEdges} relations supplémentaires`
+                    ? `Affichage et forces, vue bornée : ${graph.projection.truncation.omittedNodes} éléments et ${graph.projection.truncation.omittedEdges} relations supplémentaires`
                     : graph.projection.coverage.state === "complete"
-                      ? "Informations du graphe, vue complète sur cet appareil"
-                      : "Informations du graphe, vue partielle"
+                      ? "Affichage et forces, vue complète sur cet appareil"
+                      : "Affichage et forces, vue partielle"
                 }
               >
-                <AppIcon name="info" size="small" />
+                <AppIcon name="viewOptions" size="small" />
               </PopoverTrigger>
               <PopoverContent className="knowledge-graph__status-panel" aria-label="État du graphe">
                 <div className="knowledge-graph__view-controls">
@@ -284,8 +296,9 @@ export function KnowledgeGraphView({
           )}
           <Button
             size="square"
-            variant={controlsOpen ? "primary" : "ghost"}
+            variant="ghost"
             className="knowledge-graph__chrome-btn knowledge-graph__filters-toggle"
+            title="Filtres et périmètre"
             aria-expanded={controlsOpen}
             aria-controls="knowledge-graph-filters"
             aria-label={activeFilterCount > 0 ? `Filtres, ${activeFilterCount} actifs` : "Filtres"}
@@ -304,22 +317,23 @@ export function KnowledgeGraphView({
         {controlsOpen ? (
           <aside
             id="knowledge-graph-filters"
-            className="knowledge-graph-controls"
+            className="graph-panel"
             aria-label="Filtres et périmètre"
           >
-            <header className="knowledge-graph-controls__header">
-              <h2>Filtres et périmètre</h2>
+            <header className="graph-panel__header">
+              <h2 className="graph-panel__title">Filtres et périmètre</h2>
               <Button
                 size="square"
                 variant="ghost"
+                className="graph-panel__close"
                 aria-label="Fermer les filtres"
                 onClick={() => setControlsOpen(false)}
               >
-                <AppIcon name="close" />
+                <AppIcon name="close" size="small" />
               </Button>
             </header>
             {graph.projection === null ? null : (
-              <p className="knowledge-graph__summary">
+              <p className="graph-panel__summary knowledge-graph__summary">
                 {graph.projection.summary.visibleNodeCount} élément
                 {graph.projection.summary.visibleNodeCount > 1 ? "s" : ""} affiché
                 {graph.projection.summary.visibleNodeCount > 1 ? "s" : ""} sur{" "}
@@ -335,18 +349,30 @@ export function KnowledgeGraphView({
               structuredDimensions={structuredDimensions}
               onChange={(next) => {
                 setControls(next);
-                setPreference({
-                  ...preferences,
-                  depth: next.scope.kind === "neighborhood" ? next.scope.depth : preferences.depth,
-                  edgeLayers: next.edgeLayers,
-                  nodeKinds: next.nodeKinds,
-                  relationTypes: next.relationTypes,
-                  includeIsolated: next.includeIsolated,
-                });
+                const depth =
+                  next.scope.kind === "neighborhood" ? next.scope.depth : preferences.depth;
+                // Only the global graph's filters are remembered: a local
+                // graph's are tied to the element it was opened on.
+                setPreference(
+                  initialScope.kind === "workspace"
+                    ? {
+                        ...preferences,
+                        depth,
+                        edgeLayers: next.edgeLayers,
+                        nodeKinds: next.nodeKinds,
+                        relationTypes: next.relationTypes,
+                        includeIsolated: next.includeIsolated,
+                      }
+                    : { ...preferences, depth },
+                );
               }}
             />
           </aside>
         ) : null}
+
+        {graph.projection === null || graph.projection.nodes.length === 0 ? null : (
+          <GraphLegend projection={graph.projection} />
+        )}
 
         {selected === null || graph.projection === null ? null : (
           <GraphInspector

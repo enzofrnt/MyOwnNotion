@@ -569,8 +569,9 @@ export async function replaceDatabaseRelationships(
   const removedRelationshipIds: Uuid[] = [];
   for (const relationship of existing) {
     const metadata = relationship.metadata as Record<string, unknown>;
+    if (metadata["databaseId"] !== input.databaseId) continue;
     const key = `${String(metadata["propertyId"])}/${relationship.targetItemId}`;
-    if (metadata["databaseId"] === input.databaseId && desired.delete(key)) continue;
+    if (desired.delete(key)) continue;
     removedRelationshipIds.push(relationship.id as Uuid);
   }
   if (removedRelationshipIds.length > 0) {
@@ -616,6 +617,7 @@ export async function listDatabaseProjectionEntries(
   executor: Executor,
   databaseId: Uuid,
   entryIds?: readonly Uuid[],
+  sourceId?: Uuid,
 ): Promise<DatabaseProjectionEntryRecord[]> {
   if (entryIds?.length === 0) return [];
   const rows = await executor
@@ -633,7 +635,11 @@ export async function listDatabaseProjectionEntries(
     .innerJoin(items, eq(items.id, placements.itemId))
     .leftJoin(
       databaseEntries,
-      and(eq(databaseEntries.entryItemId, items.id), eq(databaseEntries.databaseId, databaseId)),
+      and(
+        eq(databaseEntries.entryItemId, items.id),
+        eq(databaseEntries.databaseId, databaseId),
+        sourceId === undefined ? undefined : eq(databaseEntries.sourceId, sourceId),
+      ),
     )
     .leftJoin(revisions, eq(revisions.id, databaseEntries.valueRevisionId))
     .where(
@@ -643,6 +649,7 @@ export async function listDatabaseProjectionEntries(
         isNull(placements.removedAt),
         eq(items.lifecycle, "active"),
         inArray(items.kind, ["page", "folder"]),
+        sourceId === undefined ? undefined : eq(databaseEntries.sourceId, sourceId),
         entryIds === undefined ? undefined : inArray(items.id, [...entryIds]),
       ),
     );

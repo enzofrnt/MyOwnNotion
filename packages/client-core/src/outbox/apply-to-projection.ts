@@ -161,6 +161,24 @@ async function reconcileLocalPageLinks(
   }
 }
 
+/** Reject lossy replacements from clients that do not know targetSourceId. */
+function dropsConfiguredRelationSource(
+  current: DatabaseDefinition,
+  candidate: DatabaseDefinition,
+): boolean {
+  return current.properties.some(
+    (property) =>
+      property.type === "relation" &&
+      property.config.targetSourceId !== undefined &&
+      candidate.properties.some(
+        (next) =>
+          next.id === property.id &&
+          next.type === "relation" &&
+          next.config.targetSourceId === undefined,
+      ),
+  );
+}
+
 async function normalizeStructuredCommandValues(
   db: LocalDatabase,
   definition: DatabaseDefinition,
@@ -180,6 +198,14 @@ async function normalizeStructuredCommandValues(
     throw new LocalValidationError("validation.invalid-payload", normalizedValues.error.title);
   const values = normalizedValues.value;
 
+  const previous =
+    command.type === "database.entry.create"
+      ? []
+      : (await db.relationships.where("sourceItemId").equals(command.entryId).toArray()).filter(
+          (relationship) =>
+            relationship.relationType === "database:property" &&
+            relationship.metadata["databaseId"] === command.databaseId,
+        );
   const relationTargets: Record<string, readonly Uuid[]> = {};
   for (const [propertyId, rawTargets] of Object.entries(command.relationTargets)) {
     const property = properties.get(propertyId as Uuid);
@@ -196,13 +222,58 @@ async function normalizeStructuredCommandValues(
         normalized.ok ? "Relationship targets are absent" : normalized.error.title,
       );
     }
-    for (const targetId of normalized.value) {
+    const existing = new Set(
+      previous
+        .filter((relationship) => relationship.metadata["propertyId"] === propertyId)
+        .map((relationship) => relationship.targetItemId),
+    );
+    const additions = normalized.value.filter((targetId) => !existing.has(targetId));
+    const targetSourceId = property.config.targetSourceId;
+    // The local store and its codec are scoped to one workspace. Resolve only
+    // owned sources in that store, never a linked view's copied definition.
+    const source =
+      additions.length > 0 && targetSourceId !== undefined
+        ? ((await db.databaseSources.get(targetSourceId)) ??
+          (await db.databases.toArray()).find(
+            (row) => (row.sourceId ?? ownedSourceIdFromItemId(row.itemId)) === targetSourceId,
+          ))
+        : undefined;
+    if (additions.length > 0 && targetSourceId !== undefined) {
+      const owner = source === undefined ? undefined : await db.items.get(source.itemId);
+      if (source === undefined || owner?.kind !== "database" || owner.lifecycle !== "active") {
+        throw new LocalValidationError(
+          "database.source-unavailable",
+          "Relationship source is unavailable locally",
+        );
+      }
+    }
+    for (const targetId of additions) {
       const target = await db.items.get(targetId);
-      if (target === undefined || target.lifecycle === "purged") {
+      if (target === undefined || target.lifecycle !== "active") {
         throw new LocalValidationError(
           "relationship.endpoint-unavailable",
           "Relationship target is unavailable locally",
         );
+      }
+      if (source !== undefined) {
+        const membership = await db.databaseEntryPairs.get(
+          databaseEntryPairKey(source.itemId, targetId),
+        );
+        const placed = (await db.placements.where("itemId").equals(targetId).toArray()).some(
+          (placement) => placement.kind === "hierarchy" && placement.parentItemId === source.itemId,
+        );
+        if (
+          membership === undefined ||
+          (membership.sourceId ?? ownedSourceIdFromItemId(membership.databaseId)) !==
+            targetSourceId ||
+          (target.kind !== "page" && target.kind !== "folder") ||
+          !placed
+        ) {
+          throw new LocalValidationError(
+            "relationship.endpoint-unavailable",
+            "Relationship target is unavailable locally",
+          );
+        }
       }
     }
     relationTargets[propertyId] = normalized.value;
@@ -566,6 +637,12 @@ export async function prepareProjectionWrite(
         throw new LocalValidationError(
           "validation.invalid-payload",
           "Database definition is invalid",
+        );
+      }
+      if (dropsConfiguredRelationSource(database.definition, candidate.value)) {
+        throw new LocalValidationError(
+          "validation.invalid-payload",
+          "This client must preserve configured relationship sources",
         );
       }
       if (database.definition.embeddings !== undefined && candidate.value.embeddings === undefined)

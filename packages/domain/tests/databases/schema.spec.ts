@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   asUuid,
+  type DatabaseDefinition,
   DEFAULT_NUMBER_CONFIG,
   type DomainResult,
   jsonValuesEqual,
@@ -9,9 +10,15 @@ import {
   projectTaskSemantics,
   statusDefaultOptionId,
   uniqueIdPrefixOf,
-  validateDatabaseDefinition,
+  validateDatabaseDefinition as validateTypedDatabaseDefinition,
 } from "../../src/index.ts";
 import { definition, IDS, values } from "./fixtures.ts";
+
+// These decoder tests deliberately pass malformed configuration and legacy
+// payloads. Keep the unsafe boundary explicit rather than widening production types.
+function validateDatabaseDefinition(input: unknown) {
+  return validateTypedDatabaseDefinition(input as DatabaseDefinition);
+}
 
 function unwrap<T>(result: DomainResult<T>): T {
   if (!result.ok) throw new Error(result.error.code);
@@ -459,20 +466,27 @@ describe("number property configuration", () => {
     const number = valid.properties.find((property) => property.type === "number");
     expect(number).toBeDefined();
     expect(validateDatabaseDefinition(valid).ok).toBe(true);
-    expect(numberConfigOf(number!)).toEqual(DEFAULT_NUMBER_CONFIG);
+    expect(numberConfigOf(required(number))).toEqual(DEFAULT_NUMBER_CONFIG);
   });
 
   it("validates format, decimals and display", () => {
     const valid = definition();
     const number = valid.properties.find((property) => property.type === "number");
-    const property = { ...number!, config: { format: "euro", decimals: 2, display: "bar" } };
+    const property = {
+      ...required(number),
+      config: { format: "euro", decimals: 2, display: "bar" },
+    };
     const candidate = {
       ...valid,
-      properties: valid.properties.map((entry) => (entry.id === number!.id ? property : entry)),
+      properties: valid.properties.map((entry) =>
+        entry.id === required(number).id ? property : entry,
+      ),
     };
     const normalized = unwrap(validateDatabaseDefinition(candidate));
-    const normalizedNumber = normalized.properties.find((entry) => entry.id === number!.id);
-    expect(numberConfigOf(normalizedNumber!)).toEqual(property.config);
+    const normalizedNumber = normalized.properties.find(
+      (entry) => entry.id === required(number).id,
+    );
+    expect(numberConfigOf(required(normalizedNumber))).toEqual(property.config);
     for (const config of [
       { format: "invalid", decimals: 2, display: "bar" },
       { format: "euro", decimals: 9, display: "bar" },
@@ -483,7 +497,7 @@ describe("number property configuration", () => {
         validateDatabaseDefinition({
           ...valid,
           properties: valid.properties.map((entry) =>
-            entry.id === number!.id ? { ...entry, config } : entry,
+            entry.id === required(number).id ? { ...entry, config } : entry,
           ),
         }).ok,
       ).toBe(false);
@@ -497,12 +511,14 @@ describe("date property configuration", () => {
     const date = valid.properties.find((property) => property.type === "date");
     expect(date).toBeDefined();
     const configured = {
-      ...date!,
+      ...required(date),
       config: { mode: "instant", dateFormat: "day-month-year", timeFormat: "24h" },
     };
     const candidate = {
       ...valid,
-      properties: valid.properties.map((entry) => (entry.id === date!.id ? configured : entry)),
+      properties: valid.properties.map((entry) =>
+        entry.id === required(date).id ? configured : entry,
+      ),
     };
     expect(validateDatabaseDefinition(candidate).ok).toBe(true);
     for (const config of [
@@ -514,7 +530,7 @@ describe("date property configuration", () => {
         validateDatabaseDefinition({
           ...valid,
           properties: valid.properties.map((entry) =>
-            entry.id === date!.id ? { ...entry, config } : entry,
+            entry.id === required(date).id ? { ...entry, config } : entry,
           ),
         }).ok,
       ).toBe(false);
@@ -559,9 +575,9 @@ describe("status groups", () => {
     const status = valid.properties.find((property) => property.type === "status");
     expect(status).toBeDefined();
     const legacy = {
-      ...status!,
+      ...required(status),
       config: {
-        options: status!.config.options.map(({ id, label, positionKey, tone, state }) => ({
+        options: required(status).config.options.map(({ id, label, positionKey, tone, state }) => ({
           id,
           label,
           positionKey,
@@ -572,10 +588,14 @@ describe("status groups", () => {
     };
     const candidate = {
       ...valid,
-      properties: valid.properties.map((entry) => (entry.id === status!.id ? legacy : entry)),
+      properties: valid.properties.map((entry) =>
+        entry.id === required(status).id ? legacy : entry,
+      ),
     };
     const normalized = unwrap(validateDatabaseDefinition(candidate));
-    const normalizedStatus = normalized.properties.find((entry) => entry.id === status!.id);
+    const normalizedStatus = normalized.properties.find(
+      (entry) => entry.id === required(status).id,
+    );
     expect(normalizedStatus?.type).toBe("status");
     expect(
       normalizedStatus?.type === "status"

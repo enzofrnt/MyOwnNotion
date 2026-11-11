@@ -114,6 +114,60 @@ adresse ; filtre/tri textuels ; vue Carte avec pins.
 Relation, Bouton, Personne, Créée par, Dernière modification par, IA de formule,
 remplissage IA, notifications de date, synchronisation temps réel.
 
+## Complément de cadrage — 2026-11-11
+
+Ce complément précise les US6, US8 et US9 et prime sur les constats historiques
+lorsqu'ils décrivent une implémentation ou une validation. Il ne change ni les
+exclusions validées ci-dessus ni le canevas produit (§ 4, 10, 14 et 17).
+L'inventaire des autres types est une étude, pas une autorisation de les ajouter.
+Les comportements exacts de Notion non documentés restent à observer sur un
+workspace de test : ne pas supposer qu'une capture historique suffit.
+
+- **FR-015 — Agrégation fiable** : pour une relation choisie, seule une propriété
+  de la source réellement reliée et un calcul compatible sont proposés ; toute
+  configuration devenue invalide est expliquée et ne présente jamais un compte
+  de relations comme le résultat d'un autre calcul. Une même entrée présente le
+  même résultat typé dans les vues, son volet et les formules ; filtres et tris
+  concernés emploient ce résultat avant pagination, y compris hors ligne lorsque
+  les données nécessaires sont disponibles.
+- **FR-016 — Formule vérifiable** : l'éditeur permet de choisir une entrée pour
+  l'aperçu, de consulter et insérer les propriétés et fonctions réellement
+  prises en charge, de comprendre une erreur et de la corriger sans perdre son
+  brouillon. L'aperçu correspond à l'entrée sélectionnée. Une expression invalide
+  ne remplace pas silencieusement la dernière expression valide ; les références
+  rompues, dépendances cycliques et fonctions non prises en charge sont signalées.
+- **FR-017 — Lieu et carte** : une recherche de nom ou adresse affiche des
+  résultats pertinents effectivement retournés par le fournisseur ; chargement,
+  absence de résultat, erreur et reprise sont distincts. Une recherche plus
+  récente ou effacée ne peut être remplacée par une réponse ancienne. La
+  géolocalisation dépend d'une autorisation explicite et son refus laisse la
+  recherche utilisable. La carte, la sélection, le filtre par nom ou adresse et
+  le tri alphabétique sont vérifiés ; les lieux déjà enregistrés restent lisibles
+  sans réseau ni clé. L'envoi de recherches et l'accès à la carte à un tiers
+  sont expliqués ; aucun résultat fictif ni affirmation de confidentialité locale
+  totale ne doit être présenté.
+- **FR-018 — Preuves et compatibilité** : les parcours sont comparés à Notion
+  (structure, états, clavier, clair/sombre, 320/390 px) puis testés dans les
+  vues et le volet. Modifications de modèle, synchronisation, export et
+  restauration préservent les données existantes ; une dépendance indisponible
+  ou une donnée locale incomplète est signalée sans résultat trompeur.
+
+### Scénarios indépendants supplémentaires
+
+1. Deux lignes liées portent 10 et 20 : une somme vaut 30 dans la table, le volet
+   et une formule qui la référence ; en filtrant `> 25`, la ligne reste trouvable
+   côté serveur et local. Tester également moyenne sans valeur et source absente.
+2. Deux entrées ont des valeurs distinctes : changer l'entrée d'aperçu change le
+   résultat ; une expression invalide garde le brouillon et la version valide
+   après fermeture ou échec. Tester renommage, suppression et cycle.
+3. Rechercher un lieu, changer rapidement la saisie, puis sélectionner un
+   résultat : seule la dernière recherche gagne et la valeur persiste. Tester
+   erreur réseau, absence de clé, refus de position, carte indisponible et
+   lecture d'un lieu enregistré hors ligne.
+4. Les types absents ou incomplets sont inventoriés et classés avec preuves ;
+   Personne, Bouton et les propriétés d'auteur restent hors périmètre tant que
+   leur extension n'est pas explicitement décidée.
+
 ## Succès mesurable
 
 - Les 8 types validés sont configurables depuis le menu de colonne et rendent

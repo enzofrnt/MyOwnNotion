@@ -6,6 +6,7 @@ import {
   type FilterOperator,
   type FilterSet,
   generateUuidV7,
+  rollupResultKind,
   type Uuid,
 } from "@myownnotion/domain";
 import { useEffect, useRef, useState } from "react";
@@ -13,14 +14,30 @@ import { Button } from "../../ui/primitives/button.tsx";
 import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
+/** What a computed property compares as; a formula's type is only known per row. */
+function derivedKind(property: DatabaseProperty): "number" | "date" | "text" | "any" | null {
+  if (property.type === "formula") return "any";
+  if (property.type !== "rollup") return null;
+  const kind = rollupResultKind(property.config.aggregate);
+  return kind === "number" || kind === "percent" ? "number" : kind === "date" ? "date" : "text";
+}
+
 function operators(property: DatabaseProperty): readonly FilterOperator[] {
   const common: FilterOperator[] = ["equals", "not-equals", "is-empty", "is-not-empty"];
+  const derived = derivedKind(property);
+  if (derived === "number") return [...common, "less-than", "greater-than"];
+  if (derived === "date") return [...common, "before", "after"];
+  if (derived === "text") return [...common, "contains", "not-contains"];
+  if (derived === "any") {
+    return [...common, "contains", "not-contains", "less-than", "greater-than"];
+  }
   if (
     property.type === "title" ||
     property.type === "text" ||
     property.type === "url" ||
     property.type === "email" ||
     property.type === "phone" ||
+    property.type === "place" ||
     property.type === "multi-select" ||
     property.type === "relation"
   ) {
@@ -83,8 +100,18 @@ function operandFromInput(
     case "relation":
       return { kind: "relation", targetIds: value === "" ? [] : [value as Uuid] };
     case "formula":
+    case "rollup": {
+      const kind = derivedKind(property);
+      const numeric = value.trim() !== "" && Number.isFinite(Number(value.replace(",", ".")));
+      if (kind === "number" || (kind === "any" && numeric && !operator.includes("contains"))) {
+        return { kind: "number", decimal: numeric ? value.replace(",", ".").trim() : "0" };
+      }
+      if (kind === "date" || (kind === "any" && /^\d{4}-\d{2}-\d{2}$/u.test(value))) {
+        return { kind: "date", date: value };
+      }
+      return { kind: "text", value };
+    }
     case "files":
-    case "rollup":
     case "unique-id":
     case "created-time":
     case "last-edited-time":
@@ -246,7 +273,7 @@ function OperandEditor({
           ? "text"
           : property.type === "date" && property.config.mode === "instant"
             ? "datetime-local"
-            : property.type === "date"
+            : property.type === "date" || derivedKind(property) === "date"
               ? "date"
               : "text"
       }

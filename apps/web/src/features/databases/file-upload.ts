@@ -13,13 +13,18 @@ export interface UploadedDatabaseFile {
 export async function uploadDatabaseFile(
   file: File,
   entryItemId: string,
-): Promise<{ readonly ok: true; readonly file: UploadedDatabaseFile } | { readonly ok: false; readonly reason: string }> {
+): Promise<
+  | { readonly ok: true; readonly file: UploadedDatabaseFile }
+  | { readonly ok: false; readonly reason: string }
+> {
   const created = await createUpload(file, undefined, entryItemId);
   if (!created.ok) {
     return {
       ok: false,
       reason:
-        created.state.kind === "blocked" ? created.state.reason : "Le transfert n’a pas pu démarrer.",
+        created.state.kind === "blocked"
+          ? created.state.reason
+          : "Le transfert n’a pas pu démarrer.",
     };
   }
   let final = await sendRemaining(created.handle, file, () => undefined);

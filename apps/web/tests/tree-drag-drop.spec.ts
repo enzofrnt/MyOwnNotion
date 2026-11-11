@@ -55,6 +55,47 @@ describe("tree drag and drop intent", () => {
     });
   });
 
+  it("draws one insertion line for a first-child drop: the child's, never the parent's gap", () => {
+    const source = readFileSync(
+      new URL("../src/features/navigation/tree-drag-drop.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toMatch(/redirectsAfter && after\.isOver/u);
+    expect(source).toMatch(/leadsThisRow\s*\?\s*"before"/u);
+    const css = readFileSync(
+      new URL("../src/features/navigation/navigation.css", import.meta.url),
+      "utf8",
+    );
+    // The first child's line lives inside the children box, which clips at its padding edge.
+    expect(css).toMatch(/\.collapsible-region__inner\s*\{[^}]*padding-top:\s*0\.125rem/u);
+  });
+
+  it("treats the gap under an open parent as its first child, not as leaving the parent", () => {
+    const open = items.map((item) => (item.id === "root" ? { ...item, expanded: true } : item));
+    // A second child dropped right under its open parent stays inside, in first place.
+    expect(resolveTreeDrop(open, "file", treeDropTargetId("root", "after"))).toEqual({
+      kind: "place",
+      itemId: "file",
+      targetId: "child",
+      parentId: "root",
+      edge: "before",
+    });
+    // The first child dropped there is already in place.
+    expect(resolveTreeDrop(open, "child", treeDropTargetId("root", "after"))).toBeNull();
+    // An outside item lands inside too.
+    expect(resolveTreeDrop(open, "peer", treeDropTargetId("root", "after"))).toMatchObject({
+      parentId: "root",
+      targetId: "child",
+      edge: "before",
+    });
+    // A closed parent keeps the sibling meaning.
+    expect(resolveTreeDrop(items, "file", treeDropTargetId("root", "after"))).toMatchObject({
+      parentId: null,
+      targetId: "root",
+      edge: "after",
+    });
+  });
+
   it("refuses an inside zone for a leaf instead of silently choosing another intent", () => {
     expect(resolveTreeDrop(items, "peer", treeDropTargetId("file", "inside"))).toBeNull();
     expect(resolveTreeDrop(items, "peer", treeDropTargetId("file", "after"))).toEqual({

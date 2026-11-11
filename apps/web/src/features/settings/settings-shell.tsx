@@ -109,7 +109,8 @@ export function SettingsShell({
             >
               <AppIcon name={section.icon} />
               <span className="settings-navigation__copy">
-                <span>{section.label}</span>
+                <span className="settings-navigation__label">{section.label}</span>
+                <small className="settings-navigation__hint">{section.description}</small>
               </span>
             </Button>
           ))}
@@ -118,7 +119,6 @@ export function SettingsShell({
 
       <main id="settings-main" className="settings-main" tabIndex={-1}>
         <header className="settings-main__header">
-          <span className="settings-eyebrow">Réglages</span>
           <h1
             ref={headingRef}
             tabIndex={-1}

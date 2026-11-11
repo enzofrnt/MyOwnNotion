@@ -3,7 +3,9 @@ import { asUuid, type DatabaseProperty, type DatabaseView, type Uuid } from "@my
 import { useState } from "react";
 import { BoardView } from "../features/databases/board-view.tsx";
 import { type DatabaseCellUpdate, TableView } from "../features/databases/table-view.tsx";
+import { PageHeader } from "../features/workspace/page-header.tsx";
 import { PageTitleEditor } from "../features/workspace/page-title-editor.tsx";
+import { WorkspaceHome } from "../features/workspace/workspace-home.tsx";
 import type { DatabaseViewPage } from "../services/databases.ts";
 import { AppIcon } from "./icons.tsx";
 import {
@@ -141,11 +143,9 @@ export function UiLabCompositions({
         const values = { ...row.values };
         if (update.value === undefined) delete values[update.propertyId];
         else
-          values[update.propertyId] = (
-            update.value.kind === "multi-select"
-              ? { ...update.value, optionIds: [...update.value.optionIds] }
-              : update.value
-          ) as unknown as DatabaseEntryDto["values"][string];
+          values[update.propertyId] = (update.value.kind === "multi-select"
+            ? { ...update.value, optionIds: [...update.value.optionIds] }
+            : update.value) as unknown as DatabaseEntryDto["values"][string];
         return { ...row, values };
       }),
     }));
@@ -309,6 +309,39 @@ export function UiLabCompositions({
             </li>
           </ul>
           <Field id="lab-local-name" label="Nom de l’espace" defaultValue="Carnet personnel" />
+        </div>
+      </div>
+
+      <div className="ui-lab__stack">
+        <div className="ui-lab__composition">
+          <h3 className="ui-lab__composition-title">Accueil de l’espace</h3>
+          <div className="ui-lab__shell-frame">
+            <div className="workspace-stage">
+              <div className="workspace-stage__header">
+                <PageHeader kind="home" />
+              </div>
+              <main className="workspace-main">
+                <div className="workspace-reading-column">
+                  <WorkspaceHome hasItems onCreatePage={async () => undefined} />
+                </div>
+              </main>
+            </div>
+          </div>
+        </div>
+        <div className="ui-lab__composition">
+          <h3 className="ui-lab__composition-title">Premier lancement</h3>
+          <div className="ui-lab__shell-frame">
+            <div className="workspace-stage">
+              <div className="workspace-stage__header">
+                <PageHeader kind="home" />
+              </div>
+              <main className="workspace-main">
+                <div className="workspace-reading-column">
+                  <WorkspaceHome hasItems={false} onCreatePage={async () => undefined} />
+                </div>
+              </main>
+            </div>
+          </div>
         </div>
       </div>
 

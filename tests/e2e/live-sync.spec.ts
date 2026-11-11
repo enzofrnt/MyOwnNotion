@@ -83,8 +83,8 @@ test.describe("live synchronization (US1)", () => {
       });
 
       const renamed = uniqueName("AfterRename");
-      // The rename control asks through `window.prompt`, so the dialog is
-      // answered rather than a field filled.
+      // The rename control edits the row's own field, so the gesture is the
+      // same here as on any other device.
       await renameItem(page, original, renamed);
       await waitForSynchronized(page);
 

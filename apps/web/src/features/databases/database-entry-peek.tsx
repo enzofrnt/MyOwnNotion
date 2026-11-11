@@ -7,8 +7,9 @@ import { AppIcon } from "../../ui/icons.tsx";
 import { AsyncState, Button, DrawerContent, DrawerRoot } from "../../ui/primitives/index.ts";
 import type { DatabaseEntryOpenRequest } from "./database-entry-open-context.tsx";
 import { editEntrySourceDefinition, saveEntryPropertyChanges } from "./edit-entry-properties.ts";
-import { uploadDatabaseFile } from "./file-upload.ts";
 import { type EntryDrafts, EntryPanel } from "./entry-panel.tsx";
+import { uploadDatabaseFile } from "./file-upload.ts";
+import { hasDerivedProperties, useLocalDerivedOptions } from "./local-rollup.ts";
 import type { RelationOption } from "./value-editor.tsx";
 
 interface PeekProjection {
@@ -53,6 +54,10 @@ export function DatabaseEntryPeek({
     const timer = setTimeout(onClose, 260);
     return () => clearTimeout(timer);
   }, [closing, onClose]);
+  const derived = useLocalDerivedOptions(
+    service,
+    projection !== null && hasDerivedProperties(projection.definition.properties),
+  );
   const generation = useRef(0);
   const refresh = useCallback(async () => {
     const current = ++generation.current;
@@ -190,11 +195,14 @@ export function DatabaseEntryPeek({
                 definition={projection.definition}
                 valuesAvailable={projection.valuesAvailable}
                 relationOptions={relationOptions}
+                derived={derived}
                 fileNames={fileNames}
                 onUploadFile={async (file) => {
                   const uploaded = await uploadDatabaseFile(file, request.entryId);
                   if (!uploaded.ok) return null;
-                  setFileNames((current) => new Map(current).set(uploaded.file.id, uploaded.file.name));
+                  setFileNames((current) =>
+                    new Map(current).set(uploaded.file.id, uploaded.file.name),
+                  );
                   return uploaded.file;
                 }}
                 {...(drafts.has(request.entryId)

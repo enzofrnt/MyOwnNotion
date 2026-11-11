@@ -1010,5 +1010,4 @@ describe("database projection subscribers", () => {
     });
     expect(element.querySelector('[data-testid="current-source-title"]')).toBeNull();
   });
-
 });

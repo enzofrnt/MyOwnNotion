@@ -825,7 +825,10 @@ export const DatabasePropertySchema = Type.Union([
       ...DatabasePropertyBase,
       type: Type.Literal("relation"),
       config: Type.Object(
-        { cardinality: Type.Union([Type.Literal("one"), Type.Literal("many")]) },
+        {
+          cardinality: Type.Union([Type.Literal("one"), Type.Literal("many")]),
+          targetSourceId: Type.Optional(UuidSchema),
+        },
         { additionalProperties: false },
       ),
     },
@@ -1349,7 +1352,15 @@ export const DatabaseQueryRowSchema = Type.Object(
     values: DatabaseValuesMapSchema,
     relationTargets: DatabaseRelationTargetsMapSchema,
     rollupValues: Type.Optional(
-      Type.Record(Type.String(), Type.Union([Type.String(), Type.Number(), Type.Null()])),
+      Type.Record(
+        Type.String(),
+        Type.Union([
+          Type.String(),
+          Type.Number(),
+          Type.Null(),
+          Type.Array(Type.Union([Type.String(), Type.Number(), Type.Boolean()])),
+        ]),
+      ),
     ),
     groupId: Type.Union([Type.String(), Type.Null()]),
   },
@@ -1379,11 +1390,15 @@ export const DatabaseQueryPageSchema = Type.Object(
             id: UuidSchema,
             name: Type.String(),
             type: Type.String(),
+            /** Source that owns the property, to match it with a relation. */
+            sourceId: Type.Optional(UuidSchema),
           },
           { additionalProperties: false },
         ),
       ),
     ),
+    /** Sources actually reached by each relation of this source. */
+    rollupRelations: Type.Optional(Type.Record(Type.String(), Type.Array(UuidSchema))),
     nextCursor: Type.Union([Type.String(), Type.Null()]),
   },
   { additionalProperties: false },

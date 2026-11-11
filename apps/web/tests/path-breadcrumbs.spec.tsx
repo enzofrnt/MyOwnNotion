@@ -48,6 +48,26 @@ describe("page path breadcrumbs", () => {
     expect(onOpen).toHaveBeenCalledWith("mid");
   });
 
+  it("stops at the parent and hands over to the title when it lists ancestors only", async () => {
+    const onOpen = vi.fn();
+    await act(async () => {
+      root.render(<PathBreadcrumbs ancestorsOnly path={path.slice(0, -1)} onOpen={onOpen} />);
+    });
+    const visible = container.querySelector(".workspace-path__list");
+    const links = [
+      ...(visible?.querySelectorAll<HTMLButtonElement>(".workspace-path__link") ?? []),
+    ];
+    expect(links.map((link) => link.textContent)).toEqual(["📁Projets", "2026"]);
+    expect(visible?.querySelector('[aria-current="page"]')).toBeNull();
+    expect(visible?.textContent).not.toContain("Feuille de route");
+    // One separator between the two ancestors, one trailing toward the title.
+    expect(visible?.querySelectorAll(".workspace-path__separator")).toHaveLength(2);
+    await act(async () => {
+      links[1]?.click();
+    });
+    expect(onOpen).toHaveBeenCalledWith("mid");
+  });
+
   it("folds intermediate ancestors into a single menu when the row is too narrow", async () => {
     // jsdom has no layout: simulate widths through getBoundingClientRect.
     const original = Element.prototype.getBoundingClientRect;

@@ -4,15 +4,15 @@ import type { DatabaseQueryDto, DatabaseQueryPageDto } from "@myownnotion/contra
 import { presentDatabaseQuery } from "@myownnotion/contracts";
 import {
   type Database,
+  type DatabaseRecord,
   databaseIdsForEntries,
   listDatabaseProjectionEntries,
   listDatabaseProjectionRelationships,
   listDatabaseRecords,
-  readDatabaseRecord,
   readItem,
 } from "@myownnotion/database";
 import {
-  computeRollupValue,
+  createDerivedValues,
   type DatabaseDefinition,
   type DatabaseFilterOperand,
   type DatabaseProperty,
@@ -22,7 +22,7 @@ import {
   evaluateDatabaseView,
   type FilterCriterion,
   prepareDatabaseFilterOperand,
-  type RollupCell,
+  type RollupContext,
   type SafeErrorCode,
   type Uuid,
 } from "@myownnotion/domain";
@@ -41,6 +41,8 @@ export interface StructuredProjectionEntry extends DatabaseQueryEntry {
 
 export interface StructuredProjectionSource {
   readonly databaseId: Uuid;
+  /** Canonical identity; omitted by legacy projection dependencies. */
+  readonly sourceId?: Uuid;
   readonly definitionRevisionId: Uuid;
   readonly definition: DatabaseDefinition;
   readonly entries: readonly StructuredProjectionEntry[];
@@ -57,6 +59,10 @@ export interface DatabaseQueryServiceDeps {
     changedItemIds: readonly Uuid[],
     sources: ReadonlyMap<Uuid, StructuredProjectionSource>,
   ) => Promise<StructuredProjectionChanges>;
+}
+
+function projectionSourceId(source: StructuredProjectionSource): Uuid {
+  return source.sourceId ?? source.databaseId;
 }
 
 type ProjectionState = "cold" | "building" | "ready" | "degraded";
@@ -82,6 +88,106 @@ interface StructuredProjectionGeneration {
   readonly sources: ReadonlyMap<Uuid, StructuredProjectionSource>;
   readonly indexes: ReadonlyMap<Uuid, PropertyIndexes>;
   readonly indexedCount: number;
+}
+
+interface RollupTargetOption {
+  readonly id: Uuid;
+  readonly name: string;
+  readonly type: string;
+  readonly sourceId: Uuid;
+}
+
+interface SharedRollupContext extends RollupContext {
+  readonly options: readonly RollupTargetOption[];
+}
+
+const rollupContexts = new WeakMap<StructuredProjectionGeneration, SharedRollupContext>();
+
+/** Related entries of every source, built once per projection generation. */
+function rollupContextOf(active: StructuredProjectionGeneration): SharedRollupContext {
+  const cached = rollupContexts.get(active);
+  if (cached !== undefined) return cached;
+  const entries = new Map<Uuid, StructuredProjectionEntry>();
+  const entriesBySource = new Map<Uuid, ReadonlyMap<Uuid, StructuredProjectionEntry>>();
+  const propertiesById = new Map<Uuid, DatabaseProperty>();
+  const propertySources = new Map<Uuid, Uuid>();
+  const entrySources = new Map<Uuid, Set<Uuid>>();
+  const options: RollupTargetOption[] = [];
+  for (const source of active.sources.values()) {
+    entriesBySource.set(
+      projectionSourceId(source),
+      new Map(source.entries.map((entry) => [entry.entryId, entry])),
+    );
+    const propertyIds = new Set(source.definition.properties.map((property) => property.id));
+    for (const entry of source.entries) {
+      const memberships = entrySources.get(entry.entryId) ?? new Set<Uuid>();
+      memberships.add(projectionSourceId(source));
+      entrySources.set(entry.entryId, memberships);
+      // An item can belong to several sources. Retain each source's own values
+      // rather than letting the last membership erase the earlier one's cells.
+      const previous = entries.get(entry.entryId);
+      if (previous === undefined) {
+        entries.set(entry.entryId, entry);
+        continue;
+      }
+      entries.set(entry.entryId, {
+        ...entry,
+        values: {
+          ...previous?.values,
+          ...Object.fromEntries(
+            Object.entries(entry.values).filter(([id]) => propertyIds.has(id as Uuid)),
+          ),
+        },
+        relationTargets: {
+          ...previous?.relationTargets,
+          ...Object.fromEntries(
+            Object.entries(entry.relationTargets).filter(([id]) => propertyIds.has(id as Uuid)),
+          ),
+        },
+      });
+    }
+    for (const property of source.definition.properties) {
+      if (property.state !== "active") continue;
+      propertiesById.set(property.id, property);
+      propertySources.set(property.id, projectionSourceId(source));
+      if (
+        property.type !== "relation" &&
+        property.type !== "rollup" &&
+        property.type !== "formula"
+      ) {
+        options.push({
+          id: property.id,
+          name: property.name,
+          type: property.type,
+          sourceId: projectionSourceId(source),
+        });
+      }
+    }
+  }
+  // The server projection is complete: an unknown target is a removed entry.
+  const context: SharedRollupContext = {
+    entries,
+    entriesBySource,
+    propertiesById,
+    options,
+    propertySources,
+    entrySources,
+    sourceIds: new Set(active.sources.keys()),
+    missing: "skip",
+  };
+  rollupContexts.set(active, context);
+  return context;
+}
+
+/** Sources each relation of `source` actually points to. */
+function relationSources(source: StructuredProjectionSource): Record<string, Uuid[]> {
+  const result: Record<string, Uuid[]> = {};
+  for (const property of source.definition.properties) {
+    if (property.state !== "active" || property.type !== "relation") continue;
+    result[property.id] =
+      property.config.targetSourceId === undefined ? [] : [property.config.targetSourceId];
+  }
+  return result;
 }
 
 interface CursorPayload {
@@ -317,6 +423,9 @@ function indexedCriterion(
   indexes: PropertyIndexes,
   all: ReadonlySet<Uuid>,
 ): ReadonlySet<Uuid> | undefined {
+  const derived = definition.properties.find(({ id }) => id === criterion.propertyId);
+  // Rollups and formulas are computed, never indexed.
+  if (derived?.type === "rollup" || derived?.type === "formula") return undefined;
   const presence = indexes.presence.get(criterion.propertyId) ?? new Set<Uuid>();
   if (criterion.operator === "is-not-empty") return presence;
   if (criterion.operator === "is-empty") return complement(all, presence);
@@ -423,8 +532,8 @@ export class DatabaseQueryService {
       const indexes = new Map<Uuid, PropertyIndexes>();
       let indexedCount = 0;
       for (const source of loaded) {
-        sources.set(source.databaseId, source);
-        indexes.set(source.databaseId, buildIndexes(source));
+        sources.set(projectionSourceId(source), source);
+        indexes.set(projectionSourceId(source), buildIndexes(source));
         indexedCount += source.entries.length;
         this.#indexedDuringBuild = indexedCount;
         if (sources.size % REBUILD_YIELD_INTERVAL === 0) await yieldToEventLoop();
@@ -585,22 +694,46 @@ export class DatabaseQueryService {
         this.#expectedCount,
       );
     }
-    const source = active.sources.get(databaseId);
-    if (source === undefined) throw new DatabaseQueryRequestError("database.not-found");
+    // The public identity remains the host. Select its source by the requested
+    // view rather than collapsing every source on that host into one schema.
+    const hosted = [...active.sources.values()].filter(
+      (source) => source.databaseId === databaseId,
+    );
+    if (hosted.length === 0) throw new DatabaseQueryRequestError("database.not-found");
+    const source = hosted.find((candidate) =>
+      candidate.definition.views.some(
+        (view) => view.id === request.viewId && view.state === "active",
+      ),
+    );
+    if (source === undefined) throw new DatabaseQueryRequestError("database.invalid-view");
     const view = source.definition.views.find(
       (candidate) => candidate.id === request.viewId && candidate.state === "active",
     );
     if (view === undefined) throw new DatabaseQueryRequestError("database.invalid-view");
 
-    const indexes = active.indexes.get(databaseId) ?? { presence: new Map(), equality: new Map() };
+    const indexes = active.indexes.get(projectionSourceId(source)) ?? {
+      presence: new Map(),
+      equality: new Map(),
+    };
     const candidateIds = indexedCandidates(view, source.definition, indexes, source.entries);
     const entries =
       candidateIds === undefined
         ? source.entries
         : source.entries.filter(({ entryId }) => candidateIds.has(entryId));
     const limit = request.limit ?? 100;
+    const rollups = rollupContextOf(active);
+    const hasDerived = source.definition.properties.some(
+      (property) =>
+        property.state === "active" && (property.type === "rollup" || property.type === "formula"),
+    );
+    const derived = createDerivedValues(source.definition, {
+      rollups,
+      relationTitle: (id) => rollups.entries.get(id)?.title,
+    });
+    // Computed values feed the filter and the sort before the page is cut.
     const evaluated = evaluateDatabaseView(source.definition, request.viewId as Uuid, entries, {
       ...(request.cursor === undefined && view.group === null ? { maxRows: limit } : {}),
+      ...(hasDerived ? { derived: derived.comparable } : {}),
     });
     if (!evaluated.ok) throw new DatabaseQueryRequestError("database.invalid-view");
     const rows = evaluated.value.rows as readonly StructuredProjectionEntry[];
@@ -620,28 +753,6 @@ export class DatabaseQueryService {
     const pageRows = rows.slice(offset, offset + limit);
     const nextOffset = offset + pageRows.length;
     const last = pageRows.at(-1);
-    const sources = [...active.sources.values()];
-    const rollupEntries = new Map(
-      sources.flatMap((candidate) =>
-        candidate.entries.map((entry) => [entry.entryId, entry] as const),
-      ),
-    );
-    const propertiesById = new Map<Uuid, DatabaseProperty>();
-    for (const candidate of sources) {
-      for (const property of candidate.definition.properties) {
-        if (property.state === "active") propertiesById.set(property.id, property);
-      }
-    }
-    const rollupProperties = [...propertiesById.values()]
-      .filter(
-        (property) =>
-          property.type !== "relation" && property.type !== "rollup" && property.type !== "formula",
-      )
-      .map((property) => ({ id: property.id, name: property.name, type: property.type }));
-    const rollupDefinitions = source.definition.properties.filter(
-      (property): property is Extract<DatabaseProperty, { type: "rollup" }> =>
-        property.state === "active" && property.type === "rollup",
-    );
     const presented = presentDatabaseQuery({
       definition: source.definition,
       view,
@@ -649,21 +760,18 @@ export class DatabaseQueryService {
       groups: evaluated.value.groups,
       includeGroups: true,
     });
-    const rowsWithRollups = presented.rows.map((row) => {
-      const rollupValues: Record<string, RollupCell> = {};
-      const entry = rollupEntries.get(row.entryId as Uuid);
-      if (entry !== undefined) {
-        for (const property of rollupDefinitions) {
-          const targetProperty =
-            property.config.targetPropertyId === undefined
-              ? undefined
-              : propertiesById.get(property.config.targetPropertyId);
-          const value = computeRollupValue(property, entry, targetProperty, rollupEntries);
-          if (value !== null) rollupValues[property.id] = value;
-        }
-      }
-      return Object.keys(rollupValues).length === 0 ? row : { ...row, rollupValues };
-    });
+    const hasRollups = source.definition.properties.some(
+      (property) => property.state === "active" && property.type === "rollup",
+    );
+    const rowsWithRollups = hasRollups
+      ? presented.rows.map((row, index) => {
+          const entry = pageRows[index];
+          return entry === undefined || entry.entryId !== row.entryId
+            ? row
+            : { ...row, rollupValues: derived.rollups(entry) };
+        })
+      : presented.rows;
+    const rollupProperties = rollups.options.map((option) => ({ ...option }));
     return {
       databaseId,
       viewId: request.viewId,
@@ -675,6 +783,7 @@ export class DatabaseQueryService {
       ...presented,
       rows: rowsWithRollups,
       ...(rollupProperties.length === 0 ? {} : { rollupProperties }),
+      rollupRelations: relationSources(source),
       nextCursor:
         nextOffset < evaluated.value.totalCount && last !== undefined
           ? this.#encodeCursor({
@@ -692,32 +801,32 @@ export class DatabaseQueryService {
 
 async function loadProjectionSource(input: {
   readonly db: Database;
-  readonly databaseId: Uuid;
+  readonly record: DatabaseRecord;
   readonly protectedContent?: ProtectedContent | undefined;
   readonly previous?: StructuredProjectionSource | undefined;
   readonly changedItemIds?: readonly Uuid[] | undefined;
 }): Promise<StructuredProjectionSource | null> {
-  const record = await readDatabaseRecord(input.db, input.databaseId);
-  if (record === null) return null;
-  const definitionRevisionId =
-    record.definitionRevisionId ?? (await readItem(input.db, input.databaseId))?.currentRevisionId;
+  const { record } = input;
+  const owner = await readItem(input.db, record.databaseId);
+  if (owner === null || owner.lifecycle !== "active") return null;
+  const definitionRevisionId = record.definitionRevisionId ?? owner.currentRevisionId;
   if (definitionRevisionId === undefined) return null;
   const incremental =
     input.previous?.definitionRevisionId === definitionRevisionId &&
     input.changedItemIds !== undefined &&
-    !input.changedItemIds.includes(input.databaseId);
+    !input.changedItemIds.includes(record.databaseId);
   const changed = incremental ? input.changedItemIds : undefined;
   const [definition, entryRecords, relationships] = await Promise.all([
     incremental
       ? input.previous?.definition
       : resolveDatabaseDefinition(input.db, record, input.protectedContent),
-    listDatabaseProjectionEntries(input.db, input.databaseId, changed),
-    listDatabaseProjectionRelationships(input.db, input.databaseId, changed),
+    listDatabaseProjectionEntries(input.db, record.databaseId, changed, record.sourceId),
+    listDatabaseProjectionRelationships(input.db, record.databaseId, changed),
   ]);
   if (definition === undefined) return null;
   const resolved = await resolveDatabaseProjectionEntries(
     input.db,
-    input.databaseId,
+    record.databaseId,
     entryRecords,
     relationships,
     input.protectedContent,
@@ -730,7 +839,8 @@ async function loadProjectionSource(input: {
       ]
     : resolved;
   return {
-    databaseId: input.databaseId,
+    databaseId: record.databaseId,
+    sourceId: record.sourceId,
     definitionRevisionId,
     definition: databaseQueryDefinition(definition),
     entries,
@@ -749,7 +859,7 @@ export function createDatabaseQueryService(input: {
       for (const record of records) {
         const source = await loadProjectionSource({
           db: input.db,
-          databaseId: record.databaseId,
+          record,
           protectedContent: input.protectedContent,
         });
         if (source !== null) sources.push(source);
@@ -771,16 +881,22 @@ export function createDatabaseQueryService(input: {
         )
           databaseIds.add(source.databaseId);
       const sources: StructuredProjectionSource[] = [];
-      const removedDatabaseIds: Uuid[] = [];
-      for (const databaseId of databaseIds) {
+      const currentIds = new Set(records.map((record) => record.sourceId));
+      const removedDatabaseIds = [...previous]
+        .filter(
+          ([sourceId, source]) => databaseIds.has(source.databaseId) && !currentIds.has(sourceId),
+        )
+        .map(([sourceId]) => sourceId);
+      for (const record of records) {
+        if (!databaseIds.has(record.databaseId)) continue;
         const source = await loadProjectionSource({
           db: input.db,
-          databaseId,
+          record,
           protectedContent: input.protectedContent,
-          previous: previous.get(databaseId),
+          previous: previous.get(record.sourceId),
           changedItemIds,
         });
-        if (source === null) removedDatabaseIds.push(databaseId);
+        if (source === null) removedDatabaseIds.push(record.sourceId);
         else sources.push(source);
       }
       return { sources, removedDatabaseIds };
@@ -799,16 +915,16 @@ function applyAffectedSources(
     indexes.delete(databaseId);
   }
   for (const source of affected.sources) {
-    const previous = sources.get(source.databaseId);
-    sources.set(source.databaseId, source);
+    const previous = sources.get(projectionSourceId(source));
+    sources.set(projectionSourceId(source), source);
     indexes.set(
-      source.databaseId,
+      projectionSourceId(source),
       previous === undefined
         ? buildIndexes(source)
         : updateIndexes(
             previous,
             source,
-            indexes.get(source.databaseId) ?? buildIndexes(previous),
+            indexes.get(projectionSourceId(source)) ?? buildIndexes(previous),
             new Set(changedItemIds),
           ),
     );

@@ -15,8 +15,6 @@ import {
   type NumberPropertyConfig,
   numberConfigOf,
   type PropertyOption,
-  ROLLUP_FUNCTIONS,
-  type RollupFunction,
   STATUS_GROUP_LABELS,
   STATUS_GROUPS,
   type StatusGroup,
@@ -51,6 +49,7 @@ import {
 import { DATABASE_COPY } from "./database-copy.ts";
 import { DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS } from "./date-format.ts";
 import { FormulaEditor } from "./formula-editor.tsx";
+import type { RollupTargetOption } from "./local-rollup.ts";
 import { NUMBER_FORMAT_OPTIONS } from "./number-format.ts";
 import {
   isChoiceProperty,
@@ -61,6 +60,8 @@ import {
   optionTone,
 } from "./option-appearance.tsx";
 import { DatabasePropertyIcon, PropertyIconPicker } from "./property-icon.tsx";
+import { RelationPropertySettings } from "./relation-property-settings.tsx";
+import { RollupPropertySettings } from "./rollup-settings.tsx";
 
 const ColumnPropertyMenuAppearance = createContext(false);
 
@@ -697,33 +698,6 @@ function DatePropertySettings({
   );
 }
 
-const ROLLUP_FUNCTION_LABELS: Readonly<Record<RollupFunction, string>> = {
-  count: "Nombre de pages",
-  count_values: "Nombre de valeurs",
-  empty: "Vide",
-  not_empty: "Non vide",
-  unique: "Valeurs uniques",
-  show_unique: "Afficher les valeurs uniques",
-  percent_empty: "% vide",
-  percent_not_empty: "% non vide",
-  sum: "Somme",
-  average: "Moyenne",
-  median: "Médiane",
-  min: "Minimum",
-  max: "Maximum",
-  range: "Étendue",
-  earliest_date: "Date la plus ancienne",
-  latest_date: "Date la plus récente",
-  date_range: "Plage de dates (jours)",
-  checked: "Coché",
-  unchecked: "Non coché",
-  percent_checked: "% coché",
-  percent_unchecked: "% non coché",
-  count_per_group: "Nombre par groupe",
-  percent_per_group: "% par groupe",
-  show_original: "Afficher les valeurs",
-};
-
 function UniqueIdPropertySettings({
   property,
   onChange,
@@ -874,6 +848,7 @@ export function PropertyConfiguration({
   previewRow,
   previewRows,
   rollupProperties = [],
+  rollupRelations,
 }: {
   property: DatabaseProperty;
   anchor: DOMRect | null;
@@ -894,13 +869,8 @@ export function PropertyConfiguration({
   readonly properties?: readonly DatabaseProperty[];
   readonly previewRow?: DatabaseViewRow | undefined;
   readonly previewRows?: readonly DatabaseViewRow[] | undefined;
-  readonly rollupProperties?:
-    | readonly {
-        readonly id: string;
-        readonly name: string;
-        readonly type: string;
-      }[]
-    | undefined;
+  readonly rollupProperties?: readonly RollupTargetOption[] | undefined;
+  readonly rollupRelations?: Readonly<Record<string, readonly string[]>> | undefined;
 }) {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [formulaOpen, setFormulaOpen] = useState(false);
@@ -997,119 +967,16 @@ export function PropertyConfiguration({
                 <UniqueIdPropertySettings property={property} onChange={onChange} />
               ) : null}
               {property.type === "relation" ? (
-                <label className="property-settings__toggle">
-                  <input
-                    type="checkbox"
-                    checked={property.config.cardinality === "many"}
-                    onChange={(event) => {
-                      const checked = event.currentTarget.checked;
-                      onChange((p) =>
-                        p.type === "relation"
-                          ? { ...p, config: { cardinality: checked ? "many" : "one" } }
-                          : p,
-                      );
-                    }}
-                  />
-                  Autoriser plusieurs pages
-                </label>
+                <RelationPropertySettings property={property} onChange={onChange} />
               ) : null}
               {property.type === "rollup" ? (
-                <div className="property-settings__number">
-                  <label className="property-settings__field">
-                    <span>{DATABASE_COPY.property.rollupRelation}</span>
-                    <select
-                      className="ui-native-input"
-                      data-size="compact"
-                      aria-label={DATABASE_COPY.property.rollupRelation}
-                      value={property.config.relationPropertyId}
-                      onChange={(event) => {
-                        const relationPropertyId = event.currentTarget.value;
-                        onChange((p) =>
-                          p.type === "rollup"
-                            ? {
-                                ...p,
-                                config: {
-                                  ...p.config,
-                                  relationPropertyId: relationPropertyId as Uuid,
-                                },
-                              }
-                            : p,
-                        );
-                      }}
-                    >
-                      {properties
-                        .filter(
-                          (candidate) =>
-                            candidate.type === "relation" && candidate.state === "active",
-                        )
-                        .map((candidate) => (
-                          <option key={candidate.id} value={candidate.id}>
-                            {candidate.name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <label className="property-settings__field">
-                    <span>Propriété cible</span>
-                    <select
-                      className="ui-native-input"
-                      data-size="compact"
-                      aria-label="Propriété cible"
-                      value={property.config.targetPropertyId ?? ""}
-                      onChange={(event) => {
-                        const targetPropertyId = event.currentTarget.value;
-                        onChange((p) =>
-                          p.type === "rollup"
-                            ? {
-                                ...p,
-                                config:
-                                  targetPropertyId === ""
-                                    ? {
-                                        relationPropertyId: p.config.relationPropertyId,
-                                        aggregate: p.config.aggregate,
-                                      }
-                                    : { ...p.config, targetPropertyId: targetPropertyId as Uuid },
-                              }
-                            : p,
-                        );
-                      }}
-                    >
-                      <option value="">Aucune (nombre de pages)</option>
-                      {rollupProperties
-                        .filter((candidate) => candidate.id !== property.id)
-                        .map((candidate) => (
-                          <option key={candidate.id} value={candidate.id}>
-                            {candidate.name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <label className="property-settings__field">
-                    <span>{"Calculer"}</span>
-                    <select
-                      className="ui-native-input"
-                      data-size="compact"
-                      aria-label={"Calculer"}
-                      value={property.config.aggregate}
-                      onChange={(event) => {
-                        const aggregate = event.currentTarget.value as RollupFunction;
-                        onChange((p) =>
-                          p.type === "rollup" ? { ...p, config: { ...p.config, aggregate } } : p,
-                        );
-                      }}
-                    >
-                      {ROLLUP_FUNCTIONS.map((aggregate) => (
-                        <option key={aggregate} value={aggregate}>
-                          {ROLLUP_FUNCTION_LABELS[aggregate]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <p className="muted property-settings__note">
-                    La propriété cible appartient à la base liée. Sans cible, seul le nombre de
-                    pages est disponible.
-                  </p>
-                </div>
+                <RollupPropertySettings
+                  property={property}
+                  properties={properties}
+                  targets={rollupProperties}
+                  relationSources={rollupRelations}
+                  onChange={onChange}
+                />
               ) : null}
               {property.type === "formula" ? (
                 <div className="property-settings__formula">

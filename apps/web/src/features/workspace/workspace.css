@@ -103,7 +103,7 @@
 
 .workspace-page-header[data-compact="true"] {
   --workspace-header-content-width: 100%;
-  --workspace-chrome-height: 1.875rem;
+  --workspace-chrome-height: 2.5rem;
 
   min-height: var(--workspace-chrome-height);
   padding: 0;
@@ -125,17 +125,31 @@
   min-height: 2.25rem;
 }
 
-.workspace-page-title__history {
+/* Undo/redo keep one place at the start of the bar on every surface. */
+.workspace-page-header__history {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 0;
-  margin-inline-end: var(--ui-space-1);
-  padding-inline-end: var(--ui-space-2);
-  border-right: 1px solid color-mix(in srgb, var(--ui-color-border) 55%, transparent);
+  gap: var(--ui-space-2);
+  padding-inline-start: var(--ui-space-2);
 }
 
-.workspace-page-title__history:empty {
+/* Short hairlines group the bar's controls without boxing them in. */
+.workspace-page-header__history::after,
+.workspace-shell[data-sidebar-open="false"] .workspace-page-header__history::before {
+  width: 1px;
+  height: 1.125rem;
+  flex: 0 0 auto;
+  background: var(--ui-color-border);
+  content: "";
+}
+
+.workspace-page-header__history:empty {
+  display: none;
+}
+
+.workspace-page-header__history:has(.editor-history-controls:not([data-placeholder]))
+  > [data-placeholder] {
   display: none;
 }
 
@@ -156,8 +170,9 @@
   width: 100%;
   min-width: 0;
   align-self: stretch;
-  align-items: stretch;
-  gap: 0;
+  align-items: center;
+  gap: 2px;
+  padding-inline: var(--ui-space-2);
   overflow-x: auto;
   overflow-y: hidden;
   /* Trackpad, wheel translation and arrow keys browse the strip; a permanent
@@ -185,16 +200,16 @@
   min-width: var(--open-tab-width);
   max-width: var(--open-tab-width);
   align-items: center;
-  min-height: var(--workspace-chrome-height, 1.875rem);
+  height: 1.75rem;
   padding-inline-end: 2px;
   color: var(--ui-color-text-muted);
-  border-right: 1px solid var(--ui-color-border);
-  border-radius: 0;
+  border-radius: var(--ui-radius-sm);
   scroll-snap-align: start;
 }
 
-.open-tab:hover,
-.open-tab:focus-within {
+/* Hover follows the pointer only: a tab that kept focus after a click or a
+   drop must not look hovered once the pointer has left it. */
+.open-tab:hover {
   background: var(--ui-color-surface-hover);
 }
 
@@ -203,11 +218,10 @@
   opacity: 0.88;
   background: var(--ui-color-surface-raised);
   cursor: grabbing;
-  /* Stay inside the strip height so neighbours only slide sideways. */
-  align-self: stretch;
 }
 
-.open-tab[data-active] {
+.open-tab[data-active],
+.open-tab[data-active]:hover {
   color: var(--ui-color-text);
   background: var(--ui-color-surface-active);
 }
@@ -215,7 +229,7 @@
 .open-tab__activate {
   display: flex;
   min-width: 0;
-  min-height: var(--workspace-chrome-height, 1.875rem);
+  height: 100%;
   flex: 1 1 auto;
   align-items: center;
   gap: 0.3rem;
@@ -223,12 +237,18 @@
   color: inherit;
   background: transparent;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--ui-radius-sm);
   font: inherit;
   font-size: var(--ui-text-xs);
   line-height: 1.2;
   text-align: start;
   cursor: grab;
+}
+
+/* The tab owns its fill; the legacy native-button hover would repaint only
+   the label half of it. */
+.open-tab__activate:hover {
+  background: transparent;
 }
 
 .open-tab[data-dragging] .open-tab__activate {
@@ -276,10 +296,15 @@
   opacity: 1;
 }
 
-/* Page path: full-width chrome under the tab strip (spec 022, US1). */
+/* Page path: the ancestors line above the title (spec 022, US1). */
 
+/* The row itself is border-box with a top padding, so its own min-height
+   cannot hold the line open; the content box does. A root page has no
+   ancestors, keeps this empty line and its title stays where a nested
+   page's title is. */
 .workspace-page-title__path-crumbs {
   min-width: 0;
+  min-height: 1.5rem;
   flex: 1 1 auto;
 }
 
@@ -287,6 +312,18 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
+}
+
+.workspace-page-header__graph.ui-button[data-size="square"] {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  padding: 0;
+  color: var(--ui-color-text-muted);
+}
+
+.workspace-page-header__graph.ui-button:hover {
+  color: var(--ui-color-text);
 }
 
 .workspace-page-title__graph.ui-button {
@@ -624,6 +661,22 @@
   white-space: nowrap;
 }
 
+.workspace-page-header[data-compact="true"] .workspace-page-header__actions {
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 auto;
+  gap: var(--ui-space-2);
+  padding-inline: var(--ui-space-2);
+}
+
+.workspace-page-header[data-compact="true"] .workspace-page-header__actions::before {
+  width: 1px;
+  height: 1.125rem;
+  flex: 0 0 auto;
+  background: var(--ui-color-border);
+  content: "";
+}
+
 .workspace-page-header__actions {
   display: flex;
   min-width: 6rem;
@@ -660,25 +713,37 @@
   align-items: stretch;
 }
 
+/* Scrolls with the page: the title right below is the path's last link. The
+   line keeps its height without ancestors so titles do not jump between tabs. */
 .workspace-page-title__path {
-  position: sticky;
-  top: 0;
-  z-index: var(--ui-layer-sticky);
   display: flex;
-  align-self: stretch;
   min-width: 0;
-  min-height: 1.75rem;
   align-items: center;
   justify-content: space-between;
   gap: var(--ui-space-3);
-  margin: 0;
-  padding: var(--ui-space-1) var(--ui-space-4);
-  /* Stays put while the title and page body scroll underneath. */
-  background: color-mix(in srgb, var(--ui-color-canvas) 92%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--ui-color-border) 40%, transparent);
-  backdrop-filter: blur(12px);
+  padding: var(--ui-space-3) var(--workspace-page-inline-end, 0) 0
+    var(--workspace-page-inline-start, 0);
 }
 
+.workspace-page-title__path .workspace-path {
+  min-height: 1.5rem;
+  /* Optical alignment: the first crumb's text starts on the title's edge. */
+  margin-inline-start: -0.15rem;
+}
+
+/* The path sits right over the title; “Ajouter une icône” lives on the
+   caption line below it, so nothing has to be reserved in between. */
+.workspace-page-title > .workspace-page-title__path {
+  padding-top: calc(var(--ui-space-3) + 1.25rem);
+}
+
+.workspace-page-title__path + .workspace-page-title__body {
+  --workspace-page-icon-offset: 0.125rem;
+
+  padding-top: var(--workspace-page-icon-offset);
+}
+
+.workspace-page-title__path,
 .workspace-page-title__body,
 .workspace-page-editor,
 .workspace-folder-canvas .folder-children,
@@ -756,7 +821,7 @@
   align-items: center;
   justify-content: flex-start;
   min-height: var(--ui-target-compact);
-  margin-top: var(--ui-space-2);
+  margin-top: var(--ui-space-1);
   overflow: visible;
 }
 
@@ -784,9 +849,58 @@
   height: 0.75rem;
 }
 
+.workspace-page-title__meta-separator {
+  margin-inline: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  opacity: 0.6;
+}
+
+/* On the caption line the empty picker is a quiet, always-visible link: no
+   hover reveal, no floating above the title. */
+.workspace-page-title__meta .item-emoji-picker[data-picker-variant="page"][data-empty] {
+  position: static;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.workspace-page-title__meta .item-emoji-picker__trigger[data-picker-variant="page"] {
+  padding: 0 var(--ui-space-1);
+  border-radius: var(--ui-radius-sm);
+}
+
+.workspace-page-title__meta .item-emoji-picker__trigger[data-picker-variant="page"]:hover {
+  background: var(--ui-color-surface-hover);
+}
+
+.workspace-page-title__meta .item-emoji-picker__empty {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  font-weight: 500;
+}
+
+.workspace-page-title__meta .item-emoji-picker__empty .ui-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* Databases have no kind caption; the line only remains for the picker. */
+.workspace-page-title[data-kind="database"] .workspace-page-title__kind,
+.workspace-page-title[data-kind="database_view"] .workspace-page-title__kind,
+.workspace-page-title[data-kind="database"] .workspace-page-title__meta-separator,
+.workspace-page-title[data-kind="database_view"] .workspace-page-title__meta-separator {
+  display: none;
+}
+
+.workspace-page-title[data-kind="database"]
+  .workspace-page-title__meta:not(:has(.item-emoji-picker)),
+.workspace-page-title[data-kind="database_view"]
+  .workspace-page-title__meta:not(:has(.item-emoji-picker)) {
+  display: none;
+}
+
 .workspace-page-title[data-kind="database"] .workspace-page-title__meta,
 .workspace-page-title[data-kind="database_view"] .workspace-page-title__meta {
-  display: none;
+  margin-inline-start: calc(-1 * var(--ui-space-1));
 }
 
 /* Title and table share the same side inset as a page's text. */
@@ -844,6 +958,58 @@
 .workspace-notices__panel .ui-status {
   margin: 0;
   box-shadow: var(--ui-shadow-menu);
+}
+
+/* Landing surface (`/notes`). A workspace with nothing open is not a system
+   notice: it borrows the page canvas geometry (path-like caption, title,
+   reading column) so it reads as a page of this app. The inline start matches
+   `--workspace-page-inline-start`, the axis a page title and its body text
+   share after the block-handle gutter: moving between a page and the landing
+   never shifts where the reading starts. */
+.workspace-home {
+  --workspace-home-inline-start: max(
+    var(--ui-space-6),
+    calc(2 * var(--ui-target-compact) + var(--ui-space-2))
+  );
+
+  display: flex;
+  min-height: 20rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-6) var(--ui-space-2) var(--ui-space-12) var(--workspace-home-inline-start);
+}
+
+.workspace-home__caption {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 450;
+  letter-spacing: 0.01em;
+}
+
+.workspace-home__title {
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: 2.5rem;
+  font-weight: 720;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.workspace-home__detail {
+  max-width: 36rem;
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+  line-height: var(--ui-leading-normal);
+}
+
+.workspace-home__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  margin-block-start: var(--ui-space-2);
 }
 
 .workspace-state {
@@ -941,7 +1107,16 @@
   .workspace-page-header[data-compact="true"] {
     min-height: var(--workspace-chrome-height, 1.875rem);
     padding: 0;
-    padding-left: calc(var(--ui-target) + var(--ui-space-3));
+    padding-left: calc(var(--ui-target-compact) + var(--ui-space-1));
+  }
+
+  /* The drawer trigger is always in the bar at this width. */
+  .workspace-page-header__history::before {
+    width: 1px;
+    height: 1.125rem;
+    flex: 0 0 auto;
+    background: var(--ui-color-border);
+    content: "";
   }
 
   .workspace-page-canvas {
@@ -951,17 +1126,14 @@
     padding-top: 0;
   }
 
-  .workspace-page-title__path {
-    padding-inline: var(--ui-space-3);
-  }
-
   .workspace-page-title__body {
     --workspace-page-icon-offset: var(--ui-space-6);
 
     padding-top: var(--workspace-page-icon-offset);
   }
 
-  .workspace-page-title textarea {
+  .workspace-page-title textarea,
+  .workspace-home__title {
     font-size: 2rem;
   }
 
@@ -1006,7 +1178,7 @@
 
 @media (min-width: 48rem) {
   .workspace-shell[data-sidebar-open="false"] .workspace-page-header {
-    padding-left: calc(var(--ui-target-compact) + var(--ui-space-3));
+    padding-left: calc(var(--ui-target-compact) + var(--ui-space-1));
   }
 }
 
@@ -1016,7 +1188,7 @@
   }
 }
 
-/* Compact chrome: history | tabs edge to edge. Declared last so it wins over
+/* Compact chrome: history | tabs | page actions on one line. Declared last so it wins over
    the generic and narrow-viewport row rules above without relying on specificity. */
 .workspace-page-header[data-compact="true"] .workspace-page-header__path-row {
   min-height: var(--workspace-chrome-height, 1.875rem);

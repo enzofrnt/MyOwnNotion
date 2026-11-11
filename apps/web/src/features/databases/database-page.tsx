@@ -13,6 +13,7 @@ import type {
   Uuid,
 } from "@myownnotion/domain";
 import {
+  createDerivedValues,
   evaluateDatabaseView,
   extractSearchableDocumentText,
   generateUuidV7,
@@ -375,6 +376,8 @@ export function DatabasePage({
         values: entry.values as never,
         relationTargets: entry.relationTargets as never,
       })),
+      // Formulas over this row still filter and sort; rollups need the query page.
+      { derived: createDerivedValues(definition).comparable },
     );
     if (!evaluated.ok) return null;
     const byId = new Map(entries.map((entry) => [entry.entryId, entry]));
@@ -1678,6 +1681,7 @@ export function DatabasePage({
             onChangePropertyIcon={(propertyId, icon) => void changePropertyIcon(propertyId, icon)}
             onInsertProperty={insertProperty}
             onDuplicateProperty={duplicateProperty}
+            onMoveColumn={(properties) => saveView({ ...activeView, properties })}
             onResize={(propertyId, width) =>
               saveView({
                 ...activeView,

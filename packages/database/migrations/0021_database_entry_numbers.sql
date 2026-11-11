@@ -46,4 +46,9 @@ CREATE TRIGGER database_entries_assign_entry_number_trigger
   FOR EACH ROW
   EXECUTE FUNCTION database_entries_assign_entry_number();
 
+-- Every reviewed migration records itself in the same transaction. Without
+-- this line the schema moved but the version registry stayed at 0020, so the
+-- update guard refused every later start ("reviewed migrations remain
+-- unapplied") and a fresh install could not be created at all.
+INSERT INTO schema_migrations (version) VALUES ('0021_database_entry_numbers');
 COMMIT;

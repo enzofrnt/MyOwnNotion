@@ -43,6 +43,7 @@ import {
   readDatabasePresentationRecord,
   readDatabaseRecord,
   readDatabaseRecordBySourceId,
+  readDatabaseRelationTargets,
   replaceDatabaseRelationships,
 } from "../repositories/database-repository.ts";
 import { getItem } from "../repositories/hierarchy-repository.ts";
@@ -147,6 +148,8 @@ async function validateStructuredValues(
   tx: Transaction,
   input: {
     readonly definition: DatabaseDefinition;
+    readonly workspaceId: Uuid;
+    readonly previousRelations?: RelationTargets;
     readonly values: Extract<
       DatabaseMutationCommand,
       {
@@ -180,10 +183,47 @@ async function validateStructuredValues(
         ? err("validation.invalid-payload", "Relationship target set is absent")
         : (normalized as DomainResult<never>);
     }
-    for (const targetId of normalized.value) {
+    // Validate additions only: an unavailable historical endpoint must not prevent
+    // an unrelated edit or removal. The persisted link set, never the command,
+    // is the authority for this exemption.
+    const previous = new Set(input.previousRelations?.[propertyId as Uuid] ?? []);
+    const additions = normalized.value.filter((targetId) => !previous.has(targetId));
+    const targetSourceId = property.config.targetSourceId;
+    const source =
+      additions.length > 0 && targetSourceId !== undefined
+        ? await readDatabaseRecordBySourceId(tx, targetSourceId)
+        : null;
+    if (additions.length > 0 && targetSourceId !== undefined) {
+      const owner = source === null ? null : await getItem(tx, source.databaseId);
+      if (
+        source === null ||
+        source.workspaceId !== input.workspaceId ||
+        owner?.workspaceId !== input.workspaceId ||
+        owner.kind !== "database" ||
+        owner.lifecycle !== "active"
+      ) {
+        return err("database.source-unavailable", "Relationship source is unavailable");
+      }
+    }
+    for (const targetId of additions) {
       const target = await getItem(tx, targetId);
-      if (target === null || target.lifecycle === "purged") {
+      if (
+        target === null ||
+        target.workspaceId !== input.workspaceId ||
+        target.lifecycle !== "active"
+      ) {
         return err("relationship.endpoint-unavailable", "Relationship target is unavailable");
+      }
+      if (source !== null) {
+        const membership = await readDatabaseEntryRecord(tx, targetId, source.databaseId);
+        if (
+          membership === null ||
+          membership.sourceId !== targetSourceId ||
+          membership.workspaceId !== input.workspaceId ||
+          !(await isActiveDatabaseEntry(tx, source.databaseId, targetId))
+        ) {
+          return err("relationship.endpoint-unavailable", "Relationship target is unavailable");
+        }
       }
     }
     relations[propertyId] = normalized.value;
@@ -726,6 +766,7 @@ async function executeCreateEntry(
     definition,
     values: command.values,
     relationTargets: command.relationTargets,
+    workspaceId: context.workspaceId,
   });
   if (!structured.ok) return structured as DomainResult<DatabaseCommandExecution>;
 
@@ -838,6 +879,8 @@ async function executeReplaceEntryValues(
     definition,
     values: command.values,
     relationTargets: command.relationTargets,
+    workspaceId: context.workspaceId,
+    previousRelations: await readDatabaseRelationTargets(tx, command),
   });
   if (!structured.ok) return structured as DomainResult<DatabaseCommandExecution>;
 
@@ -915,6 +958,7 @@ async function executeResolveEntryValuesConflict(
     tx,
     command.databaseId,
     snapshotResolver(tx, context),
+    entry?.sourceId,
   );
   const priorValues = await readCurrentDatabaseEntryValues(
     tx,
@@ -947,6 +991,8 @@ async function executeResolveEntryValuesConflict(
     definition,
     values: command.values,
     relationTargets: command.relationTargets,
+    workspaceId: context.workspaceId,
+    previousRelations: await readDatabaseRelationTargets(tx, command),
   });
   if (!structured.ok) return structured as DomainResult<DatabaseCommandExecution>;
 
@@ -1160,6 +1206,24 @@ export async function executeDatabaseCommand(
   }
 }
 
+/** Reject lossy replacements from clients that do not know targetSourceId. */
+function dropsConfiguredRelationSource(
+  current: DatabaseDefinition,
+  candidate: DatabaseDefinition,
+): boolean {
+  return current.properties.some(
+    (property) =>
+      property.type === "relation" &&
+      property.config.targetSourceId !== undefined &&
+      candidate.properties.some(
+        (next) =>
+          next.id === property.id &&
+          next.type === "relation" &&
+          next.config.targetSourceId === undefined,
+      ),
+  );
+}
+
 type DatabaseRecord = NonNullable<Awaited<ReturnType<typeof readDatabaseRecord>>>;
 type PreparedDefinitionChange = {
   readonly definition: DatabaseDefinition;
@@ -1182,6 +1246,12 @@ async function prepareDefinitionChange(
   const candidate = validateDatabaseDefinition(definitionInput);
   if (!candidate.ok || candidate.value.databaseId !== databaseId) {
     return err("validation.invalid-payload", "Database definition is invalid");
+  }
+  if (dropsConfiguredRelationSource(currentDefinition, candidate.value)) {
+    return err(
+      "validation.invalid-payload",
+      "This client must preserve configured relationship sources",
+    );
   }
   for (const embedding of candidate.value.embeddings ?? []) {
     const previous = currentDefinition.embeddings?.find((value) => value.id === embedding.id);

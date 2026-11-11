@@ -71,6 +71,89 @@ Dates, État, Identifiant, Agrégation, Fichiers, Formule, Lieu.
 - Migration des propriétés existantes : ajouter des défauts sans réécrire les
   valeurs ; tester les bases existantes.
 
+## Reprise prioritaire — 2026-11-11
+
+La cible et les scénarios FR-015 à FR-018 de `spec.md` priment sur les
+affirmations historiques de complétude. Lire `audit-reprise.md` avant toute
+modification ; 045/047 décrivent des paliers antérieurs, non la cible étendue.
+L'ordre demandé est agrégations, formules, puis lieu/carte ; les investigations
+indépendantes peuvent être menées en parallèle, mais les changements de calcul
+et contrats partagés doivent être coordonnés.
+
+### Décisions de conception à arrêter après capture
+
+- Établir une matrice relation → source cible → propriété → calcul applicable,
+  y compris valeurs vides, cibles supprimées, erreurs, formules et listes. Ne pas
+  présumer que 24 fonctions suffisent ou sont toutes applicables partout.
+- Définir un résultat typé distinguant valeur, vide, erreur et données locales
+  incomplètes ; unifier son interprétation et son formatage entre domaine, API,
+  projection locale, table, autres vues, volet, formules et aperçu. Calculer
+  avant filtre/tri/pagination ; conserver les garanties de performance de 009.
+  Évaluer le coût avant de choisir calcul partagé ou adaptations de projection.
+- Formules : inventorier grammaire et fonctions par rapports aux docs officielles
+  et captures, définir types, coercitions, dates/fuseaux, bornes de ressources,
+  références stables, cycles et profondeur. Préciser migration/compatibilité des
+  expressions par nom, sans casser les formules sauvegardées ; versionner les
+  sémantiques si nécessaire. L'import Notion actuellement basé sur des instantanés
+  n'est pas à présenter comme une importation de formule exécutable.
+- Lieu : conserver Google Places/Maps déjà décidé, mais traiter explicitement
+  divulgation des requêtes et coordonnées, consentement/contrôle, quotas,
+  restrictions de clés et réessai ; pas de journalisation de recherches, même
+  via les intermédiaires contrôlés. Étudier classement, langue, couverture et
+  configuration sans promettre une qualité identique à Notion ou un fournisseur
+  identique. Rester utilisable en lecture hors ligne et documenter les limites.
+- Traiter sauvegarde/restauration, export/import, changements de schéma,
+  synchronisation et données partielles ; aucune réinitialisation de données
+  utilisateur. Définir le comportement avec ancien client avant tout changement
+  de contrat, et les éventuels mécanismes de migration ou garde de protocole.
+
+### Contrat de calcul arrêté — 2026-11-11 (T101)
+
+- **Lieu du calcul** : `packages/domain`. `createDerivedValues(definition,
+  { rollups, relationTitle, now })` est l'unique résolveur ; il mémorise par
+  entrée et sert l'affichage, le tri et le filtre.
+- **Agrégation** : `RollupCell = string | number | null | (string | number |
+  boolean)[]`. `null` = calculé et vide ; `undefined` (clé absente sur le fil)
+  = non calculable (cible ou calcul invalide, corpus local partiel). Le type
+  de résultat découle du calcul (`rollupResultKind`). Calculs admis par type de
+  cible : `rollupFunctionsForType`. Projection serveur : cible inconnue =
+  supprimée, ignorée. Projection locale : cible inconnue = non calculable ;
+  cible archivée = ignorée.
+- **Formule** : valeurs texte, nombre, booléen, date (`{ time, end?, hasTime }`),
+  liste, vide. Erreur ≠ vide : une erreur porte un message et une position.
+  Références par nom (`prop("Nom")` ou identifiant nu), 15 niveaux, cycles
+  refusés, 200 000 pas, 20 000 caractères, 10 000 éléments. Dates civiles en
+  UTC, instants dans le fuseau de la machine qui évalue. Division par zéro et
+  résultat non fini → vide. `dateBetween(a, b)` = a − b, tronqué, comme Notion.
+- **Tri/filtre** : une valeur dérivée se compare comme texte, nombre, case ou
+  instant ; kinds différents → ordre stable par kind ; vide = absent.
+- **Compatibilité** : rien de dérivé n'est stocké ; aucune migration. Les
+  formules enregistrées restent valides (une relation lue comme nombre vaut
+  toujours son nombre de pages). Changement assumé : `empty(0)` est vrai,
+  `replace` prend une expression régulière, `dateBetween` change de signe.
+- **Lieux** : Google Places conservé ; recherche en corps de requête POST ;
+  jeton de session par recherche ; position actuelle jamais transmise.
+
+### Gate de conception UI et sécurité
+
+Appliquer [ui-quality](../../.agents/skills/ui-quality/SKILL.md), son
+[journal](../../.agents/skills/ui-quality/lessons.md), le
+[guide UI](../../docs/design/ui-system.md), le registre 054 et
+[notion-parity](../../.agents/skills/notion-parity/SKILL.md). Pour chaque
+parcours, documenter repos, survol, focus, ouvert, vide, chargé, chargement,
+refus, erreur/reprise, valeurs longues, écran étroit et clair/sombre. Relever
+les parcours souris/clavier, Échap et retour du focus ; vérifier le clic droit
+quand pertinent. Les captures de test doivent utiliser des données synthétiques,
+jamais le workspace personnel. Ne pas ajouter d'action ou de faux état pour
+simuler une capacité non implémentée.
+
+Avant tout code, capturer la référence Notion et le candidat existant dans le
+même état, avec recettes reproductibles et tableau des écarts. Consigner les
+points impossibles à observer ; une documentation officielle n'est pas une
+preuve des détails UI. Après code : captures comparables et tests Playwright
+sur les profils applicables, ainsi que tests de domaine, intégration et contrat.
+Le jalon UI reste ouvert si la comparaison ou une revue réelle manque.
+
 ## Preuves attendues
 
 Captures Notion/candidat dans `.notion-lab/parity/`, `evidence/`, tests,

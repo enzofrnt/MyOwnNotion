@@ -770,12 +770,18 @@ export async function renameItem(
     },
     { timeout: options.responseTimeoutMs ?? 20_000 },
   );
-  page.once("dialog", (dialog) => void dialog.accept(nextName));
   await clickItemAction(page, itemName, `rename-${itemName}`);
-  // The click handler intentionally runs asynchronously. A generic "queue is
-  // empty" assertion can therefore pass before this specific rename has even
-  // reached the outbox. Observe its own batch response so following actions
-  // cannot accidentally race the mutation they are meant to follow.
+  // The row turns into its own input field. Filling it and pressing Enter is
+  // the same gesture an owner makes; no native dialog is involved, so nothing
+  // can be suppressed by a browser that blocks dialogs.
+  const field = page.getByTestId(`rename-input-${itemName}`);
+  await expect(field).toBeVisible();
+  await field.fill(nextName);
+  await field.press("Enter");
+  // The commit runs asynchronously. A generic "queue is empty" assertion can
+  // therefore pass before this specific rename has even reached the outbox.
+  // Observe its own batch response so following actions cannot accidentally
+  // race the mutation they are meant to follow.
   const response = await submitted;
   expect(response.ok(), `rename batch returned HTTP ${response.status()}`).toBe(true);
   const request = response.request().postDataJSON() as {

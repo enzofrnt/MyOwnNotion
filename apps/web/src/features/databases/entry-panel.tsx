@@ -1,5 +1,10 @@
 import type { DatabaseEntryDto } from "@myownnotion/contracts";
-import type { DatabaseDefinition } from "@myownnotion/domain";
+import {
+  createDerivedValues,
+  type DatabaseDefinition,
+  type DatabaseQueryEntry,
+  type DerivedValueOptions,
+} from "@myownnotion/domain";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { Button } from "../../ui/primitives/button.tsx";
@@ -10,9 +15,10 @@ import {
   DialogRoot,
 } from "../../ui/primitives/dialog.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
-import { evaluateFormula, formatFormulaValue, type FormulaContext } from "./formula.ts";
+import { displayRollupCell } from "./database-value.ts";
 import { type EditEntryDefinition, EntrySchemaImpact } from "./edit-entry-properties.ts";
 import { type EntryDefinitionEdit, EntryPropertyList } from "./entry-property-list.tsx";
+import { formatFormulaValue } from "./formula.ts";
 import type { RelationOption } from "./value-editor.tsx";
 
 export type { EntryDrafts } from "./use-entry-autosave.ts";
@@ -33,6 +39,7 @@ export function EntryPanel({
   onClose,
   fileNames,
   onUploadFile,
+  derived,
 }: {
   readonly entry: DatabaseEntryDto;
   readonly definition: DatabaseDefinition;
@@ -51,6 +58,11 @@ export function EntryPanel({
   readonly onUploadFile?:
     | ((file: File) => Promise<{ id: string; name: string } | null>)
     | undefined;
+  /**
+   * Related entries needed by rollups and formulas. The panel computes with the
+   * same resolver as the views, so an entry never shows a different result here.
+   */
+  readonly derived?: DerivedValueOptions | undefined;
 }) {
   const [localDefinition, setLocalDefinition] = useState(definition);
   const [schemaError, setSchemaError] = useState<string | null>(null);
@@ -98,32 +110,23 @@ export function EntryPanel({
     onSave: onSaveValues,
   });
   const { drafts, errors } = autosave;
-  const rollupValues = useMemo(() => {
-    const values = new Map<string, string>();
+  const { rollupValues, formulaValues } = useMemo(() => {
+    const row = entry as unknown as DatabaseQueryEntry;
+    const resolver = createDerivedValues(localDefinition, derived);
+    const computed = resolver.rollups(row);
+    const rollups = new Map<string, string>();
+    const formulas = new Map<string, string>();
     for (const property of localDefinition.properties) {
-      if (property.type !== "rollup" || property.state !== "active") continue;
-      const targets = entry.relationTargets[property.config.relationPropertyId] ?? [];
-      values.set(property.id, String(targets.length));
+      if (property.state !== "active") continue;
+      if (property.type === "rollup") {
+        rollups.set(property.id, displayRollupCell(property, computed[property.id]));
+      } else if (property.type === "formula") {
+        const result = resolver.formula(property, row);
+        formulas.set(property.id, result.ok ? formatFormulaValue(result.value) : "—");
+      }
     }
-    return values;
-  }, [entry, localDefinition]);
-  const formulaValues = useMemo(() => {
-    const values = new Map<string, string>();
-    for (const property of localDefinition.properties) {
-      if (property.type !== "formula" || property.state !== "active") continue;
-      const result = evaluateFormula(property.config.expression, {
-        title: entry.title,
-        properties: localDefinition.properties,
-        values: entry.values as unknown as FormulaContext["values"],
-        relationTargets: entry.relationTargets as unknown as FormulaContext["relationTargets"],
-        ...(entry.createdAt === undefined ? {} : { createdAt: entry.createdAt }),
-        ...(entry.updatedAt === undefined ? {} : { updatedAt: entry.updatedAt }),
-        revisionId: entry.revisionId,
-      });
-      values.set(property.id, result.ok ? formatFormulaValue(result.value) : "—");
-    }
-    return values;
-  }, [entry, localDefinition]);
+    return { rollupValues: rollups, formulaValues: formulas };
+  }, [entry, localDefinition, derived]);
 
   return (
     <section

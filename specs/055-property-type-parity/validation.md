@@ -195,3 +195,137 @@ soit **2 039 choix** au total. Les icônes hors sélection curatée sont chargé
 la demande via un observateur d’intersection : seules les cellules proches du
 viewport demandent leur module. Preuves : `evidence/icon-picker-dark.png` et
 `evidence/icon-picker-dark-context.png`.
+
+
+## Reprise agrégations, formules, lieu et carte — 2026-11-11
+
+Implémentation des FR-015 à FR-017. Référence Notion : `notion-dossier-visuel.md`
+et `evidence/notion-reference/`. Captures candidat : `evidence/reprise/`
+(base de test locale, données fictives). Les scripts de parcours sont dans
+`.notion-lab/reprise-app-*.mjs` (ignorés par Git).
+
+### Ce qui a changé
+
+- **Un seul calcul** : `packages/domain/src/databases/{rollup,formula,derived}.ts`.
+  Le moteur de formules a quitté le client web pour le domaine ; l'API, la
+  projection locale, la table, les autres vues, le volet d'entrée et l'aperçu de
+  l'éditeur passent par `createDerivedValues`. Les trois copies de projection
+  d'agrégation (API, `services/databases.ts`, `local-rollup.ts`) sont réunies.
+- **Agrégation** : résultat typé (nombre, pourcentage, date, liste, texte) ;
+  `null` = résultat vide, clé absente = non calculable. Une valeur non calculable
+  s'affiche « — » et n'est plus remplacée par le nombre de relations (seul
+  « Tout compter » se lit depuis la relation). Calculs proposés selon le type de
+  la cible ; configuration invalide expliquée (relation absente, cible absente,
+  calcul incompatible). Corpus local partiel : cible inconnue → non calculable ;
+  cible archivée → ignorée.
+- **Filtre et tri** sur agrégation et formule, avant la coupe de page, côté
+  serveur et local (`evaluateDatabaseView({ derived })`). Les index de valeurs
+  stockées ne sont plus consultés pour ces propriétés.
+- **Formule** : analyse en arbre, erreurs positionnées, évaluation paresseuse
+  (`if`, `ifs`, `and`, `or`, `let`, `lets`), listes et fonctions de liste,
+  dates typées, `^`, `? :`, appels chaînés, cycles détectés, profondeur 15,
+  bornes de coût (pas, texte, liste). 95 entrées documentées dans l'éditeur,
+  toutes vérifiées par test contre l'évaluateur.
+- **Éditeur de formule** : panneau 740 × 544 px (Notion 740 × 541), aperçu de
+  l'entrée choisie, mode débogage, erreur soulignée et localisée, liste
+  propriétés/fonctions filtrée à la saisie, documentation et exemples
+  insérables, clavier (↑ ↓ Entrée Tab, Échap). La fermeture enregistre une
+  formule valide ; une formule invalide ne remplace jamais l'enregistrée et le
+  brouillon est rendu à la réouverture.
+- **Panneau d'agrégation** : rangées Relation / Propriété cible / Calculer avec
+  sous-menus Quantité, Pourcentage, Plus d'options, Date ; libellés relevés dans
+  Notion ; cibles limitées à la source réellement reliée.
+- **Lieu** : suggestions = Autocomplete + Text Search fusionnés côté serveur,
+  détails résolus à la sélection ; recherche en POST (plus de requête dans
+  l'URL) ; annulation immédiate à chaque frappe, effacement et démontage ;
+  états distincts (chargement, aucun résultat, hors ligne, quota, clé refusée,
+  non configuré) avec « Réessayer » ; « Emplacement actuel » sur autorisation du
+  navigateur, stocké localement sans appel tiers ; filtre texte sur nom **et**
+  adresse.
+- **Carte** : états chargement / non configurée / échec avec « Réessayer »
+  (l'échec n'est plus mémorisé), liste textuelle des lieux quand la carte est
+  indisponible, plafond de 100 marqueurs annoncé, zoom raisonnable pour un seul
+  lieu.
+
+### Vérifié dans l'application réelle (Chromium, pile de dev, 1440 × 1000)
+
+- Somme d'agrégation : table `89,9`, volet d'entrée `89,9`, formule
+  `prop("Agrégation") * 2` → `179,8` dans la table, le volet et l'aperçu.
+- Aperçu : `Client Dupont` → `179,8`, `Abonnement fibre` → `0` (entrée changée
+  dans le sélecteur, résultat correspondant).
+- Éditeur : `1 +` → « Expression attendue. [2,3] » ; `prop("Titre").len` +
+  Entrée → `prop("Titre").length()` → `16`, type numéro ; Échap ferme.
+  Clair, sombre et 390 px (en-tête sur deux lignes en étroit).
+- Agrégation : cibles de la source reliée, Calculer désactivé sans cible,
+  Somme via « Plus d'options ». Clair et sombre.
+- Lieu : `Musée du Lou` (saisie partielle) → Musée du Louvre, Louvre-Lens… ;
+  requête sans résultat → « Aucun lieu trouvé pour « … » » ; sélection au
+  clavier enregistrée ; carte chargée avec 3 lieux. Clair et sombre.
+- Aucune erreur console applicative pendant ces parcours.
+
+### Tests
+
+- Domaine : `formula.spec.ts` (11), `rollup.spec.ts` (10 dont tri/filtre
+  dérivés et filtre lieu) ; suite domaine 73 fichiers.
+- API : `database-query-rollups.spec.ts` (4 : tri avant coupe sur 150 entrées,
+  filtres agrégation + formule, moyenne vide, vide sans index),
+  `google-places.spec.ts` (5).
+- Web : `formula-editor.spec.tsx` (4), `rollup-settings.spec.tsx` (5),
+  `place-property-field.spec.tsx` (7 : réponses inversées, effacement, corps de
+  requête, états, clavier, refus et acceptation de position),
+  `map-view-states.spec.tsx` (2), `database-rollup.spec.ts` réécrit (l'ancien
+  test validait le faux compte), `formula.spec.ts` (catalogue).
+- Exécuté : `vitest --project domain --project web --project client-core
+  --project contracts` → 295 fichiers, 3 010 tests ; 4 fichiers API ciblés, 39
+  tests ; `tsc` par paquet sans erreur sur les fichiers de la reprise ; Biome
+  sans erreur sur les fichiers modifiés.
+
+### Limites et points non faits
+
+- Pas de spec Playwright ajoutée dans `tests/e2e/` : les parcours réels ont été
+  joués par scripts hors dépôt. Suite e2e, build, images et `checks:local` non
+  exécutés.
+- Erreurs TypeScript préexistantes dans `packages/domain/tests/databases/
+  schema.spec.ts` et `query.property.spec.ts` (non touchés) : `bun run
+  typecheck` échoue toujours sur ces deux fichiers.
+- Éditeur de formule : pas de coloration syntaxique ni de jetons de propriété ;
+  les références restent `prop("Nom")` par nom — renommer une propriété casse
+  la formule, qui le signale (« Propriété inconnue »). Pas de réécriture
+  automatique au renommage.
+- Fonctions Notion non reprises : personnes (`name`, `email`), `link`,
+  `style`, `unstyle`, `formatNumber`. Les heures (`hour`, `now`) suivent le
+  fuseau de la machine qui évalue : un filtre serveur sur l'heure peut différer
+  de l'affichage si le serveur n'est pas dans le même fuseau.
+- Agrégation : libellés de dates et de cases non relevés dans Notion (seuls
+  texte et nombre l'ont été) ; arrondi des pourcentages à une décimale choisi
+  par défaut ; pas de format de nombre propre à l'agrégation ; pas de
+  regroupement par agrégation/formule.
+- Le nom de la base n'accompagne pas les propriétés cibles : avant tout lien,
+  la liste propose les propriétés de toutes les bases sans les distinguer.
+- Lieu : la position actuelle est enregistrée sous « Position actuelle » avec
+  ses coordonnées, sans adresse (aucun géocodage inverse, volontairement). Le
+  refus de géolocalisation et l'échec de carte n'ont été vérifiés que par test,
+  pas dans le navigateur réel. Pas de biais géographique des suggestions.
+- 320 px non capturé ; comparaison chiffrée référence/candidat
+  (`notion:parity:verify`) non faite pour ces surfaces.
+- Migrations, sauvegarde, export, synchronisation : aucune donnée stockée ne
+  change (les valeurs dérivées ne sont pas persistées ; la forme de
+  `PlacePropertyValue` est inchangée). Le contrat de page gagne
+  `rollupRelations`, `sourceId` et des listes dans `rollupValues` ; la route
+  `GET /v1/places/search` devient `POST` (+ `POST /v1/places/details`) — client
+  et serveur doivent être déployés ensemble.
+
+### Suite — 2026-11-11 (compatibilité et journaux)
+
+- **Route de lieux** : `GET /v1/places/search?q=` est conservée comme alias
+  transitoire du `POST` (test `places-routes.spec.ts`) ; un client ancien ne
+  perd donc pas la recherche pendant le déploiement. À retirer quand plus aucun
+  client ancien ne subsiste. La requête reste absente des journaux.
+- **Journaux de conteneur lisibles** : nouvelle variable
+  `MYOWNNOTION_LOG_FORMAT=human|json|auto`. L'image API et `compose.yaml` fixent
+  `human` (une ligne lisible par événement, sans ANSI) ; `json` reste disponible
+  pour un collecteur. Les tests existants de redaction et de format JSON sont
+  inchangés (le défaut du code reste `auto`).
+- **Clé Google** : `.env` n'a jamais été commité (`git log --all -- .env` vide).
+  Aucune restriction côté Google vérifiée ; choix du propriétaire de ne pas en
+  mettre pour l'instant.

@@ -3,8 +3,7 @@
    Knowledge graph (feature 010)
    ------------------------------------------------------------------------ */
 
-.knowledge-graph-inspector > header,
-.knowledge-graph-controls__header {
+.knowledge-graph-inspector > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -66,7 +65,6 @@
   grid-area: 1 / 1;
 }
 
-.knowledge-graph-controls__grid > *,
 .knowledge-graph-inspector {
   min-width: 0;
   max-width: 100%;
@@ -82,8 +80,7 @@
 }
 
 .knowledge-graph-inspector h2,
-.knowledge-graph-inspector h3,
-.knowledge-graph-controls__header h2 {
+.knowledge-graph-inspector h3 {
   margin: 0;
   font-size: 1rem;
 }
@@ -107,23 +104,31 @@
   gap: 0.125rem;
 }
 
+/* Both map tools are the same quiet square: the popover trigger's default
+   filled chrome is neutralised so neither reads as more important. */
 .knowledge-graph__chrome-btn.ui-button,
 .knowledge-graph__chrome-btn.ui-popover__trigger {
-  --graph-chrome: 1.5rem;
-
   position: relative;
-  width: var(--graph-chrome);
-  min-width: var(--graph-chrome);
-  min-height: var(--graph-chrome);
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
   padding: 0;
   color: var(--ui-color-text-muted);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .knowledge-graph__chrome-btn.ui-button:hover,
+.knowledge-graph__chrome-btn.ui-popover__trigger:hover {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+
 .knowledge-graph__chrome-btn.ui-button[aria-expanded="true"],
-.knowledge-graph__chrome-btn.ui-popover__trigger:hover,
 .knowledge-graph__chrome-btn.ui-popover__trigger[aria-expanded="true"] {
   color: var(--ui-color-text);
+  background: var(--ui-color-surface-active);
 }
 
 .knowledge-graph__chrome-btn .ui-icon {
@@ -141,8 +146,8 @@
 
 .knowledge-graph__filter-count {
   position: absolute;
-  top: -0.15rem;
-  right: -0.15rem;
+  top: 0.1rem;
+  right: 0.1rem;
   display: inline-flex;
   min-width: 0.85rem;
   height: 0.85rem;
@@ -308,62 +313,364 @@
   border-left: 3px solid var(--ui-color-warning);
 }
 
-.knowledge-graph-controls {
+/* Filters panel: the flat settings sheet used by database views — canvas
+   fill, hairline, compact rows — with no glow around it. */
+.graph-panel {
   position: absolute;
-  top: 3.5rem;
-  right: var(--ui-space-3, 0.75rem);
-  bottom: var(--ui-space-3, 0.75rem);
+  top: calc(var(--ui-space-2) + var(--ui-target-compact) + var(--ui-space-1));
+  right: var(--ui-space-2);
+  bottom: var(--ui-space-2);
   z-index: 3;
   display: flex;
   flex-direction: column;
-  gap: var(--ui-space-3, 0.75rem);
-  width: min(22rem, calc(100% - 1.5rem));
+  width: min(18.5rem, calc(100% - 1rem));
   min-width: 0;
   overflow: auto;
+  color: var(--ui-color-text);
+  font-size: var(--ui-text-sm);
+  background: var(--ui-color-canvas);
   border: 1px solid var(--ui-color-border);
-  border-radius: var(--ui-radius-md, 0.5rem);
-  padding: var(--ui-space-3, 0.75rem);
-  background: color-mix(in srgb, var(--ui-color-surface) 94%, transparent);
-  box-shadow: 0 12px 40px color-mix(in srgb, var(--ui-color-text) 12%, transparent);
+  border-radius: var(--ui-radius-md);
 }
 
-.knowledge-graph-controls__grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--ui-space-3, 0.75rem);
-  align-items: start;
-}
-
-.knowledge-graph-controls label,
-.knowledge-graph-controls fieldset {
-  min-width: 0;
-}
-
-.knowledge-graph-controls label {
-  display: grid;
-  gap: var(--ui-space-1, 0.25rem);
-}
-
-.knowledge-graph-controls fieldset {
+.graph-panel__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
-  gap: var(--ui-space-2, 0.5rem);
-  flex-wrap: wrap;
-  margin: 0;
-  border: 0;
-  padding: 0;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: var(--ui-space-1);
+  padding: 0.35rem 0.35rem 0.15rem 0.85rem;
+  background: var(--ui-color-canvas);
 }
 
-.knowledge-graph-controls fieldset label,
-.knowledge-graph-controls label:has(input[type="checkbox"]) {
-  display: inline-flex;
+.graph-panel__title {
+  min-width: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-panel__close.ui-button[data-size="square"] {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  padding: 0;
+  color: var(--ui-color-text-muted);
+}
+
+.graph-panel__summary {
+  margin: 0 0.85rem 0.35rem;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+
+.graph-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0.15rem 0.35rem 0.5rem;
+}
+
+.graph-panel__rule {
+  height: 1px;
+  margin: 0.35rem 0.45rem;
+  flex: 0 0 auto;
+  background: color-mix(in srgb, var(--ui-color-text) 16%, transparent);
+  border: 0;
+}
+
+.graph-panel__section {
+  display: flex;
+  min-height: 1.5rem;
+  align-items: center;
+  gap: var(--ui-space-1);
+  margin: 0.2rem 0.25rem 0.1rem 0.5rem;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  font-weight: 500;
+}
+
+.graph-panel__section-aside,
+.graph-panel__all {
+  margin-inline-start: auto;
+}
+
+.graph-panel__section-aside {
+  padding-inline-end: 0.25rem;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+/* “Tous”: the way back from a narrowed selection, always in the same place. */
+.graph-panel__all {
+  min-height: 1.375rem;
+  padding: 0 0.4rem;
+  color: var(--ui-color-text-muted);
+  font: inherit;
+  font-weight: 500;
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+}
+
+.graph-panel__all:hover {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+  border-color: transparent;
+}
+
+.graph-panel__all[aria-pressed="true"] {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-active);
+}
+
+.graph-panel__all:focus-visible {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+.graph-panel__check-row {
+  display: flex;
+  min-width: 0;
   align-items: center;
 }
 
-.knowledge-graph-controls select {
+.graph-panel__check-row > .graph-panel__row {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+.graph-panel__check-row > .graph-panel__help {
+  margin-inline-end: 0.25rem;
+}
+
+/* The “i” is a hint, not a control competing with the row's switch. */
+.graph-panel__help.ui-button.ui-popover__trigger {
+  width: 1.375rem;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  min-height: 1.375rem;
+  flex: 0 0 auto;
+  padding: 0;
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+.graph-panel__help.ui-button.ui-popover__trigger:hover,
+.graph-panel__help.ui-button.ui-popover__trigger[aria-expanded="true"] {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+  opacity: 1;
+}
+
+.graph-panel__help .ui-icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+}
+
+.graph-panel__help-text {
+  width: min(16rem, calc(100vw - 2rem));
+  padding: var(--ui-space-2) var(--ui-space-3);
+  color: var(--ui-color-text);
+  font-size: var(--ui-text-xs);
+  line-height: 1.45;
+}
+
+.graph-panel__help-text p {
+  margin: 0;
+}
+
+.graph-panel__group {
+  display: contents;
+}
+
+.graph-panel__row {
+  display: flex;
   width: 100%;
   min-width: 0;
-  max-width: 100%;
-  min-height: var(--ui-target-compact, 2.25rem);
+  min-height: 1.875rem;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding: 0.15rem 0.5rem;
+  color: var(--ui-color-text);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+  font-weight: 400;
+  text-align: start;
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+}
+
+.graph-panel__row--action {
+  cursor: pointer;
+}
+
+.graph-panel__row--action:hover,
+.graph-panel__row--action:focus-visible {
+  background: var(--ui-color-surface-hover);
+  border-color: transparent;
+}
+
+.graph-panel__row--action:focus-visible {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: -1px;
+}
+
+.graph-panel__row-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-panel__row-control {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 9.5rem;
+  justify-content: flex-end;
+}
+
+.graph-panel__row-control .ui-native-select,
+.graph-panel__row-control .ui-native-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 1.625rem;
+  padding: 0 var(--ui-space-2);
+  font-size: var(--ui-text-xs);
+  border-radius: var(--ui-radius-sm);
+}
+
+.graph-panel__check {
+  flex: 0 0 auto;
+  color: var(--ui-color-text-muted);
+}
+
+.graph-panel__scroll {
+  display: flex;
+  max-height: 11rem;
+  flex-direction: column;
+  gap: 1px;
+  overflow: auto;
+}
+
+.graph-panel__reset {
+  color: var(--ui-color-text-muted);
+}
+
+/* Swatches: the same dot and line the map draws, in filters and legend. */
+.graph-swatch {
+  flex: 0 0 auto;
+}
+
+.graph-swatch--node {
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline: 0.1875rem;
+  background: var(--graph-kind-color, var(--graph-node, var(--ui-color-text-muted)));
+  border-radius: 50%;
+}
+
+.graph-swatch--edge {
+  width: 1.375rem;
+  height: 0.375rem;
+  overflow: visible;
+}
+
+.graph-swatch--edge line {
+  stroke: var(--graph-relation-color, var(--ui-color-text-muted));
+  stroke-width: var(--graph-relation-width, 1.5);
+  stroke-linecap: round;
+  stroke-dasharray: var(--graph-relation-dash, none);
+}
+
+/* One colour per element kind and per relation type, shared by the map, the
+   legend and the filters. Relations also differ by line style, so the type
+   never depends on colour alone (spec 010, FR-018). */
+[data-kind="folder"] {
+  --graph-kind-color: var(--ui-content-yellow-accent);
+}
+
+[data-kind="database"] {
+  --graph-kind-color: var(--ui-content-blue-accent);
+}
+
+[data-kind="database_view"] {
+  --graph-kind-color: var(--ui-content-purple-accent);
+}
+
+[data-kind="task"] {
+  --graph-kind-color: var(--ui-content-green-accent);
+}
+
+[data-kind="file"] {
+  --graph-kind-color: var(--ui-content-orange-accent);
+}
+
+/* Line styles are far apart on purpose: solid, long dashes, round dots. */
+[data-relation] {
+  --graph-relation-dash: 10 3 2 3;
+}
+
+[data-relation="page:link"] {
+  --graph-relation-dash: none;
+}
+
+[data-relation="database:property"] {
+  --graph-relation-color: var(--ui-content-blue-accent);
+  --graph-relation-dash: none;
+}
+
+[data-relation="hierarchy:contains"] {
+  --graph-relation-color: var(--ui-content-yellow-accent);
+  --graph-relation-dash: 8 5;
+}
+
+[data-relation="file:attachment"] {
+  --graph-relation-color: var(--ui-content-orange-accent);
+  /* Zero-length dashes with round caps draw as dots. */
+  --graph-relation-dash: 0 5;
+  --graph-relation-width: 2.4;
+}
+
+.knowledge-graph-legend {
+  position: absolute;
+  bottom: var(--ui-space-2);
+  left: var(--ui-space-2);
+  z-index: 2;
+  display: flex;
+  max-width: calc(100% - 1rem);
+  flex-wrap: wrap;
+  gap: var(--ui-space-1) var(--ui-space-3);
+  margin: 0;
+  padding: var(--ui-space-1) var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  list-style: none;
+  background: color-mix(in srgb, var(--ui-color-canvas) 88%, transparent);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  pointer-events: none;
+}
+
+.knowledge-graph-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
 }
 
 .knowledge-graph-canvas {
@@ -439,15 +746,27 @@
 }
 
 .knowledge-graph-canvas__edges line {
-  stroke: var(--graph-line, var(--ui-color-text-subtle, currentColor));
-  stroke-width: 1.15;
+  stroke: var(--graph-relation-color, var(--graph-line, var(--ui-color-text-subtle, currentColor)));
+  stroke-width: var(--graph-relation-width, 1.15);
   stroke-linecap: round;
+  stroke-dasharray: var(--graph-relation-dash, none);
   opacity: 0.22;
   vector-effect: non-scaling-stroke;
 }
 
 .knowledge-graph-canvas svg[data-zoom="overview"] .knowledge-graph-canvas__edges line {
   opacity: 0.14;
+}
+
+/* A tinted line needs more presence than the neutral hairline to read as a colour. */
+.knowledge-graph-canvas__edges
+  > g:is(
+    [data-relation="database:property"],
+    [data-relation="hierarchy:contains"],
+    [data-relation="file:attachment"]
+  )
+  line {
+  opacity: 0.55;
 }
 
 .knowledge-graph-canvas__edges > g[data-emphasis="active"] line {
@@ -494,16 +813,8 @@
 }
 
 .knowledge-graph-canvas__nodes circle.knowledge-graph-canvas__dot {
-  fill: var(--graph-node, var(--ui-color-text-muted, currentColor));
+  fill: var(--graph-kind-color, var(--graph-node, var(--ui-color-text-muted, currentColor)));
   stroke: none;
-}
-
-.knowledge-graph-canvas__nodes > g[data-kind="file"] .knowledge-graph-canvas__dot {
-  fill: var(--graph-node-attachment, var(--ui-color-warning, currentColor));
-}
-
-.knowledge-graph-canvas__nodes > g[data-kind="task"] .knowledge-graph-canvas__dot {
-  fill: var(--graph-node-tag, var(--ui-color-success, currentColor));
 }
 
 .knowledge-graph-canvas__nodes > g[data-lifecycle="trashed"] .knowledge-graph-canvas__dot {
@@ -590,7 +901,6 @@
   min-width: 0;
   overflow: auto;
   padding: var(--ui-space-4, 1rem);
-  box-shadow: 0 12px 40px color-mix(in srgb, var(--ui-color-text) 12%, transparent);
 }
 
 .knowledge-graph-inspector__kind {
@@ -605,7 +915,7 @@
     max-width: calc(100% - 1.5rem);
   }
 
-  .knowledge-graph-controls,
+  .graph-panel,
   .knowledge-graph-inspector {
     top: auto;
     right: var(--ui-space-2, 0.5rem);

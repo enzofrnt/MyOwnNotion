@@ -3,14 +3,56 @@ import {
   type DatabaseProperty,
   dateDisplayConfigOf,
   numberConfigOf,
+  type RollupCell,
+  rollupResultKind,
   statusDefaultOptionId,
   uniqueIdPrefixOf,
 } from "@myownnotion/domain";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { uuidV7Timestamp } from "./database-time.ts";
 import { formatDatabaseDate, formatDatabaseDateForProperty } from "./date-format.ts";
-import { evaluateFormula, type FormulaContext, formatFormulaValue } from "./formula.ts";
+import { evaluateFormulaProperty, formatFormulaValue, formulaContextOf } from "./formula.ts";
 import { formatDatabaseNumber } from "./number-format.ts";
+
+const ROLLUP_DATE_DISPLAY = { dateFormat: "full", timeFormat: "24h" } as const;
+const rollupNumber = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 6 });
+
+/**
+ * Text of a rollup cell. `undefined` means the rollup could not be computed:
+ * it reads as "—". Even `count` can be unavailable when its configured source
+ * is missing or its retained historical links are outside that source.
+ */
+export function displayRollupCell(
+  property: Extract<DatabaseProperty, { type: "rollup" }>,
+  cell: RollupCell | undefined,
+): string {
+  if (cell === undefined) return "—";
+  if (cell === null) return "—";
+  const kind = rollupResultKind(property.config.aggregate);
+  if (typeof cell === "number") {
+    const text = rollupNumber.format(cell);
+    return kind === "percent" ? `${text} %` : text;
+  }
+  if (typeof cell === "string") {
+    if (kind !== "date") return cell === "" ? "—" : cell;
+    return formatDatabaseDate(
+      cell.length === 10 ? { kind: "date", date: cell } : { kind: "instant", instant: cell },
+      ROLLUP_DATE_DISPLAY,
+    );
+  }
+  if (cell.length === 0) return "—";
+  return cell
+    .map((item) =>
+      typeof item === "boolean"
+        ? item
+          ? DATABASE_COPY.value.yes
+          : DATABASE_COPY.value.no
+        : typeof item === "number"
+          ? rollupNumber.format(item)
+          : item,
+    )
+    .join(", ");
+}
 
 export function displayDatabaseValue(
   row: DatabaseQueryPageDto["rows"][number],
@@ -24,21 +66,13 @@ export function displayDatabaseValue(
     return prefix === "" ? String(row.entryNumber) : `${prefix}-${row.entryNumber}`;
   }
   if (property.type === "rollup") {
-    const computed = row.rollupValues?.[property.id];
-    if (computed !== undefined) return String(computed);
-    const targets = row.relationTargets[property.config.relationPropertyId] ?? [];
-    return String(targets.length);
+    return displayRollupCell(property, row.rollupValues?.[property.id]);
   }
   if (property.type === "formula") {
-    const result = evaluateFormula(property.config.expression, {
-      title: row.title,
-      properties: properties ?? [property],
-      values: row.values as unknown as FormulaContext["values"],
-      relationTargets: row.relationTargets as unknown as FormulaContext["relationTargets"],
-      ...(row.createdAt === undefined ? {} : { createdAt: row.createdAt }),
-      ...(row.updatedAt === undefined ? {} : { updatedAt: row.updatedAt }),
-      revisionId: row.revisionId,
-    });
+    const result = evaluateFormulaProperty(
+      property,
+      formulaContextOf(row, properties ?? [property]),
+    );
     return result.ok ? formatFormulaValue(result.value) : "—";
   }
   if (property.type === "created-time") {

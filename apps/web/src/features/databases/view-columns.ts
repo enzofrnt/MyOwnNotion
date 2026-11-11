@@ -90,3 +90,28 @@ export function moveViewColumn(
     positionKey: `col-${String(index + 1).padStart(6, "0")}`,
   }));
 }
+
+/**
+ * Drops one column on another, the way a dragged header lands: the dragged
+ * column takes the target's place and the columns in between shift by one.
+ * Only this view's order changes; visibility, widths and the source schema
+ * are preserved. Returns `null` when nothing moves.
+ */
+export function reorderViewColumn(
+  properties: readonly DatabaseProperty[],
+  presentations: DatabaseView["properties"],
+  propertyId: string,
+  overPropertyId: string,
+): DatabaseView["properties"] | null {
+  const columns = [...viewColumns(properties, presentations)];
+  const from = columns.findIndex((column) => column.property.id === propertyId);
+  const to = columns.findIndex((column) => column.property.id === overPropertyId);
+  if (from < 0 || to < 0 || from === to) return null;
+  const [moved] = columns.splice(from, 1);
+  if (moved === undefined) return null;
+  columns.splice(to, 0, moved);
+  return columnPresentations(presentations, columns).map((column, index) => ({
+    ...column,
+    positionKey: `col-${String(index + 1).padStart(6, "0")}`,
+  }));
+}

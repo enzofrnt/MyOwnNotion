@@ -5,13 +5,13 @@ import {
   queryLocalDatabase,
 } from "@myownnotion/client-core";
 import type { DatabaseQueryDto, DatabaseQueryPageDto, ProblemDto } from "@myownnotion/contracts";
+import { databaseQueryDefinition, type Uuid } from "@myownnotion/domain";
 import {
-  computeRollupValue,
-  type DatabaseProperty,
-  databaseQueryDefinition,
-  type RollupEntry,
-  type Uuid,
-} from "@myownnotion/domain";
+  type LocalRollupContext,
+  loadLocalRollupContext,
+  localDerivedOptions,
+  withRollupMetadata,
+} from "../features/databases/local-rollup.ts";
 import type { LocalContentService } from "./local-content.ts";
 
 export type DatabaseRowSyncState = "synced" | "pending" | "conflict";
@@ -90,16 +90,7 @@ export class DatabaseViewService {
     Uuid,
     { readonly signature: string; readonly generation: number }
   >();
-  #rollupContext: {
-    readonly epoch: number;
-    readonly entries: ReadonlyMap<Uuid, RollupEntry>;
-    readonly propertiesById: ReadonlyMap<Uuid, DatabaseProperty>;
-    readonly options: readonly {
-      readonly id: Uuid;
-      readonly name: string;
-      readonly type: string;
-    }[];
-  } | null = null;
+  #rollupContext: { readonly epoch: number; readonly context: LocalRollupContext } | null = null;
 
   constructor(local: LocalContentService) {
     this.#local = local;
@@ -170,80 +161,13 @@ export class DatabaseViewService {
     return source;
   }
 
-  async #localRollupContext(): Promise<{
-    readonly entries: ReadonlyMap<Uuid, RollupEntry>;
-    readonly propertiesById: ReadonlyMap<Uuid, DatabaseProperty>;
-    readonly options: readonly {
-      readonly id: Uuid;
-      readonly name: string;
-      readonly type: string;
-    }[];
-  }> {
-    if (this.#rollupContext?.epoch === this.#epoch) {
-      const { entries, propertiesById, options } = this.#rollupContext;
-      return { entries, propertiesById, options };
-    }
-    const databases = await this.#local.listDatabases();
-    const ids = new Set<Uuid>();
-    for (const database of databases) {
-      ids.add(database.itemId);
-      if (database.sourceId !== undefined) ids.add(database.sourceId);
-    }
-    const entries = new Map<Uuid, RollupEntry>();
-    const propertiesById = new Map<Uuid, DatabaseProperty>();
-    for (const id of ids) {
-      const source = await this.#localSource(id);
-      if (source === null) continue;
-      for (const entry of source.entries) entries.set(entry.entryId, entry);
-      for (const property of source.definition.properties) {
-        if (property.state === "active") propertiesById.set(property.id, property);
-      }
-    }
-    const options = [...propertiesById.values()]
-      .filter(
-        (property) =>
-          property.type !== "relation" && property.type !== "rollup" && property.type !== "formula",
-      )
-      .map((property) => ({ id: property.id, name: property.name, type: property.type }));
-    this.#rollupContext = { epoch: this.#epoch, entries, propertiesById, options };
-    return { entries, propertiesById, options };
-  }
-
-  async #withLocalRollups(
-    page: DatabaseQueryPageDto,
-    databaseId: Uuid,
-  ): Promise<DatabaseQueryPageDto> {
-    const source = await this.#localSource(databaseId);
-    if (source === null) return page;
-    const rollups = source.definition.properties.filter(
-      (property): property is Extract<DatabaseProperty, { type: "rollup" }> =>
-        property.state === "active" && property.type === "rollup",
-    );
-    if (rollups.length === 0) return page;
-    const context = await this.#localRollupContext();
-    const rows = page.rows.map((row) => {
-      const entry = context.entries.get(row.entryId as Uuid);
-      if (entry === undefined) return row;
-      const rollupValues: Record<string, string | number | null> = {};
-      for (const property of rollups) {
-        const targetProperty =
-          property.config.targetPropertyId === undefined
-            ? undefined
-            : context.propertiesById.get(property.config.targetPropertyId);
-        const value = computeRollupValue(property, entry, targetProperty, context.entries);
-        if (value !== null) rollupValues[property.id] = value;
-      }
-      return Object.keys(rollupValues).length === 0 ? row : { ...row, rollupValues };
-    });
-    return {
-      ...page,
-      rows,
-      rollupProperties: context.options.map((option) => ({
-        id: option.id as string,
-        name: option.name,
-        type: option.type,
-      })),
-    };
+  /** Related entries of every local source, rebuilt when the projection changes. */
+  async #localRollupContext(): Promise<LocalRollupContext> {
+    const epoch = this.#epoch;
+    if (this.#rollupContext?.epoch === epoch) return this.#rollupContext.context;
+    const context = await loadLocalRollupContext(this.#local);
+    this.#rollupContext = { epoch, context };
+    return context;
   }
 
   async #localQuery(
@@ -253,7 +177,18 @@ export class DatabaseViewService {
     const source = await this.#localSource(databaseId);
     if (source === null) return null;
     try {
-      return await this.#withLocalRollups(queryLocalDatabase(source, request), databaseId);
+      const derived = source.definition.properties.some(
+        (property) =>
+          property.state === "active" &&
+          (property.type === "rollup" || property.type === "formula"),
+      );
+      if (!derived) return queryLocalDatabase(source, request);
+      const context = await this.#localRollupContext();
+      return withRollupMetadata(
+        queryLocalDatabase(source, request, localDerivedOptions(context)),
+        { properties: source.definition.properties, entries: source.entries },
+        context,
+      );
     } catch (error) {
       if (error instanceof LocalDatabaseQueryError) return null;
       throw error;

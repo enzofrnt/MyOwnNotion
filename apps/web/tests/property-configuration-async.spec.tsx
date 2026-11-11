@@ -78,6 +78,30 @@ describe("property toggles during asynchronous source updates", () => {
         );
       }
       await act(async () => root.render(<Harness />));
+      if (type === "relation") {
+        const trigger = document.querySelector<HTMLButtonElement>("[data-relation-limit]");
+        if (trigger === null) throw new Error("Missing relation limit");
+        const before = trigger.textContent;
+        await act(async () => trigger.click());
+        const label = expectedConfig.cardinality === "one" ? "1 page" : "Aucune limite";
+        const choice = [...document.querySelectorAll<HTMLElement>("[role=menuitemradio]")].find(
+          (item) => item.textContent?.trim() === label,
+        );
+        if (choice === undefined) throw new Error("Missing cardinality choice");
+        await act(async () => choice.click());
+        if (expectedConfig.cardinality === "one") {
+          const confirm = [...document.querySelectorAll("button")].find(
+            (button) => button.textContent === "Confirmer",
+          );
+          if (confirm === undefined) throw new Error("Missing impact confirmation");
+          await act(async () => confirm.click());
+        }
+        expect(trigger.textContent).toBe(before);
+        await act(async () => finish());
+        expect(committed).toMatchObject({ type: expectedType, config: expectedConfig });
+        expect(trigger.textContent).toContain(label);
+        return;
+      }
       const input = [...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].find(
         (node) => node.parentElement?.textContent?.trim() === label,
       );

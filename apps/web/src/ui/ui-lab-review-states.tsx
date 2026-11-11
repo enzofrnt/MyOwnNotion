@@ -7,6 +7,7 @@ import { LocalCommitRecovery } from "../features/editor/local-commit-recovery.ts
 import { MutationStatus } from "../features/hierarchy/mutation-status.tsx";
 import { ConnectionState } from "../features/sync/connection-state.tsx";
 import { PageContentSkeleton } from "../features/workspace/page-content-skeleton.tsx";
+import { WorkspaceHome } from "../features/workspace/workspace-home.tsx";
 import { WorkspaceState } from "../features/workspace/workspace-state.tsx";
 import type { LocalContentService } from "../services/local-content.ts";
 import { Section } from "./primitives/index.ts";
@@ -63,8 +64,9 @@ export function ReviewStates() {
       </Section>
       <Section>
         <h2>Espace de travail</h2>
+        <WorkspaceHome hasItems onCreatePage={async () => undefined} />
+        <WorkspaceHome hasItems={false} onCreatePage={async () => undefined} />
         <WorkspaceState kind="loading" />
-        <WorkspaceState kind="empty" />
         <WorkspaceState kind="offline" />
         <WorkspaceState kind="error" onRetry={() => undefined} />
       </Section>

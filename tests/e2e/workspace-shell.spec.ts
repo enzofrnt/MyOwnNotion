@@ -19,6 +19,24 @@ import {
   waitForSynchronized,
 } from "./helpers.ts";
 
+test("welcomes an empty workspace on a page-shaped canvas and opens its first page", async ({
+  page,
+}) => {
+  await openWorkspace(page);
+
+  const home = page.getByTestId("workspace-home");
+  await expect(home).toBeVisible();
+  await expect(home.getByTestId("active-item-heading")).toHaveText("Bienvenue");
+  await expect(home).toContainText("Créez votre première page pour commencer à écrire.");
+  // The landing owns the canvas identity: the header keeps only the tab strip.
+  await expect(page.locator(".workspace-page-header__identity")).toHaveCount(0);
+
+  await home.getByTestId("home-create-page").click();
+  await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/u);
+  await expect(page.getByTestId("active-item-title")).toBeVisible();
+  await expect(page.getByRole("tree", { name: "Arborescence" })).toContainText("Nouvelle page");
+});
+
 test("recovers the same local page after an explicit storage initialization refusal", async ({
   page,
 }) => {

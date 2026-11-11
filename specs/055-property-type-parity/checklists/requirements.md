@@ -25,6 +25,15 @@
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
+## Revue de reprise — 2026-11-11
+
+Les cases historiques ci-dessus ne constituent pas une nouvelle validation de
+parité. Le complément FR-015 à FR-018 ajoute des scénarios testables et des
+tâches associées. Les captures de référence, la matrice des fonctions/types et
+le contrat de calcul restent à établir avant l'implémentation (T100–T101) ;
+les anciens statuts et preuves restent à réconcilier (T122). Voir
+[analyse de reprise](../audit-reprise.md#analyse-de-cohérence-avant-implémentation).
+
 ## Notes
 - Notifications de date: observées dans la capture de la page de test, exclues
   explicitement par le propriétaire pour cette passe.

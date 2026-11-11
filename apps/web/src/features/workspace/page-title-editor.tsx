@@ -1,11 +1,8 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { FR_COPY } from "../../ui/copy/index.ts";
 import { ItemEmojiPicker } from "../../ui/emoji-picker.tsx";
 import { AppIcon } from "../../ui/icons.tsx";
 import { itemKindIconName } from "../../ui/item-icon.tsx";
-import { Button } from "../../ui/primitives/index.ts";
 import { defaultItemTitle } from "./default-item-title.ts";
-import { WORKSPACE_HISTORY_SLOT_ID } from "./page-header.tsx";
 
 const TITLE_COMMIT_DELAY_MS = 450;
 const KIND_CAPTION = {
@@ -43,9 +40,9 @@ export function PageTitleEditor({
   restoreFocus = false,
   discoverable = true,
 }: {
-  /** Location line rendered above the emoji, never emphasized (spec 022). */
+  /** Ancestors line rendered above the title, never emphasized (spec 022). */
   readonly breadcrumbs?: ReactNode;
-  /** Quiet contextual controls sharing the location line (e.g. open the graph). */
+  /** Quiet contextual controls sharing the ancestors line (e.g. leave an entry). */
   readonly pathActions?: ReactNode;
   /** Quiet create control on the kind caption row, pinned to the reading column’s end. */
   readonly kindActions?: ReactNode;
@@ -254,44 +251,25 @@ export function PageTitleEditor({
     };
   }, [commit, untitled]);
 
+  // Without an icon, “Ajouter une icône” sits on the caption line under the
+  // title, so the path above stays glued to the title. A chosen icon takes
+  // its place beside the title.
+  const hasIcon = (icon ?? null) !== null;
+  const iconPicker =
+    onIconChange === undefined ? null : (
+      <ItemEmojiPicker
+        kind={kind}
+        label={title || untitled}
+        value={icon ?? null}
+        variant="page"
+        onChange={onIconChange}
+      />
+    );
+
   return (
-    <>
+    <div className="workspace-page-title" data-kind={kind}>
       {breadcrumbs === undefined && pathActions === undefined ? null : (
         <div className="workspace-page-title__path">
-          <div
-            id={WORKSPACE_HISTORY_SLOT_ID}
-            className="workspace-page-title__history"
-            data-testid="workspace-history-slot"
-          >
-            {kind === "database" || kind === "database_view" ? (
-              <div
-                className="editor-history-controls"
-                role="toolbar"
-                aria-label={FR_COPY.editor.surface.historyLabel}
-              >
-                <Button
-                  type="button"
-                  size="square"
-                  variant="ghost"
-                  aria-label={FR_COPY.editor.surface.undo}
-                  title={FR_COPY.editor.surface.undoTitle}
-                  disabled
-                >
-                  <AppIcon name="undo" />
-                </Button>
-                <Button
-                  type="button"
-                  size="square"
-                  variant="ghost"
-                  aria-label={FR_COPY.editor.surface.redo}
-                  title={FR_COPY.editor.surface.redoTitle}
-                  disabled
-                >
-                  <AppIcon name="redo" />
-                </Button>
-              </div>
-            ) : null}
-          </div>
           <div className="workspace-page-title__path-crumbs">{breadcrumbs}</div>
           {pathActions === undefined ? null : (
             <div className="workspace-page-title__path-actions" data-testid="page-context-actions">
@@ -300,85 +278,83 @@ export function PageTitleEditor({
           )}
         </div>
       )}
-      <div className="workspace-page-title" data-kind={kind}>
-        <div className="workspace-page-title__body">
-          <div className="workspace-page-title__heading">
-            {onIconChange === undefined ? null : (
-              <ItemEmojiPicker
-                kind={kind}
-                label={title || untitled}
-                value={icon ?? null}
-                variant="page"
-                onChange={onIconChange}
-              />
-            )}
-            <div className="workspace-page-title__stack">
-              <textarea
-                ref={textarea}
-                rows={1}
-                // Keep the browser's live value authoritative while the owner types.
-                // A controlled textarea lets an unrelated concurrent render project
-                // the previous React state back into the DOM between WebKit's native
-                // replacement and its input event. `defaultValue` initializes each
-                // route-bound editor; acknowledged remote changes are projected
-                // explicitly by the title effect above.
-                defaultValue={startingDraft}
-                aria-label={kind === "folder" ? "Nom du dossier" : "Titre de la page"}
-                aria-invalid={failed || undefined}
-                aria-busy={busy || undefined}
-                data-testid={discoverable ? "active-item-title" : undefined}
-                placeholder={untitled}
-                spellCheck
-                onFocus={() => {
-                  focused.current = true;
-                  onDraftStateChangeRef.current?.(latestDraft.current, true);
-                }}
-                // `input` is the browser event produced by typing, paste and
-                // Playwright's fill primitive. Reading it directly avoids WebKit's
-                // synthetic change-value tracking window while a newly-created page
-                // finishes replacing its loading surface.
-                onInput={(event) => {
-                  const next = event.currentTarget.value;
-                  userEdited.current = true;
-                  latestDraft.current = next;
-                  setDraft(next);
-                  onDraftStateChangeRef.current?.(next, true);
-                  scheduleCommit(next);
-                }}
-                onBlur={(event) => {
-                  focused.current = false;
-                  void commit(event.currentTarget.value).catch(() => undefined);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                    onMoveToContent?.();
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    const restored = title || untitled;
-                    latestDraft.current = restored;
-                    event.currentTarget.value = restored;
-                    setDraft(restored);
-                    onDraftStateChangeRef.current?.(restored, false);
-                    event.currentTarget.blur();
-                  }
-                }}
-              />
-            </div>
-          </div>
-          <div className="workspace-page-title__meta">
-            <span className="workspace-page-title__kind" data-testid="active-item-kind">
-              <AppIcon name={itemKindIconName(kind, { holdsContent })} size="small" />
-              {KIND_CAPTION[kind]}
-            </span>
-            {kindActions === undefined ? null : (
-              <div className="workspace-page-title__kind-actions">{kindActions}</div>
-            )}
+      <div className="workspace-page-title__body">
+        <div className="workspace-page-title__heading">
+          {onIconChange === undefined || !hasIcon ? null : iconPicker}
+          <div className="workspace-page-title__stack">
+            <textarea
+              ref={textarea}
+              rows={1}
+              // Keep the browser's live value authoritative while the owner types.
+              // A controlled textarea lets an unrelated concurrent render project
+              // the previous React state back into the DOM between WebKit's native
+              // replacement and its input event. `defaultValue` initializes each
+              // route-bound editor; acknowledged remote changes are projected
+              // explicitly by the title effect above.
+              defaultValue={startingDraft}
+              aria-label={kind === "folder" ? "Nom du dossier" : "Titre de la page"}
+              aria-invalid={failed || undefined}
+              aria-busy={busy || undefined}
+              data-testid={discoverable ? "active-item-title" : undefined}
+              placeholder={untitled}
+              spellCheck
+              onFocus={() => {
+                focused.current = true;
+                onDraftStateChangeRef.current?.(latestDraft.current, true);
+              }}
+              // `input` is the browser event produced by typing, paste and
+              // Playwright's fill primitive. Reading it directly avoids WebKit's
+              // synthetic change-value tracking window while a newly-created page
+              // finishes replacing its loading surface.
+              onInput={(event) => {
+                const next = event.currentTarget.value;
+                userEdited.current = true;
+                latestDraft.current = next;
+                setDraft(next);
+                onDraftStateChangeRef.current?.(next, true);
+                scheduleCommit(next);
+              }}
+              onBlur={(event) => {
+                focused.current = false;
+                void commit(event.currentTarget.value).catch(() => undefined);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                  onMoveToContent?.();
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  const restored = title || untitled;
+                  latestDraft.current = restored;
+                  event.currentTarget.value = restored;
+                  setDraft(restored);
+                  onDraftStateChangeRef.current?.(restored, false);
+                  event.currentTarget.blur();
+                }
+              }}
+            />
           </div>
         </div>
+        <div className="workspace-page-title__meta">
+          <span className="workspace-page-title__kind" data-testid="active-item-kind">
+            <AppIcon name={itemKindIconName(kind, { holdsContent })} size="small" />
+            {KIND_CAPTION[kind]}
+          </span>
+          {onIconChange === undefined || hasIcon ? null : (
+            <>
+              <span className="workspace-page-title__meta-separator" aria-hidden="true">
+                ·
+              </span>
+              {iconPicker}
+            </>
+          )}
+          {kindActions === undefined ? null : (
+            <div className="workspace-page-title__kind-actions">{kindActions}</div>
+          )}
+        </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -222,6 +222,20 @@
   height: 8rem;
 }
 
+/* Real workspace chrome, bounded so the landing stays inspectable in the lab. */
+.ui-lab__stack {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+.ui-lab__shell-frame {
+  height: 20rem;
+  overflow: hidden;
+  background: var(--ui-color-canvas);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
 .ui-lab__view-preview {
   min-height: 8rem;
 }

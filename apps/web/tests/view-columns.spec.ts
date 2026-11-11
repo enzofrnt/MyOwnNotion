@@ -2,6 +2,7 @@ import type { DatabaseProperty, DatabaseView } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 import {
   moveViewColumn,
+  reorderViewColumn,
   viewColumns,
   visibleViewColumns,
 } from "../src/features/databases/view-columns.ts";
@@ -92,5 +93,23 @@ describe("reordering view columns", () => {
       { propertyId: status.id, visible: true },
       { propertyId: title.id, visible: true },
     ]);
+  });
+  it("drops a dragged column on another: it takes its place and keeps width and visibility", () => {
+    const presentations: DatabaseView["properties"] = [
+      { propertyId: title.id, positionKey: "a", visible: true, width: 240 },
+      { propertyId: status.id, positionKey: "b", visible: false },
+    ];
+    const moved = reorderViewColumn([title, status], presentations, title.id, status.id);
+    expect(moved).toMatchObject([
+      { propertyId: status.id, visible: false },
+      { propertyId: title.id, visible: true, width: 240 },
+    ]);
+    // Position keys are rewritten in order, so the view sorts back the same way.
+    expect(viewColumns([title, status], moved ?? []).map(({ property }) => property.id)).toEqual([
+      status.id,
+      title.id,
+    ]);
+    expect(reorderViewColumn([title, status], presentations, title.id, title.id)).toBeNull();
+    expect(reorderViewColumn([title, status], presentations, "missing", title.id)).toBeNull();
   });
 });

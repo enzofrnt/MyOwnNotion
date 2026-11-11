@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-04
 
-**Status**: Implémenté — agrégat « compter » (2026-11-04)
+**Status**: Implémenté — agrégat « compter » (2026-11-04) — palier historique ; calculs, filtres et tris actuels : `specs/055-property-type-parity` (reprise du 2026-11-11)
 
 **Input**: Ajouter le type Notion « Agrégation », en lecture seule, qui compte
 les entrées ciblées par une relation.

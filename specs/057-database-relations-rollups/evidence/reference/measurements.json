@@ -1,0 +1,399 @@
+{
+  "observations": {
+    "relationVisibleRowCount": 1,
+    "relationNonemptyVisibleRows": 0,
+    "cellEscapeOverlayRemaining": 0,
+    "cellEscapeFocus": {
+      "tag": "BODY",
+      "role": null
+    },
+    "visibleRelationValuesUnchanged": true,
+    "headerRightClickMenuCount": 1
+  },
+  "capturedAt": "2026-11-11T20:43:20.083Z",
+  "browser": "Chromium via Bun Playwright",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "theme": "light",
+  "redaction": "Unknown overlay text nodes, inputs, editable names, and images masked before screenshot; no raw DOM or full viewport saved.",
+  "measurements": [
+    {
+      "name": "01-relation-property-menu",
+      "box": {
+        "x": 882,
+        "y": 285.984375,
+        "width": 291.296875,
+        "height": 469
+      },
+      "styles": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(44, 44, 43)",
+        "borderRadius": "10px",
+        "boxShadow": "none",
+        "fontFamily": "ui-sans-serif, -apple-system, \"system-ui\", \"Segoe UI Variable Display\", \"Segoe UI\", Helvetica, \"Apple Color Emoji\", \"Noto Sans Arabic\", \"Noto Sans Hebrew\", Arial, sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\"",
+        "fontSize": "16px"
+      },
+      "items": [
+        {
+          "label": "Modifier la propriété",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Modifier le type",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Filtrer",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Trier",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Calculer",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Masquer",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Supprimer la propriété",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        }
+      ]
+    },
+    {
+      "name": "02-relation-configuration",
+      "box": {
+        "x": 586,
+        "y": 329.984375,
+        "width": 300,
+        "height": 94
+      },
+      "styles": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(44, 44, 43)",
+        "borderRadius": "10px",
+        "boxShadow": "none",
+        "fontFamily": "ui-sans-serif, -apple-system, \"system-ui\", \"Segoe UI Variable Display\", \"Segoe UI\", Helvetica, \"Apple Color Emoji\", \"Noto Sans Arabic\", \"Noto Sans Hebrew\", Arial, sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\"",
+        "fontSize": "16px"
+      },
+      "items": [
+        {
+          "label": "[contenu expurgé]",
+          "width": 292,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 292,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 292,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        }
+      ]
+    },
+    {
+      "name": "03-relation-cardinality",
+      "box": {
+        "x": 632,
+        "y": 390.984375,
+        "width": 250,
+        "height": 65
+      },
+      "styles": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(44, 44, 43)",
+        "borderRadius": "10px",
+        "boxShadow": "none",
+        "fontFamily": "ui-sans-serif, -apple-system, \"system-ui\", \"Segoe UI Variable Display\", \"Segoe UI\", Helvetica, \"Apple Color Emoji\", \"Noto Sans Arabic\", \"Noto Sans Hebrew\", Arial, sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\"",
+        "fontSize": "16px"
+      },
+      "items": [
+        {
+          "label": "1 page",
+          "width": 242,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Aucune limite",
+          "width": 242,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        }
+      ]
+    },
+    {
+      "name": "04-reciprocal-configuration",
+      "box": {
+        "x": 632,
+        "y": 419.984375,
+        "width": 250,
+        "height": 119
+      },
+      "styles": {
+        "background": "rgb(255, 255, 255)",
+        "color": "rgb(44, 44, 43)",
+        "borderRadius": "10px",
+        "boxShadow": "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px",
+        "fontFamily": "ui-sans-serif, -apple-system, \"system-ui\", \"Segoe UI Variable Display\", \"Segoe UI\", Helvetica, \"Apple Color Emoji\", \"Noto Sans Arabic\", \"Noto Sans Hebrew\", Arial, sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\"",
+        "fontSize": "16px"
+      },
+      "items": []
+    },
+    {
+      "name": "05-relation-cell",
+      "box": {
+        "x": 868,
+        "y": 284.984375,
+        "width": 560,
+        "height": 116
+      },
+      "styles": {
+        "background": "rgb(255, 255, 255)",
+        "color": "rgb(44, 44, 43)",
+        "borderRadius": "6px",
+        "boxShadow": "rgba(25, 25, 25, 0.05) 0px 20px 24px 0px, rgba(25, 25, 25, 0.027) 0px 5px 8px 0px, rgba(42, 28, 0, 0.07) 0px 0px 0px 1px",
+        "fontFamily": "ui-sans-serif, -apple-system, \"system-ui\", \"Segoe UI Variable Display\", \"Segoe UI\", Helvetica, \"Apple Color Emoji\", \"Noto Sans Arabic\", \"Noto Sans Hebrew\", Arial, sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\"",
+        "fontSize": "16px"
+      },
+      "items": []
+    },
+    {
+      "name": "06-relation-header-context-menu",
+      "box": {
+        "x": 882,
+        "y": 285.984375,
+        "width": 291.296875,
+        "height": 469
+      },
+      "styles": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(44, 44, 43)",
+        "borderRadius": "10px",
+        "boxShadow": "none",
+        "fontFamily": "ui-sans-serif, -apple-system, \"system-ui\", \"Segoe UI Variable Display\", \"Segoe UI\", Helvetica, \"Apple Color Emoji\", \"Noto Sans Arabic\", \"Noto Sans Hebrew\", Arial, sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\"",
+        "fontSize": "16px"
+      },
+      "items": [
+        {
+          "label": "Modifier la propriété",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Modifier le type",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Filtrer",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Trier",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Calculer",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Masquer",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Supprimer la propriété",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        }
+      ]
+    }
+  ]
+}

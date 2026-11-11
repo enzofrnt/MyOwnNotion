@@ -107,7 +107,8 @@ export function SortGroupEditor({
       void Promise.resolve(onChange(next))
         .then(() => {
           liveSaved.current = signature;
-          if (draftSignature(sortsRef.current, groupRef.current) === signature) dirty.current = false;
+          if (draftSignature(sortsRef.current, groupRef.current) === signature)
+            dirty.current = false;
           setLiveError(null);
         })
         .catch((error: unknown) => {

@@ -164,8 +164,8 @@ function normalizeProperty(property: DatabaseProperty): DatabaseProperty | null 
   }
   if (
     property.type === "relation" &&
-    property.config.cardinality !== "one" &&
-    property.config.cardinality !== "many"
+    ((property.config.cardinality !== "one" && property.config.cardinality !== "many") ||
+      (property.config.targetSourceId !== undefined && !isUuid(property.config.targetSourceId)))
   ) {
     return null;
   }

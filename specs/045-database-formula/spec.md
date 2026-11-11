@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-04
 
-**Status**: Implémenté (2026-11-04)
+**Status**: Implémenté (2026-11-04) — palier historique ; le langage et l'éditeur actuels sont décrits par `specs/055-property-type-parity` (reprise du 2026-11-11)
 
 **Input**: Ajouter le type Notion « Formule », en lecture seule, calculé à
 partir des autres propriétés de la ligne.
