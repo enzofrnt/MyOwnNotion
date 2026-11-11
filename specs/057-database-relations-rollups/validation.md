@@ -48,6 +48,17 @@ Passe du 11 novembre 2026. Arbre de travail préexistant préservé ; aucun rese
   2. Deux sources dans le même conteneur : la propriété de la source principale n'est **pas** proposée, seule celle de la source secondaire l'est ; l'entrée principale n'est pas sélectionnable ; somme = 17 après rechargement.
 - Captures expurgées (données de test) : `evidence/candidate/relation-settings-light.png`, `relation-limit-light.png`, `relation-source-search-light.png`, `relation-values-light.png`, `relation-values-dark.png`, `relation-values-dark-390.png`, `relation-values-dark-320.png`.
 
+### Comparaison chiffrée référence / candidat (relation)
+
+| Surface | Notion (mesuré) | Candidat (mesuré) | Écart assumé |
+| --- | --- | --- | --- |
+| Panneau de configuration | 300 × 94 px, **3** rangées | 262 × 64 px, **2** rangées | Pas de rangée « Ajouter une propriété liée » : R5 non livrée, aucune option factice. Largeur imposée par le panneau de colonne. |
+| Menu « Limite » | 250 × 65 px, coche à droite | 288 × 82 px, coche à droite | Densité du menu commun (`property-settings__menu`), environ 34 px par item contre 28 px. Non modifiée ici pour ne pas changer tous les menus de propriété. |
+| Ordre et libellés | Liée à / Limite (1 page, Aucune limite) | Liée à / Limite (1 page, Aucune limite) | Aligné. |
+| Thèmes | clair et sombre relevés | clair et sombre vérifiés | Couleurs issues des tokens, pas des valeurs Notion. |
+
+Ces écarts sont documentés, pas présentés comme parité atteinte.
+
 ### Tests automatisés (commandes et résultats réels)
 
 - **Suites unitaires complètes** `vitest --project domain --project web --project client-core --project contracts` : **304 fichiers, 3 057 tests, exit 0**.

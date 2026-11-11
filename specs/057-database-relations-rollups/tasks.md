@@ -4,7 +4,7 @@ Statut : P1 (R1–R4) livré et vérifié ; R5 (relation inverse) non implément
 
 ## Fondation
 
-- [~] T001 [P] Capturer les surfaces de relation Notion autorisées, ouvertes et expurgées, avec recettes, états, mesures, clavier, clair/sombre et largeurs étroites ; compléter `audit.md` et documenter toute impossibilité.
+- [x] T001 [P] Capturer les surfaces de relation Notion autorisées, ouvertes et expurgées, avec recettes, états, mesures, clavier, clair/sombre et largeurs étroites ; compléter `audit.md` et documenter toute impossibilité. (clair 1440 + sombre 1024, mesures JSON, clic droit ; 320/390 documenté comme non comparable — Notion sert une coque mobile distincte.)
 - [x] T002 [P] Reproduire les scénarios de `audit.md` sur des données locales fictives ; documenter la base exacte, les résultats et captures expurgées sans modifier des données réelles. (source vide, deux sources par conteneur, lien hors source et historique : rouges avant correction, verts après ; pile isolée et PostgreSQL jetable.)
 - [x] T003 Définir dans `plan.md` la source canonique, les états, cardinalité, migration historique sans perte, politique de changement, compatibilité clients/protocole/outbox et décisions restantes ; demander clarification si une décision produit irréversible est nécessaire. (contrat P1 et décisions consignés ; R5 explicitement reportée.)
 - [x] T004 Ajouter d'abord des tests de régression source vide, plusieurs sources par conteneur, lien hors source et historique mixte dans les suites domaine/API/local ; vérifier qu'ils démontrent le défaut avant correction. (7 tests domaine, 4 locaux, 2 API démontrés rouges avant correction.)

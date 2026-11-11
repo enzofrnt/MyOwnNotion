@@ -86,13 +86,41 @@ Mesures CSS du conteneur ciblé, pas des pixels de l’ombre extérieure :
 
 La coordonnée verticale fractionnaire explique que certains PNG fassent un pixel de plus que la hauteur CSS. Les boîtes `role=menu` rapportent un fond transparent et aucune ombre : ce sont des wrappers, **pas** la preuve d’une surface peinte transparente/sans ombre. Les dialogues de cellule et de propriété liée rapportent un fond blanc, texte `rgb(44, 44, 43)`, ombre en trois couches (valeurs dans les mesures). La taille héritée relevée sur les wrappers est 16 px ; elle ne vaut pas mesure exhaustive de la typographie de chaque libellé. Pas de transposition de ces couleurs en tokens applicatifs dans cette tâche.
 
+## Complément — thème sombre (2026-11-11, 23 h 58)
+
+Même page/vue, même profil, **thème sombre** (`prefers-color-scheme: dark`, viewport
+1024 × 800, français). Session encore valide ; aucune modification de données.
+Script local ignoré : `.notion-lab/057-capture-dark.mjs`.
+
+- [Menu de propriété, sombre](<specs/057-database-relations-rollups/evidence/reference/07-relation-property-menu-dark.png>)
+- [Configuration de la relation, sombre](<specs/057-database-relations-rollups/evidence/reference/08-relation-configuration-dark.png>)
+- [Choix de cardinalité, sombre](<specs/057-database-relations-rollups/evidence/reference/09-relation-cardinality-dark.png>)
+- Mesures : `evidence/reference/measurements-dark.json`.
+
+Valeurs relevées (thème sombre) :
+
+| Surface | Boîte CSS | Remarque |
+| --- | --- | --- |
+| Panneau de configuration | 300 × 94 px | trois rangées, même ordre qu’en clair |
+| Menu « Limite » | 250 × 65 px | deux items, coche à droite de « Aucune limite » |
+| Menu d’en-tête | 291 × 469 px | fond transparent sur le wrapper, comme en clair |
+
+Les libellés et l’ordre sont identiques au thème clair ; seules les couleurs changent.
+Le wrapper de menu rapporte toujours un fond transparent : il ne prouve rien sur la
+surface peinte. Les captures ont été masquées avant écriture, sans viewport complet.
+
+**Largeur étroite :** aucune capture à 320/390 px n’a été produite. À cette largeur,
+Notion sert une coque mobile distincte de la vue tableau de bureau ; la comparer à
+notre table n’aurait pas de sens. Le candidat a donc été vérifié à 320/390 px
+(`validation.md`), la référence à 1024 px et au-delà.
+
 ## Préservation et limites
 
 - Aucun ajout/retrait de relation, choix de cardinalité, activation réciproque, renommage, changement de type ou de source. Aucun changement d’autres données.
 - Après rechargement, les valeurs textuelles des cellules Relation rendues ont été comparées en mémoire : **inchangées**. Seul le booléen de comparaison est exporté, pas les valeurs. Ce contrôle est limité aux cellules visibles, pas un audit serveur global.
 - Les seules interactions persistantes du navigateur sont celles nécessaires au profil et au chargement normal ; pas d’accès au contenu des fichiers du profil, aux secrets ou aux API internes.
 - Des essais d’automatisation ont rencontré un timeout de clic intercepté par un overlay resté ouvert. Ils n’ont pas forcé le clic ni contourné l’UI : fermeture du contexte puis reprise ; la recette finale utilise un rechargement entre ces parcours et termine avec code 0.
-- Non observés : création d’une relation/source vide, cardinalité appliquée, relation déjà remplie, effet réciproque, auto-relation, agrégation, mutation destructive, conflit, erreur, chargement, hors ligne, thèmes sombres, 320/390 px, recherche sans résultat, pagination, parcours clavier complet et volet d’entrée. Les garanties fonctionnelles correspondantes ne peuvent pas être déduites des captures.
+- Non observés : création d’une relation/source vide, cardinalité appliquée, relation déjà remplie, effet réciproque, auto-relation, agrégation, mutation destructive, conflit, erreur, chargement, hors ligne, 320/390 px (coque mobile distincte), recherche sans résultat, pagination, parcours clavier complet et volet d’entrée. Le thème sombre a été relevé dans le complément ci-dessus. Les garanties fonctionnelles correspondantes ne peuvent pas être déduites des captures.
 - Pas de tests/build de l’app exécutés : cette passe n’a aucun changement de code app et ne constitue ni une validation fonctionnelle de R1–R5 ni une comparaison candidat/référence.
 
 ## Reproduction minimale sans mutation
