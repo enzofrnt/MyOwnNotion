@@ -397,6 +397,7 @@ describe("reviewed SQL migrations", () => {
         "0018_bootstrap_password_setup",
         "0019_database_pages_views",
         "0020_database_sources_per_origin",
+        "0021_database_entry_numbers",
       ]);
       const { rows } = await client.query<{
         format_version: number;

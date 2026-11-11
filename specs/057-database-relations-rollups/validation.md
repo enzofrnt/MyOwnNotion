@@ -69,6 +69,11 @@ concurrents, une nouvelle lecture ensuite).
 
 Ces écarts sont documentés, pas présentés comme parité atteinte.
 
+### Portée élargie des contrôles
+
+- `database-integration` **complet** : 44 fichiers, 426 tests verts sur PostgreSQL jetable (après mise à jour de l'attente de liste des migrations, qui ignorait `0021_database_entry_numbers` ajoutée par une autre passe).
+- Build web : 4 193 sorties, 2 163 actifs précachés, code 0.
+
 ### Contrôle sur les données réelles du propriétaire (pile de dev, 8080)
 
 Après les refactorisations (`entriesBySource`, `count` strict, résolution de la
