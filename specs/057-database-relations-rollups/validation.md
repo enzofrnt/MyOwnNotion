@@ -69,6 +69,15 @@ concurrents, une nouvelle lecture ensuite).
 
 Ces écarts sont documentés, pas présentés comme parité atteinte.
 
+### Contrôle sur les données réelles du propriétaire (pile de dev, 8080)
+
+Après les refactorisations (`entriesBySource`, `count` strict, résolution de la
+source d'une vue liée), la base existante affiche toujours la même agrégation :
+`89,9` sur l'entrée liée, `0` ailleurs, sans erreur console. Le panneau de la
+colonne Relation ouvre bien « Liée à » (source conservée) et « Limite : Aucune
+limite ». Aucune donnée n'a été modifiée par ce contrôle ; aucune capture de
+cette base n'est conservée dans les preuves (noms du workspace réel).
+
 ### Tests automatisés (commandes et résultats réels)
 
 - **Suites unitaires complètes** `vitest --project domain --project web --project client-core --project contracts` : **304 fichiers, 3 057 tests, exit 0**.
