@@ -242,6 +242,8 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
         valueVersion: entry.valueVersion,
         addedRevisionId: entry.addedRevisionId,
         valueRevisionId: entry.valueRevisionId,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
         values,
       });
     }

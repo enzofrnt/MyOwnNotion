@@ -75,6 +75,9 @@ export interface ExportedDatabaseEntry {
   readonly valueVersion: number;
   readonly addedRevisionId: Uuid;
   readonly valueRevisionId?: Uuid;
+  /** Membership times. Optional so archives written before them still restore. */
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
   readonly values: EntryValues;
 }
 
@@ -1130,6 +1133,29 @@ export function validateCanonicalExport(
       issues.push({
         code: "database-entry.value-revision",
         detail: `Database entry ${entry.entryId} has no owned value revision`,
+      });
+    }
+    // Membership times are optional for archives written before they were
+    // exported; when present they must be canonical instants.
+    for (const field of ["createdAt", "updatedAt"] as const) {
+      const value = entry[field];
+      if (value !== undefined && !isTimestamp(value)) {
+        issues.push({
+          code: "database-entry.timestamp",
+          detail: `Database entry ${entry.entryId} has an invalid ${field}`,
+        });
+      }
+    }
+    if (
+      entry.createdAt !== undefined &&
+      entry.updatedAt !== undefined &&
+      isTimestamp(entry.createdAt) &&
+      isTimestamp(entry.updatedAt) &&
+      Date.parse(entry.updatedAt) < Date.parse(entry.createdAt)
+    ) {
+      issues.push({
+        code: "database-entry.timestamp",
+        detail: `Database entry ${entry.entryId} was updated before it was created`,
       });
     }
     if (entry.values.entryId !== entry.entryId || entry.values.databaseId !== entry.databaseId) {

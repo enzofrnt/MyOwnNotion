@@ -63,14 +63,14 @@ Passe du 11 novembre 2026. Arbre de travail préexistant préservé ; aucun rese
 - **API projection** : `database-query-service`, `database-query-rollups`, `database-query-source-loading` verts.
 - **Biome** : vert sur tous les fichiers 057 (seuls restent deux avertissements `organizeImports` préexistants dans `graph-canvas-paint.spec.ts` et `knowledge-graph-global.spec.tsx`, hors périmètre).
 
-## Échecs constatés, non causés par 057
+## Défauts antérieurs corrigés dans la même passe
 
-Reproduits **sans** nos modifications (fichiers restaurés, test relancé, puis rétablis) :
+Reproduits **sans** nos modifications (fichiers restaurés, tests relancés, puis rétablis), puis corrigés :
 
-- `apps/api/tests/database-projection-loading.contract.spec.ts` > « batches protected fields… » : la projection SQL renvoie déjà `entryNumber`/`createdAt`/`updatedAt` dans `HEAD` ; l'attente du test n'a pas été mise à jour par la feature de numérotation.
-- `apps/api/tests/linked-databases.contract.spec.ts` > « restores an owned source… » : la restauration ne préserve pas `createdAt`/`updatedAt` des entrées (colonnes `defaultNow()`, jamais réinsérées), défaut antérieur.
+- `database-projection-loading.contract.spec.ts` > « batches protected fields… » : la projection transmettait tout son enregistrement (noms, dates, numéros) à la couche de contenu protégé, qui n'utilise que l'identité et la version. Seuls `{entryId, valueVersion}` traversent désormais cette frontière ; l'attente du test est alignée.
+- `linked-databases.contract.spec.ts` > « restores an owned source… » : la restauration perdait `createdAt`/`updatedAt` des appartenances (colonnes `defaultNow()`). Les archives portent maintenant ces instants en optionnel — les archives antérieures restent valides — et la restauration les réinsère. Un horodatage invalide ou une modification antérieure à la création est refusé (`database-entry.timestamp`).
 
-Ces deux suites restent rouges tant qu'elles ne sont pas corrigées ; elles ne bloquent pas la feature 057 mais bloquent la publication du dépôt.
+Après correction : `api-contract` et `workspace-contract` sont **entièrement verts** (237 fichiers, 3 122 tests, exit 0).
 
 ## Limites et non-faits
 
@@ -85,7 +85,6 @@ Ces deux suites restent rouges tant qu'elles ne sont pas corrigées ; elles ne b
 
 ## Suite recommandée
 
-1. Corriger les deux défauts préexistants ci-dessus (fidélité des timestamps à la restauration ; attente de projection) ou documenter leur propriétaire.
-2. Décider et implémenter R5 sur le sous-scope proposé, sans seconde vérité.
-3. Ajouter un test navigateur des états d'erreur du sélecteur de source et du panneau de relation.
-4. Comparaison Notion/candidat chiffrée et revue visuelle propriétaire.
+1. Décider et implémenter R5 sur le sous-scope proposé, sans seconde vérité.
+2. Ajouter un test navigateur des états d'erreur du sélecteur de source et du panneau de relation.
+3. Comparaison Notion/candidat chiffrée et revue visuelle propriétaire.

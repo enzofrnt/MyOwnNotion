@@ -147,13 +147,9 @@ describe("SQL loading of encrypted database projections", () => {
     await service.applyCommittedChanges([changed], 10_000);
     expect(names.mock.calls.map((call) => call[1])).toEqual([[changed]]);
     expect(values.mock.calls[0]?.[1]).toEqual([
-      {
-        entryId: changed,
-        revisionId: expect.any(String),
-        storedName: expect.any(String),
-        storedValues: null,
-        valueVersion: 1,
-      },
+      // Only identity and version cross the protected-content boundary; the
+      // projection record also carries names, times and numbers used elsewhere.
+      { entryId: changed, valueVersion: 1 },
     ]);
     expect(bodies).not.toHaveBeenCalled();
     const refreshed = service.query(databaseId, { viewId, limit: 1000 });

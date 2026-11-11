@@ -274,6 +274,39 @@ describe("canonical source identity", () => {
     ).toContain("database-entry.value-invalid");
   });
 
+  it("keeps optional membership times and still accepts archives written without them", () => {
+    const manifest = fixture();
+    // Older archives omit the times; that must stay valid and comparable.
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+    const timed = buildCanonicalExport({
+      ...manifest,
+      databaseEntries: manifest.databaseEntries.map((entry) => ({
+        ...entry,
+        createdAt: "2026-11-11T12:00:00.000Z",
+        updatedAt: "2026-11-11T12:05:00.000Z",
+      })),
+    });
+    expect(validateCanonicalExport(timed)).toEqual([]);
+    expect(timed.databaseEntries[0]?.updatedAt).toBe("2026-11-11T12:05:00.000Z");
+    const backward = buildCanonicalExport({
+      ...manifest,
+      databaseEntries: manifest.databaseEntries.map((entry) => ({
+        ...entry,
+        createdAt: "2026-11-11T12:05:00.000Z",
+        updatedAt: "2026-11-11T12:00:00.000Z",
+      })),
+    });
+    expect(codes(backward)).toContain("database-entry.timestamp");
+    const malformed = buildCanonicalExport({
+      ...manifest,
+      databaseEntries: manifest.databaseEntries.map((entry) => ({
+        ...entry,
+        createdAt: "yesterday",
+      })),
+    });
+    expect(codes(malformed)).toContain("database-entry.timestamp");
+  });
+
   it("still refuses duplicate host/entry memberships across different sources", () => {
     const manifest = fixture();
     expect(

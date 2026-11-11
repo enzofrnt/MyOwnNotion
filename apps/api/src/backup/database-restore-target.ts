@@ -387,6 +387,9 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
         valueVersion: entry.valueVersion,
         addedRevisionId: entry.addedRevisionId,
         valueRevisionId: entry.valueRevisionId ?? entry.addedRevisionId,
+        // Older archives omit these; the column default then applies.
+        ...(entry.createdAt === undefined ? {} : { createdAt: new Date(entry.createdAt) }),
+        ...(entry.updatedAt === undefined ? {} : { updatedAt: new Date(entry.updatedAt) }),
       });
       await options.protectedContent?.writeDatabaseEntryValues(options.tx, {
         entryId: entry.entryId,
