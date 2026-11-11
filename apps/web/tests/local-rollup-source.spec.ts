@@ -99,3 +99,39 @@ describe("canonical rollup sources", () => {
     expect(result.rollupRelations).toEqual({ [relation.id]: [second] });
   });
 });
+
+describe("shared local rollup reads", () => {
+  it("shares one in-flight scan between surfaces and reads fresh data afterwards", async () => {
+    let reads = 0;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const service = {
+      listDatabases: async () => {
+        reads += 1;
+        await gate;
+        return [{ itemId: owner, sourceId: first, definition: { properties: [number(10)] } }];
+      },
+      getItems: async () => [{ id: owner, lifecycle: "active" }],
+      getDatabase: async () => ({
+        itemId: owner,
+        sourceId: first,
+        definition: { properties: [number(10)] },
+      }),
+      listDatabaseEntries: async () => [],
+    } as unknown as LocalContentService;
+    // Two surfaces mounting together must not scan the workspace twice.
+    const together = Promise.all([
+      loadLocalRollupContext(service),
+      loadLocalRollupContext(service),
+    ]);
+    release?.();
+    const [a, b] = await together;
+    expect(reads).toBe(1);
+    expect(a).toBe(b);
+    // A later mount still reads fresh data rather than reusing a stale scan.
+    await loadLocalRollupContext(service);
+    expect(reads).toBe(2);
+  });
+});

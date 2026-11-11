@@ -48,6 +48,16 @@ Passe du 11 novembre 2026. Arbre de travail préexistant préservé ; aucun rese
   2. Deux sources dans le même conteneur : la propriété de la source principale n'est **pas** proposée, seule celle de la source secondaire l'est ; l'entrée principale n'est pas sélectionnable ; somme = 17 après rechargement.
 - Captures expurgées (données de test) : `evidence/candidate/relation-settings-light.png`, `relation-limit-light.png`, `relation-source-search-light.png`, `relation-values-light.png`, `relation-values-dark.png`, `relation-values-dark-390.png`, `relation-values-dark-320.png`.
 
+### Coût local
+
+Le contexte d'agrégation local scanne toutes les sources et leurs entrées. Les
+surfaces qui se montent ensemble (volet d'entrée et son aperçu, vue et panneau)
+partagent désormais **une seule lecture en cours** au lieu d'en lancer une
+chacune ; un montage ultérieur relit des données fraîches, donc l'invalidation
+reste explicite et rien n'est servi depuis un cache périmé. Test dédié dans
+`apps/web/tests/local-rollup-source.spec.ts` (une lecture pour deux appels
+concurrents, une nouvelle lecture ensuite).
+
 ### Comparaison chiffrée référence / candidat (relation)
 
 | Surface | Notion (mesuré) | Candidat (mesuré) | Écart assumé |

@@ -31,10 +31,24 @@ export interface LocalRollupContext extends RollupContext {
  * so a rollup reaching it is reported unavailable instead of being computed
  * from the part that happens to be on this device. Archived entries are known
  * and simply left out.
+ *
+ * Callers that mount together (an entry panel and its peek, a view and its
+ * panel) share one in-flight read instead of each scanning every source. A
+ * later call still reads fresh data, so invalidation stays explicit.
  */
-export async function loadLocalRollupContext(
-  service: LocalContentService,
-): Promise<LocalRollupContext> {
+const inFlight = new WeakMap<LocalContentService, Promise<LocalRollupContext>>();
+
+export function loadLocalRollupContext(service: LocalContentService): Promise<LocalRollupContext> {
+  const pending = inFlight.get(service);
+  if (pending !== undefined) return pending;
+  const read = readLocalRollupContext(service).finally(() => {
+    if (inFlight.get(service) === read) inFlight.delete(service);
+  });
+  inFlight.set(service, read);
+  return read;
+}
+
+async function readLocalRollupContext(service: LocalContentService): Promise<LocalRollupContext> {
   const databases = await service.listDatabases();
   const owners = new Map(
     (await service.getItems([...new Set(databases.map((database) => database.itemId))])).map(
