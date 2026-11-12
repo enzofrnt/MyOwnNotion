@@ -328,3 +328,24 @@ inatteignables par un utilisateur ; l'objectif reste ouvert.
 1. Décider et implémenter R5 sur le sous-scope proposé, sans seconde vérité.
 2. Ajouter un test navigateur des états d'erreur du sélecteur de source et du panneau de relation.
 3. Comparaison Notion/candidat chiffrée et revue visuelle propriétaire.
+
+## Clôture — contrôles exécutés
+
+Sélection issue de l'inventaire de `docs/development.md` pour un diff qui touche
+domaine, contrats, base, API, client local, web et E2E :
+
+- types : les six paquets (`domain`, `contracts`, `database`, `client-core`,
+  `api`, `web`) — verts ;
+- unités : domaine + contrats + client local + web (**3 092**) — verts ;
+- contrats API (**1 586**) et workspace (**343**) sur PostgreSQL — verts ;
+- intégration base (**430**) sur PostgreSQL, `pg_dump` 18 sur le PATH — verte ;
+- Playwright : 4 parcours (agrégation hors ligne, isolation de deux sources,
+  relation à deux sens, édition depuis l'inverse) sur desktop **et** mobile —
+  verts ;
+- format/lint : les fichiers modifiés passent Biome ; le dépôt conserve des
+  diagnostics préexistants hors périmètre (`auth.css`, `board-view`,
+  `database-page`, `value-block`…), non introduits par ce diff.
+
+Limites rappelées : panneau à 262 px (contre 300 px chez Notion) donc ellipse
+sur le libellé ; l'inverse est retirée et non effacée à la suppression d'une
+paire ; captures 320/390 non comparables.
