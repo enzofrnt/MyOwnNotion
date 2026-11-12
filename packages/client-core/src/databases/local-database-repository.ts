@@ -358,9 +358,10 @@ export class LocalDatabaseRepository {
       .toArray();
     const byTarget = new Map<Uuid, Uuid[]>();
     for (const relationship of relationships) {
+      // Property identities are globally unique, so the owner identifier is
+      // not needed here: callers may hold either the source id or the host item.
       if (
         relationship.relationType !== "database:property" ||
-        relationship.metadata["databaseId"] !== partnerSourceId ||
         relationship.metadata["propertyId"] !== propertyId
       )
         continue;

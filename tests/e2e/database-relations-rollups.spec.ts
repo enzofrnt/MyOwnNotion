@@ -286,3 +286,51 @@ test("relation and rollup isolate a second source in the same database container
       .getByRole("gridcell", { name: "Total, 17", exact: true }),
   ).toBeVisible();
 });
+
+test("a two-way relation shows on both sides and reads the same link", async ({ page }) => {
+  test.setTimeout(180_000);
+  await openWorkspace(page);
+  const sourceB = "057 Pair amounts";
+  const sourceA = "057 Pair projects";
+  await createRootDatabase(page, sourceB);
+  await (await createDatabaseEntry(page, "057 Pair target")).click();
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
+  await waitForSynchronized(page);
+  await createRootDatabase(page, sourceA);
+  await addProperty(page, "Related", "Relation");
+  await waitForSynchronized(page);
+  await openPropertyConfiguration(page, "Related");
+  await page.getByRole("button", { name: /Liée à/ }).click();
+  await page.getByRole("textbox", { name: "Rechercher une source de données" }).fill(sourceB);
+  await page.getByRole("menuitem", { name: sourceB, exact: true }).click();
+  await page.locator("[data-relation-pair]").click();
+  await page.getByRole("textbox", { name: "Nom de la propriété liée" }).fill("Projets liés");
+  await page.getByRole("menuitem", { name: "Activer la relation liée" }).click();
+  await closeConfiguration(page);
+  await waitForSynchronized(page);
+  await selectItem(page, sourceB);
+  await expect(
+    page.getByRole("button", { name: "Modifier Projets liés", exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await selectItem(page, sourceA);
+  await (await createDatabaseEntry(page, "057 Pair source")).click();
+  const panel = page.locator(".entry-panel");
+  await panel.getByRole("button", { name: "Related", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "057 Pair target", exact: true }).click();
+  await waitForEntryAutosave(page);
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
+  await selectItem(page, sourceB);
+  await expect(
+    page
+      .getByRole("row")
+      .filter({ hasText: "057 Pair target" })
+      .getByRole("gridcell", { name: "Projets liés, 1 liée", exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await page.reload();
+  await expect(
+    page
+      .getByRole("row")
+      .filter({ hasText: "057 Pair target" })
+      .getByRole("gridcell", { name: "Projets liés, 1 liée", exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+});

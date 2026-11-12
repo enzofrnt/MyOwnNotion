@@ -703,7 +703,7 @@ export async function listDatabaseProjectionRelationships(
  */
 export async function listIncomingDatabasePropertyRelationships(
   executor: Executor,
-  partnerSourceId: Uuid,
+  _partnerSourceId: Uuid,
   partnerPropertyId: Uuid,
   targetEntryIds: readonly Uuid[],
 ): Promise<readonly { readonly sourceItemId: Uuid; readonly targetItemId: Uuid }[]> {
@@ -719,8 +719,8 @@ export async function listIncomingDatabasePropertyRelationships(
         eq(relationships.relationType, "database:property"),
         isNull(relationships.removedRevisionId),
         inArray(relationships.targetItemId, [...targetEntryIds]),
+        // A property identity is unique, so the owning source id is not needed.
         sql`${relationships.metadata}->>'propertyId' = ${partnerPropertyId}`,
-        sql`${relationships.metadata}->>'databaseId' = ${partnerSourceId}`,
       ),
     );
   return rows.map((row) => ({

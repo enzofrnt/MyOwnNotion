@@ -178,10 +178,17 @@ devenait aussi en lecture seule), et `inverseTargetPropertyPairs` ne dérive plu
 l'identité de source depuis `definition.databaseId` (c'est l'item propriétaire,
 pas la source, pour une source secondaire).
 
-**Encore non prouvé** : le parcours navigateur à deux sens n'a pas encore
-affiché le lien dans la cellule inverse (elle montre « — »), et le parcours
-d'agrégation a échoué une fois sur la sélection clavier du sous-menu
-« Somme ». L'interface d'activation reste donc masquée.
+**Résolu** : la cellule inverse affichait « — » parce que la lecture
+d'entrantes filtrait sur `metadata.databaseId`, alors que l'application écrit
+l'identifiant de la **page propriétaire**, pas celui de la source. Les
+identifiants de propriété étant uniques, la lecture ne filtre plus que sur la
+propriété (SQL et Dexie). Un test client-core couvre le cas avec l'identifiant
+réellement écrit.
+
+**Parcours navigateur à deux sens : vert** — activation, colonne inverse sur la
+source partenaire, lien créé côté canonique lu depuis l'inverse, y compris après
+rechargement, sur **desktop et mobile** (3 parcours par projet). L'interface
+d'activation est donc exposée.
 
 Ancienne piste : l'état
 « offline » est posé par `#runOperationalPageSynchronization` quand

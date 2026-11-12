@@ -9,6 +9,7 @@ import {
   type DatabaseDefinition,
   generateUuidV7,
   ownedSourceIdFromItemId,
+  parseDatabaseMutationCommand,
   type Uuid,
 } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -192,5 +193,85 @@ describe("two-way relation pair offline", () => {
       },
     });
     expect(JSON.stringify(refused)).toContain("database.relation.pair-active");
+  });
+});
+
+describe("inverse relation read after a pair", () => {
+  it("returns the partner entry that holds the edge, whatever identifier wrote it", async () => {
+    const a = await database("Read A");
+    const b = await database("Read B");
+    const relationId = generateUuidV7();
+    await apply("database.definition.replace", {
+      databaseId: a.id,
+      baseRevisionId: a.revisionId,
+      definition: {
+        ...a.definition,
+        properties: [
+          ...a.definition.properties,
+          {
+            id: relationId,
+            name: "Related",
+            type: "relation",
+            positionKey: "b",
+            state: "active",
+            config: { cardinality: "many", targetSourceId: b.sourceId },
+          },
+        ],
+      },
+    });
+    const aNow = await databases.getDatabase(a.id);
+    const bNow = await databases.getDatabase(b.id);
+    if (aNow?.definitionRevisionId == null || bNow?.definitionRevisionId == null)
+      throw new Error("fixture");
+    await apply("database.relation.pair.create", {
+      databaseId: a.sourceId,
+      relationPropertyId: relationId,
+      inversePropertyId: generateUuidV7(),
+      inverseName: "Inverse",
+      baseRevisionId: aNow.definitionRevisionId,
+      inverseBaseRevisionId: bNow.definitionRevisionId,
+    });
+    const sourceA = await databases.getDatabase(a.id);
+    const sourceB = await databases.getDatabase(b.id);
+    const targetEntry = generateUuidV7();
+    const sourceEntry = generateUuidV7();
+    for (const [databaseId, id, name] of [
+      [a.id, sourceEntry, "Source entry"],
+      [b.id, targetEntry, "Target entry"],
+    ] as const) {
+      await apply("database.entry.create", {
+        databaseId,
+        id,
+        title: name,
+        values: {},
+        relationTargets: {},
+      });
+    }
+    const targetItem = await db.items.get(targetEntry);
+    if (targetItem === undefined) throw new Error("entry");
+    // The cell edit writes the owner item id, not the source id.
+    await apply("database.entry.values.replace", {
+      databaseId: b.id,
+      entryId: targetEntry,
+      baseRevisionId: targetItem.currentRevisionId,
+      values: {},
+      relationTargets: {},
+    });
+    const sourceItem = await db.items.get(sourceEntry);
+    if (sourceItem === undefined) throw new Error("entry");
+    const linked = await apply("database.entry.values.replace", {
+      databaseId: a.id,
+      entryId: sourceEntry,
+      baseRevisionId: sourceItem.currentRevisionId,
+      values: {},
+      relationTargets: { [relationId]: [targetEntry] },
+    });
+    expect(JSON.stringify(linked)).toContain('"ok":true');
+    expect(sourceA).not.toBeNull();
+    expect(sourceB).not.toBeNull();
+    const incoming = await databases.getIncomingRelationTargets(a.sourceId, relationId, [
+      targetEntry,
+    ]);
+    expect(incoming.get(targetEntry)).toEqual([sourceEntry]);
   });
 });
