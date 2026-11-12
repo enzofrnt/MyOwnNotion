@@ -79,22 +79,29 @@ async function addTextProperty(
     .toBe(true);
   await expect(add).toBeInViewport();
   await add.click();
-  const editor = page.getByRole("form", { name: "Éditeur de propriété" });
-  await editor.getByLabel("Nom", { exact: true }).fill(name);
-  await editor.getByRole("combobox", { name: "Type", exact: true }).selectOption("text");
-  await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
-  await expect(editor).toBeHidden({ timeout: 15_000 });
+  const nameField = page.getByRole("textbox", {
+    name: "Nom de la nouvelle propriété",
+    exact: true,
+  });
+  await expect(nameField).toBeVisible();
+  await nameField.fill(name);
+  await page
+    .locator(".database-new-column__types")
+    .getByRole("button", { name: "Texte", exact: true })
+    .click();
+  await expect(nameField).toBeHidden({ timeout: 15_000 });
   await expect(
     page.getByTestId("database-view-surface").getByRole("columnheader").filter({ hasText: name }),
   ).toBeVisible();
   if (options.online === false) await waitForDatabaseDefinitionIdle(page);
   else await waitForDatabaseDefinitionSaved(page);
-  await page.keyboard.press("Escape");
 }
 
 async function createEntry(page: Page, title: string): Promise<void> {
-  const form = page.locator(".database-entry-create");
-  const button = form.getByRole("button", { name: "Nouvelle page" });
+  // The footer creation form is not rendered for table views; the table's own
+  // add-entry row owns creation there.
+  const form = page.locator(".database-table-add-entry");
+  const button = form.getByRole("button", { name: "Nouvelle page", exact: true });
   await expect(button).toBeEnabled({ timeout: 15_000 });
   await button.click();
   const editor = page.locator(".database-cell-title-input");

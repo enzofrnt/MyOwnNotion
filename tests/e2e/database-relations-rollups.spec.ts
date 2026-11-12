@@ -29,6 +29,8 @@ async function addProperty(page: Page, name: string, type: string) {
   await waitForSynchronized(page);
 }
 
+// The column header menu is this spec's proven way into property settings; the
+// settings sheet stays reserved for the option journeys.
 async function openPropertyConfiguration(page: Page, name: string) {
   const column = page.getByRole("button", { name: `Modifier ${name}`, exact: true });
   await column.focus();
@@ -46,6 +48,9 @@ async function closeConfiguration(page: Page) {
   if (await settings.isVisible()) {
     await settings.getByRole("button", { name: "Fermer", exact: true }).click();
   }
+  // The sheet animates out; a later "Modifier la propriété" click must not race
+  // the still-mounted, detaching rows.
+  await expect(settings).toBeHidden();
 }
 
 async function configureTotal(page: Page) {
@@ -79,7 +84,12 @@ async function chooseSum(page: Page) {
   const more = page.getByRole("menuitem", { name: "Plus d’options", exact: true });
   await more.focus();
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("menuitemradio", { name: "Somme", exact: true })).toBeVisible();
+  const sum = page.getByRole("menuitemradio", { name: "Somme", exact: true });
+  await expect(sum).toBeVisible();
+  // Opening a submenu asserts its items render before focus lands on the first
+  // one. Enter pressed in that gap activates the parent trigger again, so wait
+  // for the documented keyboard focus rather than only for visibility.
+  await expect(sum).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: /^Calculer/ })).toContainText("Somme");
 }

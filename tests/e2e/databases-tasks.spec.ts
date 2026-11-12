@@ -38,29 +38,29 @@ for (const cancel of [false, true]) {
     await openWorkspace(page);
     const databaseName = uniqueName("Stable property");
     await createRootDatabase(page, databaseName);
-    // Naming the owner also renames its source asynchronously. Finish that
-    // distinct edit before measuring the geometry of a property gesture.
-    await expect(
-      page.getByRole("textbox", { name: "Titre de la source", exact: true }),
-    ).toHaveValue(databaseName);
+    // A single owned source no longer repeats its name in the top bar; the
+    // page title carries it. The async owner rename cannot move the header.
+    await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
     await expect(
       page.getByTestId("database-view-surface").getByRole("columnheader").first(),
     ).toBeVisible();
     // Classification is known at creation. A page-editor placeholder above the
     // database would move this action after the owner has already pressed it.
     await expect(page.getByTestId("editor-loading-skeleton")).not.toBeVisible();
-    const addProperty = page.getByRole("button", { name: "Ajouter une propriété" });
-    const stopObserving = await addProperty.evaluateHandle((button) => {
+    // The inline column control swaps its button for a name field and a type
+    // picker; the header cell is the geometry the gesture must stay anchored to.
+    const addCell = page.locator("th.database-table-add-property");
+    const stopObserving = await addCell.evaluateHandle((cell) => {
       const position = () => ({
-        top: button.getBoundingClientRect().top,
-        ownerScrollTop: button.closest(".workspace-main")?.scrollTop ?? 0,
+        top: cell.getBoundingClientRect().top,
+        ownerScrollTop: cell.closest(".workspace-main")?.scrollTop ?? 0,
         pageScrollY: window.scrollY,
       });
       const positions = [position()];
       let connected = true;
       const sample = () => {
-        connected &&= button.isConnected;
-        if (button.isConnected) positions.push(position());
+        connected &&= cell.isConnected;
+        if (cell.isConnected) positions.push(position());
       };
       const observer = new MutationObserver(sample);
       observer.observe(document.body, { subtree: true, childList: true, attributes: true });
@@ -75,9 +75,15 @@ for (const cancel of [false, true]) {
         };
       };
     });
-    await addProperty.click();
-    const form = page.getByRole("form", { name: "Éditeur de propriété" });
-    await form.getByLabel("Nom", { exact: true }).fill("Notes");
+    await page
+      .locator(".database-table-add-property")
+      .getByRole("button", { name: "Ajouter une propriété", exact: true })
+      .click();
+    const name = page.getByRole("textbox", {
+      name: "Nom de la nouvelle propriété",
+      exact: true,
+    });
+    await name.fill("Notes");
     const stability = await stopObserving.evaluate((stop) => stop());
     await stopObserving.dispose();
     const stabilityPath = testInfo.outputPath("property-action-stability.json");
@@ -88,27 +94,32 @@ for (const cancel of [false, true]) {
     });
     expect(stability.connected).toBe(true);
     expect(stability.displacement).toBeLessThanOrEqual(1);
-    const save = form.getByRole("button", { name: "Enregistrer la propriété" });
-    await save.scrollIntoViewIfNeeded();
-    const before = await save.boundingBox();
-    if (before === null) throw new Error("Property save action is not visible");
-    const held = await save.elementHandle();
+    const type = page
+      .locator(".database-new-column__types")
+      .getByRole("button", { name: "Texte", exact: true });
+    await expect(type).toBeVisible();
+    const before = await type.boundingBox();
+    if (before === null) throw new Error("Property type action is not visible");
+    const held = await type.elementHandle();
     await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
     await page.mouse.down();
-    const after = await save.boundingBox();
+    const after = await type.boundingBox();
     expect(await held?.evaluate((element) => element.isConnected)).toBe(true);
     expect(Math.abs((after?.y ?? Number.POSITIVE_INFINITY) - before.y)).toBeLessThanOrEqual(1);
     if (cancel) await page.mouse.move(0, 0);
     await page.mouse.up();
+    const createdColumns = page
+      .getByTestId("database-view-surface")
+      .getByRole("columnheader")
+      .filter({ hasText: "Notes" });
     if (cancel) {
-      await expect(form).toBeVisible();
-      await expect(form.getByLabel("Nom", { exact: true })).toHaveValue("Notes");
-      await save.focus();
+      await expect(name).toBeVisible();
+      await expect(name).toHaveValue("Notes");
+      await expect(createdColumns).toHaveCount(0);
+      await type.focus();
       await page.keyboard.press("Enter");
     }
-    await expect(
-      page.locator(".database-schema").getByText("Notes", { exact: true }),
-    ).toBeVisible();
+    await expect(createdColumns).toHaveCount(1);
     await waitForDatabaseDefinitionSaved(page);
   });
 }
