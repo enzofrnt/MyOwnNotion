@@ -432,6 +432,8 @@ function ColumnPropertyButton({
     readonly menu: DOMRect;
     readonly keyboard: boolean;
   } | null>(null);
+  const [configOpen, setConfigOpen] = useState(false);
+  const configOpenRef = useRef(false);
   const menuElement = useRef<HTMLDivElement>(null);
   const flyoutElement = useRef<HTMLDivElement>(null);
   const submenuTrigger = useRef<HTMLButtonElement | null>(null);
@@ -446,6 +448,9 @@ function ColumnPropertyButton({
     trigger: HTMLButtonElement,
     keyboard = false,
   ): void => {
+    // While the property editor is open the menu stays mounted behind it; a
+    // hover-opened flyout would sit above that editor and intercept its clicks.
+    if (configOpenRef.current) return;
     cancelTimers();
     submenuTrigger.current = trigger;
     const anchor = trigger.getBoundingClientRect();
@@ -457,6 +462,7 @@ function ColumnPropertyButton({
     });
   };
   const hoverSubmenu = (kind: "type" | "sort", trigger: HTMLButtonElement): void => {
+    if (configOpenRef.current) return;
     cancelTimers();
     hoverTimer.current = setTimeout(() => openSubmenu(kind, trigger), 100);
   };
@@ -471,8 +477,6 @@ function ColumnPropertyButton({
     },
     [],
   );
-  const [configOpen, setConfigOpen] = useState(false);
-  const configOpenRef = useRef(false);
   const [configAnchor, setConfigAnchor] = useState<DOMRect | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -598,6 +602,10 @@ function ColumnPropertyButton({
                 aria-expanded={configOpen}
                 onClick={(event) => {
                   configOpenRef.current = true;
+                  // A hover/focus submenu ("Trier", "Type") stays portaled while
+                  // the editor is open and can sit above it; the property editor
+                  // replaces that navigation, so clear it with the menu.
+                  setSubmenu(null);
                   setConfigAnchor(event.currentTarget.getBoundingClientRect());
                   setConfigOpen(true);
                 }}

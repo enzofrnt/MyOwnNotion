@@ -156,6 +156,10 @@
 .database-view-settings {
   position: fixed;
   z-index: 6;
+  /* An explicit width keeps the fixed sheet from stretching to a layout
+     viewport that WebKit can report wider than the visual one; the measured
+     left offset then places it exactly. */
+  width: var(--database-settings-width);
   right: 0;
   bottom: 0;
   visibility: hidden;
