@@ -1135,7 +1135,11 @@ export function DatabasePage({
                 <AppIcon name="filter" size="small" />
               </PopoverTrigger>
             );
-            if (formatPlacement === "chrome") return null;
+            // The header slot hosts this trigger when the surrounding page
+            // provides one (embedded views). A root database rendered in the
+            // chrome placement has no slot: the panel — view toolbar, filters
+            // and task tracking — must still be reachable, next to the compact
+            // filter and sort popovers it complements.
             return toolsSlot === null ? trigger : createPortal(trigger, toolsSlot);
           })()}
           <PopoverContent className="database-settings-panel">
