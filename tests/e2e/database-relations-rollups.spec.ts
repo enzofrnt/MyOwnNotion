@@ -6,6 +6,7 @@ import {
   entryTrigger,
   openWorkspace,
   selectItem,
+  waitForDatabaseDefinitionSaved,
   waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -27,6 +28,7 @@ async function addProperty(page: Page, name: string, type: string) {
     page.getByRole("textbox", { name: "Nom de la nouvelle propriété", exact: true }),
   ).toBeHidden();
   await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
   // The column header follows the acknowledged definition mutation; on a slow
   // engine it can still be pending when the journey opens its settings.
   await expect(
