@@ -119,15 +119,20 @@ n'est pas appelé.
 
 Dans le navigateur, le clic sur le vrai contrôle de valeur (bouton nommé
 « Projets liés » — le libellé « Modifier la propriété … » est un autre bouton)
-ouvre bien le menu et le vide localement, mais **aucune requête POST n'est
-émise** et aucune alerte n'apparaît. Les deux observations sont incompatibles :
-soit la mutation est appliquée sans passer par le transport, soit le clic part
-sur un chemin qui écrit un brouillon. Prochain pas : exposer un compteur de
-débug du service (mutations appliquées vs envoyées) dans le build de dev pour
-trancher, sans toucher au comportement de production. Une correction a été apportée en amont au cas où la lecture
-serveur et la traduction locale ignoraient l'identifiant de propriétaire : les
-deux acceptent désormais l'item propriétaire ou la source, sans effet croisé sur
-une source étrangère.
+ouvre le menu, mais rien n'est envoyé : la lecture directe de l'indexedDB du
+navigateur montre un **outbox vide** après le clic.
+
+Cause trouvée : la traduction du patch cherchait l'arête par
+`(propriétaire, propriété)` alors que l'identifiant de propriétaire varie selon
+la surface (item, source, page hôte), ce qui transformait le retrait en no-op
+silencieux. Corrigé : l'arête est identifiée par sa propriété (identifiants
+uniques) et un retrait que l'appareil ne voit pas est quand même émis pour que
+le serveur tranche.
+
+L'erreur locale est maintenant explicite : « The entry write was not prepared »,
+c'est-à-dire que la clé d'entrée (`databaseEntryPairKey`) n'est pas trouvée —
+même famille de décalage d'identité, dans la recherche de l'entrée cette fois.
+C'est la prochaine correction.
 
 **Rangée « Ajouter une propriété liée »** (nouvelle surface, 2026-11-12) :
 captures `evidence/candidate/pair-row-{light,dark}.png` et
