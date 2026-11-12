@@ -103,11 +103,18 @@ alors que le volet se vide immédiatement). Le défaut n'est donc ni le serveur 
 l'affichage : la commande est appliquée localement mais **jamais envoyée**.
 C'est ce qui explique les deux états contradictoires observés.
 
-La ligne d'outbox **existe bien** après le patch (assertion ajoutée au test
-client-core) : la mise en file est correcte. Il reste donc à comprendre pourquoi
-l'émetteur ne sélectionne pas cette ligne — dépendance de base, filtrage par
-type, ou ordonnancement avec la mutation de création de lien. C'est la seule
-inconnue restante sur ce chemin. Une correction a été apportée en amont au cas où la lecture
+La ligne d'outbox **existe et est en attente** (`Outbox.pending()` la renvoie
+avec `commandType: database.entry.relation.patch`, assertion ajoutée au test
+client-core). Or la boucle de réconciliation soumet toutes les lignes en attente
+sans filtrage par type ni saut de dépendance : si la mutation était réellement
+émise, la requête partirait.
+
+Conclusion : dans le navigateur, la mutation n'est **probablement jamais
+demandée**. Le texte « Aucune page » observé dans le volet ne prouvait donc pas
+le retrait ; il peut venir d'une lecture inverse vide pour une autre raison.
+Prochaine instrumentation : le menu lui-même — vérifier si la mention
+« Modification indisponible » (donc `canToggle === false`) est rendue, ce qui
+expliquerait un clic sans effet. Une correction a été apportée en amont au cas où la lecture
 serveur et la traduction locale ignoraient l'identifiant de propriétaire : les
 deux acceptent désormais l'item propriétaire ou la source, sans effet croisé sur
 une source étrangère.
