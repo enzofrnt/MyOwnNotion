@@ -3,6 +3,7 @@ import {
   type LocalDatabase,
   LocalDatabaseRepository,
   type LocalRecordCodec,
+  Outbox,
   openLocalDatabase,
 } from "@myownnotion/client-core";
 import {
@@ -351,7 +352,8 @@ describe("inverse relation removal", () => {
       baseRevisionId: linkedItem.currentRevisionId,
     });
     expect(JSON.stringify(patched)).toContain('"ok":true');
-    expect(await db.outbox.count()).toBeGreaterThan(0);
+    const queued = await new Outbox(db, codec).pending();
+    expect(queued.map((row) => row.commandType)).toContain("database.entry.relation.patch");
     expect(
       (await databases.getRelationTargetsForEntries(a.id, [sourceEntry])).get(sourceEntry)?.[
         relationId
