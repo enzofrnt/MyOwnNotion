@@ -165,8 +165,12 @@ contrat ajouté (`relation-pair.contract.spec.ts`) crée puis retire une paire v
 `POST /v1/mutations/batch` et passe. En revanche, le parcours navigateur reste
 bloqué : après l'activation, l'état de synchronisation affiché devient
 « offline » alors qu'aucune réponse 4xx/5xx n'est observée (écouteur de
-réponses en place). Le défaut est donc côté client (état après application
-locale de la paire), pas côté serveur. L'interface est masquée tant qu'il n'est
+réponses en place). Le défaut est donc côté client, pas côté serveur. Piste précise : l'état
+« offline » est posé par `#runOperationalPageSynchronization` quand
+`legacyConflictRecovery.recoverAvailable()` signale une panne de transport
+(`apps/web/src/services/local-content.ts:800`), pas par le rejet de la commande.
+Il faut donc instrumenter cette sonde/le transport au moment de l'activation,
+et vérifier si la requête part réellement. L'interface est masquée tant qu'il n'est
 pas isolé.
 
 **Blocage d'exposition précédent** : une fois l'interface d'activation
