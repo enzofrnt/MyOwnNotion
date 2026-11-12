@@ -23,6 +23,28 @@ describe("relation source wire contract", () => {
     expect(wire).toEqual(current);
   });
 
+  it("round-trips the reciprocal property and rejects a malformed one", () => {
+    const legacy = definition();
+    const relation = legacy.properties.find((candidate) => candidate.type === "relation");
+    if (relation?.type !== "relation") throw new Error("Missing fixture relation");
+    const paired = {
+      ...relation,
+      config: {
+        cardinality: "many",
+        targetSourceId: IDS.database,
+        reciprocalPropertyId: IDS.relationB,
+      },
+    };
+    expect(Value.Check(DatabasePropertySchema, JSON.parse(JSON.stringify(paired)))).toBe(true);
+    for (const reciprocalPropertyId of [null, "wrong", "", 42, {}])
+      expect(
+        Value.Check(DatabasePropertySchema, {
+          ...paired,
+          config: { ...paired.config, reciprocalPropertyId },
+        }),
+      ).toBe(false);
+  });
+
   it.each([null, "wrong", "", 42, {}, []])(
     "rejects a malformed source at the HTTP boundary: %j",
     (targetSourceId) => {

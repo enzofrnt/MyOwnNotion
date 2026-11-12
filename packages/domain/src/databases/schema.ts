@@ -165,7 +165,11 @@ function normalizeProperty(property: DatabaseProperty): DatabaseProperty | null 
   if (
     property.type === "relation" &&
     ((property.config.cardinality !== "one" && property.config.cardinality !== "many") ||
-      (property.config.targetSourceId !== undefined && !isUuid(property.config.targetSourceId)))
+      (property.config.targetSourceId !== undefined && !isUuid(property.config.targetSourceId)) ||
+      (property.config.reciprocalPropertyId !== undefined &&
+        !isUuid(property.config.reciprocalPropertyId)) ||
+      (property.config.reciprocalPropertyId !== undefined &&
+        property.config.targetSourceId === undefined))
   ) {
     return null;
   }

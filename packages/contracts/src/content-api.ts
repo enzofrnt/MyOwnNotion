@@ -828,6 +828,7 @@ export const DatabasePropertySchema = Type.Union([
         {
           cardinality: Type.Union([Type.Literal("one"), Type.Literal("many")]),
           targetSourceId: Type.Optional(UuidSchema),
+          reciprocalPropertyId: Type.Optional(UuidSchema),
         },
         { additionalProperties: false },
       ),

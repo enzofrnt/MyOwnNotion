@@ -336,6 +336,12 @@ export type DatabaseProperty =
         readonly cardinality: "one" | "many";
         /** Canonical data source, never its host item or a linked view. Absent on legacy relations. */
         readonly targetSourceId?: Uuid;
+        /**
+         * The other property of a two-way pair. Both sides carry one, pointing
+         * at each other; the edges themselves stay single-truth on the entry
+         * that owns the property.
+         */
+        readonly reciprocalPropertyId?: Uuid;
       };
     });
 

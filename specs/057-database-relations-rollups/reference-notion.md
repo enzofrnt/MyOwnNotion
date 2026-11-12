@@ -86,6 +86,36 @@ Mesures CSS du conteneur ciblé, pas des pixels de l’ombre extérieure :
 
 La coordonnée verticale fractionnaire explique que certains PNG fassent un pixel de plus que la hauteur CSS. Les boîtes `role=menu` rapportent un fond transparent et aucune ombre : ce sont des wrappers, **pas** la preuve d’une surface peinte transparente/sans ombre. Les dialogues de cellule et de propriété liée rapportent un fond blanc, texte `rgb(44, 44, 43)`, ombre en trois couches (valeurs dans les mesures). La taille héritée relevée sur les wrappers est 16 px ; elle ne vaut pas mesure exhaustive de la typographie de chaque libellé. Pas de transposition de ces couleurs en tokens applicatifs dans cette tâche.
 
+## Complément — relation inverse réellement activée (2026-11-12, 11 h 30)
+
+Sur la page de test autorisée, la propriété Relation existante est une
+**auto-relation** (« Liée à : Cette base de données »). Son inverse a été activé
+avec un nom de test, puis désactivé, pour observer le comportement réel.
+
+- État avant activation : troisième rangée « Ajouter une propriété liée » avec la
+  valeur **Désactivé**.
+- Dialogue : interrupteur, champ « Nom de la propriété liée » dont le texte
+  indicatif reprend le nom de la base liée, et un état transitoire
+  « Chargement en cours… ». Le nom saisi est appliqué sans bouton de validation
+  supplémentaire.
+- Après activation, la troisième rangée affiche **Activé**, et la propriété
+  inverse apparaît immédiatement dans la table (en-tête
+  « Relation inverse 057 ») : la paire est visible des deux côtés.
+- **Désactivation** : remettre l'interrupteur sur arrêt puis fermer retire la
+  propriété inverse de la table ; la relation d'origine et sa limite restent, et
+  la rangée redevient « Désactivé ».
+
+Conséquence pour notre conception, alignée sur les décisions du propriétaire :
+la paire est une seule vérité, les deux côtés affichent les mêmes liens, et
+« retirer la relation liée » **supprime la propriété inverse** en conservant la
+relation d'origine et son historique. La suppression directe d'une des deux
+propriétés d'une paire est refusée tant que la paire existe.
+
+Aucune capture supplémentaire n'a été conservée pour cette activation (les
+overlays ne montraient que des libellés déjà relevés) ; aucune donnée
+personnelle n'a été exportée. L'état de la page de test a été remis à
+« Désactivé ».
+
 ## Complément — thème sombre (2026-11-11, 23 h 58)
 
 Même page/vue, même profil, **thème sombre** (`prefers-color-scheme: dark`, viewport

@@ -54,7 +54,42 @@ Tests de domaine, contrats API, intégration PostgreSQL, local/outbox et sync ; 
 - **Menu imbriqué** : les sous-menus d'agrégation se superposent à leur déclencheur (`overlap`, `gutter 0`). Un écart de 6 px laissait le pointeur traverser du vide, fermait le menu et détachait l'élément pendant le clic.
 - **Relations historiques** : tant qu'aucune source n'est configurée, l'ancienne liste de pages est conservée (aucune régression de saisie) ; la validation par source ne s'applique qu'aux relations configurées. Cette compatibilité transitoire est assumée et devra être revue avec R5.
 
-## R5 — relation inverse : décision de report et sous-scope proposé
+## R5 — relation inverse : décisions arrêtées (2026-11-12)
+
+Le propriétaire a tranché : mêmes liens des deux côtés, suppression d'une
+propriété de paire **refusée** tant que la paire existe, écriture depuis les
+deux côtés, et hors ligne autorisé lorsque les deux sources sont présentes
+localement. Notion observé le confirme : la paire apparaît des deux côtés et
+« retirer » supprime la propriété inverse en gardant la relation d'origine.
+
+Contrat retenu :
+
+- `relation.config.reciprocalPropertyId?: Uuid` sur **les deux** propriétés de la
+  paire ; chacune porte aussi `targetSourceId` vers la source de l'autre. Une
+  référence mutuelle et symétrique est vérifiée par la commande de paire, pas
+  seulement par le schéma.
+- **Une seule vérité** : les arêtes `database:property` existantes restent
+  seules autoritaires, orientées par l'entrée qui possède la propriété
+  canonique. Aucune arête miroir, aucun second tableau.
+- Lecture inverse : pour une entrée de B, les cibles de `PB` sont les entrées X
+  de A telles qu'il existe une arête `X --PA--> cette entrée`. Ajout d'une
+  requête d'arêtes entrantes (SQL et Dexie) filtrée par `propertyId` partenaire.
+- Écriture : une commande dédiée patche **une arête** sur l'entrée canonique
+  (`database.entry.relation.patch` : databaseId, entryId, propertyId,
+  targetItemId, present). Depuis l'inverse, l'interface envoie l'entrée X, la
+  propriété PA et la cible Y ; jamais un remplacement global de valeurs.
+- `database.relation.pair.create` crée les deux propriétés dans une seule
+  transaction, avec CAS sur les deux définitions ; échec = aucune écriture.
+- `database.relation.pair.remove` (le « retirer la relation liée » de Notion)
+  supprime la propriété inverse, efface `reciprocalPropertyId` côté canonique et
+  **conserve** la relation et ses liens.
+- Supprimer une propriété qui porte encore `reciprocalPropertyId` est refusé
+  avec un message qui renvoie vers « retirer la relation liée ».
+- Hors ligne : la paire et les écritures d'arêtes passent par le même chemin
+  local que les autres mutations ; si l'une des deux définitions n'est pas
+  disponible localement, l'action est explicitement indisponible.
+
+## Anciennes notes de report (conservées pour l'historique)
 
 **Décision : non implémentée dans cette passe ; aucune option n'est affichée.** La référence Notion n'a jamais activé l'interrupteur : les effets réels (activation sur relation existante, désactivation, propagation du retrait, suppression/restauration) restent inobservés, et le canevas impose une vérité unique et la cohérence hors ligne/concurrence.
 
