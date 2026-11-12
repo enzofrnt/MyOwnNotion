@@ -1308,6 +1308,7 @@ function pairedInverseProperty(input: {
       cardinality: "many",
       targetSourceId: input.sourceId,
       reciprocalPropertyId: input.reciprocalPropertyId,
+      inverseEdges: true,
     },
   };
 }

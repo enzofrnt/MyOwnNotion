@@ -165,7 +165,25 @@ contrat ajouté (`relation-pair.contract.spec.ts`) crée puis retire une paire v
 `POST /v1/mutations/batch` et passe. En revanche, le parcours navigateur reste
 bloqué : après l'activation, l'état de synchronisation affiché devient
 « offline » alors qu'aucune réponse 4xx/5xx n'est observée (écouteur de
-réponses en place). Le défaut est donc côté client, pas côté serveur. Piste précise : l'état
+réponses en place). **Cause trouvée et corrigée** : après une paire, `GET /v1/changes` renvoyait
+500, ce qui mettait la synchronisation hors ligne. Les définitions modifiées par
+la commande de paire n'étaient pas scellées dans le contenu protégé (le plugin
+ne scellait que `database.create`, `definition.replace` et `source.create`).
+Le scellement couvre désormais les deux sources d'une paire ; les 500 du flux
+ont disparu dans le parcours réel.
+
+**Deux corrections de contrat supplémentaires** : un marqueur `inverseEdges`
+distingue le côté qui lit les arêtes du partenaire (sinon le côté canonique
+devenait aussi en lecture seule), et `inverseTargetPropertyPairs` ne dérive plus
+l'identité de source depuis `definition.databaseId` (c'est l'item propriétaire,
+pas la source, pour une source secondaire).
+
+**Encore non prouvé** : le parcours navigateur à deux sens n'a pas encore
+affiché le lien dans la cellule inverse (elle montre « — »), et le parcours
+d'agrégation a échoué une fois sur la sélection clavier du sous-menu
+« Somme ». L'interface d'activation reste donc masquée.
+
+Ancienne piste : l'état
 « offline » est posé par `#runOperationalPageSynchronization` quand
 `legacyConflictRecovery.recoverAvailable()` signale une panne de transport
 (`apps/web/src/services/local-content.ts:800`), pas par le rejet de la commande.

@@ -5,7 +5,7 @@ import { type ApiHarness, createApiHarness, idempotencyHeaders } from "./helpers
 
 let harness: ApiHarness;
 beforeAll(async () => {
-  harness = await createApiHarness();
+  harness = await createApiHarness({ logger: true });
 }, 120_000);
 afterAll(async () => {
   await harness?.close();

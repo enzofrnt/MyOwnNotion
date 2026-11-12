@@ -23,6 +23,7 @@ const definition = {
         cardinality: "many",
         targetSourceId: sourceA,
         reciprocalPropertyId: partnerProperty,
+        inverseEdges: true,
       },
     },
   ],

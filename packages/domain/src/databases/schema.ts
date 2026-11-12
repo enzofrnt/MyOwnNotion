@@ -169,7 +169,9 @@ function normalizeProperty(property: DatabaseProperty): DatabaseProperty | null 
       (property.config.reciprocalPropertyId !== undefined &&
         !isUuid(property.config.reciprocalPropertyId)) ||
       (property.config.reciprocalPropertyId !== undefined &&
-        property.config.targetSourceId === undefined))
+        property.config.targetSourceId === undefined) ||
+      (property.config.inverseEdges !== undefined &&
+        typeof property.config.inverseEdges !== "boolean"))
   ) {
     return null;
   }

@@ -568,6 +568,7 @@ async function prepareRelationPair(
       cardinality: "many",
       targetSourceId: command.databaseId,
       reciprocalPropertyId: relation.id,
+      inverseEdges: true,
     },
   };
   const withColumn = (

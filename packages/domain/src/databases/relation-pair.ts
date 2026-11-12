@@ -102,7 +102,7 @@ export interface InverseRelation {
  */
 export function inverseRelations(definition: DatabaseDefinition): readonly InverseRelation[] {
   return definition.properties.flatMap((property) => {
-    if (!isActiveRelation(property)) return [];
+    if (!isActiveRelation(property) || property.config.inverseEdges !== true) return [];
     const partnerPropertyId = property.config.reciprocalPropertyId;
     const partnerSourceId = property.config.targetSourceId;
     if (partnerPropertyId === undefined || partnerSourceId === undefined) return [];
@@ -118,9 +118,10 @@ export function inverseRelations(definition: DatabaseDefinition): readonly Inver
  * Historical relations without a reciprocal or a target declare no pair.
  */
 export function inverseTargetPropertyPairs(
-  sourceId: Uuid,
+  _sourceId: Uuid,
   definition: DatabaseDefinition,
 ): readonly InverseRelation[] {
-  if (definition.databaseId !== sourceId) return [];
+  // `definition.databaseId` is the owning item, which is not the source
+  // identity for a secondary source; the caller already knows the source.
   return inverseRelations(definition);
 }

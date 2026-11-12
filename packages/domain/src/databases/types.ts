@@ -342,6 +342,11 @@ export type DatabaseProperty =
          * that owns the property.
          */
         readonly reciprocalPropertyId?: Uuid;
+        /**
+         * `true` on the property whose links are stored on the partner entry.
+         * Absent on the canonical side, which owns the edges itself.
+         */
+        readonly inverseEdges?: boolean;
       };
     });
 

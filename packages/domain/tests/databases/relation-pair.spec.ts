@@ -78,13 +78,20 @@ describe("two-way relation pair", () => {
   });
 
   it("lists only the properties whose values live on the partner side", () => {
+    const inverseA = relation(A.id, {
+      targetSourceId: IDS.database,
+      reciprocalPropertyId: B.id,
+      inverseEdges: true,
+    });
     const source = {
       ...definition(),
-      properties: [A, relation(IDS.relation, { targetSourceId: IDS.database })],
+      properties: [inverseA, relation(IDS.relation, { targetSourceId: IDS.database })],
     };
     expect(inverseRelations(source)).toEqual([
       { propertyId: A.id, partnerPropertyId: B.id, partnerSourceId: IDS.database },
     ]);
+    // The canonical side keeps its own edges and is not an inverse read.
+    expect(inverseRelations({ ...definition(), properties: [A] })).toEqual([]);
   });
 
   it("keeps the field through a definition round trip and rejects malformed values", () => {
@@ -144,12 +151,22 @@ describe("two-way relation pair", () => {
   it("reads inverse target pairs only from the definition of the requested source", () => {
     const sourceA = IDS.database;
     const sourceB = asUuid("018f0000-0000-7000-8000-000000000099");
-    const paired = relation(A.id, { targetSourceId: sourceB, reciprocalPropertyId: B.id });
+    const paired = relation(A.id, {
+      targetSourceId: sourceB,
+      reciprocalPropertyId: B.id,
+      inverseEdges: true,
+    });
     const source = { ...definition(), properties: [paired] };
     expect(inverseTargetPropertyPairs(sourceA, source)).toEqual([
       { propertyId: A.id, partnerPropertyId: B.id, partnerSourceId: sourceB },
     ]);
-    expect(inverseTargetPropertyPairs(IDS.relation, source)).toEqual([]);
+    // The caller's source identity is not re-derived from the definition.
+    expect(inverseTargetPropertyPairs(IDS.relation, source)).toEqual([
+      { propertyId: A.id, partnerPropertyId: B.id, partnerSourceId: sourceB },
+    ]);
+    expect(inverseTargetPropertyPairs(IDS.relation, { ...definition(), properties: [B] })).toEqual(
+      [],
+    );
   });
 
   it("keeps historical relations without a reciprocal out of inverse reads", () => {
