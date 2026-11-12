@@ -33,6 +33,13 @@ export function RelationDraftMenu({
     property.config.targetSourceId === undefined ? fallbackOptions : candidates.options;
   const selected = new Set(Array.isArray(input) ? input : []);
   const catalog = useRelationCatalog();
+  // A relation's options must come from *its* configured source: the inverse
+  // side targets the partner source, not the one the surrounding table shows.
+  const discovered = useRelationCandidates(property.config.targetSourceId);
+  const liveOptions =
+    property.config.targetSourceId !== undefined && discovered.options.length > 0
+      ? discovered.options
+      : options;
   const partnerSourceId = property.config.targetSourceId;
   const partnerPropertyId = property.config.reciprocalPropertyId;
   const inverse = property.config.inverseEdges === true;
@@ -182,7 +189,7 @@ export function RelationDraftMenu({
             {patchError}
           </p>
         )}
-        {options
+        {liveOptions
           .filter((option) => option.label.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
           .map((option) => (
             <MenuItem

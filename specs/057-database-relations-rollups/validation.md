@@ -74,10 +74,17 @@ navigateur) : le menu de la propriété inverse n'est plus en lecture seule ; il
 écrit l'arête du partenaire via `database.entry.relation.patch` avec la page
 courante comme cible, en utilisant l'identifiant d'entrée transmis par la table
 et le volet. La construction de la commande est extraite
-(`inverse-relation-edit.ts`) et testée (2 cas). Le pas E2E correspondant n'a pas
-abouti : dans le volet de l'entrée cible, le bouton de valeur de la propriété
-inverse n'a pas été trouvé (`Projets liés`) ; il reste à vérifier ce que le
-volet rend pour cette propriété.
+(`inverse-relation-edit.ts`) et testée (2 cas). Le menu charge désormais les
+candidats de **sa** source configurée (`useRelationCandidates(targetSourceId)`)
+au lieu de la liste partagée du conteneur : sans cela une propriété inverse
+n'offrait aucune page.
+
+Le pas E2E reste bloqué, plus précisément : dans le volet de l'entrée cible, le
+bouton de valeur « Projets liés » **existe** (relevé des boutons du volet :
+`["Ajouter une icône", "", "Projets liés", "Ajouter une propriété"]`), mais le
+menu ne présente aucune `menuitemcheckbox`. Il faut donc vérifier quel popup ce
+bouton ouvre dans le volet — probablement l'éditeur de propriété et non le menu
+de valeurs.
 
 **Rangée « Ajouter une propriété liée »** (nouvelle surface, 2026-11-12) :
 captures `evidence/candidate/pair-row-{light,dark}.png` et
