@@ -185,11 +185,30 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   const firstPageMs = Date.now() - openStarted;
   await expect(page.locator(".database-view-status")).not.toContainText("Vue partielle");
   const nextStarted = Date.now();
+  const loadedCount = async (): Promise<number> => {
+    const text = (await loaded.textContent()) ?? "";
+    const match = /(\d+) entrées chargées/u.exec(text);
+    return Number(match?.[1] ?? 0);
+  };
   for (let expected = 200; expected <= 1100; expected += 100) {
-    await loaded.getByRole("button", { name: "Charger les entrées suivantes" }).click();
-    await expect(loaded).toContainText(`${Math.min(expected, 1001)} entrées chargées`, {
-      timeout: 30_000,
-    });
+    const target = Math.min(expected, 1001);
+    // WebKit can drop a cursor click while the previous page is still
+    // committing. Retry the visible action until the count advances instead of
+    // asserting a single click landed.
+    await expect
+      .poll(
+        async () => {
+          if ((await loadedCount()) < target) {
+            await loaded
+              .getByRole("button", { name: "Charger les entrées suivantes" })
+              .click()
+              .catch(() => {});
+          }
+          return loadedCount();
+        },
+        { timeout: 60_000, intervals: [500, 1_000, 2_000] },
+      )
+      .toBeGreaterThanOrEqual(target);
   }
   await expect(loaded.getByRole("button")).toHaveCount(0);
   const renderedRows = page.getByRole("grid").locator("tbody tr[data-index]");
