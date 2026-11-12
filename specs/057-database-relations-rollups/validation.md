@@ -112,9 +112,19 @@ sans filtrage par type ni saut de dépendance : si la mutation était réellemen
 Conclusion : dans le navigateur, la mutation n'est **probablement jamais
 demandée**. Le texte « Aucune page » observé dans le volet ne prouvait donc pas
 le retrait ; il peut venir d'une lecture inverse vide pour une autre raison.
-Prochaine instrumentation : le menu lui-même — vérifier si la mention
-« Modification indisponible » (donc `canToggle === false`) est rendue, ce qui
-expliquerait un clic sans effet. Une correction a été apportée en amont au cas où la lecture
+Instrumentation suivante, faite : un test unitaire du menu (avec catalogue
+simulé) prouve que le gestionnaire appelle bien
+`database.entry.relation.patch` avec le bon propriétaire, et que `onChange`
+n'est pas appelé.
+
+Dans le navigateur, le clic sur le vrai contrôle de valeur (bouton nommé
+« Projets liés » — le libellé « Modifier la propriété … » est un autre bouton)
+ouvre bien le menu et le vide localement, mais **aucune requête POST n'est
+émise** et aucune alerte n'apparaît. Les deux observations sont incompatibles :
+soit la mutation est appliquée sans passer par le transport, soit le clic part
+sur un chemin qui écrit un brouillon. Prochain pas : exposer un compteur de
+débug du service (mutations appliquées vs envoyées) dans le build de dev pour
+trancher, sans toucher au comportement de production. Une correction a été apportée en amont au cas où la lecture
 serveur et la traduction locale ignoraient l'identifiant de propriétaire : les
 deux acceptent désormais l'item propriétaire ou la source, sans effet croisé sur
 une source étrangère.
