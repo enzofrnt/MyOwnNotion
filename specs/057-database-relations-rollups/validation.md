@@ -128,16 +128,25 @@ Preuves : domaine + contrats + client-core **130 fichiers, 1 934 tests** ;
 `database-integration` **426 tests** sur PostgreSQL jetable ; `tsc` vert sur
 domaine, contrats, database, client-core, API.
 
-Ajouté depuis : application **hors ligne** d'un patch d'arête (traduction vers
+Ajouté depuis : lecture inverse **serveur** (requête indexée par cible,
+filtrée sur la source et la propriété partenaires) et dans le **contexte
+d'agrégation local**, donc les deux côtés affichent les mêmes liens et une
+agrégation sur la propriété inverse calcule la même valeur. Web complet
+(178 fichiers, 1 148 tests) et projection API (21 tests) verts.
+
+Ajouté précédemment : application **hors ligne** d'un patch d'arête (traduction vers
 le remplacement de valeurs existant, idempotente, testée sur la vraie fonction)
 et **lecture inverse** dans le chargement de vue local (arêtes entrantes du
 partenaire fusionnées, carte d'entrée du appelant non mutée ; 2 tests).
 
-**Non fait, donc R5 non livrable :** la projection locale et l'outbox ne
-connaissent pas encore ces commandes (elles sont refusées hors ligne), la
-lecture inverse n'est pas branchée dans l'API ni en local, et aucune interface
-n'expose la paire. Les commandes ne sont atteignables par aucun utilisateur ;
-l'objectif reste ouvert.
+**Non fait, donc R5 non livrable :** aucune interface n'expose la paire —
+il manque la rangée « Ajouter une propriété liée » (valeurs Désactivé/Activé)
+et le passage de l'identité de la source courante jusqu'au panneau de
+propriété, puis l'édition depuis le côté inverse et la preuve Playwright à deux
+sens (activation, mêmes liens des deux côtés, ajout depuis l'inverse, hors
+ligne). La création/retrait de paire n'est pas appliquée hors ligne : c'est une
+écriture de schéma, à traiter explicitement. Les commandes restent
+inatteignables par un utilisateur ; l'objectif reste ouvert.
 
 ## Limites et non-faits
 
