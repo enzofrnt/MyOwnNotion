@@ -1,11 +1,12 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { Locator, Page } from "@playwright/test";
 /**
  * Capture a reference or candidate UI surface for the Notion parity workflow.
  *
  * Usage:
- *   bun scripts/notion-parity/capture.mjs \
+ *   bun scripts/notion-parity/capture.ts \
  *     --profile .notion-lab/profile \
  *     --url https://app.notion.com/p/... \
  *     --steps scripts/notion-parity/recipes/notion-block-menu.json \
@@ -18,38 +19,172 @@ import { resolve } from "node:path";
  */
 import { chromium } from "@playwright/test";
 
-function parseArgs(argv) {
-  const args = {};
+/** The ARIA role union Playwright accepts, without duplicating its list here. */
+type AriaRole = Parameters<Page["getByRole"]>[0];
+
+/** `--flag value` yields the value; `--flag` alone yields `true`. */
+type CliValue = string | true;
+type CliArgs = Record<string, CliValue>;
+
+/** One interaction step read from a `recipes/<name>.json` file. */
+interface Step {
+  readonly action?: string;
+  readonly selector?: string;
+  readonly role?: AriaRole;
+  readonly name?: string;
+  readonly exact?: boolean;
+  readonly ms?: number;
+  readonly x?: number;
+  readonly y?: number;
+  readonly button?: "left" | "right" | "middle";
+  readonly minX?: number;
+  readonly force?: boolean;
+  readonly key?: string;
+  readonly script?: string;
+}
+
+interface Viewport {
+  readonly width: number;
+  readonly height: number;
+}
+
+interface SnapshotBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Computed geometry and styles of one DOM element, measured in the page. */
+interface Snapshot {
+  readonly tag: string;
+  readonly role: string | null;
+  readonly ariaLabel: string | null;
+  readonly text: string;
+  readonly box: SnapshotBox;
+  readonly styles: Record<string, string>;
+}
+
+interface CapturedSvg {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly viewBox: string | null;
+  readonly className: string | null;
+}
+
+interface CapturedText {
+  readonly text: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly fontSize: string;
+  readonly fontFamily: string;
+  readonly fontWeight: string;
+  readonly lineHeight: string;
+  readonly color: string;
+}
+
+interface CapturedContent {
+  readonly svgs: CapturedSvg[];
+  readonly text: CapturedText[];
+  readonly disabled: boolean;
+  readonly expanded: string | null;
+  readonly hasPopup: string | null;
+}
+
+interface CapturedItem extends Snapshot {
+  readonly gapBefore: number | null;
+  readonly content: CapturedContent;
+  readonly hover: Snapshot | null;
+}
+
+function parseArgs(argv: readonly string[]): CliArgs {
+  const parsed: CliArgs = {};
   for (let index = 2; index < argv.length; index += 1) {
     const key = argv[index];
-    if (!key.startsWith("--")) continue;
+    if (key === undefined || !key.startsWith("--")) continue;
     const name = key.slice(2);
     const value = argv[index + 1];
-    if (value === undefined || value.startsWith("--")) {
-      args[name] = true;
-    } else {
-      args[name] = value;
+    if (value === undefined || value.startsWith("--")) parsed[name] = true;
+    else {
+      parsed[name] = value;
       index += 1;
     }
   }
-  return args;
+  return parsed;
+}
+
+function stringArg(value: CliValue | undefined, fallback: string): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function parseViewport(value: CliValue | undefined): Viewport {
+  const fallback: Viewport = { width: 1440, height: 1000 };
+  if (typeof value !== "string") return fallback;
+  const parsed: unknown = JSON.parse(value);
+  if (typeof parsed !== "object" || parsed === null) return fallback;
+  const record = parsed as Record<string, unknown>;
+  const width = record["width"];
+  const height = record["height"];
+  return {
+    width: typeof width === "number" ? width : fallback.width,
+    height: typeof height === "number" ? height : fallback.height,
+  };
+}
+
+function requireNumber(step: Step, key: "x" | "y"): number {
+  const value = step[key];
+  if (typeof value !== "number") {
+    throw new Error(`Step ${step.action ?? "?"} needs a numeric "${key}": ${JSON.stringify(step)}`);
+  }
+  return value;
+}
+
+function requireString(step: Step, key: "key" | "script" | "name"): string {
+  const value = step[key];
+  if (typeof value !== "string") {
+    throw new Error(`Step ${step.action ?? "?"} needs a "${key}": ${JSON.stringify(step)}`);
+  }
+  return value;
+}
+
+function requireRole(step: Step): AriaRole {
+  if (step.role === undefined) {
+    throw new Error(`Step ${step.action ?? "?"} needs a role: ${JSON.stringify(step)}`);
+  }
+  return step.role;
 }
 
 const args = parseArgs(process.argv);
-const url = args.url;
-const selector = args.selector ?? "[role=menu]";
-const itemSelector = args.item ?? "[role=menuitem]";
-const out = args.out;
-const profile = args.profile ?? ".notion-lab/profile";
-const stepsPath = args.steps;
-if (!url || !out) {
+const urlArg = args["url"];
+const outArg = args["out"];
+if (
+  urlArg === undefined ||
+  urlArg === true ||
+  urlArg === "" ||
+  outArg === undefined ||
+  outArg === true ||
+  outArg === ""
+) {
   console.error("Missing --url or --out");
   process.exit(2);
 }
+const url = urlArg;
+const out = outArg;
+const selector = stringArg(args["selector"], "[role=menu]");
+const itemSelector = stringArg(args["item"], "[role=menuitem]");
+const profile = stringArg(args["profile"], ".notion-lab/profile");
+const stepsPath = args["steps"];
 
-const stepsFile = stepsPath ? JSON.parse(await readFile(stepsPath, "utf8")) : [];
-const steps = Array.isArray(stepsFile) ? stepsFile : (stepsFile.steps ?? []);
-const viewport = args.viewport ? JSON.parse(args.viewport) : { width: 1440, height: 1000 };
+const stepsFile: unknown =
+  typeof stepsPath === "string" ? JSON.parse(await readFile(stepsPath, "utf8")) : [];
+const steps: readonly Step[] = Array.isArray(stepsFile)
+  ? (stepsFile as readonly Step[])
+  : ((stepsFile as { readonly steps?: readonly Step[] }).steps ?? []);
+const viewport = parseViewport(args["viewport"]);
 
 const context = await chromium.launchPersistentContext(resolve(profile), {
   headless: true,
@@ -60,9 +195,9 @@ const context = await chromium.launchPersistentContext(resolve(profile), {
 });
 const page = context.pages()[0] ?? (await context.newPage());
 await page.goto(url, { waitUntil: "domcontentloaded" });
-await page.waitForTimeout(Number(args.wait ?? 3000));
+await page.waitForTimeout(Number(args["wait"] ?? 3000));
 
-async function locatorFor(step) {
+async function locatorFor(step: Step): Promise<Locator> {
   if (step.selector) return page.locator(step.selector).first();
   if (step.role && step.name) {
     return page
@@ -79,14 +214,16 @@ for (const step of steps) {
   if (step.action === "wait") {
     await page.waitForTimeout(step.ms ?? 500);
   } else if (step.action === "mouseMove") {
-    await page.mouse.move(step.x, step.y);
+    await page.mouse.move(requireNumber(step, "x"), requireNumber(step, "y"));
     await page.waitForTimeout(step.ms ?? 300);
   } else if (step.action === "mouseClick") {
-    await page.mouse.click(step.x, step.y, { button: step.button ?? "left" });
+    await page.mouse.click(requireNumber(step, "x"), requireNumber(step, "y"), {
+      button: step.button ?? "left",
+    });
     await page.waitForTimeout(step.ms ?? 500);
   } else if (step.action === "clickVisibleRole") {
-    const candidates = page.getByRole(step.role, {
-      name: step.name,
+    const candidates = page.getByRole(requireRole(step), {
+      name: requireString(step, "name"),
       exact: step.exact ?? false,
     });
     const index = await candidates.evaluateAll(
@@ -113,17 +250,17 @@ for (const step of steps) {
     await target.click({ button: "right", force: true });
     await page.waitForTimeout(step.ms ?? 500);
   } else if (step.action === "press") {
-    await page.keyboard.press(step.key);
+    await page.keyboard.press(requireString(step, "key"));
     await page.waitForTimeout(step.ms ?? 300);
   } else if (step.action === "evaluate") {
-    await page.evaluate(step.script);
+    await page.evaluate(requireString(step, "script"));
     await page.waitForTimeout(step.ms ?? 300);
   } else {
     throw new Error(`Unknown step ${step.action}`);
   }
 }
 
-const snapshotStyle = (element) => {
+const snapshotStyle = (element: Element): Snapshot => {
   const style = getComputedStyle(element);
   const rect = element.getBoundingClientRect();
   const keys = [
@@ -153,8 +290,8 @@ const snapshotStyle = (element) => {
     "letterSpacing",
     "opacity",
     "transition",
-  ];
-  const styles = {};
+  ] as const;
+  const styles: Record<string, string> = {};
   for (const key of keys) styles[key] = style[key];
   return {
     tag: element.tagName.toLowerCase(),
@@ -171,25 +308,26 @@ const snapshotStyle = (element) => {
   };
 };
 
-let surface;
+let surface: Locator;
 if (selector === "auto") {
   const marked = await page.evaluate((itemsSelector) => {
-    const visible = [...document.querySelectorAll(itemsSelector)].filter((element) => {
+    const visible = Array.from(document.querySelectorAll(itemsSelector)).filter((element) => {
       const rect = element.getBoundingClientRect();
       return rect.width > 0 && rect.height > 0;
     });
-    if (visible.length === 0) return false;
-    const ancestors = (element) => {
-      const chain = [];
-      let current = element;
+    const ancestors = (element: Element): Element[] => {
+      const chain: Element[] = [];
+      let current: Element | null = element;
       while (current !== null) {
         chain.unshift(current);
         current = current.parentElement;
       }
       return chain;
     };
-    let lca = ancestors(visible[0]);
-    for (const element of visible.slice(1)) {
+    const [first, ...rest] = visible;
+    if (first === undefined) return false;
+    let lca = ancestors(first);
+    for (const element of rest) {
       const chain = ancestors(element);
       let index = 0;
       while (index < lca.length && index < chain.length && lca[index] === chain[index]) {
@@ -222,7 +360,7 @@ const occlusion = await page.evaluate(
     const element = document.querySelector(surfaceSelector);
     if (element === null) return null;
     const rect = element.getBoundingClientRect();
-    const points = [
+    const points: ReadonlyArray<readonly [number, number]> = [
       [rect.left + rect.width / 2, rect.top + rect.height / 2],
       [rect.left + 16, rect.top + 16],
       [rect.right - 16, rect.top + 16],
@@ -238,7 +376,7 @@ const occlusion = await page.evaluate(
         hit:
           hit === null
             ? null
-            : `${hit.tagName.toLowerCase()}.${hit.className.toString().split(" ")[0]}`,
+            : `${hit.tagName.toLowerCase()}.${hit.className.toString().split(" ")[0] ?? ""}`,
       };
     });
     return {
@@ -254,12 +392,12 @@ const container = await surface.evaluate(snapshotStyle);
 const containerHtml = await surface.evaluate((element) => element.outerHTML);
 const items = page.locator(itemSelector);
 const itemCount = await items.count();
-const capturedItems = [];
+const capturedItems: CapturedItem[] = [];
 for (let index = 0; index < itemCount; index += 1) {
   const item = items.nth(index);
   if (!(await item.isVisible())) continue;
   const base = await item.evaluate(snapshotStyle);
-  let hover = null;
+  let hover: Snapshot | null = null;
   try {
     await item.hover({ force: true });
     await page.waitForTimeout(300);
@@ -269,8 +407,8 @@ for (let index = 0; index < itemCount; index += 1) {
   }
   const content = await item.evaluate((element) => {
     const rect = element.getBoundingClientRect();
-    const relative = (value) => Math.round(value * 100) / 100;
-    const svgs = [...element.querySelectorAll("svg")].map((svg) => {
+    const relative = (value: number): number => Math.round(value * 100) / 100;
+    const svgs = Array.from(element.querySelectorAll("svg")).map((svg) => {
       const box = svg.getBoundingClientRect();
       return {
         x: relative(box.x - rect.x),
@@ -281,8 +419,8 @@ for (let index = 0; index < itemCount; index += 1) {
         className: svg.getAttribute("class"),
       };
     });
-    const text = [];
-    for (const node of element.querySelectorAll("*")) {
+    const text: CapturedText[] = [];
+    for (const node of Array.from(element.querySelectorAll("*"))) {
       if (node.children.length !== 0 || (node.textContent ?? "").trim() === "") continue;
       const box = node.getBoundingClientRect();
       const style = getComputedStyle(node);
@@ -303,13 +441,14 @@ for (let index = 0; index < itemCount; index += 1) {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
       const content = (node.textContent ?? "").trim();
-      if (content === "" || node.parentElement === null) continue;
-      if (node.parentElement.children.length > 0) continue;
+      const parent = node.parentElement;
+      if (content === "" || parent === null) continue;
+      if (parent.children.length > 0) continue;
       const range = document.createRange();
       range.selectNodeContents(node);
       const box = range.getBoundingClientRect();
       if (box.width === 0 || box.height === 0) continue;
-      const style = getComputedStyle(node.parentElement);
+      const style = getComputedStyle(parent);
       text.push({
         text: content,
         x: relative(box.x - rect.x),
@@ -413,8 +552,8 @@ const lines = [
   "| # | Texte | Rôle | Taille | Repos (fond / texte) | Survol (fond / texte) |",
   "| --- | --- | --- | --- | --- | --- |",
   ...capturedItems.map((item, index) => {
-    const hover = item.hover?.styles;
-    return `| ${index + 1} | ${item.text.replace(/\|/g, "\\|")} | ${item.role ?? ""} | ${item.box.width}×${item.box.height} | ${item.styles.backgroundColor} / ${item.styles.color} | ${hover?.backgroundColor ?? "—"} / ${hover?.color ?? "—"} |`;
+    const hoverStyles = item.hover?.styles;
+    return `| ${index + 1} | ${item.text.replace(/\|/g, "\\|")} | ${item.role ?? ""} | ${item.box.width}×${item.box.height} | ${item.styles["backgroundColor"]} / ${item.styles["color"]} | ${hoverStyles?.["backgroundColor"] ?? "—"} / ${hoverStyles?.["color"] ?? "—"} |`;
   }),
   "",
   "## HTML du conteneur",

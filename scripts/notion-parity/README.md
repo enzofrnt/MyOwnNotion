@@ -70,7 +70,7 @@ weight, oversized/misplaced icons and non-finite geometry now fail rather than
 silently passing. Regression tests:
 
 ```sh
-node --test scripts/notion-parity/compare.test.mjs
+bun test scripts/notion-parity/compare.test.ts
 ```
 
 ## Visual-form review

@@ -5,7 +5,46 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
 import { test } from "node:test";
 
-function fixture() {
+// The fixture mirrors a real `capture.json` but stays writable by the test
+// mutators, which delete or change one measurement per case.
+interface FixtureBox {
+  x: number;
+  y: number;
+  width: number;
+  height?: number;
+}
+
+interface FixtureSvg {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface FixtureText {
+  x: number;
+  y: number;
+  fontSize: string;
+  fontWeight: string;
+  lineHeight: string;
+  fontFamily?: string;
+}
+
+interface FixtureItem {
+  text: string;
+  box: FixtureBox;
+  gapBefore: number | null;
+  content: { svgs: [FixtureSvg]; text: [FixtureText] };
+  hover: { styles: { backgroundColor: string; color: string } };
+}
+
+interface Fixture {
+  url: string;
+  container: { styles: Record<string, string> };
+  items: [FixtureItem];
+}
+
+function fixture(): Fixture {
   return {
     url: "http://example.test/menu",
     container: { styles: {} },
@@ -33,7 +72,7 @@ function fixture() {
   };
 }
 
-function compare(mutator) {
+function compare(mutator: (value: Fixture) => void): number | null {
   const directory = mkdtempSync(join(tmpdir(), "myownnotion-parity-test-"));
   try {
     const reference = fixture();
@@ -44,7 +83,7 @@ function compare(mutator) {
     const result = spawnSync(
       process.execPath,
       [
-        resolve("scripts/notion-parity/compare.mjs"),
+        resolve("scripts/notion-parity/compare.ts"),
         "--reference",
         join(directory, "reference.json"),
         "--candidate",

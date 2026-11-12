@@ -8,7 +8,7 @@
 - Boutons de menu de base et réglages de propriété alignés sur le même survol.
 - Clic droit poignée : interception `contextmenu` sur le déclencheur, ouverture du
   menu riche, sans ouvrir le menu de texte.
-- Outil : `scripts/notion-parity/capture.mjs` (CLI recette + surface auto) et
-  `compare.mjs` ; skill `.agents/skills/notion-parity/SKILL.md` ; guide
+- Outil : `scripts/notion-parity/capture.ts` (CLI recette + surface auto) et
+  `compare.ts` ; skill `.agents/skills/notion-parity/SKILL.md` ; guide
   `docs/design/notion-parity.md`.
 - Preuve : captures, comparaison, tokens UI lab.

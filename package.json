@@ -70,9 +70,9 @@
     "notion:login": "bun scripts/notion-lab/login.ts",
     "notion:capture": "bun scripts/notion-lab/capture.ts",
     "notion:extract": "bun scripts/notion-lab/extract.ts",
-    "notion:parity:capture": "bun scripts/notion-parity/capture.mjs",
-    "notion:parity:compare": "bun scripts/notion-parity/compare.mjs",
-    "notion:parity:verify": "bun scripts/notion-parity/verify.mjs"
+    "notion:parity:capture": "bun scripts/notion-parity/capture.ts",
+    "notion:parity:compare": "bun scripts/notion-parity/compare.ts",
+    "notion:parity:verify": "bun scripts/notion-parity/verify.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
