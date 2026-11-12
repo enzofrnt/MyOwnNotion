@@ -16,6 +16,7 @@ import type { LocalContentService } from "../../../services/local-content.ts";
 import { AsyncState, Button } from "../../../ui/primitives/index.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../../databases/database-page.tsx";
 import { definitionViewsPreservingPresentation } from "../../databases/definition-view-merge.ts";
+import { withInverseRelationTargets } from "../../databases/local-inverse-relations.ts";
 import {
   hasDerivedProperties,
   type LocalRollupContext,
@@ -76,10 +77,17 @@ export async function loadView(
       ? entryRows.filter((membership) => (membership.sourceId ?? primarySourceId) === view.sourceId)
       : [];
   const ids = memberships.map((entry) => entry.entryItemId);
-  const [items, relations] = await Promise.all([
+  const [items, outgoing] = await Promise.all([
     service.getItems(ids),
     service.getDatabaseEntryRelations(source.itemId, ids),
   ]);
+  // Two-way relations keep their edges on the partner entry: read them by target.
+  const relations = await withInverseRelationTargets({
+    service,
+    source,
+    entryIds: ids,
+    relations: outgoing,
+  });
   const states = new Map<Uuid, DatabaseRowSyncState>();
   for (const [mutations, state] of [
     [queued, "pending"],
