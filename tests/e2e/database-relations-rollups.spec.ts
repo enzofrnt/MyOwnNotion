@@ -27,12 +27,20 @@ async function addProperty(page: Page, name: string, type: string) {
     page.getByRole("textbox", { name: "Nom de la nouvelle propriété", exact: true }),
   ).toBeHidden();
   await waitForSynchronized(page);
+  // The column header follows the acknowledged definition mutation; on a slow
+  // engine it can still be pending when the journey opens its settings.
+  await expect(
+    page.getByTestId("database-view-surface").getByRole("columnheader").filter({ hasText: name }),
+  ).toBeVisible({ timeout: 20_000 });
 }
 
 // The column header menu is this spec's proven way into property settings; the
 // settings sheet stays reserved for the option journeys.
 async function openPropertyConfiguration(page: Page, name: string) {
   const column = page.getByRole("button", { name: `Modifier ${name}`, exact: true });
+  // The header follows the acknowledged definition mutation; a slower engine
+  // can still be rendering it when the journey asks for it.
+  await expect(column).toBeVisible({ timeout: 20_000 });
   await column.focus();
   await column.click();
   await page
@@ -260,8 +268,10 @@ test("relation and rollup isolate a second source in the same database container
     .getByRole("button", { name: /^Propriété cible/ })
     .click();
   // The primary source's property must never be offered for the secondary source.
+  const amountTarget = page.getByRole("menuitemradio", { name: "Amount", exact: true });
+  await expect(amountTarget).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("menuitemradio", { name: "Ignored", exact: true })).toHaveCount(0);
-  await page.getByRole("menuitemradio", { name: "Amount", exact: true }).click();
+  await amountTarget.click();
   await page
     .locator(".rollup-settings")
     .getByRole("button", { name: /^Calculer/ })

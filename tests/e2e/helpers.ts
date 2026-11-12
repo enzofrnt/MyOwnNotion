@@ -506,7 +506,7 @@ export async function openWorkspace(
           '[data-testid="active-item-title"], [data-testid="active-item-heading"], .entry-panel',
         )
         .first(),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: WORKSPACE_BOOT_TIMEOUT_MS });
     // Wait for the initial load (tree or empty state) to settle. On a phone the
     // navigation is a closed modal drawer, so readiness is represented by the
     // settled content being attached rather than necessarily visible. Derived
