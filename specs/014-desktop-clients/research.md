@@ -75,7 +75,7 @@ Source: [Electron — safeStorage](https://www.electronjs.org/docs/latest/api/sa
 **Decision**: Publier sur la GitHub Release du tag, jamais sur un store :
 Squirrel (ou WiX si Squirrel ne sort pas l’ARM64) pour Windows x64 et Windows
 ARM64 ; DMG pour macOS ARM64 ; **AppImage, deb et rpm** pour Linux x64 et
-Linux ARM64. Runners natifs : `windows-latest`, `windows-11-arm`, `macos-14`,
+Linux ARM64. Runners natifs : `windows-latest`, `windows-11-arm`, `macos-15`,
 `ubuntu-24.04`, `ubuntu-24.04-arm`. SHA-512 sur chaque fichier ; Authenticode
 et notarisation pour Windows et macOS. Le manifeste de mise à jour Linux
 pointe vers l’AppImage de la même architecture.

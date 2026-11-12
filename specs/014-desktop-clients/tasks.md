@@ -173,7 +173,7 @@ test complet.
 
 - [X] T059 [US5] Configurer Squirrel ou WiX Windows (x64 et ARM64), DMG macOS ARM, et AppImage plus deb plus rpm Linux, filtrés par runner, dans `apps/desktop/forge.config.ts`.
 - [X] T060 [US5] Vérifier tous les fichiers de la matrice, empreintes, absence de runtime étranger et refus de tout fichier hors matrice dans `scripts/ci/check-desktop-artifacts.ts`.
-- [X] T061 [US5] Ajouter le workflow de release natif des cinq cibles (dont `windows-11-arm` et `macos-14`) dans `.github/workflows/desktop-release.yml`.
+- [X] T061 [US5] Ajouter le workflow de release natif des cinq cibles (dont `windows-11-arm` et `macos-15`) dans `.github/workflows/desktop-release.yml`.
 - [X] T062 [US5] Publier uniquement les fichiers de la matrice après le gate du tag, sur la GitHub Release, sans store, dans `.github/workflows/desktop-release.yml` et `scripts/ci/publish-desktop-release.ts`.
 - [X] T063 [US5] Documenter l’installation, les canaux, les prérequis de signature, le support plateforme et la récupération dans `docs/deployment/desktop.md`.
 
