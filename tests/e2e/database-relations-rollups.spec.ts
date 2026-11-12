@@ -39,6 +39,11 @@ async function openPropertyConfiguration(page: Page, name: string) {
     .locator(".database-column-editor__action-row:visible")
     .filter({ hasText: "Modifier la propriété" })
     .click();
+  // The pointer can rest on a row that owns a hover submenu ("Trier"): move it
+  // away and wait the column flyout out before the property editor is used,
+  // otherwise the stale submenu intercepts the next click.
+  await page.mouse.move(0, 0);
+  await expect(page.locator(".database-column-editor__flyout:visible")).toHaveCount(0);
   await expect(page.locator(".property-settings:visible")).toBeVisible();
 }
 

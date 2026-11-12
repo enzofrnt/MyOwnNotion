@@ -177,9 +177,11 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
             if (!(await navigation.isVisible())) return true;
             const control = await navigation.boundingBox();
             const text = await label.boundingBox();
+            // The workspace landing keeps only its heading: a chrome label that
+            // a surface does not render cannot be overlapped.
+            if (text === null) return true;
             return (
               control !== null &&
-              text !== null &&
               (control.x + control.width <= text.x ||
                 text.x + text.width <= control.x ||
                 control.y + control.height <= text.y ||

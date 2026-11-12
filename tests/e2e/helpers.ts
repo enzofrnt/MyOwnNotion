@@ -1165,11 +1165,25 @@ async function renameConfiguredOption(page: Page, trigger: Locator, label: strin
   // Enter blurs the field, which commits the trimmed label immediately.
   await input.press("Enter");
   await expect(trigger).toHaveAttribute("aria-label", `Modifier l’option ${label}`);
-  // Toggle the same menu closed instead of pressing Escape: blurring the input
-  // drops focus to the body, and a body-level Escape is a settings-screen
-  // dismissal, not something the portaled editor owns.
-  await trigger.click();
+  // Dismiss the menu by pressing inside the hosting sheet: a pointer-down there
+  // closes the portaled menu without being read as "outside the settings
+  // screen", and it does not depend on toggling a trigger whose menu may have
+  // moved under a stale pointer position on a narrow viewport.
+  await dismissPortaledMenu(page);
   await expect(input).toBeHidden();
+}
+
+/** Closes an open portaled menu without dismissing the hosting settings screen. */
+async function dismissPortaledMenu(page: Page): Promise<void> {
+  const menu = page.locator(".ui-menu:visible");
+  if ((await menu.count()) === 0) return;
+  // Escape must be received from inside the menu: the settings screen ignores
+  // keys whose target is inside a portaled overlay, while a body-level Escape
+  // would dismiss the screen that hosts the editor.
+  const input = page.getByRole("textbox", { name: "Nom de l'option", exact: true });
+  if (await input.isVisible().catch(() => false)) await input.focus();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
 }
 
 /** Adds one option after the defaults, in the group the status editor expects. */
@@ -1216,6 +1230,7 @@ async function configureChoicePropertyOptions(
     const label = options[index];
     if (label === undefined) continue;
     const config = await openPropertyConfiguration(page, name);
+    await dismissPortaledMenu(page);
     await renameConfiguredOption(
       page,
       config.locator(".property-settings__option").nth(index),
