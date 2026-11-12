@@ -1118,6 +1118,9 @@ export async function addDatabaseProperty(
   await expect(typeButton).toBeEnabled();
   await typeButton.click();
   await expect(nameField).toBeHidden();
+  // The column header follows the acknowledged definition mutation; wait for
+  // the queue instead of racing the render on a slower engine.
+  await waitForSynchronized(page);
   await expect(
     page.getByTestId("database-view-surface").getByRole("columnheader").filter({ hasText: name }),
   ).toBeVisible({ timeout: 20_000 });

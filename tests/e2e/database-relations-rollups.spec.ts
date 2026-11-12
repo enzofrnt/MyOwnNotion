@@ -319,8 +319,14 @@ test("a two-way relation shows on both sides and reads the same link", async ({ 
   await page.getByRole("textbox", { name: "Rechercher une source de données" }).fill(sourceB);
   await page.getByRole("menuitem", { name: sourceB, exact: true }).click();
   await page.locator("[data-relation-pair]").click();
-  await page.getByRole("textbox", { name: "Nom de la propriété liée" }).fill("Projets liés");
-  await page.getByRole("menuitem", { name: "Activer la relation liée" }).click();
+  const linkedName = page.getByRole("textbox", { name: "Nom de la propriété liée" });
+  await linkedName.fill("Projets liés");
+  // The activation action stays disabled until the linked name is committed;
+  // WebKit can drop the input event of a fill issued right after the click.
+  await expect(linkedName).toHaveValue("Projets liés");
+  const activate = page.getByRole("menuitem", { name: "Activer la relation liée" });
+  await expect(activate).toBeEnabled();
+  await activate.click();
   await waitForSynchronized(page);
   // The row must reflect the new state, not just the projection behind it.
   await expect(page.locator("[data-relation-pair]")).toContainText("Activé", {
