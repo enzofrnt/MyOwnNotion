@@ -86,11 +86,16 @@ des lignes du volet ne transmettait pas l'identité de l'entrée (donc
 **source** alors que la route attend l'**item propriétaire** (lien rejeté en
 `database.entry-not-found`).
 
-Le menu inverse est maintenant atteignable dans le volet : le basculement
-retire bien le lien côté local (le volet affiche « Aucune page »). Mais après
-synchronisation et rechargement, la cellule canonique montre encore « 1 liée » :
-le serveur n'a donc pas retenu le retrait. Prochaine étape : capturer la réponse
-de `database.entry.relation.patch` pour connaître le motif exact du rejet.
+Le menu inverse est atteignable dans le volet et la commande part bien : la
+réponse capturée est **200 `accepted`** avec une révision produite. Le retrait
+est donc accepté par le serveur, et le volet affiche immédiatement « Aucune
+page ».
+
+Mais après rechargement, la cellule canonique montre encore « 1 liée ». Deux
+faits incompatibles, donc la prochaine vérification doit porter sur les données,
+pas sur l'écran : lire les valeurs enregistrées de l'entrée porteuse
+(`database.entry.values`) après le patch, pour savoir si l'arête a réellement
+disparu et si c'est l'affichage de la source canonique qui la ressuscite.
 
 **Rangée « Ajouter une propriété liée »** (nouvelle surface, 2026-11-12) :
 captures `evidence/candidate/pair-row-{light,dark}.png` et
