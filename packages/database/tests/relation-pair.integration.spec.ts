@@ -260,4 +260,67 @@ describe("two-way relation pair PostgreSQL", () => {
       )[f.relationId] ?? [],
     ).toEqual([]);
   });
+
+  it("pairs a database with itself", async () => {
+    const id = generateUuidV7();
+    expect(
+      (
+        await submit({
+          type: "database.create",
+          id,
+          name: "Self pair",
+          placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
+          titlePropertyId: generateUuidV7(),
+          initialViewId: generateUuidV7(),
+          initialViewName: "Table",
+        })
+      ).result.status,
+    ).toBe("accepted");
+    const record = await readDatabaseRecord(context.handle.db, id);
+    const definition = await readCurrentDatabaseDefinition(context.handle.db, id);
+    if (record === null || definition === null) throw new Error("fixture");
+    const relationId = generateUuidV7();
+    const replaced = await submit({
+      type: "database.definition.replace",
+      databaseId: id,
+      baseRevisionId: record.definitionRevisionId as never,
+      definition: {
+        ...definition,
+        properties: [
+          ...definition.properties,
+          {
+            id: relationId,
+            name: "Related",
+            type: "relation",
+            positionKey: "b",
+            state: "active",
+            config: { cardinality: "many", targetSourceId: record.sourceId },
+          },
+        ],
+      },
+    } as MutationCommand);
+    expect(replaced.result.status).toBe("accepted");
+    const fresh = await readDatabaseRecord(context.handle.db, id);
+    const inverseId = generateUuidV7();
+    expect(
+      (
+        await submit({
+          type: "database.relation.pair.create",
+          databaseId: record.sourceId,
+          relationPropertyId: relationId,
+          inversePropertyId: inverseId,
+          inverseName: "Inverse",
+          baseRevisionId: fresh?.definitionRevisionId as never,
+          inverseBaseRevisionId: fresh?.definitionRevisionId as never,
+        } as MutationCommand)
+      ).result.status,
+    ).toBe("accepted");
+    const paired = await readCurrentDatabaseDefinition(context.handle.db, id);
+    expect(paired?.properties.find((property) => property.id === inverseId)).toMatchObject({
+      config: { reciprocalPropertyId: relationId, targetSourceId: record.sourceId },
+    });
+    expect(paired?.properties.find((property) => property.id === relationId)).toMatchObject({
+      config: { reciprocalPropertyId: inverseId },
+    });
+  });
 });
