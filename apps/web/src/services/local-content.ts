@@ -1706,6 +1706,16 @@ export class LocalContentService {
     return this.databases.getRelationTargetsForEntries(databaseId, entryIds);
   }
 
+  /** Edges of a partner source that point at these entries (two-way read). */
+  async getIncomingDatabaseRelationTargets(
+    partnerSourceId: Uuid,
+    propertyId: Uuid,
+    targetEntryIds: readonly Uuid[],
+  ) {
+    await this.#unlock();
+    return this.databases.getIncomingRelationTargets(partnerSourceId, propertyId, targetEntryIds);
+  }
+
   async getDatabaseEntryRelationTargets(databaseId: Uuid, entryId: Uuid) {
     await this.#unlock();
     return this.databases.getRelationTargets(databaseId, entryId);

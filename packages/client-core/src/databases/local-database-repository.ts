@@ -341,6 +341,36 @@ export class LocalDatabaseRepository {
     );
   }
 
+  /**
+   * Entries of the partner source that link to these entries. This is the read
+   * side of a two-way relation: the edges live on the other entry, so the
+   * inverse property must query by target instead of by source.
+   */
+  async getIncomingRelationTargets(
+    partnerSourceId: Uuid,
+    propertyId: Uuid,
+    targetEntryIds: readonly Uuid[],
+  ): Promise<ReadonlyMap<Uuid, readonly Uuid[]>> {
+    if (targetEntryIds.length === 0) return new Map();
+    const relationships = await this.db.relationships
+      .where("targetItemId")
+      .anyOf([...targetEntryIds])
+      .toArray();
+    const byTarget = new Map<Uuid, Uuid[]>();
+    for (const relationship of relationships) {
+      if (
+        relationship.relationType !== "database:property" ||
+        relationship.metadata["databaseId"] !== partnerSourceId ||
+        relationship.metadata["propertyId"] !== propertyId
+      )
+        continue;
+      const sources = byTarget.get(relationship.targetItemId) ?? [];
+      sources.push(relationship.sourceItemId);
+      byTarget.set(relationship.targetItemId, sources);
+    }
+    return byTarget;
+  }
+
   async getRelationTargetsForEntries(
     databaseId: Uuid,
     entryIds: readonly Uuid[],

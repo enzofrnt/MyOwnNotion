@@ -364,11 +364,57 @@ export interface PreparedProjectionWrite {
   readonly relationTargets?: RelationTargets;
 }
 
+/**
+ * Translate a single-edge patch into the values replacement the projection
+ * already knows how to apply. The patch carries the coordinates of the entry
+ * that owns the edge, so the same command serves both sides of a two-way pair.
+ */
+export async function patchAsEntryValues(
+  db: LocalDatabase,
+  command: Extract<MutationCommand, { type: "database.entry.relation.patch" }>,
+  codec: LocalRecordCodec,
+): Promise<Extract<MutationCommand, { type: "database.entry.values.replace" }> | null> {
+  const storedEntry = await db.databaseEntryPairs.get(
+    databaseEntryPairKey(command.databaseId, command.entryId),
+  );
+  const rows = await db.relationships.where("sourceItemId").equals(command.entryId).toArray();
+  const targets: Record<string, Uuid[]> = {};
+  for (const row of rows) {
+    if (row.relationType !== "database:property") continue;
+    const metadata = row.metadata as Record<string, unknown>;
+    if (metadata["databaseId"] !== command.databaseId) continue;
+    const propertyId = metadata["propertyId"];
+    if (typeof propertyId !== "string") continue;
+    const list = targets[propertyId] ?? [];
+    list.push(row.targetItemId as Uuid);
+    targets[propertyId] = list;
+  }
+  const existing = targets[command.propertyId] ?? [];
+  if (existing.includes(command.targetItemId) === command.present) return null;
+  const next = command.present
+    ? [...existing, command.targetItemId]
+    : existing.filter((target) => target !== command.targetItemId);
+  const opened = storedEntry === undefined ? null : await codec.openDatabaseEntry(storedEntry);
+  return {
+    type: "database.entry.values.replace",
+    databaseId: command.databaseId,
+    entryId: command.entryId,
+    baseRevisionId: command.baseRevisionId,
+    values: opened?.values.values ?? {},
+    relationTargets: { ...targets, [command.propertyId]: next } as RelationTargets,
+  };
+}
+
 export async function prepareProjectionWrite(
   db: LocalDatabase,
   command: MutationCommand,
   codec: LocalRecordCodec,
 ): Promise<PreparedProjectionWrite> {
+  if (command.type === "database.entry.relation.patch") {
+    const normalized = await patchAsEntryValues(db, command, codec);
+    // Replaying an already-applied patch must not advance a revision.
+    return normalized === null ? {} : prepareProjectionWrite(db, normalized, codec);
+  }
   switch (command.type) {
     case "database_view.create": {
       const sources = await Promise.all(
@@ -1312,7 +1358,8 @@ export async function applyCommandToProjection(
     }
 
     case "database.entry.values.replace":
-    case "database.entry.values.resolve-conflict": {
+    case "database.entry.values.resolve-conflict":
+    case "database.entry.relation.patch": {
       const item = await db.items.get(command.entryId);
       if (
         item === undefined ||
