@@ -14,6 +14,7 @@ import {
   chooseEntryOptions,
   closeMobileNavigation,
   convertItem,
+  createDatabaseEntry,
   createDatabaseView,
   createRootDatabase,
   createRootItem,
@@ -21,7 +22,6 @@ import {
   dropEditorFile,
   ensureNavigationRowVisible,
   ensureNavigationVisible,
-  entryTrigger,
   openAttachmentDetails,
   openBoardMoveMenu,
   openItemActions,
@@ -418,13 +418,9 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await addDatabaseProperty(page, "Status", "select", ["To do", "Done"]);
     await addDatabaseProperty(page, "Due", "date");
 
-    const entryForm = page.locator(".database-entry-create");
-    await entryForm.getByRole("button", { name: "Nouvelle page" }).click();
-    const titleEditor = page.locator(".database-cell-title-input");
-    await expect(titleEditor).toBeVisible({ timeout: 15_000 });
-    await titleEditor.fill(entryName);
-    await titleEditor.press("Enter");
-    const openEntryButton = entryTrigger(page, entryName);
+    // The table renders its creation row as .database-table-add-entry; the
+    // shared helper targets whichever creation control the view exposes.
+    const openEntryButton = await createDatabaseEntry(page, entryName);
     await expect(openEntryButton).toBeVisible({ timeout: 15_000 });
     await openEntryButton.click();
     const panel = page.locator(".entry-panel");
