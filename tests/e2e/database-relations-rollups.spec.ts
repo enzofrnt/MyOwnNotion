@@ -333,4 +333,22 @@ test("a two-way relation shows on both sides and reads the same link", async ({ 
       .filter({ hasText: "057 Pair target" })
       .getByRole("gridcell", { name: "Projets liés, 1 liée", exact: true }),
   ).toBeVisible({ timeout: 15_000 });
+  // The value control is the button named after the property; the other button
+  // with that text is the property label. Editing from this side writes the
+  // partner's edge, so the canonical cell loses the link.
+  await entryTrigger(page, "057 Pair target").click();
+  await expect(page.locator(".entry-panel")).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Projets liés", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "057 Pair source", exact: true }).click();
+  await waitForSynchronized(page);
+  await expect(page.locator(".entry-panel [role=alert]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Fermer le volet" }).click();
+  await selectItem(page, sourceA);
+  await page.reload();
+  await expect(
+    page
+      .getByRole("row")
+      .filter({ hasText: "057 Pair source" })
+      .getByRole("gridcell", { name: "Related, —", exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
 });

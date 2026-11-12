@@ -1136,7 +1136,14 @@ export async function prepareProjectionWrite(
       if (storedDatabase === undefined) {
         throw new LocalValidationError("database.not-found", "Database is not available locally");
       }
-      if (storedItem === undefined) return {};
+      if (storedItem === undefined) {
+        // Returning an empty prepared write hid *why* an entry write could not
+        // be applied; say it instead.
+        throw new LocalValidationError(
+          "database.entry-not-found",
+          "Entry item is not available locally",
+        );
+      }
       const activePlacement = (
         await db.placements.where("itemId").equals(command.entryId).toArray()
       ).some(

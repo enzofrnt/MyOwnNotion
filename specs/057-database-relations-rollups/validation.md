@@ -117,22 +117,22 @@ simulé) prouve que le gestionnaire appelle bien
 `database.entry.relation.patch` avec le bon propriétaire, et que `onChange`
 n'est pas appelé.
 
-Dans le navigateur, le clic sur le vrai contrôle de valeur (bouton nommé
-« Projets liés » — le libellé « Modifier la propriété … » est un autre bouton)
-ouvre le menu, mais rien n'est envoyé : la lecture directe de l'indexedDB du
-navigateur montre un **outbox vide** après le clic.
+**Livré et prouvé de bout en bout.** Le parcours navigateur édite maintenant
+la relation depuis le côté inverse et vérifie, après synchronisation et
+rechargement, que la cellule canonique affiche « — ». Desktop et mobile.
 
-Cause trouvée : la traduction du patch cherchait l'arête par
-`(propriétaire, propriété)` alors que l'identifiant de propriétaire varie selon
-la surface (item, source, page hôte), ce qui transformait le retrait en no-op
-silencieux. Corrigé : l'arête est identifiée par sa propriété (identifiants
-uniques) et un retrait que l'appareil ne voit pas est quand même émis pour que
-le serveur tranche.
+Trois défauts ont été nécessaires pour y arriver, tous trouvés par mesure :
 
-L'erreur locale est maintenant explicite : « The entry write was not prepared »,
-c'est-à-dire que la clé d'entrée (`databaseEntryPairKey`) n'est pas trouvée —
-même famille de décalage d'identité, dans la recherche de l'entrée cette fois.
-C'est la prochaine correction.
+1. Le volet d'entrée n'affichait pas la valeur d'une propriété inverse : il
+   lisait les arêtes brutes de l'entrée alors que cette valeur est dérivée des
+   arêtes du partenaire. Le volet fusionne désormais les cibles inverses, comme
+   la table (avec repli silencieux si le service ne les fournit pas).
+2. La traduction du patch identifiait l'arête par `(propriétaire, propriété)` ;
+   l'identifiant de propriétaire varies selon la surface (item, source, page
+   hôte), donc le retrait devenait un no-op. Elle identifie maintenant l'arête
+   par sa propriété, unique.
+3. Un retrait que l'appareil ne voit pas est émis quand même, pour que le
+   serveur tranche, au lieu d'être jeté comme un rejeu.
 
 **Rangée « Ajouter une propriété liée »** (nouvelle surface, 2026-11-12) :
 captures `evidence/candidate/pair-row-{light,dark}.png` et

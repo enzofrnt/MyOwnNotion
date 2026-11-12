@@ -9,6 +9,7 @@ import type { DatabaseEntryOpenRequest } from "./database-entry-open-context.tsx
 import { editEntrySourceDefinition, saveEntryPropertyChanges } from "./edit-entry-properties.ts";
 import { type EntryDrafts, EntryPanel } from "./entry-panel.tsx";
 import { uploadDatabaseFile } from "./file-upload.ts";
+import { withInverseRelationTargets } from "./local-inverse-relations.ts";
 import { hasDerivedProperties, useLocalDerivedOptions } from "./local-rollup.ts";
 import type { RelationOption } from "./value-editor.tsx";
 
@@ -74,11 +75,24 @@ export function DatabaseEntryPeek({
       )
         throw new Error("Entrée indisponible");
       const sourceId = row.sourceId ?? request.sourceId ?? ownedSourceIdFromItemId(row.databaseId);
-      const [source, relations] = await Promise.all([
+      const [source, rawRelations] = await Promise.all([
         service.getDatabase(sourceId),
         service.getDatabaseEntryRelationTargets(row.databaseId, request.entryId),
       ]);
       if (source === null) throw new Error("Source indisponible");
+      // The inverse side of a two-way relation reads the partner's edges; the
+      // panel must show the same values as the table or its menu would offer to
+      // add a link that already exists.
+      // A service without inverse support (older hosts, focused tests) keeps the
+      // raw values rather than failing the whole panel.
+      const relations = await withInverseRelationTargets({
+        service,
+        source,
+        entryIds: [request.entryId],
+        relations: new Map([[request.entryId, rawRelations]]),
+      })
+        .then((merged) => merged.get(request.entryId) ?? rawRelations)
+        .catch(() => rawRelations);
       if (generation.current !== current) return;
       const fileIds = Object.values(row.values.values).flatMap((value) =>
         value.kind === "files" ? value.fileIds : [],
