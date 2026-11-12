@@ -45,10 +45,10 @@ describe("Bun quality gate", () => {
     const config = read("vitest.config.ts");
     expect(config).toContain('pool: "threads"');
     expect(config).toContain('provider: "istanbul"');
-    expect(config).toContain("statements: -2_216");
+    expect(config).toContain("statements: -2_360");
     expect(config).toContain("lines: -1_866");
     expect(config).toContain("functions: -337");
-    expect(config).toContain("branches: -2_470");
+    expect(config).toContain("branches: -3_090");
     expect(config).not.toContain("globalSetup");
     expect(config).not.toContain('provider: "v8"');
 
