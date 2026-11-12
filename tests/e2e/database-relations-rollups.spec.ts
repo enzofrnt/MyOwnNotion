@@ -306,8 +306,20 @@ test("a two-way relation shows on both sides and reads the same link", async ({ 
   await page.locator("[data-relation-pair]").click();
   await page.getByRole("textbox", { name: "Nom de la propriété liée" }).fill("Projets liés");
   await page.getByRole("menuitem", { name: "Activer la relation liée" }).click();
-  await closeConfiguration(page);
   await waitForSynchronized(page);
+  // The row must reflect the new state, not just the projection behind it.
+  await expect(page.locator("[data-relation-pair]")).toContainText("Activé", {
+    timeout: 15_000,
+  });
+  await page
+    .locator(".relation-property-settings:visible")
+    .screenshot({ path: "test-results/057-pair-active.png" });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page
+    .locator(".relation-property-settings:visible")
+    .screenshot({ path: "test-results/057-pair-active-dark.png" });
+  await page.emulateMedia({ colorScheme: "light" });
+  await closeConfiguration(page);
   await selectItem(page, sourceB);
   await expect(
     page.getByRole("button", { name: "Modifier Projets liés", exact: true }),

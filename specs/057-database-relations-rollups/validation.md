@@ -117,6 +117,11 @@ simulé) prouve que le gestionnaire appelle bien
 `database.entry.relation.patch` avec le bon propriétaire, et que `onChange`
 n'est pas appelé.
 
+**Captures finales** : `evidence/candidate/pair-row-active-{light,dark}.png`
+montrent la rangée à l'état « Activé » après création de la paire, prise dans le
+parcours navigateur ; elles complètent `pair-row-{light,dark}.png` (état
+désactivé) et `pair-menu-{light,dark}.png`.
+
 **Livré et prouvé de bout en bout.** Le parcours navigateur édite maintenant
 la relation depuis le côté inverse et vérifie, après synchronisation et
 rechargement, que la cellule canonique affiche « — ». Desktop et mobile.

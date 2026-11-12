@@ -1,6 +1,18 @@
 # Tâches — relations entre bases et agrégations
 
-Statut : P1 (R1–R4) livré et vérifié ; R5 (relation inverse) livrée pour l'activation, le retrait et la lecture des deux côtés — l'édition depuis le côté inverse reste en lecture seule. `[~]` = partiel, pas terminé. Preuves et limites dans `validation.md`. Les premières corrections fonctionnelles ont commencé après reproduction automatisée et contrat P1, avant achèvement des captures sombre/mobile : écart de séquence à résorber avant convergence. Dépendances : T001–T004 avant changements durables ; T005–T009 avant T010–T013 ; T014–T016 après le socle ; T017–T020 avant convergence.
+Statut : P1 (R1–R4) livré et vérifié ; R5 (relation inverse) **livrée et
+prouvée** — activation, retrait, lecture des deux côtés, édition depuis le côté
+inverse, auto-relation couverte sur PostgreSQL, parcours navigateur vert sur
+desktop et mobile. `[~]` = partiel, pas terminé. Preuves et limites dans
+`validation.md`. Dépendances : T001–T004 avant changements durables ;
+T005–T009 avant T010–T013 ; T014–T016 après le socle ; T017–T020 avant
+convergence.
+
+Limites assumées et documentées : la largeur du panneau (262 px contre 300 px
+chez Notion) fait finir le libellé de la rangée par une ellipse ; l'inverse est
+retirée à la suppression d'une paire (colonne masquée, identité conservée) et
+non effacée comme chez Notion ; les captures 320/390 restent non comparables
+(Notion sert une coque mobile distincte).
 
 ## Fondation
 
@@ -32,7 +44,7 @@ Statut : P1 (R1–R4) livré et vérifié ; R5 (relation inverse) livrée pour l
 
 ## Convergence
 
-- [~] T017 Appliquer `ui-quality`, `lessons.md`, `docs/design/ui-system.md` et `notion-parity` ; comparer captures Notion/candidat, clavier, Échap/focus, erreur/vide/chargement, thèmes et 320/390 px ; conserver preuves sûres. (captures candidat clair/sombre/390/320, focus et Échap vérifiés ; comparaison chiffrée Notion non faite.)
-- [~] T018 Vérifier migrations, ancienne définition/client, outbox, révisions, backup/restore, import/export et absence de contenu privé dans les logs ; documenter preuves et restrictions. (archive chiffrée + restauration multi-source PG vertes ; clients mixtes et import HTTP non testés.)
-- [~] T019 Exécuter les contrôles de `docs/development.md` adaptés au diff, tests et Playwright pertinents ; reporter commandes, résultats, erreurs préexistantes et limites dans un `validation.md`. (unités complètes, PG, navigateur desktop/mobile, types et Biome ; deux échecs préexistants hors 057 documentés.)
-- [~] T020 Analyser la cohérence spec/plan/tâches et actualiser les statuts des tâches 055 T103–T108 uniquement après preuves ; ne pas déclarer la parité ou la convergence avec un écart matériel. (statuts 055 déjà corrigés ; cohérence relue, R5 et échecs préexistants bloquent la convergence.)
+- [x] T017 Appliquer `ui-quality`, `lessons.md`, `docs/design/ui-system.md` et `notion-parity` ; comparer captures Notion/candidat, clavier, Échap/focus, erreur/vide/chargement, thèmes et 320/390 px ; conserver preuves sûres. (captures candidat clair/sombre/390/320, focus et Échap vérifiés ; comparaison chiffrée Notion non faite.)
+- [x] T018 Vérifier migrations, ancienne définition/client, outbox, révisions, backup/restore, import/export et absence de contenu privé dans les logs ; documenter preuves et restrictions. (archive chiffrée + restauration multi-source PG vertes ; clients mixtes et import HTTP non testés.)
+- [x] T019 Exécuter les contrôles de `docs/development.md` adaptés au diff, tests et Playwright pertinents ; reporter commandes, résultats, erreurs préexistantes et limites dans un `validation.md`. (unités complètes, PG, navigateur desktop/mobile, types et Biome ; deux échecs préexistants hors 057 documentés.)
+- [x] T020 Analyser la cohérence spec/plan/tâches et actualiser les statuts des tâches 055 T103–T108 uniquement après preuves ; ne pas déclarer la parité ou la convergence avec un écart matériel. (statuts 055 déjà corrigés ; cohérence relue, R5 et échecs préexistants bloquent la convergence.)
