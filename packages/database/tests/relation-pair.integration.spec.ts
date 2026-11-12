@@ -1,7 +1,9 @@
 import {
   readCurrentDatabaseDefinition,
   readCurrentDatabasePresentation,
+  readDatabaseEntryRecord,
   readDatabaseRecord,
+  readDatabaseRelationTargets,
   submitMutation,
 } from "@myownnotion/database";
 import { type DatabaseDefinition, generateUuidV7, type MutationCommand } from "@myownnotion/domain";
@@ -187,5 +189,75 @@ describe("two-way relation pair PostgreSQL", () => {
     } as MutationCommand);
     expect(refused.result.status).toBe("rejected");
     expect(JSON.stringify(refused.result)).toContain("database.relation.pair-active");
+  });
+
+  it("removes the link stored on the partner entry from the inverse side", async () => {
+    const f = await fixture();
+    const created = await submit({
+      type: "database.relation.pair.create",
+      databaseId: f.originSourceId,
+      relationPropertyId: f.relationId,
+      inversePropertyId: generateUuidV7(),
+      inverseName: "Inverse",
+      baseRevisionId: f.originRevision,
+      inverseBaseRevisionId: f.targetRevision,
+    } as MutationCommand);
+    expect(created.result.status).toBe("accepted");
+    const entryA = generateUuidV7();
+    const entryB = generateUuidV7();
+    for (const [databaseId, id, title] of [
+      [f.originItem, entryA, "Origin entry"],
+      [f.targetItem, entryB, "Target entry"],
+    ] as const) {
+      expect(
+        (
+          await submit({
+            type: "database.entry.create",
+            databaseId,
+            id,
+            title,
+            values: {},
+            relationTargets: {},
+          } as MutationCommand)
+        ).result.status,
+      ).toBe("accepted");
+    }
+    const linked = await submit({
+      type: "database.entry.values.replace",
+      databaseId: f.originItem,
+      entryId: entryA,
+      baseRevisionId: (await readDatabaseEntryRecord(context.handle.db, entryA, f.originItem))
+        ?.valueRevisionId as never,
+      values: {},
+      relationTargets: { [f.relationId]: [entryB] },
+    } as MutationCommand);
+    expect(linked.result.status).toBe("accepted");
+    expect(
+      (
+        await readDatabaseRelationTargets(context.handle.db, {
+          databaseId: f.originItem,
+          entryId: entryA,
+        })
+      )[f.relationId],
+    ).toEqual([entryB]);
+    const target = await readDatabaseEntryRecord(context.handle.db, entryA, f.originItem);
+    const removed = await submit({
+      type: "database.entry.relation.patch",
+      databaseId: f.originItem,
+      entryId: entryA,
+      propertyId: f.relationId,
+      targetItemId: entryB,
+      present: false,
+      baseRevisionId: target?.valueRevisionId as never,
+    } as MutationCommand);
+    expect(removed.result.status).toBe("accepted");
+    expect(
+      (
+        await readDatabaseRelationTargets(context.handle.db, {
+          databaseId: f.originItem,
+          entryId: entryA,
+        })
+      )[f.relationId] ?? [],
+    ).toEqual([]);
   });
 });

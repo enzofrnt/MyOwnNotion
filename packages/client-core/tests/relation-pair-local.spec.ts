@@ -275,3 +275,86 @@ describe("inverse relation read after a pair", () => {
     expect(incoming.get(targetEntry)).toEqual([sourceEntry]);
   });
 });
+
+describe("inverse relation removal", () => {
+  it("removes the edge stored on the partner entry", async () => {
+    const a = await database("Remove A");
+    const b = await database("Remove B");
+    const relationId = generateUuidV7();
+    await apply("database.definition.replace", {
+      databaseId: a.id,
+      baseRevisionId: a.revisionId,
+      definition: {
+        ...a.definition,
+        properties: [
+          ...a.definition.properties,
+          {
+            id: relationId,
+            name: "Related",
+            type: "relation",
+            positionKey: "b",
+            state: "active",
+            config: { cardinality: "many", targetSourceId: b.sourceId },
+          },
+        ],
+      },
+    });
+    const aNow = await databases.getDatabase(a.id);
+    const bNow = await databases.getDatabase(b.id);
+    if (aNow?.definitionRevisionId == null || bNow?.definitionRevisionId == null)
+      throw new Error("fixture");
+    await apply("database.relation.pair.create", {
+      databaseId: a.sourceId,
+      relationPropertyId: relationId,
+      inversePropertyId: generateUuidV7(),
+      inverseName: "Inverse",
+      baseRevisionId: aNow.definitionRevisionId,
+      inverseBaseRevisionId: bNow.definitionRevisionId,
+    });
+    const sourceEntry = generateUuidV7();
+    const targetEntry = generateUuidV7();
+    for (const [databaseId, id, name] of [
+      [a.id, sourceEntry, "Source"],
+      [b.id, targetEntry, "Target"],
+    ] as const) {
+      await apply("database.entry.create", {
+        databaseId,
+        id,
+        title: name,
+        values: {},
+        relationTargets: {},
+      });
+    }
+    const sourceItem = await db.items.get(sourceEntry);
+    if (sourceItem === undefined) throw new Error("entry");
+    await apply("database.entry.values.replace", {
+      databaseId: a.id,
+      entryId: sourceEntry,
+      baseRevisionId: sourceItem.currentRevisionId,
+      values: {},
+      relationTargets: { [relationId]: [targetEntry] },
+    });
+    expect(
+      (await databases.getRelationTargetsForEntries(a.id, [sourceEntry])).get(sourceEntry)?.[
+        relationId
+      ],
+    ).toEqual([targetEntry]);
+
+    const linkedItem = await db.items.get(sourceEntry);
+    if (linkedItem === undefined) throw new Error("entry");
+    const patched = await apply("database.entry.relation.patch", {
+      databaseId: a.id,
+      entryId: sourceEntry,
+      propertyId: relationId,
+      targetItemId: targetEntry,
+      present: false,
+      baseRevisionId: linkedItem.currentRevisionId,
+    });
+    expect(JSON.stringify(patched)).toContain('"ok":true');
+    expect(
+      (await databases.getRelationTargetsForEntries(a.id, [sourceEntry])).get(sourceEntry)?.[
+        relationId
+      ] ?? [],
+    ).toEqual([]);
+  });
+});
