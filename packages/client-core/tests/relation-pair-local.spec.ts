@@ -351,6 +351,7 @@ describe("inverse relation removal", () => {
       baseRevisionId: linkedItem.currentRevisionId,
     });
     expect(JSON.stringify(patched)).toContain('"ok":true');
+    expect(await db.outbox.count()).toBeGreaterThan(0);
     expect(
       (await databases.getRelationTargetsForEntries(a.id, [sourceEntry])).get(sourceEntry)?.[
         relationId
