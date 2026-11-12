@@ -128,6 +128,11 @@ Preuves : domaine + contrats + client-core **130 fichiers, 1 934 tests** ;
 `database-integration` **426 tests** sur PostgreSQL jetable ; `tsc` vert sur
 domaine, contrats, database, client-core, API.
 
+Ajouté depuis : application **hors ligne** d'un patch d'arête (traduction vers
+le remplacement de valeurs existant, idempotente, testée sur la vraie fonction)
+et **lecture inverse** dans le chargement de vue local (arêtes entrantes du
+partenaire fusionnées, carte d'entrée du appelant non mutée ; 2 tests).
+
 **Non fait, donc R5 non livrable :** la projection locale et l'outbox ne
 connaissent pas encore ces commandes (elles sont refusées hors ligne), la
 lecture inverse n'est pas branchée dans l'API ni en local, et aucune interface
