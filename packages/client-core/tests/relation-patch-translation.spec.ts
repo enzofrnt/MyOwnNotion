@@ -13,6 +13,7 @@ const foreignSource = id(7);
 
 function store(rows: readonly Record<string, unknown>[]) {
   return {
+    databases: { get: async () => undefined },
     relationships: { where: () => ({ equals: () => ({ toArray: async () => rows }) }) },
     databaseEntryPairs: {
       get: async () => ({

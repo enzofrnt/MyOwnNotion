@@ -391,10 +391,19 @@ export async function patchAsEntryValues(
   );
   const rows = await db.relationships.where("sourceItemId").equals(command.entryId).toArray();
   const targets: Record<string, Uuid[]> = {};
+  // The owner identifier written with an edge varies between the autosave path
+  // (owning item) and the pair path (source identity). Both designate the same
+  // database, so accept either; a genuinely foreign source stays untouched.
+  const container = await db.databases.get(command.databaseId);
+  const ownerIds = new Set<string>([command.databaseId]);
+  if (container !== undefined) {
+    const openedContainer = await codec.openDatabase(container);
+    if (openedContainer.sourceId !== undefined) ownerIds.add(openedContainer.sourceId);
+  }
   for (const row of rows) {
     if (row.relationType !== "database:property") continue;
     const metadata = row.metadata as Record<string, unknown>;
-    if (metadata["databaseId"] !== command.databaseId) continue;
+    if (!ownerIds.has(String(metadata["databaseId"]))) continue;
     const propertyId = metadata["propertyId"];
     if (typeof propertyId !== "string") continue;
     const list = targets[propertyId] ?? [];

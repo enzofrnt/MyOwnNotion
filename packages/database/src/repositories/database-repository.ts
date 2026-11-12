@@ -489,10 +489,24 @@ export async function readDatabaseRelationTargets(
         isNull(relationships.removedRevisionId),
       ),
     );
+  // An edge may carry either the owning item or the source identity, depending
+  // on which surface wrote it. Both designate this database.
+  const owner =
+    (await readDatabaseRecord(executor, input.databaseId)) ??
+    (await readDatabaseRecordBySourceId(executor, input.databaseId));
+  const acceptedOwners = new Set<string>([input.databaseId]);
+  if (owner !== null) {
+    acceptedOwners.add(owner.databaseId);
+    acceptedOwners.add(owner.sourceId);
+  }
   const targets = new Map<Uuid, Uuid[]>();
   for (const row of rows) {
     const metadata = row.metadata as Record<string, unknown>;
-    if (metadata["databaseId"] !== input.databaseId || typeof metadata["propertyId"] !== "string") {
+    if (
+      typeof metadata["databaseId"] !== "string" ||
+      !acceptedOwners.has(metadata["databaseId"]) ||
+      typeof metadata["propertyId"] !== "string"
+    ) {
       continue;
     }
     const propertyId = metadata["propertyId"] as Uuid;

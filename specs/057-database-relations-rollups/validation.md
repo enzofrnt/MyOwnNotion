@@ -97,10 +97,19 @@ PostgreSQL (deux cas de test ajoutés). La commande supprime donc réellement
 l'arête portée par l'entrée propriétaire ; ce n'est pas un problème de service
 ni de stockage.
 
-Il reste un défaut d'**affichage** : la cellule de la source canonique montre
-encore « 1 liée » après rechargement. Prochaine vérification : relever, dans le
-navigateur, la valeur que la cellule reçoit pour cette ligne (et non le texte
-affiché), pour distinguer un cache de vue d'une fusion inverse indue.
+Mesure suivante, plus instructive que prévu : le retrait inverse ne produit
+**aucune réponse de mutation** (écouteur de réponses vide autour du basculement,
+alors que le volet se vide immédiatement). Le défaut n'est donc ni le serveur ni
+l'affichage : la commande est appliquée localement mais **jamais envoyée**.
+C'est ce qui explique les deux états contradictoires observés.
+
+Prochaine étape ciblée : inspecter la ligne d'outbox de
+`database.entry.relation.patch` juste après l'appel (présence, statut,
+`baseRevisionIds`), pour savoir si elle est créée puis retirée, ou bloquée par
+une dépendance. Une correction a été apportée en amont au cas où la lecture
+serveur et la traduction locale ignoraient l'identifiant de propriétaire : les
+deux acceptent désormais l'item propriétaire ou la source, sans effet croisé sur
+une source étrangère.
 
 **Rangée « Ajouter une propriété liée »** (nouvelle surface, 2026-11-12) :
 captures `evidence/candidate/pair-row-{light,dark}.png` et
