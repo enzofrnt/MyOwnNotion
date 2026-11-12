@@ -103,10 +103,11 @@ alors que le volet se vide immédiatement). Le défaut n'est donc ni le serveur 
 l'affichage : la commande est appliquée localement mais **jamais envoyée**.
 C'est ce qui explique les deux états contradictoires observés.
 
-Prochaine étape ciblée : inspecter la ligne d'outbox de
-`database.entry.relation.patch` juste après l'appel (présence, statut,
-`baseRevisionIds`), pour savoir si elle est créée puis retirée, ou bloquée par
-une dépendance. Une correction a été apportée en amont au cas où la lecture
+La ligne d'outbox **existe bien** après le patch (assertion ajoutée au test
+client-core) : la mise en file est correcte. Il reste donc à comprendre pourquoi
+l'émetteur ne sélectionne pas cette ligne — dépendance de base, filtrage par
+type, ou ordonnancement avec la mutation de création de lien. C'est la seule
+inconnue restante sur ce chemin. Une correction a été apportée en amont au cas où la lecture
 serveur et la traduction locale ignoraient l'identifiant de propriétaire : les
 deux acceptent désormais l'item propriétaire ou la source, sans effet croisé sur
 une source étrangère.
