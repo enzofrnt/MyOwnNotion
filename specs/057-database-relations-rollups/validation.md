@@ -91,11 +91,16 @@ réponse capturée est **200 `accepted`** avec une révision produite. Le retrai
 est donc accepté par le serveur, et le volet affiche immédiatement « Aucune
 page ».
 
-Mais après rechargement, la cellule canonique montre encore « 1 liée ». Deux
-faits incompatibles, donc la prochaine vérification doit porter sur les données,
-pas sur l'écran : lire les valeurs enregistrées de l'entrée porteuse
-(`database.entry.values`) après le patch, pour savoir si l'arête a réellement
-disparu et si c'est l'affichage de la source canonique qui la ressuscite.
+Les données sont maintenant vérifiées des deux côtés : après le patch, la
+lecture des cibles renvoie **une liste vide** dans la projection Dexie comme sur
+PostgreSQL (deux cas de test ajoutés). La commande supprime donc réellement
+l'arête portée par l'entrée propriétaire ; ce n'est pas un problème de service
+ni de stockage.
+
+Il reste un défaut d'**affichage** : la cellule de la source canonique montre
+encore « 1 liée » après rechargement. Prochaine vérification : relever, dans le
+navigateur, la valeur que la cellule reçoit pour cette ligne (et non le texte
+affiché), pour distinguer un cache de vue d'une fusion inverse indue.
 
 **Rangée « Ajouter une propriété liée »** (nouvelle surface, 2026-11-12) :
 captures `evidence/candidate/pair-row-{light,dark}.png` et
