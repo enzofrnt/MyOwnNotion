@@ -5,13 +5,11 @@ import { describe, expect, it } from "vitest";
 import {
   graphNeighborhood,
   graphViewBox,
+  graphLabelAlpha as labelAlpha,
+  graphLabelFont as labelFont,
   paintGraphCamera,
   paintGraphLayout,
   shortGraphLabel,
-} from "../src/features/knowledge-graph/graph-canvas-paint.ts";
-import {
-  graphLabelAlpha as labelAlpha,
-  graphLabelFont as labelFont,
 } from "../src/features/knowledge-graph/graph-canvas-paint.ts";
 
 const id = generateUuidV7();

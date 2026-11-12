@@ -1,4 +1,8 @@
-import { createInitialDatabaseDefinition, generateUuidV7, validateDatabaseDefinition } from "@myownnotion/domain";
+import {
+  createInitialDatabaseDefinition,
+  generateUuidV7,
+  validateDatabaseDefinition,
+} from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 
 describe("definition validation", () => {
@@ -32,7 +36,6 @@ describe("definition validation", () => {
       ],
     };
     const result = validateDatabaseDefinition(JSON.parse(JSON.stringify(candidate)));
-    if (!result.ok) console.log("VALIDATION_ERROR", JSON.stringify(result.error));
     expect(result.ok).toBe(true);
     const relation = result.ok
       ? result.value.properties.find((property) => property.type === "relation")

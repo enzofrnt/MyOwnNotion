@@ -2,9 +2,6 @@ import { generateUuidV7 } from "@myownnotion/domain";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { GraphLegend } from "../src/features/knowledge-graph/graph-legend.tsx";
-import { DEFAULT_GRAPH_PREFERENCES } from "../src/features/knowledge-graph/graph-preferences.ts";
-import { initialGraphControls } from "../src/features/knowledge-graph/knowledge-graph-view.tsx";
 import {
   createDefaultGraphControlState,
   GraphControls,
@@ -12,6 +9,9 @@ import {
   graphQueryFromControls,
   resetGraphControlState,
 } from "../src/features/knowledge-graph/graph-controls.tsx";
+import { GraphLegend } from "../src/features/knowledge-graph/graph-legend.tsx";
+import { DEFAULT_GRAPH_PREFERENCES } from "../src/features/knowledge-graph/graph-preferences.ts";
+import { initialGraphControls } from "../src/features/knowledge-graph/knowledge-graph-view.tsx";
 
 describe("global graph controls", () => {
   it("combines visible filters and resets them in one action", () => {
