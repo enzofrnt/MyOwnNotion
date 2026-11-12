@@ -29,6 +29,36 @@ export function RelationDraftMenu({
   const options =
     property.config.targetSourceId === undefined ? fallbackOptions : candidates.options;
   const selected = new Set(Array.isArray(input) ? input : []);
+  // The inverse side of a two-way relation is read from the partner's edges.
+  // Until editing from that side ships, it must not write edges on the wrong
+  // entry: show the values, explain where to edit them.
+  if (property.config.reciprocalPropertyId !== undefined) {
+    const labels = [...selected].map(
+      (value) =>
+        options.find((option) => option.id === value)?.label ??
+        fallbackOptions.find((option) => option.id === value)?.label ??
+        DATABASE_COPY.common.unavailablePage,
+    );
+    return (
+      <span className="option-menu__trigger" id={id} aria-describedby={describedBy}>
+        {labels.length === 0 ? (
+          <span className="option-menu__empty">{emptyLabel ?? DATABASE_COPY.common.noPage}</span>
+        ) : (
+          <span className="entry-relation-values">
+            {labels.map((label) => (
+              <span className="entry-relation-values__page" key={label} title={label}>
+                <AppIcon name="fileText" size="small" className="entry-relation-values__icon" />
+                <span>{label}</span>
+              </span>
+            ))}
+          </span>
+        )}
+        <span className="sr-only">
+          Relation liée en lecture : modifiez-la depuis la propriété d’origine.
+        </span>
+      </span>
+    );
+  }
   const chosen = [...selected].map((value) => ({
     id: value,
     label:

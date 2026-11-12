@@ -7,6 +7,9 @@ export interface RelationSourceOption {
   readonly id: Uuid;
   readonly ownerItemId: Uuid;
   readonly name: string;
+  /** Property identities of this source, to find the source that owns one. */
+  readonly propertyIds: readonly Uuid[];
+  readonly definitionRevisionId?: Uuid | undefined;
 }
 interface RelationCatalog {
   readonly service: LocalContentService;
@@ -54,6 +57,8 @@ export function RelationCatalogProvider({
               id: row.sourceId ?? ownedSourceIdFromItemId(row.itemId),
               ownerItemId: row.itemId,
               name: row.definition.name?.trim() || owner.name || "Base sans nom",
+              propertyIds: (row.definition.properties ?? []).map((property) => property.id),
+              definitionRevisionId: row.definitionRevisionId,
             },
           ];
         });
