@@ -179,8 +179,15 @@ test("configured relation to an empty source persists and computes 10 + 20 = 30,
   const panel = page.locator(".entry-panel");
   for (const title of ["057 Ten", "057 Twenty"]) {
     const relation = panel.getByRole("button", { name: "Related", exact: true });
-    if ((await relation.getAttribute("aria-expanded")) !== "true") await relation.click();
-    await page.getByRole("menuitemcheckbox", { name: title, exact: true }).click();
+    const option = page.getByRole("menuitemcheckbox", { name: title, exact: true });
+    // The menu can already be open from the previous pick; only click to open
+    // when the option is not rendered, so the trigger is never toggled twice.
+    if (!(await option.isVisible().catch(() => false))) await relation.click();
+    await expect(option).toBeVisible({ timeout: 15_000 });
+    await option.click();
+    // The chosen pill is the durable projection of the link, whether the menu
+    // stays open or closes after the pick.
+    await expect(panel.getByRole("button", { name: "Related", exact: true })).toContainText(title);
   }
   const relationControl = panel.getByRole("button", { name: "Related", exact: true });
   if ((await relationControl.getAttribute("aria-expanded")) === "true")
@@ -330,10 +337,20 @@ test("a two-way relation shows on both sides and reads the same link", async ({ 
   await page.getByRole("menuitem", { name: sourceB, exact: true }).click();
   await page.locator("[data-relation-pair]").click();
   const linkedName = page.getByRole("textbox", { name: "Nom de la propriété liée" });
-  await linkedName.fill("Projets liés");
-  // The activation action stays disabled until the linked name is committed;
-  // WebKit can drop the input event of a fill issued right after the click.
-  await expect(linkedName).toHaveValue("Projets liés");
+  // The activation action stays disabled until the linked name is committed.
+  // WebKit can project the controlled input's previous empty state back into
+  // the DOM between the native fill and its input event, so retry the fill until
+  // the value really sticks.
+  await expect
+    .poll(
+      async () => {
+        if ((await linkedName.inputValue()) === "Projets liés") return "Projets liés";
+        await linkedName.fill("Projets liés").catch(() => {});
+        return linkedName.inputValue().catch(() => "");
+      },
+      { timeout: 20_000 },
+    )
+    .toBe("Projets liés");
   const activate = page.getByRole("menuitem", { name: "Activer la relation liée" });
   await expect(activate).toBeEnabled();
   await activate.click();

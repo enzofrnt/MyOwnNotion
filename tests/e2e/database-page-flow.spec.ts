@@ -115,7 +115,8 @@ for (const flow of ["full", "inline"]) {
           { timeout: 20_000 },
         )
         .toBe(true);
-      await expect(last).toBeInViewport();
+      // The poll above already re-centres until the row intersects; a second
+      // one-shot assertion races the virtualiser's next measurement.
       expect(await surface.evaluate((node) => node.scrollTop)).toBe(0);
       await main.evaluate((node) => {
         node.scrollTop = node.scrollHeight;
