@@ -139,7 +139,16 @@ le remplacement de valeurs existant, idempotente, testée sur la vraie fonction)
 et **lecture inverse** dans le chargement de vue local (arêtes entrantes du
 partenaire fusionnées, carte d'entrée du appelant non mutée ; 2 tests).
 
-**Non fait, donc R5 non livrable :** aucune interface n'expose la paire —
+Ajouté depuis : **interface d'activation**. La rangée « Ajouter une propriété
+liée » affiche Désactivé/Activé, demande le nom de l'inverse et crée la paire ;
+« Retirer la relation liée » supprime l'inverse en gardant l'original et ses
+liens. Le côté inverse est **en lecture seule** pour l'instant : il affiche les
+liens du partenaire via la lecture partagée et refuse d'écrire sur la mauvaise
+entrée, avec une explication pour les technologies d'assistance. Web complet
+(178 fichiers, 1 149 tests) et typage verts.
+
+**Non fait, donc R5 non livrable :** l'édition depuis le côté inverse n'est pas
+livrée —
 il manque la rangée « Ajouter une propriété liée » (valeurs Désactivé/Activé)
 et le passage de l'identité de la source courante jusqu'au panneau de
 propriété, puis l'édition depuis le côté inverse et la preuve Playwright à deux
