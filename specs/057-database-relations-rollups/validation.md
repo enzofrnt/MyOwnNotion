@@ -108,6 +108,32 @@ Reproduits **sans** nos modifications (fichiers restaurés, tests relancés, pui
 
 Après correction : `api-contract` et `workspace-contract` sont **entièrement verts** (237 fichiers, 3 122 tests, exit 0).
 
+## R5 — avancement au 12 novembre (partiel, non livrable)
+
+Décisions et observation Notion consignées dans `plan.md` et `reference-notion.md`.
+Implémenté et vérifié à ce stade :
+
+- `relation.config.reciprocalPropertyId` (domaine, schéma, contrat HTTP) et
+  helpers `relationPairIssue` (forme **et** croisement des sources),
+  `reciprocalRelationOf`, `inverseRelations`, `inverseTargetPropertyPairs`.
+- Commandes `database.relation.pair.create` (transaction unique, CAS des deux
+  définitions, auto-relation en une seule), `database.relation.pair.remove`
+  (supprime l'inverse, conserve la relation et ses liens) et
+  `database.entry.relation.patch` (une arête, idempotente, coordonnées de
+  l'entrée propriétaire).
+- Refus de supprimer une propriété appairée (`database.relation.pair-active`),
+  libellés de changement dédiés, échantillons de parsing.
+
+Preuves : domaine + contrats + client-core **130 fichiers, 1 934 tests** ;
+`database-integration` **426 tests** sur PostgreSQL jetable ; `tsc` vert sur
+domaine, contrats, database, client-core, API.
+
+**Non fait, donc R5 non livrable :** la projection locale et l'outbox ne
+connaissent pas encore ces commandes (elles sont refusées hors ligne), la
+lecture inverse n'est pas branchée dans l'API ni en local, et aucune interface
+n'expose la paire. Les commandes ne sont atteignables par aucun utilisateur ;
+l'objectif reste ouvert.
+
 ## Limites et non-faits
 
 - **R5 relation inverse** : non implémentée. Aucune option factice n'est affichée. Décision et sous-scope proposé dans `plan.md` ; il reste des choix produit (activation sur relation existante, désactivation, suppression/restauration de chaque côté, auto-relation, concurrence, hors ligne).
