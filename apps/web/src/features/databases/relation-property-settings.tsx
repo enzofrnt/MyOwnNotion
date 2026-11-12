@@ -1,4 +1,4 @@
-import { type DatabaseProperty, generateUuidV7, type Uuid } from "@myownnotion/domain";
+import type { DatabaseProperty, Uuid } from "@myownnotion/domain";
 import { useRef, useState } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { Button } from "../../ui/primitives/button.tsx";
@@ -17,56 +17,6 @@ export function RelationPropertySettings({
   const searchRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<Partial<typeof property.config> | null>(null);
   const selected = catalog?.sources.find((source) => source.id === property.config.targetSourceId);
-  const ownSource = catalog?.sources.find((source) => source.propertyIds.includes(property.id));
-  const [pairName, setPairName] = useState("");
-  const [pairOpen, setPairOpen] = useState(false);
-  const [pairBusy, setPairBusy] = useState(false);
-  const [pairError, setPairError] = useState<string | null>(null);
-  const paired = property.config.reciprocalPropertyId !== undefined;
-  const canPair =
-    ownSource !== undefined &&
-    selected !== undefined &&
-    ownSource.definitionRevisionId !== undefined &&
-    selected.definitionRevisionId !== undefined &&
-    property.config.cardinality === "many";
-  const runPair = async (command: "create" | "remove"): Promise<void> => {
-    if (catalog === null || ownSource === undefined || selected === undefined) return;
-    const baseRevisionId = ownSource.definitionRevisionId;
-    const inverseBaseRevisionId = selected.definitionRevisionId;
-    if (baseRevisionId === undefined || inverseBaseRevisionId === undefined) return;
-    setPairBusy(true);
-    setPairError(null);
-    try {
-      const result = await catalog.service.mutate(
-        command === "create" ? "database.relation.pair.create" : "database.relation.pair.remove",
-        command === "create"
-          ? {
-              databaseId: ownSource.id,
-              relationPropertyId: property.id,
-              inversePropertyId: generateUuidV7(),
-              inverseName: pairName.trim(),
-              baseRevisionId,
-              inverseBaseRevisionId,
-            }
-          : {
-              databaseId: ownSource.id,
-              relationPropertyId: property.id,
-              baseRevisionId,
-              inverseBaseRevisionId,
-            },
-        [baseRevisionId, inverseBaseRevisionId],
-      );
-      if (!result.ok) throw new Error(result.error.title);
-      setPairOpen(false);
-      setPairName("");
-    } catch (cause) {
-      setPairError(
-        cause instanceof Error ? cause.message : "La relation liée n’a pas pu être modifiée.",
-      );
-    } finally {
-      setPairBusy(false);
-    }
-  };
   const matchingSources =
     catalog?.sources.filter((source) =>
       source.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
@@ -182,67 +132,6 @@ export function RelationPropertySettings({
               {cardinality === "one" ? "1 page" : "Aucune limite"}
             </MenuItem>
           ))}
-        </MenuContent>
-      </MenuRoot>
-      <MenuRoot
-        open={pairOpen}
-        setOpen={(open) => {
-          if (!pairBusy) setPairOpen(open);
-        }}
-      >
-        <MenuTrigger
-          bare
-          className="property-settings__type"
-          data-relation-pair
-          disabled={property.config.targetSourceId === undefined}
-        >
-          <AppIcon name="link" size="small" />
-          <span>Ajouter une propriété liée</span>
-          <span className="property-settings__type-value">{paired ? "Activé" : "Désactivé"}</span>
-          <AppIcon name="chevronRight" size="small" />
-        </MenuTrigger>
-        <MenuContent className="property-settings__menu" aria-label="Relation liée" unmountOnHide>
-          {paired ? (
-            <>
-              <p className="property-settings__note">
-                La propriété inverse apparaît dans «&nbsp;{selected?.name ?? "la source liée"}
-                &nbsp;». La retirer conserve cette relation et tous ses liens.
-              </p>
-              <MenuItem disabled={pairBusy} onClick={() => void runPair("remove")}>
-                Retirer la relation liée
-              </MenuItem>
-            </>
-          ) : (
-            <>
-              <label className="property-settings__field">
-                <span>Nom de la propriété liée</span>
-                <input
-                  aria-label="Nom de la propriété liée"
-                  value={pairName}
-                  placeholder={selected?.name ?? "Propriété liée"}
-                  disabled={pairBusy}
-                  onChange={(event) => setPairName(event.target.value)}
-                />
-              </label>
-              <MenuItem
-                disabled={pairBusy || !canPair || pairName.trim() === ""}
-                onClick={() => void runPair("create")}
-              >
-                Activer la relation liée
-              </MenuItem>
-              {canPair ? null : (
-                <p className="property-settings__note" role="status">
-                  Une relation liée demande une source connue localement, une limite «&nbsp;Aucune
-                  limite&nbsp;» et une connexion pour créer les deux propriétés.
-                </p>
-              )}
-            </>
-          )}
-          {pairError === null ? null : (
-            <p className="database-field__error" role="alert">
-              {pairError}
-            </p>
-          )}
         </MenuContent>
       </MenuRoot>
       {property.config.targetSourceId === undefined ? (
