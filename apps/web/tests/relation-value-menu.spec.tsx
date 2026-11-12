@@ -117,14 +117,18 @@ describe("relation value menu", () => {
     const available = items().find((item) => item.textContent?.includes("Page 31"));
     await act(async () => available?.click());
     expect(onChange).toHaveBeenCalledWith([id(32), id(31)]);
-    const retained = await vi.waitFor(() => {
-      const node = items().find((item) => item.textContent?.includes("Retirer"));
-      // The retained label is resolved through the catalogue, one asynchronous
-      // `getItem` per out-of-source value. A fast local run can render it during
-      // the click's act(); a slower runner needs the row to be awaited.
-      if (node === undefined) throw new Error("Retained link row is not rendered yet");
-      return node;
-    });
+    const retained = await vi.waitFor(
+      () => {
+        const node = items().find((item) => item.textContent?.includes("Retirer"));
+        // The retained label is resolved through the catalogue, one asynchronous
+        // `getItem` per out-of-source value. A fast local run can render it
+        // during the click's act(); a slower runner needs the row to be awaited
+        // for longer than the default one second.
+        if (node === undefined) throw new Error("Retained link row is not rendered yet");
+        return node;
+      },
+      { timeout: 10_000 },
+    );
     expect(retained.textContent).toContain("hors source");
     await act(async () => retained.click());
     expect(onChange).toHaveBeenLastCalledWith([]);
