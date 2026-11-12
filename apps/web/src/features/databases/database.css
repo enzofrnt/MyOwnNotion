@@ -6152,3 +6152,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The paired-relation row keeps Notion's one-line label with its state at right. */
+.relation-pair__row {
+  gap: var(--ui-space-1);
+  font-size: var(--ui-text-sm);
+}
+.relation-pair__row > span:first-of-type {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.relation-pair__row .property-settings__type-value {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: var(--ui-space-2);
+  white-space: nowrap;
+}

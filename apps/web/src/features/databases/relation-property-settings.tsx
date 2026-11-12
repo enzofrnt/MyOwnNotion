@@ -192,7 +192,7 @@ export function RelationPropertySettings({
       >
         <MenuTrigger
           bare
-          className="property-settings__type"
+          className="property-settings__type relation-pair__row"
           data-relation-pair
           disabled={property.config.targetSourceId === undefined}
         >
@@ -214,16 +214,20 @@ export function RelationPropertySettings({
             </>
           ) : (
             <>
-              <label className="property-settings__field">
-                <span>Nom de la propriété liée</span>
-                <input
-                  aria-label="Nom de la propriété liée"
-                  value={pairName}
-                  placeholder={selected?.name ?? "Propriété liée"}
-                  disabled={pairBusy}
-                  onChange={(event) => setPairName(event.target.value)}
-                />
-              </label>
+              <div className="property-settings__number">
+                <label className="property-settings__field">
+                  <span>Nom de la propriété liée</span>
+                  <input
+                    className="ui-native-input"
+                    data-size="compact"
+                    aria-label="Nom de la propriété liée"
+                    value={pairName}
+                    placeholder={selected?.name ?? "Propriété liée"}
+                    disabled={pairBusy}
+                    onChange={(event) => setPairName(event.target.value)}
+                  />
+                </label>
+              </div>
               <MenuItem
                 disabled={pairBusy || !canPair || pairName.trim() === ""}
                 onClick={() => void runPair("create")}

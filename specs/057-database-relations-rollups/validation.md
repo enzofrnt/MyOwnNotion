@@ -69,6 +69,15 @@ concurrents, une nouvelle lecture ensuite).
 
 Ces écarts sont documentés, pas présentés comme parité atteinte.
 
+**Rangée « Ajouter une propriété liée »** (nouvelle surface, 2026-11-12) :
+captures `evidence/candidate/pair-row-{light,dark}.png` et
+`pair-menu-{light,dark}.png`, prises sur l'application réelle. Deux défauts
+visuels trouvés et corrigés : le champ de nom s'affichait comme un titre (mise
+en page de menu), et la rangée passait sur deux lignes en tronquant l'état. Elle
+tient maintenant sur une ligne, état lisible à droite ; dans la largeur du
+panneau (262 px contre 300 px chez Notion), le libellé se termine par une
+ellipse — écart de largeur assumé, pas une troncature du sens.
+
 ### Portée élargie des contrôles
 
 - `database-integration` **complet** : 44 fichiers, 426 tests verts sur PostgreSQL jetable (après mise à jour de l'attente de liste des migrations, qui ignorait `0021_database_entry_numbers` ajoutée par une autre passe).
