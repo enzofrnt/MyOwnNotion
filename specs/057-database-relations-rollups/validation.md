@@ -148,7 +148,20 @@ Tests d'intégration : création, retrait, refus de supprimer une propriété
 appairée (`relation-pair.integration.spec.ts`, 2 cas) ; suite PostgreSQL
 complète **428 tests**, avec `pg_dump` 18 sur le PATH comme documenté.
 
-**L'interface d'activation a été retirée** : l'outbox locale ne sait pas encore
+Ajouté depuis : **support local/outbox des deux commandes de paire**. La
+projection prépare et applique les deux définitions dans une seule transaction
+Dexie (deux révisions, deux lignes, chacun dans le bon magasin), et refuse
+localement de supprimer une propriété appairée, comme le serveur. Tests
+`relation-pair-local.spec.ts` : création, retrait (inverse retirée, relation
+conservée), refus de suppression ; client-core **686 tests verts**.
+
+**Reste un écart connu pour l'affichage** : la colonne inverse est ajoutée aux
+vues de la *définition*, pas à la présentation enregistrée. Tant que la mise à
+jour de présentation (serveur et local) n'est pas écrite, la colonne n'apparaît
+pas dans la table ; c'est la prochaine étape, avec la réactivation de
+l'interface d'activation.
+
+Précédemment : **l'interface d'activation a été retirée** : l'outbox locale ne sait pas encore
 appliquer une commande qui écrit deux schémas, et l'application applique toute
 mutation en local d'abord — le bouton échouait donc silencieusement. Aucun
 contrôle inopérant n'est laissé visible.
