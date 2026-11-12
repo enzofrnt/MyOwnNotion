@@ -23,7 +23,9 @@ function relation(overrides: Partial<Extract<DatabaseProperty, { type: "relation
 
 describe("inverse relation edit", () => {
   it("writes the partner property with the current entry as target", () => {
-    expect(inverseRelationPatch(relation({}), id("20"), id("10"), id("11"), true, id("12"))).toEqual({
+    expect(
+      inverseRelationPatch(relation({}), id("20"), id("10"), id("11"), true, id("12")),
+    ).toEqual({
       databaseId: id("20"),
       entryId: id("11"),
       propertyId: id("03"),
