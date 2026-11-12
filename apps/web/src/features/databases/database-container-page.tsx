@@ -392,9 +392,13 @@ export function DatabaseContainerPage({
       const target = event.target;
       if (
         target instanceof HTMLElement &&
-        target.closest(
+        (target.closest(
           ".database-view-settings input, .database-view-settings textarea, .database-view-settings select",
-        )
+        ) !== null ||
+          // The property configuration and its pickers are portaled overlays
+          // owned by the panel: Escape there closes the overlay, never the
+          // screen that hosts it.
+          target.closest(".ui-popover, .ui-menu") !== null)
       ) {
         return;
       }
@@ -410,7 +414,11 @@ export function DatabaseContainerPage({
       if (!(target instanceof Element)) return;
       if (
         target.closest(".database-view-settings") !== null ||
-        target.closest("[data-view-settings-trigger]") !== null
+        target.closest("[data-view-settings-trigger]") !== null ||
+        // Menus and popovers are portaled to the body, so their clicks are
+        // not descendants of the panel in the DOM. Editing a property through
+        // its configuration flyout must not be read as "click outside".
+        target.closest(".ui-popover, .ui-menu") !== null
       ) {
         return;
       }
