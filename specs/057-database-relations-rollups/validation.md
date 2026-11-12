@@ -160,7 +160,16 @@ deux côtés — serveur (nouvelle révision de présentation dans la même
 transaction) et local (présentation scellée avec la définition). Assertions
 dédiées dans les tests PostgreSQL et client-core.
 
-**Blocage découvert pour l'exposition** : une fois l'interface d'activation
+**Diagnostic du blocage d'exposition** : le chemin HTTP fonctionne. Un test de
+contrat ajouté (`relation-pair.contract.spec.ts`) crée puis retire une paire via
+`POST /v1/mutations/batch` et passe. En revanche, le parcours navigateur reste
+bloqué : après l'activation, l'état de synchronisation affiché devient
+« offline » alors qu'aucune réponse 4xx/5xx n'est observée (écouteur de
+réponses en place). Le défaut est donc côté client (état après application
+locale de la paire), pas côté serveur. L'interface est masquée tant qu'il n'est
+pas isolé.
+
+**Blocage d'exposition précédent** : une fois l'interface d'activation
 rétablie et le parcours navigateur rejoué, les mutations reviennent en **500**
 via HTTP alors que l'exécuteur passe en test direct sur PostgreSQL. L'interface
 et le parcours ont donc été retirés à nouveau ; il faut diagnostiquer le chemin
