@@ -96,7 +96,25 @@ for (const flow of ["full", "inline"]) {
       const last = virtualNodes.filter({ hasText: "Carte 0999" });
       // Measured card heights replace estimates after the jump. Follow the
       // actual last card using the native page owner rather than stale heights.
-      await last.scrollIntoViewIfNeeded();
+      // WebKit can settle the virtualiser after the first scroll, detaching the
+      // row it just revealed; re-resolve and re-centre it until it intersects.
+      await expect
+        .poll(
+          async () => {
+            try {
+              return await last.evaluate((node) => {
+                const rect = node.getBoundingClientRect();
+                if (rect.bottom > 0 && rect.top < window.innerHeight) return true;
+                node.scrollIntoView({ block: "center" });
+                return false;
+              });
+            } catch {
+              return false;
+            }
+          },
+          { timeout: 20_000 },
+        )
+        .toBe(true);
       await expect(last).toBeInViewport();
       expect(await surface.evaluate((node) => node.scrollTop)).toBe(0);
       await main.evaluate((node) => {

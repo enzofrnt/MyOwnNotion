@@ -212,7 +212,9 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
       // still fails.
       expect(rect.x + rect.width).toBeLessThanOrEqual(width + 4);
       const path = testInfo.outputPath(`column-order-${theme}-${width}.png`);
-      await settings.screenshot({ path });
+      // A resize can remount the anchored sheet between resolution and capture;
+      // page-level clip of the measured box still records the same region.
+      await page.screenshot({ path, clip: rect });
       await testInfo.attach(`column-order-${theme}-${width}`, { path, contentType: "image/png" });
     }
   }
