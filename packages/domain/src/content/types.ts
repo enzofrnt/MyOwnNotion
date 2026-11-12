@@ -138,6 +138,7 @@ export const SAFE_ERROR_CODES = [
   "database.projection-unavailable",
   "database.invalid-view",
   "database.view-source-locked",
+  "database.relation.pair-active",
   "database.source-unavailable",
   "database.invalid-cursor",
   "database.projection-building",

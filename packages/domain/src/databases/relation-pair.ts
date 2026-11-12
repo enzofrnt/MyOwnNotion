@@ -18,15 +18,25 @@ function isActiveRelation(property: DatabaseProperty): property is RelationPrope
   return property.type === "relation" && property.state === "active";
 }
 
+/** The sources that own each side of a candidate pair, when they are known. */
+export interface RelationPairSources {
+  readonly sourceA: Uuid;
+  readonly sourceB: Uuid;
+}
+
 /**
  * Both sides of a two-way relation must point at each other, carry a target
- * source, and allow several pages. Whether each target really is the other's
- * source is checked by the command that knows both definitions and sources;
- * this function only needs the two properties.
+ * source, and allow several pages.
+ *
+ * Passing the two owning sources also proves the targets are crossed: each
+ * property must point at the *other* source. That cannot be inferred from the
+ * two properties alone, so omitting `sources` only validates the shape. An
+ * auto-relation is the same source on both sides and both targets point at it.
  */
 export function relationPairIssue(
   propertyA: DatabaseProperty,
   propertyB: DatabaseProperty,
+  sources?: RelationPairSources,
 ): RelationPairIssue {
   if (propertyA.type !== "relation" || propertyB.type !== "relation") return "not-relation";
   if (!isActiveRelation(propertyA) || !isActiveRelation(propertyB)) return "inactive";
@@ -45,6 +55,15 @@ export function relationPairIssue(
     propertyB.config.reciprocalPropertyId !== propertyA.id
   )
     return "not-mutual";
+  if (sources !== undefined) {
+    const targetA = propertyA.config.targetSourceId;
+    const targetB = propertyB.config.targetSourceId;
+    const crossed =
+      sources.sourceA === sources.sourceB
+        ? targetA === sources.sourceA && targetB === sources.sourceB
+        : targetA === sources.sourceB && targetB === sources.sourceA;
+    if (!crossed) return "source-mismatch";
+  }
   if (propertyA.config.cardinality !== "many" || propertyB.config.cardinality !== "many")
     return "cardinality";
   return "ok";
@@ -89,4 +108,19 @@ export function inverseRelations(definition: DatabaseDefinition): readonly Inver
     if (partnerPropertyId === undefined || partnerSourceId === undefined) return [];
     return [{ propertyId: property.id, partnerPropertyId, partnerSourceId }];
   });
+}
+
+/**
+ * Inverse pairs that a read of one source must resolve on the partner side.
+ *
+ * `sourceId` names the source whose entries are being read; a definition that
+ * describes another source is refused instead of silently returning its pairs.
+ * Historical relations without a reciprocal or a target declare no pair.
+ */
+export function inverseTargetPropertyPairs(
+  sourceId: Uuid,
+  definition: DatabaseDefinition,
+): readonly InverseRelation[] {
+  if (definition.databaseId !== sourceId) return [];
+  return inverseRelations(definition);
 }

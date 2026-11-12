@@ -49,6 +49,9 @@ const NATURES: Readonly<Record<string, string>> = {
   "database.entry.create": "created a database entry",
   "database.entry.values.replace": "edited database properties",
   "database.entry.values.resolve-conflict": "resolved a database property conflict",
+  "database.entry.relation.patch": "linked or unlinked a related page",
+  "database.relation.pair.create": "created a two-way relation",
+  "database.relation.pair.remove": "removed a two-way relation",
   // A conflict resolution. Named as what it is rather than as an edit, because
   // it is the one entry where two lines of work rejoined, and an owner looking
   // for that moment must be able to find it.

@@ -64,6 +64,7 @@ const STATUS_BY_CODE: Partial<Record<SafeErrorCode, number>> = {
   "database.definition-conflict": 409,
   "database.impact-confirmation-required": 409,
   "database.impact-stale": 409,
+  "database.relation.pair-active": 409,
   "database.cursor-stale": 409,
   "database.projection-unavailable": 503,
   "database.invalid-view": 400,

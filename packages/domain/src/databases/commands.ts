@@ -29,6 +29,9 @@ export const DATABASE_COMMAND_TYPES = [
   "database.entry.create",
   "database.entry.values.replace",
   "database.entry.values.resolve-conflict",
+  "database.entry.relation.patch",
+  "database.relation.pair.create",
+  "database.relation.pair.remove",
 ] as const;
 
 export type DatabaseCommandType = (typeof DATABASE_COMMAND_TYPES)[number];
@@ -129,6 +132,36 @@ export type DatabaseMutationCommand =
       readonly resolvedRevisionIds: readonly [Uuid, Uuid];
       readonly values: Readonly<Record<Uuid, NonRelationPropertyValue>>;
       readonly relationTargets: RelationTargets;
+    }
+  /**
+   * Adds or removes one edge of one relation property. Used by both sides of a
+   * two-way pair: the identifiers always describe the entry that owns the edge,
+   * never the entry the owner is looking at.
+   */
+  | {
+      readonly type: "database.entry.relation.patch";
+      readonly databaseId: Uuid;
+      readonly entryId: Uuid;
+      readonly propertyId: Uuid;
+      readonly targetItemId: Uuid;
+      readonly present: boolean;
+      readonly baseRevisionId: Uuid;
+    }
+  | {
+      readonly type: "database.relation.pair.create";
+      readonly databaseId: Uuid;
+      readonly relationPropertyId: Uuid;
+      readonly inversePropertyId: Uuid;
+      readonly inverseName: string;
+      readonly baseRevisionId: Uuid;
+      readonly inverseBaseRevisionId: Uuid;
+    }
+  | {
+      readonly type: "database.relation.pair.remove";
+      readonly databaseId: Uuid;
+      readonly relationPropertyId: Uuid;
+      readonly baseRevisionId: Uuid;
+      readonly inverseBaseRevisionId: Uuid;
     };
 
 /** The identical minimal schema used by server and optimistic projection. */
@@ -450,6 +483,90 @@ export function parseDatabaseMutationCommand(
   payload: Payload,
 ): DomainResult<DatabaseMutationCommand> {
   switch (commandType) {
+    case "database.entry.relation.patch": {
+      if (
+        !hasExactKeys(payload, [
+          "databaseId",
+          "entryId",
+          "propertyId",
+          "targetItemId",
+          "present",
+          "baseRevisionId",
+        ]) ||
+        !isUuid(payload["databaseId"]) ||
+        !isUuid(payload["entryId"]) ||
+        !isUuid(payload["propertyId"]) ||
+        !isUuid(payload["targetItemId"]) ||
+        typeof payload["present"] !== "boolean" ||
+        !isUuid(payload["baseRevisionId"])
+      ) {
+        return invalid();
+      }
+      return ok({
+        type: commandType,
+        databaseId: payload["databaseId"],
+        entryId: payload["entryId"],
+        propertyId: payload["propertyId"],
+        targetItemId: payload["targetItemId"],
+        present: payload["present"],
+        baseRevisionId: payload["baseRevisionId"],
+      });
+    }
+    case "database.relation.pair.create": {
+      if (
+        !hasExactKeys(payload, [
+          "databaseId",
+          "relationPropertyId",
+          "inversePropertyId",
+          "inverseName",
+          "baseRevisionId",
+          "inverseBaseRevisionId",
+        ]) ||
+        !isUuid(payload["databaseId"]) ||
+        !isUuid(payload["relationPropertyId"]) ||
+        !isUuid(payload["inversePropertyId"]) ||
+        !isUuid(payload["baseRevisionId"]) ||
+        !isUuid(payload["inverseBaseRevisionId"]) ||
+        typeof payload["inverseName"] !== "string"
+      ) {
+        return invalid();
+      }
+      const name = normalizeDisplayName(payload["inverseName"]);
+      return name.ok
+        ? ok({
+            type: commandType,
+            databaseId: payload["databaseId"],
+            relationPropertyId: payload["relationPropertyId"],
+            inversePropertyId: payload["inversePropertyId"],
+            inverseName: name.value,
+            baseRevisionId: payload["baseRevisionId"],
+            inverseBaseRevisionId: payload["inverseBaseRevisionId"],
+          })
+        : invalid();
+    }
+    case "database.relation.pair.remove": {
+      if (
+        !hasExactKeys(payload, [
+          "databaseId",
+          "relationPropertyId",
+          "baseRevisionId",
+          "inverseBaseRevisionId",
+        ]) ||
+        !isUuid(payload["databaseId"]) ||
+        !isUuid(payload["relationPropertyId"]) ||
+        !isUuid(payload["baseRevisionId"]) ||
+        !isUuid(payload["inverseBaseRevisionId"])
+      ) {
+        return invalid();
+      }
+      return ok({
+        type: commandType,
+        databaseId: payload["databaseId"],
+        relationPropertyId: payload["relationPropertyId"],
+        baseRevisionId: payload["baseRevisionId"],
+        inverseBaseRevisionId: payload["inverseBaseRevisionId"],
+      });
+    }
     case "database.source.create": {
       if (
         !hasExactKeys(payload, [

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  asUuid,
   type DatabaseProperty,
   inverseRelations,
+  inverseTargetPropertyPairs,
   reciprocalRelationOf,
   relationPairIssue,
   validateDatabaseDefinition,
@@ -109,5 +111,53 @@ describe("two-way relation pair", () => {
         properties: [...definition().properties, relation(A.id, { reciprocalPropertyId: B.id }), B],
       } as never).ok,
     ).toBe(false);
+  });
+
+  it("proves the targets are crossed when the owning sources are known", () => {
+    const sourceA = IDS.database;
+    const sourceB = asUuid("018f0000-0000-7000-8000-000000000099");
+    const crossA = relation(A.id, { targetSourceId: sourceB, reciprocalPropertyId: B.id });
+    const crossB = relation(B.id, { targetSourceId: sourceA, reciprocalPropertyId: A.id });
+    expect(relationPairIssue(crossA, crossB, { sourceA, sourceB })).toBe("ok");
+    expect(
+      relationPairIssue(
+        { ...crossA, config: { ...crossA.config, targetSourceId: sourceA } },
+        crossB,
+        { sourceA, sourceB },
+      ),
+    ).toBe("source-mismatch");
+    expect(
+      relationPairIssue(
+        crossA,
+        { ...crossB, config: { ...crossB.config, targetSourceId: sourceB } },
+        { sourceA, sourceB },
+      ),
+    ).toBe("source-mismatch");
+    // Without the owning sources only the shape can be judged.
+    expect(relationPairIssue(crossA, crossB)).toBe("ok");
+    // An auto-relation points both sides at the same source.
+    const autoA = relation(A.id, { targetSourceId: sourceA, reciprocalPropertyId: B.id });
+    const autoB = relation(B.id, { targetSourceId: sourceA, reciprocalPropertyId: A.id });
+    expect(relationPairIssue(autoA, autoB, { sourceA, sourceB: sourceA })).toBe("ok");
+  });
+
+  it("reads inverse target pairs only from the definition of the requested source", () => {
+    const sourceA = IDS.database;
+    const sourceB = asUuid("018f0000-0000-7000-8000-000000000099");
+    const paired = relation(A.id, { targetSourceId: sourceB, reciprocalPropertyId: B.id });
+    const source = { ...definition(), properties: [paired] };
+    expect(inverseTargetPropertyPairs(sourceA, source)).toEqual([
+      { propertyId: A.id, partnerPropertyId: B.id, partnerSourceId: sourceB },
+    ]);
+    expect(inverseTargetPropertyPairs(IDS.relation, source)).toEqual([]);
+  });
+
+  it("keeps historical relations without a reciprocal out of inverse reads", () => {
+    const legacy = definition();
+    const historical = legacy.properties.find((property) => property.type === "relation");
+    expect(historical?.config).not.toHaveProperty("reciprocalPropertyId");
+    expect(validateDatabaseDefinition(JSON.parse(JSON.stringify(legacy))).ok).toBe(true);
+    expect(inverseRelations(legacy)).toEqual([]);
+    expect(inverseTargetPropertyPairs(legacy.databaseId, legacy)).toEqual([]);
   });
 });
