@@ -328,7 +328,11 @@ export function ViewSettingsPanel({
       const raw = getComputedStyle(stage).getPropertyValue("--database-settings-width");
       const width = Number.parseFloat(raw);
       const column = Number.isFinite(width) ? width : 290;
-      const next = { top: rect.top, left: Math.max(0, rect.right - column) };
+      // The stage's right edge can sit a couple of subpixels past the viewport
+      // (scrollbar and fractional layout). Clamp against the viewport so the
+      // fixed sheet never paints past the right edge on a narrow screen.
+      const right = Math.min(rect.right, window.innerWidth);
+      const next = { top: rect.top, left: Math.max(0, right - column) };
       setFrame((current) =>
         current !== null && current.top === next.top && current.left === next.left ? current : next,
       );
