@@ -45,10 +45,11 @@ const rows = [
     metadata: { databaseId, propertyId: keptProperty },
   },
   {
+    // Another property's edge on the same entry: untouched by this patch.
     relationType: "database:property",
     sourceItemId: entryId,
     targetItemId: id(9),
-    metadata: { databaseId: foreignSource, propertyId },
+    metadata: { databaseId: foreignSource, propertyId: id(11) },
   },
 ];
 
@@ -67,6 +68,8 @@ describe("relation patch translation", () => {
     expect(normalized?.relationTargets).toEqual({
       [propertyId]: [removed, added],
       [keptProperty]: [id(8)],
+      // Another property's targets are carried through untouched.
+      [id(11)]: [id(9)],
     });
     expect(normalized?.values).toEqual({ [keptProperty]: { kind: "text", value: "kept" } });
     expect(normalized?.baseRevisionId).toBe(id(10));
@@ -85,7 +88,11 @@ describe("relation patch translation", () => {
       { ...base, targetItemId: removed, present: false },
       codec,
     );
-    expect(remove?.relationTargets).toEqual({ [propertyId]: [], [keptProperty]: [id(8)] });
+    expect(remove?.relationTargets).toEqual({
+      [propertyId]: [],
+      [keptProperty]: [id(8)],
+      [id(11)]: [id(9)],
+    });
     const replay = await patchAsEntryValues(
       store(rows) as never,
       { ...base, targetItemId: removed, present: true },

@@ -391,19 +391,13 @@ export async function patchAsEntryValues(
   );
   const rows = await db.relationships.where("sourceItemId").equals(command.entryId).toArray();
   const targets: Record<string, Uuid[]> = {};
-  // The owner identifier written with an edge varies between the autosave path
-  // (owning item) and the pair path (source identity). Both designate the same
-  // database, so accept either; a genuinely foreign source stays untouched.
-  const container = await db.databases.get(command.databaseId);
-  const ownerIds = new Set<string>([command.databaseId]);
-  if (container !== undefined) {
-    const openedContainer = await codec.openDatabase(container);
-    if (openedContainer.sourceId !== undefined) ownerIds.add(openedContainer.sourceId);
-  }
+  // Property identities are unique, so the edge on this entry carrying this
+  // property is the edge the patch means. The owner identifier written with an
+  // edge varies with the surface (owning item, source, host page), and matching
+  // on it silently turned removals into no-ops.
   for (const row of rows) {
     if (row.relationType !== "database:property") continue;
     const metadata = row.metadata as Record<string, unknown>;
-    if (!ownerIds.has(String(metadata["databaseId"]))) continue;
     const propertyId = metadata["propertyId"];
     if (typeof propertyId !== "string") continue;
     const list = targets[propertyId] ?? [];
@@ -411,7 +405,10 @@ export async function patchAsEntryValues(
     targets[propertyId] = list;
   }
   const existing = targets[command.propertyId] ?? [];
-  if (existing.includes(command.targetItemId) === command.present) return null;
+  // An addition already present is a replay. A removal of an edge this device
+  // cannot see is not: the server may hold it, so the command still goes out and
+  // the executor decides whether there is anything to remove.
+  if (command.present && existing.includes(command.targetItemId)) return null;
   const next = command.present
     ? [...existing, command.targetItemId]
     : existing.filter((target) => target !== command.targetItemId);
