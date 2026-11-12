@@ -356,7 +356,9 @@ test.describe("focused workspace shell", () => {
     await title.blur();
 
     await expect(page.getByTestId(`tree-item-${renamed}`)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("navigation", { name: "Fil d’Ariane" })).toContainText(renamed);
+    // The title is the last link of the path, so a root page has no ancestors
+    // line: the rename shows in the tree and the title, not in a repeated crumb.
+    await expect(page.getByRole("navigation", { name: "Fil d’Ariane" })).toHaveCount(0);
     await expect(page.locator('[data-testid="block-editor"]:visible')).toHaveAttribute(
       "data-mount-identity",
       editorIdentity,
