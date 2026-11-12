@@ -139,7 +139,21 @@ le remplacement de valeurs existant, idempotente, testée sur la vraie fonction)
 et **lecture inverse** dans le chargement de vue local (arêtes entrantes du
 partenaire fusionnées, carte d'entrée du appelant non mutée ; 2 tests).
 
-Ajouté depuis : **interface d'activation**. La rangée « Ajouter une propriété
+Ajouté depuis : **correctifs serveur prouvés sur PostgreSQL** — résolution de
+la source canonique (les commandes traitaient l'identifiant de source comme une
+page hôte), retrait de paire par mise à la retraite de l'inverse (l'impact
+destructif est explicitement assumé par la commande de paire seule), et ajout
+de la colonne inverse à toutes les vues existantes pour qu'elle soit visible.
+Tests d'intégration : création, retrait, refus de supprimer une propriété
+appairée (`relation-pair.integration.spec.ts`, 2 cas) ; suite PostgreSQL
+complète **428 tests**, avec `pg_dump` 18 sur le PATH comme documenté.
+
+**L'interface d'activation a été retirée** : l'outbox locale ne sait pas encore
+appliquer une commande qui écrit deux schémas, et l'application applique toute
+mutation en local d'abord — le bouton échouait donc silencieusement. Aucun
+contrôle inopérant n'est laissé visible.
+
+Précédemment ajouté : **interface d'activation**. La rangée « Ajouter une propriété
 liée » affiche Désactivé/Activé, demande le nom de l'inverse et crée la paire ;
 « Retirer la relation liée » supprime l'inverse en gardant l'original et ses
 liens. Le côté inverse est **en lecture seule** pour l'instant : il affiche les

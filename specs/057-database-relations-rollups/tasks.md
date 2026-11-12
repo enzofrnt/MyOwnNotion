@@ -27,7 +27,7 @@ Statut : P1 (R1–R4) livré et vérifié ; R5 (relation inverse) non implément
 ## Réciprocité — R5
 
 - [~] T014 Observer et spécifier les transitions Notion, notamment auto-relation ; arrêter un contrat d'écriture atomique et cycle de vie dans `plan.md` ; ne pas masquer une décision non résolue. (référence observée sans activer l'interrupteur ; conception atomique proposée, choix produit restant listés dans plan.md ; aucun code.)
-- [~] T015 Implémenter la réciprocité retenue dans les couches domaine/API/local/UI sans double vérité ; tester création/retrait depuis les deux sens, concurrence et annulation, archivage et restauration. (fait : contrat et helpers, commandes paire/patch, refus de suppression, patch hors ligne, lecture inverse web/API/agrégations, rangée d'activation et retrait. Reste : édition depuis le côté inverse (aujourd'hui en lecture seule), création/retrait de paire hors ligne, tests de bout en bout.)
+- [~] T015 Implémenter la réciprocité retenue dans les couches domaine/API/local/UI sans double vérité ; tester création/retrait depuis les deux sens, concurrence et annulation, archivage et restauration. (fait : contrat et helpers, commandes paire/patch, refus de suppression, patch hors ligne, lecture inverse web/API/agrégations, rangée d'activation et retrait. Reste : support local/outbox des deux commandes de paire (bloque la réactivation de l'UI, retirée pour ne pas laisser un contrôle inopérant), édition depuis le côté inverse (aujourd'hui en lecture seule), tests de bout en bout.)
 - [ ] T016 Ajouter tests intégration et E2E réciprocité, auto-relation, hors ligne et synchronisation ; si explicitement reportée, documenter la limite et ne pas afficher l'option.
 
 ## Convergence
