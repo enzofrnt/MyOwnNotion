@@ -1,6 +1,6 @@
 # Relations entre bases pour des agrégations fiables
 
-**Statut : préparation pour le prochain agent, aucune implémentation ni validation visuelle réalisée dans cette passe.**
+**Statut : implémentée et prouvée.** Relations, agrégations et réciprocité sont livrées ; preuves, contrôles exécutés et limites assumées dans `validation.md`, décisions et séquence dans `plan.md` et `tasks.md`.
 
 ## Intention et articulation
 
