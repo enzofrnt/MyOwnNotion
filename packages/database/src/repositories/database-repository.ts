@@ -697,6 +697,38 @@ export async function listDatabaseProjectionRelationships(
   }));
 }
 
+/**
+ * Edges of a partner property that point at these entries. Used by the inverse
+ * side of a two-way relation, whose values are stored on the other entry.
+ */
+export async function listIncomingDatabasePropertyRelationships(
+  executor: Executor,
+  partnerSourceId: Uuid,
+  partnerPropertyId: Uuid,
+  targetEntryIds: readonly Uuid[],
+): Promise<readonly { readonly sourceItemId: Uuid; readonly targetItemId: Uuid }[]> {
+  if (targetEntryIds.length === 0) return [];
+  const rows = await executor
+    .select({
+      sourceItemId: relationships.sourceItemId,
+      targetItemId: relationships.targetItemId,
+    })
+    .from(relationships)
+    .where(
+      and(
+        eq(relationships.relationType, "database:property"),
+        isNull(relationships.removedRevisionId),
+        inArray(relationships.targetItemId, [...targetEntryIds]),
+        sql`${relationships.metadata}->>'propertyId' = ${partnerPropertyId}`,
+        sql`${relationships.metadata}->>'databaseId' = ${partnerSourceId}`,
+      ),
+    );
+  return rows.map((row) => ({
+    sourceItemId: row.sourceItemId as Uuid,
+    targetItemId: row.targetItemId as Uuid,
+  }));
+}
+
 export async function databaseIdsForEntries(
   executor: Executor,
   entryIds: readonly Uuid[],

@@ -9,6 +9,7 @@ import {
   listDatabaseProjectionEntries,
   listDatabaseProjectionRelationships,
   listDatabaseRecords,
+  listIncomingDatabasePropertyRelationships,
   readItem,
 } from "@myownnotion/database";
 import {
@@ -21,6 +22,8 @@ import {
   databaseQueryDefinition,
   evaluateDatabaseView,
   type FilterCriterion,
+  inverseTargetPropertyPairs,
+  ownedSourceIdFromItemId,
   prepareDatabaseFilterOperand,
   type RollupContext,
   type SafeErrorCode,
@@ -799,6 +802,54 @@ export class DatabaseQueryService {
   }
 }
 
+/** Adds the partner's incoming edges to every entry that shows an inverse property. */
+async function withIncomingRelationships(
+  db: Database,
+  entries: readonly StructuredProjectionEntry[],
+  pairs: readonly {
+    readonly propertyId: Uuid;
+    readonly partnerPropertyId: Uuid;
+    readonly partnerSourceId: Uuid;
+  }[],
+): Promise<readonly StructuredProjectionEntry[]> {
+  if (entries.length === 0) return entries;
+  const targetIds = entries.map((entry) => entry.entryId);
+  const incoming = new Map<string, Uuid[]>();
+  for (const pair of pairs) {
+    const rows = await listIncomingDatabasePropertyRelationships(
+      db,
+      pair.partnerSourceId,
+      pair.partnerPropertyId,
+      targetIds,
+    );
+    for (const row of rows) {
+      const key = `${row.targetItemId}:${pair.propertyId}`;
+      const sources = incoming.get(key) ?? [];
+      sources.push(row.sourceItemId);
+      incoming.set(key, sources);
+    }
+  }
+  if (incoming.size === 0) return entries;
+  const enriched = new Map<Uuid, Map<Uuid, readonly Uuid[]>>();
+  for (const [key, sources] of incoming) {
+    const [targetId = "", propertyId = ""] = key.split(":");
+    const byProperty = enriched.get(targetId as Uuid) ?? new Map<Uuid, readonly Uuid[]>();
+    byProperty.set(propertyId as Uuid, sources);
+    enriched.set(targetId as Uuid, byProperty);
+  }
+  return entries.map((entry) => {
+    const byProperty = enriched.get(entry.entryId);
+    if (byProperty === undefined) return entry;
+    return {
+      ...entry,
+      relationTargets: {
+        ...entry.relationTargets,
+        ...Object.fromEntries(byProperty),
+      },
+    };
+  });
+}
+
 async function loadProjectionSource(input: {
   readonly db: Database;
   readonly record: DatabaseRecord;
@@ -832,12 +883,20 @@ async function loadProjectionSource(input: {
     input.protectedContent,
   );
   const changedIds = new Set(changed);
-  const entries = incremental
+  const merged = incremental
     ? [
         ...(input.previous?.entries.filter((entry) => !changedIds.has(entry.entryId)) ?? []),
         ...resolved,
       ]
     : resolved;
+  // Two-way relations keep their edges on the partner entry, so their values
+  // are read by target rather than by source.
+  const pairs = inverseTargetPropertyPairs(
+    record.sourceId ?? ownedSourceIdFromItemId(record.databaseId),
+    definition,
+  );
+  const entries =
+    pairs.length === 0 ? merged : await withIncomingRelationships(input.db, merged, pairs);
   return {
     databaseId: record.databaseId,
     sourceId: record.sourceId,

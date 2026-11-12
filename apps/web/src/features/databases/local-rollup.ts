@@ -10,6 +10,7 @@ import type {
 import { ownedSourceIdFromItemId } from "@myownnotion/domain";
 import { useEffect, useMemo, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { withInverseRelationTargets } from "./local-inverse-relations.ts";
 
 export interface RollupTargetOption {
   readonly id: string;
@@ -102,10 +103,17 @@ async function readLocalRollupContext(service: LocalContentService): Promise<Loc
     );
     const ids = rows.map((row) => row.entryItemId);
     if (ids.length === 0) continue;
-    const [items, relations] = await Promise.all([
+    const [items, outgoing] = await Promise.all([
       service.getItems(ids),
       service.getDatabaseEntryRelations(source.itemId, ids),
     ]);
+    // Rollups over a two-way relation must read the partner's edges too.
+    const relations = await withInverseRelationTargets({
+      service,
+      source: { itemId: source.itemId, sourceId: canonicalSourceId, definition: source.definition },
+      entryIds: ids,
+      relations: outgoing,
+    });
     const byId = new Map(items.map((item) => [item.id, item]));
     for (const row of rows) {
       const item = byId.get(row.entryItemId);
