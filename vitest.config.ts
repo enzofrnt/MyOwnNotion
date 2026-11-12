@@ -74,6 +74,13 @@ export default defineConfig({
           environment: "node",
           include: ["tests/**/*.spec.{ts,tsx}"],
           setupFiles: ["tests/setup/indexeddb.ts"],
+          // jsdom has no IntersectionObserver, so the lazy Lucide catalogue
+          // renders eagerly: opening an icon picker mounts the whole symbol
+          // grid and its dynamic imports. That stays well inside five seconds
+          // on a laptop, but a constrained CI runner measured just over it.
+          // The wider budget keeps the assertion, not the runner, meaningful.
+          testTimeout: 30_000,
+          hookTimeout: 60_000,
         },
       },
       {
