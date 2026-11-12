@@ -4,6 +4,7 @@ import {
   type DatabaseDefinition,
   type DatabaseQueryEntry,
   type DerivedValueOptions,
+  type Uuid,
 } from "@myownnotion/domain";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
@@ -162,6 +163,7 @@ export function EntryPanel({
                   onChange={autosave.update}
                   onBlur={autosave.flush}
                   revisionId={entry.revisionId}
+                  entryId={entry.entryId as Uuid}
                   createdAt={entry.createdAt}
                   entryNumber={entry.entryNumber}
                   formulaValues={formulaValues}
@@ -173,6 +175,7 @@ export function EntryPanel({
             ) : (
               <EntryPropertyList
                 definition={localDefinition}
+                entryId={entry.entryId as Uuid}
                 drafts={drafts}
                 errors={errors}
                 options={relationOptions.filter((o) => o.id !== entry.entryId)}

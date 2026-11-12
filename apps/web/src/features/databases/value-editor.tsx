@@ -305,6 +305,7 @@ export function ValueEditor({
   error,
   relationOptions = [],
   idSuffix,
+  entryId,
   presentation = "field",
   cardShowIcon = true,
   onBlur,
@@ -318,6 +319,8 @@ export function ValueEditor({
   readonly error: string | null;
   readonly relationOptions?: readonly RelationOption[];
   readonly idSuffix?: string;
+  /** The entry being edited, needed to write the partner edge of an inverse relation. */
+  readonly entryId?: Uuid | undefined;
   readonly presentation?: "field" | "inline" | "entry" | "card";
   readonly cardShowIcon?: boolean;
   readonly onBlur?: () => void;
@@ -425,6 +428,7 @@ export function ValueEditor({
         input={input}
         options={relationOptions}
         emptyLabel={presentation === "card" ? `Ajouter ${property.name}` : undefined}
+        entryId={entryId}
         id={controlId}
         {...(describedBy === undefined ? {} : { describedBy })}
         onChange={onChange}

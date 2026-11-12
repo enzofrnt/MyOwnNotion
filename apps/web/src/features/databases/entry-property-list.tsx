@@ -114,6 +114,7 @@ function PropertyRow({
   preview,
   dragActive,
   revisionId,
+  entryId,
   createdAt,
   entryNumber,
   formulaValues,
@@ -132,6 +133,8 @@ function PropertyRow({
   preview: "before" | "after" | null;
   dragActive: boolean;
   revisionId?: string | undefined;
+  /** Entry identity, used to write the partner edge of an inverse relation. */
+  entryId?: Uuid | undefined;
   createdAt?: string | undefined;
   entryNumber?: number | undefined;
   formulaValues?: ReadonlyMap<string, string> | undefined;
@@ -256,6 +259,7 @@ function PropertyRow({
         <ValueEditor
           property={property}
           presentation="entry"
+          entryId={entryId}
           input={draft}
           error={error}
           relationOptions={options}
@@ -391,6 +395,7 @@ export function EntryPropertyList({
   onChange: (property: DatabaseProperty, input: ValueDraft) => void;
   onBlur: () => void;
   revisionId?: string | undefined;
+  entryId?: Uuid | undefined;
   createdAt?: string | undefined;
   entryNumber?: number | undefined;
   formulaValues?: ReadonlyMap<string, string> | undefined;

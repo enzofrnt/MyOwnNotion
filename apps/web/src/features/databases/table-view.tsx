@@ -2180,6 +2180,7 @@ export function TableView({
                                     input={editingCell.draft}
                                     error={editingCell.error}
                                     idSuffix={row.original.entryId}
+                                    entryId={row.original.entryId as Uuid}
                                     relationOptions={relationOptions.filter(
                                       ({ id }) => id !== row.original.entryId,
                                     )}

@@ -69,6 +69,16 @@ concurrents, une nouvelle lecture ensuite).
 
 Ces écarts sont documentés, pas présentés comme parité atteinte.
 
+**Édition depuis le côté inverse** (implémentée, non encore prouvée en
+navigateur) : le menu de la propriété inverse n'est plus en lecture seule ; il
+écrit l'arête du partenaire via `database.entry.relation.patch` avec la page
+courante comme cible, en utilisant l'identifiant d'entrée transmis par la table
+et le volet. La construction de la commande est extraite
+(`inverse-relation-edit.ts`) et testée (2 cas). Le pas E2E correspondant n'a pas
+abouti : dans le volet de l'entrée cible, le bouton de valeur de la propriété
+inverse n'a pas été trouvé (`Projets liés`) ; il reste à vérifier ce que le
+volet rend pour cette propriété.
+
 **Rangée « Ajouter une propriété liée »** (nouvelle surface, 2026-11-12) :
 captures `evidence/candidate/pair-row-{light,dark}.png` et
 `pair-menu-{light,dark}.png`, prises sur l'application réelle. Deux défauts

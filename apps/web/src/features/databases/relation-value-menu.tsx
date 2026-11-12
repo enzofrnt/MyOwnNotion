@@ -1,9 +1,10 @@
-import type { DatabaseProperty } from "@myownnotion/domain";
+import type { DatabaseProperty, Uuid } from "@myownnotion/domain";
 import { useRef, useState } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "../../ui/primitives/menu.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
-import { useRelationCandidates } from "./relation-catalog.tsx";
+import { inverseRelationPatch } from "./inverse-relation-edit.ts";
+import { useRelationCandidates, useRelationCatalog } from "./relation-catalog.tsx";
 import type { RelationOption, ValueDraft } from "./value-editor.tsx";
 
 export function RelationDraftMenu({
@@ -13,6 +14,7 @@ export function RelationDraftMenu({
   id,
   describedBy,
   emptyLabel,
+  entryId,
   onChange,
 }: {
   readonly property: Extract<DatabaseProperty, { type: "relation" }>;
@@ -21,6 +23,7 @@ export function RelationDraftMenu({
   readonly id: string;
   readonly describedBy?: string;
   readonly emptyLabel?: string | undefined;
+  readonly entryId?: Uuid | undefined;
   readonly onChange: (input: ValueDraft) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -29,6 +32,43 @@ export function RelationDraftMenu({
   const options =
     property.config.targetSourceId === undefined ? fallbackOptions : candidates.options;
   const selected = new Set(Array.isArray(input) ? input : []);
+  const catalog = useRelationCatalog();
+  const partnerSourceId = property.config.targetSourceId;
+  const partnerPropertyId = property.config.reciprocalPropertyId;
+  const inverse = property.config.inverseEdges === true;
+  const canToggle =
+    inverse &&
+    catalog !== null &&
+    entryId !== undefined &&
+    partnerSourceId !== undefined &&
+    partnerPropertyId !== undefined;
+  const [busy, setBusy] = useState<string | null>(null);
+  const [patchError, setPatchError] = useState<string | null>(null);
+  const togglePartnerEdge = async (targetEntryId: Uuid): Promise<void> => {
+    if (!canToggle || catalog === null) return;
+    setBusy(targetEntryId);
+    setPatchError(null);
+    try {
+      const item = await catalog.service.getItem(targetEntryId);
+      const patch = inverseRelationPatch(
+        property,
+        entryId,
+        targetEntryId,
+        !selected.has(targetEntryId),
+        item?.currentRevisionId,
+      );
+      if (patch === null) throw new Error("La relation liée n’est pas connue sur cet appareil.");
+      const result = await catalog.service.mutate("database.entry.relation.patch", { ...patch }, [
+        patch.baseRevisionId,
+      ]);
+      if (!result.ok) throw new Error(result.error.title);
+    } catch (cause) {
+      setPatchError(cause instanceof Error ? cause.message : "Le lien n’a pas pu être modifié.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   // The inverse side of a two-way relation is read from the partner's edges.
   // Until editing from that side ships, it must not write edges on the wrong
   // entry: show the values, explain where to edit them.
@@ -117,7 +157,15 @@ export function RelationDraftMenu({
             Aucune page correspondante.
           </p>
         ) : null}
-        <MenuItem onClick={() => onChange([])}>{DATABASE_COPY.common.noPage}</MenuItem>
+        {inverse ? null : (
+          <MenuItem onClick={() => onChange([])}>{DATABASE_COPY.common.noPage}</MenuItem>
+        )}
+        {inverse && !canToggle ? (
+          <p className="muted property-settings__note" role="status">
+            Modification indisponible : la page ou la relation liée n’est pas connue sur cet
+            appareil.
+          </p>
+        ) : null}
         {[...selected]
           .filter((value) => !options.some((option) => option.id === value))
           .map((value) => (
@@ -129,6 +177,11 @@ export function RelationDraftMenu({
               indisponible)
             </MenuItem>
           ))}
+        {patchError === null ? null : (
+          <p className="database-field__error" role="alert">
+            {patchError}
+          </p>
+        )}
         {options
           .filter((option) => option.label.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
           .map((option) => (
@@ -136,15 +189,20 @@ export function RelationDraftMenu({
               key={option.id}
               role={property.config.cardinality === "many" ? "menuitemcheckbox" : "menuitemradio"}
               aria-checked={selected.has(option.id)}
+              disabled={busy === option.id}
               shortcut={selected.has(option.id) ? <AppIcon name="check" size="small" /> : undefined}
               onClick={() =>
-                onChange(
-                  property.config.cardinality === "one"
-                    ? [option.id]
-                    : selected.has(option.id)
-                      ? [...selected].filter((value) => value !== option.id)
-                      : [...selected, option.id],
-                )
+                inverse
+                  ? canToggle
+                    ? void togglePartnerEdge(option.id as Uuid)
+                    : undefined
+                  : onChange(
+                      property.config.cardinality === "one"
+                        ? [option.id]
+                        : selected.has(option.id)
+                          ? [...selected].filter((value) => value !== option.id)
+                          : [...selected, option.id],
+                    )
               }
             >
               <AppIcon name="fileText" size="small" />
