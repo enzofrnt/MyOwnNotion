@@ -176,9 +176,13 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
           .poll(async () => {
             if (!(await navigation.isVisible())) return true;
             const control = await navigation.boundingBox();
-            const text = await label.boundingBox();
-            // The workspace landing keeps only its heading: a chrome label that
-            // a surface does not render cannot be overlapped.
+            // boundingBox() waits for attachment: a chrome label the surface
+            // does not render (the workspace landing keeps only its heading)
+            // must be probed with isVisible, not by a null box.
+            if ((await label.count()) === 0) return true;
+            const text = (await label.first().isVisible())
+              ? await label.first().boundingBox()
+              : null;
             if (text === null) return true;
             return (
               control !== null &&

@@ -34,6 +34,9 @@ test("welcomes an empty workspace on a page-shaped canvas and opens its first pa
   await home.getByTestId("home-create-page").click();
   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/u);
   await expect(page.getByTestId("active-item-title")).toBeVisible();
+  // At phone widths the navigation is a drawer that closed when the page
+  // opened; reopen it before reading the tree.
+  await ensureNavigationVisible(page);
   await expect(page.getByRole("tree", { name: "Arborescence" })).toContainText("Nouvelle page");
 });
 
