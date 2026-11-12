@@ -76,10 +76,9 @@ export function RelationDraftMenu({
     }
   };
 
-  // The inverse side of a two-way relation is read from the partner's edges.
-  // Until editing from that side ships, it must not write edges on the wrong
-  // entry: show the values, explain where to edit them.
-  if (property.config.inverseEdges === true) {
+  // Without a catalogue or an entry identity the inverse side cannot write the
+  // partner's edges: show the values and say where they are edited instead.
+  if (inverse && !canToggle) {
     const labels = [...selected].map(
       (value) =>
         options.find((option) => option.id === value)?.label ??

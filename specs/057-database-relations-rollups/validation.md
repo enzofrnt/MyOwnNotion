@@ -79,12 +79,15 @@ candidats de **sa** source configurée (`useRelationCandidates(targetSourceId)`)
 au lieu de la liste partagée du conteneur : sans cela une propriété inverse
 n'offrait aucune page.
 
-Le pas E2E reste bloqué, plus précisément : dans le volet de l'entrée cible, le
-bouton de valeur « Projets liés » **existe** (relevé des boutons du volet :
-`["Ajouter une icône", "", "Projets liés", "Ajouter une propriété"]`), mais le
-menu ne présente aucune `menuitemcheckbox`. Il faut donc vérifier quel popup ce
-bouton ouvre dans le volet — probablement l'éditeur de propriété et non le menu
-de valeurs.
+Le pas E2E reste bloqué, et le relevé DOM du volet est net : la ligne de la
+propriété inverse ne contient **que** deux boutons — la poignée de déplacement
+(`Déplacer Projets liés`) et le libellé (`Modifier la propriété Projets liés`).
+Aucun contrôle de valeur n'est monté pour cette propriété dans le volet, donc
+aucun menu ne peut s'ouvrir. Autre défaut trouvé au passage : la branche
+« lecture seule » du menu s'exécutait avant la branche éditable et rendait le
+code d'édition inatteignable ; elle ne s'applique plus que si l'édition est
+impossible (pas de catalogue ou pas d'entrée). Reste à comprendre pourquoi le
+volet ne monte pas la valeur de cette propriété (la table, elle, l'affiche).
 
 **Rangée « Ajouter une propriété liée »** (nouvelle surface, 2026-11-12) :
 captures `evidence/candidate/pair-row-{light,dark}.png` et
