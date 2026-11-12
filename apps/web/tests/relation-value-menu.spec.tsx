@@ -129,4 +129,53 @@ describe("relation value menu", () => {
     // silently becoming empty for relations that predate the source identity.
     expect(document.body.textContent).not.toContain("La source liée n’est pas disponible");
   });
+
+  it("writes the partner edge when the inverse side is edited", async () => {
+    const rows = [{ entryItemId: id(31), sourceId: source }];
+    const revision = id(90);
+    const mutate = vi.fn(async () => ({ ok: true as const }));
+    const service = {
+      ...serviceOf(rows),
+      mutate,
+      getItem: async () => ({ id: id(31), currentRevisionId: revision }),
+    } as unknown as LocalContentService;
+    const onChange = vi.fn();
+    await act(async () =>
+      root.render(
+        <RelationCatalogProvider service={service}>
+          <RelationDraftMenu
+            property={relation({
+              targetSourceId: source,
+              reciprocalPropertyId: id(40),
+              inverseEdges: true,
+            })}
+            input={[]}
+            options={[]}
+            entryId={id(50)}
+            id="field"
+            onChange={onChange}
+          />
+        </RelationCatalogProvider>,
+      ),
+    );
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>(".option-menu__trigger")?.click(),
+    );
+    const available = items().find((item) => item.textContent?.includes("Page 31"));
+    expect(available).toBeDefined();
+    await act(async () => available?.click());
+    expect(mutate).toHaveBeenCalledWith(
+      "database.entry.relation.patch",
+      {
+        databaseId: owner,
+        entryId: id(31),
+        propertyId: id(40),
+        targetItemId: id(50),
+        present: true,
+        baseRevisionId: revision,
+      },
+      [revision],
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });
