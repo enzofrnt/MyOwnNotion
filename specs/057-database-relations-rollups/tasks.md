@@ -1,6 +1,6 @@
 # Tâches — relations entre bases et agrégations
 
-Statut : P1 (R1–R4) livré et vérifié ; R5 (relation inverse) non implémentée, décision dans `plan.md`. `[~]` = partiel, pas terminé. Preuves et limites dans `validation.md`. Les premières corrections fonctionnelles ont commencé après reproduction automatisée et contrat P1, avant achèvement des captures sombre/mobile : écart de séquence à résorber avant convergence. Dépendances : T001–T004 avant changements durables ; T005–T009 avant T010–T013 ; T014–T016 après le socle ; T017–T020 avant convergence.
+Statut : P1 (R1–R4) livré et vérifié ; R5 (relation inverse) livrée pour l'activation, le retrait et la lecture des deux côtés — l'édition depuis le côté inverse reste en lecture seule. `[~]` = partiel, pas terminé. Preuves et limites dans `validation.md`. Les premières corrections fonctionnelles ont commencé après reproduction automatisée et contrat P1, avant achèvement des captures sombre/mobile : écart de séquence à résorber avant convergence. Dépendances : T001–T004 avant changements durables ; T005–T009 avant T010–T013 ; T014–T016 après le socle ; T017–T020 avant convergence.
 
 ## Fondation
 
