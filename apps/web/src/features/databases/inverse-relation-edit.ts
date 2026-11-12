@@ -15,23 +15,24 @@ export interface InverseRelationPatch {
  */
 export function inverseRelationPatch(
   property: DatabaseProperty,
+  partnerOwnerItemId: Uuid | undefined,
   currentEntryId: Uuid | undefined,
   targetEntryId: Uuid,
   present: boolean,
   baseRevisionId: Uuid | undefined,
 ): InverseRelationPatch | null {
   if (property.type !== "relation" || property.config.inverseEdges !== true) return null;
-  const databaseId = property.config.targetSourceId;
   const propertyId = property.config.reciprocalPropertyId;
   if (
-    databaseId === undefined ||
+    partnerOwnerItemId === undefined ||
     propertyId === undefined ||
     currentEntryId === undefined ||
     baseRevisionId === undefined
   )
     return null;
   return {
-    databaseId,
+    // The route expects the owning item, not the source identity.
+    databaseId: partnerOwnerItemId,
     entryId: targetEntryId,
     propertyId,
     targetItemId: currentEntryId,

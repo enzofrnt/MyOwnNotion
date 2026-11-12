@@ -380,6 +380,7 @@ export function EntryPropertyList({
   onChange,
   onBlur,
   revisionId,
+  entryId,
   createdAt,
   entryNumber,
   formulaValues,
@@ -515,6 +516,7 @@ export function EntryPropertyList({
                 }
                 error={errors[p.id] ?? null}
                 revisionId={revisionId}
+                entryId={entryId}
                 createdAt={createdAt}
                 entryNumber={entryNumber}
                 formulaValues={formulaValues}

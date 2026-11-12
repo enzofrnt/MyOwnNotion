@@ -79,15 +79,18 @@ candidats de **sa** source configurée (`useRelationCandidates(targetSourceId)`)
 au lieu de la liste partagée du conteneur : sans cela une propriété inverse
 n'offrait aucune page.
 
-Le pas E2E reste bloqué, et le relevé DOM du volet est net : la ligne de la
-propriété inverse ne contient **que** deux boutons — la poignée de déplacement
-(`Déplacer Projets liés`) et le libellé (`Modifier la propriété Projets liés`).
-Aucun contrôle de valeur n'est monté pour cette propriété dans le volet, donc
-aucun menu ne peut s'ouvrir. Autre défaut trouvé au passage : la branche
-« lecture seule » du menu s'exécutait avant la branche éditable et rendait le
-code d'édition inatteignable ; elle ne s'applique plus que si l'édition est
-impossible (pas de catalogue ou pas d'entrée). Reste à comprendre pourquoi le
-volet ne monte pas la valeur de cette propriété (la table, elle, l'affiche).
+Trois défauts trouvés et corrigés en chemin : la branche « lecture seule »
+s'exécutait avant la branche éditable (code d'édition inatteignable), la liste
+des lignes du volet ne transmettait pas l'identité de l'entrée (donc
+`canToggle` toujours faux), et la commande inverse envoyait l'identifiant de
+**source** alors que la route attend l'**item propriétaire** (lien rejeté en
+`database.entry-not-found`).
+
+Le menu inverse est maintenant atteignable dans le volet : le basculement
+retire bien le lien côté local (le volet affiche « Aucune page »). Mais après
+synchronisation et rechargement, la cellule canonique montre encore « 1 liée » :
+le serveur n'a donc pas retenu le retrait. Prochaine étape : capturer la réponse
+de `database.entry.relation.patch` pour connaître le motif exact du rejet.
 
 **Rangée « Ajouter une propriété liée »** (nouvelle surface, 2026-11-12) :
 captures `evidence/candidate/pair-row-{light,dark}.png` et

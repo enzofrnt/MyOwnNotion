@@ -43,11 +43,13 @@ export function RelationDraftMenu({
   const partnerSourceId = property.config.targetSourceId;
   const partnerPropertyId = property.config.reciprocalPropertyId;
   const inverse = property.config.inverseEdges === true;
+  const partnerOwnerItemId =
+    catalog?.sources.find((source) => source.id === partnerSourceId)?.ownerItemId ?? undefined;
   const canToggle =
     inverse &&
     catalog !== null &&
     entryId !== undefined &&
-    partnerSourceId !== undefined &&
+    partnerOwnerItemId !== undefined &&
     partnerPropertyId !== undefined;
   const [busy, setBusy] = useState<string | null>(null);
   const [patchError, setPatchError] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export function RelationDraftMenu({
       const item = await catalog.service.getItem(targetEntryId);
       const patch = inverseRelationPatch(
         property,
+        partnerOwnerItemId,
         entryId,
         targetEntryId,
         !selected.has(targetEntryId),
