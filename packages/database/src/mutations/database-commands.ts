@@ -1312,6 +1312,72 @@ function pairedInverseProperty(input: {
   };
 }
 
+/**
+ * Add the inverse column to the *saved presentation* of the partner owner.
+ * The definition alone is not displayed: the table renders the presentation's
+ * column list, so a pair without this update creates an invisible property.
+ */
+async function addPairColumnToPresentation(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  ownerItemId: Uuid,
+  sourceId: Uuid,
+  propertyId: Uuid,
+): Promise<DomainResult<Uuid | null>> {
+  const record = await readDatabasePresentationRecord(tx, ownerItemId);
+  const current = await readCurrentDatabasePresentation(
+    tx,
+    ownerItemId,
+    snapshotResolver(tx, context),
+  );
+  const item = await getItem(tx, ownerItemId);
+  if (record === null || current === null || item === null) {
+    return err("database.not-found", "Database presentation is unavailable");
+  }
+  let changed = false;
+  const views = current.views.map((view) => {
+    if (view.sourceId !== sourceId) return view;
+    if (view.properties.some((column) => column.propertyId === propertyId)) return view;
+    changed = true;
+    return {
+      ...view,
+      properties: [
+        ...view.properties,
+        {
+          propertyId,
+          visible: true,
+          positionKey: keyAfterAll(view.properties.map((column) => column.positionKey)),
+        },
+      ],
+    };
+  });
+  if (!changed) return ok(null);
+  const candidate = validateDatabasePresentation(
+    { ...current, views },
+    item.kind === "database_view" ? "database_view" : "database",
+  );
+  if (!candidate.ok) return candidate as DomainResult<never>;
+  const revisionId = generateUuidV7();
+  const advanced = await advanceDatabasePresentationVersion(tx, {
+    containerItemId: ownerItemId,
+    presentationRevisionId: revisionId,
+    expectedVersion: record.presentationVersion,
+    acceptedAt: context.acceptedAt,
+  });
+  if (!advanced) return err("mutation.conflict", "Database presentation version changed");
+  const snapshot = await buildItemSnapshot(tx, ownerItemId);
+  snapshot["databasePresentation"] = candidate.value;
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: ownerItemId,
+    mutationId: context.mutationId,
+    parentRevisionIds: [item.currentRevisionId],
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  return ok(revisionId);
+}
+
 /** Show a newly paired property in every existing view, as adding a column does. */
 function attachPropertyToViews(
   definition: DatabaseDefinition,
@@ -1451,9 +1517,31 @@ async function executeRelationPairCreate(
       "Database impact changed before creating the relation pair",
     );
     if (!prepared.ok) return prepared as DomainResult<DatabaseCommandExecution>;
-    return commitDefinitionChange(tx, context, sourceA, sourceA.databaseId, prepared.value, [
-      command.baseRevisionId,
-    ]);
+    const committed = await commitDefinitionChange(
+      tx,
+      context,
+      sourceA,
+      sourceA.databaseId,
+      prepared.value,
+      [command.baseRevisionId],
+    );
+    if (!committed.ok) return committed;
+    const presentation = await addPairColumnToPresentation(
+      tx,
+      context,
+      sourceA.databaseId,
+      sourceA.sourceId as Uuid,
+      inverse.id,
+    );
+    if (!presentation.ok) return presentation as DomainResult<DatabaseCommandExecution>;
+    return ok({
+      revisionIds: [
+        ...committed.value.revisionIds,
+        ...(presentation.value === null ? [] : [presentation.value]),
+      ],
+      changedItemIds: committed.value.changedItemIds,
+      primaryItemId: committed.value.primaryItemId,
+    });
   }
   const [preparedA, preparedB] = await Promise.all([
     prepareDefinitionChange(
@@ -1499,8 +1587,20 @@ async function executeRelationPairCreate(
     [command.inverseBaseRevisionId],
   );
   if (!second.ok) return second;
+  const presentationB = await addPairColumnToPresentation(
+    tx,
+    context,
+    recordB.databaseId,
+    recordB.sourceId as Uuid,
+    command.inversePropertyId,
+  );
+  if (!presentationB.ok) return presentationB as DomainResult<DatabaseCommandExecution>;
   return ok({
-    revisionIds: [...first.value.revisionIds, ...second.value.revisionIds],
+    revisionIds: [
+      ...first.value.revisionIds,
+      ...second.value.revisionIds,
+      ...(presentationB.value === null ? [] : [presentationB.value]),
+    ],
     changedItemIds: [sourceA.databaseId, recordB.databaseId],
     primaryItemId: sourceA.databaseId,
   });

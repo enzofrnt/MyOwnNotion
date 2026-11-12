@@ -118,6 +118,12 @@ describe("two-way relation pair offline", () => {
         view.properties.some((column) => column.propertyId === inverseId),
       ),
     ).toBe(true);
+    // The saved presentation is what the table renders.
+    expect(
+      bAfter?.presentation?.views.some((view) =>
+        view.properties.some((column) => column.propertyId === inverseId),
+      ),
+    ).toBe(true);
 
     const aNow = await databases.getDatabase(a.id);
     expect(

@@ -461,7 +461,6 @@ async function prepareRelationPair(
       "validation.invalid-payload",
       "Relationship property is unavailable",
     );
-  const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
   const seal = async (
     side: typeof sideA,
     definition: DatabaseDefinition,
@@ -478,6 +477,9 @@ async function prepareRelationPair(
         definitionVersion: side.opened.definitionVersion + 1,
         definitionRevisionId: revisionId,
         definition,
+        ...(presentation === undefined
+          ? {}
+          : { presentation, presentationVersion: (side.opened.presentationVersion ?? 1) + 1 }),
       }),
       intoSources: side.intoSources,
       item: await codec.sealItem({ ...item, currentRevisionId: revisionId }),
@@ -568,27 +570,40 @@ async function prepareRelationPair(
       reciprocalPropertyId: relation.id,
     },
   };
-  const attach = (
-    definition: DatabaseDefinition,
-    property: DatabaseProperty,
-  ): DatabaseDefinition => ({
-    ...definition,
-    properties: [...definition.properties, property],
-    views: definition.views.map((view) =>
-      view.properties.some((column) => column.propertyId === property.id)
-        ? view
-        : {
-            ...view,
-            properties: [
-              ...view.properties,
-              {
-                propertyId: property.id,
-                visible: true,
-                positionKey: keyAfterAll(view.properties.map((column) => column.positionKey)),
-              },
-            ],
-          },
-    ),
+  const withColumn = (
+    view: {
+      readonly properties: readonly { readonly propertyId: Uuid; readonly positionKey: string }[];
+    },
+    propertyId: Uuid,
+  ) =>
+    view.properties.some((column) => column.propertyId === propertyId)
+      ? view
+      : {
+          ...view,
+          properties: [
+            ...view.properties,
+            {
+              propertyId,
+              visible: true,
+              positionKey: keyAfterAll(view.properties.map((column) => column.positionKey)),
+            },
+          ],
+        };
+  // The canonical definition and the saved presentation both need the column:
+  // the table renders the presentation.
+  const attach = (side: typeof sideA, property: DatabaseProperty) => ({
+    definition: {
+      ...side.opened.definition,
+      properties: [...side.opened.definition.properties, property],
+      views: side.opened.definition.views.map((view) => withColumn(view, property.id)),
+    } as unknown as DatabaseDefinition,
+    presentation:
+      side.opened.presentation === undefined
+        ? undefined
+        : ({
+            ...side.opened.presentation,
+            views: side.opened.presentation.views.map((view) => withColumn(view, property.id)),
+          } as unknown as typeof side.opened.presentation),
   });
   const nextA: DatabaseDefinition = {
     ...sideA.opened.definition,
@@ -605,11 +620,17 @@ async function prepareRelationPair(
   const revisionB = generateUuidV7();
   const sameSide =
     sideA.opened.itemId === sideB.opened.itemId && sideA.opened.sourceId === sideB.opened.sourceId;
-  const definitionA = sameSide ? attach(clone(nextA), inverse) : nextA;
-  const sealedA = await seal(sideA, definitionA, revisionA);
+  const attachedA = sameSide ? attach(sideA, inverse) : undefined;
+  const sealedA = await seal(
+    sideA,
+    attachedA?.definition ?? nextA,
+    revisionA,
+    attachedA?.presentation,
+  );
   const sides = [{ ...sealedA, baseRevisionId: command.baseRevisionId }];
   if (!sameSide) {
-    const sealedB = await seal(sideB, attach(clone(sideB.opened.definition), inverse), revisionB);
+    const attachedB = attach(sideB, inverse);
+    const sealedB = await seal(sideB, attachedB.definition, revisionB, attachedB.presentation);
     sides.push({ ...sealedB, baseRevisionId: command.inverseBaseRevisionId });
   }
   return { pair: { sides } };

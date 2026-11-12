@@ -1,5 +1,6 @@
 import {
   readCurrentDatabaseDefinition,
+  readCurrentDatabasePresentation,
   readDatabaseRecord,
   submitMutation,
 } from "@myownnotion/database";
@@ -127,6 +128,13 @@ describe("two-way relation pair PostgreSQL", () => {
     expect(
       originDefinition?.properties.find((property) => property.id === f.relationId),
     ).toMatchObject({ config: { reciprocalPropertyId: inverseId } });
+    // The saved presentation must show the new column, or no table renders it.
+    const presentation = await readCurrentDatabasePresentation(context.handle.db, f.targetItem);
+    expect(
+      presentation?.views.some((view) =>
+        view.properties.some((column) => column.propertyId === inverseId),
+      ),
+    ).toBe(true);
 
     const next = await revisions(f);
     const removed = await submit({

@@ -155,7 +155,18 @@ localement de supprimer une propriété appairée, comme le serveur. Tests
 `relation-pair-local.spec.ts` : création, retrait (inverse retirée, relation
 conservée), refus de suppression ; client-core **686 tests verts**.
 
-**Reste un écart connu pour l'affichage** : la colonne inverse est ajoutée aux
+Ajouté depuis : la **présentation enregistrée** reçoit la colonne inverse des
+deux côtés — serveur (nouvelle révision de présentation dans la même
+transaction) et local (présentation scellée avec la définition). Assertions
+dédiées dans les tests PostgreSQL et client-core.
+
+**Blocage découvert pour l'exposition** : une fois l'interface d'activation
+rétablie et le parcours navigateur rejoué, les mutations reviennent en **500**
+via HTTP alors que l'exécuteur passe en test direct sur PostgreSQL. L'interface
+et le parcours ont donc été retirés à nouveau ; il faut diagnostiquer le chemin
+HTTP (validation de commande ou sérialisation) avant toute exposition.
+
+**Écart d'affichage précédent** : la colonne inverse est ajoutée aux
 vues de la *définition*, pas à la présentation enregistrée. Tant que la mise à
 jour de présentation (serveur et local) n'est pas écrite, la colonne n'apparaît
 pas dans la table ; c'est la prochaine étape, avec la réactivation de
