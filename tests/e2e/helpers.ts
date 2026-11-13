@@ -377,7 +377,9 @@ export const CURRENT_PROTOCOL_HEADERS = {
 // generic assertion budget while the app is still making forward progress.
 // Keep interaction assertions strict; only the initial application boundary
 // receives the same 30-second allowance already used by authentication boots.
-const WORKSPACE_BOOT_TIMEOUT_MS = 30_000;
+// The workspace shell boots from local storage; a cold WebKit mobile context on a
+// shared runner has needed more than thirty seconds to paint it after a reload.
+const WORKSPACE_BOOT_TIMEOUT_MS = 45_000;
 
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
