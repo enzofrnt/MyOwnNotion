@@ -97,7 +97,12 @@ test("preserves native property input across a remote projection before input de
     await summary.dispatchEvent("input");
     await waitForEntryAutosave(page);
     await page.getByRole("button", { name: "Fermer le volet" }).click();
+    // The projection just gained a column from the other device; the peek can
+    // still be animating shut when the row is clicked again. Wait for the close
+    // and for the reopened panel instead of racing both transitions.
+    await expect(page.locator(".entry-panel")).toBeHidden();
     await trigger.click();
+    await expect(page.locator(".entry-panel")).toBeVisible({ timeout: 15_000 });
     await expect(summary).toHaveValue("Native pending summary");
   } finally {
     await second.context.close();
