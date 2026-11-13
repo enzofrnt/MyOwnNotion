@@ -1022,7 +1022,10 @@ export async function dropEditorFile(
     { name: file.name, mimeType: file.mimeType, base64: file.buffer.toString("base64") },
   );
   if (file.mimeType.startsWith("image/")) {
-    await expect(editor.getByRole("img", { name: file.name, exact: true })).toBeVisible({
+    // Attachment journeys also pass bytes a browser cannot decode under an image
+    // MIME type; the node is still inserted, but it has no painted box. Wait for
+    // the node itself and let each journey assert what it needs.
+    await expect(editor.getByRole("img", { name: file.name, exact: true })).toBeAttached({
       timeout: 30_000,
     });
   } else {
