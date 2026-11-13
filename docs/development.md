@@ -528,13 +528,23 @@ many lanes the selected journeys need and which journey files each lane runs
   when one is supplied with `--timings`, otherwise the number of tests it
   declares × `defaultSecondsPerTest`;
 - `lanes = clamp(ceil(total weight / targetSeconds), 1, min(maxPerProject, files))`;
+- when the projects together ask for more than `maxTotal` lanes, lanes are
+  taken back one at a time from the project that stays shortest without it;
 - files are assigned heaviest-first to the lightest lane, deterministically.
 
-The three numbers live in `e2eLanes` of `ci/test-impact.json`. They describe
-how long a lane should be, not how many there are: adding journeys adds lanes
-with no edit, and a narrow pull request gets one lane per project. Raise
-`maxPerProject` only if lanes at the cap grow well past `targetSeconds`; lower
-`targetSeconds` for a shorter gate at the price of more runners.
+The numbers live in `e2eLanes` of `ci/test-impact.json`. They describe how
+long a lane should be and how many runners the matrix may take, not how many
+lanes a project has: adding journeys adds lanes with no edit, and a narrow pull
+request gets one lane per project.
+
+`maxTotal` exists because hosted runners are a limited, shared pool. Lanes
+beyond what the pool can start at once do not run in parallel — they queue
+behind the other jobs of the run, and a queued short lane finishes later than a
+longer lane that started immediately. The first 20-lane run showed exactly
+that: lanes of 7–14 minutes, but the last one started 12 minutes after the
+first. Set `maxTotal` to what the account can start together alongside the
+other jobs of the workflow; once it binds, lanes grow longer instead of more
+numerous.
 
 Per project the lanes partition the selection — every selected journey file is
 in exactly one lane — which `tests/contract/e2e-lanes.spec.ts` checks as a

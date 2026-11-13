@@ -1399,6 +1399,7 @@
   "e2eLanes": {
     "targetSeconds": 720,
     "maxPerProject": 6,
+    "maxTotal": 15,
     "defaultSecondsPerTest": 7
   }
 }

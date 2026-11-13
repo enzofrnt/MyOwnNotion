@@ -12,6 +12,11 @@
  *
  *   lanes = clamp(ceil(estimate / targetSeconds), 1, min(maxPerProject, files))
  *
+ * and, when the projects together ask for more lanes than the runner pool can
+ * start at once (`maxTotal`), lanes are taken back one at a time from the
+ * project that stays shortest without it. Longer lanes that all start
+ * together beat short lanes waiting in a queue.
+ *
  * and the estimate comes from the measured duration of each file in the last
  * trusted run when that is available, otherwise from the number of tests the
  * file declares. Adding journeys therefore adds lanes with no edit to any
@@ -25,6 +30,12 @@ export interface E2eLanePolicy {
   targetSeconds: number;
   /** Safety cap: an estimate bug must not request dozens of runners. */
   maxPerProject: number;
+  /**
+   * Lanes the whole matrix may use at once. Runners are a shared, limited
+   * pool: lanes beyond it do not run in parallel, they queue, and a queued
+   * short lane finishes later than a longer one that started immediately.
+   */
+  maxTotal: number;
   /** Weight of one declared test when no measurement exists for its file. */
   defaultSecondsPerTest: number;
 }
@@ -77,12 +88,15 @@ export function countDeclaredTests(source: string): number {
 export function validateLanePolicy(policy: E2eLanePolicy | undefined): string[] {
   if (policy === undefined) return ["e2eLanes is required"];
   const failures: string[] = [];
-  const { targetSeconds, maxPerProject, defaultSecondsPerTest } = policy;
+  const { targetSeconds, maxPerProject, maxTotal, defaultSecondsPerTest } = policy;
   if (!Number.isInteger(targetSeconds) || targetSeconds < 120 || targetSeconds > 3600) {
     failures.push("e2eLanes.targetSeconds must be an integer between 120 and 3600");
   }
   if (!Number.isInteger(maxPerProject) || maxPerProject < 1 || maxPerProject > 12) {
     failures.push("e2eLanes.maxPerProject must be an integer between 1 and 12");
+  }
+  if (!Number.isInteger(maxTotal) || maxTotal < 1 || maxTotal > 60) {
+    failures.push("e2eLanes.maxTotal must be an integer between 1 and 60");
   }
   if (
     typeof defaultSecondsPerTest !== "number" ||
@@ -126,21 +140,55 @@ function fileWeight(
   return declared * policy.defaultSecondsPerTest;
 }
 
-function projectLanes(
+interface WeightedFile {
+  file: string;
+  weight: number;
+}
+
+function weighFiles(
   policy: E2eLanePolicy,
   project: string,
   testFiles: readonly string[],
   inputs: E2eLaneInputs,
-): E2eLane[] {
-  const weighted = testFiles
-    .map((file) => ({ file, weight: fileWeight(policy, project, file, inputs) }))
-    // Heaviest first; the path breaks ties so the order never depends on input order.
-    .sort((left, right) => right.weight - left.weight || left.file.localeCompare(right.file));
-  const estimate = weighted.reduce((sum, { weight }) => sum + weight, 0);
-  const total = Math.max(
-    1,
-    Math.min(policy.maxPerProject, weighted.length, Math.ceil(estimate / policy.targetSeconds)),
+): WeightedFile[] {
+  return (
+    testFiles
+      .map((file) => ({ file, weight: fileWeight(policy, project, file, inputs) }))
+      // Heaviest first; the path breaks ties so the order never depends on input order.
+      .sort((left, right) => right.weight - left.weight || left.file.localeCompare(right.file))
   );
+}
+
+/**
+ * Lane count of each project: what its own duration asks for, then reduced
+ * until the whole matrix fits the runner pool. Every project keeps one lane.
+ */
+function laneCounts(policy: E2eLanePolicy, estimates: readonly number[], files: number): number[] {
+  const counts = estimates.map((estimate) =>
+    Math.max(1, Math.min(policy.maxPerProject, files, Math.ceil(estimate / policy.targetSeconds))),
+  );
+  let total = counts.reduce((sum, count) => sum + count, 0);
+  while (total > policy.maxTotal) {
+    // Take a lane from the project whose lanes stay shortest without it. The
+    // first such project wins a tie, so the result never depends on timing.
+    let candidate = -1;
+    let shortest = Number.POSITIVE_INFINITY;
+    for (const [position, count] of counts.entries()) {
+      if (count <= 1) continue;
+      const after = (estimates[position] ?? 0) / (count - 1);
+      if (after < shortest) {
+        shortest = after;
+        candidate = position;
+      }
+    }
+    if (candidate === -1) break;
+    counts[candidate] = (counts[candidate] ?? 1) - 1;
+    total -= 1;
+  }
+  return counts;
+}
+
+function packLanes(project: string, weighted: readonly WeightedFile[], total: number): E2eLane[] {
   const bins = Array.from({ length: total }, () => ({ files: [] as string[], seconds: 0 }));
   for (const { file, weight } of weighted) {
     let lightest = bins[0];
@@ -169,7 +217,12 @@ export function planE2eLanes(
 ): { lanes: E2eLane[]; matrix: E2eMatrixEntry[] } {
   const selected = [...new Set(testFiles)].sort();
   if (selected.length === 0) return { lanes: [], matrix: NO_E2E_MATRIX };
-  const lanes = projects.flatMap((project) => projectLanes(policy, project, selected, inputs));
+  const weighted = projects.map((project) => weighFiles(policy, project, selected, inputs));
+  const estimates = weighted.map((files) => files.reduce((sum, { weight }) => sum + weight, 0));
+  const counts = laneCounts(policy, estimates, selected.length);
+  const lanes = projects.flatMap((project, position) =>
+    packLanes(project, weighted[position] ?? [], counts[position] ?? 1),
+  );
   return {
     lanes,
     matrix: lanes.map(({ project, index, total, id }) => ({

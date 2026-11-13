@@ -25,7 +25,12 @@ import {
 
 const repoRoot = path.resolve(import.meta.dirname, "../..");
 const policy = loadImpactPolicy(repoRoot);
-const sizing: E2eLanePolicy = { targetSeconds: 720, maxPerProject: 6, defaultSecondsPerTest: 7 };
+const sizing: E2eLanePolicy = {
+  targetSeconds: 720,
+  maxPerProject: 6,
+  maxTotal: 12,
+  defaultSecondsPerTest: 7,
+};
 const projects = ["chromium-desktop", "webkit-mobile"];
 
 const journey = (index: number): string =>
@@ -44,6 +49,7 @@ describe("lane sizing policy", () => {
     [{ ...sizing, targetSeconds: 60 }, "targetSeconds"],
     [{ ...sizing, maxPerProject: 0 }, "maxPerProject"],
     [{ ...sizing, maxPerProject: 40 }, "maxPerProject"],
+    [{ ...sizing, maxTotal: 0 }, "maxTotal"],
     [{ ...sizing, defaultSecondsPerTest: 0 }, "defaultSecondsPerTest"],
   ])("rejects an out-of-range value %j", (invalid, field) => {
     expect(validateLanePolicy(invalid).join("\n")).toContain(field);
@@ -71,8 +77,10 @@ describe("lane planning", () => {
             expect(new Set(assigned).size).toBe(assigned.length);
             expect(own.every((lane) => lane.testFiles.length > 0)).toBe(true);
             expect(own.length).toBeLessThanOrEqual(sizing.maxPerProject);
+            expect(own.length).toBeGreaterThanOrEqual(1);
             expect(own.map((lane) => lane.index)).toEqual(own.map((_, index) => index + 1));
           }
+          expect(lanes.length).toBeLessThanOrEqual(Math.max(sizing.maxTotal, projects.length));
           expect(matrix.map(({ laneId }) => laneId)).toEqual(lanes.map(({ id }) => id));
           // Input order is irrelevant: the plan depends on the selection only.
           expect(planE2eLanes(sizing, projects, [...files].reverse(), inputs).lanes).toEqual(lanes);
@@ -99,6 +107,34 @@ describe("lane planning", () => {
     expect(lanesFor(60)).toBe(3);
     expect(lanesFor(120)).toBe(6);
     expect(lanesFor(1000)).toBe(sizing.maxPerProject);
+    // One project alone: the pool (12) is not the limit, the per-project cap is.
+  });
+
+  it("never asks for more lanes than the runner pool, and shortens the fastest project first", () => {
+    const five = ["a", "b", "c", "d", "e"];
+    const files = corpus(60);
+    // Each project alone wants 6 lanes (60 files × 12 tests × 7 s ≈ 5,040 s),
+    // 30 in total; the pool holds 12. Project "e" is measured at twice the
+    // duration of the others, so it keeps more lanes.
+    const timings = parseTimings({
+      version: 1,
+      projects: { e: Object.fromEntries(files.map((file) => [file, 168])) },
+    });
+    const { lanes } = planE2eLanes(sizing, five, files, { testCounts: counts(files, 12), timings });
+    const perProject = five.map((name) => lanes.filter((lane) => lane.project === name).length);
+    expect(perProject.reduce((sum, count) => sum + count, 0)).toBe(sizing.maxTotal);
+    expect(perProject).toEqual([2, 2, 2, 2, 4]);
+    for (const name of five) {
+      const assigned = lanes.filter((lane) => lane.project === name).flatMap((l) => l.testFiles);
+      expect([...assigned].sort()).toEqual(files);
+    }
+  });
+
+  it("keeps one lane per project even when the pool is smaller than the matrix", () => {
+    const { lanes } = planE2eLanes({ ...sizing, maxTotal: 1 }, projects, corpus(200), {
+      testCounts: counts(corpus(200), 10),
+    });
+    expect(lanes.map(({ id }) => id)).toEqual(["chromium-desktop-1-1", "webkit-mobile-1-1"]);
   });
 
   it("prefers measured timings and balances lanes by duration", () => {
