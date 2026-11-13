@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   createDatabaseEntry,
@@ -70,6 +70,54 @@ async function openPropertyConfiguration(page: Page, name: string) {
   await page.mouse.move(0, 0);
   await expect(page.locator(".database-column-editor__flyout:visible")).toHaveCount(0);
   await expect(page.locator(".property-settings:visible")).toBeVisible();
+}
+
+/** Picks one linked page, retrying the open-and-pick gesture until the pill shows it. */
+async function pickRelation(
+  page: Page,
+  panel: Locator,
+  trigger: string,
+  optionName: string,
+): Promise<void> {
+  const pill = panel.getByRole("button", { name: trigger, exact: true });
+  await expect
+    .poll(
+      async () => {
+        const shown = ((await pill.textContent().catch(() => "")) ?? "").includes(optionName);
+        if (shown) return true;
+        const menu = page.locator('[role="menu"]:visible');
+        const option = menu.getByRole("menuitemcheckbox", { name: optionName, exact: true });
+        if (!(await option.isVisible().catch(() => false))) await pill.click().catch(() => {});
+        if (await option.isVisible().catch(() => false)) await option.click().catch(() => {});
+        return ((await pill.textContent().catch(() => "")) ?? "").includes(optionName);
+      },
+      { timeout: 30_000, intervals: [500, 1_000, 2_000] },
+    )
+    .toBe(true);
+}
+
+/** Removes one linked page, retrying the open-and-unpick gesture until the pill drops it. */
+async function unpickRelation(
+  page: Page,
+  panel: Locator,
+  trigger: string,
+  optionName: string,
+): Promise<void> {
+  const pill = panel.getByRole("button", { name: trigger, exact: true });
+  await expect
+    .poll(
+      async () => {
+        const shown = ((await pill.textContent().catch(() => "")) ?? "").includes(optionName);
+        if (!shown) return true;
+        const menu = page.locator('[role="menu"]:visible');
+        const option = menu.getByRole("menuitemcheckbox", { name: optionName, exact: true });
+        if (!(await option.isVisible().catch(() => false))) await pill.click().catch(() => {});
+        if (await option.isVisible().catch(() => false)) await option.click().catch(() => {});
+        return !((await pill.textContent().catch(() => "")) ?? "").includes(optionName);
+      },
+      { timeout: 30_000, intervals: [500, 1_000, 2_000] },
+    )
+    .toBe(true);
 }
 
 async function closeConfiguration(page: Page) {
@@ -406,8 +454,7 @@ test("a two-way relation shows on both sides and reads the same link", async ({ 
   await selectItem(page, sourceA);
   await (await createDatabaseEntry(page, "057 Pair source")).click();
   const panel = page.locator(".entry-panel");
-  await panel.getByRole("button", { name: "Related", exact: true }).click();
-  await page.getByRole("menuitemcheckbox", { name: "057 Pair target", exact: true }).click();
+  await pickRelation(page, panel, "Related", "057 Pair target");
   await waitForEntryAutosave(page);
   await page.getByRole("button", { name: "Fermer le volet" }).click();
   await selectItem(page, sourceB);
@@ -429,8 +476,7 @@ test("a two-way relation shows on both sides and reads the same link", async ({ 
   // partner's edge, so the canonical cell loses the link.
   await entryTrigger(page, "057 Pair target").click();
   await expect(page.locator(".entry-panel")).toBeVisible({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Projets liés", exact: true }).click();
-  await page.getByRole("menuitemcheckbox", { name: "057 Pair source", exact: true }).click();
+  await unpickRelation(page, page.locator(".entry-panel"), "Projets liés", "057 Pair source");
   await waitForSynchronized(page);
   await expect(page.locator(".entry-panel [role=alert]")).toHaveCount(0);
   await page.getByRole("button", { name: "Fermer le volet" }).click();
