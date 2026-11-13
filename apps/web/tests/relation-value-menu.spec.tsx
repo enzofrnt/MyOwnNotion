@@ -117,13 +117,18 @@ describe("relation value menu", () => {
     const available = items().find((item) => item.textContent?.includes("Page 31"));
     await act(async () => available?.click());
     expect(onChange).toHaveBeenCalledWith([id(32), id(31)]);
+    // Picking an option closes the menu; reopen it to inspect the retained
+    // out-of-source row instead of depending on whether this engine keeps the
+    // popover mounted after the pick.
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>(".option-menu__trigger")?.click(),
+    );
     const retained = await vi.waitFor(
       () => {
         const node = items().find((item) => item.textContent?.includes("Retirer"));
         // The retained label is resolved through the catalogue, one asynchronous
-        // `getItem` per out-of-source value. A fast local run can render it
-        // during the click's act(); a slower runner needs the row to be awaited
-        // for longer than the default one second.
+        // lookup per out-of-source value; a slower runner needs more than the
+        // default one second.
         if (node === undefined) throw new Error("Retained link row is not rendered yet");
         return node;
       },
