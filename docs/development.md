@@ -514,8 +514,41 @@ system does not consider that window active, because another browser has the
 focus. No timeout can fix that, and no amount of it is the application's
 behaviour. Others simply miss their budget while three engines compete.
 
-CI gives each project its own runner. Every runner builds the browser application
-once, then serves the production bundle throughout its selected journeys.
+CI gives each browser project several isolated *lanes*, one runner each. Every
+runner builds the browser application once, then serves the production bundle
+throughout its journeys.
+
+#### Self-sizing CI lanes
+
+Nobody maintains a shard count. The impact plan computes, for each project, how
+many lanes the selected journeys need and which journey files each lane runs
+(`scripts/ci/e2e-lanes.ts`):
+
+- the weight of a journey file is its measured duration in the last trusted run
+  when one is supplied with `--timings`, otherwise the number of tests it
+  declares × `defaultSecondsPerTest`;
+- `lanes = clamp(ceil(total weight / targetSeconds), 1, min(maxPerProject, files))`;
+- files are assigned heaviest-first to the lightest lane, deterministically.
+
+The three numbers live in `e2eLanes` of `ci/test-impact.json`. They describe
+how long a lane should be, not how many there are: adding journeys adds lanes
+with no edit, and a narrow pull request gets one lane per project. Raise
+`maxPerProject` only if lanes at the cap grow well past `targetSeconds`; lower
+`targetSeconds` for a shorter gate at the price of more runners.
+
+Per project the lanes partition the selection — every selected journey file is
+in exactly one lane — which `tests/contract/e2e-lanes.spec.ts` checks as a
+property. A failing lane never stops another, and each lane job is limited to
+30 minutes.
+
+To reproduce one CI lane locally, compute the plan and pass that lane's files
+to the isolated local runner:
+
+```bash
+bun run ci:test-impact --event push --ref refs/heads/main --head HEAD --output /tmp/plan.json
+bun run test:e2e:local -- --project=webkit-desktop --shard=1/1 \
+  $(jq -r '.e2e.lanes[] | select(.id == "webkit-desktop-2-4") | .testFiles[]' /tmp/plan.json)
+```
 
 Performance budgets run in their own Vitest project and their own CI job. They
 must never run under V8 coverage instrumentation: instrumentation changes the
@@ -959,11 +992,14 @@ bun run test:e2e:browser-container -- --project=webkit-desktop
 bun run test:e2e:browser-container -- --project=webkit-mobile
 ```
 
-A complete WebKit lane is split into three sequential shards, both in the
-local Linux container and on the Linux CI runner. Both invoke
-`scripts/e2e/run-container-project.sh` with the exact selected journey files.
-Each shard starts a fresh WebKit process, which bounds the engine's
-long-corpus resource accumulation while preserving `--fail-on-flaky-tests`.
+A complete local WebKit project is split into three sequential shards in the
+Linux container by `scripts/e2e/run-container-project.sh`. Each shard starts a
+fresh WebKit process, which bounds the engine's long-corpus resource
+accumulation while preserving `--fail-on-flaky-tests`. All three shards always
+run: a failing shard no longer hides the journeys of the next ones, and the
+command still exits with the first failure. CI invokes the same script with the
+journey files of one self-sized lane and `--shard=1/1`; a lane is already
+shorter than one of those shards, so it keeps one browser process.
 WebKit projects use a 120-second total watchdog because the Linux engine can
 occasionally spend more than 60 seconds inside `browser.newPage()` before any
 application code runs. Functional expectations keep their 10–30 second limits.

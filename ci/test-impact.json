@@ -1395,5 +1395,10 @@
     "webkit-desktop",
     "chromium-mobile",
     "webkit-mobile"
-  ]
+  ],
+  "e2eLanes": {
+    "targetSeconds": 720,
+    "maxPerProject": 6,
+    "defaultSecondsPerTest": 7
+  }
 }

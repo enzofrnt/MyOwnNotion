@@ -3,6 +3,16 @@ import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } 
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import {
+  countDeclaredTests,
+  type E2eLane,
+  type E2eLaneInputs,
+  type E2eLanePolicy,
+  type E2eMatrixEntry,
+  parseTimings,
+  planE2eLanes,
+  validateLanePolicy,
+} from "./e2e-lanes.ts";
 
 export type VitestGroup = "unit" | "integration" | "contract" | "performance";
 
@@ -27,6 +37,8 @@ export interface ImpactPolicy {
   e2eJourneys: Array<{ test: string; owners: PathRules }>;
   e2eIgnored: string[];
   e2eProjects: string[];
+  /** Sizing of the isolated browser lanes; see scripts/ci/e2e-lanes.ts. */
+  e2eLanes: E2eLanePolicy;
 }
 
 export interface ImpactInput {
@@ -56,7 +68,9 @@ export interface ImpactPlan {
   e2e: {
     mode: "none" | "selected" | "full";
     testFiles: string[];
-    matrix: Array<{ project: string }>;
+    /** One isolated CI job each; per project they partition `testFiles`. */
+    lanes: E2eLane[];
+    matrix: E2eMatrixEntry[];
   };
   cacheScope: string;
   reasons: string[];
@@ -139,7 +153,13 @@ function cacheScopeFor(input: ImpactInput): string {
   return `diagnostic-${input.headSha}`;
 }
 
-function fullPlan(policy: ImpactPolicy, input: ImpactInput, reasons: string[]): ImpactPlan {
+function fullPlan(
+  policy: ImpactPolicy,
+  input: ImpactInput,
+  reasons: string[],
+  laneInputs: E2eLaneInputs,
+): ImpactPlan {
+  const journeys = sortedUnique(policy.e2eJourneys.map(({ test }) => test));
   return {
     version: 1,
     event: input.event,
@@ -156,8 +176,8 @@ function fullPlan(policy: ImpactPolicy, input: ImpactInput, reasons: string[]): 
     },
     e2e: {
       mode: "full",
-      testFiles: sortedUnique(policy.e2eJourneys.map(({ test }) => test)),
-      matrix: policy.e2eProjects.map((project) => ({ project })),
+      testFiles: journeys,
+      ...planE2eLanes(policy.e2eLanes, policy.e2eProjects, journeys, laneInputs),
     },
     cacheScope: cacheScopeFor(input),
     reasons: sortedUnique(reasons),
@@ -276,11 +296,16 @@ export function validateImpactPolicy(policy: ImpactPolicy, repoRoot: string): st
   ) {
     failures.push("e2eProjects must contain unique project names and reserve the none sentinel");
   }
+  failures.push(...validateLanePolicy(policy.e2eLanes));
 
   return sortedUnique(failures);
 }
 
-export function createImpactPlan(policy: ImpactPolicy, rawInput: ImpactInput): ImpactPlan {
+export function createImpactPlan(
+  policy: ImpactPolicy,
+  rawInput: ImpactInput,
+  laneInputs: E2eLaneInputs = {},
+): ImpactPlan {
   const input: ImpactInput = {
     ...rawInput,
     changedPaths: sortedUnique(rawInput.changedPaths.map(normalizeRepoPath)),
@@ -291,10 +316,15 @@ export function createImpactPlan(policy: ImpactPolicy, rawInput: ImpactInput): I
   }
 
   if (input.event !== "pull_request") {
-    return fullPlan(policy, input, [`${input.event} execution requires the complete test corpus`]);
+    return fullPlan(
+      policy,
+      input,
+      [`${input.event} execution requires the complete test corpus`],
+      laneInputs,
+    );
   }
   if (input.baseSha === null || input.baseSha.length === 0) {
-    return fullPlan(policy, input, ["Pull-request comparison base is unavailable"]);
+    return fullPlan(policy, input, ["Pull-request comparison base is unavailable"], laneInputs);
   }
 
   const sourceFiles = new Set<string>();
@@ -455,10 +485,7 @@ export function createImpactPlan(policy: ImpactPolicy, rawInput: ImpactInput): I
     e2e: {
       mode: e2eMode,
       testFiles: selectedE2e,
-      matrix:
-        e2eMode === "none"
-          ? [{ project: "none" }]
-          : policy.e2eProjects.map((project) => ({ project })),
+      ...planE2eLanes(policy.e2eLanes, policy.e2eProjects, selectedE2e, laneInputs),
     },
     cacheScope: cacheScopeFor(input),
     reasons: sortedUnique(reasons),
@@ -556,6 +583,17 @@ export function renderImpactSummary(plan: ImpactPlan): string {
     "",
     listOrNone(plan.e2e.testFiles),
     "",
+    "### E2E lanes",
+    "",
+    plan.e2e.lanes.length === 0
+      ? "- none"
+      : plan.e2e.lanes
+          .map(
+            ({ id, testFiles, estimatedSeconds }) =>
+              `- \`${id}\`: ${testFiles.length} journey file(s), about ${Math.round(estimatedSeconds / 60)} min`,
+          )
+          .join("\n"),
+    "",
     "### Reasons",
     "",
     listOrNone(plan.reasons),
@@ -572,6 +610,34 @@ interface CliOptions {
   changedPaths: string[];
   deletedPaths: string[];
   output: string;
+  timings: string | null;
+}
+
+/**
+ * Reads what the lane planner needs from the working tree: how many tests each
+ * journey file declares and, when a trusted run left one, measured timings.
+ * A missing or malformed timings file is not an error — it only means the
+ * static estimate is used.
+ */
+export function readLaneInputs(
+  repoRoot: string,
+  policy: ImpactPolicy,
+  timingsPath: string | null,
+): E2eLaneInputs {
+  const testCounts: Record<string, number> = {};
+  for (const { test } of policy.e2eJourneys) {
+    const absolute = path.join(repoRoot, test);
+    if (existsSync(absolute)) testCounts[test] = countDeclaredTests(readFileSync(absolute, "utf8"));
+  }
+  let timings: E2eLaneInputs["timings"] = null;
+  if (timingsPath !== null && existsSync(timingsPath)) {
+    try {
+      timings = parseTimings(JSON.parse(readFileSync(timingsPath, "utf8")));
+    } catch {
+      timings = null;
+    }
+  }
+  return { testCounts, timings };
 }
 
 function parseCli(argv: string[]): CliOptions {
@@ -603,6 +669,7 @@ function parseCli(argv: string[]): CliOptions {
     changedPaths: values.get("changed") ?? [],
     deletedPaths: values.get("deleted") ?? [],
     output: one("output", "test-impact.json"),
+    timings: nullable("timings"),
   };
 }
 
@@ -629,15 +696,20 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     }
   }
 
-  const plan = createImpactPlan(policy, {
-    event: options.event,
-    ref: options.ref,
-    baseSha,
-    headSha: options.headSha,
-    pullRequestNumber: options.pullRequestNumber,
-    changedPaths,
-    deletedPaths,
-  });
+  const timingsPath = options.timings === null ? null : path.resolve(repoRoot, options.timings);
+  const plan = createImpactPlan(
+    policy,
+    {
+      event: options.event,
+      ref: options.ref,
+      baseSha,
+      headSha: options.headSha,
+      pullRequestNumber: options.pullRequestNumber,
+      changedPaths,
+      deletedPaths,
+    },
+    readLaneInputs(repoRoot, policy, timingsPath),
+  );
   const outputPath = path.resolve(repoRoot, options.output);
   writeFileSync(outputPath, `${JSON.stringify(plan, null, 2)}\n`, "utf8");
 
