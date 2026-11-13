@@ -330,10 +330,18 @@ describe("database page interaction durability", () => {
         .querySelector<HTMLButtonElement>('[aria-label="Filtrer, trier et configurer"]')
         ?.click(),
     );
-    const trigger = document.querySelector<HTMLButtonElement>(
-      ".database-schema .property-icon-picker__trigger",
+    // The schema panel mounts after the click returns; under a loaded runner
+    // (coverage instrumentation) a synchronous lookup found nothing yet.
+    const trigger = await vi.waitFor(
+      () => {
+        const found = document.querySelector<HTMLButtonElement>(
+          ".database-schema .property-icon-picker__trigger",
+        );
+        if (found === null) throw new Error("The schema panel has not mounted yet");
+        return found;
+      },
+      { timeout: 10_000, interval: 50 },
     );
-    expect(trigger).not.toBeNull();
     // The popover can still be mounting when the click returns and can close
     // again if a stray toggle lands. Reopen it until the filtered grid exists,
     // then read the option from the same settled state.
@@ -344,7 +352,7 @@ describe("database page interaction durability", () => {
     await act(async () => {
       const deadline = Date.now() + 15_000;
       while (iconOption() === null && Date.now() < deadline) {
-        if (!pickerOpen()) trigger?.click();
+        if (!pickerOpen()) trigger.click();
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
     });

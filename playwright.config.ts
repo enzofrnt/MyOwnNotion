@@ -59,7 +59,9 @@ export default defineConfig({
   ...(isCI ? { maxFailures: 10 } : {}),
   workers: 1,
   fullyParallel: false,
-  reporter: isCI ? [["list"], ["html", { open: "never" }]] : [["list"]],
+  // CI lanes each write a blob report; one job merges them into a single HTML
+  // report and checks that every selected journey was accounted for.
+  reporter: isCI ? [["list"], ["blob"]] : [["list"]],
   timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {

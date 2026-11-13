@@ -100,8 +100,13 @@ number when journeys are added. The planner therefore *computes* lanes.
 - `ci/test-impact.json` gains one small block, the only knobs:
 
   ```json
-  "e2eLanes": { "targetSeconds": 720, "maxPerProject": 6, "defaultSecondsPerTest": 7 }
+  "e2eLanes": { "targetSeconds": 720, "maxPerProject": 6, "maxTotal": 15, "defaultSecondsPerTest": 7 }
   ```
+
+  `maxTotal` was added after measurement: the account starts at most 20 jobs
+  at once, 13 other jobs of the workflow start with the lanes, and a 20-lane
+  run saw its last lane start 9 minutes late. When the projects ask for more
+  than `maxTotal`, lanes are taken back from the project that stays shortest.
 
 - `scripts/ci/test-impact.ts` builds, per project, explicit lanes:
   1. weight of a selected spec file = its measured duration for that project
@@ -157,10 +162,12 @@ number when journeys are added. The planner therefore *computes* lanes.
      - writes the per-project table (selected, passed, failed, skipped,
        not-run), per-lane durations, ten slowest journeys and failed-attempt
        time to `$GITHUB_STEP_SUMMARY` and `e2e-gate-summary.json`;
-     - exits non-zero when a lane artifact is missing, or when
-       `passed + failed + skipped < selected` for any project without the
-       `maxFailures` interruption being the reported cause, or when any journey
-       failed or was flaky.
+     - exits non-zero when a lane artifact is missing, when a lane reported
+       nothing for one of its files, when a declared journey has no attempt, or
+       when any journey failed or was flaky. The expected set comes from the
+       plan's lanes and from the merged report itself (a declared but
+       unattempted test appears there with no result), so no separate
+       `--list` pass is needed.
 - `quality-gate.needs` gains `e2e-report`; `release-gates.spec.ts` asserts it.
 - `e2e_mode == none` keeps the explicit no-op lane; `e2e-report` then records
   "no journeys selected" and succeeds.
@@ -202,8 +209,9 @@ number when journeys are added. The planner therefore *computes* lanes.
 
 ## Delivery Order
 
-Each lot is its own branch from `main` and its own pull request (no stacking;
-the repository squash-merges). Lots 1 and 2 are independent of each other;
+Originally one pull request per lot. On 2026-11-13 the maintainer asked for a
+single branch carrying the whole result, so every lot ships in one pull
+request; the order below is the order of work. Lots 1 and 2 are independent of each other;
 Lot 3 needs Lot 2; Lots 4 and 5 need Lot 3. Lot 1 alone removes most of the
 failure cost; Lot 2 alone removes most of the green cost.
 

@@ -551,6 +551,31 @@ in exactly one lane — which `tests/contract/e2e-lanes.spec.ts` checks as a
 property. A failing lane never stops another, and each lane job is limited to
 30 minutes.
 
+#### One report, one verdict, self-tuning timings
+
+Each lane writes a Playwright blob report. The `Browser gate report` job
+(`e2e-report`) merges them into a single HTML report (`playwright-report`
+artifact) and runs `bun run ci:e2e:summary`, which compares the plan with the
+merged results and fails `quality-gate` when:
+
+- a lane produced no report;
+- a lane reported nothing for one of its journey files;
+- a declared journey was never attempted (for example after a lane hit its
+  failure cap);
+- a journey failed, or only passed on a later attempt.
+
+Its job summary shows, per project, the selected files and the passed, failed,
+flaky, skipped and not-run journeys, the time lost in failed attempts, each
+lane's estimated and measured duration, and the ten slowest journeys.
+
+The same job writes `e2e-timings.json`, the measured duration of every journey
+file per project. A complete run on `main` (push or the nightly schedule)
+stores it in the Actions cache; the next impact plan restores it and sizes its
+lanes from it. Only `main` can write that cache. Nothing has to be refreshed by
+hand: a new journey file starts from its declared test count and gets a
+measured weight after the next `main` run, and an evicted cache only means the
+static estimate is used until the following night.
+
 To reproduce one CI lane locally, compute the plan and pass that lane's files
 to the isolated local runner:
 
@@ -1126,8 +1151,9 @@ restoring that package cache transferred about 196 MiB and took about five
 seconds per job while a warm cache saved less time than it cost to restore.
 Reintroducing a cross-run dependency cache therefore requires a measured win on
 this repository. E2E jobs separately cache Playwright browser binaries by
-runner OS, architecture, and the installed Playwright version; the system
-dependency check still runs on every selected browser job.
+runner OS, architecture, the installed Playwright version and the lane's
+engine — a lane installs only the engine it drives; the system dependency check
+still runs on every selected browser job.
 
 Container jobs use BuildKit's GitHub Actions backend in `mode=max`, with
 separate `api-…` and `web-…` scopes. Pull requests use a scope owned by their PR
@@ -1164,7 +1190,7 @@ their existing workflow contract.
 | `toolchain:check` | local, PR, main | Unpinned toolchain, foreign lockfile, or a missing gate script blocks | — |
 | `shell:check` `format:check` `lint:ci` `typecheck` | local, PR, main | Any finding blocks | — |
 | `test:unit` `test:property` `test:integration` `test:contract` `test:migration` `test:performance` `test:security` | affected/full locally by impact; full on main; affected subset or explicit no-op on PR | Any selected failure blocks; unknown impact selects the full suites; performance budgets run without coverage instrumentation | — |
-| `test:e2e` (`test:e2e:local` on macOS) | affected/full locally by impact; full on main; owned journeys or explicit no-op on PR | Any selected journey blocks; unknown impact selects every journey | Playwright report per browser/viewport |
+| `test:e2e` (`test:e2e:local` on macOS) | affected/full locally by impact; full on main and nightly; owned journeys or explicit no-op on PR | Any selected journey blocks; unknown impact selects every journey; `ci:e2e:summary` blocks when a lane or a journey is unaccounted for | One merged Playwright report, `e2e-gate-summary.json`, `e2e-timings.json` |
 | `security:audit` | local, PR, main | Any high/critical vulnerability or an unavailable audit blocks | `dependency-audit.json` |
 | `security:secrets` | local, PR, main | Any detected secret or a scanner failure blocks | `secret-scan.sarif` |
 | `security:static` | local, PR, main | Any high-confidence finding or an analyzer failure blocks | `static-security.sarif` |

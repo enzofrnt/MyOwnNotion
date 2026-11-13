@@ -2,8 +2,9 @@
 
 **Input**: `specs/058-e2e-gate-throughput/` — [spec.md](./spec.md), [plan.md](./plan.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/](./contracts/), [quickstart.md](./quickstart.md)
 
-**Delivery**: one branch from `main` and one pull request per lot (no stacked
-pull requests). Before each push, select checks from `docs/development.md`;
+**Delivery**: at the maintainer's request (2026-11-13) all lots ship on one
+branch, `ci/058-e2e-gate-throughput`, in one pull request; the lot headings
+below are kept as the order of work. Before each push, select checks from `docs/development.md`;
 every lot touches CI or Playwright configuration, so its own pull-request run
 with the full corpus is required evidence. Record evidence in
 `specs/058-e2e-gate-throughput/verification.md`.
@@ -48,7 +49,7 @@ with the full corpus is required evidence. Record evidence in
 - [x] T017 [US2] Wire the matrix in `.github/workflows/ci.yml`: job name `Playwright journeys (<project> <lane>)`, files read from the plan by `laneId`, `--shard=1/1` passed to `scripts/e2e/run-container-project.sh`, artifacts named by `laneId`, `timeout-minutes: 30`
 - [x] T018 [US3] Change the local WebKit loop in `scripts/e2e/run-container-project.sh` to run all three slices and exit non-zero if any failed; update `tests/contract/e2e-project-runner.spec.ts` ("runs every slice and propagates the failure")
 - [x] T019 [P] [US2] Confirm `tests/contract/bun-production-artifacts.spec.ts` assertions on the runner loop still hold (loop text unchanged)
-- [ ] T020 [US2] Execute quickstart §1, §3 and §4; record outputs in `verification.md`
+- [x] T020 [US2] Execute quickstart §1, §3 and §4; record outputs in `verification.md`
 - [ ] T021 [US2] Open the Lot 2 pull request forcing the full corpus; record lane durations, queue delay (R6) and runner-minutes (SC-005) in `verification.md`; if the slowest lane exceeds 18 min, lower `targetSeconds` (never a per-project count)
 - [x] T022 [US2] Update "Pull-request test impact policy" and "The browser matrix locally" in `docs/development.md` (lane model, local `--shard` reproduction)
 
@@ -58,36 +59,36 @@ with the full corpus is required evidence. Record evidence in
 
 **Independent test**: quickstart §5 and §6.
 
-- [ ] T023 [P] [US3] Write `tests/contract/e2e-gate-coverage.spec.ts` cases for `scripts/ci/e2e-gate-summary.ts` against fixtures: all pass, missing lane, journey absent from every lane, duplicate journey, flaky, `maxFailures` interruption, engine-specific skip, mode `none` — per `contracts/gate-rules.md` (expect red first)
-- [ ] T024 [P] [US3] Add fixtures under `tests/contract/fixtures/e2e-gate/` (plan, `--list` output, merged results)
-- [ ] T025a [US2] Emit `e2e-timings.json` from `scripts/ci/e2e-gate-summary.ts`; save it with `actions/cache` on `main`/scheduled runs and restore it in the `impact` job (`--timings`) in `.github/workflows/ci.yml`; contract test that pull requests cannot write the timings cache
-- [ ] T025 [US3] Implement `scripts/ci/e2e-gate-summary.ts` (inputs: plan, `--list` JSON, merged results; outputs: `e2e-gate-summary.json` conforming to `contracts/e2e-gate-summary.schema.json`, Markdown step summary, exit code)
-- [ ] T026 [US3] Register `ci:e2e:summary` in `package.json` and in `scripts/ci/check-toolchain.ts`
-- [ ] T027 [US3] Switch the CI reporter in `playwright.config.ts` to `[["list"], ["blob"]]`; upload `blob-report-<laneId>` (3 days) and `test-results/` (14 days) from the `e2e` job in `.github/workflows/ci.yml`
-- [ ] T028 [US3] Add the `e2e-report` job to `.github/workflows/ci.yml` (`needs: [impact, e2e]`, `if: always()`, `contents: read`): download blobs, `playwright merge-reports --reporter html,json`, `playwright test --list --reporter=json`, run `ci:e2e:summary`, upload `playwright-report` and `e2e-gate-summary.json`
-- [ ] T029 [US3] Add `e2e-report` to `quality-gate.needs` in `.github/workflows/ci.yml` and to the required set in `tests/contract/release-gates.spec.ts`
+- [x] T023 [P] [US3] Write `tests/contract/e2e-gate-coverage.spec.ts` cases for `scripts/ci/e2e-gate-summary.ts` against fixtures: all pass, missing lane, journey absent from every lane, duplicate journey, flaky, `maxFailures` interruption, engine-specific skip, mode `none` — per `contracts/gate-rules.md` (expect red first)
+- [x] T024 [P] [US3] Add fixtures under `tests/contract/fixtures/e2e-gate/` (plan, `--list` output, merged results)
+- [x] T025a [US2] Emit `e2e-timings.json` from `scripts/ci/e2e-gate-summary.ts`; save it with `actions/cache` on `main`/scheduled runs and restore it in the `impact` job (`--timings`) in `.github/workflows/ci.yml`; contract test that pull requests cannot write the timings cache
+- [x] T025 [US3] Implement `scripts/ci/e2e-gate-summary.ts` (inputs: plan, `--list` JSON, merged results; outputs: `e2e-gate-summary.json` conforming to `contracts/e2e-gate-summary.schema.json`, Markdown step summary, exit code)
+- [x] T026 [US3] Register `ci:e2e:summary` in `package.json` and in `scripts/ci/check-toolchain.ts`
+- [x] T027 [US3] Switch the CI reporter in `playwright.config.ts` to `[["list"], ["blob"]]`; upload `blob-report-<laneId>` (3 days) and `test-results/` (14 days) from the `e2e` job in `.github/workflows/ci.yml`
+- [x] T028 [US3] Add the `e2e-report` job to `.github/workflows/ci.yml` (`needs: [impact, e2e]`, `if: always()`, `contents: read`): download blobs, `playwright merge-reports --reporter html,json`, `playwright test --list --reporter=json`, run `ci:e2e:summary`, upload `playwright-report` and `e2e-gate-summary.json`
+- [x] T029 [US3] Add `e2e-report` to `quality-gate.needs` in `.github/workflows/ci.yml` and to the required set in `tests/contract/release-gates.spec.ts`
 - [ ] T030 [US3] Execute quickstart §6 on a throwaway commit; record the red verdict and reason in `verification.md`
 - [ ] T031 [US3] Open the Lot 3 pull request; record the merged report link, summary table and navigation count (SC-006) in `verification.md`
-- [ ] T032 [US3] Update "Delivery gate inventory" and "What blocks a merge" in `docs/development.md`
+- [x] T032 [US3] Update "Delivery gate inventory" and "What blocks a merge" in `docs/development.md`
 
 **Checkpoint**: 100 % of selected journeys accounted for in every run (SC-004).
 
 ## Phase 6: User Story 4 — Scope per event (P2) — Lot 4, branch `ci/058-scheduled-full-run`
 
-- [ ] T033 [P] [US4] Extend `tests/contract/test-impact.spec.ts`: event `schedule` yields the full corpus and full matrix
-- [ ] T034 [P] [US4] Extend `tests/contract/release-gates.spec.ts`: a `schedule` event cannot reach the publication job and has no `packages: write`
-- [ ] T035 [US4] Accept `schedule` in `scripts/ci/test-impact.ts`
-- [ ] T036 [US4] Add `on.schedule` (nightly 03:00 UTC), the concurrency group case and `--retries=1` for scheduled lanes in `.github/workflows/ci.yml`
-- [ ] T037 [US4] Document the event-scope policy (FR-012) and the deferred reduced-matrix option (R9) in `docs/development.md`
+- [x] T033 [P] [US4] Extend `tests/contract/test-impact.spec.ts`: event `schedule` yields the full corpus and full matrix
+- [x] T034 [P] [US4] Extend `tests/contract/release-gates.spec.ts`: a `schedule` event cannot reach the publication job and has no `packages: write`
+- [x] T035 [US4] Accept `schedule` in `scripts/ci/test-impact.ts`
+- [x] T036 [US4] Add `on.schedule` (nightly 03:00 UTC), the concurrency group case and `--retries=1` for scheduled lanes in `.github/workflows/ci.yml`
+- [x] T037 [US4] Document the event-scope policy (FR-012) and the deferred reduced-matrix option (R9) in `docs/development.md`
 
 ## Phase 7: User Story 5 — Degradation visible (P3) — Lot 4 (same pull request)
 
-- [ ] T038 [US5] Ensure `scripts/ci/e2e-gate-summary.ts` emits the ten slowest journeys and per-project failed-attempt seconds in the step summary; add the assertion to `tests/contract/e2e-gate-coverage.spec.ts`
-- [ ] T039 [US5] Upload `e2e-gate-summary.json` with 90-day retention in `.github/workflows/ci.yml`
+- [x] T038 [US5] Ensure `scripts/ci/e2e-gate-summary.ts` emits the ten slowest journeys and per-project failed-attempt seconds in the step summary; add the assertion to `tests/contract/e2e-gate-coverage.spec.ts`
+- [x] T039 [US5] Upload `e2e-gate-summary.json` with 90-day retention in `.github/workflows/ci.yml`
 
 ## Phase 8: Polish — Lot 5, branch `ci/058-lane-setup-trim`
 
-- [ ] T040 [P] Install only the lane's engine (`playwright install --with-deps <engine>`) and add the engine to the cache key in `.github/workflows/ci.yml`; update the "CI cache boundaries" section of `docs/development.md`
+- [x] T040 [P] Install only the lane's engine (`playwright install --with-deps <engine>`) and add the engine to the cache key in `.github/workflows/ci.yml`; update the "CI cache boundaries" section of `docs/development.md`
 - [ ] T041 [P] Add `docs/audits/2026-11-ci-speed.md` with the measured before/after tables from `verification.md`
 - [ ] T042 Measure install-step time before/after T040 and total runner-minutes against SC-005 in `verification.md`
 - [ ] T043 Run `/speckit-converge` for `specs/058-e2e-gate-throughput`; confirm SC-001..SC-006 with evidence links in `verification.md`
@@ -127,3 +128,9 @@ increment and delivers the green-run target.
 | FR-017 | T011, T022, T032, T037, T040 |
 | FR-018 | T038, T039 |
 | SC-001 | T010 · SC-002 T021 · SC-003 T012, T021 · SC-004 T031 · SC-005 T021, T042 · SC-006 T031 |
+
+## Phase 9: Additions decided during implementation (2026-11-13)
+
+- [x] T045 [US2] Add a total lane budget (`e2eLanes.maxTotal`) to `scripts/ci/e2e-lanes.ts`: the measured account limit is 20 concurrent jobs, and lanes beyond the pool queued (last lane started 9–12 min late)
+- [x] T046 [US1] Stabilise the intermittent journeys exposed by the runs: `tests/e2e/accessibility.spec.ts` (axe sampled during a view switch), `tests/e2e/editor-math-contents.spec.ts` (keys typed before the caret settled), `tests/e2e/database-relations-rollups.spec.ts` (unbounded steps inside a poll), `apps/web/tests/database-page-interaction.spec.tsx` (synchronous lookup of a panel still mounting)
+- [ ] T047 Record the final pull-request run (lane start offsets, wall clock, runner-minutes, verdict table) in `verification.md`

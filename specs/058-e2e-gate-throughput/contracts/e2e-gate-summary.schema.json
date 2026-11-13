@@ -29,7 +29,8 @@
         "type": "object",
         "required": [
           "project",
-          "selected",
+          "selectedFiles",
+          "tests",
           "passed",
           "failed",
           "flaky",
@@ -41,10 +42,6 @@
         "properties": {
           "project": {
             "type": "string"
-          },
-          "selected": {
-            "type": "integer",
-            "minimum": 0
           },
           "passed": {
             "type": "integer",
@@ -69,6 +66,14 @@
           "failedAttemptSeconds": {
             "type": "number",
             "minimum": 0
+          },
+          "selectedFiles": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tests": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       }
@@ -77,14 +82,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "laneId",
-          "project",
-          "present",
-          "estimatedSeconds",
-          "durationSeconds",
-          "interruptedByMaxFailures"
-        ],
+        "required": ["laneId", "project", "present", "estimatedSeconds", "durationSeconds"],
         "additionalProperties": false,
         "properties": {
           "project": {
@@ -96,9 +94,6 @@
           "durationSeconds": {
             "type": "number",
             "minimum": 0
-          },
-          "interruptedByMaxFailures": {
-            "type": "boolean"
           },
           "laneId": {
             "type": "string"

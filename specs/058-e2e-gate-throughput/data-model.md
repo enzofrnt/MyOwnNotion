@@ -9,6 +9,7 @@ No product data. The entities below are CI planning and evidence records.
 | `e2eProjects` | string[] | unchanged; unique; `none` reserved |
 | `e2eLanes.targetSeconds` | integer | NEW; 120–3600; desired journey time per lane |
 | `e2eLanes.maxPerProject` | integer | NEW; 1–12 |
+| `e2eLanes.maxTotal` | integer | NEW; 1–60; lanes the whole matrix may use at once |
 | `e2eLanes.defaultSecondsPerTest` | number | NEW; > 0; used when no timing exists for a file |
 
 ## Timings (`e2e-timings.json`, optional planner input, generated)
@@ -47,8 +48,8 @@ and failure evidence. States: `queued → running → success | failure | cancel
 | Field | Type |
 | --- | --- |
 | `candidateSha`, `event`, `mode` | string |
-| `projects[]` | `{ project, selected, passed, failed, flaky, skipped, notRun, failedAttemptSeconds }` |
-| `lanes[]` | `{ laneId, project, present, estimatedSeconds, durationSeconds, interruptedByMaxFailures }` |
+| `projects[]` | `{ project, selectedFiles, tests, passed, failed, flaky, skipped, notRun, failedAttemptSeconds }` |
+| `lanes[]` | `{ laneId, project, present, estimatedSeconds, durationSeconds }` |
 | `slowest[]` | up to 10 `{ project, file, title, seconds }` |
 | `verdict` | `pass` \| `fail` |
 | `reasons[]` | string, non-empty when `fail` |

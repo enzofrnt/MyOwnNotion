@@ -17,6 +17,7 @@
     "toolchain:check": "bun scripts/ci/check-toolchain.ts",
     "ci:test-impact": "bun scripts/ci/test-impact.ts",
     "ci:test:affected": "bun scripts/ci/run-affected-vitest.ts",
+    "ci:e2e:summary": "bun scripts/ci/e2e-gate-summary.ts",
     "shell:check": "bun scripts/ci/check-shell.ts",
     "format:check": "biome format .",
     "format:write": "biome format --write .",

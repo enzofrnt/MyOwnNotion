@@ -197,11 +197,14 @@ async function chooseSum(page: Page) {
     .poll(
       async () => {
         if (((await calculer.textContent().catch(() => "")) ?? "").includes("Somme")) return true;
+        // Every step is bounded well below the poll: one unbounded click or
+        // focus on a control that is re-rendering used to consume the whole
+        // window in a single iteration, so the selection was never retried.
         if (!(await more.isVisible().catch(() => false))) {
-          await calculer.click().catch(() => {});
+          await calculer.click({ timeout: 2_000 }).catch(() => {});
         }
         if (!(await sum.isVisible().catch(() => false))) {
-          await more.focus().catch(() => {});
+          await more.focus({ timeout: 2_000 }).catch(() => {});
           await page.keyboard.press("ArrowRight").catch(() => {});
         }
         if (await sum.isVisible().catch(() => false)) {

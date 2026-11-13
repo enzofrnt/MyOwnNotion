@@ -76,8 +76,25 @@ test("edits math, preserves invalid source and supports history, slash and offli
   await inline.getByRole("button", { name: "Modifier l’équation LaTeX" }).click();
   await inline.getByRole("textbox", { name: "Source LaTeX" }).fill("E=mc^3");
   await inline.getByRole("button", { name: "Appliquer", exact: true }).click();
-  await editor.locator(`[data-id="${blank}"] .bn-block-content`).first().click();
+  // Applying replaces the inline equation's node view. Until the new one has
+  // rendered, the editor can still move the selection back to it, and keys
+  // typed in that window are lost — on Firefox the slash menu then never
+  // opened. Wait for the applied result, then prove the caret is in the blank
+  // block before typing.
+  await expect(inline.getByRole("textbox", { name: "Source LaTeX" })).toHaveCount(0);
+  await expect(inline.locator(".katex")).toHaveCount(1);
+  const blankContent = editor.locator(`[data-id="${blank}"] .bn-block-content`).first();
+  await blankContent.click();
+  await expect
+    .poll(() =>
+      blankContent.evaluate((element) => {
+        const anchor = window.getSelection()?.anchorNode ?? null;
+        return anchor !== null && element.contains(anchor);
+      }),
+    )
+    .toBe(true);
   await page.keyboard.type("/latex");
+  await expect(blankContent).toContainText("/latex");
   await page.getByRole("option", { name: /^Équation/ }).click();
   await editor.getByRole("textbox", { name: "Source LaTeX" }).fill("a^2+b^2=c^2");
   await editor.getByRole("button", { name: "Appliquer", exact: true }).click();
