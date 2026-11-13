@@ -173,9 +173,20 @@ async function chooseSum(page: Page) {
       { timeout: 15_000, intervals: [250, 500, 1_000] },
     )
     .toBe(true);
-  await more.focus();
-  await page.keyboard.press("ArrowRight");
   const sum = page.getByRole("menuitemradio", { name: "Somme", exact: true });
+  // ArrowRight opens the submenu only from the focused parent item; a dropped
+  // key or focus reassignment leaves the menu open with no submenu.
+  await expect
+    .poll(
+      async () => {
+        if (await sum.isVisible().catch(() => false)) return true;
+        await more.focus().catch(() => {});
+        await page.keyboard.press("ArrowRight").catch(() => {});
+        return sum.isVisible().catch(() => false);
+      },
+      { timeout: 15_000, intervals: [250, 500, 1_000] },
+    )
+    .toBe(true);
   await expect(sum).toBeVisible();
   // Opening a submenu asserts its items render before focus lands on the first
   // one. Enter pressed in that gap activates the parent trigger again, so wait
