@@ -540,6 +540,28 @@ the maximum live heap observed there. Those collections are outside the
 ingest, catch-up and compaction clocks. This measures retained working state
 rather than garbage whose reclamation timing depends on the host.
 
+### Journey timing budgets
+
+A browser journey has three separate bounds, and none of them scales with
+another (feature 058):
+
+| Bound | Value | Meaning |
+| --- | --- | --- |
+| one interaction or wait | 15 s (`actionTimeout`) | a control that never appears fails here, not at the journey budget |
+| one navigation | 30 s (`navigationTimeout`) | includes a cold preview load on WebKit |
+| one assertion | 10 s (`expect.timeout`) | unchanged |
+| the whole journey | 60 s, 120 s on WebKit | a longer journey states `test.setTimeout(n)`, at most 180 s |
+
+`test.slow()` is forbidden in `tests/e2e`: it multiplies the project budget, so
+the same marker meant 180 seconds on Chromium and 360 on WebKit. A step that
+legitimately needs more than its bound passes an explicit `{ timeout }` at
+that call, where a reviewer can see it.
+
+There is no retry. `--fail-on-flaky-tests` already fails a journey that only
+passes on a second attempt, so a retry could never turn the gate green — it
+only doubled the cost of every broken journey. In CI a lane also stops after
+ten failed journeys and reports the rest as not run.
+
 ### Fast, safe parallel feedback
 
 Run independent targeted families concurrently while developing, but give each

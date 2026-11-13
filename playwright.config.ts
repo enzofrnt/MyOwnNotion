@@ -46,11 +46,17 @@ export default defineConfig({
   testDir: "tests/e2e",
   globalSetup: "./tests/e2e/global-setup.ts",
   forbidOnly: isCI,
-  // One retry absorbs genuine infrastructure noise, but `bun run test:e2e` passes
-  // `--fail-on-flaky-tests`: a journey that only passes on retry still fails
-  // the gate. A green run built on retries hides real defects — that is how a
-  // stranded-outbox race survived several merges.
-  retries: isCI ? 1 : 0,
+  // No retry, anywhere. `bun run test:e2e` passes `--fail-on-flaky-tests`, so a
+  // journey that only passes on a second attempt fails the gate regardless: a
+  // retry could never turn a run green, it only doubled the cost of every
+  // broken journey (feature 058, research R2). A green run built on retries
+  // hides real defects — that is how a stranded-outbox race survived several
+  // merges. The scheduled diagnostic run passes `--retries=1` explicitly to
+  // tell a flaky journey from a broken one.
+  retries: 0,
+  // A lane with this many broken journeys has said what it had to say. The
+  // remaining journeys are reported as not run, never as passed.
+  ...(isCI ? { maxFailures: 10 } : {}),
   workers: 1,
   fullyParallel: false,
   reporter: isCI ? [["list"], ["html", { open: "never" }]] : [["list"]],
@@ -58,6 +64,12 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   use: {
     baseURL: `http://${webHost}:${webPort}`,
+    // One interaction is bounded separately from the journey. Without these, a
+    // click on a control that never appears waited for the whole journey
+    // budget — 60 to 360 seconds — before reporting anything. A step that
+    // legitimately needs longer states its own `{ timeout }` at that call.
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

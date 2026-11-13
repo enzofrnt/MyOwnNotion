@@ -22,7 +22,7 @@ test("keeps entry activation and cancellation intact while another device update
   browser,
   baseURL,
 }) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   const hostName = uniqueName("Stable database owner");
   const entryName = uniqueName("Stable entry");
@@ -120,7 +120,7 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   request,
 }, testInfo) => {
   // 1001 protected canonical writes are fixture work; UI waits remain bounded.
-  test.setTimeout(300_000);
+  test.setTimeout(180_000);
   page.setDefaultTimeout(15_000);
   const hostName = uniqueName("Large linked source page");
   const host = await createUnopenedPage(request, hostName);

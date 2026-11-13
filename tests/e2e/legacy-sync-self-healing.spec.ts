@@ -20,7 +20,7 @@ test("five retained page conflicts self-heal while persistent storage remains a 
   // migrations and then verifies each canonical server document. Its
   // state-based recovery assertion needs a larger budget than Playwright's
   // generic 60-second journey cap on constrained Firefox runners.
-  test.setTimeout(210_000);
+  test.setTimeout(180_000);
 
   await context.addInitScript(() => {
     // Playwright's Linux WebKit mobile profile omits StorageManager entirely.

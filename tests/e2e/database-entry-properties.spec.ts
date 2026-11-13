@@ -14,7 +14,7 @@ import {
 test("configures entry properties directly, shares symbols, and preserves independent property order", async ({
   page,
 }, testInfo) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   const database = uniqueName("Property interactions");
   const entry = uniqueName("Canonical entry");

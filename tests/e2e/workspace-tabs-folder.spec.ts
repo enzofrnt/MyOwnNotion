@@ -30,7 +30,7 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   page,
   isMobile,
 }, testInfo) => {
-  test.slow();
+  test.setTimeout(150_000);
   await page.setViewportSize({ width: 1024, height: 800 });
   await openWorkspace(page);
 

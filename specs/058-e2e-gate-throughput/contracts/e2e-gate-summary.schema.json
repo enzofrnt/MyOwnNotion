@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "E2E gate summary",
+  "type": "object",
+  "required": [
+    "candidateSha",
+    "event",
+    "mode",
+    "projects",
+    "lanes",
+    "slowest",
+    "verdict",
+    "reasons"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "candidateSha": {
+      "type": "string"
+    },
+    "event": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": ["none", "selected", "full"]
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "project",
+          "selected",
+          "passed",
+          "failed",
+          "flaky",
+          "skipped",
+          "notRun",
+          "failedAttemptSeconds"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "selected": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "passed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "flaky": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "notRun": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failedAttemptSeconds": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "lanes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "laneId",
+          "project",
+          "present",
+          "estimatedSeconds",
+          "durationSeconds",
+          "interruptedByMaxFailures"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "present": {
+            "type": "boolean"
+          },
+          "durationSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "interruptedByMaxFailures": {
+            "type": "boolean"
+          },
+          "laneId": {
+            "type": "string"
+          },
+          "estimatedSeconds": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "slowest": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["project", "file", "title", "seconds"],
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "seconds": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "verdict": {
+      "enum": ["pass", "fail"]
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

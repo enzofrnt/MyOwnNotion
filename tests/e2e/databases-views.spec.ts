@@ -28,7 +28,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   // writes before proving the result on a second device. Keep every individual
   // wait strict, while allowing the complete journey to run on a constrained
   // Firefox container without exhausting the suite-wide 60-second budget.
-  test.slow();
+  test.setTimeout(150_000);
 
   await openWorkspace(page);
   const databaseName = uniqueName("Projects views");

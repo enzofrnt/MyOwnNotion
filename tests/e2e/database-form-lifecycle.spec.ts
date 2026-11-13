@@ -79,7 +79,7 @@ test("keeps conversion confirmation immediate and returns to the card without a 
   page,
   isMobile,
 }, testInfo) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   const source = uniqueName("Conversion source");
   const title = uniqueName("Protected card");
@@ -187,7 +187,7 @@ test("preserves a composing dirty field while another device updates an untouche
   browser,
   baseURL,
 }) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   const databaseName = uniqueName("Draft synchronization");
   const entryName = uniqueName("Current entry");
