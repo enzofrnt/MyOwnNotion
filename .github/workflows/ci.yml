@@ -153,7 +153,7 @@ jobs:
         with:
           postgres-client: "true"
         if: needs.impact.outputs.unit_mode != 'none'
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: needs.impact.outputs.unit_mode != 'none'
         with:
           name: test-impact-plan
@@ -178,7 +178,7 @@ jobs:
         if: needs.impact.outputs.performance_mode != 'none'
       - uses: ./.github/actions/setup-bun
         if: needs.impact.outputs.performance_mode != 'none'
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: needs.impact.outputs.performance_mode != 'none'
         with:
           name: test-impact-plan
@@ -199,7 +199,7 @@ jobs:
         with:
           postgres-client: "true"
         if: needs.impact.outputs.integration_mode != 'none'
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: needs.impact.outputs.integration_mode != 'none'
         with:
           name: test-impact-plan
@@ -234,7 +234,7 @@ jobs:
         with:
           postgres-client: "true"
         if: needs.impact.outputs.contract_mode != 'none'
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: needs.impact.outputs.contract_mode != 'none'
         with:
           name: test-impact-plan
@@ -302,7 +302,7 @@ jobs:
           mkdir -p "$myownnotion_e2e_root" "$myownnotion_blob_root" "$myownnotion_backup_root"
           openssl rand -base64 32 > "$myownnotion_deployment_key_file"
           chmod 600 "$myownnotion_deployment_key_file"
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: matrix.project != 'none'
         with:
           name: test-impact-plan
