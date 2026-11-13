@@ -72,13 +72,60 @@ Static evidence: `tests/contract/e2e-gate-coverage.spec.ts` and
 `tests/contract/bun-production-artifacts.spec.ts` pass; Biome clean on the
 changed files.
 
-_SC-001 measurement and pull-request durations: filled from the pull-request run._
+## Measured runs (2026-11-13)
 
-## Lot 2 — self-sizing lanes
+| Run | Configuration | Browser jobs wall clock | Last lane start | Longest lane | Runner-minutes | Result |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| 43417465029 (`main`) | 5 jobs, one per project | 46 min | 0 | 46 min | 184 | green |
+| 43497246937 (#201) | 20 lanes, concurrent with another run | 22.7 min | +12 min | 14 min | — | one flaky journey |
+| 43510287732 (dispatch, alone) | 20 lanes | 19.1 min | +9 min | 13.3 min | 205 | one intermittent journey, one unit flake |
+| 43513463573 (#201) | 15 lanes (`maxTotal`) | 18.4 min | +2.8 min | 16.4 min | 187 | lanes green |
+| **43516042267 (#200, final)** | 15 lanes, merged report, guard, engine-only install | **18.1 min** | +3.9 min | 15.9 min | 192 | **green on the first attempt** |
 
-Plan for the complete corpus without timings: 4 lanes per project, 20 lanes,
-574 estimated seconds each. With the timings of run 43417465029: 3 + 4 + 4 + 3
-+ 4 = 18 lanes, 543–676 estimated seconds each (9–11 min of journeys).
-A one-journey pull request: one lane per project.
+Run 43510287732 established the account limit: never more than 20 jobs at
+once. Thirteen other jobs of the workflow start with the lanes, so about seven
+lanes start immediately and the rest as slots free up.
 
-_Lane durations, queue delay and runner-minutes: filled from the pull-request run._
+### Final run 43516042267
+
+- Whole workflow: 19.0 min from first job start to `quality-gate` (46+ min before).
+- `Browser gate report`: verdict pass; per project 77 files and 344 journeys
+  accounted for, 0 failed, 0 flaky, 0 not run (passed/skipped: chromium-desktop
+  331/13, firefox-desktop 317/27, webkit-desktop 317/27, chromium-mobile
+  319/25, webkit-mobile 312/32 — identical to green `main` run 43417465029).
+- One merged `playwright-report` artifact; `e2e-timings.json` holds measured
+  durations for 75 files per project.
+- Lane journey time, measured against a uniform 763–770 s static estimate:
+  Chromium lanes 408–621 s, Firefox 680–775 s, WebKit 615–853 s. Replanning
+  the complete corpus with these timings gives 15 lanes of 530–758 s
+  (chromium-desktop 3, firefox-desktop 3, webkit-desktop 3, chromium-mobile 2,
+  webkit-mobile 4), against 408–853 s measured now. This is what `main` uses
+  after its first complete run; the effect on wall clock is a projection.
+- Small jobs (`Biome format & lint`, `Strict TypeScript`) still started about
+  9 min after the run began: the 20-job limit is saturated at start.
+
+### Success criteria
+
+| Criterion | Result |
+| --- | --- |
+| SC-001 failure ≤ 20 s for an unreachable control | Met by configuration (15 s action bound; observed `click: Timeout 15000ms exceeded` in run 43497237616) |
+| SC-002 green full corpus ≤ 20 min | Met: 18.1 min browser jobs, 19.0 min whole workflow |
+| SC-003 run with ten broken journeys ≤ 25 min | Not measured on a real broken run; bounded by the 15 s action limit, no retry and the ten-failure cap |
+| SC-004 every selected journey accounted for | Met: guard verdict pass with 0 not run; missing-lane and unattempted-journey cases covered by contract tests and one local run |
+| SC-005 runner-minutes ≤ +50 % | Met: 192 vs 184 (+4 %) |
+| SC-006 one merged report | Met: single `playwright-report` artifact |
+
+### Stabilised tests (T046)
+
+Each browser journey passed 8 of 8 local repetitions after the change
+(`--repeat-each=8`): `editor-math-contents` and `accessibility` (axe, five
+views) on firefox-desktop, `database-relations-rollups` (empty source) on
+webkit-mobile. The web unit test passes; it was not repeated under load.
+
+### Not exercised yet
+
+- The timings cache save/restore: it only runs on `main`.
+- The nightly schedule.
+- The guard on a real CI failure (covered by contract tests and a local run
+  with a missing lane report).
+- The per-engine install saving was not measured separately (T042).

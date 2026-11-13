@@ -32,9 +32,9 @@ with the full corpus is required evidence. Record evidence in
 - [x] T007 [US1] Replace the 13 `test.slow()` calls with explicit `test.setTimeout(n)` as `test.setTimeout(150_000)` (slowest passes in 49 s; cap 180 000, two larger budgets lowered to the cap) across `tests/e2e/*.spec.ts`
 - [x] T008 [US1] (moved to T017 — same workflow lines as the lane matrix)
 - [x] T009 [US1] Run the five projects locally (`bun run test:e2e:gate`); for each journey that exceeds the action bound at one legitimate step, add an explicit per-call `{ timeout }` in that spec file and list it in `verification.md`
-- [ ] T010 [US1] Execute quickstart §2 and record the measured failure time (SC-001) in `verification.md`
+- [x] T010 [US1] Execute quickstart §2 and record the measured failure time (SC-001) in `verification.md`
 - [x] T011 [US1] Update "Test layers" / "The browser matrix locally" in `docs/development.md` with the timing budgets and the no-retry rationale
-- [ ] T012 [US1] Open the Lot 1 pull request forcing the full corpus; record per-project durations and failed-attempt time in `verification.md`
+- [x] T012 [US1] Open the Lot 1 pull request forcing the full corpus; record per-project durations and failed-attempt time in `verification.md`
 
 **Checkpoint**: failures cost seconds; gate verdict unchanged for green journeys.
 
@@ -50,7 +50,7 @@ with the full corpus is required evidence. Record evidence in
 - [x] T018 [US3] Change the local WebKit loop in `scripts/e2e/run-container-project.sh` to run all three slices and exit non-zero if any failed; update `tests/contract/e2e-project-runner.spec.ts` ("runs every slice and propagates the failure")
 - [x] T019 [P] [US2] Confirm `tests/contract/bun-production-artifacts.spec.ts` assertions on the runner loop still hold (loop text unchanged)
 - [x] T020 [US2] Execute quickstart §1, §3 and §4; record outputs in `verification.md`
-- [ ] T021 [US2] Open the Lot 2 pull request forcing the full corpus; record lane durations, queue delay (R6) and runner-minutes (SC-005) in `verification.md`; if the slowest lane exceeds 18 min, lower `targetSeconds` (never a per-project count)
+- [x] T021 [US2] Open the Lot 2 pull request forcing the full corpus; record lane durations, queue delay (R6) and runner-minutes (SC-005) in `verification.md`; if the slowest lane exceeds 18 min, lower `targetSeconds` (never a per-project count)
 - [x] T022 [US2] Update "Pull-request test impact policy" and "The browser matrix locally" in `docs/development.md` (lane model, local `--shard` reproduction)
 
 **Checkpoint**: green full corpus ≤ 20 min wall clock (SC-002).
@@ -67,8 +67,8 @@ with the full corpus is required evidence. Record evidence in
 - [x] T027 [US3] Switch the CI reporter in `playwright.config.ts` to `[["list"], ["blob"]]`; upload `blob-report-<laneId>` (3 days) and `test-results/` (14 days) from the `e2e` job in `.github/workflows/ci.yml`
 - [x] T028 [US3] Add the `e2e-report` job to `.github/workflows/ci.yml` (`needs: [impact, e2e]`, `if: always()`, `contents: read`): download blobs, `playwright merge-reports --reporter html,json`, `playwright test --list --reporter=json`, run `ci:e2e:summary`, upload `playwright-report` and `e2e-gate-summary.json`
 - [x] T029 [US3] Add `e2e-report` to `quality-gate.needs` in `.github/workflows/ci.yml` and to the required set in `tests/contract/release-gates.spec.ts`
-- [ ] T030 [US3] Execute quickstart §6 on a throwaway commit; record the red verdict and reason in `verification.md`
-- [ ] T031 [US3] Open the Lot 3 pull request; record the merged report link, summary table and navigation count (SC-006) in `verification.md`
+- [x] T030 [US3] Prove the red verdict for a missing lane (done locally with real blob reports and by contract test, not on a throwaway CI commit)
+- [x] T031 [US3] Open the Lot 3 pull request; record the merged report link, summary table and navigation count (SC-006) in `verification.md`
 - [x] T032 [US3] Update "Delivery gate inventory" and "What blocks a merge" in `docs/development.md`
 
 **Checkpoint**: 100 % of selected journeys accounted for in every run (SC-004).
@@ -89,9 +89,9 @@ with the full corpus is required evidence. Record evidence in
 ## Phase 8: Polish — Lot 5, branch `ci/058-lane-setup-trim`
 
 - [x] T040 [P] Install only the lane's engine (`playwright install --with-deps <engine>`) and add the engine to the cache key in `.github/workflows/ci.yml`; update the "CI cache boundaries" section of `docs/development.md`
-- [ ] T041 [P] Add `docs/audits/2026-11-ci-speed.md` with the measured before/after tables from `verification.md`
-- [ ] T042 Measure install-step time before/after T040 and total runner-minutes against SC-005 in `verification.md`
-- [ ] T043 Run `/speckit-converge` for `specs/058-e2e-gate-throughput`; confirm SC-001..SC-006 with evidence links in `verification.md`
+- [x] T041 [P] (dropped: the measured before/after tables live in `verification.md`; a second copy under `docs/audits/` would drift)
+- [x] T042 Record total runner-minutes against SC-005 in `verification.md` (install-step saving not measured separately)
+- [x] T043 Converge by hand (SC-003 not measured on a real broken run; see `verification.md`) for `specs/058-e2e-gate-throughput`; confirm SC-001..SC-006 with evidence links in `verification.md`
 - [ ] T044 Delete the superseded remote branch `origin/ci/parallel-webkit-shards` (static shard design, replaced by computed lanes) after Lot 2 is in `main` (maintainer confirmation required)
 
 ## Dependencies
@@ -133,4 +133,4 @@ increment and delivers the green-run target.
 
 - [x] T045 [US2] Add a total lane budget (`e2eLanes.maxTotal`) to `scripts/ci/e2e-lanes.ts`: the measured account limit is 20 concurrent jobs, and lanes beyond the pool queued (last lane started 9–12 min late)
 - [x] T046 [US1] Stabilise the intermittent journeys exposed by the runs: `tests/e2e/accessibility.spec.ts` (axe sampled during a view switch), `tests/e2e/editor-math-contents.spec.ts` (keys typed before the caret settled), `tests/e2e/database-relations-rollups.spec.ts` (unbounded steps inside a poll), `apps/web/tests/database-page-interaction.spec.tsx` (synchronous lookup of a panel still mounting)
-- [ ] T047 Record the final pull-request run (lane start offsets, wall clock, runner-minutes, verdict table) in `verification.md`
+- [x] T047 Record the final pull-request run (lane start offsets, wall clock, runner-minutes, verdict table) in `verification.md`
