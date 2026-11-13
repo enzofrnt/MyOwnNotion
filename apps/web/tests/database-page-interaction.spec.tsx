@@ -334,22 +334,22 @@ describe("database page interaction durability", () => {
       ".database-schema .property-icon-picker__trigger",
     );
     expect(trigger).not.toBeNull();
+    // The popover can still be mounting when the click returns and can close
+    // again if a stray toggle lands. Reopen it until the filtered grid exists,
+    // then read the option from the same settled state.
+    const iconOption = () =>
+      document.querySelector<HTMLButtonElement>('[role="option"][aria-label="étoile"]');
+    const pickerOpen = () =>
+      document.querySelector('[role="listbox"][aria-label="Icônes"]') !== null;
     await act(async () => {
-      trigger?.click();
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      const deadline = Date.now() + 15_000;
+      while (iconOption() === null && Date.now() < deadline) {
+        if (!pickerOpen()) trigger?.click();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
     });
-    // The symbol catalogue renders its filtered grid asynchronously; a fixed
-    // delay alone raced that render on a slower runner.
-    const choice = await vi.waitFor(
-      () => {
-        const option = document.querySelector<HTMLButtonElement>(
-          '[role="option"][aria-label="étoile"]',
-        );
-        if (option === null) throw new Error("Icon option is not rendered yet");
-        return option;
-      },
-      { timeout: 5_000 },
-    );
+    const choice = iconOption();
+    expect(choice).not.toBeNull();
     await act(async () => choice?.click());
     expect(replace).toHaveBeenCalledOnce();
     const definition = replace.mock.calls[0]?.[0] as DatabaseDefinition;

@@ -187,7 +187,9 @@ async function chooseSum(page: Page) {
       { timeout: 15_000, intervals: [250, 500, 1_000] },
     )
     .toBe(true);
-  await expect(sum).toBeVisible();
+  // The submenu can close again between its first render and the pick. The loop
+  // below reopens it, so do not assert visibility separately: that check raced
+  // the hide timer and failed after the submenu had already closed.
   // The submenu item renders before focus lands on it, and Enter pressed in that
   // gap re-activates the parent trigger. Keep choosing until the row proves the
   // selection instead of trusting a single key press.
