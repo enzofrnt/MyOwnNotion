@@ -97,7 +97,12 @@ test("preserves native property input across a remote projection before input de
     await summary.dispatchEvent("input");
     await waitForEntryAutosave(page);
     await page.getByRole("button", { name: "Fermer le volet" }).click();
+    // The projection just gained a column from the other device; the peek can
+    // still be animating shut when the row is clicked again. Wait for the close
+    // and for the reopened panel instead of racing both transitions.
+    await expect(page.locator(".entry-panel")).toBeHidden();
     await trigger.click();
+    await expect(page.locator(".entry-panel")).toBeVisible({ timeout: 15_000 });
     await expect(summary).toHaveValue("Native pending summary");
   } finally {
     await second.context.close();
@@ -185,7 +190,21 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   await databaseViewButton(page, /Table/).click();
   const alphaRow = page.locator(".database-grid tbody tr").filter({ hasText: alpha });
   await expect(alphaRow.getByRole("gridcell", { name: "Status, Done" })).toBeVisible();
-  await expect(alphaRow.getByRole("gridcell", { name: `Due, ${secondDate}` })).toBeVisible();
+  // A configured date property renders its full French label, not the stored
+  // ISO civil date; the accessible name carries that label.
+  const fullDate = (iso: string): string => {
+    const [year, month, day] = iso.split("-").map(Number);
+    return new Intl.DateTimeFormat("fr-FR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, day ?? 1)));
+  };
+  await expect(
+    alphaRow.getByRole("gridcell", { name: `Due, ${fullDate(secondDate)}` }),
+  ).toBeVisible();
   await expect(alphaRow.locator("[data-entry-trigger]")).toHaveAttribute(
     "data-entry-trigger",
     canonicalEntryId as string,

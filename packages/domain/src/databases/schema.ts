@@ -7,6 +7,7 @@ import type {
   DatabaseProperty,
   DatabaseSourceDefinition,
   DatabaseView,
+  DateDisplayConfig,
   DefinitionImpact,
   DefinitionImpactReason,
   EntryValues,
@@ -19,7 +20,18 @@ import type {
   TaskSemanticProjection,
   TaskStatusValue,
 } from "./types.ts";
-import { DATABASE_PROPERTY_TYPES, DATABASE_VIEW_TYPES } from "./types.ts";
+import {
+  DATABASE_PROPERTY_TYPES,
+  DATABASE_VIEW_TYPES,
+  inferStatusGroup,
+  isDateFormat,
+  isNumberPropertyConfig,
+  isRollupFunction,
+  isStatusGroup,
+  isTimeFormat,
+  type StatusOption,
+  type UniqueIdPropertyConfig,
+} from "./types.ts";
 
 function invalidDefinition(fields: readonly string[]): DomainResult<DatabaseDefinition> {
   return err("validation.invalid-payload", "Database definition is invalid", {
@@ -71,24 +83,122 @@ function normalizeProperty(property: DatabaseProperty): DatabaseProperty | null 
   }
   if (property.type === "title" && property.state !== "active") return null;
   if (
-    property.type === "date" &&
-    property.config.mode !== "date" &&
-    property.config.mode !== "instant"
+    property.type === "place" &&
+    (typeof property.config !== "object" ||
+      property.config === null ||
+      Object.keys(property.config).length > 0)
+  ) {
+    return null;
+  }
+  if (property.type === "number") {
+    const config = property.config as unknown;
+    if (typeof config === "object" && config !== null && Object.keys(config).length > 0) {
+      if (!isNumberPropertyConfig(config)) return null;
+      return { ...property, ...normalizedIcon, name: name.value, config };
+    }
+  }
+  if (property.type === "unique-id") {
+    const config = property.config as unknown as { readonly prefix?: unknown };
+    if (typeof config === "object" && config !== null && Object.keys(config).length > 0) {
+      if (
+        Object.keys(config).some((key) => key !== "prefix") ||
+        (config.prefix !== undefined &&
+          (typeof config.prefix !== "string" || config.prefix.length > 32))
+      ) {
+        return null;
+      }
+      return {
+        ...property,
+        ...normalizedIcon,
+        name: name.value,
+        config: config as UniqueIdPropertyConfig,
+      };
+    }
+  }
+  if (property.type === "created-time" || property.type === "last-edited-time") {
+    const config = property.config as unknown as {
+      readonly dateFormat?: unknown;
+      readonly timeFormat?: unknown;
+    };
+    if (typeof config === "object" && config !== null && Object.keys(config).length > 0) {
+      if (
+        Object.keys(config).some((key) => key !== "dateFormat" && key !== "timeFormat") ||
+        (config.dateFormat !== undefined && !isDateFormat(config.dateFormat)) ||
+        (config.timeFormat !== undefined && !isTimeFormat(config.timeFormat))
+      ) {
+        return null;
+      }
+      return {
+        ...property,
+        ...normalizedIcon,
+        name: name.value,
+        config: config as DateDisplayConfig,
+      };
+    }
+  }
+  if (property.type === "date") {
+    const config = property.config as unknown as {
+      readonly mode?: unknown;
+      readonly dateFormat?: unknown;
+      readonly timeFormat?: unknown;
+    };
+    if (config.mode !== "date" && config.mode !== "instant") return null;
+    if (config.dateFormat !== undefined && !isDateFormat(config.dateFormat)) return null;
+    if (config.timeFormat !== undefined && !isTimeFormat(config.timeFormat)) return null;
+  }
+  if (
+    property.type === "rollup" &&
+    (!isUuid(property.config.relationPropertyId) ||
+      !isRollupFunction(property.config.aggregate) ||
+      (property.config.targetPropertyId !== undefined && !isUuid(property.config.targetPropertyId)))
+  ) {
+    return null;
+  }
+  if (
+    property.type === "formula" &&
+    (typeof property.config.expression !== "string" ||
+      property.config.expression.trim().length === 0 ||
+      property.config.expression.length > 2000)
   ) {
     return null;
   }
   if (
     property.type === "relation" &&
-    property.config.cardinality !== "one" &&
-    property.config.cardinality !== "many"
+    ((property.config.cardinality !== "one" && property.config.cardinality !== "many") ||
+      (property.config.targetSourceId !== undefined && !isUuid(property.config.targetSourceId)) ||
+      (property.config.reciprocalPropertyId !== undefined &&
+        !isUuid(property.config.reciprocalPropertyId)) ||
+      (property.config.reciprocalPropertyId !== undefined &&
+        property.config.targetSourceId === undefined) ||
+      (property.config.inverseEdges !== undefined &&
+        typeof property.config.inverseEdges !== "boolean"))
   ) {
     return null;
   }
-  if (
-    property.type === "status" ||
-    property.type === "select" ||
-    property.type === "multi-select"
-  ) {
+  if (property.type === "status") {
+    if (duplicateIds(property.config.options.map((option) => option.id))) return null;
+    const options: StatusOption[] = [];
+    for (const option of property.config.options) {
+      const normalized = normalizeOption(option);
+      if (normalized === null) return null;
+      options.push({
+        ...normalized,
+        group: isStatusGroup(option.group) ? option.group : inferStatusGroup(option.label),
+      });
+    }
+    const defaultOptionId = options.some(
+      (option) => option.id === property.config.defaultOptionId && option.state === "active",
+    )
+      ? property.config.defaultOptionId
+      : undefined;
+    return {
+      ...property,
+      ...normalizedIcon,
+      name: name.value,
+      config: { options, ...(defaultOptionId === undefined ? {} : { defaultOptionId }) },
+    };
+  }
+  if (property.type === "select" || property.type === "multi-select") {
     if (duplicateIds(property.config.options.map((option) => option.id))) return null;
     const options = property.config.options.map(normalizeOption);
     if (options.some((option) => option === null)) return null;

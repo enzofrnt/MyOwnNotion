@@ -1,0 +1,286 @@
+/* One owner for the column menu and all its portaled child surfaces.
+   Compact optical scale belongs to the application, not screenshot pixels. */
+.ui-popover.database-column-editor,
+.database-column-editor__flyout,
+.ui-popover.property-settings--column-menu,
+.ui-menu.property-settings__menu--column-menu {
+  --property-menu-font: 13px;
+  --property-menu-row: 28px;
+  --property-menu-hover: color-mix(in srgb, var(--ui-color-text) 5%, transparent);
+  box-sizing: border-box;
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid color-mix(in srgb, var(--ui-color-border) 65%, transparent);
+  border-radius: 10px;
+  box-shadow: var(--ui-shadow-menu);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: var(--property-menu-font);
+  font-weight: 400;
+  font-synthesis: none;
+  line-height: 1.3;
+  letter-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ui-popover.database-column-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 244px;
+  max-width: calc(100vw - 16px);
+  max-height: min(70dvh, 540px);
+  padding: 4px;
+  overflow: auto;
+}
+
+.database-column-editor__heading {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 8px;
+  height: 36px;
+  padding: 4px 8px 6px;
+}
+.database-column-editor__heading .property-icon-picker__trigger {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  min-width: 20px;
+  height: 24px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+.database-column-editor .database-column-editor__name {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  margin: 0;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--ui-color-border) 65%, transparent);
+  border-radius: 5px;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-weight: 500;
+}
+.database-column-editor__name:focus-visible {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+.database-column-menu__actions {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+.database-column-menu__section {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+}
+.database-column-menu__section + .database-column-menu__section {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--ui-color-border) 45%, transparent);
+}
+/* A group with no available action must not leave its separator behind
+   (the title column has no insert/duplicate/delete actions). */
+.database-column-menu__section:empty {
+  display: none;
+}
+.database-column-menu__actions .ui-button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--property-menu-row);
+  min-height: var(--property-menu-row);
+  margin: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  transition: background-color 40ms ease;
+}
+.database-column-menu__actions .ui-button__label {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  font: inherit;
+}
+.database-column-menu__actions .ui-button__label > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+}
+.database-column-editor .ui-icon,
+.database-column-editor__flyout .ui-icon {
+  display: block;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  stroke-width: 1.5;
+}
+.database-column-menu__actions .ui-button__label > .ui-icon:last-child:not(:first-child) {
+  width: 14px;
+  height: 14px;
+  margin-inline-start: auto;
+  color: var(--ui-color-text-muted);
+}
+.database-column-menu__actions .ui-button[data-variant="ghost"]:hover:not(:disabled),
+.database-column-menu__actions .ui-button[data-variant="ghost"]:focus-visible:not(:disabled),
+.database-column-menu__actions .ui-button[data-variant="ghost"][aria-expanded="true"],
+.database-column-editor__heading .property-icon-picker__trigger:hover {
+  background: var(--property-menu-hover);
+}
+.database-column-menu__actions
+  .database-column-menu__danger[data-variant="ghost"]:hover:not(:disabled),
+.database-column-menu__actions
+  .database-column-menu__danger[data-variant="ghost"]:focus-visible:not(:disabled) {
+  color: var(--ui-color-danger-text);
+}
+.database-column-menu__actions .ui-button:focus-visible {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: -1px;
+}
+
+.database-column-editor__flyout {
+  position: fixed;
+  border: 0;
+  z-index: var(--ui-layer-popover, 70);
+  display: grid;
+  gap: 1px;
+  max-height: min(324px, calc(100dvh - 16px));
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  outline: none;
+}
+.database-column-editor__flyout button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: var(--property-menu-row);
+  min-height: var(--property-menu-row);
+  margin: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 40ms ease;
+}
+.database-column-editor__flyout button:hover,
+.database-column-editor__flyout button:focus-visible {
+  background: var(--property-menu-hover);
+  outline: none;
+}
+.database-column-editor__flyout button[aria-checked="true"] {
+  color: var(--ui-color-accent-text);
+}
+
+/* The property-settings panel is also portaled: parent inheritance cannot reach it. */
+.ui-popover.property-settings--column-menu {
+  width: 280px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  padding: 8px;
+}
+.property-settings--column-menu :is(button, input, select, label, .ui-button__label) {
+  font-family: inherit;
+  font-size: var(--property-menu-font);
+  font-weight: 400;
+  line-height: 1.3;
+}
+.property-settings--column-menu :is(.ui-native-input, .ui-button, .property-settings__option) {
+  min-height: 28px;
+}
+.property-settings--column-menu .ui-native-input {
+  height: 28px;
+  padding-block: 3px;
+}
+.property-settings--column-menu .property-settings__number {
+  gap: 10px;
+  padding: 0;
+}
+.property-settings--column-menu :is(.property-settings__field, .property-settings__display) {
+  font-size: 12px;
+}
+.property-settings--column-menu .property-settings__status-heading {
+  font-size: 12px;
+  font-weight: 400;
+}
+.property-settings--column-menu .property-settings__note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.property-settings--column-menu .property-settings__option:hover,
+.property-settings--column-menu .ui-button[data-variant="ghost"]:hover:not(:disabled) {
+  background: var(--property-menu-hover);
+}
+
+.ui-menu.property-settings__menu--column-menu {
+  width: 264px;
+  max-width: calc(100vw - 16px);
+  padding: 4px;
+}
+.property-settings__menu--column-menu :is(.ui-menu__item, .ui-menu__item-label, .ui-native-input) {
+  font-family: inherit;
+  font-size: var(--property-menu-font);
+  font-weight: 400;
+  line-height: 1.3;
+}
+.property-settings__menu--column-menu .ui-menu__item {
+  min-height: 28px;
+  padding: 4px 8px;
+}
+.property-settings__menu--column-menu .ui-native-input {
+  height: 28px;
+  min-height: 28px;
+  padding: 3px 6px;
+}
+.property-settings__menu--column-menu .property-settings__caption {
+  margin: 8px;
+  font-size: 11px;
+  font-weight: 400;
+}
+.property-settings--column-menu .property-settings__option {
+  height: 28px;
+  min-height: 28px;
+  padding: 2px 4px;
+}
+.property-settings--column-menu .ui-menu__separator:first-child {
+  display: none;
+}

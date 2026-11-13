@@ -89,7 +89,7 @@ export function ListView({
                     <div
                       key={property.id}
                       className="database-list__property"
-                      title={`${property.name} : ${displayDatabaseValue(row, property)}`}
+                      title={`${property.name} : ${displayDatabaseValue(row, property, properties)}`}
                     >
                       <dt className="sr-only">{property.name}</dt>
                       <dd className="database-list__value">

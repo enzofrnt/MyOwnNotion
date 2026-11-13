@@ -529,3 +529,114 @@ describe("Notion attachment network boundary", () => {
     ).rejects.toMatchObject({ code: "import.source-too-large" });
   });
 });
+
+describe("contact property import (042)", () => {
+  const source = (fixture: ReturnType<typeof notionFixture>) => required(fixture.sources[0]);
+  const row = (fixture: ReturnType<typeof notionFixture>) =>
+    required(fixture.pages.find((page) => page["id"] === notionIds["rowA"]));
+
+  it("keeps URL, e-mail and phone types and values", () => {
+    const fixture = notionFixture();
+    source(fixture)["properties"] = {
+      ...(source(fixture)["properties"] as Record<string, unknown>),
+      Website: { id: "website", type: "url", url: {} },
+      Contact: { id: "contact", type: "email", email: {} },
+      Phone: { id: "phone", type: "phone_number", phone_number: {} },
+    };
+    row(fixture)["properties"] = {
+      ...(row(fixture)["properties"] as Record<string, unknown>),
+      Website: { id: "website", type: "url", url: "https://exemple.fr/a" },
+      Contact: { id: "contact", type: "email", email: "nom@exemple.fr" },
+      Phone: { id: "phone", type: "phone_number", phone_number: "+33 6 12 34 56 78" },
+    };
+    const plan = planNotionImport(fixture);
+    const properties = required(plan.databases[0]?.sources[0]).definition.properties;
+    const byName = (name: string) => required(properties.find((entry) => entry.name === name));
+    expect(byName("Website").type).toBe("url");
+    expect(byName("Contact").type).toBe("email");
+    expect(byName("Phone").type).toBe("phone");
+    const entry = required(plan.pages.find((page) => page["path"] === notionIds["rowA"]));
+    expect(entry.values?.[byName("Website").id]).toEqual({
+      kind: "text",
+      value: "https://exemple.fr/a",
+    });
+    expect(entry.values?.[byName("Contact").id]).toEqual({
+      kind: "text",
+      value: "nom@exemple.fr",
+    });
+    expect(plan.report.issues.map((issue) => issue.code)).not.toContain(
+      "import.property-static-text",
+    );
+  });
+
+  it("reports an invalid imported value instead of writing it", () => {
+    const fixture = notionFixture();
+    source(fixture)["properties"] = {
+      ...(source(fixture)["properties"] as Record<string, unknown>),
+      Website: { id: "website", type: "url", url: {} },
+    };
+    row(fixture)["properties"] = {
+      ...(row(fixture)["properties"] as Record<string, unknown>),
+      Website: { id: "website", type: "url", url: "pas une url" },
+    };
+    const plan = planNotionImport(fixture);
+    const property = required(
+      required(plan.databases[0]?.sources[0]).definition.properties.find(
+        (entry) => entry.name === "Website",
+      ),
+    );
+    expect(property.type).toBe("url");
+    const entry = required(plan.pages.find((page) => page["path"] === notionIds["rowA"]));
+    expect(entry.values?.[property.id]).toBeUndefined();
+    expect(plan.report.issues.map((issue) => issue.code)).toContain(
+      "import.property-invalid-value",
+    );
+  });
+});
+
+describe("read-only time import (042)", () => {
+  it("keeps the last-edited-time type without storing a value", () => {
+    const fixture = notionFixture();
+    const source = required(fixture.sources[0]);
+    const row = required(fixture.pages.find((page) => page["id"] === notionIds["rowA"]));
+    source["properties"] = {
+      ...(source["properties"] as Record<string, unknown>),
+      "Dernière modification": { id: "edited", type: "last_edited_time", last_edited_time: {} },
+    };
+    row["properties"] = {
+      ...(row["properties"] as Record<string, unknown>),
+      "Dernière modification": {
+        id: "edited",
+        type: "last_edited_time",
+        last_edited_time: "2026-11-04T10:00:00.000Z",
+      },
+    };
+    const plan = planNotionImport(fixture);
+    const property = required(
+      required(plan.databases[0]?.sources[0]).definition.properties.find(
+        (entry) => entry.name === "Dernière modification",
+      ),
+    );
+    expect(property.type).toBe("last-edited-time");
+    const entry = required(plan.pages.find((page) => page["path"] === notionIds["rowA"]));
+    expect(entry.values?.[property.id]).toBeUndefined();
+  });
+
+  it("keeps the created-time type without storing a value", () => {
+    const fixture = notionFixture();
+    const source = required(fixture.sources[0]);
+    source["properties"] = {
+      ...(source["properties"] as Record<string, unknown>),
+      Creation: { id: "created", type: "created_time", created_time: {} },
+    };
+    const plan = planNotionImport(fixture);
+    const property = required(
+      required(plan.databases[0]?.sources[0]).definition.properties.find(
+        (entry) => entry.name === "Creation",
+      ),
+    );
+    expect(property.type).toBe("created-time");
+    const entry = required(plan.pages.find((page) => page["path"] === notionIds["rowA"]));
+    expect(entry.values?.[property.id]).toBeUndefined();
+  });
+});

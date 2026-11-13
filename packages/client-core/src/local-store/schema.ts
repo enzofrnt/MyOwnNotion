@@ -224,6 +224,9 @@ export interface LocalDatabaseEntryRow {
   readonly entryItemId: Uuid;
   readonly databaseId: Uuid;
   readonly sourceId?: Uuid;
+  readonly entryNumber?: number;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
   readonly valueVersion: number;
   readonly availability: "present" | "offloaded" | "never-fetched";
   /**

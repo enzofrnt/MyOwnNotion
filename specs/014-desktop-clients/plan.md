@@ -170,7 +170,7 @@ La matrice GitHub Actions de release est native et n’alimente aucun store :
 | --- | --- | --- | --- |
 | `windows-latest` | `win32` | `x64` | Squirrel `.exe` |
 | `windows-11-arm` | `win32` | `arm64` | installateur Windows ARM `.exe` |
-| `macos-14` | `darwin` | `arm64` | DMG |
+| `macos-15` | `darwin` | `arm64` | DMG |
 | `ubuntu-24.04` | `linux` | `x64` | AppImage, `.deb`, `.rpm` |
 | `ubuntu-24.04-arm` | `linux` | `arm64` | AppImage, `.deb`, `.rpm` |
 

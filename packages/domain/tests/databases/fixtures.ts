@@ -74,9 +74,24 @@ export function baseProperties(): DatabaseProperty[] {
       state: "active",
       config: {
         options: [
-          { id: IDS.todo, label: "À faire", positionKey: "a", tone: "neutral", state: "active" },
-          { id: IDS.doing, label: "En cours", positionKey: "b", tone: "blue", state: "active" },
+          {
+            id: IDS.todo,
+            label: "À faire",
+            positionKey: "a",
+            tone: "neutral",
+            state: "active",
+            group: "todo",
+          },
+          {
+            id: IDS.doing,
+            label: "En cours",
+            positionKey: "b",
+            tone: "blue",
+            state: "active",
+            group: "in-progress",
+          },
         ],
+        defaultOptionId: IDS.todo,
       },
     },
     {

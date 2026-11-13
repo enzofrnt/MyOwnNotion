@@ -82,7 +82,9 @@ import {
   saveEntryPropertyChanges,
 } from "../databases/edit-entry-properties.ts";
 import { type EntryDrafts, EntryPanel } from "../databases/entry-panel.tsx";
+import { hasDerivedProperties, useLocalDerivedOptions } from "../databases/local-rollup.ts";
 import { PageDatabases } from "../databases/page-databases.tsx";
+import { RelationCatalogProvider } from "../databases/relation-catalog.tsx";
 import { restoreEntryPeekFocus } from "../databases/restore-entry-peek-focus.ts";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
 import { updatedCellProperties } from "../databases/update-database-cell.ts";
@@ -93,6 +95,7 @@ import { BranchState } from "../navigation/branch-state.tsx";
 import { CollapsibleRegion } from "../navigation/collapsible-region.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
 import { NavigationInlineCreate } from "../navigation/navigation-inline-create.tsx";
+import { NavigationInlineRename } from "../navigation/navigation-inline-rename.tsx";
 import { NavigationItemMenu } from "../navigation/navigation-item-menu.tsx";
 import { Sidebar, type SidebarShortcutPreferences } from "../navigation/sidebar.tsx";
 import { TreeAttachmentDisclosure } from "../navigation/tree-attachment-disclosure.tsx";
@@ -101,6 +104,7 @@ import {
   type TreeDragItem,
   type TreeDropIntent,
   TreeDropTarget,
+  treeDropTargetId,
 } from "../navigation/tree-drag-drop.tsx";
 import {
   applyTreeRowPointerAction,
@@ -121,6 +125,7 @@ import { PageHeader } from "../workspace/page-header.tsx";
 import { PageTitleEditor } from "../workspace/page-title-editor.tsx";
 import { PathBreadcrumbs } from "../workspace/path-breadcrumbs.tsx";
 import { useActiveItem } from "../workspace/use-active-item.ts";
+import { WorkspaceHome } from "../workspace/workspace-home.tsx";
 import { WorkspacePageEditor } from "../workspace/workspace-page-editor.tsx";
 import { WorkspaceShell } from "../workspace/workspace-shell.tsx";
 import { WorkspaceState } from "../workspace/workspace-state.tsx";
@@ -338,7 +343,7 @@ function flattenAll(nodes: readonly TreeNode[]): TreeNode[] {
   return nodes.flatMap((node) => [node, ...flattenAll(node.children)]);
 }
 
-function treeDragItems(nodes: readonly TreeNode[]): TreeDragItem[] {
+function treeDragItems(nodes: readonly TreeNode[], expanded: ReadonlySet<string>): TreeDragItem[] {
   return nodes.flatMap((node, siblingIndex) => {
     const parentId =
       node.item.placements.find((entry) => entry.kind === "hierarchy")?.parentItemId ?? null;
@@ -349,10 +354,11 @@ function treeDragItems(nodes: readonly TreeNode[]): TreeDragItem[] {
         parentId,
         siblingIndex,
         canContainChildren: node.item.kind !== "file",
+        expanded: expanded.has(node.item.id),
         kind: node.item.kind,
         icon: node.item.icon,
       },
-      ...treeDragItems(node.children),
+      ...treeDragItems(node.children, expanded),
     ];
   });
 }
@@ -388,7 +394,15 @@ export interface HierarchyExplorerProps {
   readonly onTrashedItemsChange: (items: readonly ProjectedItem[]) => void;
 }
 
-export function HierarchyExplorer({
+export function HierarchyExplorer(props: HierarchyExplorerProps) {
+  return (
+    <RelationCatalogProvider service={localContent()}>
+      <HierarchyExplorerContent {...props} />
+    </RelationCatalogProvider>
+  );
+}
+
+function HierarchyExplorerContent({
   active,
   backupStale,
   selectedItemId,
@@ -504,6 +518,10 @@ export function HierarchyExplorer({
   selectedDatabaseRef.current = selectedDatabase;
   selectedEntryRef.current = selectedEntry;
   const [entryDefinition, setEntryDefinition] = useState<DatabaseDefinition | null>(null);
+  const entryDerived = useLocalDerivedOptions(
+    service,
+    entryDefinition !== null && hasDerivedProperties(entryDefinition.properties),
+  );
   const [titleDraftSession, setTitleDraftSession] = useState<TitleDraftSession | null>(null);
   // React state carries the draft across ordinary renders. The matching ref is
   // updated in the input event itself, so a concurrent classification render
@@ -549,6 +567,19 @@ export function HierarchyExplorer({
   const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [rootCreationOpen, setRootCreationOpen] = useState(false);
   const [inlineCreationItemId, setInlineCreationItemId] = useState<Uuid | null>(null);
+  // The row whose name is being edited in place. One at a time: renaming is a
+  // single focused gesture, and a second open field would compete for the
+  // tree's one tab stop.
+  const [renamingItemId, setRenamingItemId] = useState<Uuid | null>(null);
+  /** Names shown at once while their rename is being written (optimistic). */
+  const [pendingTreeNames, setPendingTreeNames] = useState<ReadonlyMap<Uuid, string>>(
+    () => new Map(),
+  );
+  /** Draft handed back to the field when a rename was refused. */
+  const [refusedTreeRename, setRefusedTreeRename] = useState<{
+    readonly itemId: Uuid;
+    readonly name: string;
+  } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
@@ -876,7 +907,7 @@ export function HierarchyExplorer({
   );
   const visibleNodes = useMemo(() => flatten(tree, expanded), [tree, expanded]);
   const allNodes = useMemo(() => flattenAll(tree), [tree]);
-  const draggableTreeItems = useMemo(() => treeDragItems(tree), [tree]);
+  const draggableTreeItems = useMemo(() => treeDragItems(tree, expanded), [expanded, tree]);
   const attachmentsByPage = useMemo(() => pageAttachmentsByPage(items), [items]);
   const { item: selectedItem, path: activePath } = useActiveItem(items, selectedId);
   const [entryPeek, setEntryPeek] = useState<DatabaseEntryOpenRequest | null>(null);
@@ -1014,6 +1045,18 @@ export function HierarchyExplorer({
       })),
     [activePath],
   );
+
+  // The title is the last link of the path, so the line above it only lists
+  // ancestors. A root item has none: `null` keeps the line's height reserved so
+  // the title does not jump between tabs.
+  const ancestorBreadcrumbs =
+    pathCrumbs.length > 1 ? (
+      <PathBreadcrumbs
+        ancestorsOnly
+        path={pathCrumbs.slice(0, -1)}
+        onOpen={(id) => openItem(id as Uuid)}
+      />
+    ) : null;
 
   const folderChildren = useMemo(() => {
     if (selectedItem === null || selectedItem.kind !== "folder") return [];
@@ -1448,6 +1491,62 @@ export function HierarchyExplorer({
     [refresh, service],
   );
 
+  /** Opens the row's inline name field. */
+  const beginTreeRename = useCallback((itemId: Uuid) => {
+    setRenamingItemId(itemId);
+  }, []);
+
+  /**
+   * Closes the field and hands focus back to the row afterwards.
+   *
+   * The row is the tree's single tab stop, so focus must land there rather than
+   * disappear with the input: after Enter or Échap the owner is still arrowing
+   * through the tree. Focus is set on the element that is already in the
+   * document, before React re-renders, for the same reason `useTreeKeyboard`
+   * does it synchronously.
+   */
+  const endTreeRename = useCallback((itemId: Uuid, focusRow: boolean) => {
+    setRenamingItemId((current) => (current === itemId ? null : current));
+    setRefusedTreeRename((current) => (current?.itemId === itemId ? null : current));
+    if (!focusRow) return;
+    const row = document.querySelector(`[data-item-id="${itemId}"]`);
+    if (row instanceof HTMLElement) {
+      row.tabIndex = 0;
+      row.focus();
+    }
+  }, []);
+
+  /**
+   * Applies an inline rename at once and persists it in the background.
+   *
+   * The write re-reads the revision, may retry a stale base, updates a
+   * database's source name and refreshes the projection: long enough to feel
+   * stuck if the field waited for it. The row shows the new name immediately
+   * instead; a refused write reopens the field with the draft so nothing typed
+   * is lost, next to the problem banner that explains why.
+   *
+   * Reusing the title's writer keeps one rename path.
+   */
+  const commitTreeRename = useCallback(
+    (itemId: Uuid, name: string): Promise<boolean> => {
+      setPendingTreeNames((current) => new Map(current).set(itemId, name));
+      const forget = (): void =>
+        setPendingTreeNames((current) => {
+          if (current.get(itemId) !== name) return current;
+          const next = new Map(current);
+          next.delete(itemId);
+          return next;
+        });
+      void renameSelectedItem(itemId, name).then(forget, () => {
+        forget();
+        setRefusedTreeRename({ itemId, name });
+        setRenamingItemId(itemId);
+      });
+      return Promise.resolve(true);
+    },
+    [renameSelectedItem],
+  );
+
   const titleEditingProps = useCallback(
     (
       itemId: Uuid,
@@ -1875,19 +1974,6 @@ export function HierarchyExplorer({
     [items, refresh, service],
   );
 
-  const renameItem = useCallback(
-    async (node: TreeNode) => {
-      const name = window.prompt("New name", node.item.name);
-      if (name === null || name.trim().length === 0) {
-        return;
-      }
-      await runCommand("item.rename", { itemId: node.item.id, name }, [
-        node.item.currentRevisionId,
-      ]);
-    },
-    [runCommand],
-  );
-
   /**
    * Converts an item, and reports back whether the server asked for a
    * confirmation rather than treating that refusal as a failure.
@@ -2059,10 +2145,7 @@ export function HierarchyExplorer({
       openItem(id as Uuid);
     },
     rename: (id: string) => {
-      const node = visibleNodes.find((entry) => entry.item.id === id);
-      if (node !== undefined) {
-        void renameItem(node);
-      }
+      beginTreeRename(id as Uuid);
     },
     remove: (id: string) => {
       const node = visibleNodes.find((entry) => entry.item.id === id);
@@ -2070,7 +2153,7 @@ export function HierarchyExplorer({
     },
   });
 
-  const renderNode = (node: TreeNode, level: number): React.ReactElement => {
+  const renderNode = (node: TreeNode, level: number, firstChildOf?: string): React.ReactElement => {
     const isSelected = selectedId === node.item.id;
     const branch = isBranch(node, projectionComplete);
     const branchOpen = branch && expanded.has(node.item.id);
@@ -2086,7 +2169,15 @@ export function HierarchyExplorer({
       >
         {node.children.length > 0 ? (
           // biome-ignore lint/a11y/useSemanticElements: role="group" on ul is the canonical ARIA tree substructure
-          <ul role="group">{node.children.map((child) => renderNode(child, level + 1))}</ul>
+          <ul role="group">
+            {node.children.map((child, index) =>
+              renderNode(
+                child,
+                level + 1,
+                branchOpen && index === 0 ? treeDropTargetId(node.item.id, "after") : undefined,
+              ),
+            )}
+          </ul>
         ) : (
           <BranchState
             containerKind={node.item.kind === "folder" ? "folder" : "page"}
@@ -2113,7 +2204,12 @@ export function HierarchyExplorer({
       >
         {(attachmentsOpen, toggleAttachments) => (
           <li role="none">
-            <TreeDropTarget itemId={node.item.id} canContainChildren={node.item.kind !== "file"}>
+            <TreeDropTarget
+              itemId={node.item.id}
+              canContainChildren={node.item.kind !== "file"}
+              firstChildOf={firstChildOf}
+              redirectsAfter={branchOpen && node.children.length > 0}
+            >
               {({
                 activeZone,
                 consumeDragClick,
@@ -2220,7 +2316,22 @@ export function HierarchyExplorer({
                       expanded={branchOpen}
                       onToggle={() => toggleBranch(node.item.id, !branchOpen)}
                     />
-                    <span className="tree-name">{node.item.name}</span>
+                    {renamingItemId === node.item.id ? (
+                      <NavigationInlineRename
+                        key={node.item.id}
+                        committedName={node.item.name}
+                        itemName={node.item.name}
+                        {...(refusedTreeRename?.itemId === node.item.id
+                          ? { initialDraft: refusedTreeRename.name }
+                          : {})}
+                        onCommit={(name) => commitTreeRename(node.item.id, name)}
+                        onClose={(focusRow) => endTreeRename(node.item.id, focusRow)}
+                      />
+                    ) : (
+                      <span className="tree-name">
+                        {pendingTreeNames.get(node.item.id) ?? node.item.name}
+                      </span>
+                    )}
                     {/* Marked, never as "missing" (FR-018). Content the server holds is
               not lost because this device released it or has not fetched it, and
               the two are distinguished because they mean different things to an
@@ -2313,7 +2424,7 @@ export function HierarchyExplorer({
                             : undefined
                         }
                         onImportFile={(file) => void importHierarchyFile(node.item.id, file)}
-                        onRename={() => void renameItem(node)}
+                        onRename={() => beginTreeRename(node.item.id)}
                         onChangeIcon={
                           node.item.kind === "file"
                             ? undefined
@@ -2651,12 +2762,29 @@ export function HierarchyExplorer({
       }
       header={
         <PageHeader
-          kind={graphMode !== null ? "graph" : (selectedItem?.kind ?? "workspace")}
+          kind={graphMode !== null ? "graph" : (selectedItem?.kind ?? "home")}
           {...(graphMode !== null
             ? {}
             : selectedItem?.kind === "page" || selectedItem?.kind === "folder"
               ? {}
               : { title: selectedItem?.name ?? "Bienvenue" })}
+          {...(graphMode === null && selectedItem !== null && selectedItem.kind !== "file"
+            ? {
+                actions: (
+                  <Button
+                    size="square"
+                    variant="ghost"
+                    className="workspace-page-header__graph"
+                    data-testid="open-local-graph"
+                    aria-label="Voir les relations de cette page"
+                    title="Voir les relations de cette page"
+                    onClick={() => onOpenGraph(selectedItem.id)}
+                  >
+                    <AppIcon name="graph" size="small" />
+                  </Button>
+                ),
+              }
+            : {})}
           tabs={
             loadState === "ready" && openTabs.length > 0 ? (
               <OpenTabsStrip
@@ -2835,13 +2963,9 @@ export function HierarchyExplorer({
                   detail="Cette note est introuvable ou a été supprimée."
                 />
               ) : (
-                <WorkspaceState
-                  kind="empty"
-                  detail={
-                    items.length === 0
-                      ? "Créez une première page depuis la barre latérale."
-                      : "Choisissez une page dans la barre latérale pour reprendre votre travail."
-                  }
+                <WorkspaceHome
+                  hasItems={items.length > 0}
+                  onCreatePage={() => createItem("page", null)}
                 />
               )
             ) : null}
@@ -2896,24 +3020,7 @@ export function HierarchyExplorer({
                       kind={selectedItem.kind}
                       holdsContent={pageHoldsTreeContent(selectedItem)}
                       discoverable={graphScope === null}
-                      breadcrumbs={
-                        <PathBreadcrumbs path={pathCrumbs} onOpen={(id) => openItem(id as Uuid)} />
-                      }
-                      pathActions={
-                        <Button
-                          size="compact"
-                          variant="ghost"
-                          className="workspace-page-title__graph"
-                          data-testid="open-local-graph"
-                          title="Voir les relations"
-                          onClick={() => onOpenGraph(selectedItem.id)}
-                        >
-                          <AppIcon name="graph" size="small" />
-                          <span className="workspace-page-title__graph-label">
-                            Voir les relations
-                          </span>
-                        </Button>
-                      }
+                      breadcrumbs={ancestorBreadcrumbs}
                       icon={selectedItem.icon}
                       title={selectedItem.name}
                       onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
@@ -2955,6 +3062,7 @@ export function HierarchyExplorer({
                         returnFocusEntryId={entryReturnFocusId}
                         onReturnFocusRestored={clearEntryReturnFocus}
                         linked={selectedItem.kind === "database_view"}
+                        hideSingleSourceTitle
                       />
                     ) : selectedDatabase !== null && showSelectedDatabase ? (
                       <DatabasePage
@@ -3141,8 +3249,13 @@ export function HierarchyExplorer({
                           definitionMutationQueue.current = queued.catch(() => undefined);
                           return queued;
                         }}
-                        onCreateEntry={async (title, initialValues = {}, initialRelations = {}) => {
-                          const id = generateUuidV7();
+                        onCreateEntry={async (
+                          title,
+                          initialValues = {},
+                          initialRelations = {},
+                          entryId,
+                        ) => {
+                          const id = entryId ?? generateUuidV7();
                           const result = await service.createDatabaseEntry(selectedItem.id, {
                             id,
                             title,
@@ -3265,6 +3378,7 @@ export function HierarchyExplorer({
                   entry={selectedEntry}
                   valuesAvailable={selectedEntry.valuesAvailable ?? true}
                   definition={entryDefinition}
+                  derived={entryDerived}
                   renderHeader={(onClose) => (
                     <PageTitleEditor
                       key={`title-${selectedItem.id}`}
@@ -3276,37 +3390,20 @@ export function HierarchyExplorer({
                       kind={selectedItem.kind === "folder" ? "folder" : "page"}
                       holdsContent={pageHoldsTreeContent(selectedItem)}
                       discoverable={graphScope === null}
-                      breadcrumbs={
-                        <PathBreadcrumbs path={pathCrumbs} onOpen={(id) => openItem(id as Uuid)} />
-                      }
+                      breadcrumbs={ancestorBreadcrumbs}
                       pathActions={
-                        <>
-                          <Button
-                            size="compact"
-                            variant="ghost"
-                            aria-label={DATABASE_COPY.entry.close}
-                            title={DATABASE_COPY.entry.close}
-                            onClick={onClose}
-                          >
-                            <AppIcon name="arrowLeft" size="small" />
-                            <span className="workspace-page-title__return-label">
-                              {DATABASE_COPY.entry.close}
-                            </span>
-                          </Button>
-                          <Button
-                            size="compact"
-                            variant="ghost"
-                            className="workspace-page-title__graph"
-                            aria-label="Voir les relations"
-                            title="Voir les relations"
-                            onClick={() => onOpenGraph(selectedItem.id)}
-                          >
-                            <AppIcon name="graph" size="small" />
-                            <span className="workspace-page-title__graph-label">
-                              Voir les relations
-                            </span>
-                          </Button>
-                        </>
+                        <Button
+                          size="compact"
+                          variant="ghost"
+                          aria-label={DATABASE_COPY.entry.close}
+                          title={DATABASE_COPY.entry.close}
+                          onClick={onClose}
+                        >
+                          <AppIcon name="arrowLeft" size="small" />
+                          <span className="workspace-page-title__return-label">
+                            {DATABASE_COPY.entry.close}
+                          </span>
+                        </Button>
                       }
                       icon={selectedItem.icon}
                       title={selectedItem.name}
@@ -3426,22 +3523,7 @@ export function HierarchyExplorer({
                   key={`title-${selectedItem.id}`}
                   {...titleEditingProps(selectedItem.id, selectedItem.name, "folder")}
                   discoverable={graphScope === null}
-                  breadcrumbs={
-                    <PathBreadcrumbs path={pathCrumbs} onOpen={(id) => openItem(id as Uuid)} />
-                  }
-                  pathActions={
-                    <Button
-                      size="compact"
-                      variant="ghost"
-                      className="workspace-page-title__graph"
-                      data-testid="open-local-graph"
-                      title="Voir les relations"
-                      onClick={() => onOpenGraph(selectedItem.id)}
-                    >
-                      <AppIcon name="graph" size="small" />
-                      <span className="workspace-page-title__graph-label">Voir les relations</span>
-                    </Button>
-                  }
+                  breadcrumbs={ancestorBreadcrumbs}
                   kind="folder"
                   kindActions={
                     <FolderInlineCreate

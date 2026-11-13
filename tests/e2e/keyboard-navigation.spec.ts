@@ -291,10 +291,14 @@ test.describe("acting on an item from the keyboard", () => {
     await waitForSynchronized(page);
 
     const renamed = `${name}-renamed`;
-    page.once("dialog", (dialog) => void dialog.accept(renamed));
 
     await focusTree(page, name);
     await page.keyboard.press("F2");
+
+    const field = page.getByTestId(`rename-input-${name}`);
+    await expect(field).toBeFocused();
+    await field.fill(renamed);
+    await page.keyboard.press("Enter");
 
     await expect(row(page, renamed)).toBeVisible({ timeout: 30_000 });
   });

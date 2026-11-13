@@ -1,7 +1,11 @@
 import type { ReactNode } from "react";
 import { Button, Status } from "../../ui/primitives/index.ts";
 
-export type WorkspaceStateKind = "loading" | "empty" | "offline" | "error";
+/**
+ * Recovery and loading states of the workspace pane. A workspace with nothing
+ * open is not a state to report: it is the landing surface (`WorkspaceHome`).
+ */
+export type WorkspaceStateKind = "loading" | "offline" | "error";
 
 export interface WorkspaceStateProps {
   readonly kind: WorkspaceStateKind;
@@ -30,10 +34,6 @@ export function WorkspaceState({ diagnostics, detail, kind, onRetry, phase }: Wo
   }
 
   const content = {
-    empty: {
-      title: "Votre espace est prêt",
-      detail: detail ?? "Créez une première page pour commencer à écrire.",
-    },
     offline: {
       title: "Contenu indisponible hors ligne",
       detail:

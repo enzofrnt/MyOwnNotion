@@ -273,7 +273,11 @@ export async function resolveDatabaseProjectionEntries(
     ) ?? new Map<string, string>(),
     content?.readDatabaseEntryValuesMany(
       executor,
-      records.filter((record) => record.valueVersion > 0),
+      // Only identity and version matter here; keep the protected-content
+      // boundary from receiving timestamps and numbers it would ignore.
+      records
+        .filter((record) => record.valueVersion > 0)
+        .map((record) => ({ entryId: record.entryId, valueVersion: record.valueVersion })),
     ) ?? new Map<string, EntryValues>(),
     content?.readRelationshipMetadataMany<Readonly<Record<string, unknown>>>(
       executor,
@@ -312,6 +316,9 @@ export async function resolveDatabaseProjectionEntries(
     return {
       entryId: record.entryId,
       revisionId: record.revisionId,
+      ...(record.entryNumber === null ? {} : { entryNumber: record.entryNumber }),
+      ...(record.createdAt === undefined ? {} : { createdAt: record.createdAt.toISOString() }),
+      ...(record.updatedAt === undefined ? {} : { updatedAt: record.updatedAt.toISOString() }),
       title,
       values: entryValues.values,
       relationTargets: Object.fromEntries(

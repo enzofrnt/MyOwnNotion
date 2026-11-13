@@ -99,7 +99,7 @@ describe("Forge and release workflows stay on the published matrix", () => {
     const workflow = read(".github/workflows/desktop-release.yml");
     expect(workflow).toContain("windows-latest");
     expect(workflow).toContain("windows-11-arm");
-    expect(workflow).toContain("macos-14");
+    expect(workflow).toContain("macos-15");
     expect(workflow).toContain("ubuntu-24.04");
     expect(workflow).toContain("ubuntu-24.04-arm");
     expect(workflow).toContain("uses: ./.github/workflows/ci.yml");

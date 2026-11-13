@@ -16,6 +16,12 @@ import type { LocalContentService } from "../../../services/local-content.ts";
 import { AsyncState, Button } from "../../../ui/primitives/index.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../../databases/database-page.tsx";
 import { definitionViewsPreservingPresentation } from "../../databases/definition-view-merge.ts";
+import { withInverseRelationTargets } from "../../databases/local-inverse-relations.ts";
+import {
+  hasDerivedProperties,
+  type LocalRollupContext,
+  loadLocalRollupContext,
+} from "../../databases/local-rollup.ts";
 import { PageViewQuery } from "../../databases/page-view-query.ts";
 import { createProjectionRefresh } from "../../databases/projection-refresh.ts";
 import type { DatabaseCellUpdate } from "../../databases/table-view.tsx";
@@ -29,6 +35,7 @@ interface LoadedView {
   readonly entries: readonly DatabaseEntryDto[];
   readonly querySource: Omit<LocalDatabaseQuerySource, "generation">;
   readonly states: ReadonlyMap<Uuid, DatabaseRowSyncState>;
+  readonly rollupContext: LocalRollupContext | null;
   readonly queryGeneration?: number;
 }
 
@@ -70,10 +77,17 @@ export async function loadView(
       ? entryRows.filter((membership) => (membership.sourceId ?? primarySourceId) === view.sourceId)
       : [];
   const ids = memberships.map((entry) => entry.entryItemId);
-  const [items, relations] = await Promise.all([
+  const [items, outgoing] = await Promise.all([
     service.getItems(ids),
     service.getDatabaseEntryRelations(source.itemId, ids),
   ]);
+  // Two-way relations keep their edges on the partner entry: read them by target.
+  const relations = await withInverseRelationTargets({
+    service,
+    source,
+    entryIds: ids,
+    relations: outgoing,
+  });
   const states = new Map<Uuid, DatabaseRowSyncState>();
   for (const [mutations, state] of [
     [queued, "pending"],
@@ -101,6 +115,9 @@ export async function loadView(
         kind: item.kind,
         icon: item.icon ?? null,
         revisionId: item.currentRevisionId,
+        ...(membership.entryNumber === undefined ? {} : { entryNumber: membership.entryNumber }),
+        ...(membership.createdAt === undefined ? {} : { createdAt: membership.createdAt }),
+        ...(membership.updatedAt === undefined ? {} : { updatedAt: membership.updatedAt }),
         lifecycle: item.lifecycle,
         title: item.name,
         document: item.pageDocument,
@@ -118,12 +135,18 @@ export async function loadView(
     entries: entries.map((entry) => ({
       entryId: entry.entryId as Uuid,
       revisionId: entry.revisionId as Uuid,
+      ...(entry.entryNumber === undefined ? {} : { entryNumber: entry.entryNumber }),
+      ...(entry.createdAt === undefined ? {} : { createdAt: entry.createdAt }),
+      ...(entry.updatedAt === undefined ? {} : { updatedAt: entry.updatedAt }),
       title: entry.title,
       availability: availability.get(entry.entryId as Uuid) ?? "never-fetched",
       values: entry.values as LocalDatabaseQuerySource["entries"][number]["values"],
       relationTargets: relations.get(entry.entryId as Uuid) ?? {},
     })),
   };
+  const rollupContext = hasDerivedProperties(source.definition.properties)
+    ? await loadLocalRollupContext(service)
+    : null;
   return {
     container,
     source,
@@ -132,6 +155,7 @@ export async function loadView(
     entries,
     querySource,
     states,
+    rollupContext,
   };
 }
 
@@ -142,6 +166,7 @@ export function DatabaseViewSurface({
   openItem,
   returnFocusEntryId,
   onReturnFocusRestored,
+  onOpenViewSettings,
   formatPlacement = "panel",
 }: {
   readonly containerItemId: Uuid;
@@ -150,6 +175,7 @@ export function DatabaseViewSurface({
   readonly openItem: (itemId: Uuid) => void;
   readonly returnFocusEntryId?: Uuid | null;
   readonly onReturnFocusRestored?: () => void;
+  readonly onOpenViewSettings?: () => void;
   readonly formatPlacement?: "panel" | "chrome";
 }) {
   const readProjectionState = useCallback(() => {
@@ -192,7 +218,14 @@ export function DatabaseViewSurface({
             value:
               typeof next === "string"
                 ? next
-                : { ...next, queryGeneration: query.update(next.querySource, next.states) },
+                : {
+                    ...next,
+                    queryGeneration: query.update(
+                      next.querySource,
+                      next.states,
+                      next.rollupContext,
+                    ),
+                  },
           });
           setError(null);
           setReadyScope(readScope);
@@ -306,8 +339,7 @@ export function DatabaseViewSurface({
   };
   const planSourceWrite = async (candidate: DatabaseDefinition) => {
     const currentContainer = await service.getDatabase(containerItemId as Uuid);
-    const currentSource = await service.getDatabase(loaded.source.itemId);
-    if (currentContainer === null || currentSource === null) throw new Error("Base indisponible");
+    if (currentContainer === null) throw new Error("Base indisponible");
     const currentPresentation = currentContainer.presentation;
     const currentView = currentPresentation?.views.find((view) => view.id === viewId);
     const presentationRevisionId = currentContainer.presentationRevisionId;
@@ -318,6 +350,10 @@ export function DatabaseViewSurface({
     ) {
       throw new Error("Vue indisponible");
     }
+    // A container can own several sources: its primary definition is not
+    // necessarily the source displayed by this view.
+    const currentSource = await service.getDatabase(currentView.sourceId);
+    if (currentSource === null) throw new Error("Source indisponible");
     const nextView = candidate.views[0];
     const { sourceId: _sourceId, ...currentViewSettings } = currentView;
     const viewChanged = nextView !== undefined && !jsonValuesEqual(nextView, currentViewSettings);
@@ -406,7 +442,12 @@ export function DatabaseViewSurface({
     const plan = await planSourceWrite(candidate);
     if (!plan.sourceChanged) return null;
     const revisionId = plan.currentSource.definitionRevisionId ?? plan.currentSource.itemId;
-    const entries = await service.listDatabaseEntries(plan.currentSource.itemId);
+    const sourceId =
+      plan.currentSource.sourceId ?? ownedSourceIdFromItemId(plan.currentSource.itemId);
+    const entries = (await service.listDatabaseEntries(plan.currentSource.itemId)).filter(
+      (entry) =>
+        (entry.sourceId ?? ownedSourceIdFromItemId(plan.currentSource.itemId)) === sourceId,
+    );
     if (entries.some((entry) => entry.availability !== "present")) return null;
     return previewDefinitionImpact({
       baseRevisionId: revisionId,
@@ -431,6 +472,7 @@ export function DatabaseViewSurface({
         {...(formatPlacement === "chrome"
           ? { toolsSlotId: `database-view-tools-${containerItemId}` }
           : {})}
+        {...(onOpenViewSettings === undefined ? {} : { onOpenViewSettings })}
         {...(returnFocusEntryId === undefined ? {} : { returnFocusEntryId })}
         {...(onReturnFocusRestored === undefined ? {} : { onReturnFocusRestored })}
         database={database}
@@ -441,8 +483,8 @@ export function DatabaseViewSurface({
         onQueryView={queryView}
         onPreviewDefinitionImpact={previewDefinition}
         onReplaceDefinition={replaceDefinition}
-        onCreateEntry={async (title, initialValues = {}, initialRelations = {}) => {
-          const id = generateUuidV7();
+        onCreateEntry={async (title, initialValues = {}, initialRelations = {}, entryId) => {
+          const id = entryId ?? generateUuidV7();
           const result = await service.createDatabaseEntry(loaded.source.itemId, {
             id,
             sourceId: loaded.view.sourceId,
@@ -455,8 +497,8 @@ export function DatabaseViewSurface({
           if (!result.ok) throw new Error(result.error.title);
           return id;
         }}
-        onCreateFolder={async (title, initialValues = {}, initialRelations = {}) => {
-          const id = generateUuidV7();
+        onCreateFolder={async (title, initialValues = {}, initialRelations = {}, entryId) => {
+          const id = entryId ?? generateUuidV7();
           const result = await service.createDatabaseEntry(loaded.source.itemId, {
             id,
             sourceId: loaded.view.sourceId,

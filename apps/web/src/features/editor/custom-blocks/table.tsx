@@ -38,6 +38,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { createPortal } from "react-dom";
 import { FR_COPY } from "../../../ui/copy/fr.ts";
 import { AppIcon, type AppIconName } from "../../../ui/icons.tsx";
 import {
@@ -694,14 +695,17 @@ function ColumnEdgeStroke({
     };
   }, [active, tableId, columnIndex, widthDraft]);
 
-  return (
+  // The stroke must live outside the row's resize-button stacking context:
+  // otherwise the following rows' hover fills paint over the blue line.
+  return createPortal(
     <span
       ref={strokeRef}
       className="editor-table-column-stroke"
       data-testid="editor-table-column-stroke"
       aria-hidden="true"
       hidden
-    />
+    />,
+    document.body,
   );
 }
 
@@ -1254,7 +1258,7 @@ function ColumnHandle({
     {
       key: "clear",
       label: copy.clearColumn,
-      icon: "remove",
+      icon: "removeColumn",
       separatorBefore: true,
       run: () => withManager((m) => m.clearColumn(columnIndex)),
     },
@@ -1420,6 +1424,25 @@ function TableCellView({
         aria-multiline="false"
         tabIndex={0}
         ref={contentRef}
+        onKeyDownCapture={(event) => {
+          if (
+            (event.key === "Backspace" || event.key === "Delete") &&
+            (event.currentTarget.textContent ?? "").length === 0
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
+        onBeforeInput={(event) => {
+          const inputType = (event.nativeEvent as InputEvent).inputType;
+          if (
+            (inputType === "deleteContentBackward" || inputType === "deleteContentForward") &&
+            (event.currentTarget.textContent ?? "").length === 0
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
       />
       {tableId !== null && rowIndex === 0 && columnIndex !== undefined && (
         <ColumnHandle editor={tableEditor} tableId={tableId} columnIndex={columnIndex} />

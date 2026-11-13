@@ -39,6 +39,11 @@ For a new feature, use Spec Kit in this order:
 
 Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` exist. Small maintenance changes may use a short spec only when behavior or architecture changes; purely mechanical chores may be handled directly.
 
+Pour reproduire une surface « comme Notion », utiliser la skill
+`notion-parity` (`.agents/skills/notion-parity/SKILL.md`) : capture de la
+référence, relevé structure/styles/états, implémentation, capture du candidat,
+comparaison. Une silhouette sans états ni preuve n'est pas terminée.
+
 ## Working conventions
 
 - Read the constitution and the active feature artifacts before editing code.

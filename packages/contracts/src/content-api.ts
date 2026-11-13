@@ -650,6 +650,56 @@ export const DatabasePropertyOptionSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const DatabaseNumberConfigSchema = Type.Object(
+  {
+    format: Type.String({ minLength: 1, maxLength: 64 }),
+    decimals: Type.Union([
+      Type.Literal("default"),
+      Type.Literal(0),
+      Type.Literal(1),
+      Type.Literal(2),
+      Type.Literal(3),
+      Type.Literal(4),
+      Type.Literal(5),
+    ]),
+    display: Type.Union([Type.Literal("number"), Type.Literal("bar"), Type.Literal("ring")]),
+  },
+  { additionalProperties: false },
+);
+
+const DatabaseDateDisplaySchema = {
+  dateFormat: Type.Optional(
+    Type.Union([
+      Type.Literal("full"),
+      Type.Literal("short"),
+      Type.Literal("month-day-year"),
+      Type.Literal("day-month-year"),
+      Type.Literal("year-month-day"),
+      Type.Literal("relative"),
+    ]),
+  ),
+  timeFormat: Type.Optional(
+    Type.Union([Type.Literal("hidden"), Type.Literal("12h"), Type.Literal("24h")]),
+  ),
+};
+
+const DatabaseUniqueIdConfigSchema = Type.Object(
+  { prefix: Type.Optional(Type.String({ maxLength: 32 })) },
+  { additionalProperties: false },
+);
+
+const DatabaseStatusOptionSchema = Type.Object(
+  {
+    ...DatabasePropertyOptionSchema.properties,
+    group: Type.Optional(
+      Type.Union([Type.Literal("todo"), Type.Literal("in-progress"), Type.Literal("complete")]),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const DatabaseRollupFunctionSchema = Type.String({ minLength: 1, maxLength: 40 });
+
 const DatabasePropertyBase = {
   id: UuidSchema,
   name: DisplayNameSchema,
@@ -670,8 +720,12 @@ export const DatabasePropertySchema = Type.Union([
       type: Type.Union([
         Type.Literal("title"),
         Type.Literal("text"),
-        Type.Literal("number"),
         Type.Literal("checkbox"),
+        Type.Literal("url"),
+        Type.Literal("email"),
+        Type.Literal("phone"),
+        Type.Literal("files"),
+        Type.Literal("place"),
       ]),
       config: DatabaseEmptyConfigSchema,
     },
@@ -680,9 +734,37 @@ export const DatabasePropertySchema = Type.Union([
   Type.Object(
     {
       ...DatabasePropertyBase,
-      type: Type.Literal("date"),
+      type: Type.Literal("number"),
+      config: Type.Union([DatabaseEmptyConfigSchema, DatabaseNumberConfigSchema]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...DatabasePropertyBase,
+      type: Type.Union([Type.Literal("created-time"), Type.Literal("last-edited-time")]),
+      config: Type.Union([DatabaseEmptyConfigSchema, Type.Object(DatabaseDateDisplaySchema)]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...DatabasePropertyBase,
+      type: Type.Literal("unique-id"),
+      config: Type.Union([DatabaseEmptyConfigSchema, DatabaseUniqueIdConfigSchema]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...DatabasePropertyBase,
+      type: Type.Literal("rollup"),
       config: Type.Object(
-        { mode: Type.Union([Type.Literal("date"), Type.Literal("instant")]) },
+        {
+          relationPropertyId: UuidSchema,
+          targetPropertyId: Type.Optional(UuidSchema),
+          aggregate: DatabaseRollupFunctionSchema,
+        },
         { additionalProperties: false },
       ),
     },
@@ -691,11 +773,46 @@ export const DatabasePropertySchema = Type.Union([
   Type.Object(
     {
       ...DatabasePropertyBase,
-      type: Type.Union([
-        Type.Literal("status"),
-        Type.Literal("select"),
-        Type.Literal("multi-select"),
-      ]),
+      type: Type.Literal("formula"),
+      config: Type.Object(
+        { expression: Type.String({ minLength: 1, maxLength: 2000 }) },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...DatabasePropertyBase,
+      type: Type.Literal("date"),
+      config: Type.Object(
+        {
+          mode: Type.Union([Type.Literal("date"), Type.Literal("instant")]),
+          ...DatabaseDateDisplaySchema,
+        },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...DatabasePropertyBase,
+      type: Type.Union([Type.Literal("status")]),
+      config: Type.Object(
+        {
+          options: Type.Array(DatabaseStatusOptionSchema),
+          defaultOptionId: Type.Optional(UuidSchema),
+        },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...DatabasePropertyBase,
+      type: Type.Union([Type.Literal("select"), Type.Literal("multi-select")]),
       config: Type.Object(
         { options: Type.Array(DatabasePropertyOptionSchema) },
         { additionalProperties: false },
@@ -708,7 +825,12 @@ export const DatabasePropertySchema = Type.Union([
       ...DatabasePropertyBase,
       type: Type.Literal("relation"),
       config: Type.Object(
-        { cardinality: Type.Union([Type.Literal("one"), Type.Literal("many")]) },
+        {
+          cardinality: Type.Union([Type.Literal("one"), Type.Literal("many")]),
+          targetSourceId: Type.Optional(UuidSchema),
+          reciprocalPropertyId: Type.Optional(UuidSchema),
+          inverseEdges: Type.Optional(Type.Boolean()),
+        },
         { additionalProperties: false },
       ),
     },
@@ -723,17 +845,36 @@ export const DatabasePropertyValueSchema = Type.Union([
   ),
   Type.Object(
     {
+      kind: Type.Literal("place"),
+      placeId: Type.String({ minLength: 1, maxLength: 512 }),
+      name: Type.String({ minLength: 1, maxLength: 512 }),
+      address: Type.Union([Type.String({ maxLength: 1024 }), Type.Null()]),
+      latitude: Type.Number({ minimum: -90, maximum: 90 }),
+      longitude: Type.Number({ minimum: -180, maximum: 180 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
       kind: Type.Literal("number"),
       decimal: Type.String({ pattern: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" }),
     },
     { additionalProperties: false },
   ),
   Type.Object(
-    { kind: Type.Literal("date"), date: Type.String({ format: "date" }) },
+    {
+      kind: Type.Literal("date"),
+      date: Type.String({ format: "date" }),
+      endDate: Type.Optional(Type.String({ format: "date" })),
+    },
     { additionalProperties: false },
   ),
   Type.Object(
-    { kind: Type.Literal("instant"), instant: Type.String({ format: "date-time" }) },
+    {
+      kind: Type.Literal("instant"),
+      instant: Type.String({ format: "date-time" }),
+      endInstant: Type.Optional(Type.String({ format: "date-time" })),
+    },
     { additionalProperties: false },
   ),
   Type.Object(
@@ -753,6 +894,19 @@ export const DatabasePropertyValueSchema = Type.Union([
   ),
   Type.Object(
     { kind: Type.Literal("checkbox"), checked: Type.Boolean() },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("files"),
+      fileIds: Type.Array(UuidSchema, { uniqueItems: true, maxItems: 20 }),
+      externalUrls: Type.Optional(
+        Type.Array(Type.String({ minLength: 1, maxLength: 2048 }), {
+          uniqueItems: true,
+          maxItems: 20,
+        }),
+      ),
+    },
     { additionalProperties: false },
   ),
 ]);
@@ -819,6 +973,7 @@ export const DatabaseViewSchema = Type.Object(
       Type.Literal("gallery"),
       Type.Literal("list"),
       Type.Literal("calendar"),
+      Type.Literal("map"),
     ]),
     positionKey: Type.String({ minLength: 1, maxLength: 255 }),
     state: DatabaseStateSchema,
@@ -1044,6 +1199,9 @@ export const DatabaseEntrySchema = Type.Object(
     /** Page or folder mark. Absent or null keeps the default glyph. */
     icon: Type.Optional(ItemIconSchema),
     revisionId: UuidSchema,
+    entryNumber: Type.Optional(Type.Integer({ minimum: 1 })),
+    createdAt: Type.Optional(Type.String({ format: "date-time" })),
+    updatedAt: Type.Optional(Type.String({ format: "date-time" })),
     lifecycle: LifecycleSchema,
     title: Type.String(),
     document: Type.Union([PageDocumentSchema, Type.Null()]),
@@ -1076,6 +1234,12 @@ export const DatabaseEntryValuesPayloadSchema = Type.Object(
               "select",
               "multi-select",
               "checkbox",
+              "files",
+              "created-time",
+              "last-edited-time",
+              "formula",
+              "rollup",
+              "unique-id",
               "relation",
             ].map((type) => Type.Literal(type)),
           ),
@@ -1116,6 +1280,9 @@ export const DatabaseEntryProjectionSchema = Type.Object(
     entryItemId: UuidSchema,
     databaseId: UuidSchema,
     sourceId: Type.Optional(UuidSchema),
+    entryNumber: Type.Optional(Type.Integer({ minimum: 1 })),
+    createdAt: Type.Optional(Type.String({ format: "date-time" })),
+    updatedAt: Type.Optional(Type.String({ format: "date-time" })),
     valueVersion: Type.Integer({ minimum: 1 }),
     values: DatabaseEntryValuesPayloadSchema,
   },
@@ -1180,9 +1347,23 @@ export const DatabaseQueryRowSchema = Type.Object(
   {
     entryId: UuidSchema,
     revisionId: UuidSchema,
+    entryNumber: Type.Optional(Type.Integer({ minimum: 1 })),
+    createdAt: Type.Optional(Type.String({ format: "date-time" })),
+    updatedAt: Type.Optional(Type.String({ format: "date-time" })),
     title: Type.String(),
     values: DatabaseValuesMapSchema,
     relationTargets: DatabaseRelationTargetsMapSchema,
+    rollupValues: Type.Optional(
+      Type.Record(
+        Type.String(),
+        Type.Union([
+          Type.String(),
+          Type.Number(),
+          Type.Null(),
+          Type.Array(Type.Union([Type.String(), Type.Number(), Type.Boolean()])),
+        ]),
+      ),
+    ),
     groupId: Type.Union([Type.String(), Type.Null()]),
   },
   { additionalProperties: false },
@@ -1204,6 +1385,22 @@ export const DatabaseQueryPageSchema = Type.Object(
     expectedCount: Type.Integer({ minimum: 0 }),
     rows: Type.Array(DatabaseQueryRowSchema, { maxItems: 100 }),
     groups: Type.Array(DatabaseGroupSummarySchema),
+    rollupProperties: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            id: UuidSchema,
+            name: Type.String(),
+            type: Type.String(),
+            /** Source that owns the property, to match it with a relation. */
+            sourceId: Type.Optional(UuidSchema),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
+    /** Sources actually reached by each relation of this source. */
+    rollupRelations: Type.Optional(Type.Record(Type.String(), Type.Array(UuidSchema))),
     nextCursor: Type.Union([Type.String(), Type.Null()]),
   },
   { additionalProperties: false },

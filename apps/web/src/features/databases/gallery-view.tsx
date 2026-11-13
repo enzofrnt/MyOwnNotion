@@ -116,7 +116,7 @@ function GalleryCard({
                 {property.name}
               </dt>
               <dd>
-                <PropertyValue property={property} row={row} />
+                <PropertyValue property={property} row={row} properties={selectedProperties} />
               </dd>
             </div>
           ))}

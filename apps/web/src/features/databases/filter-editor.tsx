@@ -6,6 +6,7 @@ import {
   type FilterOperator,
   type FilterSet,
   generateUuidV7,
+  rollupResultKind,
   type Uuid,
 } from "@myownnotion/domain";
 import { useEffect, useRef, useState } from "react";
@@ -13,11 +14,30 @@ import { Button } from "../../ui/primitives/button.tsx";
 import { NativeSelect } from "../../ui/primitives/native-select.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
+/** What a computed property compares as; a formula's type is only known per row. */
+function derivedKind(property: DatabaseProperty): "number" | "date" | "text" | "any" | null {
+  if (property.type === "formula") return "any";
+  if (property.type !== "rollup") return null;
+  const kind = rollupResultKind(property.config.aggregate);
+  return kind === "number" || kind === "percent" ? "number" : kind === "date" ? "date" : "text";
+}
+
 function operators(property: DatabaseProperty): readonly FilterOperator[] {
   const common: FilterOperator[] = ["equals", "not-equals", "is-empty", "is-not-empty"];
+  const derived = derivedKind(property);
+  if (derived === "number") return [...common, "less-than", "greater-than"];
+  if (derived === "date") return [...common, "before", "after"];
+  if (derived === "text") return [...common, "contains", "not-contains"];
+  if (derived === "any") {
+    return [...common, "contains", "not-contains", "less-than", "greater-than"];
+  }
   if (
     property.type === "title" ||
     property.type === "text" ||
+    property.type === "url" ||
+    property.type === "email" ||
+    property.type === "phone" ||
+    property.type === "place" ||
     property.type === "multi-select" ||
     property.type === "relation"
   ) {
@@ -29,7 +49,13 @@ function operators(property: DatabaseProperty): readonly FilterOperator[] {
 }
 
 function defaultOperator(property: DatabaseProperty): FilterOperator {
-  return property.type === "title" || property.type === "text" ? "contains" : "is-not-empty";
+  return property.type === "title" ||
+    property.type === "text" ||
+    property.type === "url" ||
+    property.type === "email" ||
+    property.type === "phone"
+    ? "contains"
+    : "is-not-empty";
 }
 
 function instantFromControl(value: string): string {
@@ -52,6 +78,10 @@ function operandFromInput(
   switch (property.type) {
     case "title":
     case "text":
+    case "url":
+    case "email":
+    case "phone":
+    case "place":
       return { kind: "text", value };
     case "number":
       return { kind: "number", decimal: value || "0" };
@@ -69,6 +99,23 @@ function operandFromInput(
       return { kind: "checkbox", checked: value === "true" };
     case "relation":
       return { kind: "relation", targetIds: value === "" ? [] : [value as Uuid] };
+    case "formula":
+    case "rollup": {
+      const kind = derivedKind(property);
+      const numeric = value.trim() !== "" && Number.isFinite(Number(value.replace(",", ".")));
+      if (kind === "number" || (kind === "any" && numeric && !operator.includes("contains"))) {
+        return { kind: "number", decimal: numeric ? value.replace(",", ".").trim() : "0" };
+      }
+      if (kind === "date" || (kind === "any" && /^\d{4}-\d{2}-\d{2}$/u.test(value))) {
+        return { kind: "date", date: value };
+      }
+      return { kind: "text", value };
+    }
+    case "files":
+    case "unique-id":
+    case "created-time":
+    case "last-edited-time":
+      return undefined;
   }
 }
 
@@ -92,6 +139,10 @@ function inputValue(operand: DatabaseFilterOperand | undefined): string {
       return String(operand.checked);
     case "relation":
       return operand.targetIds[0] ?? "";
+    case "files":
+      return operand.fileIds[0] ?? "";
+    case "place":
+      return operand.name;
     case "date-range":
     case "instant-range":
       return "";
@@ -222,7 +273,7 @@ function OperandEditor({
           ? "text"
           : property.type === "date" && property.config.mode === "instant"
             ? "datetime-local"
-            : property.type === "date"
+            : property.type === "date" || derivedKind(property) === "date"
               ? "date"
               : "text"
       }
@@ -243,14 +294,21 @@ export function FilterEditor({
   properties,
   view,
   onChange,
+  defaultOpen = false,
+  live = false,
 }: {
   readonly properties: readonly DatabaseProperty[];
   readonly view: DatabaseView;
   readonly onChange: (view: DatabaseView) => void | Promise<void>;
+  readonly defaultOpen?: boolean;
+  readonly live?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(defaultOpen);
   const activeProperties = properties.filter(({ state }) => state === "active");
   const [draft, setDraft] = useState<FilterSet>(view.filter);
   const [saving, setSaving] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const liveSaved = useRef(JSON.stringify(view.filter));
   const draftRef = useRef(draft);
   const dirty = useRef(false);
   const pendingSignature = useRef<string | null>(null);
@@ -275,6 +333,29 @@ export function FilterEditor({
     draftRef.current = view.filter;
     setDraft(view.filter);
   }, [view.filter]);
+  useEffect(() => {
+    if (!live || !dirty.current) return;
+    const signature = JSON.stringify(draft);
+    if (signature === liveSaved.current) return;
+    const timer = window.setTimeout(() => {
+      pendingSignature.current = signature;
+      setSaving(true);
+      void Promise.resolve(onChange({ ...view, filter: draft }))
+        .then(() => {
+          liveSaved.current = signature;
+          if (JSON.stringify(draftRef.current) === signature) dirty.current = false;
+          setLiveError(null);
+        })
+        .catch((error: unknown) => {
+          pendingSignature.current = null;
+          setLiveError(
+            error instanceof Error ? error.message : "Les filtres n’ont pas pu être appliqués.",
+          );
+        })
+        .finally(() => setSaving(false));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [draft, live, onChange, view]);
   const update = (
     criterionId: Uuid,
     change: Partial<Omit<FilterCriterion, "operand">> & {
@@ -296,7 +377,11 @@ export function FilterEditor({
   };
 
   return (
-    <details className="database-rule-editor">
+    <details
+      className="database-rule-editor"
+      open={expanded}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
       <summary>
         {DATABASE_COPY.filter.filters} · {draft.criteria.length} ·{" "}
         {draft.mode === "all"
@@ -447,22 +532,29 @@ export function FilterEditor({
             {DATABASE_COPY.filter.clear}
           </Button>
         ) : null}
-        <Button
-          size="compact"
-          variant="primary"
-          type="button"
-          onClick={() => {
-            pendingSignature.current = JSON.stringify(draft);
-            setSaving(true);
-            void Promise.resolve(onChange({ ...view, filter: draft }))
-              .catch(() => {
-                pendingSignature.current = null;
-              })
-              .finally(() => setSaving(false));
-          }}
-        >
-          {saving ? DATABASE_COPY.filter.saving : DATABASE_COPY.filter.save}
-        </Button>
+        {live ? null : (
+          <Button
+            size="compact"
+            variant="primary"
+            type="button"
+            onClick={() => {
+              pendingSignature.current = JSON.stringify(draft);
+              setSaving(true);
+              void Promise.resolve(onChange({ ...view, filter: draft }))
+                .catch(() => {
+                  pendingSignature.current = null;
+                })
+                .finally(() => setSaving(false));
+            }}
+          >
+            {saving ? DATABASE_COPY.filter.saving : DATABASE_COPY.filter.save}
+          </Button>
+        )}
+        {live && liveError !== null ? (
+          <p className="database-rule-error" role="alert">
+            {liveError}
+          </p>
+        ) : null}
       </fieldset>
     </details>
   );

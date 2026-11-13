@@ -66,7 +66,8 @@ et que cliquer un ancêtre visible ouvre bien cet ancêtre.
 1. **Given** une page à trois niveaux de profondeur, **When** elle est ouverte,
    **Then** le fil d’Ariane apparaît immédiatement au-dessus de l’emoji (ou de
    l’emplacement de l’emoji si la page n’en a pas), dans un style atténué par
-   rapport au titre, et liste ses ancêtres dans l’ordre puis la page courante.
+   rapport au titre, et liste ses ancêtres dans l’ordre ; le titre, placé
+   juste en dessous, tient lieu de dernier maillon.
 2. **Given** une page dont le chemin complet ne tient pas sur une ligne dans la
    largeur disponible, **When** elle est ouverte, **Then** la ligne ne déborde
    pas et n’est pas coupée : le premier ancêtre et la fin du chemin restent
@@ -81,8 +82,9 @@ et que cliquer un ancêtre visible ouvre bien cet ancêtre.
 5. **Given** une page renommée ou déplacée pendant qu’elle est ouverte,
    **When** la modification est appliquée, **Then** le fil d’Ariane reflète le
    nouveau chemin sans rechargement.
-6. **Given** une page à la racine, **When** elle est ouverte, **Then** le fil
-   d’Ariane ne montre que la page courante, sans « … ».
+6. **Given** une page à la racine, **When** elle est ouverte, **Then** aucun
+   segment n’est affiché et l’emplacement de la ligne reste réservé, de sorte
+   que le titre garde la même position que sur une page imbriquée.
 
 ---
 
@@ -259,18 +261,21 @@ second appareil montrent le même ordre.
   du titre. Le libellé de type (Page / Dossier) MUST être rendu
   immédiatement sous le titre, dans le même style discret.
 - **FR-002**: Le fil d’Ariane MUST lister les ancêtres dans l’ordre
-  hiérarchique puis l’élément courant, et MUST NOT répéter le nom de
-  l’application comme premier segment.
+  hiérarchique et s’arrêter au parent : le titre situé juste en dessous nomme
+  l’élément courant, qui MUST NOT être répété dans la ligne. Il MUST NOT
+  répéter le nom de l’application comme premier segment. (Décision du
+  propriétaire, 2026-11-11 : le nom figurait dans l’onglet, le fil d’Ariane
+  et le titre.)
 - **FR-003**: Le fil d’Ariane MUST tenir sur une seule ligne et MUST NOT
   dépasser la largeur de la colonne de contenu.
 - **FR-004**: Lorsque le chemin complet ne tient pas, les ancêtres
   intermédiaires MUST être remplacés par un unique élément « … », en
-  conservant en priorité l’élément courant, puis son parent, puis le premier
+  conservant en priorité le parent, puis le grand-parent, puis le premier
   ancêtre.
 - **FR-005**: L’élément « … » MUST être activable au pointeur et au clavier et
   MUST révéler les ancêtres masqués, chacun ouvrable.
 - **FR-006**: Chaque ancêtre visible MUST être ouvrable par le mécanisme de
-  navigation commun ; l’élément courant MUST NOT être un lien.
+  navigation commun ; l’élément courant n’y figure pas (FR-002).
 - **FR-007**: La troncature MUST se recalculer au redimensionnement et après
   renommage, déplacement ou conversion d’un élément du chemin.
 

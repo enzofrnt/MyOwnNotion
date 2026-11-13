@@ -13,6 +13,7 @@ import { isUuid, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
+import { sendProblem } from "../plugins/errors.ts";
 import { handleMutation } from "../plugins/mutations.ts";
 import { resolveProtectedRelationships } from "../security/content-resolution.ts";
 
@@ -25,16 +26,19 @@ export function registerRelationshipRoutes(app: FastifyInstance, context: AppCon
         response: { 200: RelationshipsListResponseSchema },
       },
     },
-    async (request) => {
+    async (request, reply) => {
       const { itemId } = request.query as { itemId?: string };
+      // A malformed endpoint must never broaden the request to the whole workspace.
+      if (itemId !== undefined && !isUuid(itemId)) {
+        return sendProblem(reply, {
+          code: "validation.invalid-identifier",
+          title: "Relationship item identifier must be a UUID",
+        });
+      }
       const relationships = await context.db.transaction(async (tx) =>
         resolveProtectedRelationships(
           tx,
-          await listRelationships(
-            tx,
-            context.workspaceId,
-            itemId !== undefined && isUuid(itemId) ? itemId : undefined,
-          ),
+          await listRelationships(tx, context.workspaceId, itemId),
           context.protectedContent,
         ),
       );

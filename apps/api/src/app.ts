@@ -81,6 +81,7 @@ import { registerPageDocumentRoutes } from "./routes/page-documents.ts";
 import { registerPageOperationRoutes } from "./routes/page-operations.ts";
 import { registerPageSyncSocketRoutes } from "./routes/page-sync-socket.ts";
 import { registerPlacementRoutes } from "./routes/placements.ts";
+import { registerPlaceRoutes } from "./routes/places.ts";
 import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
 import { registerSearchRoutes } from "./routes/search.ts";
@@ -477,6 +478,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       protectedContent,
     });
     registerSearchRoutes(app, { service: search });
+    registerPlaceRoutes(app);
     // Search readiness must never delay the rest of the application. The
     // route reports a safe rebuilding state until this atomic build completes.
     void search.rebuild().catch((error: unknown) => {

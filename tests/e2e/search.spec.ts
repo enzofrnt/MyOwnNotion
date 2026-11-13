@@ -172,7 +172,9 @@ test.describe("workspace search refinement (US3)", () => {
     await expect(dialog).toBeHidden();
 
     await ensureNavigationVisible(page);
-    const searchTrigger = page.getByRole("button", { name: /Rechercher.*⌘ K/u });
+    // The visible search control is the same one v1 targets; its label loses
+    // the shortcut hint at phone widths, so target the control itself.
+    const searchTrigger = page.locator(".workspace-navigation__search");
     await searchTrigger.focus();
     dialog = await searchFor(page, token);
     await dialog.getByLabel("Dossiers").uncheck();

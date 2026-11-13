@@ -125,3 +125,14 @@ backgroundSize
 - `background-size` suit le zoom.
 
 Tu peux donc ajouter ce système autour d’un canvas ou d’un espace infini déjà existant sans avoir à modifier son moteur de rendu.
+
+## Écart MyOwnNotion
+
+`apps/web/src/ui/dotted-canvas-background.ts` reprend la technique (dégradé
+radial, position et taille synchronisées) mais pas la formule d’espacement
+d’AFFiNE. Celle-ci arrondit et borne l’espacement : pendant un zoom rapide, les
+points glissent par rapport au contenu et sautent aux changements de palier.
+Ici la grille est verrouillée au monde : espacement monde = 20 px × 2ⁿ,
+espacement écran = espacement monde × zoom, sans arrondi ni borne, et un point
+tombe toujours sur l’origine du monde. Quand l’espacement double ou diminue de
+moitié, les points restants ne bougent pas.

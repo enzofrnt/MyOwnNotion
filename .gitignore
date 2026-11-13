@@ -94,3 +94,10 @@ Thumbs.db
 # Per-project logs from the local Playwright matrix.
 .e2e-logs/
 .dev-blobs-e2e/
+
+# Local Notion measurement profile and captures (never commit: contains a live session).
+.notion-lab/
+
+# Local tool binaries (shfmt) and the page-annotation spool; not repository content.
+.tools/
+.annotate/

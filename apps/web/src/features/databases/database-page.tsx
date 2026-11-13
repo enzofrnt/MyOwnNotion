@@ -13,6 +13,7 @@ import type {
   Uuid,
 } from "@myownnotion/domain";
 import {
+  createDerivedValues,
   evaluateDatabaseView,
   extractSearchableDocumentText,
   generateUuidV7,
@@ -38,6 +39,10 @@ import { AppIcon } from "../../ui/icons.tsx";
 import {
   AsyncState,
   Button,
+  DialogContent,
+  DialogDescription,
+  DialogHeading,
+  DialogRoot,
   PopoverContent,
   PopoverHeading,
   PopoverRoot,
@@ -54,18 +59,21 @@ import { FilterEditor } from "./filter-editor.tsx";
 import { type GalleryPreview, GalleryView } from "./gallery-view.tsx";
 import { GroupEditor } from "./group-editor.tsx";
 import { ListView } from "./list-view.tsx";
+import { MapView } from "./map-view.tsx";
 import {
   isChoiceProperty,
   PropertyOptionsEditor,
   replaceChoiceOptions,
 } from "./option-appearance.tsx";
+import { propertyWithType } from "./property-configuration.tsx";
 import {
   type DatabasePropertyDraft,
+  defaultSelectionOptions,
   PropertyEditor,
   propertyFromDraft,
   validatePropertyDraft,
 } from "./property-editor.tsx";
-import { PropertyIconPicker } from "./property-icon.tsx";
+import { DatabasePropertyIcon, PropertyIconPicker } from "./property-icon.tsx";
 import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
 import { SortGroupEditor } from "./sort-group-editor.tsx";
 import { type DatabaseCellUpdate, TableView } from "./table-view.tsx";
@@ -75,6 +83,32 @@ import type { RelationOption } from "./value-editor.tsx";
 import { columnPresentations, viewColumns } from "./view-columns.ts";
 
 const EMPTY_PROPERTY_DRAFT: DatabasePropertyDraft = { name: "", type: "text" };
+
+const PROPERTY_TYPE_GROUPS: readonly {
+  readonly label: string;
+  readonly types: readonly DatabaseProperty["type"][];
+}[] = [
+  {
+    label: "Basique",
+    types: [
+      "text",
+      "number",
+      "date",
+      "select",
+      "multi-select",
+      "status",
+      "checkbox",
+      "url",
+      "email",
+      "phone",
+      "files",
+    ],
+  },
+  {
+    label: "Avancé",
+    types: ["relation", "rollup", "formula", "unique-id", "created-time", "last-edited-time"],
+  },
+];
 
 export function withEntryPresentation(
   page: DatabaseViewPage,
@@ -117,6 +151,43 @@ export interface DefinitionConfirmation {
   readonly decision: "preserve-incompatible" | "discard-confirmed";
 }
 
+interface PendingDatabaseEntry {
+  readonly entryId: Uuid;
+  readonly title: string;
+  readonly itemKind: "page" | "folder";
+  readonly createdAt: string;
+}
+
+/** Append optimistic rows at the end of the grid until the projection catches up. */
+function withPendingEntries(
+  page: DatabaseViewPage | null,
+  pending: readonly PendingDatabaseEntry[],
+): DatabaseViewPage | null {
+  if (page === null || pending.length === 0) return page;
+  const known = new Set(page.rows.map((row) => row.entryId));
+  const additions = pending.filter((entry) => !known.has(entry.entryId));
+  if (additions.length === 0) return page;
+  const rows: DatabaseViewRow[] = additions.map((entry) => ({
+    entryId: entry.entryId,
+    revisionId: entry.entryId,
+    createdAt: entry.createdAt,
+    title: entry.title,
+    values: {},
+    relationTargets: {},
+    groupId: null,
+    syncState: "pending",
+    itemKind: entry.itemKind,
+    icon: null,
+    holdsContent: false,
+  }));
+  return {
+    ...page,
+    rows: [...page.rows, ...rows],
+    availableCount: page.availableCount + rows.length,
+    expectedCount: page.expectedCount + rows.length,
+  };
+}
+
 export function DatabasePage({
   database,
   embeddingId,
@@ -125,6 +196,7 @@ export function DatabasePage({
   entries,
   onReplaceDefinition,
   onPreviewDefinitionImpact,
+  onOpenViewSettings,
   onCreateEntry,
   onCreateFolder,
   onOpenEntry,
@@ -149,6 +221,7 @@ export function DatabasePage({
     definition: DatabaseDefinition,
     confirmation?: DefinitionConfirmation,
   ) => void | Promise<void>;
+  readonly onOpenViewSettings?: () => void;
   readonly onPreviewDefinitionImpact?: (
     definition: DatabaseDefinition,
   ) => DefinitionImpact | null | Promise<DefinitionImpact | null>;
@@ -156,11 +229,13 @@ export function DatabasePage({
     title: string,
     initialValues?: DatabaseEntryDto["values"],
     relationTargets?: RelationTargets,
+    entryId?: Uuid,
   ) => void | Promise<void | Uuid>;
   readonly onCreateFolder?: (
     title: string,
     initialValues?: DatabaseEntryDto["values"],
     relationTargets?: RelationTargets,
+    entryId?: Uuid,
   ) => void | Promise<void | Uuid>;
   readonly onOpenEntry: (entryId: Uuid, trigger?: HTMLElement | null) => void;
   readonly onUpdateEntry?: (entryId: Uuid, update: DatabaseCellUpdate) => void | Promise<void>;
@@ -183,6 +258,8 @@ export function DatabasePage({
     completed: boolean;
   } | null>(null);
   const [editingProperty, setEditingProperty] = useState(false);
+  const [creatingProperty, setCreatingProperty] = useState(false);
+  const [propertyCreatorAnchor, setPropertyCreatorAnchor] = useState<DOMRect | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolsSlot, setToolsSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
@@ -197,6 +274,9 @@ export function DatabasePage({
   const [entryError, setEntryError] = useState<string | null>(null);
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [renameEntryId, setRenameEntryId] = useState<Uuid | null>(null);
+  const [pendingEntries, setPendingEntries] = useState<readonly PendingDatabaseEntry[]>([]);
+  const pendingEntryIds = useRef<Set<Uuid>>(new Set());
+  const pendingEntryUpdates = useRef<Map<Uuid, DatabaseCellUpdate[]>>(new Map());
   const [savingEntry, setSavingEntry] = useState(false);
   const entrySubmissionInFlight = useRef(false);
   const [pendingDefinition, setPendingDefinition] = useState<DatabaseDefinition | null>(null);
@@ -214,6 +294,15 @@ export function DatabasePage({
   // already passed that contract validation, so the UI works on the branded
   // shape from here onward.
   const definition = database.definition as unknown as DatabaseDefinition;
+  const impactRemovesProperty =
+    pendingDefinition !== null &&
+    definition.properties.some(
+      (property) =>
+        property.state === "active" &&
+        pendingDefinition.properties.every(
+          (candidate) => candidate.id !== property.id || candidate.state !== "active",
+        ),
+    );
   const replaceDefinition = async (
     next: DatabaseDefinition,
     confirmation?: DefinitionConfirmation,
@@ -280,10 +369,15 @@ export function DatabasePage({
       activeView.id,
       entries.map((entry) => ({
         entryId: entry.entryId as Uuid,
+        ...(entry.entryNumber === undefined ? {} : { entryNumber: entry.entryNumber }),
+        ...(entry.createdAt === undefined ? {} : { createdAt: entry.createdAt }),
+        ...(entry.updatedAt === undefined ? {} : { updatedAt: entry.updatedAt }),
         title: entry.title,
         values: entry.values as never,
         relationTargets: entry.relationTargets as never,
       })),
+      // Formulas over this row still filter and sort; rollups need the query page.
+      { derived: createDerivedValues(definition).comparable },
     );
     if (!evaluated.ok) return null;
     const byId = new Map(entries.map((entry) => [entry.entryId, entry]));
@@ -352,10 +446,17 @@ export function DatabasePage({
         ? loadedPage
         : fallbackPage;
   const presentedPage = resolvedPage === null ? null : withEntryPresentation(resolvedPage, entries);
-  const page =
+  const basePage =
     presentedPage === null || discoveryState === undefined
       ? presentedPage
       : { ...presentedPage, coverage: "partial" as const, groups: [] };
+  const page = withPendingEntries(basePage, pendingEntries);
+  useEffect(() => {
+    if (pendingEntries.length === 0) return;
+    const known = new Set(entries.map((entry) => entry.entryId));
+    const remaining = pendingEntries.filter((entry) => !known.has(entry.entryId));
+    if (remaining.length !== pendingEntries.length) setPendingEntries(remaining);
+  }, [entries, pendingEntries]);
   const loadMore = useCallback(async (): Promise<void> => {
     if (
       loadingMore ||
@@ -387,7 +488,12 @@ export function DatabasePage({
               ...next,
               rows: [
                 ...new Map(
-                  [...currentPage.rows, ...next.rows].map((row) => [row.entryId, row]),
+                  [
+                    ...currentPage.rows.filter(
+                      (row) => !pendingEntries.some((pending) => pending.entryId === row.entryId),
+                    ),
+                    ...next.rows,
+                  ].map((row) => [row.entryId, row]),
                 ).values(),
               ],
             }
@@ -400,7 +506,7 @@ export function DatabasePage({
     } finally {
       if (generation === pageGeneration.current) setLoadingMore(false);
     }
-  }, [activeViewId, loadingMore, onQueryView, page]);
+  }, [activeViewId, loadingMore, onQueryView, page, pendingEntries]);
   const returnEntryIsLoaded = page?.rows.some((row) => row.entryId === returnFocusEntryId) === true;
   const canRestoreEntryFocus =
     page !== null &&
@@ -692,6 +798,7 @@ export function DatabasePage({
     setPropertyDraft(EMPTY_PROPERTY_DRAFT);
     setPropertyError(null);
     setEditingProperty(false);
+    setCreatingProperty(false);
     setSavingProperty(true);
     void replaceDefinition(candidate)
       .catch(() => {
@@ -755,6 +862,17 @@ export function DatabasePage({
     await replaceDefinition(candidate);
   };
 
+  const changePropertyIcon = async (propertyId: Uuid, icon: string | null): Promise<void> => {
+    const current = definition.properties.find((property) => property.id === propertyId);
+    if (current === undefined) return;
+    await replaceDefinition({
+      ...definition,
+      properties: definition.properties.map((property) =>
+        property.id === propertyId ? { ...property, icon } : property,
+      ),
+    });
+  };
+
   const renameProperty = async (propertyId: Uuid, name: string): Promise<void> => {
     const current = definition.properties.find((property) => property.id === propertyId);
     if (current === undefined || current.name === name) return;
@@ -794,20 +912,137 @@ export function DatabasePage({
     await replaceDefinition(candidate);
   };
 
+  const propertyCreationDefaults = (
+    type: DatabasePropertyDraft["type"],
+  ): Partial<DatabasePropertyDraft> => {
+    const title = definition.properties.find(
+      (property) => property.type === "title" && property.state === "active",
+    );
+    const relation = definition.properties.find(
+      (property) => property.type === "relation" && property.state === "active",
+    );
+    return {
+      ...(type === "formula"
+        ? { expression: `prop(${JSON.stringify(title?.name ?? "Titre")})` }
+        : {}),
+      ...(type === "rollup" && relation !== undefined ? { relationPropertyId: relation.id } : {}),
+    };
+  };
+
+  const addPropertyOfType = (type: DatabasePropertyDraft["type"]): void => {
+    const label = DATABASE_COPY.property.typeLabels[type].replace(/^./, (c) => c.toUpperCase());
+    const names = new Set(
+      definition.properties
+        .filter((property) => property.state === "active")
+        .map((property) => property.name),
+    );
+    let name = label;
+    for (let index = 2; names.has(name); index += 1) name = `${label} ${index}`;
+    addProperty({
+      name,
+      type,
+      ...propertyCreationDefaults(type),
+      ...(type === "select" || type === "status" || type === "multi-select"
+        ? { options: defaultSelectionOptions() }
+        : {}),
+    });
+  };
+
+  const changePropertyType = async (
+    propertyId: Uuid,
+    type: Exclude<DatabaseProperty["type"], "title">,
+  ): Promise<void> => {
+    const current = definition.properties.find((property) => property.id === propertyId);
+    if (current === undefined || current.type === type || current.type === "title") return;
+    const candidate: DatabaseDefinition = {
+      ...definition,
+      properties: definition.properties.map((property) =>
+        property.id === propertyId ? propertyWithType(property, type) : property,
+      ),
+    };
+    let preview: DefinitionImpact | null | undefined;
+    try {
+      preview = await onPreviewDefinitionImpact?.(candidate);
+    } catch (cause) {
+      setSchemaError(
+        cause instanceof Error
+          ? cause.message
+          : "L’impact de cette modification ne peut pas être vérifié.",
+      );
+      return;
+    }
+    if (preview?.destructive) {
+      setPendingDefinition(candidate);
+      setImpact(preview);
+      return;
+    }
+    await replaceDefinition(candidate);
+  };
+
+  /** Buffer edits made on an optimistic row until its store write resolves. */
+  const updateEntry = useCallback(
+    (entryId: Uuid, update: DatabaseCellUpdate) => {
+      if (pendingEntryIds.current.has(entryId)) {
+        const queued = pendingEntryUpdates.current.get(entryId);
+        if (queued === undefined) pendingEntryUpdates.current.set(entryId, [update]);
+        else queued.push(update);
+        return;
+      }
+      return onUpdateEntry?.(entryId, update);
+    },
+    [onUpdateEntry],
+  );
   const createKind = async (kind: "page" | "folder"): Promise<void> => {
     // The ref closes the gap synchronously, before React has rendered
     // `disabled`, so one physical gesture can never create two entries.
     if (entrySubmissionInFlight.current) return;
+    if (kind === "folder" && onCreateFolder === undefined) return;
     entrySubmissionInFlight.current = true;
     setEntryError(null);
     setSavingEntry(true);
+    // The id is generated here so the optimistic row and the stored entry
+    // share it: the row appears immediately, at the end, and is reconciled in
+    // place instead of disappearing and reappearing.
+    const entryId = generateUuidV7();
+    const title = defaultItemTitle(kind);
+    pendingEntryIds.current.add(entryId);
+    setPendingEntries((current) => [
+      ...current,
+      { entryId, title, itemKind: kind, createdAt: new Date().toISOString() },
+    ]);
+    // Open the title on the optimistic row: the user can name the entry while
+    // the store write settles. Its edits are queued on the row id.
+    setRenameEntryId(entryId);
     try {
       const created =
         kind === "folder"
-          ? await onCreateFolder?.(defaultItemTitle("folder"))
-          : await onCreateEntry(defaultItemTitle("page"));
-      if (typeof created === "string") setRenameEntryId(created);
+          ? await onCreateFolder?.(title, {}, {}, entryId)
+          : await onCreateEntry(title, {}, {}, entryId);
+      const resolved = typeof created === "string" ? created : entryId;
+      if (resolved !== entryId) {
+        pendingEntryIds.current.delete(entryId);
+        pendingEntryIds.current.add(resolved);
+        const queued = pendingEntryUpdates.current.get(entryId);
+        if (queued !== undefined) {
+          pendingEntryUpdates.current.set(resolved, queued);
+          pendingEntryUpdates.current.delete(entryId);
+        }
+        setPendingEntries((current) =>
+          current.map((entry) =>
+            entry.entryId === entryId ? { ...entry, entryId: resolved } : entry,
+          ),
+        );
+        setRenameEntryId((current) => (current === entryId ? resolved : current));
+      }
+      pendingEntryIds.current.delete(resolved);
+      const queued = pendingEntryUpdates.current.get(resolved) ?? [];
+      pendingEntryUpdates.current.delete(resolved);
+      for (const update of queued) await onUpdateEntry?.(resolved, update);
     } catch {
+      pendingEntryIds.current.delete(entryId);
+      pendingEntryUpdates.current.delete(entryId);
+      setPendingEntries((current) => current.filter((entry) => entry.entryId !== entryId));
+      setRenameEntryId((current) => (current === entryId ? null : current));
       setEntryError(DATABASE_COPY.page.entryCreateFailed);
     } finally {
       entrySubmissionInFlight.current = false;
@@ -815,6 +1050,58 @@ export function DatabasePage({
     }
   };
   const clearRename = useCallback(() => setRenameEntryId(null), []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: createKind closes over the current definition and entry callbacks; re-subscribing on every render is not needed
+  useEffect(() => {
+    const onCreate = () => {
+      if (onCreateEntry !== undefined) void createKind("page");
+    };
+    window.addEventListener("myownnotion:create-database-entry", onCreate);
+    return () => window.removeEventListener("myownnotion:create-database-entry", onCreate);
+  }, [onCreateEntry]);
+
+  const compactTools = (
+    <div className="database-tools">
+      <PopoverRoot placement="bottom-end">
+        <PopoverTrigger className="database-chrome-trigger" aria-label="Filtrer" title="Filtrer">
+          <AppIcon name="filter" size="small" />
+        </PopoverTrigger>
+        <PopoverContent className="database-filter-popover">
+          <PopoverHeading>Filtres</PopoverHeading>
+          {activeView === undefined ? (
+            <AsyncState compact kind="error" description={DATABASE_COPY.common.noUsableView} />
+          ) : (
+            <FilterEditor
+              properties={definition.properties}
+              view={activeView}
+              onChange={saveView}
+              defaultOpen
+              live
+            />
+          )}
+        </PopoverContent>
+      </PopoverRoot>
+      <PopoverRoot placement="bottom-end">
+        <PopoverTrigger className="database-chrome-trigger" aria-label="Trier" title="Trier">
+          <AppIcon name="sort" size="small" />
+        </PopoverTrigger>
+        <PopoverContent className="database-sort-popover">
+          <PopoverHeading>Trier</PopoverHeading>
+          {activeView === undefined ? (
+            <AsyncState compact kind="error" description={DATABASE_COPY.common.noUsableView} />
+          ) : (
+            <SortGroupEditor
+              properties={definition.properties}
+              view={activeView}
+              onChange={saveView}
+              showGrouping={false}
+              defaultOpen
+              live
+            />
+          )}
+        </PopoverContent>
+      </PopoverRoot>
+    </div>
+  );
 
   return (
     <section
@@ -836,6 +1123,7 @@ export function DatabasePage({
       </header>
 
       <div className="database-settings">
+        {formatPlacement === "chrome" && toolsSlot === null ? compactTools : null}
         <PopoverRoot open={settingsOpen} setOpen={setSettingsOpen}>
           {(() => {
             const trigger = (
@@ -847,6 +1135,11 @@ export function DatabasePage({
                 <AppIcon name="filter" size="small" />
               </PopoverTrigger>
             );
+            // The header slot hosts this trigger when the surrounding page
+            // provides one (embedded views). A root database rendered in the
+            // chrome placement has no slot: the panel — view toolbar, filters
+            // and task tracking — must still be reachable, next to the compact
+            // filter and sort popovers it complements.
             return toolsSlot === null ? trigger : createPortal(trigger, toolsSlot);
           })()}
           <PopoverContent className="database-settings-panel">
@@ -940,6 +1233,7 @@ export function DatabasePage({
               </div>
               {editingProperty ? (
                 <PropertyEditor
+                  properties={definition.properties}
                   draft={propertyDraft}
                   error={propertyError}
                   onChange={(draft) => {
@@ -998,49 +1292,84 @@ export function DatabasePage({
         </PopoverRoot>
       </div>
 
+      {formatPlacement === "chrome" && toolsSlot !== null
+        ? createPortal(compactTools, toolsSlot)
+        : null}
+
+      <PopoverRoot
+        open={creatingProperty}
+        setOpen={(open) => {
+          if (!open) {
+            setCreatingProperty(false);
+            setEditingProperty(false);
+          }
+        }}
+        placement="bottom-end"
+      >
+        <PopoverContent
+          className="database-property-popover"
+          aria-label="Nouvelle propriété"
+          getAnchorRect={() => propertyCreatorAnchor}
+        >
+          <div className="database-property-type-heading">
+            <span>Sélectionner le type</span>
+            <AppIcon name="search" size="small" />
+          </div>
+          {/* biome-ignore lint/a11y/useSemanticElements: the grid is a visual type picker, not a form fieldset */}
+          <div className="database-property-type-sections">
+            {PROPERTY_TYPE_GROUPS.map((group) => (
+              <section className="database-property-type-section" key={group.label}>
+                <h3 className="database-property-type-section__label">{group.label}</h3>
+                <div className="database-property-type-grid">
+                  {group.types.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      className="database-property-type-grid__choice"
+                      onClick={() => addPropertyOfType(type as DatabasePropertyDraft["type"])}
+                    >
+                      <DatabasePropertyIcon type={type} />
+                      <span>{DATABASE_COPY.property.typeLabels[type]}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </PopoverContent>
+      </PopoverRoot>
+
       {schemaError === null ? null : (
         <p className="database-field__error" role="alert">
           {schemaError}
         </p>
       )}
-      {impact !== null && pendingDefinition !== null ? (
-        <section
-          className="database-impact"
-          role="alertdialog"
+      <DialogRoot
+        open={impact !== null && pendingDefinition !== null}
+        setOpen={(open) => {
+          if (!open) {
+            setImpact(null);
+            setPendingDefinition(null);
+          }
+        }}
+      >
+        <DialogContent
+          className="database-impact-dialog"
           aria-label={DATABASE_COPY.page.confirmSchemaChange}
         >
-          <h3>{DATABASE_COPY.page.schemaImpactHeading}</h3>
-          <p>{DATABASE_COPY.page.impact(impact.affectedValueCount, impact.affectedEntryCount)}</p>
-          <div className="field-row">
-            <Button
-              type="button"
-              size="compact"
-              onClick={() => {
-                void replaceDefinition(pendingDefinition, {
-                  digest: impact.impactDigest,
-                  decision: "preserve-incompatible",
-                });
-                setImpact(null);
-                setPendingDefinition(null);
-              }}
-            >
-              {DATABASE_COPY.common.preserveIncompatible}
-            </Button>
-            <Button
-              type="button"
-              size="compact"
-              variant="danger"
-              onClick={() => {
-                void replaceDefinition(pendingDefinition, {
-                  digest: impact.impactDigest,
-                  decision: "discard-confirmed",
-                });
-                setImpact(null);
-                setPendingDefinition(null);
-              }}
-            >
-              {DATABASE_COPY.common.discardAffected}
-            </Button>
+          <DialogHeading>
+            {impactRemovesProperty
+              ? "Supprimer cette propriété ?"
+              : DATABASE_COPY.page.schemaImpactHeading}
+          </DialogHeading>
+          <DialogDescription>
+            {impact === null
+              ? ""
+              : impactRemovesProperty
+                ? `${String(impact.affectedValueCount)} valeur(s) dans ${String(impact.affectedEntryCount)} entrée(s) seront supprimées de façon définitive.`
+                : DATABASE_COPY.page.impact(impact.affectedValueCount, impact.affectedEntryCount)}
+          </DialogDescription>
+          <div className="database-impact-dialog__actions">
             <Button
               type="button"
               size="compact"
@@ -1052,11 +1381,46 @@ export function DatabasePage({
             >
               {DATABASE_COPY.common.cancel}
             </Button>
+            {impactRemovesProperty ? null : (
+              <Button
+                type="button"
+                size="compact"
+                onClick={() => {
+                  if (impact === null || pendingDefinition === null) return;
+                  void replaceDefinition(pendingDefinition, {
+                    digest: impact.impactDigest,
+                    decision: "preserve-incompatible",
+                  });
+                  setImpact(null);
+                  setPendingDefinition(null);
+                }}
+              >
+                {DATABASE_COPY.common.preserveIncompatible}
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="compact"
+              variant="danger"
+              onClick={() => {
+                if (impact === null || pendingDefinition === null) return;
+                void replaceDefinition(pendingDefinition, {
+                  digest: impact.impactDigest,
+                  decision: "discard-confirmed",
+                });
+                setImpact(null);
+                setPendingDefinition(null);
+              }}
+            >
+              {impactRemovesProperty
+                ? "Supprimer la propriété"
+                : DATABASE_COPY.common.discardAffected}
+            </Button>
           </div>
-        </section>
-      ) : null}
+        </DialogContent>
+      </DialogRoot>
 
-      {activeView?.type === "board" ? null : (
+      {activeView?.type === "board" || activeView?.type === "table" ? null : (
         <div className="database-entry-create">
           {/* biome-ignore lint/a11y/useSemanticElements: Action choices are a labelled button group, not form controls. */}
           <div className="database-entry-kind" role="group" aria-label="Type du nouvel élément">
@@ -1085,12 +1449,12 @@ export function DatabasePage({
               </Button>
             )}
           </div>
-          {entryError === null ? null : (
-            <p className="database-field__error" role="alert">
-              {entryError}
-            </p>
-          )}
         </div>
+      )}
+      {entryError === null ? null : (
+        <p className="database-field__error" role="alert">
+          {entryError}
+        </p>
       )}
 
       <div className="database-view-status" aria-live="polite">
@@ -1170,6 +1534,73 @@ export function DatabasePage({
         </section>
       )}
 
+      {activeView !== undefined &&
+      (activeView.filter.criteria.length > 0 || activeView.sorts.length > 0) ? (
+        <div className="database-active-chips">
+          {activeView.filter.criteria.map((criterion) => {
+            const property = definition.properties.find(
+              (candidate) => candidate.id === criterion.propertyId,
+            );
+            return (
+              <span key={criterion.id} className="database-active-chip">
+                <span>
+                  {property?.name ?? "Propriété"}{" "}
+                  {DATABASE_COPY.filter.operatorLabels[criterion.operator]}
+                </span>
+                <button
+                  type="button"
+                  className="database-active-chip__remove"
+                  aria-label={`${DATABASE_COPY.page.removeFilter} : ${property?.name ?? "Propriété"}`}
+                  onClick={() => {
+                    void saveView({
+                      ...activeView,
+                      filter: {
+                        ...activeView.filter,
+                        criteria: activeView.filter.criteria.filter(
+                          (candidate) => candidate.id !== criterion.id,
+                        ),
+                      },
+                    });
+                  }}
+                >
+                  <AppIcon name="close" size="small" />
+                </button>
+              </span>
+            );
+          })}
+          {activeView.sorts.map((sort) => {
+            const property = definition.properties.find(
+              (candidate) => candidate.id === sort.propertyId,
+            );
+            return (
+              <span key={sort.propertyId} className="database-active-chip">
+                <span>
+                  {property?.name ?? "Propriété"} ·{" "}
+                  {sort.direction === "ascending"
+                    ? DATABASE_COPY.page.sortChipAscending
+                    : DATABASE_COPY.page.sortChipDescending}
+                </span>
+                <button
+                  type="button"
+                  className="database-active-chip__remove"
+                  aria-label={`${DATABASE_COPY.page.removeSort} : ${property?.name ?? "Propriété"}`}
+                  onClick={() => {
+                    void saveView({
+                      ...activeView,
+                      sorts: activeView.sorts.filter(
+                        (candidate) => candidate.propertyId !== sort.propertyId,
+                      ),
+                    });
+                  }}
+                >
+                  <AppIcon name="close" size="small" />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
+
       {activeView !== undefined && page !== null ? (
         activeView.type === "list" ? (
           <ListView
@@ -1189,25 +1620,72 @@ export function DatabasePage({
             properties={definition.properties}
             view={activeView}
             page={page}
-            {...(onUpdateEntry === undefined ? {} : { onUpdateEntry })}
+            {...(onUpdateEntry === undefined ? {} : { onUpdateEntry: updateEntry })}
             relationOptions={relationOptions}
             scrollTop={viewContext.context.scrollTop}
             onScroll={viewContext.rememberScroll}
             onOpenEntry={openEntryFromView}
-            onAddProperty={() => {
-              setSettingsOpen(true);
-              setEditingProperty(true);
+            {...(onOpenViewSettings === undefined ? {} : { onOpenViewSettings })}
+            onCreateProperty={({ name, type, icon }) => {
+              const label = DATABASE_COPY.property.typeLabels[type].replace(/^./, (c) =>
+                c.toUpperCase(),
+              );
+              const names = new Set(
+                definition.properties
+                  .filter((property) => property.state === "active")
+                  .map((property) => property.name),
+              );
+              let propertyName = name;
+              if (propertyName.length === 0) {
+                propertyName = label;
+                for (let index = 2; names.has(propertyName); index += 1)
+                  propertyName = `${label} ${index}`;
+              }
+              addProperty({
+                name: propertyName,
+                type,
+                icon,
+                ...propertyCreationDefaults(type),
+                ...(type === "select" || type === "status" || type === "multi-select"
+                  ? { options: defaultSelectionOptions() }
+                  : {}),
+              });
             }}
+            onAddProperty={(anchor) => {
+              const rect = anchor.getBoundingClientRect();
+              const width = Math.min(480, window.innerWidth - 24);
+              const right = Math.min(Math.max(rect.right, width + 12), window.innerWidth - 12);
+              setPropertyCreatorAnchor(
+                DOMRect.fromRect({ x: right - 1, y: rect.bottom, width: 1, height: 1 }),
+              );
+              propertyDraftRef.current = EMPTY_PROPERTY_DRAFT;
+              setPropertyDraft(EMPTY_PROPERTY_DRAFT);
+              setPropertyError(null);
+              setCreatingProperty(true);
+            }}
+            onCreateEntry={() => void createKind("page")}
+            {...(onCreateFolder === undefined
+              ? {}
+              : { onCreateFolder: () => void createKind("folder") })}
             onRenameProperty={(propertyId, name) => void renameProperty(propertyId, name)}
             onRetireProperty={(propertyId) => void retireProperty(propertyId)}
             onChangePropertyOptions={(propertyId, options) =>
               void savePropertyOptions(propertyId, options)
             }
+            onChangeProperty={(propertyId, edit) => {
+              const properties = definition.properties.map((property) =>
+                property.id === propertyId ? edit(property) : property,
+              );
+              void replaceDefinition({ ...definition, properties });
+            }}
             onToggleColumn={setColumnVisible}
             onSortProperty={sortProperty}
             onFilterProperty={filterProperty}
+            onChangePropertyType={(propertyId, type) => void changePropertyType(propertyId, type)}
+            onChangePropertyIcon={(propertyId, icon) => void changePropertyIcon(propertyId, icon)}
             onInsertProperty={insertProperty}
             onDuplicateProperty={duplicateProperty}
+            onMoveColumn={(properties) => saveView({ ...activeView, properties })}
             onResize={(propertyId, width) =>
               saveView({
                 ...activeView,
@@ -1233,7 +1711,7 @@ export function DatabasePage({
             view={activeView}
             page={page}
             onOpenEntry={openEntryFromView}
-            {...(onUpdateEntry === undefined ? {} : { onUpdateEntry })}
+            {...(onUpdateEntry === undefined ? {} : { onUpdateEntry: updateEntry })}
             onChangeView={saveView}
             scrollTop={viewContext.context.scrollTop}
             onScroll={viewContext.rememberScroll}
@@ -1250,13 +1728,21 @@ export function DatabasePage({
             scrollTop={viewContext.context.scrollTop}
             onScroll={viewContext.rememberScroll}
           />
+        ) : activeView.type === "map" ? (
+          <MapView
+            properties={definition.properties}
+            view={activeView}
+            page={page}
+            onOpenEntry={openEntryFromView}
+            onChangeView={saveView}
+          />
         ) : (
           <CalendarView
             properties={definition.properties}
             view={activeView}
             page={page}
             onOpenEntry={openEntryFromView}
-            {...(onUpdateEntry === undefined ? {} : { onUpdateEntry })}
+            {...(onUpdateEntry === undefined ? {} : { onUpdateEntry: updateEntry })}
             onChangeView={saveView}
           />
         )

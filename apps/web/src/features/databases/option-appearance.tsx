@@ -130,12 +130,14 @@ export function choiceOptionsForRow(
 export function PropertyValue({
   property,
   row,
+  properties,
 }: {
   readonly property: DatabaseProperty;
   readonly row: DatabaseViewRow;
+  readonly properties?: readonly DatabaseProperty[];
 }) {
   const options = choiceOptionsForRow(property, row);
-  if (!isChoiceProperty(property)) return displayDatabaseValue(row, property);
+  if (!isChoiceProperty(property)) return displayDatabaseValue(row, property, properties);
   if (options.length === 0) return "—";
   return (
     <span className="option-pill-row">

@@ -132,10 +132,15 @@ test("the content graph stays distinct from folders and supports ten pointer jou
   }
 
   await page.getByTestId("graph-filters-toggle").click();
-  await page.getByLabel("Hiérarchie").check();
+  // The filter row now also carries a help popover and its dialog labelled
+  // "À propos de …"; target the switch itself, not any accessible name match.
+  const hierarchy = page.getByRole("switch", { name: "Hiérarchie", exact: true });
+  await hierarchy.click();
+  await expect(hierarchy).toHaveAttribute("aria-checked", "true");
   await expect(canvas.locator(`[data-graph-node="${productFolderId}"]`)).toHaveCount(1);
   await expect(canvas.locator(`[data-graph-node="${researchFolderId}"]`)).toHaveCount(1);
-  await page.getByLabel("Hiérarchie").uncheck();
+  await hierarchy.click();
+  await expect(hierarchy).toHaveAttribute("aria-checked", "false");
   await expect(canvas.locator(`[data-graph-node="${productFolderId}"]`)).toHaveCount(0);
   await page.getByRole("button", { name: "Fermer les filtres" }).click();
   await expect(page.locator("#knowledge-graph-filters")).toHaveCount(0);
@@ -270,7 +275,12 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   await expect(page).toHaveURL("/graph");
   await expect(graph.locator(`[data-graph-node="${isolatedId}"]`)).toHaveCount(0);
   await page.getByTestId("graph-filters-toggle").click();
-  await page.getByLabel("Afficher les éléments isolés").check();
+  const isolatedSwitch = page.getByRole("switch", {
+    name: "Afficher les éléments isolés",
+    exact: true,
+  });
+  await isolatedSwitch.click();
+  await expect(isolatedSwitch).toHaveAttribute("aria-checked", "true");
   await expect(graph.locator(`[data-graph-node="${isolatedId}"]`)).toHaveCount(1);
   await page.getByRole("button", { name: "Réinitialiser les filtres" }).click();
   await expect(graph.locator(`[data-graph-node="${isolatedId}"]`)).toHaveCount(0);

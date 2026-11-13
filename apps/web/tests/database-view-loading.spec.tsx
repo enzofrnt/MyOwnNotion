@@ -963,4 +963,51 @@ describe("database projection subscribers", () => {
     expect(element.textContent).toContain("Renommage refusé");
     expect(element.textContent).toContain("Élément actuel");
   });
+  it("hides the source title when a second source exists but no view uses it", async () => {
+    const f = fixture();
+    const otherSource = {
+      ...f.source,
+      itemId: generateUuidV7(),
+      sourceId: generateUuidV7(),
+      definition: { ...f.source.definition, name: "Autre source" },
+    };
+    const base = f.mocks.getDatabase.getMockImplementation();
+    f.mocks.getDatabase.mockImplementation(async (id) => {
+      if (id === otherSource.itemId || id === otherSource.sourceId) return otherSource;
+      return base?.(id) ?? null;
+    });
+    f.mocks.listDatabases.mockResolvedValue([f.source, otherSource]);
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <DatabaseContainerPage
+            containerItemId={f.containerId}
+            service={f.service}
+            onOpenEntry={vi.fn()}
+            hideSingleSourceTitle
+          />
+        </MemoryRouter>,
+      );
+      await advance();
+    });
+    expect(element.querySelector('[data-testid="current-source-title"]')).toBeNull();
+  });
+
+  it("hides the source title on a full page whose views share one source", async () => {
+    const f = fixture();
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <DatabaseContainerPage
+            containerItemId={f.containerId}
+            service={f.service}
+            onOpenEntry={vi.fn()}
+            hideSingleSourceTitle
+          />
+        </MemoryRouter>,
+      );
+      await advance();
+    });
+    expect(element.querySelector('[data-testid="current-source-title"]')).toBeNull();
+  });
 });

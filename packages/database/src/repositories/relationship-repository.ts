@@ -14,6 +14,7 @@ import {
   endpointAvailability,
   err,
   generateUuidV7,
+  INTERNAL_DATABASE_PROPERTY_RELATION_TYPE,
   INTERNAL_PAGE_LINK_RELATION_TYPE,
   ok,
   type Uuid,
@@ -165,6 +166,12 @@ export async function executeRemoveRelationship(
     return err(
       "validation.invalid-payload",
       "Internal page links must be removed by editing the page document",
+    );
+  }
+  if (relationship.relationType === INTERNAL_DATABASE_PROPERTY_RELATION_TYPE) {
+    return err(
+      "validation.invalid-payload",
+      "Internal database relationships must be removed through database entry commands",
     );
   }
   const source = await getItem(tx, relationship.sourceItemId as Uuid);

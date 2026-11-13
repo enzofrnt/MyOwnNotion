@@ -1,8 +1,47 @@
 import type { ReactNode } from "react";
+import { FR_COPY } from "../../ui/copy/index.ts";
 import { AppIcon } from "../../ui/icons.tsx";
+import { Button } from "../../ui/primitives/index.ts";
 
 /** Portal target for the active page editor’s undo/redo toolbar. */
 export const WORKSPACE_HISTORY_SLOT_ID = "workspace-history-slot";
+
+/**
+ * Holds the undo/redo place on surfaces without a local history (databases,
+ * folders, graph), so the controls never jump when the owner switches tabs.
+ * CSS hides it as soon as an editor portals its live toolbar into the slot.
+ */
+function HistoryPlaceholder() {
+  return (
+    <div
+      className="editor-history-controls"
+      data-placeholder="true"
+      role="toolbar"
+      aria-label={FR_COPY.editor.surface.historyLabel}
+    >
+      <Button
+        type="button"
+        size="square"
+        variant="ghost"
+        aria-label={FR_COPY.editor.surface.undo}
+        title={FR_COPY.editor.surface.undoTitle}
+        disabled
+      >
+        <AppIcon name="undo" />
+      </Button>
+      <Button
+        type="button"
+        size="square"
+        variant="ghost"
+        aria-label={FR_COPY.editor.surface.redo}
+        title={FR_COPY.editor.surface.redoTitle}
+        disabled
+      >
+        <AppIcon name="redo" />
+      </Button>
+    </div>
+  );
+}
 
 export interface PageBreadcrumb {
   readonly id: string;
@@ -20,7 +59,15 @@ export interface PageHeaderProps {
   /** Open tabs strip; shown on every surface so tabs stay reachable. */
   readonly tabs?: ReactNode;
   readonly actions?: ReactNode;
-  readonly kind?: "page" | "folder" | "file" | "database" | "database_view" | "workspace" | "graph";
+  readonly kind?:
+    | "page"
+    | "folder"
+    | "file"
+    | "database"
+    | "database_view"
+    | "workspace"
+    | "home"
+    | "graph";
 }
 
 const KIND_LABELS = {
@@ -30,6 +77,7 @@ const KIND_LABELS = {
   database: "Base de données",
   database_view: "Vue de base de données",
   workspace: "Espace de travail",
+  home: "Espace de travail",
   graph: "Graphe",
 } as const;
 
@@ -45,7 +93,11 @@ export function PageHeader({
     kind === "folder" ||
     kind === "database" ||
     kind === "database_view" ||
-    kind === "graph";
+    kind === "graph" ||
+    kind === "home";
+  // The landing has no editor and no document identity: its caption lives in the
+  // canvas, so disabled undo/redo would be chrome without a job.
+  const showsHistory = compactChrome && kind !== "home";
   return (
     <header
       className="workspace-page-header"
@@ -53,6 +105,15 @@ export function PageHeader({
       data-testid="workspace-page-header"
     >
       <div className="workspace-page-header__path-row">
+        {showsHistory ? (
+          <div
+            id={WORKSPACE_HISTORY_SLOT_ID}
+            className="workspace-page-header__history"
+            data-testid="workspace-history-slot"
+          >
+            {kind === "page" ? null : <HistoryPlaceholder />}
+          </div>
+        ) : null}
         {tabs === undefined ? null : <div className="workspace-page-header__tabs">{tabs}</div>}
         {compactChrome || breadcrumbs.length === 0 ? null : (
           <nav aria-label="Fil d’Ariane" className="workspace-breadcrumbs">
@@ -79,7 +140,7 @@ export function PageHeader({
             </ol>
           </nav>
         )}
-        {compactChrome && actions !== undefined ? (
+        {compactChrome && kind !== "home" && actions !== undefined ? (
           <div className="workspace-page-header__actions" data-testid="page-context-actions">
             {actions}
           </div>

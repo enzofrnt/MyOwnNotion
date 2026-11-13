@@ -53,15 +53,18 @@ export function Sidebar({
 }: SidebarProps) {
   return (
     <nav className="workspace-navigation" aria-label="Navigation principale" data-testid="sidebar">
+      {/* Same height as the stage's top bar, so the panel toggle keeps one
+          place whether the sidebar is open, collapsed or shown as a drawer. */}
+      <div className="workspace-navigation__header">
+        <SidebarCollapseButton />
+      </div>
+
       <OverlayScrollArea className="workspace-navigation__body">
-        <div className="workspace-navigation__search-row">
-          <Button className="workspace-navigation__search" variant="ghost" onClick={onOpenSearch}>
-            <AppIcon name="search" />
-            <span>Rechercher</span>
-            <kbd>⌘ K</kbd>
-          </Button>
-          <SidebarCollapseButton />
-        </div>
+        <Button className="workspace-navigation__search" variant="ghost" onClick={onOpenSearch}>
+          <AppIcon name="search" />
+          <span>Rechercher</span>
+          <kbd>⌘ K</kbd>
+        </Button>
 
         <Button
           className="workspace-navigation__graph"

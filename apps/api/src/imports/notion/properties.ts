@@ -2,7 +2,10 @@ import {
   type DatabaseProperty,
   type NonRelationPropertyValue,
   normalizeCivilDate,
+  normalizeEmail,
   normalizeInstant,
+  normalizePhone,
+  normalizeUrl,
   type Uuid,
 } from "@myownnotion/domain";
 import { type NotionObject, object, objects, plainText, sourceId, string } from "./api-client.ts";
@@ -39,6 +42,10 @@ export function convertProperty(
   if (type === "title" || type === "number" || type === "checkbox")
     return { ...base, type, config: {} };
   if (type === "rich_text") return { ...base, type: "text", config: {} };
+  if (type === "url" || type === "email" || type === "phone" || type === "phone_number")
+    return { ...base, type: type === "phone_number" ? "phone" : type, config: {} };
+  if (type === "last_edited_time") return { ...base, type: "last-edited-time", config: {} };
+  if (type === "created_time") return { ...base, type: "created-time", config: {} };
   if (["select", "status", "multi_select"].includes(type)) {
     const options = objects(object(raw[type])["options"]).map((option, i) => ({
       id: importId(jobId, `option:${sid}:${key}:${string(option["id"]) || string(option["name"])}`),
@@ -84,7 +91,18 @@ export function convertValue(
 ): NonRelationPropertyValue | undefined {
   const type = string(raw["type"]),
     value = raw[type];
-  if (value === undefined || value === null || prop.type === "title" || prop.type === "relation")
+  if (
+    value === undefined ||
+    value === null ||
+    prop.type === "title" ||
+    prop.type === "relation" ||
+    prop.type === "created-time" ||
+    prop.type === "last-edited-time" ||
+    prop.type === "formula" ||
+    prop.type === "rollup" ||
+    prop.type === "unique-id" ||
+    prop.type === "files"
+  )
     return undefined;
   if (prop.type === "text") {
     if (
@@ -108,6 +126,20 @@ export function convertValue(
           ? readable(object(value)[string(object(value)["type"])])
           : readable(value);
     return { kind: "text", value: text };
+  }
+  if (prop.type === "url" || prop.type === "email" || prop.type === "phone") {
+    const text = readable(value).trim();
+    const normalized =
+      prop.type === "url"
+        ? normalizeUrl(text)
+        : prop.type === "email"
+          ? normalizeEmail(text)
+          : normalizePhone(text);
+    if (!normalized.ok) {
+      issues.push({ code: "import.property-invalid-value", sourcePath: path });
+      return undefined;
+    }
+    return { kind: "text", value: normalized.value };
   }
   if (prop.type === "number")
     return typeof value === "number" && Number.isFinite(value)
@@ -137,6 +169,10 @@ export function convertValue(
       return match ? [match.id] : [];
     });
     return { kind: "multi-select", optionIds: ids };
+  }
+  if (prop.type !== "status" && prop.type !== "select") {
+    issues.push({ code: "import.option-value-preserved", sourcePath: path });
+    return undefined;
   }
   const option = prop.config.options.find((entry) => entry.label === string(object(value)["name"]));
   if (!option) {

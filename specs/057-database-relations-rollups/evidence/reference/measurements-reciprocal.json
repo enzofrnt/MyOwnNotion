@@ -1,0 +1,19 @@
+{
+  "observations": {
+    "url": "https://app.notion.com/p/3e8d891cc8ef8008b2d2d5b80c3791b4?v=3e8d891cc8ef80f5aaa4000cb867b79b",
+    "session": "ok",
+    "panelBefore": ["[expurgé]", "[expurgé]", "[expurgé]"],
+    "dialog": ["Activer", "Nom de la propriété liée", "[expurgé]"],
+    "nameInput": true,
+    "dialogAfterToggle": ["Activer", "Nom de la propriété liée", "[expurgé]"],
+    "captureDialog": "ok",
+    "confirmLabel": null,
+    "afterSavePanels": 1,
+    "reopenMenu": "ok",
+    "panelAfter": ["[expurgé]", "[expurgé]", "[expurgé]"],
+    "captureAfter": "ok",
+    "result": "activation réciproque observée"
+  },
+  "at": "2026-11-12T10:26:34.806Z",
+  "note": "Page de test autorisée; aucun contenu personnel exporté."
+}

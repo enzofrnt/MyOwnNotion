@@ -571,6 +571,7 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
             <g
               key={edge.key}
               data-graph-edge={edge.key}
+              data-relation={edge.relationType}
               data-availability={edge.availability}
               data-emphasis="normal"
             >

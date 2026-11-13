@@ -336,8 +336,8 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       if (journalItem === undefined) {
         throw new Error("a restored database has no journal identity");
       }
-      restoredDatabases.set(database.databaseId, database);
       const sourceId = database.sourceId ?? ownedSourceIdFromItemId(database.databaseId);
+      restoredDatabases.set(sourceId, database);
       await options.tx.insert(schema.databases).values({
         itemId: database.databaseId,
         sourceId,
@@ -369,20 +369,27 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
 
     writeDatabaseEntry: async (raw) => {
       const entry = raw as ExportedDatabaseEntry;
-      if (!itemsById.has(entry.entryId) || !restoredDatabases.has(entry.databaseId)) {
-        throw new Error("a restored database entry has no page or database");
+      const sourceId = entry.sourceId ?? ownedSourceIdFromItemId(entry.databaseId);
+      const restoredDatabase = restoredDatabases.get(sourceId);
+      if (
+        !itemsById.has(entry.entryId) ||
+        restoredDatabase === undefined ||
+        restoredDatabase.databaseId !== entry.databaseId
+      ) {
+        throw new Error("a restored database entry has no page or owned source");
       }
       restoredEntries.set(`${entry.databaseId}:${entry.entryId}`, entry);
-      const restoredDatabase = restoredDatabases.get(entry.databaseId);
       await options.tx.insert(schema.databaseEntries).values({
         entryItemId: entry.entryId,
         databaseId: entry.databaseId,
-        sourceId:
-          entry.sourceId ?? restoredDatabase?.sourceId ?? ownedSourceIdFromItemId(entry.databaseId),
+        sourceId,
         workspaceId: options.workspaceId,
         valueVersion: entry.valueVersion,
         addedRevisionId: entry.addedRevisionId,
         valueRevisionId: entry.valueRevisionId ?? entry.addedRevisionId,
+        // Older archives omit these; the column default then applies.
+        ...(entry.createdAt === undefined ? {} : { createdAt: new Date(entry.createdAt) }),
+        ...(entry.updatedAt === undefined ? {} : { updatedAt: new Date(entry.updatedAt) }),
       });
       await options.protectedContent?.writeDatabaseEntryValues(options.tx, {
         entryId: entry.entryId,
@@ -444,8 +451,18 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       for (const page of pages) {
         await rebuildEmbedUsages(options.tx, page.id, page.body);
       }
+      const currentDefinitionsByItem = new Map<Uuid, ExportedDatabase>();
+      for (const database of restoredDatabases.values()) {
+        const item = itemsById.get(database.databaseId);
+        if (
+          item !== undefined &&
+          (database.definitionRevisionId ?? item.currentRevisionId) === item.currentRevisionId
+        ) {
+          currentDefinitionsByItem.set(item.id, database);
+        }
+      }
       for (const [itemId, item] of itemsById) {
-        const database = restoredDatabases.get(itemId);
+        const database = currentDefinitionsByItem.get(itemId);
         const presentation = restoredPresentations.get(itemId);
         const activeParent = item.placements.find(
           (placement) => placement.kind === "hierarchy",
@@ -488,17 +505,19 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
           revisionId: item.currentRevisionId,
           snapshot,
         });
-        if (
-          database?.definitionRevisionId !== undefined &&
-          database.definitionRevisionId !== item.currentRevisionId
-        ) {
-          await writeRevisionFields(database.definitionRevisionId, {
-            databaseDefinition: database.definition,
-            databaseDefinitionVersion: database.definitionVersion,
-          });
-        }
         if (options.protectedContent !== undefined)
           await protectCurrentItem(options.tx, options.protectedContent, itemId);
+      }
+      // Every source has its own definition revision, even when several share
+      // one host. Rehydrate all of them, not just the host's current snapshot.
+      for (const database of restoredDatabases.values()) {
+        const revisionId =
+          database.definitionRevisionId ?? itemsById.get(database.databaseId)?.currentRevisionId;
+        if (revisionId === undefined) throw new Error("a restored source has no revision");
+        await writeRevisionFields(revisionId, {
+          databaseDefinition: database.definition,
+          databaseDefinitionVersion: database.definitionVersion,
+        });
       }
       for (const presentation of restoredPresentations.values()) {
         await writeRevisionFields(presentation.presentationRevisionId, {

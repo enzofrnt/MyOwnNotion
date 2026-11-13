@@ -1,9 +1,9 @@
 /* Security document composition, including responsive states. This file owns these refinements. */
 /* —— Sécurité et appareils: a readable document, not a stack of loud cards —— */
 
+/* Width comes from the shared settings measure (settings.css), like every other section. */
 .settings-content[data-section="security"] {
   gap: var(--ui-space-8);
-  max-width: 40rem;
 }
 
 /* Server line: one quiet meta row above everything. */
@@ -161,7 +161,7 @@
   min-height: 2.5rem;
   background: transparent;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--ui-color-border) 40%, transparent);
+  border-bottom: 1px solid var(--settings-row-border);
   border-radius: 0;
 }
 
@@ -182,7 +182,7 @@
   display: grid;
   gap: 0.15rem;
   padding: var(--ui-space-3) 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--ui-color-border) 40%, transparent);
+  border-bottom: 1px solid var(--settings-row-border);
 }
 
 .settings-content[data-section="security"] .key-rotation-panel__policies > li:last-child {
@@ -429,7 +429,7 @@
   padding: var(--ui-space-2) 0;
   background: transparent;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--ui-color-border) 40%, transparent);
+  border-bottom: 1px solid var(--settings-row-border);
   border-radius: 0;
 }
 

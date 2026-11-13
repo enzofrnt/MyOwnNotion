@@ -1,0 +1,239 @@
+{
+  "observations": {
+    "url": "https://app.notion.com/p/3e8d891cc8ef8008b2d2d5b80c3791b4?v=3e8d891cc8ef80f5aaa4000cb867b79b",
+    "authentication": "session",
+    "scheme": {
+      "theme": null,
+      "dark": true
+    },
+    "menuOpen": 1,
+    "result": "captures sombres produites"
+  },
+  "capturedAt": "2026-11-11T22:58:51.642Z",
+  "browser": "Chromium via Bun Playwright",
+  "theme": "dark",
+  "redaction": "Unknown overlay text nodes, inputs, editable names and images masked before screenshot; no raw DOM or full viewport saved.",
+  "measurements": [
+    {
+      "name": "07-relation-property-menu-dark",
+      "theme": "dark",
+      "viewport": {
+        "width": 1024,
+        "height": 800
+      },
+      "box": {
+        "x": 541,
+        "y": 319.375,
+        "width": 291.296875,
+        "height": 469
+      },
+      "styles": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(240, 239, 237)",
+        "borderRadius": "10px",
+        "boxShadow": "none",
+        "fontSize": "16px"
+      },
+      "items": [
+        {
+          "label": "Modifier la propriété",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Modifier le type",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Filtrer",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Trier",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Calculer",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Masquer",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Supprimer la propriété",
+          "width": 283.296875,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        }
+      ]
+    },
+    {
+      "name": "08-relation-configuration-dark",
+      "theme": "dark",
+      "viewport": {
+        "width": 1024,
+        "height": 800
+      },
+      "box": {
+        "x": 245,
+        "y": 363.375,
+        "width": 300,
+        "height": 94
+      },
+      "styles": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(240, 239, 237)",
+        "borderRadius": "10px",
+        "boxShadow": "none",
+        "fontSize": "16px"
+      },
+      "items": [
+        {
+          "label": "[contenu expurgé]",
+          "width": 292,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 292,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "[contenu expurgé]",
+          "width": 292,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        }
+      ]
+    },
+    {
+      "name": "09-relation-cardinality-dark",
+      "theme": "dark",
+      "viewport": {
+        "width": 1024,
+        "height": 800
+      },
+      "box": {
+        "x": 291,
+        "y": 424.375,
+        "width": 250,
+        "height": 65
+      },
+      "styles": {
+        "background": "rgba(0, 0, 0, 0)",
+        "color": "rgb(240, 239, 237)",
+        "borderRadius": "10px",
+        "boxShadow": "none",
+        "fontSize": "16px"
+      },
+      "items": [
+        {
+          "label": "1 page",
+          "width": 242,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        },
+        {
+          "label": "Aucune limite",
+          "width": 242,
+          "height": 28,
+          "fontSize": "16px",
+          "padding": "0px",
+          "borderRadius": "6px"
+        }
+      ]
+    }
+  ]
+}

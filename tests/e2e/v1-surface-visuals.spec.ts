@@ -84,9 +84,9 @@ test("matches the dark empty-database surface", async ({ page }, testInfo) => {
   await prepareVisualSurface(page, "dark", DESKTOP);
   await ensureNavigationVisible(page);
   await createRootDatabase(page, "Suivi visuel");
-  await expect(page.getByRole("textbox", { name: "Titre de la source", exact: true })).toHaveValue(
-    "Suivi visuel",
-  );
+  // A single owned source no longer repeats its name in a top bar: the page
+  // title carries the database name in the chrome placement.
+  await expect(page.getByTestId("active-item-title")).toHaveValue("Suivi visuel");
   await waitForDatabaseDefinitionSaved(page);
   await expect(page.locator(".database-page")).toBeVisible();
   // A database has its own page and views, with no text editor or footer block.
@@ -98,7 +98,8 @@ test("matches the dark empty-database surface", async ({ page }, testInfo) => {
   await expect(headers.getByRole("row")).toHaveCount(1);
   const body = view.getByRole("grid");
   await expect(body).toBeAttached();
-  await expect(body.getByRole("row")).toHaveCount(0);
+  // The creation row is a control, not a data row.
+  await expect(body.locator("tbody tr:not(.database-table-add-entry)")).toHaveCount(0);
   await expect(page.getByText("Item does not exist", { exact: true })).toHaveCount(0);
   await settlePixels(page);
 

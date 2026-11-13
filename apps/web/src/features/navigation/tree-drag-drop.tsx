@@ -24,6 +24,8 @@ export interface TreeDragItem {
   readonly parentId: string | null;
   readonly siblingIndex: number;
   readonly canContainChildren: boolean;
+  /** The row shows its children: the gap right under it belongs to them. */
+  readonly expanded?: boolean;
   readonly kind?: ItemIconKind;
   readonly icon?: string | null;
 }
@@ -146,6 +148,26 @@ export function resolveTreeDrop(
     return { kind: "nest", itemId: active.id, parentId: target.id };
   }
 
+  // The line right under an open parent sits above its first child, so it
+  // reads as "first of its children", never as "next to the parent". Leaving
+  // a parent takes a drop on the parent's own siblings, or below its children.
+  if (zone === "after" && target.expanded === true) {
+    const firstChild = items
+      .filter((item) => item.parentId === target.id)
+      .toSorted((left, right) => left.siblingIndex - right.siblingIndex)[0];
+    if (firstChild !== undefined) {
+      // Already the first child: nothing to move.
+      if (firstChild.id === active.id) return null;
+      return {
+        kind: "place",
+        itemId: active.id,
+        targetId: firstChild.id,
+        parentId: target.id,
+        edge: "before",
+      };
+    }
+  }
+
   return {
     kind: "place",
     itemId: active.id,
@@ -266,10 +288,20 @@ function TreeDragOverlay({ items }: { readonly items: readonly TreeDragItem[] })
 export function TreeDropTarget({
   canContainChildren,
   children,
+  firstChildOf,
   itemId,
+  redirectsAfter = false,
 }: {
   readonly canContainChildren: boolean;
   readonly itemId: string;
+  /**
+   * The drop id of an open parent's “after” gap, when this row is that
+   * parent's first child. Dropping in that gap lands here, so this row shows
+   * the insertion line and the parent does not.
+   */
+  readonly firstChildOf?: string | undefined;
+  /** An open parent with children: its “after” gap is drawn as its first child's line. */
+  readonly redirectsAfter?: boolean;
   readonly children: (state: {
     readonly activeZone: TreeDropZone | null;
     readonly setBeforeRef: RefCallback<HTMLElement>;
@@ -323,16 +355,23 @@ export function TreeDropTarget({
   }, []);
   const active = before.active ?? inside.active ?? after.active;
   const draggingAnotherItem = active !== null && String(active.id) !== itemId;
-  return children({
-    activeZone: !draggingAnotherItem
-      ? null
+  const { over } = useDndContext();
+  const overId = over === null ? null : String(over.id);
+  const leadsThisRow = firstChildOf !== undefined && overId === firstChildOf;
+  const overAfterRedirect = redirectsAfter && after.isOver;
+  const zone: TreeDropZone | null = !draggingAnotherItem
+    ? null
+    : leadsThisRow
+      ? "before"
       : before.isOver
         ? "before"
         : inside.isOver
           ? "inside"
-          : after.isOver
+          : after.isOver && !overAfterRedirect
             ? "after"
-            : null,
+            : null;
+  return children({
+    activeZone: zone,
     setBeforeRef: before.setNodeRef,
     setInsideRef,
     setAfterRef: after.setNodeRef,

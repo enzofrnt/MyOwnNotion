@@ -31,7 +31,12 @@ export function SymbolIconGrid({
           onChange={(event) => onQuery(event.target.value)}
         />
       </InputSurface>
-      <p className="database-view-icon-picker__section">Icônes</p>
+      <p className="database-view-icon-picker__section">
+        <span>Icônes</span>
+        <span className="database-view-icon-picker__count">
+          {choices.length} {choices.length === 1 ? "icône" : "icônes"}
+        </span>
+      </p>
       <div className="database-view-icon-picker__grid" role="listbox" aria-label="Icônes">
         {choices.map((choice) => {
           const Icon = choice.Icon;
@@ -45,7 +50,7 @@ export function SymbolIconGrid({
               aria-selected={choice.id === current}
               onClick={() => onSelect(choice.id)}
             >
-              <Icon size={18} focusable="false" aria-hidden="true" />
+              <Icon size={22} focusable="false" aria-hidden="true" />
             </button>
           );
         })}
@@ -53,6 +58,10 @@ export function SymbolIconGrid({
       {choices.length === 0 ? (
         <p className="database-view-icon-picker__empty" role="status">
           Aucune icône trouvée.
+        </p>
+      ) : choices.length > 72 ? (
+        <p className="database-view-icon-picker__hint">
+          Faites défiler pour voir toutes les icônes.
         </p>
       ) : null}
     </>

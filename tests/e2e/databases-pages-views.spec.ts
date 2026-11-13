@@ -9,6 +9,7 @@ import {
   databaseViewButton,
   ensureNavigationVisible,
   entryTrigger,
+  fillStable,
   nameNewlyCreatedItem,
   openRootDatabaseCreation,
   openWorkspace,
@@ -43,7 +44,7 @@ test("a database is a navigable owner with direct page and folder entries", asyn
   await createRootDatabase(page, name);
   await expect(page.getByRole("navigation", { name: "Vues de la base" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Ajouter une base", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Options de la vue" }).click();
+  await page.locator("[data-view-settings-trigger]").click();
   const settings = page.locator(".database-view-settings");
   const lockedReason = "Ajoutez une deuxième vue pour changer sa source.";
   await expect(settings.getByRole("button", { name: /^Source/ })).toBeDisabled();
@@ -83,7 +84,7 @@ test("a database is a navigable owner with direct page and folder entries", asyn
   await expect(settings.getByRole("button", { name: /^Source/ })).toBeEnabled();
   await settings.getByRole("button", { name: "Fermer", exact: true }).click();
   await expect(settings).toBeHidden();
-  await page.getByRole("button", { name: "Options de la vue" }).click();
+  await page.locator("[data-view-settings-trigger]").click();
   await settings.getByRole("button", { name: /^Source/ }).click();
   await expect(settings.getByText("Ajoutez une deuxième vue pour changer sa source.")).toHaveCount(
     0,
@@ -130,7 +131,7 @@ test("views can use different sources while the owner's original source remains 
   await createDatabaseView(page, "Tableau");
   const settings = page.locator(".database-view-settings");
   const chooseSource = async () => {
-    await page.getByRole("button", { name: "Options de la vue" }).click();
+    await page.locator("[data-view-settings-trigger]").click();
     await settings.getByRole("button", { name: /^Source/ }).click();
     await settings.getByRole("button", { name: new RegExp(`^${ownerB}`) }).click();
     await expect(entryTrigger(container, entryB)).toBeVisible();
@@ -142,13 +143,13 @@ test("views can use different sources while the owner's original source remains 
   await databaseViewButton(page, "Tableau").click();
   await expect(entryTrigger(container, entryA)).toBeVisible();
   await chooseSource();
-  await page.getByRole("button", { name: "Options de la vue" }).click();
+  await page.locator("[data-view-settings-trigger]").click();
   await settings.getByRole("button", { name: /^Source/ }).click();
   await settings.getByRole("button", { name: "Retrouver la source d’origine" }).click();
   await expect(entryTrigger(container, entryA)).toBeVisible();
   await settings.getByRole("button", { name: "Retour", exact: true }).click();
   const name = settings.getByLabel("Nom de la vue");
-  await name.fill("Source A retrouvée");
+  await fillStable(name, "Source A retrouvée");
   await name.press("Enter");
   await expect(databaseViewButton(page, "Source A retrouvée")).toBeVisible();
   await settings.getByRole("button", { name: "Fermer", exact: true }).click();

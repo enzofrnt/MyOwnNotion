@@ -1,0 +1,25 @@
+{
+  "name": "property-menu",
+  "reference": {
+    "profile": ".notion-lab/profile",
+    "url": "https://app.notion.com/p/3e8d891cc8ef8008b2d2d5b80c3791b4?v=3e8d891cc8ef8093bfd8000cf1dbb1a5",
+    "steps": "scripts/notion-parity/recipes/notion-property-menu.json",
+    "selector": "[role=menu]",
+    "item": "[role=menuitem]"
+  },
+  "candidate": {
+    "profile": ".notion-lab/app-profile-8080",
+    "url": "http://127.0.0.1:8080/notes/01a1a75e-1cae-7000-b1ed-32c769dc8e37",
+    "steps": "scripts/notion-parity/recipes/myownnotion-property-menu.json",
+    "selector": "[data-parity-menu]",
+    "item": ".database-column-menu__actions button"
+  },
+  "outOfScope": [
+    "Accès à la propriété",
+    "Grouper",
+    "Calculer",
+    "Figer",
+    "Renvoyer le contenu à la ligne"
+  ],
+  "outDir": ".notion-lab/parity/property-menu"
+}

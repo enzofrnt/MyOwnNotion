@@ -1,5 +1,11 @@
 import type { DatabaseEntryDto } from "@myownnotion/contracts";
-import type { DatabaseDefinition } from "@myownnotion/domain";
+import {
+  createDerivedValues,
+  type DatabaseDefinition,
+  type DatabaseQueryEntry,
+  type DerivedValueOptions,
+  type Uuid,
+} from "@myownnotion/domain";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { Button } from "../../ui/primitives/button.tsx";
@@ -10,8 +16,10 @@ import {
   DialogRoot,
 } from "../../ui/primitives/dialog.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { displayRollupCell } from "./database-value.ts";
 import { type EditEntryDefinition, EntrySchemaImpact } from "./edit-entry-properties.ts";
 import { type EntryDefinitionEdit, EntryPropertyList } from "./entry-property-list.tsx";
+import { formatFormulaValue } from "./formula.ts";
 import type { RelationOption } from "./value-editor.tsx";
 
 export type { EntryDrafts } from "./use-entry-autosave.ts";
@@ -30,6 +38,9 @@ export function EntryPanel({
   onSaveValues,
   onEditDefinition,
   onClose,
+  fileNames,
+  onUploadFile,
+  derived,
 }: {
   readonly entry: DatabaseEntryDto;
   readonly definition: DatabaseDefinition;
@@ -44,6 +55,15 @@ export function EntryPanel({
   readonly onSaveValues: SaveEntryValues;
   readonly onEditDefinition?: EditEntryDefinition;
   readonly onClose: () => void;
+  readonly fileNames?: ReadonlyMap<string, string> | undefined;
+  readonly onUploadFile?:
+    | ((file: File) => Promise<{ id: string; name: string } | null>)
+    | undefined;
+  /**
+   * Related entries needed by rollups and formulas. The panel computes with the
+   * same resolver as the views, so an entry never shows a different result here.
+   */
+  readonly derived?: DerivedValueOptions | undefined;
 }) {
   const [localDefinition, setLocalDefinition] = useState(definition);
   const [schemaError, setSchemaError] = useState<string | null>(null);
@@ -91,6 +111,23 @@ export function EntryPanel({
     onSave: onSaveValues,
   });
   const { drafts, errors } = autosave;
+  const { rollupValues, formulaValues } = useMemo(() => {
+    const row = entry as unknown as DatabaseQueryEntry;
+    const resolver = createDerivedValues(localDefinition, derived);
+    const computed = resolver.rollups(row);
+    const rollups = new Map<string, string>();
+    const formulas = new Map<string, string>();
+    for (const property of localDefinition.properties) {
+      if (property.state !== "active") continue;
+      if (property.type === "rollup") {
+        rollups.set(property.id, displayRollupCell(property, computed[property.id]));
+      } else if (property.type === "formula") {
+        const result = resolver.formula(property, row);
+        formulas.set(property.id, result.ok ? formatFormulaValue(result.value) : "—");
+      }
+    }
+    return { rollupValues: rollups, formulaValues: formulas };
+  }, [entry, localDefinition, derived]);
 
   return (
     <section
@@ -125,17 +162,33 @@ export function EntryPanel({
                   edit={onEditDefinition === undefined ? undefined : editDefinition}
                   onChange={autosave.update}
                   onBlur={autosave.flush}
+                  revisionId={entry.revisionId}
+                  entryId={entry.entryId as Uuid}
+                  createdAt={entry.createdAt}
+                  entryNumber={entry.entryNumber}
+                  formulaValues={formulaValues}
+                  rollupValues={rollupValues}
+                  fileNames={fileNames}
+                  onUploadFile={onUploadFile}
                 />
               </>
             ) : (
               <EntryPropertyList
                 definition={localDefinition}
+                entryId={entry.entryId as Uuid}
                 drafts={drafts}
                 errors={errors}
                 options={relationOptions.filter((o) => o.id !== entry.entryId)}
                 edit={onEditDefinition === undefined ? undefined : editDefinition}
                 onChange={autosave.update}
                 onBlur={autosave.flush}
+                revisionId={entry.revisionId}
+                createdAt={entry.createdAt}
+                entryNumber={entry.entryNumber}
+                formulaValues={formulaValues}
+                rollupValues={rollupValues}
+                fileNames={fileNames}
+                onUploadFile={onUploadFile}
               />
             )}
             <div

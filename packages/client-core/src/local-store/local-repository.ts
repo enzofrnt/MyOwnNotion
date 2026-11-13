@@ -164,6 +164,9 @@ function databaseEntryRowFrom(dto: DatabaseEntryProjectionDto): LocalDatabaseEnt
     entryItemId: dto.entryItemId as Uuid,
     databaseId: dto.databaseId as Uuid,
     ...(dto.sourceId === undefined ? {} : { sourceId: dto.sourceId as Uuid }),
+    ...(dto.entryNumber === undefined ? {} : { entryNumber: dto.entryNumber }),
+    ...(dto.createdAt === undefined ? {} : { createdAt: dto.createdAt }),
+    ...(dto.updatedAt === undefined ? {} : { updatedAt: dto.updatedAt }),
     valueVersion: dto.valueVersion,
     availability: "present",
     values: dto.values as unknown as EntryValues,
@@ -768,5 +771,7 @@ function graphStructuredValue(
     );
     return labels.toSorted().join(", ");
   }
+  if (value.kind === "files") return value.fileIds.length + (value.externalUrls?.length ?? 0);
+  if (value.kind === "place") return value.name;
   return value.checked;
 }

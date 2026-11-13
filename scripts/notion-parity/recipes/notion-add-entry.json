@@ -1,0 +1,10 @@
+{
+  "steps": [
+    {
+      "action": "evaluate",
+      "script": "(() => { const scroller = document.querySelector('.notion-scroller.vertical'); if (scroller) { scroller.scrollTop = scroller.scrollHeight; } const add = document.querySelector('.notion-table-view-add-row'); if (add?.parentElement) add.parentElement.setAttribute('data-notion-parity-surface', ''); })()",
+      "ms": 1200
+    },
+    { "action": "wait", "ms": 800 }
+  ]
+}

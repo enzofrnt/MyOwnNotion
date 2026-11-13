@@ -252,8 +252,10 @@ describe("container hardening", () => {
 });
 
 describe("structured container logging", () => {
-  it("keeps destination-aware JSON in the official API stack", () => {
+  it("renders human-readable logs in the official API stack, JSON on request", () => {
     const environment = base.services?.["api"]?.environment;
+    expect(environment?.["MYOWNNOTION_LOG_FORMAT"]).toContain("MYOWNNOTION_LOG_FORMAT:-human");
+    expect(envExample).toContain("MYOWNNOTION_LOG_FORMAT=human");
     expect(environment?.["MYOWNNOTION_LOG_LEVEL"]).toContain("MYOWNNOTION_LOG_LEVEL:-info");
     expect(environment?.["MYOWNNOTION_LOG_COLOR"]).toContain("MYOWNNOTION_LOG_COLOR:-auto");
     expect(envExample).toContain("MYOWNNOTION_LOG_LEVEL=info");

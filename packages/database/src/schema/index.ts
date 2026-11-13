@@ -474,6 +474,8 @@ export const databaseEntries = pgTable(
     valueRevisionId: uuid("value_revision_id")
       .notNull()
       .references(() => revisions.id),
+    /** Stable per-database number for the "Identifiant" property. */
+    entryNumber: integer("entry_number"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -484,6 +486,9 @@ export const databaseEntries = pgTable(
       table.valueVersion,
     ),
     index("database_entries_database_idx").on(table.databaseId),
+    uniqueIndex("database_entries_database_number_unique")
+      .on(table.databaseId, table.entryNumber)
+      .where(sql`${table.entryNumber} IS NOT NULL`),
     index("database_entries_source_idx").on(table.sourceId),
     index("database_entries_workspace_idx").on(table.workspaceId),
     foreignKey({

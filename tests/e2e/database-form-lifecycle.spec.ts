@@ -23,14 +23,7 @@ test("converts a card without editorial history locally while workspace requests
   const source = uniqueName("Local conversion source");
   const title = uniqueName("Never opened card");
   await createRootDatabase(page, source);
-  await page.getByRole("button", { name: "Ajouter une propriété", exact: true }).click();
-  const property = page.getByRole("form", { name: "Éditeur de propriété" });
-  await property.getByLabel("Nom", { exact: true }).fill("Status");
-  await property.locator('select[name="property-type"]').selectOption("select");
-  await property.getByRole("button", { name: "Enregistrer la propriété" }).click();
-  await expect(property).toBeHidden();
-  await waitForDatabaseDefinitionSaved(page);
-  await page.keyboard.press("Escape");
+  await addDatabaseProperty(page, "Status", "select");
   await createDatabaseEntry(page, title);
   await waitForSynchronized(page);
   await createDatabaseView(page, "Kanban");
@@ -91,14 +84,7 @@ test("keeps conversion confirmation immediate and returns to the card without a 
   const source = uniqueName("Conversion source");
   const title = uniqueName("Protected card");
   await createRootDatabase(page, source);
-  await page.getByRole("button", { name: "Ajouter une propriété", exact: true }).click();
-  const property = page.getByRole("form", { name: "Éditeur de propriété" });
-  await property.getByLabel("Nom", { exact: true }).fill("Status");
-  await property.locator('select[name="property-type"]').selectOption("select");
-  await property.getByRole("button", { name: "Enregistrer la propriété" }).click();
-  await expect(property).toBeHidden();
-  await waitForDatabaseDefinitionSaved(page);
-  await page.keyboard.press("Escape");
+  await addDatabaseProperty(page, "Status", "select");
   const sourceUrl = page.url();
   const entry = await createDatabaseEntry(page, title);
   await waitForSynchronized(page);
@@ -161,28 +147,39 @@ test("cancels a pressed property action outside its button and activates exactly
   const databaseName = uniqueName("Interaction lifecycle");
   await createRootDatabase(page, databaseName);
   await waitForSynchronized(page);
-  await page.getByRole("button", { name: "Ajouter une propriété" }).click();
-  const form = page.getByRole("form", { name: "Éditeur de propriété" });
+  await page
+    .locator(".database-table-add-property")
+    .getByRole("button", { name: "Ajouter une propriété", exact: true })
+    .click();
   const name = uniqueName("Owner draft");
-  await form.getByLabel("Nom", { exact: true }).fill(name);
-  const save = form.getByRole("button", { name: "Enregistrer la propriété" });
-  await save.scrollIntoViewIfNeeded();
-  const box = await save.boundingBox();
-  if (box === null) throw new Error("Missing save target");
+  const nameField = page.getByRole("textbox", {
+    name: "Nom de la nouvelle propriété",
+    exact: true,
+  });
+  await nameField.fill(name);
+  const type = page
+    .locator(".database-new-column__types")
+    .getByRole("button", { name: "Texte", exact: true });
+  await expect(type).toBeVisible();
+  // Holding the type action must not persist anything, even if the server can respond.
+  const box = await type.boundingBox();
+  if (box === null) throw new Error("Missing type target");
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  // Holding the button must not persist anything, even if the server can respond.
-  await expect(form).toBeVisible();
+  await expect(nameField).toBeVisible();
   await page.mouse.move(1, 1);
   await page.mouse.up();
-  await expect(form).toBeVisible();
-  await expect(form.getByLabel("Nom", { exact: true })).toHaveValue(name);
-  await expect(page.locator(".database-schema").getByText(name, { exact: true })).toHaveCount(0);
-  await save.focus();
+  await expect(nameField).toBeVisible();
+  await expect(nameField).toHaveValue(name);
+  const columns = page
+    .getByTestId("database-view-surface")
+    .getByRole("columnheader")
+    .filter({ hasText: name });
+  await expect(columns).toHaveCount(0);
+  await type.focus();
   await page.keyboard.press("Space");
-  await expect(form).toBeHidden();
+  await expect(columns).toHaveCount(1);
   await waitForDatabaseDefinitionSaved(page);
-  await expect(page.locator(".database-schema").getByText(name, { exact: true })).toHaveCount(1);
 });
 
 test("preserves a composing dirty field while another device updates an untouched property", async ({
@@ -201,13 +198,15 @@ test("preserves a composing dirty field while another device updates an untouche
   // A wide empty table must already own a horizontal scroll extent; no
   // placeholder row should be needed to reach its property commands.
   const body = page.locator(".database-table-scroll[data-page-flow] .database-table-body-scroll");
-  await expect(body.locator("tbody tr")).toHaveCount(0);
+  // The table renders its "Nouvelle page / Nouveau dossier" creation row even
+  // when it holds no entries; the no-placeholder contract is about data rows.
+  await expect(body.locator("tbody tr:not(.database-table-add-entry)")).toHaveCount(0);
   const empty = await body.evaluate((rail) => {
     const table = rail.querySelector("table");
     if (table === null) throw new Error("Missing empty database table");
     const bounds = table.getBoundingClientRect();
     return {
-      rows: table.querySelectorAll("tbody tr").length,
+      rows: table.querySelectorAll("tbody tr:not(.database-table-add-entry)").length,
       railHeight: rail.getBoundingClientRect().height,
       width: bounds.width,
       viewportWidth: rail.clientWidth,

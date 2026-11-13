@@ -16,16 +16,23 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   type DatabaseDefinition,
   type DatabaseProperty,
+  dateDisplayConfigOf,
   generateUuidV7,
+  type PlacePropertyValue,
   type PropertyOption,
   type Uuid,
+  uniqueIdPrefixOf,
 } from "@myownnotion/domain";
 import { useState } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { Button, MenuContent, MenuItem, MenuRoot, MenuTrigger } from "../../ui/primitives/index.ts";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { uuidV7Timestamp } from "./database-time.ts";
+import { formatDatabaseDate } from "./date-format.ts";
 import { mergeChoiceOptionEdits } from "./edit-entry-properties.ts";
+import { FilePropertyField } from "./file-property-field.tsx";
 import { isChoiceProperty } from "./option-appearance.tsx";
+import { PlacePropertyField } from "./place-property-field.tsx";
 import {
   ENTRY_PROPERTY_TYPES,
   PropertyConfiguration,
@@ -106,6 +113,14 @@ function PropertyRow({
   onBlur,
   preview,
   dragActive,
+  revisionId,
+  entryId,
+  createdAt,
+  entryNumber,
+  formulaValues,
+  rollupValues,
+  fileNames,
+  onUploadFile,
 }: {
   property: DatabaseProperty;
   definition: DatabaseDefinition;
@@ -117,6 +132,15 @@ function PropertyRow({
   onBlur: () => void;
   preview: "before" | "after" | null;
   dragActive: boolean;
+  revisionId?: string | undefined;
+  /** Entry identity, used to write the partner edge of an inverse relation. */
+  entryId?: Uuid | undefined;
+  createdAt?: string | undefined;
+  entryNumber?: number | undefined;
+  formulaValues?: ReadonlyMap<string, string> | undefined;
+  rollupValues?: ReadonlyMap<string, string> | undefined;
+  fileNames?: ReadonlyMap<string, string> | undefined;
+  onUploadFile?: ((file: File) => Promise<{ id: string; name: string } | null>) | undefined;
 }) {
   const sortable = useSortable({ id: property.id, disabled: edit === undefined });
   const [config, setConfig] = useState<DOMRect | null>(null);
@@ -211,47 +235,105 @@ function PropertyRow({
           <AppIcon name="drag" size="small" />
         </Button>
       )}
-      <ValueEditor
-        property={property}
-        presentation="entry"
-        input={draft}
-        error={error}
-        relationOptions={options}
-        onChange={onChange}
-        onBlur={onBlur}
-        onChangeOptions={edit === undefined ? undefined : optionEdit}
-        {...(edit === undefined
-          ? {}
-          : {
-              labelContent: (
-                <Button
-                  variant="ghost"
-                  size="compact"
-                  className="entry-property-row__label"
-                  aria-label={`Modifier la propriété ${property.name}`}
-                  aria-haspopup="dialog"
-                  aria-expanded={config !== null}
-                  onClick={(event) => openConfig(event.currentTarget.getBoundingClientRect())}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    openConfig(
-                      DOMRect.fromRect({ x: event.clientX, y: event.clientY, width: 0, height: 0 }),
-                    );
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+      {property.type === "place" ? (
+        <PlacePropertyField
+          property={property}
+          value={parsePlaceDraft(draft)}
+          onChange={(value) => onChange(value === null ? "" : JSON.stringify(value))}
+        />
+      ) : property.type === "files" ? (
+        <FilePropertyField
+          property={property}
+          fileIds={
+            Array.isArray(draft) ? draft.filter((item) => /^[0-9a-f-]{36}$/u.test(item)) : []
+          }
+          externalUrls={
+            Array.isArray(draft) ? draft.filter((item) => /^https?:\/\//u.test(item)) : []
+          }
+          fileNames={fileNames ?? new Map()}
+          disabled={onUploadFile === undefined}
+          onUpload={onUploadFile ?? (async () => null)}
+          onChange={(fileIds, externalUrls) => onChange([...fileIds, ...externalUrls])}
+        />
+      ) : (
+        <ValueEditor
+          property={property}
+          presentation="entry"
+          entryId={entryId}
+          input={draft}
+          error={error}
+          relationOptions={options}
+          readOnlyValue={
+            property.type === "formula"
+              ? (formulaValues?.get(property.id) ?? "—")
+              : property.type === "rollup"
+                ? (rollupValues?.get(property.id) ?? "—")
+                : property.type === "unique-id"
+                  ? entryNumber === undefined
+                    ? "—"
+                    : uniqueIdPrefixOf(property) === ""
+                      ? String(entryNumber)
+                      : `${uniqueIdPrefixOf(property)}-${entryNumber}`
+                  : property.type === "created-time"
+                    ? createdAt === undefined
+                      ? "—"
+                      : formatDatabaseDate(
+                          { kind: "instant", instant: createdAt },
+                          dateDisplayConfigOf(property),
+                        )
+                    : property.type === "last-edited-time" && revisionId !== undefined
+                      ? (() => {
+                          const instant = uuidV7Timestamp(revisionId);
+                          return instant === null
+                            ? "—"
+                            : formatDatabaseDate(
+                                { kind: "instant", instant },
+                                dateDisplayConfigOf(property),
+                              );
+                        })()
+                      : undefined
+          }
+          onChange={onChange}
+          onBlur={onBlur}
+          onChangeOptions={edit === undefined ? undefined : optionEdit}
+          {...(edit === undefined
+            ? {}
+            : {
+                labelContent: (
+                  <Button
+                    variant="ghost"
+                    size="compact"
+                    className="entry-property-row__label"
+                    aria-label={`Modifier la propriété ${property.name}`}
+                    aria-haspopup="dialog"
+                    aria-expanded={config !== null}
+                    onClick={(event) => openConfig(event.currentTarget.getBoundingClientRect())}
+                    onContextMenu={(event) => {
                       event.preventDefault();
-                      openConfig(event.currentTarget.getBoundingClientRect());
-                    }
-                  }}
-                >
-                  <DatabasePropertyIcon type={property.type} icon={property.icon} />
-                  <span>{property.name}</span>
-                </Button>
-              ),
-            })}
-      />
+                      event.stopPropagation();
+                      openConfig(
+                        DOMRect.fromRect({
+                          x: event.clientX,
+                          y: event.clientY,
+                          width: 0,
+                          height: 0,
+                        }),
+                      );
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                        event.preventDefault();
+                        openConfig(event.currentTarget.getBoundingClientRect());
+                      }
+                    }}
+                  >
+                    <DatabasePropertyIcon type={property.type} icon={property.icon} />
+                    <span>{property.name}</span>
+                  </Button>
+                ),
+              })}
+        />
+      )}
       {edit === undefined ? null : (
         <PropertyConfiguration
           property={property}
@@ -263,12 +345,30 @@ function PropertyRow({
           onDuplicate={duplicate}
           onRetire={retire}
           onMove={move}
+          properties={definition.properties}
           moveUpDisabled={index <= 0}
           moveDownDisabled={index < 0 || index >= ordered.length - 1}
         />
       )}
     </fieldset>
   );
+}
+
+function parsePlaceDraft(draft: ValueDraft): PlacePropertyValue | null {
+  if (typeof draft !== "string" || draft === "") return null;
+  try {
+    const value = JSON.parse(draft) as Partial<PlacePropertyValue>;
+    return value.kind === "place" &&
+      typeof value.placeId === "string" &&
+      typeof value.name === "string" &&
+      (value.address === null || typeof value.address === "string") &&
+      typeof value.latitude === "number" &&
+      typeof value.longitude === "number"
+      ? (value as PlacePropertyValue)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export function EntryPropertyList({
@@ -279,6 +379,14 @@ export function EntryPropertyList({
   edit,
   onChange,
   onBlur,
+  revisionId,
+  entryId,
+  createdAt,
+  entryNumber,
+  formulaValues,
+  rollupValues,
+  fileNames,
+  onUploadFile,
 }: {
   definition: DatabaseDefinition;
   drafts: EntryDrafts;
@@ -287,6 +395,14 @@ export function EntryPropertyList({
   edit?: EntryDefinitionEdit | undefined;
   onChange: (property: DatabaseProperty, input: ValueDraft) => void;
   onBlur: () => void;
+  revisionId?: string | undefined;
+  entryId?: Uuid | undefined;
+  createdAt?: string | undefined;
+  entryNumber?: number | undefined;
+  formulaValues?: ReadonlyMap<string, string> | undefined;
+  rollupValues?: ReadonlyMap<string, string> | undefined;
+  fileNames?: ReadonlyMap<string, string> | undefined;
+  onUploadFile?: ((file: File) => Promise<{ id: string; name: string } | null>) | undefined;
 }) {
   const properties = definition.properties
     .filter((p) => p.state === "active" && p.type !== "title")
@@ -299,9 +415,13 @@ export function EntryPropertyList({
   const from = properties.findIndex((p) => p.id === drag?.id),
     to = properties.findIndex((p) => p.id === drag?.over);
   const create = (type: (typeof ENTRY_PROPERTY_TYPES)[number]) => {
+    const label = DATABASE_COPY.property.typeLabels[type].replace(/^./, (c) => c.toUpperCase());
+    const names = new Set(definition.properties.map((property) => property.name));
+    let name = label;
+    for (let index = 2; names.has(name); index += 1) name = `${label} ${index}`;
     const property: DatabaseProperty = {
       id: generateUuidV7(),
-      name: DATABASE_COPY.property.typeLabels[type].replace(/^./, (c) => c.toUpperCase()),
+      name,
       positionKey: `z-${generateUuidV7()}`,
       state: "active",
       type,
@@ -395,6 +515,14 @@ export function EntryPropertyList({
                       : "")
                 }
                 error={errors[p.id] ?? null}
+                revisionId={revisionId}
+                entryId={entryId}
+                createdAt={createdAt}
+                entryNumber={entryNumber}
+                formulaValues={formulaValues}
+                rollupValues={rollupValues}
+                fileNames={fileNames}
+                onUploadFile={onUploadFile}
                 options={options}
                 edit={edit}
                 onChange={(input) => onChange(p, input)}

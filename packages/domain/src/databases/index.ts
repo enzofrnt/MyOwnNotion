@@ -1,9 +1,13 @@
 /** Canonical structured-database rules (feature 009). */
 
 export * from "./commands.ts";
+export * from "./derived.ts";
 export * from "./embeddings.ts";
+export * from "./formula.ts";
 export * from "./merge.ts";
 export * from "./query.ts";
+export * from "./relation-pair.ts";
+export * from "./rollup.ts";
 export * from "./schema.ts";
 export * from "./source-lifecycle.ts";
 export * from "./types.ts";

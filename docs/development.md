@@ -279,7 +279,7 @@ through `ERR_CERT_AUTHORITY_INVALID`.
 Follow container logs with `bun run dev:stack:logs` without attaching the
 project. API and migration entries are compact, human-readable, and colored by
 default; set `MYOWNNOTION_DEV_LOG_COLOR=auto` (or `never` to also prohibit
-ANSI) for newline-delimited JSON. Stop the stack with
+ANSI). Set `MYOWNNOTION_LOG_FORMAT=json` for newline-delimited JSON. Stop the stack with
 `bun run dev:stack:down`. Wipe the development database, encrypted files, and
 local backups (Caddy's CA stays) with `bun run dev:stack:reset`. Starting or
 resetting the stack rebuilds images (`docker compose up --build`). File edits
@@ -382,17 +382,15 @@ local backup before changing a nonempty source, including schemas predating 0006
 
 ### Server logging
 
-The API has one logger factory in `apps/api/src/plugins/logging.ts`. In an
-interactive terminal it renders compact single-line logs with colored severity
-labels. The official Docker/Compose stack writes one JSON object per line to
-stdout without ANSI codes, so the container runtime can parse and route
-records. The development helpers (`compose.dev.yaml` and
-`compose.override.yaml`) explicitly select the same human renderer because
-their output is read directly by a developer; configure that choice with
-`MYOWNNOTION_DEV_LOG_COLOR=always|auto|never`. Configure verbosity with
-`MYOWNNOTION_LOG_LEVEL`; use
-`MYOWNNOTION_LOG_COLOR=auto|always|never` only when the destination is known.
-`auto` is the safe default.
+Server logs have two presentations, chosen with `MYOWNNOTION_LOG_FORMAT`:
+`human` is one readable line per event with no ANSI codes on a container, and is
+the default of the official image and `compose.yaml`; `json` is
+newline-delimited JSON for a log collector that parses and routes records;
+`auto` (the code default) is human on a terminal and JSON elsewhere. Colors are
+a separate choice, `MYOWNNOTION_LOG_COLOR=auto|always|never`. The development
+helpers (`compose.dev.yaml` and `compose.override.yaml`) force colors with
+`MYOWNNOTION_DEV_LOG_COLOR=always|auto|never` because a developer reads their
+output directly. Configure verbosity with `MYOWNNOTION_LOG_LEVEL`.
 
 Feature code uses the logger Fastify already provides:
 
@@ -412,8 +410,8 @@ request.log.info({ itemId, operation: "move" }, "content item moved");
 
 Inspect local container output with `docker compose logs api`, or
 `bun run dev:stack:logs` for the HTTPS helper. Use
-`docker compose -f compose.yaml logs --no-color api` when validating the
-official JSON output. Application containers do not own log files or rotation;
+`docker compose -f compose.yaml logs --no-color api` for the official stack;
+set `MYOWNNOTION_LOG_FORMAT=json` to validate the machine format. Application containers do not own log files or rotation;
 retention belongs to the Docker logging driver or the deployment's collector.
 
 ### Running the published stack locally
@@ -1139,12 +1137,14 @@ them. Findings in every first-party script do fail the gate.
 ## Coverage thresholds
 
 `vitest.config.ts` uses Istanbul under Bun and enforces an absolute
-no-regression budget over `packages/*/src` and `apps/api/src`: at most 2,216
+no-regression budget over `packages/*/src` and `apps/api/src`: at most 2,360
 uncovered statements, 1,866 uncovered lines, 337 uncovered functions, and
-2,470 uncovered branches. Vitest interprets negative thresholds as maximum
-uncovered counts. These values are the first complete Bun/Istanbul baseline,
+3,090 uncovered branches. Vitest interprets negative thresholds as maximum
+uncovered counts. Lines and functions are the complete Bun/Istanbul baseline
 recorded in `specs/019-bun-toolchain/plan.md`; adding covered code cannot hide
-new untested code by diluting a percentage.
+new untested code by diluting a percentage. Feature 057 raised the statements
+and branches ceilings to its measured baseline, with the exception recorded in
+`specs/057-database-relations-rollups/plan.md`.
 
 Excluded, with the reason:
 

@@ -20,10 +20,11 @@ import {
   type Relationship,
 } from "../content/types.ts";
 import { validateDatabaseDefinition, validateDatabasePresentation } from "../databases/schema.ts";
-import type {
-  DatabaseDefinition,
-  DatabasePresentationDefinition,
-  EntryValues,
+import {
+  type DatabaseDefinition,
+  type DatabasePresentationDefinition,
+  type EntryValues,
+  ownedSourceIdFromItemId,
 } from "../databases/types.ts";
 import {
   normalizeCivilDate,
@@ -74,6 +75,9 @@ export interface ExportedDatabaseEntry {
   readonly valueVersion: number;
   readonly addedRevisionId: Uuid;
   readonly valueRevisionId?: Uuid;
+  /** Membership times. Optional so archives written before them still restore. */
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
   readonly values: EntryValues;
 }
 
@@ -154,7 +158,11 @@ export function buildCanonicalExport(input: BuildExportInput): CanonicalExportMa
   }));
   const relationships = sortById(input.relationships);
   const revisions = sortById(input.revisions);
-  const databases = sortByKey(input.databases ?? [], (database) => database.databaseId);
+  const databases = sortByKey(
+    input.databases ?? [],
+    (database) =>
+      `${database.databaseId}:${database.sourceId ?? ownedSourceIdFromItemId(database.databaseId)}`,
+  );
   const databasePresentations = sortByKey(
     input.databasePresentations ?? [],
     (row) => row.containerItemId,
@@ -262,6 +270,16 @@ const DATABASE_PROPERTY_TYPES_SET = new Set([
   "select",
   "multi-select",
   "checkbox",
+  "url",
+  "email",
+  "phone",
+  "created-time",
+  "last-edited-time",
+  "formula",
+  "files",
+  "rollup",
+  "unique-id",
+  "place",
   "relation",
 ]);
 
@@ -286,15 +304,21 @@ function validEntryPropertyValue(value: unknown): boolean {
       );
     case "date":
       return (
-        hasExactKeys(value, ["kind", "date"]) &&
+        Object.keys(value).every((key) => key === "kind" || key === "date" || key === "endDate") &&
         typeof value["date"] === "string" &&
-        normalizeCivilDate(value["date"]).ok
+        normalizeCivilDate(value["date"]).ok &&
+        (value["endDate"] === undefined ||
+          (typeof value["endDate"] === "string" && normalizeCivilDate(value["endDate"]).ok))
       );
     case "instant":
       return (
-        hasExactKeys(value, ["kind", "instant"]) &&
+        Object.keys(value).every(
+          (key) => key === "kind" || key === "instant" || key === "endInstant",
+        ) &&
         typeof value["instant"] === "string" &&
-        normalizeInstant(value["instant"]).ok
+        normalizeInstant(value["instant"]).ok &&
+        (value["endInstant"] === undefined ||
+          (typeof value["endInstant"] === "string" && normalizeInstant(value["endInstant"]).ok))
       );
     case "status":
     case "select":
@@ -308,6 +332,37 @@ function validEntryPropertyValue(value: unknown): boolean {
       );
     case "checkbox":
       return hasExactKeys(value, ["kind", "checked"]) && typeof value["checked"] === "boolean";
+    case "files":
+      return (
+        Object.keys(value).every(
+          (key) => key === "kind" || key === "fileIds" || key === "externalUrls",
+        ) &&
+        Array.isArray(value["fileIds"]) &&
+        value["fileIds"].length <= 20 &&
+        value["fileIds"].every(isIdentifier) &&
+        new Set(value["fileIds"]).size === value["fileIds"].length &&
+        (value["externalUrls"] === undefined ||
+          (Array.isArray(value["externalUrls"]) &&
+            value["externalUrls"].length + value["fileIds"].length <= 20 &&
+            value["externalUrls"].every((url) => typeof url === "string")))
+      );
+    case "place":
+      return (
+        hasExactKeys(value, ["kind", "placeId", "name", "address", "latitude", "longitude"]) &&
+        typeof value["placeId"] === "string" &&
+        value["placeId"] !== "" &&
+        typeof value["name"] === "string" &&
+        value["name"] !== "" &&
+        (value["address"] === null || typeof value["address"] === "string") &&
+        typeof value["latitude"] === "number" &&
+        Number.isFinite(value["latitude"]) &&
+        value["latitude"] >= -90 &&
+        value["latitude"] <= 90 &&
+        typeof value["longitude"] === "number" &&
+        Number.isFinite(value["longitude"]) &&
+        value["longitude"] >= -180 &&
+        value["longitude"] <= 180
+      );
     default:
       return false;
   }
@@ -916,15 +971,18 @@ export function validateCanonicalExport(
     }
   }
 
-  const seenDatabaseIds = new Set<Uuid>();
+  // A container may own several sources. Pre-029 exports have no sourceId;
+  // restore assigns them the same deterministic bridge identity used here.
+  const databasesBySourceId = new Map<Uuid, ExportedDatabase>();
   for (const database of databases) {
-    if (seenDatabaseIds.has(database.databaseId)) {
+    const sourceId = database.sourceId ?? ownedSourceIdFromItemId(database.databaseId);
+    if (databasesBySourceId.has(sourceId)) {
       issues.push({
         code: "database.duplicate",
-        detail: `Database ${database.databaseId} is listed more than once`,
+        detail: `Database source ${sourceId} is listed more than once`,
       });
     }
-    seenDatabaseIds.add(database.databaseId);
+    databasesBySourceId.set(sourceId, database);
     if (!itemIds.has(database.databaseId)) {
       issues.push({
         code: "database.item-missing",
@@ -970,8 +1028,6 @@ export function validateCanonicalExport(
       });
     }
   }
-  const databasesById = new Map(databases.map((database) => [database.databaseId, database]));
-
   const sourceIds = new Set(
     databases.map((database) => database.sourceId).filter((id): id is Uuid => id !== undefined),
   );
@@ -1079,14 +1135,44 @@ export function validateCanonicalExport(
         detail: `Database entry ${entry.entryId} has no owned value revision`,
       });
     }
+    // Membership times are optional for archives written before they were
+    // exported; when present they must be canonical instants.
+    for (const field of ["createdAt", "updatedAt"] as const) {
+      const value = entry[field];
+      if (value !== undefined && !isTimestamp(value)) {
+        issues.push({
+          code: "database-entry.timestamp",
+          detail: `Database entry ${entry.entryId} has an invalid ${field}`,
+        });
+      }
+    }
+    if (
+      entry.createdAt !== undefined &&
+      entry.updatedAt !== undefined &&
+      isTimestamp(entry.createdAt) &&
+      isTimestamp(entry.updatedAt) &&
+      Date.parse(entry.updatedAt) < Date.parse(entry.createdAt)
+    ) {
+      issues.push({
+        code: "database-entry.timestamp",
+        detail: `Database entry ${entry.entryId} was updated before it was created`,
+      });
+    }
     if (entry.values.entryId !== entry.entryId || entry.values.databaseId !== entry.databaseId) {
       issues.push({
         code: "database-entry.values-identity",
         detail: `Database entry ${entry.entryId} carries mismatched values`,
       });
     }
-    const database = databasesById.get(entry.databaseId);
-    if (database !== undefined) {
+    const sourceId = entry.sourceId ?? ownedSourceIdFromItemId(entry.databaseId);
+    const database = databasesBySourceId.get(sourceId);
+    if (database === undefined || database.databaseId !== entry.databaseId) {
+      issues.push({
+        code: "database-entry.source-mismatch",
+        detail: `Database entry ${entry.entryId} has no source owned by its database`,
+      });
+    }
+    if (database !== undefined && database.databaseId === entry.databaseId) {
       const propertiesById = new Map(
         database.definition.properties.map((property) => [property.id, property]),
       );

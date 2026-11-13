@@ -147,7 +147,9 @@ function PreviewFiles() {
 }
 
 function wireValue(value: NonRelationPropertyValue): DatabaseEntryDto["values"][string] {
-  return value.kind === "multi-select" ? { ...value, optionIds: [...value.optionIds] } : value;
+  return (value.kind === "multi-select"
+    ? { ...value, optionIds: [...value.optionIds] }
+    : value) as unknown as DatabaseEntryDto["values"][string];
 }
 
 function PreviewDatabases() {
@@ -191,7 +193,7 @@ function PreviewDatabases() {
                 },
               }
             : reviewTable;
-  const [view, setView] = useState(initial);
+  const [view, setView] = useState<DatabaseView>(initial);
   const [empty, setEmpty] = useState(false);
   const [opened, setOpened] = useState<string | null>(null);
   const [data, setData] = useState<DatabaseViewPage>(() => {
@@ -390,7 +392,7 @@ function PreviewDatabases() {
           ) : (
             <CalendarView
               {...props}
-              view={view}
+              view={view as Extract<DatabaseView, { type: "calendar" }>}
               onChangeView={setView}
               referenceDate={new Date("2026-10-03T12:00:00Z")}
             />

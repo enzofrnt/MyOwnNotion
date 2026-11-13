@@ -20,6 +20,9 @@ const RELATION_TYPE_PATTERN = /^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$/;
 /** Managed only by page-document replacement so the index cannot drift. */
 export const INTERNAL_PAGE_LINK_RELATION_TYPE = "page:link";
 
+/** Managed only by database entry commands so property validation cannot be bypassed. */
+export const INTERNAL_DATABASE_PROPERTY_RELATION_TYPE = "database:property";
+
 export function isValidRelationType(value: string): boolean {
   return RELATION_TYPE_PATTERN.test(value) && value.length <= 128;
 }
@@ -73,6 +76,12 @@ export function validateCreateRelationship(
     return err(
       "validation.invalid-payload",
       "Internal page links must be managed through the page document",
+    );
+  }
+  if (command.relationType === INTERNAL_DATABASE_PROPERTY_RELATION_TYPE) {
+    return err(
+      "validation.invalid-payload",
+      "Internal database relationships must be managed through database entry commands",
     );
   }
   const source = getItem(command.sourceItemId);

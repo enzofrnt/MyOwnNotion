@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { FR_COPY } from "../../../ui/copy/fr.ts";
+import { AppIcon } from "../../../ui/icons.tsx";
 import {
   MenuContent,
   MenuItem,
@@ -189,6 +190,7 @@ export function BlockContextMenu({
           onClick={() => execute(() => void insertParagraphAfterSelection(editor))}
           shortcut="⌥⌘↵"
         >
+          <AppIcon name="add" size="small" />
           Ajouter en dessous
         </MenuItem>
         <MenuItem
@@ -196,6 +198,7 @@ export function BlockContextMenu({
           onClick={() => execute(() => void duplicateSelectedBlocks(editor))}
           shortcut="⌘D"
         >
+          <AppIcon name="copy" size="small" />
           Dupliquer
         </MenuItem>
         <MenuItem
@@ -208,6 +211,7 @@ export function BlockContextMenu({
           }
           shortcut="⌥⇧↑"
         >
+          <AppIcon name="arrowUp" size="small" />
           Déplacer vers le haut
         </MenuItem>
         <MenuItem
@@ -220,6 +224,7 @@ export function BlockContextMenu({
           }
           shortcut="⌥⇧↓"
         >
+          <AppIcon name="arrowDown" size="small" />
           Déplacer vers le bas
         </MenuItem>
         <MenuSeparator />
@@ -228,21 +233,26 @@ export function BlockContextMenu({
           data-testid="context-transform-paragraph"
           onClick={() => execute(() => transformSelectedBlocks(editor, "paragraph"))}
         >
+          <AppIcon name="fileText" size="small" />
           Texte
         </MenuItem>
         <MenuItem
           data-testid="context-transform-heading"
           onClick={() => execute(() => transformSelectedBlocks(editor, "heading-1"))}
         >
+          <AppIcon name="heading1" size="small" />
           Titre 1
         </MenuItem>
         <MenuItem onClick={() => execute(() => transformSelectedBlocks(editor, "bullet-list"))}>
+          <AppIcon name="list" size="small" />
           Liste à puces
         </MenuItem>
         <MenuItem onClick={() => execute(() => transformSelectedBlocks(editor, "check-list"))}>
+          <AppIcon name="taskList" size="small" />
           Liste de tâches
         </MenuItem>
         <MenuItem onClick={() => execute(() => transformSelectedBlocks(editor, "quote"))}>
+          <AppIcon name="quote" size="small" />
           Citation
         </MenuItem>
         <MenuSeparator />
@@ -251,6 +261,7 @@ export function BlockContextMenu({
           data-testid="context-delete"
           onClick={() => execute(() => deleteSelectedBlocks(editor))}
         >
+          <AppIcon name="delete" size="small" />
           Supprimer
         </MenuItem>
       </MenuContent>

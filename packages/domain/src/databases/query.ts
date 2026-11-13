@@ -25,6 +25,16 @@ type RangeOperand = Extract<
 >;
 type PreparedOperand = ComparableValue | RangeOperand;
 
+/** Resolves the computed value of a rollup or formula for filtering and sorting. */
+export type DerivedValueResolver = (
+  property: DatabaseProperty,
+  entry: DatabaseQueryEntry,
+) => NonRelationPropertyValue | undefined;
+
+function isDerived(property: DatabaseProperty): boolean {
+  return property.type === "rollup" || property.type === "formula";
+}
+
 function queryError(field: string, code: string): DomainResult<never> {
   return err("validation.invalid-payload", "Saved database view is invalid", {
     invalidFields: [{ field, code }],
@@ -55,8 +65,10 @@ function compareText(left: string, right: string, normalizedText?: Map<string, s
 function valueFor(
   property: DatabaseProperty,
   entry: DatabaseQueryEntry,
+  derived?: DerivedValueResolver,
 ): ComparableValue | undefined {
   if (property.type === "title") return { kind: "text", value: entry.title };
+  if (isDerived(property)) return derived?.(property, entry);
   if (property.type === "relation") {
     const targets = entry.relationTargets[property.id];
     return targets === undefined ? undefined : { kind: "relation", targetIds: [...targets].sort() };
@@ -79,6 +91,10 @@ function comparableScalar(
       return value.instant;
     case "checkbox":
       return value.checked;
+    case "files":
+      return String(value.fileIds.length);
+    case "place":
+      return value.name;
     case "status":
     case "select": {
       if (
@@ -115,6 +131,8 @@ function comparePresent(
   right: ComparableValue,
   normalizedText?: Map<string, string>,
 ): number {
+  // Only a derived property can yield different kinds from one row to the next.
+  if (left.kind !== right.kind) return left.kind < right.kind ? -1 : 1;
   const a = comparableScalar(property, left);
   const b = comparableScalar(property, right);
   if (a instanceof Decimal && b instanceof Decimal) return a.comparedTo(b);
@@ -137,6 +155,31 @@ export function prepareDatabaseFilterOperand(
 ): DomainResult<PreparedOperand | undefined> {
   if (criterion.operator === "is-empty" || criterion.operator === "is-not-empty")
     return ok(undefined);
+  if (isDerived(property)) {
+    const operand = criterion.operand;
+    if (operand?.kind === "text" && typeof operand.value === "string") {
+      return ok({ kind: "text", value: operand.value });
+    }
+    if (
+      operand?.kind === "number" &&
+      typeof operand.decimal === "string" &&
+      Number.isFinite(Number(operand.decimal)) &&
+      operand.decimal.trim() !== ""
+    ) {
+      return ok({ kind: "number", decimal: String(Number(operand.decimal)) });
+    }
+    if (operand?.kind === "checkbox" && typeof operand.checked === "boolean") {
+      return ok({ kind: "checkbox", checked: operand.checked });
+    }
+    if (
+      operand?.kind === "date" &&
+      typeof operand.date === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/u.test(operand.date)
+    ) {
+      return ok({ kind: "date", date: operand.date });
+    }
+    return queryError(`filter.${criterion.id}`, "invalid-operand");
+  }
   if (property.type === "title") {
     const operand = criterion.operand;
     if (
@@ -184,6 +227,9 @@ export function prepareDatabaseFilterOperand(
     }
     return queryError(`filter.${criterion.id}`, "invalid-operand");
   }
+  if (property.type === "place" && criterion.operand?.kind === "text") {
+    return ok(criterion.operand);
+  }
   const normalized = normalizePropertyValue(property, criterion.operand, { intent: "decode" });
   if (!normalized.ok || normalized.value === undefined) {
     return queryError(`filter.${criterion.id}`, "invalid-operand");
@@ -193,10 +239,16 @@ export function prepareDatabaseFilterOperand(
 
 function validOperator(property: DatabaseProperty, operator: FilterCriterion["operator"]): boolean {
   if (["equals", "not-equals", "is-empty", "is-not-empty"].includes(operator)) return true;
+  // The result type of a rollup or formula is only known per row.
+  if (isDerived(property)) return operator !== "between";
   if (operator === "contains" || operator === "not-contains") {
     return (
       property.type === "title" ||
       property.type === "text" ||
+      property.type === "url" ||
+      property.type === "email" ||
+      property.type === "phone" ||
+      property.type === "place" ||
       property.type === "multi-select" ||
       property.type === "relation"
     );
@@ -207,9 +259,20 @@ function validOperator(property: DatabaseProperty, operator: FilterCriterion["op
   return false;
 }
 
+function placeText(value: Extract<ComparableValue, { kind: "place" }>): string {
+  return textKey(value.address === null ? value.name : `${value.name}\n${value.address}`);
+}
+
 function contains(value: ComparableValue, operand: ComparableValue): boolean {
   if (value.kind === "text" && operand.kind === "text") {
     return textKey(value.value).includes(textKey(operand.value));
+  }
+  // Like Notion, a place filter reads the name and the address.
+  if (value.kind === "place" && operand.kind === "text") {
+    return placeText(value).includes(textKey(operand.value));
+  }
+  if (value.kind === "place" && operand.kind === "place") {
+    return placeText(value).includes(textKey(operand.name));
   }
   if (value.kind === "multi-select" && operand.kind === "multi-select") {
     return operand.optionIds.every((optionId) => value.optionIds.includes(optionId));
@@ -220,22 +283,83 @@ function contains(value: ComparableValue, operand: ComparableValue): boolean {
   return false;
 }
 
+/** Compares a computed value with an operand; `null` when they are not comparable. */
+function compareDerived(
+  property: DatabaseProperty,
+  value: ComparableValue,
+  operand: ComparableValue,
+): number | null {
+  if (value.kind === "instant" && operand.kind === "date") {
+    const day = value.instant.slice(0, 10);
+    return day === operand.date ? 0 : day < operand.date ? -1 : 1;
+  }
+  if (value.kind !== operand.kind) return null;
+  if (value.kind === "text" && operand.kind === "text") {
+    return textKey(value.value).localeCompare(textKey(operand.value), "und");
+  }
+  return comparePresent(property, value, operand);
+}
+
+function matchesDerived(
+  property: DatabaseProperty,
+  value: ComparableValue,
+  criterion: FilterCriterion,
+  operand: ComparableValue,
+): boolean {
+  if (criterion.operator === "contains" || criterion.operator === "not-contains") {
+    const found =
+      operand.kind === "text" &&
+      value.kind !== "relation" &&
+      textKey(String(comparableScalar(property, value))).includes(textKey(operand.value));
+    return criterion.operator === "contains" ? found : !found;
+  }
+  const comparison = compareDerived(property, value, operand);
+  switch (criterion.operator) {
+    case "equals":
+      return comparison === 0;
+    case "not-equals":
+      return comparison !== 0;
+    case "before":
+    case "less-than":
+      return comparison !== null && comparison < 0;
+    case "after":
+    case "greater-than":
+      return comparison !== null && comparison > 0;
+    default:
+      return false;
+  }
+}
+
 function matchesCriterion(
   property: DatabaseProperty,
   entry: DatabaseQueryEntry,
   criterion: FilterCriterion,
   operand: PreparedOperand | undefined,
+  derived?: DerivedValueResolver,
 ): boolean {
-  const value = valueFor(property, entry);
+  const value = valueFor(property, entry, derived);
   if (criterion.operator === "is-empty") return value === undefined;
   if (criterion.operator === "is-not-empty") return value !== undefined;
   if (value === undefined || operand === undefined) return false;
+  if (isDerived(property)) {
+    return (
+      operand.kind !== "date-range" &&
+      operand.kind !== "instant-range" &&
+      matchesDerived(property, value, criterion, operand)
+    );
+  }
   if (operand.kind === "date-range" || operand.kind === "instant-range") {
     return (
       criterion.operator === "between" &&
       comparePresent(property, value, operand.from) >= 0 &&
       comparePresent(property, value, operand.to) <= 0
     );
+  }
+  if (property.type === "place" && operand.kind === "text") {
+    if (criterion.operator === "equals")
+      return textKey(value.kind === "place" ? value.name : "") === textKey(operand.value);
+    if (criterion.operator === "not-equals")
+      return textKey(value.kind === "place" ? value.name : "") !== textKey(operand.value);
   }
   switch (criterion.operator) {
     case "equals":
@@ -263,11 +387,12 @@ function compareByCriterion(
   left: DatabaseQueryEntry,
   right: DatabaseQueryEntry,
   normalizedText?: Map<string, string>,
+  derived?: DerivedValueResolver,
 ): number {
   const property = properties.get(criterion.propertyId);
   if (property === undefined) return 0;
-  const a = valueFor(property, left);
-  const b = valueFor(property, right);
+  const a = valueFor(property, left, derived);
+  const b = valueFor(property, right, derived);
   if (a === undefined || b === undefined) {
     if (a === b) return 0;
     return a === undefined
@@ -395,8 +520,13 @@ export function evaluateDatabaseView(
   definition: DatabaseDefinition,
   viewId: Uuid,
   entries: readonly DatabaseQueryEntry[],
-  options: { readonly maxRows?: number } = {},
+  options: {
+    readonly maxRows?: number;
+    /** Without a resolver, rollups and formulas read as empty. */
+    readonly derived?: DerivedValueResolver | undefined;
+  } = {},
 ): DomainResult<EvaluatedDatabaseView> {
+  const { derived } = options;
   const view = definition.views.find(
     (candidate) => candidate.id === viewId && candidate.state === "active",
   );
@@ -438,14 +568,37 @@ export function evaluateDatabaseView(
       ? entries
       : entries.filter((entry) => {
           const outcomes = preparedCriteria.map(({ property, criterion, operand }) =>
-            matchesCriterion(property, entry, criterion, operand),
+            matchesCriterion(property, entry, criterion, operand, derived),
           );
           return view.filter.mode === "all" ? outcomes.every(Boolean) : outcomes.some(Boolean);
         });
   const compareRows = (left: DatabaseQueryEntry, right: DatabaseQueryEntry): number => {
     for (const criterion of view.sorts) {
-      const comparison = compareByCriterion(properties, criterion, left, right, normalizedText);
+      const comparison = compareByCriterion(
+        properties,
+        criterion,
+        left,
+        right,
+        normalizedText,
+        derived,
+      );
       if (comparison !== 0) return comparison;
+    }
+    // Notion appends a new entry at the end of an unsorted view. The stable
+    // default order is therefore creation order, not title order; entries
+    // without a timestamp keep the historical title-then-identity order.
+    const leftCreated = left.createdAt;
+    const rightCreated = right.createdAt;
+    if (leftCreated !== undefined && rightCreated !== undefined) {
+      if (leftCreated !== rightCreated) return leftCreated < rightCreated ? -1 : 1;
+      if (
+        left.entryNumber !== undefined &&
+        right.entryNumber !== undefined &&
+        left.entryNumber !== right.entryNumber
+      ) {
+        return left.entryNumber - right.entryNumber;
+      }
+      return left.entryId.localeCompare(right.entryId);
     }
     return (
       compareText(left.title, right.title, normalizedText) ||

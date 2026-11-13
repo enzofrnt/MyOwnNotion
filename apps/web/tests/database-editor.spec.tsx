@@ -150,6 +150,59 @@ describe("database editor surfaces (T022)", () => {
     expect(markup).not.toContain("kind=database");
   });
 
+  it("puts the lone add-property label inside its button, not under the filler", () => {
+    const tableView = definition.views[0];
+    if (tableView === undefined) throw new Error("view fixture missing");
+    const singleDefinition: DatabaseDefinition = {
+      ...definition,
+      properties: [titleProperty],
+      views: [
+        {
+          ...tableView,
+          properties: [{ propertyId: titlePropertyId, visible: true, positionKey: "a" }],
+        },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      createElement(
+        MemoryRouter,
+        { initialEntries: [`/notes/${databaseId}`] },
+        createElement(DatabasePage, {
+          database: { ...database, definition: singleDefinition },
+          entries: [],
+          onReplaceDefinition: vi.fn(),
+          onCreateEntry: vi.fn(),
+          onOpenEntry: vi.fn(),
+        }),
+      ),
+    );
+    const button = markup.indexOf('aria-label="Ajouter une propriété"');
+    const label = markup.indexOf("database-table-add-property__label");
+    expect(button).toBeGreaterThan(-1);
+    expect(label).toBeGreaterThan(button);
+    // The label belongs to the button: the button closes after the label.
+    expect(markup.indexOf("</button>", button)).toBeGreaterThan(label);
+  });
+
+  it("hides the add-property label when the column header shows the ellipsis", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        MemoryRouter,
+        { initialEntries: [`/notes/${databaseId}`] },
+        createElement(DatabasePage, {
+          database,
+          entries: [],
+          onReplaceDefinition: vi.fn(),
+          onCreateEntry: vi.fn(),
+          onOpenEntry: vi.fn(),
+          onOpenViewSettings: vi.fn(),
+        }),
+      ),
+    );
+    expect(markup).not.toContain("database-table-add-property__label");
+    expect(markup).toContain('aria-label="Options de la vue"');
+  });
+
   it("keeps an ambiguous number draft visible when validation refuses it", () => {
     const result = validateValueDraft(numberProperty, "12,5");
     expect(result).toMatchObject({ ok: false, input: "12,5" });
@@ -210,6 +263,15 @@ describe("database editor surfaces (T022)", () => {
       config: { mode: "date" },
     };
     expect(validateValueDraft(dateProperty, "")).toEqual({ ok: true, input: "" });
+    expect(validateValueDraft(dateProperty, "2026-11-06|2026-11-08")).toMatchObject({
+      ok: true,
+      value: { kind: "date", date: "2026-11-06", endDate: "2026-11-08" },
+    });
+    expect(validateValueDraft(dateProperty, "2026-11-06|")).toMatchObject({
+      ok: true,
+      value: { kind: "date", date: "2026-11-06" },
+    });
+    expect(validateValueDraft(dateProperty, "2026-11-06|invalid")).toMatchObject({ ok: false });
   });
 
   it("renders an entry as one page with structured values and an editorial document", () => {
@@ -235,5 +297,87 @@ describe("database editor surfaces (T022)", () => {
     expect(markup).toContain("Estimate");
     expect(markup).toContain('value="12.5"');
     expect(markup).toContain("Contenu de la page");
+  });
+});
+
+describe("contact property types (042)", () => {
+  const contact = (type: "url" | "email" | "phone"): DatabaseProperty => ({
+    id: generateUuidV7(),
+    name: type,
+    type,
+    positionKey: "d",
+    state: "active",
+    config: {},
+  });
+
+  it("offers URL, e-mail and phone in the property type picker", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PropertyEditor, {
+        draft: { name: "Lien", type: "url" },
+        error: null,
+        onChange: vi.fn(),
+        onSubmit: vi.fn(),
+        onCancel: vi.fn(),
+      }),
+    );
+    expect(markup).toContain(">URL<");
+    expect(markup).toContain(">E-mail<");
+    expect(markup).toContain(">Téléphone<");
+  });
+
+  it("validates each contact format and keeps the draft on refusal", () => {
+    expect(validateValueDraft(contact("url"), "https://exemple.fr/a")).toMatchObject({
+      ok: true,
+      value: { kind: "text", value: "https://exemple.fr/a" },
+    });
+    expect(validateValueDraft(contact("url"), "exemple.fr")).toMatchObject({
+      ok: false,
+      input: "exemple.fr",
+    });
+    expect(validateValueDraft(contact("email"), "nom@exemple.fr")).toMatchObject({
+      ok: true,
+      value: { kind: "text", value: "nom@exemple.fr" },
+    });
+    expect(validateValueDraft(contact("email"), "nom")).toMatchObject({ ok: false });
+    expect(validateValueDraft(contact("phone"), "+33 6 12 34 56 78")).toMatchObject({
+      ok: true,
+      value: { kind: "text", value: "+33 6 12 34 56 78" },
+    });
+    expect(validateValueDraft(contact("phone"), "appelle-moi")).toMatchObject({ ok: false });
+    expect(validateValueDraft(contact("url"), "")).toEqual({ ok: true, input: "" });
+  });
+
+  it("shows a format example and an explicit error near the field", () => {
+    const invalid = validateValueDraft(contact("email"), "sans-arobase");
+    const markup = renderToStaticMarkup(
+      createElement(ValueEditor, {
+        property: contact("email"),
+        input: "sans-arobase",
+        error: invalid.ok ? null : invalid.error,
+        onChange: vi.fn(),
+      }),
+    );
+    expect(markup).toContain('value="sans-arobase"');
+    expect(markup).toContain("adresse e-mail");
+    const empty = renderToStaticMarkup(
+      createElement(ValueEditor, {
+        property: contact("url"),
+        input: "",
+        error: null,
+        onChange: vi.fn(),
+      }),
+    );
+    expect(empty).toContain("https://exemple.fr");
+  });
+});
+
+describe("formula property (045)", () => {
+  it("requires an expression and keeps it in the definition", () => {
+    expect(validatePropertyDraft({ name: "Total", type: "formula" })).toMatchObject({
+      ok: false,
+    });
+    expect(
+      validatePropertyDraft({ name: "Total", type: "formula", expression: 'prop("Prix") * 2' }),
+    ).toMatchObject({ ok: true });
   });
 });

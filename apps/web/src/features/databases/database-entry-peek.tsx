@@ -8,6 +8,9 @@ import { AsyncState, Button, DrawerContent, DrawerRoot } from "../../ui/primitiv
 import type { DatabaseEntryOpenRequest } from "./database-entry-open-context.tsx";
 import { editEntrySourceDefinition, saveEntryPropertyChanges } from "./edit-entry-properties.ts";
 import { type EntryDrafts, EntryPanel } from "./entry-panel.tsx";
+import { uploadDatabaseFile } from "./file-upload.ts";
+import { withInverseRelationTargets } from "./local-inverse-relations.ts";
+import { hasDerivedProperties, useLocalDerivedOptions } from "./local-rollup.ts";
 import type { RelationOption } from "./value-editor.tsx";
 
 interface PeekProjection {
@@ -39,6 +42,7 @@ export function DatabaseEntryPeek({
   readonly onFullPage: (entryId: Uuid) => void;
 }) {
   const [projection, setProjection] = useState<PeekProjection | null>(null);
+  const [fileNames, setFileNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [error, setError] = useState(false);
   const [closing, setClosing] = useState(false);
   const beginClose = () => {
@@ -51,6 +55,10 @@ export function DatabaseEntryPeek({
     const timer = setTimeout(onClose, 260);
     return () => clearTimeout(timer);
   }, [closing, onClose]);
+  const derived = useLocalDerivedOptions(
+    service,
+    projection !== null && hasDerivedProperties(projection.definition.properties),
+  );
   const generation = useRef(0);
   const refresh = useCallback(async () => {
     const current = ++generation.current;
@@ -67,12 +75,38 @@ export function DatabaseEntryPeek({
       )
         throw new Error("Entrée indisponible");
       const sourceId = row.sourceId ?? request.sourceId ?? ownedSourceIdFromItemId(row.databaseId);
-      const [source, relations] = await Promise.all([
+      const [source, rawRelations] = await Promise.all([
         service.getDatabase(sourceId),
         service.getDatabaseEntryRelationTargets(row.databaseId, request.entryId),
       ]);
       if (source === null) throw new Error("Source indisponible");
+      // The inverse side of a two-way relation reads the partner's edges; the
+      // panel must show the same values as the table or its menu would offer to
+      // add a link that already exists.
+      // A service without inverse support (older hosts, focused tests) keeps the
+      // raw values rather than failing the whole panel.
+      const relations = await withInverseRelationTargets({
+        service,
+        source,
+        entryIds: [request.entryId],
+        relations: new Map([[request.entryId, rawRelations]]),
+      })
+        .then((merged) => merged.get(request.entryId) ?? rawRelations)
+        .catch(() => rawRelations);
       if (generation.current !== current) return;
+      const fileIds = Object.values(row.values.values).flatMap((value) =>
+        value.kind === "files" ? value.fileIds : [],
+      );
+      if (fileIds.length > 0) {
+        const files = await service.getItems(fileIds);
+        setFileNames(
+          new Map(
+            files
+              .filter((file) => file.kind === "file")
+              .map((file) => [file.id, file.name] as const),
+          ),
+        );
+      }
       setProjection({
         item,
         sourceId,
@@ -84,6 +118,9 @@ export function DatabaseEntryPeek({
           kind: item.kind,
           icon: item.icon ?? null,
           revisionId: item.currentRevisionId,
+          ...(row.entryNumber === undefined ? {} : { entryNumber: row.entryNumber }),
+          ...(row.createdAt === undefined ? {} : { createdAt: row.createdAt }),
+          ...(row.updatedAt === undefined ? {} : { updatedAt: row.updatedAt }),
           lifecycle: item.lifecycle,
           title: item.name,
           document: item.pageDocument,
@@ -172,6 +209,16 @@ export function DatabaseEntryPeek({
                 definition={projection.definition}
                 valuesAvailable={projection.valuesAvailable}
                 relationOptions={relationOptions}
+                derived={derived}
+                fileNames={fileNames}
+                onUploadFile={async (file) => {
+                  const uploaded = await uploadDatabaseFile(file, request.entryId);
+                  if (!uploaded.ok) return null;
+                  setFileNames((current) =>
+                    new Map(current).set(uploaded.file.id, uploaded.file.name),
+                  );
+                  return uploaded.file;
+                }}
                 {...(drafts.has(request.entryId)
                   ? { initialDrafts: drafts.get(request.entryId) as EntryDrafts }
                   : {})}

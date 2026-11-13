@@ -29,6 +29,9 @@ export const DATABASE_COMMAND_TYPES = [
   "database.entry.create",
   "database.entry.values.replace",
   "database.entry.values.resolve-conflict",
+  "database.entry.relation.patch",
+  "database.relation.pair.create",
+  "database.relation.pair.remove",
 ] as const;
 
 export type DatabaseCommandType = (typeof DATABASE_COMMAND_TYPES)[number];
@@ -129,6 +132,36 @@ export type DatabaseMutationCommand =
       readonly resolvedRevisionIds: readonly [Uuid, Uuid];
       readonly values: Readonly<Record<Uuid, NonRelationPropertyValue>>;
       readonly relationTargets: RelationTargets;
+    }
+  /**
+   * Adds or removes one edge of one relation property. Used by both sides of a
+   * two-way pair: the identifiers always describe the entry that owns the edge,
+   * never the entry the owner is looking at.
+   */
+  | {
+      readonly type: "database.entry.relation.patch";
+      readonly databaseId: Uuid;
+      readonly entryId: Uuid;
+      readonly propertyId: Uuid;
+      readonly targetItemId: Uuid;
+      readonly present: boolean;
+      readonly baseRevisionId: Uuid;
+    }
+  | {
+      readonly type: "database.relation.pair.create";
+      readonly databaseId: Uuid;
+      readonly relationPropertyId: Uuid;
+      readonly inversePropertyId: Uuid;
+      readonly inverseName: string;
+      readonly baseRevisionId: Uuid;
+      readonly inverseBaseRevisionId: Uuid;
+    }
+  | {
+      readonly type: "database.relation.pair.remove";
+      readonly databaseId: Uuid;
+      readonly relationPropertyId: Uuid;
+      readonly baseRevisionId: Uuid;
+      readonly inverseBaseRevisionId: Uuid;
     };
 
 /** The identical minimal schema used by server and optimistic projection. */
@@ -253,18 +286,42 @@ function parsePropertyValue(value: unknown): NonRelationPropertyValue | null {
       return decimal.ok ? { kind: "number", decimal: decimal.value } : null;
     }
     case "date": {
-      if (!hasExactKeys(value, ["kind", "date"]) || typeof value["date"] !== "string") {
+      if (
+        !Object.keys(value).every((key) => key === "kind" || key === "date" || key === "endDate") ||
+        typeof value["date"] !== "string" ||
+        (value["endDate"] !== undefined && typeof value["endDate"] !== "string")
+      ) {
         return null;
       }
       const date = normalizeCivilDate(value["date"]);
-      return date.ok ? { kind: "date", date: date.value } : null;
+      const endDate =
+        value["endDate"] === undefined ? undefined : normalizeCivilDate(value["endDate"]);
+      if (!date.ok || (endDate !== undefined && !endDate.ok)) return null;
+      return {
+        kind: "date",
+        date: date.value,
+        ...(endDate === undefined ? {} : { endDate: endDate.value }),
+      };
     }
     case "instant": {
-      if (!hasExactKeys(value, ["kind", "instant"]) || typeof value["instant"] !== "string") {
+      if (
+        !Object.keys(value).every(
+          (key) => key === "kind" || key === "instant" || key === "endInstant",
+        ) ||
+        typeof value["instant"] !== "string" ||
+        (value["endInstant"] !== undefined && typeof value["endInstant"] !== "string")
+      ) {
         return null;
       }
       const instant = normalizeInstant(value["instant"]);
-      return instant.ok ? { kind: "instant", instant: instant.value } : null;
+      const endInstant =
+        value["endInstant"] === undefined ? undefined : normalizeInstant(value["endInstant"]);
+      if (!instant.ok || (endInstant !== undefined && !endInstant.ok)) return null;
+      return {
+        kind: "instant",
+        instant: instant.value,
+        ...(endInstant === undefined ? {} : { endInstant: endInstant.value }),
+      };
     }
     case "status":
     case "select":
@@ -286,6 +343,70 @@ function parsePropertyValue(value: unknown): NonRelationPropertyValue | null {
       return hasExactKeys(value, ["kind", "checked"]) && typeof value["checked"] === "boolean"
         ? { kind: "checkbox", checked: value["checked"] }
         : null;
+    case "files": {
+      if (
+        !Object.keys(value).every(
+          (key) => key === "kind" || key === "fileIds" || key === "externalUrls",
+        ) ||
+        !Array.isArray(value["fileIds"])
+      )
+        return null;
+      const fileIds = value["fileIds"];
+      if (fileIds.length > 20 || new Set(fileIds).size !== fileIds.length || !fileIds.every(isUuid))
+        return null;
+      if (value["externalUrls"] !== undefined && !Array.isArray(value["externalUrls"])) return null;
+      const externalUrls = (value["externalUrls"] as unknown[] | undefined) ?? [];
+      if (
+        !externalUrls.every((url): url is string => typeof url === "string") ||
+        fileIds.length + externalUrls.length > 20
+      )
+        return null;
+      const urls: string[] = [];
+      for (const raw of externalUrls) {
+        try {
+          const parsed = new URL(raw);
+          if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+        } catch {
+          return null;
+        }
+        if (!urls.includes(raw)) urls.push(raw);
+      }
+      return {
+        kind: "files",
+        fileIds: fileIds as never,
+        ...(urls.length === 0 ? {} : { externalUrls: urls }),
+      };
+    }
+    case "place": {
+      if (
+        !hasExactKeys(value, ["kind", "placeId", "name", "address", "latitude", "longitude"]) ||
+        typeof value["placeId"] !== "string" ||
+        value["placeId"].trim() === "" ||
+        value["placeId"].length > 512 ||
+        typeof value["name"] !== "string" ||
+        value["name"].trim() === "" ||
+        value["name"].length > 512 ||
+        (value["address"] !== null && typeof value["address"] !== "string") ||
+        (typeof value["address"] === "string" && value["address"].length > 1024) ||
+        typeof value["latitude"] !== "number" ||
+        !Number.isFinite(value["latitude"]) ||
+        value["latitude"] < -90 ||
+        value["latitude"] > 90 ||
+        typeof value["longitude"] !== "number" ||
+        !Number.isFinite(value["longitude"]) ||
+        value["longitude"] < -180 ||
+        value["longitude"] > 180
+      )
+        return null;
+      return {
+        kind: "place",
+        placeId: value["placeId"],
+        name: value["name"],
+        address: value["address"] as string | null,
+        latitude: value["latitude"],
+        longitude: value["longitude"],
+      };
+    }
     default:
       return null;
   }
@@ -362,6 +483,90 @@ export function parseDatabaseMutationCommand(
   payload: Payload,
 ): DomainResult<DatabaseMutationCommand> {
   switch (commandType) {
+    case "database.entry.relation.patch": {
+      if (
+        !hasExactKeys(payload, [
+          "databaseId",
+          "entryId",
+          "propertyId",
+          "targetItemId",
+          "present",
+          "baseRevisionId",
+        ]) ||
+        !isUuid(payload["databaseId"]) ||
+        !isUuid(payload["entryId"]) ||
+        !isUuid(payload["propertyId"]) ||
+        !isUuid(payload["targetItemId"]) ||
+        typeof payload["present"] !== "boolean" ||
+        !isUuid(payload["baseRevisionId"])
+      ) {
+        return invalid();
+      }
+      return ok({
+        type: commandType,
+        databaseId: payload["databaseId"],
+        entryId: payload["entryId"],
+        propertyId: payload["propertyId"],
+        targetItemId: payload["targetItemId"],
+        present: payload["present"],
+        baseRevisionId: payload["baseRevisionId"],
+      });
+    }
+    case "database.relation.pair.create": {
+      if (
+        !hasExactKeys(payload, [
+          "databaseId",
+          "relationPropertyId",
+          "inversePropertyId",
+          "inverseName",
+          "baseRevisionId",
+          "inverseBaseRevisionId",
+        ]) ||
+        !isUuid(payload["databaseId"]) ||
+        !isUuid(payload["relationPropertyId"]) ||
+        !isUuid(payload["inversePropertyId"]) ||
+        !isUuid(payload["baseRevisionId"]) ||
+        !isUuid(payload["inverseBaseRevisionId"]) ||
+        typeof payload["inverseName"] !== "string"
+      ) {
+        return invalid();
+      }
+      const name = normalizeDisplayName(payload["inverseName"]);
+      return name.ok
+        ? ok({
+            type: commandType,
+            databaseId: payload["databaseId"],
+            relationPropertyId: payload["relationPropertyId"],
+            inversePropertyId: payload["inversePropertyId"],
+            inverseName: name.value,
+            baseRevisionId: payload["baseRevisionId"],
+            inverseBaseRevisionId: payload["inverseBaseRevisionId"],
+          })
+        : invalid();
+    }
+    case "database.relation.pair.remove": {
+      if (
+        !hasExactKeys(payload, [
+          "databaseId",
+          "relationPropertyId",
+          "baseRevisionId",
+          "inverseBaseRevisionId",
+        ]) ||
+        !isUuid(payload["databaseId"]) ||
+        !isUuid(payload["relationPropertyId"]) ||
+        !isUuid(payload["baseRevisionId"]) ||
+        !isUuid(payload["inverseBaseRevisionId"])
+      ) {
+        return invalid();
+      }
+      return ok({
+        type: commandType,
+        databaseId: payload["databaseId"],
+        relationPropertyId: payload["relationPropertyId"],
+        baseRevisionId: payload["baseRevisionId"],
+        inverseBaseRevisionId: payload["inverseBaseRevisionId"],
+      });
+    }
     case "database.source.create": {
       if (
         !hasExactKeys(payload, [

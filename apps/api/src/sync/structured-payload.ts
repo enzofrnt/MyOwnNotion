@@ -89,6 +89,9 @@ export async function resolveDatabaseEntryProjections(
       entryItemId: record.entryId,
       databaseId: record.databaseId,
       sourceId: record.sourceId,
+      ...(record.entryNumber === null ? {} : { entryNumber: record.entryNumber }),
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
       valueVersion: record.valueVersion,
       values:
         sealed?.get(record.entryId) ??

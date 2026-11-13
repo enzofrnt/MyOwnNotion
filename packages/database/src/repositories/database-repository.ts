@@ -39,6 +39,7 @@ export interface DatabaseEntryRecord {
   readonly valueVersion: number;
   readonly addedRevisionId: Uuid;
   readonly valueRevisionId: Uuid;
+  readonly entryNumber: number | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -132,6 +133,7 @@ function entryModel(row: typeof databaseEntries.$inferSelect): DatabaseEntryReco
     valueVersion: row.valueVersion,
     addedRevisionId: row.addedRevisionId as Uuid,
     valueRevisionId: row.valueRevisionId as Uuid,
+    entryNumber: row.entryNumber,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -487,10 +489,24 @@ export async function readDatabaseRelationTargets(
         isNull(relationships.removedRevisionId),
       ),
     );
+  // An edge may carry either the owning item or the source identity, depending
+  // on which surface wrote it. Both designate this database.
+  const owner =
+    (await readDatabaseRecord(executor, input.databaseId)) ??
+    (await readDatabaseRecordBySourceId(executor, input.databaseId));
+  const acceptedOwners = new Set<string>([input.databaseId]);
+  if (owner !== null) {
+    acceptedOwners.add(owner.databaseId);
+    acceptedOwners.add(owner.sourceId);
+  }
   const targets = new Map<Uuid, Uuid[]>();
   for (const row of rows) {
     const metadata = row.metadata as Record<string, unknown>;
-    if (metadata["databaseId"] !== input.databaseId || typeof metadata["propertyId"] !== "string") {
+    if (
+      typeof metadata["databaseId"] !== "string" ||
+      !acceptedOwners.has(metadata["databaseId"]) ||
+      typeof metadata["propertyId"] !== "string"
+    ) {
       continue;
     }
     const propertyId = metadata["propertyId"] as Uuid;
@@ -567,8 +583,9 @@ export async function replaceDatabaseRelationships(
   const removedRelationshipIds: Uuid[] = [];
   for (const relationship of existing) {
     const metadata = relationship.metadata as Record<string, unknown>;
+    if (metadata["databaseId"] !== input.databaseId) continue;
     const key = `${String(metadata["propertyId"])}/${relationship.targetItemId}`;
-    if (metadata["databaseId"] === input.databaseId && desired.delete(key)) continue;
+    if (desired.delete(key)) continue;
     removedRelationshipIds.push(relationship.id as Uuid);
   }
   if (removedRelationshipIds.length > 0) {
@@ -602,6 +619,9 @@ export async function replaceDatabaseRelationships(
 export interface DatabaseProjectionEntryRecord {
   readonly entryId: Uuid;
   readonly revisionId: Uuid;
+  readonly entryNumber: number | null;
+  readonly createdAt?: Date;
+  readonly updatedAt?: Date;
   readonly storedName: string;
   readonly valueVersion: number;
   readonly storedValues: EntryValues | null;
@@ -611,12 +631,16 @@ export async function listDatabaseProjectionEntries(
   executor: Executor,
   databaseId: Uuid,
   entryIds?: readonly Uuid[],
+  sourceId?: Uuid,
 ): Promise<DatabaseProjectionEntryRecord[]> {
   if (entryIds?.length === 0) return [];
   const rows = await executor
     .select({
       entryId: items.id,
       revisionId: items.currentRevisionId,
+      entryNumber: databaseEntries.entryNumber,
+      createdAt: items.createdAt,
+      updatedAt: items.updatedAt,
       storedName: items.name,
       valueVersion: databaseEntries.valueVersion,
       storedValues: sql<EntryValues | null>`${revisions.snapshot}->'databaseEntryValues'`,
@@ -625,7 +649,11 @@ export async function listDatabaseProjectionEntries(
     .innerJoin(items, eq(items.id, placements.itemId))
     .leftJoin(
       databaseEntries,
-      and(eq(databaseEntries.entryItemId, items.id), eq(databaseEntries.databaseId, databaseId)),
+      and(
+        eq(databaseEntries.entryItemId, items.id),
+        eq(databaseEntries.databaseId, databaseId),
+        sourceId === undefined ? undefined : eq(databaseEntries.sourceId, sourceId),
+      ),
     )
     .leftJoin(revisions, eq(revisions.id, databaseEntries.valueRevisionId))
     .where(
@@ -635,6 +663,7 @@ export async function listDatabaseProjectionEntries(
         isNull(placements.removedAt),
         eq(items.lifecycle, "active"),
         inArray(items.kind, ["page", "folder"]),
+        sourceId === undefined ? undefined : eq(databaseEntries.sourceId, sourceId),
         entryIds === undefined ? undefined : inArray(items.id, [...entryIds]),
       ),
     );
@@ -679,6 +708,38 @@ export async function listDatabaseProjectionRelationships(
     sourceItemId: row.sourceItemId as Uuid,
     targetItemId: row.targetItemId as Uuid,
     metadata: row.metadata as Readonly<Record<string, unknown>>,
+  }));
+}
+
+/**
+ * Edges of a partner property that point at these entries. Used by the inverse
+ * side of a two-way relation, whose values are stored on the other entry.
+ */
+export async function listIncomingDatabasePropertyRelationships(
+  executor: Executor,
+  _partnerSourceId: Uuid,
+  partnerPropertyId: Uuid,
+  targetEntryIds: readonly Uuid[],
+): Promise<readonly { readonly sourceItemId: Uuid; readonly targetItemId: Uuid }[]> {
+  if (targetEntryIds.length === 0) return [];
+  const rows = await executor
+    .select({
+      sourceItemId: relationships.sourceItemId,
+      targetItemId: relationships.targetItemId,
+    })
+    .from(relationships)
+    .where(
+      and(
+        eq(relationships.relationType, "database:property"),
+        isNull(relationships.removedRevisionId),
+        inArray(relationships.targetItemId, [...targetEntryIds]),
+        // A property identity is unique, so the owning source id is not needed.
+        sql`${relationships.metadata}->>'propertyId' = ${partnerPropertyId}`,
+      ),
+    );
+  return rows.map((row) => ({
+    sourceItemId: row.sourceItemId as Uuid,
+    targetItemId: row.targetItemId as Uuid,
   }));
 }
 

@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   graphNeighborhood,
   graphViewBox,
+  graphLabelAlpha as labelAlpha,
+  graphLabelFont as labelFont,
   paintGraphCamera,
   paintGraphLayout,
   shortGraphLabel,
@@ -111,5 +113,17 @@ describe("graph canvas paint", () => {
     expect(node.getAttribute("data-emphasis")).toBe("active");
     expect(line.getAttribute("x1")).toBe("12");
     expect(line.getAttribute("y1")).toBe("24");
+  });
+});
+
+describe("graph label legibility", () => {
+  it("keeps names readable while zoomed out", () => {
+    // Solid from half zoom, still visible on a wide overview.
+    expect(labelAlpha(0.5, false)).toBe(1);
+    expect(labelAlpha(0.35, false)).toBeGreaterThan(0.4);
+    expect(labelAlpha(0.1, false)).toBe(0);
+    // On screen (world size × zoom) a name never drops under 11px.
+    for (const zoom of [0.2, 0.5, 0.9]) expect(labelFont(zoom) * zoom).toBeCloseTo(11);
+    expect(labelFont(2)).toBe(12);
   });
 });

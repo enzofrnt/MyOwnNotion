@@ -428,6 +428,26 @@
       }
     },
     {
+      "test": "tests/e2e/database-relations-rollups.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/databases/database-query-service.ts",
+          "apps/api/src/routes/databases.ts",
+          "apps/web/src/services/local-content.ts",
+          "packages/domain/src/databases/derived.ts",
+          "packages/domain/src/databases/rollup.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "apps/web/src/features/editor/custom-blocks/",
+          "apps/web/src/features/hierarchy/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/databases-schema.spec.ts",
       "owners": {
         "exact": [

@@ -325,9 +325,9 @@
 
 .ui-menu__item {
   display: flex;
-  min-height: 2.25rem;
+  min-height: var(--ui-menu-item-height);
   align-items: center;
-  gap: var(--ui-space-3);
+  gap: var(--ui-space-2);
   padding: 0.375rem 0.5rem;
   color: var(--ui-color-text);
   border-radius: var(--ui-radius-sm);
@@ -335,24 +335,32 @@
   line-height: 1.25;
   cursor: default;
   outline: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
 .ui-menu__item[data-active-item],
 .ui-menu__item:hover:not([aria-disabled="true"]) {
-  background: var(--ui-color-surface-hover);
+  background: var(--ui-menu-item-hover-bg);
 }
 
 .ui-menu__item[data-destructive="true"]:hover,
 .ui-menu__item[data-destructive="true"][data-active-item],
 .ui-menu__item[data-destructive="true"]:focus-visible {
   color: var(--ui-color-danger-text);
+  background: var(--ui-menu-item-hover-bg);
 }
 
 .ui-menu__item-label {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
   min-width: 0;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ui-menu__label {

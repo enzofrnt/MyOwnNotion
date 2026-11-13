@@ -294,6 +294,14 @@ restent en place ; les nouveaux espacements communs utilisent l’échelle.
 
 - **Page** : `workspace/page-title-editor.tsx` puis colonne de lecture dans
   `workspace.css`. Le titre domine ; métadonnées et chemin restent discrets.
+- **Accueil** : `workspace/workspace-home.tsx` et `.workspace-home` dans
+  `workspace.css`, montrés par `PageHeader kind="home"` (chrome compact, sans
+  titre ni historique) et la colonne de lecture. C’est une surface de page, pas
+  une notification : légende, titre aux métriques de titre de page, aide courte
+  et action « Nouvelle page ». Garder l’axe de départ d’une page
+  (`--workspace-home-inline-start` reprend la gouttière du titre) ; un espace
+  sans note ouverte n’utilise pas `WorkspaceState`, réservé à l’attente, au
+  hors-ligne et aux erreurs.
 - **Base** : `databases/database-container-page.tsx`, `table-view.tsx`,
   `board-view.tsx` et `database.css`. Onglets denses, en-têtes légers, séparations
   fines et actions contextuelles. Une vue intégrée garde la largeur du texte.

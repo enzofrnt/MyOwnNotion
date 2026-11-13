@@ -7,6 +7,7 @@ export const VIEW_TYPE_LABEL: Readonly<Record<DatabaseViewType, string>> = {
   gallery: "Galerie",
   list: "Liste",
   calendar: "Calendrier",
+  map: "Carte",
 };
 
 export const VIEW_TYPE_ICON: Readonly<Record<DatabaseViewType, AppIconName>> = {
@@ -15,11 +16,12 @@ export const VIEW_TYPE_ICON: Readonly<Record<DatabaseViewType, AppIconName>> = {
   gallery: "gallery",
   list: "list",
   calendar: "calendar",
+  map: "mapPin",
 };
 
-const AUTOMATIC_VIEW_NAME = /^(Tableau|Kanban|Galerie|Liste|Calendrier)(?: \d+)*$/;
+const AUTOMATIC_VIEW_NAME = /^(Tableau|Kanban|Galerie|Liste|Calendrier|Carte)(?: \d+)*$/;
 
-const STACKED_VIEW_NAME = /^(Tableau|Kanban|Galerie|Liste|Calendrier)(?: \d+){2,}$/;
+const STACKED_VIEW_NAME = /^(Tableau|Kanban|Galerie|Liste|Calendrier|Carte)(?: \d+){2,}$/;
 
 export function isAutomaticViewName(name: string): boolean {
   return AUTOMATIC_VIEW_NAME.test(name);

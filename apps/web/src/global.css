@@ -8,6 +8,7 @@
 @import "./ui/ui-lab.css";
 @import "./features/navigation/navigation.css";
 @import "./features/databases/database.css";
+@import "./features/databases/column-property-menu.css";
 @import "./features/workspace/workspace.css";
 @import "./features/settings/settings.css";
 @import "./features/backup/backup.css";
@@ -26,3 +27,13 @@
 @import "./features/navigation/convert.css";
 @import "./features/reconciliation/reconciliation.css";
 @import "./features/diagnostics/diagnostics.css";
+
+/*
+ * Product decision: pointer focus never paints a ring. Keyboard focus stays
+ * visible through the shared `:focus-visible` styles, so the app remains
+ * operable without a mouse.
+ */
+:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}

@@ -122,10 +122,8 @@ export function ReviewEntryPage() {
               onIconChange={setIcon}
               breadcrumbs={
                 <PathBreadcrumbs
-                  path={[
-                    { id: reviewId(11), name: "Campagnes", kind: "database" },
-                    { id: entry.entryId, name: entry.title, kind },
-                  ]}
+                  ancestorsOnly
+                  path={[{ id: reviewId(11), name: "Campagnes", kind: "database" }]}
                   onOpen={() => undefined}
                 />
               }

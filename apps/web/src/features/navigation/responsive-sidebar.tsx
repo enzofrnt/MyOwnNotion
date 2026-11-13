@@ -14,12 +14,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  DrawerContent,
-  DrawerDismiss,
-  DrawerHeading,
-  DrawerRoot,
-} from "../../ui/primitives/index.ts";
+import { DrawerContent, DrawerHeading, DrawerRoot } from "../../ui/primitives/index.ts";
 import { type SidebarCollapseContextValue, SidebarCollapseProvider } from "./sidebar-collapse.tsx";
 
 export type SidebarMode = "desktop" | "tablet" | "mobile";
@@ -110,6 +105,14 @@ export function ResponsiveSidebar({
     return value;
   }, [closeControlRef, onOpenChange]);
 
+  const drawerCollapse = useMemo(
+    (): SidebarCollapseContextValue => ({
+      onClose: () => onMobileOpenChange(false),
+      variant: "drawer",
+    }),
+    [onMobileOpenChange],
+  );
+
   if (mode === "mobile") {
     return (
       <div className="workspace-sidebar-slot" data-mode={mode} data-open={mobileOpen} style={style}>
@@ -123,8 +126,7 @@ export function ResponsiveSidebar({
             {...(openControlRef !== undefined ? { finalFocus: openControlRef } : {})}
           >
             <DrawerHeading className="ui-visually-hidden">Navigation</DrawerHeading>
-            <DrawerDismiss data-testid="close-mobile-nav" />
-            {children}
+            <SidebarCollapseProvider value={drawerCollapse}>{children}</SidebarCollapseProvider>
           </DrawerContent>
         </DrawerRoot>
       </div>

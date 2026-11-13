@@ -174,16 +174,17 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   await expect(entryTrigger(card("Gamma"), title)).toBeFocused();
 
   // Hide the property in settings; the axis remains usable after reload.
-  await page.getByRole("button", { name: "Options de la vue", exact: true }).click();
+  await page.locator("[data-view-settings-trigger]").click();
   const settings = page.locator(".database-view-settings");
   await settings.getByRole("button", { name: /Visibilité des propriétés/ }).click();
-  const visibility = settings.getByRole("switch", { name: /Matières/ });
-  await visibility.click();
+  // The visibility screen now exposes eye buttons ("Masquer <propriété>")
+  // instead of switches.
+  await settings.getByRole("button", { name: "Masquer Matières", exact: true }).click();
   await settings.getByRole("button", { name: "Fermer", exact: true }).click();
   await waitForSynchronized(page);
   await page.reload();
   await expect(card("Gamma")).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: "Options de la vue", exact: true }).press("Enter");
+  await page.locator("[data-view-settings-trigger]").press("Enter");
   await settings.getByRole("button", { name: /^Grouper/ }).click();
   const grouping = settings.getByRole("button", { name: "Grouper par Matières", exact: true });
   await grouping.press("Enter");

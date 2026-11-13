@@ -2,15 +2,43 @@ import {
   type DatabaseDefinition,
   type DatabaseProperty,
   type DatabasePropertyType,
+  DEFAULT_DATE_FORMAT,
+  DEFAULT_NUMBER_CONFIG,
+  DEFAULT_TIME_FORMAT,
+  dateConfigOf,
+  dateDisplayConfigOf,
   generateUuidV7,
+  inferStatusGroup,
+  isStatusGroup,
+  type NumberDecimals,
+  type NumberDisplay,
+  type NumberPropertyConfig,
+  numberConfigOf,
   type PropertyOption,
+  STATUS_GROUP_LABELS,
+  STATUS_GROUPS,
+  type StatusGroup,
+  type StatusOption,
+  statusDefaultOptionId,
   type Uuid,
+  uniqueIdPrefixOf,
 } from "@myownnotion/domain";
-import { type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  createContext,
+  type RefObject,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import type { DatabaseViewRow } from "../../services/databases.ts";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
   Button,
   MenuContent,
+  type MenuContentProps,
   MenuItem,
   MenuRoot,
   MenuSeparator,
@@ -19,6 +47,10 @@ import {
   PopoverRoot,
 } from "../../ui/primitives/index.ts";
 import { DATABASE_COPY } from "./database-copy.ts";
+import { DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS } from "./date-format.ts";
+import { FormulaEditor } from "./formula-editor.tsx";
+import type { RollupTargetOption } from "./local-rollup.ts";
+import { NUMBER_FORMAT_OPTIONS } from "./number-format.ts";
 import {
   isChoiceProperty,
   nextOptionTone,
@@ -28,6 +60,22 @@ import {
   optionTone,
 } from "./option-appearance.tsx";
 import { DatabasePropertyIcon, PropertyIconPicker } from "./property-icon.tsx";
+import { RelationPropertySettings } from "./relation-property-settings.tsx";
+import { RollupPropertySettings } from "./rollup-settings.tsx";
+
+const ColumnPropertyMenuAppearance = createContext(false);
+
+function PropertySettingsMenu({ className, ...props }: MenuContentProps) {
+  const compact = useContext(ColumnPropertyMenuAppearance);
+  return (
+    <MenuContent
+      {...props}
+      className={[className, compact ? "property-settings__menu--column-menu" : ""]
+        .filter(Boolean)
+        .join(" ")}
+    />
+  );
+}
 
 export function AutoPropertyName({
   name,
@@ -211,13 +259,13 @@ export function CompactPropertyOptions({
             <OptionPill label={option.label} tone={option.tone} />
             <AppIcon name="chevronRight" size="small" />
           </MenuTrigger>
-          <MenuContent className="property-settings__menu" unmountOnHide>
+          <PropertySettingsMenu className="property-settings__menu" unmountOnHide>
             <PropertyOptionSettings
               option={option}
               onChange={(change) => patch(option.id, change)}
               onRetire={() => patch(option.id, { state: "retired" })}
             />
-          </MenuContent>
+          </PropertySettingsMenu>
         </MenuRoot>
       ))}
       <form
@@ -255,6 +303,12 @@ export const ENTRY_PROPERTY_TYPES = [
   "date",
   "select",
   "checkbox",
+  "url",
+  "email",
+  "phone",
+  "created-time",
+  "last-edited-time",
+  "place",
   "relation",
 ] as const;
 export function propertyWithType(
@@ -268,9 +322,39 @@ export function propertyWithType(
     positionKey: property.positionKey,
     state: property.state,
   };
-  if (type === "date") return { ...base, type, config: { mode: "date" } };
+  if (type === "number") return { ...base, type, config: { ...DEFAULT_NUMBER_CONFIG } };
+  if (type === "formula") return { ...base, type, config: { expression: 'prop("Titre")' } };
+  if (type === "files" || type === "place") return { ...base, type, config: {} };
+  if (type === "unique-id") return { ...base, type, config: {} };
+  if (type === "rollup")
+    return { ...base, type, config: { relationPropertyId: generateUuidV7(), aggregate: "count" } };
+  if (type === "date")
+    return {
+      ...base,
+      type,
+      config: {
+        mode: "date",
+        dateFormat: DEFAULT_DATE_FORMAT,
+        timeFormat: DEFAULT_TIME_FORMAT,
+      },
+    };
   if (type === "relation") return { ...base, type, config: { cardinality: "many" } };
-  if (type === "select" || type === "multi-select" || type === "status")
+  if (type === "status") {
+    const options = (isChoiceProperty(property) ? property.config.options : []).map((option) => ({
+      ...option,
+      group:
+        "group" in option && isStatusGroup(option.group)
+          ? option.group
+          : inferStatusGroup(option.label),
+    }));
+    const defaultOptionId = options.find((option) => option.state === "active")?.id;
+    return {
+      ...base,
+      type,
+      config: { options, ...(defaultOptionId === undefined ? {} : { defaultOptionId }) },
+    };
+  }
+  if (type === "select" || type === "multi-select")
     return {
       ...base,
       type,
@@ -302,6 +386,449 @@ export function updateEntryProperty(
   return { ...definition, properties, taskRoles };
 }
 
+function StatusOptionsEditor({
+  property,
+  onChange,
+}: {
+  readonly property: Extract<DatabaseProperty, { type: "status" }>;
+  readonly onChange: (edit: (p: DatabaseProperty) => DatabaseProperty) => void;
+}) {
+  const [newLabels, setNewLabels] = useState<Record<StatusGroup, string>>({
+    todo: "",
+    "in-progress": "",
+    complete: "",
+  });
+  const active = property.config.options.filter((option) => option.state === "active");
+  const defaultId = statusDefaultOptionId(property);
+  const patch = (options: readonly StatusOption[], defaultOptionId?: string): void =>
+    onChange((p) =>
+      p.type === "status"
+        ? {
+            ...p,
+            config: {
+              options,
+              ...(defaultOptionId === undefined
+                ? {}
+                : { defaultOptionId: defaultOptionId as Uuid }),
+            },
+          }
+        : p,
+    );
+  const updateOption = (id: string, change: Partial<StatusOption>): void =>
+    patch(
+      property.config.options.map((option) =>
+        option.id === id ? { ...option, ...change } : option,
+      ),
+    );
+  const retire = (id: string): void => {
+    const options = property.config.options.map((option) =>
+      option.id === id ? { ...option, state: "retired" as const } : option,
+    );
+    const nextDefault =
+      property.config.defaultOptionId === id
+        ? options.find((option) => option.state === "active")?.id
+        : property.config.defaultOptionId;
+    patch(options, nextDefault);
+  };
+  const add = (group: StatusGroup): void => {
+    const label = newLabels[group].trim();
+    if (
+      label === "" ||
+      active.some((option) => option.label.toLocaleLowerCase() === label.toLocaleLowerCase())
+    ) {
+      return;
+    }
+    const options = [
+      ...property.config.options,
+      {
+        id: generateUuidV7(),
+        label,
+        tone: group === "complete" ? "green" : group === "in-progress" ? "blue" : "gray",
+        positionKey: `option-${String(property.config.options.length).padStart(6, "0")}`,
+        state: "active" as const,
+        group,
+      },
+    ];
+    patch(options, property.config.defaultOptionId ?? options[0]?.id);
+    setNewLabels((current) => ({ ...current, [group]: "" }));
+  };
+  return (
+    <div className="property-settings__status">
+      {STATUS_GROUPS.map((group) => (
+        <section key={group} className="property-settings__status-group">
+          <div className="property-settings__status-heading">
+            <span className={`property-settings__status-dot is-${group}`} aria-hidden="true" />
+            <span>{STATUS_GROUP_LABELS[group]}</span>
+          </div>
+          <ul className="property-settings__status-options">
+            {active
+              .filter(
+                (option) =>
+                  (isStatusGroup(option.group) ? option.group : inferStatusGroup(option.label)) ===
+                  group,
+              )
+              .map((option) => (
+                <li key={option.id}>
+                  <MenuRoot placement="right-start">
+                    <MenuTrigger
+                      bare
+                      className="property-settings__option"
+                      aria-label={`Modifier l’option ${option.label}`}
+                    >
+                      <OptionPill label={option.label} tone={option.tone} />
+                      {option.id === defaultId ? (
+                        <span className="property-settings__default">PAR DÉFAUT</span>
+                      ) : null}
+                      <AppIcon name="chevronRight" size="small" />
+                    </MenuTrigger>
+                    <PropertySettingsMenu className="property-settings__menu" unmountOnHide>
+                      <div className="property-settings__status-field">
+                        <span>Groupe</span>
+                        <select
+                          className="ui-native-input"
+                          data-size="compact"
+                          aria-label={`Groupe de ${option.label}`}
+                          value={
+                            isStatusGroup(option.group)
+                              ? option.group
+                              : inferStatusGroup(option.label)
+                          }
+                          onChange={(event) =>
+                            updateOption(option.id, {
+                              group: event.target.value as StatusGroup,
+                            })
+                          }
+                        >
+                          {STATUS_GROUPS.map((candidate) => (
+                            <option key={candidate} value={candidate}>
+                              {STATUS_GROUP_LABELS[candidate]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <MenuItem
+                        role="menuitemradio"
+                        aria-checked={option.id === defaultId}
+                        onClick={() => patch(property.config.options, option.id)}
+                      >
+                        <AppIcon name="check" size="small" />
+                        Définir par défaut
+                      </MenuItem>
+                      <PropertyOptionSettings
+                        option={option}
+                        onChange={(change) => updateOption(option.id, change)}
+                        onRetire={() => retire(option.id)}
+                      />
+                    </PropertySettingsMenu>
+                  </MenuRoot>
+                </li>
+              ))}
+          </ul>
+          <form
+            className="property-settings__status-add"
+            onSubmit={(event) => {
+              event.preventDefault();
+              add(group);
+            }}
+          >
+            <input
+              className="ui-native-input"
+              data-size="compact"
+              aria-label={`Nouvelle option ${STATUS_GROUP_LABELS[group]}`}
+              placeholder="Ajouter une option…"
+              value={newLabels[group]}
+              onChange={(event) =>
+                setNewLabels((current) => ({ ...current, [group]: event.target.value }))
+              }
+            />
+            <Button
+              type="submit"
+              size="square"
+              variant="ghost"
+              aria-label={`Ajouter l’option ${STATUS_GROUP_LABELS[group]}`}
+              disabled={!newLabels[group].trim()}
+            >
+              <AppIcon name="add" size="small" />
+            </Button>
+          </form>
+        </section>
+      ))}
+      <label className="property-settings__field">
+        <span>Option par défaut</span>
+        <select
+          className="ui-native-input"
+          data-size="compact"
+          aria-label="Option par défaut"
+          value={defaultId ?? ""}
+          onChange={(event) => patch(property.config.options, event.target.value || undefined)}
+        >
+          {active.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted property-settings__note">
+        Les modifications s’appliquent à toutes les vues qui affichent cette propriété.
+      </p>
+    </div>
+  );
+}
+
+function AutoDatePropertySettings({
+  property,
+  onChange,
+}: {
+  readonly property: DatabaseProperty;
+  readonly onChange: (edit: (p: DatabaseProperty) => DatabaseProperty) => void;
+}) {
+  const config = dateDisplayConfigOf(property);
+  const update = (next: Partial<typeof config>): void =>
+    onChange((p) =>
+      p.type === "created-time" || p.type === "last-edited-time"
+        ? { ...p, config: { ...p.config, ...next } }
+        : p,
+    );
+  return (
+    <div className="property-settings__number">
+      <label className="property-settings__field">
+        <span>Format de date</span>
+        <select
+          className="ui-native-input"
+          data-size="compact"
+          aria-label="Format de date"
+          value={config.dateFormat}
+          onChange={(event) =>
+            update({ dateFormat: event.target.value as typeof config.dateFormat })
+          }
+        >
+          {DATE_FORMAT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="property-settings__field">
+        <span>Format de l’heure</span>
+        <select
+          className="ui-native-input"
+          data-size="compact"
+          aria-label="Format de l’heure"
+          value={config.timeFormat}
+          onChange={(event) =>
+            update({ timeFormat: event.target.value as typeof config.timeFormat })
+          }
+        >
+          {TIME_FORMAT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted property-settings__note">
+        Les modifications s’appliquent à toutes les vues qui affichent cette propriété.
+      </p>
+    </div>
+  );
+}
+
+function DatePropertySettings({
+  property,
+  onChange,
+}: {
+  readonly property: DatabaseProperty;
+  readonly onChange: (edit: (p: DatabaseProperty) => DatabaseProperty) => void;
+}) {
+  const config = dateConfigOf(property);
+  const update = (next: Partial<typeof config>): void =>
+    onChange((p) => (p.type === "date" ? { ...p, config: { ...p.config, ...next } } : p));
+  return (
+    <div className="property-settings__number">
+      <label className="property-settings__field">
+        <span>Format de date</span>
+        <select
+          className="ui-native-input"
+          data-size="compact"
+          aria-label="Format de date"
+          value={config.dateFormat}
+          onChange={(event) =>
+            update({ dateFormat: event.target.value as typeof config.dateFormat })
+          }
+        >
+          {DATE_FORMAT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="property-settings__field">
+        <span>Format de l’heure</span>
+        <select
+          className="ui-native-input"
+          data-size="compact"
+          aria-label="Format de l’heure"
+          value={config.timeFormat}
+          onChange={(event) =>
+            update({ timeFormat: event.target.value as typeof config.timeFormat })
+          }
+        >
+          {TIME_FORMAT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="property-settings__toggle">
+        <input
+          type="checkbox"
+          checked={config.mode === "instant"}
+          onChange={(event) => update({ mode: event.currentTarget.checked ? "instant" : "date" })}
+        />
+        Inclure l’heure
+      </label>
+      <p className="muted property-settings__note">
+        Les modifications s’appliquent à toutes les vues qui affichent cette propriété.
+      </p>
+    </div>
+  );
+}
+
+function UniqueIdPropertySettings({
+  property,
+  onChange,
+}: {
+  readonly property: DatabaseProperty;
+  readonly onChange: (edit: (p: DatabaseProperty) => DatabaseProperty) => void;
+}) {
+  const [prefix, setPrefix] = useState(uniqueIdPrefixOf(property));
+  const commit = (): void => {
+    const next = prefix.trim().slice(0, 32);
+    if (next === uniqueIdPrefixOf(property)) {
+      setPrefix(next);
+      return;
+    }
+    onChange((p) =>
+      p.type === "unique-id" ? { ...p, config: next === "" ? {} : { prefix: next } } : p,
+    );
+  };
+  return (
+    <div className="property-settings__number">
+      <label className="property-settings__field">
+        <span>Préfixe</span>
+        <input
+          className="ui-native-input"
+          data-size="compact"
+          aria-label="Préfixe de l’identifiant"
+          placeholder="Ex. TASK"
+          value={prefix}
+          maxLength={32}
+          onChange={(event) => setPrefix(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+        />
+        <span className="muted property-settings__note">
+          Affiché {prefix.trim() === "" ? "42" : `${prefix.trim()}-42`}. Laissez vide pour le nombre
+          seul.
+        </span>
+      </label>
+      <p className="muted property-settings__note">
+        Les modifications s’appliquent à toutes les vues qui affichent cette propriété.
+      </p>
+    </div>
+  );
+}
+
+function NumberPropertySettings({
+  property,
+  onChange,
+}: {
+  readonly property: DatabaseProperty;
+  readonly onChange: (edit: (p: DatabaseProperty) => DatabaseProperty) => void;
+}) {
+  const config = numberConfigOf(property);
+  const update = (next: NumberPropertyConfig): void =>
+    onChange((p) => (p.type === "number" ? { ...p, config: next } : p));
+  const displays: readonly { value: NumberDisplay; label: string; sample: string }[] = [
+    { value: "number", label: "Nombre", sample: "42" },
+    { value: "bar", label: "Barre", sample: "▬" },
+    { value: "ring", label: "Anneau", sample: "◌" },
+  ];
+  return (
+    <div className="property-settings__number">
+      <label className="property-settings__field">
+        <span>Format de nombre</span>
+        <select
+          className="ui-native-input"
+          data-size="compact"
+          aria-label="Format de nombre"
+          value={config.format}
+          onChange={(event) =>
+            update({ ...config, format: event.target.value as NumberPropertyConfig["format"] })
+          }
+        >
+          {NUMBER_FORMAT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="property-settings__field">
+        <span>Décimales</span>
+        <select
+          className="ui-native-input"
+          data-size="compact"
+          aria-label="Décimales"
+          value={String(config.decimals)}
+          onChange={(event) => {
+            const value = event.target.value;
+            update({
+              ...config,
+              decimals: value === "default" ? "default" : (Number(value) as NumberDecimals),
+            });
+          }}
+        >
+          <option value="default">Par défaut</option>
+          {[0, 1, 2, 3, 4, 5].map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      </label>
+      <fieldset className="property-settings__display">
+        <legend>Type d’affichage</legend>
+        <div className="property-settings__display-options">
+          {displays.map((display) => (
+            <button
+              key={display.value}
+              type="button"
+              className="property-settings__display-option"
+              aria-pressed={config.display === display.value}
+              onClick={() => update({ ...config, display: display.value })}
+            >
+              <span className="property-settings__display-sample" aria-hidden="true">
+                {display.sample}
+              </span>
+              <span>{display.label}</span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      <p className="muted property-settings__note">
+        Les modifications s’appliquent à toutes les vues qui affichent cette propriété.
+      </p>
+    </div>
+  );
+}
+
 export function PropertyConfiguration({
   property,
   anchor,
@@ -315,6 +842,13 @@ export function PropertyConfiguration({
   moveUpDisabled = false,
   onMove,
   structure = true,
+  mode = "full",
+  placement = "bottom-start",
+  properties = [],
+  previewRow,
+  previewRows,
+  rollupProperties = [],
+  rollupRelations,
 }: {
   property: DatabaseProperty;
   anchor: DOMRect | null;
@@ -329,152 +863,202 @@ export function PropertyConfiguration({
   moveDownDisabled?: boolean;
   /** Title stays a title: name and icon only. */
   structure?: boolean;
+  /** `type` renders only the type-specific settings (column-menu side panel). */
+  mode?: "full" | "type";
+  placement?: "bottom-start" | "right-start";
+  readonly properties?: readonly DatabaseProperty[];
+  readonly previewRow?: DatabaseViewRow | undefined;
+  readonly previewRows?: readonly DatabaseViewRow[] | undefined;
+  readonly rollupProperties?: readonly RollupTargetOption[] | undefined;
+  readonly rollupRelations?: Readonly<Record<string, readonly string[]>> | undefined;
 }) {
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const [formulaOpen, setFormulaOpen] = useState(false);
+  const full = mode === "full";
   return (
-    <PopoverRoot placement="bottom-start" open={open} setOpen={(value) => !value && onClose()}>
-      <PopoverContent
-        className="property-settings"
-        aria-label={`Modifier ${property.name}`}
-        getAnchorRect={() => anchor}
-        initialFocus={nameInputRef}
-        unmountOnHide
-      >
-        <div className="property-settings__name">
-          <PropertyIconPicker
-            property={property}
-            onChange={(icon) => onChange((p) => ({ ...p, icon }))}
-          />
-          <AutoPropertyName
-            key={property.id}
-            inputRef={nameInputRef}
-            name={property.name}
-            label="Nom de la propriété"
-            onCommit={(name) => onChange((p) => ({ ...p, name }))}
-          />
-        </div>
-        {structure ? (
-          <>
-            <MenuRoot>
-              <MenuTrigger bare className="property-settings__type">
-                <AppIcon name="settings" size="small" />
-                <span>Type</span>
-                <span className="property-settings__type-value">
-                  {DATABASE_COPY.property.typeLabels[property.type]}
-                </span>
-                <AppIcon name="chevronRight" size="small" />
-              </MenuTrigger>
-              <MenuContent
-                className="property-settings__menu"
-                unmountOnHide
-                aria-label="Type de propriété"
-              >
-                {ENTRY_PROPERTY_TYPES.map((type) => (
-                  <MenuItem key={type} onClick={() => onChange((p) => propertyWithType(p, type))}>
-                    <DatabasePropertyIcon type={type} />
-                    {DATABASE_COPY.property.typeLabels[type]}
-                  </MenuItem>
-                ))}
-              </MenuContent>
-            </MenuRoot>
-            {isChoiceProperty(property) ? (
-              <>
-                <label className="property-settings__toggle">
-                  <input
-                    type="checkbox"
-                    checked={property.type === "multi-select"}
-                    onChange={(event) => {
-                      const checked = event.currentTarget.checked;
-                      onChange((p) => propertyWithType(p, checked ? "multi-select" : "select"));
-                    }}
+    <ColumnPropertyMenuAppearance.Provider value={!full}>
+      <PopoverRoot placement={placement} open={open} setOpen={(value) => !value && onClose()}>
+        <PopoverContent
+          className={
+            full ? "property-settings" : "property-settings property-settings--column-menu"
+          }
+          aria-label={`Modifier ${property.name}`}
+          getAnchorRect={() => anchor}
+          initialFocus={nameInputRef}
+          unmountOnHide
+        >
+          {full ? (
+            <div className="property-settings__name">
+              <PropertyIconPicker
+                property={property}
+                onChange={(icon) => onChange((p) => ({ ...p, icon }))}
+              />
+              <AutoPropertyName
+                key={property.id}
+                inputRef={nameInputRef}
+                name={property.name}
+                label="Nom de la propriété"
+                onCommit={(name) => onChange((p) => ({ ...p, name }))}
+              />
+            </div>
+          ) : null}
+          {structure ? (
+            <>
+              {full ? (
+                <MenuRoot>
+                  <MenuTrigger bare className="property-settings__type">
+                    <AppIcon name="settings" size="small" />
+                    <span>Type</span>
+                    <span className="property-settings__type-value">
+                      {DATABASE_COPY.property.typeLabels[property.type]}
+                    </span>
+                    <AppIcon name="chevronRight" size="small" />
+                  </MenuTrigger>
+                  <PropertySettingsMenu
+                    className="property-settings__menu"
+                    unmountOnHide
+                    aria-label="Type de propriété"
+                  >
+                    {ENTRY_PROPERTY_TYPES.map((type) => (
+                      <MenuItem
+                        key={type}
+                        onClick={() => onChange((p) => propertyWithType(p, type))}
+                      >
+                        <DatabasePropertyIcon type={type} />
+                        {DATABASE_COPY.property.typeLabels[type]}
+                      </MenuItem>
+                    ))}
+                  </PropertySettingsMenu>
+                </MenuRoot>
+              ) : null}
+              {isChoiceProperty(property) ? (
+                <>
+                  {full && property.type !== "status" ? (
+                    <label className="property-settings__toggle">
+                      <input
+                        type="checkbox"
+                        checked={property.type === "multi-select"}
+                        onChange={(event) => {
+                          const checked = event.currentTarget.checked;
+                          onChange((p) => propertyWithType(p, checked ? "multi-select" : "select"));
+                        }}
+                      />
+                      Autoriser plusieurs options
+                    </label>
+                  ) : null}
+                  <hr className="ui-menu__separator" />
+                  {property.type === "status" ? (
+                    <StatusOptionsEditor property={property} onChange={onChange} />
+                  ) : (
+                    <CompactPropertyOptions property={property} onChange={onOptions} />
+                  )}
+                </>
+              ) : null}
+              {property.type === "date" ? (
+                <DatePropertySettings property={property} onChange={onChange} />
+              ) : null}
+              {property.type === "created-time" || property.type === "last-edited-time" ? (
+                <AutoDatePropertySettings property={property} onChange={onChange} />
+              ) : null}
+              {property.type === "number" ? (
+                <NumberPropertySettings property={property} onChange={onChange} />
+              ) : null}
+              {property.type === "unique-id" ? (
+                <UniqueIdPropertySettings property={property} onChange={onChange} />
+              ) : null}
+              {property.type === "relation" ? (
+                <RelationPropertySettings property={property} onChange={onChange} />
+              ) : null}
+              {property.type === "rollup" ? (
+                <RollupPropertySettings
+                  property={property}
+                  properties={properties}
+                  targets={rollupProperties}
+                  relationSources={rollupRelations}
+                  onChange={onChange}
+                />
+              ) : null}
+              {property.type === "formula" ? (
+                <div className="property-settings__formula">
+                  <span>{DATABASE_COPY.property.expression}</span>
+                  <code className="property-settings__formula-preview">
+                    {property.config.expression}
+                  </code>
+                  <Button
+                    type="button"
+                    size="compact"
+                    variant="ghost"
+                    className="property-settings__action"
+                    onClick={() => setFormulaOpen(true)}
+                  >
+                    <AppIcon name="settings" size="small" />
+                    Modifier la formule
+                  </Button>
+                  <FormulaEditor
+                    property={property}
+                    properties={properties}
+                    previewRow={previewRow}
+                    previewRows={previewRows}
+                    open={formulaOpen}
+                    onClose={() => setFormulaOpen(false)}
+                    onSave={(expression) =>
+                      onChange((p) => (p.type === "formula" ? { ...p, config: { expression } } : p))
+                    }
                   />
-                  Autoriser plusieurs options
-                </label>
-                <hr className="ui-menu__separator" />
-                <CompactPropertyOptions property={property} onChange={onOptions} />
-              </>
-            ) : null}
-            {property.type === "date" ? (
-              <label className="property-settings__toggle">
-                <input
-                  type="checkbox"
-                  checked={property.config.mode === "instant"}
-                  onChange={(event) => {
-                    const checked = event.currentTarget.checked;
-                    onChange((p) =>
-                      p.type === "date"
-                        ? { ...p, config: { mode: checked ? "instant" : "date" } }
-                        : p,
-                    );
-                  }}
-                />
-                Inclure l’heure
-              </label>
-            ) : null}
-            {property.type === "relation" ? (
-              <label className="property-settings__toggle">
-                <input
-                  type="checkbox"
-                  checked={property.config.cardinality === "many"}
-                  onChange={(event) => {
-                    const checked = event.currentTarget.checked;
-                    onChange((p) =>
-                      p.type === "relation"
-                        ? { ...p, config: { cardinality: checked ? "many" : "one" } }
-                        : p,
-                    );
-                  }}
-                />
-                Autoriser plusieurs pages
-              </label>
-            ) : null}
-            <hr className="ui-menu__separator" />
-            <Button
-              className="property-settings__action"
-              variant="ghost"
-              size="compact"
-              onClick={onDuplicate}
-            >
-              <AppIcon name="copy" size="small" />
-              Dupliquer la propriété
-            </Button>
-            <Button
-              className="property-settings__action property-settings__danger"
-              variant="ghost"
-              size="compact"
-              onClick={onRetire}
-            >
-              <AppIcon name="delete" size="small" />
-              Supprimer la propriété
-            </Button>
-          </>
-        ) : null}
-        {onMove === undefined ? null : (
-          <>
-            <hr className="ui-menu__separator" />
-            <Button
-              className="property-settings__action"
-              variant="ghost"
-              size="compact"
-              disabled={moveUpDisabled}
-              onClick={() => onMove(-1)}
-            >
-              <AppIcon name="arrowUp" size="small" />
-              Déplacer vers le haut
-            </Button>
-            <Button
-              className="property-settings__action"
-              variant="ghost"
-              size="compact"
-              disabled={moveDownDisabled}
-              onClick={() => onMove(1)}
-            >
-              <AppIcon name="arrowDown" size="small" />
-              Déplacer vers le bas
-            </Button>
-          </>
-        )}
-      </PopoverContent>
-    </PopoverRoot>
+                </div>
+              ) : null}
+              {full ? (
+                <>
+                  <hr className="ui-menu__separator" />
+                  <Button
+                    className="property-settings__action"
+                    variant="ghost"
+                    size="compact"
+                    onClick={onDuplicate}
+                  >
+                    <AppIcon name="copy" size="small" />
+                    Dupliquer la propriété
+                  </Button>
+                  <Button
+                    className="property-settings__action property-settings__danger"
+                    variant="ghost"
+                    size="compact"
+                    onClick={onRetire}
+                  >
+                    <AppIcon name="delete" size="small" />
+                    Supprimer la propriété
+                  </Button>
+                </>
+              ) : null}
+            </>
+          ) : null}
+          {onMove === undefined ? null : (
+            <>
+              <hr className="ui-menu__separator" />
+              <Button
+                className="property-settings__action"
+                variant="ghost"
+                size="compact"
+                disabled={moveUpDisabled}
+                onClick={() => onMove(-1)}
+              >
+                <AppIcon name="arrowUp" size="small" />
+                Déplacer vers le haut
+              </Button>
+              <Button
+                className="property-settings__action"
+                variant="ghost"
+                size="compact"
+                disabled={moveDownDisabled}
+                onClick={() => onMove(1)}
+              >
+                <AppIcon name="arrowDown" size="small" />
+                Déplacer vers le bas
+              </Button>
+            </>
+          )}
+        </PopoverContent>
+      </PopoverRoot>
+    </ColumnPropertyMenuAppearance.Provider>
   );
 }

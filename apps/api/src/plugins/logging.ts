@@ -3,9 +3,12 @@
  *
  * Request logging never records private content: page-document bodies,
  * file bytes, item names, and payload fields are redacted. Only stable
- * identifiers, routes, status codes, and safe error codes are logged. Human
- * presentation is selected only for a TTY (or an explicit override); a
- * container receives newline-delimited JSON without ANSI decoration.
+ * identifiers, routes, status codes, and safe error codes are logged.
+ *
+ * `MYOWNNOTION_LOG_FORMAT` picks the presentation: `human` (one readable line
+ * per event, no ANSI unless a terminal asks for it), `json` (newline-delimited
+ * JSON for a log collector) or `auto` (human on a terminal, JSON elsewhere).
+ * The official container stack sets `human`: people read container logs.
  */
 import process from "node:process";
 import type { Writable } from "node:stream";
@@ -15,6 +18,9 @@ import pinoPretty from "pino-pretty";
 
 export const LOG_COLOR_MODES = ["auto", "always", "never"] as const;
 export type LogColorMode = (typeof LOG_COLOR_MODES)[number];
+
+export const LOG_FORMATS = ["auto", "human", "json"] as const;
+export type LogFormat = (typeof LOG_FORMATS)[number];
 
 export const LOG_LEVELS = ["trace", "debug", "info", "warn", "error", "fatal", "silent"] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
@@ -115,7 +121,15 @@ export function registerLogging(options: RegisterLoggingOptions = {}): SafeLogge
     LOG_COLOR_MODES,
     "auto",
   );
-  const humanOutput = colorMode === "always" || isTTY;
+  const format = configuredValue(
+    "MYOWNNOTION_LOG_FORMAT",
+    env["MYOWNNOTION_LOG_FORMAT"],
+    LOG_FORMATS,
+    "auto",
+  );
+  // `json` always wins; `always` color implies a human presentation.
+  const humanOutput =
+    format === "json" ? false : format === "human" || colorMode === "always" || isTTY;
   const colorize = colorMode === "always" || (colorMode === "auto" && isTTY);
 
   const configuration: SafeLoggerOptions = {
@@ -148,6 +162,11 @@ export function registerLogging(options: RegisterLoggingOptions = {}): SafeLogge
         const { req, res, ...applicationFields } = object;
         return {
           ...(redactPrivateContent(applicationFields) as Record<string, unknown>),
+          // Milliseconds with a tenth of precision: enough to spot a slow
+          // request, and readable.
+          ...(typeof applicationFields["responseTime"] === "number"
+            ? { responseTime: Math.round(applicationFields["responseTime"] * 10) / 10 }
+            : {}),
           // These are intentionally left to the strict serializers above. A
           // raw Fastify request/reply is a large cyclic graph; traversing it is
           // both wasteful and less safe than emitting the three allowlisted
@@ -198,7 +217,12 @@ export function registerLogging(options: RegisterLoggingOptions = {}): SafeLogge
       levelFirst: true,
       singleLine: true,
       translateTime: "SYS:standard",
-      ignore: "pid,hostname",
+      // The route, status and timing already read in the message; repeating
+      // them (and the constant service/environment) as a trailing JSON object
+      // is what made these lines hard to scan. Other structured fields stay.
+      ignore: "pid,hostname,service,environment,reqId,req,res,responseTime,realtimeSync",
+      messageFormat:
+        "{if reqId}[{reqId}] {end}{msg}{if req.method} {req.method} {req.url}{end}{if res.statusCode} → {res.statusCode}{end}{if responseTime} ({responseTime} ms){end}{if realtimeSync.connectionId} (connexion {realtimeSync.connectionId}){end}",
       destination: options.destination ?? process.stdout,
       sync: true,
     });

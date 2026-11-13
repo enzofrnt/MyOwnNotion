@@ -47,6 +47,11 @@ Avant d’ajuster espacements ou couleurs, répondre :
 - Un statut technique (sync, stockage, ids) ne doit pas rivaliser avec le contenu
   ni l’action principale, sauf dans les réglages ou un panneau dédié.
 
+Pour reproduire une surface Notion, suivre la boucle vérifiable
+[`notion-parity`](../notion-parity/SKILL.md) : capture de la référence,
+relevé structure/styles/états, implémentation, capture du candidat, comparaison.
+Une reproduction « de silhouette » sans états ni comparaison n’est pas terminée.
+
 ## Partir du système existant
 
 Commencer par le [guide du système UI](../../../docs/design/ui-system.md) :
@@ -159,6 +164,27 @@ Cette règle concerne un enfant qui suit le contour du parent ; elle ne force
 pas le rayon d'un petit bouton libre au centre d'un panneau. Utiliser les tokens
 de rayon disponibles, puis vérifier visuellement le résultat à l'échelle réelle.
 Réserver les formes entièrement rondes aux contrôles dont la forme le justifie.
+
+## Menus et actions
+
+Une seule identité pour tous les menus : hauteur `--ui-menu-item-height`,
+rayon 6 px, gap 8 px, survol en voile translucide `--ui-menu-item-hover-bg`.
+Une action destructive reste neutre au repos, puis passe en
+`--ui-color-danger-text` avec `--ui-menu-item-danger-hover-bg` au survol/focus.
+Le clic droit ouvre la même surface logique que le clic normal sur la poignée,
+jamais rien. Voir `L-018`.
+
+Consulter le registre `specs/054-ui-parity-errors/errors.md` avant toute
+modification UI. Le survol d’en-tête remplit la cellule (`L-025`), le type se
+change par sous-menu et non par `<select>` (`L-026`), les sous-menus n’ont pas
+de scroll horizontal (`L-027`), et « … » ouvre les paramètres de vue (`L-028`).
+Une icône de propriété éditable est un bouton bordé de 26–28 px, pas un glyphe
+nu (`L-023`) ; chaque ligne de menu porte une icône de même taille (`L-024`).
+Les menus contextuels ne passent jamais sous la sidebar ou un en-tête : côté
+choisi selon l'espace, couche overlay, occlusion vérifiée (`L-019`). Un clic
+souris n'ouvre pas de carré de focus inutile (`L-020`) ; une action destructive
+est neutre puis rouge au survol avec le voile commun (`L-021`) ; les icônes de
+propriété sont éditables et supprimables, jamais des emojis (`L-022`).
 
 ## Lisibilité, clavier et superpositions
 

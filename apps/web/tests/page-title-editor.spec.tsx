@@ -395,4 +395,38 @@ describe("page title editor", () => {
     expect(meta?.lastElementChild?.className).toBe("workspace-page-title__kind-actions");
     expect(meta?.querySelector('[data-testid="folder-kind-action"]')?.textContent).toBe("Nouveau");
   });
+
+  it("offers “Ajouter une icône” on the caption line and moves a chosen icon beside the title", async () => {
+    const onIconChange = vi.fn();
+    await act(async () => {
+      root.render(
+        <PageTitleEditor
+          title="Compte rendu"
+          icon={null}
+          onCommit={async () => undefined}
+          onIconChange={onIconChange}
+        />,
+      );
+    });
+    const meta = container.querySelector(".workspace-page-title__meta");
+    const heading = container.querySelector(".workspace-page-title__heading");
+    expect(meta?.querySelector('[data-testid="item-icon-picker-trigger"]')?.textContent).toContain(
+      "Ajouter une icône",
+    );
+    expect(heading?.querySelector(".item-emoji-picker")).toBeNull();
+
+    await act(async () => {
+      root.render(
+        <PageTitleEditor
+          title="Compte rendu"
+          icon="🗺️"
+          onCommit={async () => undefined}
+          onIconChange={onIconChange}
+        />,
+      );
+    });
+    expect(heading?.querySelector('[data-testid="item-icon-picker-trigger"]')).not.toBeNull();
+    expect(meta?.querySelector(".item-emoji-picker")).toBeNull();
+    expect(meta?.querySelector(".workspace-page-title__meta-separator")).toBeNull();
+  });
 });

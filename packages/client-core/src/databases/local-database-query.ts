@@ -1,8 +1,10 @@
 import type { DatabaseQueryDto, DatabaseQueryPageDto } from "@myownnotion/contracts";
 import { presentDatabaseQuery } from "@myownnotion/contracts";
 import {
+  createDerivedValues,
   type DatabaseDefinition,
   type DatabaseQueryEntry,
+  type DerivedValueOptions,
   evaluateDatabaseView,
   type NonRelationPropertyValue,
   type RelationTargets,
@@ -12,6 +14,9 @@ import {
 export interface LocalDatabaseQueryEntry {
   readonly entryId: Uuid;
   readonly revisionId: Uuid;
+  readonly entryNumber?: number;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
   readonly title: string;
   readonly availability: "present" | "offloaded" | "never-fetched";
   readonly values: Readonly<Record<Uuid, NonRelationPropertyValue>>;
@@ -85,9 +90,15 @@ function decodeCursor(
   return offset;
 }
 
+/**
+ * `derived` carries the related entries rollups and formulas need. With it the
+ * local projection filters, sorts and shows the same computed values as the
+ * server; without it those properties read as empty.
+ */
 export function queryLocalDatabase(
   source: LocalDatabaseQuerySource,
   request: DatabaseQueryDto,
+  derived?: DerivedValueOptions,
 ): DatabaseQueryPageDto {
   const view = source.definition.views.find(
     (candidate) => candidate.id === request.viewId && candidate.state === "active",
@@ -95,12 +106,14 @@ export function queryLocalDatabase(
   if (view === undefined) throw new LocalDatabaseQueryError("database.invalid-view");
   const availableEntries = source.entries.filter(({ availability }) => availability === "present");
   const limit = request.limit ?? 100;
+  const values = derived === undefined ? null : createDerivedValues(source.definition, derived);
   const evaluated = evaluateDatabaseView(
     source.definition,
     request.viewId as Uuid,
     availableEntries,
     {
       ...(request.cursor === undefined && view.group === null ? { maxRows: limit } : {}),
+      ...(values === null ? {} : { derived: values.comparable }),
     },
   );
   if (!evaluated.ok) throw new LocalDatabaseQueryError("database.invalid-view");
@@ -117,6 +130,25 @@ export function queryLocalDatabase(
       : "partial";
   const nextOffset = offset + pageRows.length;
   const last = pageRows.at(-1);
+  const presented = presentDatabaseQuery({
+    definition: source.definition,
+    view,
+    entries: pageRows,
+    groups: evaluated.value.groups,
+    includeGroups: coverage !== "partial",
+  });
+  const hasRollups = source.definition.properties.some(
+    (property) => property.state === "active" && property.type === "rollup",
+  );
+  const presentedRows =
+    values === null || !hasRollups
+      ? presented.rows
+      : presented.rows.map((row, index) => {
+          const entry = pageRows[index];
+          return entry === undefined || entry.entryId !== row.entryId
+            ? row
+            : { ...row, rollupValues: values.rollups(entry) };
+        });
   return {
     databaseId: source.databaseId,
     viewId: request.viewId,
@@ -125,13 +157,8 @@ export function queryLocalDatabase(
     coverage,
     availableCount: availableEntries.length,
     expectedCount: source.expectedCount,
-    ...presentDatabaseQuery({
-      definition: source.definition,
-      view,
-      entries: pageRows,
-      groups: evaluated.value.groups,
-      includeGroups: coverage !== "partial",
-    }),
+    ...presented,
+    rows: presentedRows,
     nextCursor:
       nextOffset < evaluated.value.totalCount && last !== undefined
         ? encodeCursor({

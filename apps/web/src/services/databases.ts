@@ -6,6 +6,12 @@ import {
 } from "@myownnotion/client-core";
 import type { DatabaseQueryDto, DatabaseQueryPageDto, ProblemDto } from "@myownnotion/contracts";
 import { databaseQueryDefinition, type Uuid } from "@myownnotion/domain";
+import {
+  type LocalRollupContext,
+  loadLocalRollupContext,
+  localDerivedOptions,
+  withRollupMetadata,
+} from "../features/databases/local-rollup.ts";
 import type { LocalContentService } from "./local-content.ts";
 
 export type DatabaseRowSyncState = "synced" | "pending" | "conflict";
@@ -84,6 +90,7 @@ export class DatabaseViewService {
     Uuid,
     { readonly signature: string; readonly generation: number }
   >();
+  #rollupContext: { readonly epoch: number; readonly context: LocalRollupContext } | null = null;
 
   constructor(local: LocalContentService) {
     this.#local = local;
@@ -125,6 +132,9 @@ export class DatabaseViewService {
       entries.push({
         entryId: row.entryItemId,
         revisionId: item.currentRevisionId,
+        ...(row.entryNumber === undefined ? {} : { entryNumber: row.entryNumber }),
+        ...(row.createdAt === undefined ? {} : { createdAt: row.createdAt }),
+        ...(row.updatedAt === undefined ? {} : { updatedAt: row.updatedAt }),
         title: item.name,
         availability: row.availability,
         values: row.values.values,
@@ -151,6 +161,15 @@ export class DatabaseViewService {
     return source;
   }
 
+  /** Related entries of every local source, rebuilt when the projection changes. */
+  async #localRollupContext(): Promise<LocalRollupContext> {
+    const epoch = this.#epoch;
+    if (this.#rollupContext?.epoch === epoch) return this.#rollupContext.context;
+    const context = await loadLocalRollupContext(this.#local);
+    this.#rollupContext = { epoch, context };
+    return context;
+  }
+
   async #localQuery(
     databaseId: Uuid,
     request: DatabaseQueryDto,
@@ -158,7 +177,18 @@ export class DatabaseViewService {
     const source = await this.#localSource(databaseId);
     if (source === null) return null;
     try {
-      return queryLocalDatabase(source, request);
+      const derived = source.definition.properties.some(
+        (property) =>
+          property.state === "active" &&
+          (property.type === "rollup" || property.type === "formula"),
+      );
+      if (!derived) return queryLocalDatabase(source, request);
+      const context = await this.#localRollupContext();
+      return withRollupMetadata(
+        queryLocalDatabase(source, request, localDerivedOptions(context)),
+        { properties: source.definition.properties, entries: source.entries },
+        context,
+      );
     } catch (error) {
       if (error instanceof LocalDatabaseQueryError) return null;
       throw error;

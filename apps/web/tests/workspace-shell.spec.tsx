@@ -8,6 +8,7 @@ import { sidebarModeForWidth } from "../src/features/navigation/responsive-sideb
 import { SidebarCollapseButton } from "../src/features/navigation/sidebar-collapse.tsx";
 import { PageHeader } from "../src/features/workspace/page-header.tsx";
 import { activeItemState } from "../src/features/workspace/use-active-item.ts";
+import { WorkspaceHome } from "../src/features/workspace/workspace-home.tsx";
 import { WorkspaceShell } from "../src/features/workspace/workspace-shell.tsx";
 import { WorkspaceState } from "../src/features/workspace/workspace-state.tsx";
 
@@ -122,6 +123,9 @@ describe("workspace shell", () => {
     expect(markup).toContain('data-testid="open-tabs"');
     expect(markup).not.toContain('data-testid="active-item-title"');
     expect(markup).toContain('data-testid="page-context-actions"');
+    // One bar: the editor portals its undo/redo next to the tabs.
+    expect(markup).toContain('data-testid="workspace-history-slot"');
+    expect(markup).not.toContain("data-placeholder");
     expect(markup).not.toContain("Synchronisé");
     expect(markup).toContain("Plus d’actions");
     expect(markup).not.toContain("workspace-page-header__identity");
@@ -139,6 +143,8 @@ describe("workspace shell", () => {
     expect(markup).not.toContain('aria-label="Fil d’Ariane"');
     expect(markup).not.toContain("workspace-page-header__identity");
     expect(markup).not.toContain('data-testid="active-item-heading"');
+    // No editor here: disabled undo/redo hold the place so the bar never shifts.
+    expect(markup).toContain('data-placeholder="true"');
   });
 
   it("still names the context of non-page surfaces without a product-name segment", () => {
@@ -180,7 +186,6 @@ describe("workspace shell", () => {
   });
 
   it.each([
-    ["empty", "Votre espace est prêt"],
     ["offline", "Contenu indisponible hors ligne"],
     ["error", "L’espace n’a pas pu être chargé"],
   ] as const)("renders an explicit %s workspace state", (kind, title) => {
@@ -192,6 +197,47 @@ describe("workspace shell", () => {
     expect(markup).toContain(title);
     expect(markup).toContain("Détails techniques");
     expect(markup).toContain("diagnostic secondaire");
+  });
+
+  it("lands on a page-shaped canvas instead of a system notice", () => {
+    const markup = renderToStaticMarkup(
+      <WorkspaceHome hasItems onCreatePage={async () => undefined} />,
+    );
+
+    expect(markup).toContain('data-testid="workspace-home"');
+    // Readiness boundaries and the repair path both look for this heading.
+    expect(markup).toContain('data-testid="active-item-heading"');
+    expect(markup).toContain("Bienvenue");
+    expect(markup).toContain("Espace de travail");
+    expect(markup).toContain("Choisissez une page dans la barre latérale");
+    expect(markup).toContain('data-testid="home-create-page"');
+    expect(markup).not.toContain("Votre espace est prêt");
+  });
+
+  it("speaks to an owner who has not created anything yet", () => {
+    const markup = renderToStaticMarkup(
+      <WorkspaceHome hasItems={false} onCreatePage={async () => undefined} />,
+    );
+
+    expect(markup).toContain("Créez votre première page");
+    expect(markup).not.toContain("Choisissez une page");
+  });
+
+  it("keeps the landing chrome compact, without undo/redo or a second title", () => {
+    const markup = renderToStaticMarkup(
+      <PageHeader
+        kind="home"
+        tabs={<div data-testid="open-tabs">onglets</div>}
+        actions={<button type="button">Action</button>}
+      />,
+    );
+
+    expect(markup).toContain('data-compact="true"');
+    expect(markup).toContain('data-testid="open-tabs"');
+    expect(markup).not.toContain('data-testid="workspace-history-slot"');
+    expect(markup).not.toContain("workspace-page-header__identity");
+    expect(markup).not.toContain('data-testid="active-item-heading"');
+    expect(markup).not.toContain('data-testid="page-context-actions"');
   });
 
   it("derives the current title and path from stable identities after rename and move", () => {
@@ -213,7 +259,22 @@ describe("workspace shell", () => {
     expect(active.path.map((entry) => entry.name)).toEqual(["Archives", "Atlas 2027"]);
   });
 
-  it("reveals the add-icon control only while the title body is hovered or focused", () => {
+  it("keeps the empty path line of a root page as tall as a nested page's path", () => {
+    const workspaceCss = readFileSync(
+      new URL("../src/features/workspace/workspace.css", import.meta.url),
+      "utf8",
+    );
+    // The row is border-box with a top padding: only its content box can
+    // hold the line open when there is no ancestor to show.
+    expect(workspaceCss).toMatch(
+      /\.workspace-page-title__path-crumbs\s*\{[^}]*min-height:\s*1\.5rem/u,
+    );
+    expect(workspaceCss).toMatch(
+      /\.workspace-page-title__path \.workspace-path\s*\{[^}]*min-height:\s*1\.5rem/u,
+    );
+  });
+
+  it("reveals the add-icon on title hover and the clear badge only on the emoji", () => {
     const iconCss = readFileSync(new URL("../src/ui/item-icon.css", import.meta.url), "utf8");
     const workspaceCss = readFileSync(
       new URL("../src/features/workspace/workspace.css", import.meta.url),
@@ -232,7 +293,14 @@ describe("workspace shell", () => {
     expect(iconCss).toMatch(
       /\.workspace-page-title__body:hover \.item-emoji-picker\[data-picker-variant="page"\]\[data-empty\]/u,
     );
-    expect(iconCss).toMatch(/\.workspace-page-title__body:hover \.item-emoji-picker__clear/u);
+    expect(iconCss).toMatch(/\.item-emoji-picker:hover \.item-emoji-picker__clear/u);
+    expect(iconCss).toMatch(
+      /\[data-picker-variant="page"\]\s+\.item-emoji-picker__clear\.ui-button\[data-size="square"\]\s*\{[^}]*width:\s*18px/u,
+    );
+    expect(iconCss).toMatch(
+      /\.item-emoji-picker\[data-picker-variant="page"\] \.item-emoji-picker__clear \.ui-icon\s*\{[^}]*width:\s*12px/u,
+    );
+    expect(iconCss).not.toMatch(/\.workspace-page-title__body:hover \.item-emoji-picker__clear/u);
     expect(iconCss).not.toMatch(/@media \(pointer: coarse\)\s*\{\s*\.item-emoji-picker__clear/u);
   });
 

@@ -1,5 +1,6 @@
 import type { DatabaseProperty, DatabaseView, DefinitionImpact, Uuid } from "@myownnotion/domain";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { AppIcon, type AppIconName } from "../../ui/icons.tsx";
 import {
   Button,
@@ -24,14 +25,22 @@ import {
   PropertyEditor,
   validatePropertyDraft,
 } from "./property-editor.tsx";
-import { DatabasePropertyIcon } from "./property-icon.tsx";
-import { PropertyVisibilitySwitch } from "./property-visibility-switch.tsx";
+import { DatabasePropertyIcon, PropertyIconPicker } from "./property-icon.tsx";
 import { SortGroupEditor } from "./sort-group-editor.tsx";
-import { moveViewColumn, viewColumns } from "./view-columns.ts";
+import { viewColumns } from "./view-columns.ts";
 import { ViewMark } from "./view-icon.tsx";
 import { isAutomaticViewName, VIEW_TYPE_ICON, VIEW_TYPE_LABEL } from "./view-tab-names.ts";
+import {
+  applyVisibilityDragTransform,
+  moveVisibilityProperty,
+  previewVisibilityGroups,
+  resolveVisibilityDropTarget,
+  sameVisibilityTarget,
+  type VisibilityDropTarget,
+  type VisibilityRowBox,
+} from "./visibility-drag.ts";
 
-const VIEW_TYPE_CHOICES = ["table", "board", "gallery", "list", "calendar"] as const;
+const VIEW_TYPE_CHOICES = ["table", "board", "gallery", "list", "calendar", "map"] as const;
 const SOURCE_PAGE_SIZE = 5;
 
 export type ViewSettingsScreen =
@@ -198,6 +207,7 @@ function motionDurationMs(): number {
 export function ViewSettingsPanel({
   boardAvailable,
   calendarAvailable,
+  placeAvailable,
   closing = false,
   creatingSource,
   currentSourceId,
@@ -243,6 +253,7 @@ export function ViewSettingsPanel({
   readonly sourceLocked: boolean;
   readonly boardAvailable: boolean;
   readonly calendarAvailable: boolean;
+  readonly placeAvailable: boolean;
   readonly revealOwnedSource: boolean;
   readonly creatingSource: boolean;
   readonly filterCount: number;
@@ -276,6 +287,25 @@ export function ViewSettingsPanel({
   const nameAtPointer = useRef<string | null>(null);
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [propertyQuery, setPropertyQuery] = useState("");
+  const [visibilityQuery, setVisibilityQuery] = useState("");
+  const [visibilityDrag, setVisibilityDrag] = useState<{
+    readonly id: Uuid;
+    readonly target: VisibilityDropTarget | null;
+    readonly settled: boolean;
+  } | null>(null);
+  const visibilityRowRefs = useRef(new Map<string, HTMLLIElement>());
+  const visibilitySettledRef = useRef(false);
+  const visibilityDragCleanupRef = useRef<(() => void) | null>(null);
+  const visibilityDragRef = useRef<{
+    readonly id: Uuid;
+    readonly grabOffset: number;
+    pointerY: number;
+    node: HTMLLIElement | null;
+    translate: number;
+    target: VisibilityDropTarget | null;
+  } | null>(null);
+  const viewRef = useRef(view);
+  const propertiesRef = useRef(properties);
   const [iconQuery, setIconQuery] = useState("");
   const [creatingProperty, setCreatingProperty] = useState(false);
   const [propertyDraft, setPropertyDraft] = useState<DatabasePropertyDraft>(EMPTY_PROPERTY_DRAFT);
@@ -298,7 +328,11 @@ export function ViewSettingsPanel({
       const raw = getComputedStyle(stage).getPropertyValue("--database-settings-width");
       const width = Number.parseFloat(raw);
       const column = Number.isFinite(width) ? width : 290;
-      const next = { top: rect.top, left: Math.max(0, rect.right - column) };
+      // The stage's right edge can sit past the viewport (scrollbar, fractional
+      // layout, a WebKit layout viewport wider than the visual one). Clamp
+      // against the document's client width so the fixed sheet stays inside it.
+      const right = Math.min(rect.right, document.documentElement.clientWidth);
+      const next = { top: rect.top, left: Math.max(0, right - column) };
       setFrame((current) =>
         current !== null && current.top === next.top && current.left === next.left ? current : next,
       );
@@ -365,6 +399,151 @@ export function ViewSettingsPanel({
   const columns = viewColumns(properties, view.properties);
   const visibleCount = columns.filter((column) => column.visible).length;
   const activeProperties = properties.filter((property) => property.state === "active");
+  const visibilityGroups = previewVisibilityGroups(
+    columns,
+    visibilityDrag === null ? null : { id: visibilityDrag.id, target: visibilityDrag.target },
+  );
+  useEffect(() => {
+    viewRef.current = view;
+    propertiesRef.current = properties;
+  }, [view, properties]);
+  // The persisted view arrives asynchronously: keep showing the committed
+  // preview until the presentations prop reflects it (or the timer below fires).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the prop change is the trigger, the ref holds the state
+  useEffect(() => {
+    if (!visibilitySettledRef.current) return;
+    visibilitySettledRef.current = false;
+    setVisibilityDrag(null);
+  }, [view.properties]);
+  const visibilityDragSettled = visibilityDrag?.settled === true;
+  useEffect(() => {
+    if (!visibilityDragSettled) return;
+    const timer = window.setTimeout(() => {
+      visibilitySettledRef.current = false;
+      setVisibilityDrag(null);
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [visibilityDragSettled]);
+  useLayoutEffect(() => {
+    const drag = visibilityDragRef.current;
+    if (drag === null || visibilityDrag === null) return;
+    const node = visibilityRowRefs.current.get(drag.id);
+    if (node !== undefined) applyVisibilityDragTransform(node, drag);
+  }, [visibilityDrag]);
+  useEffect(
+    () => () => {
+      visibilityDragCleanupRef.current?.();
+    },
+    [],
+  );
+  const readVisibilityRowBoxes = (): VisibilityRowBox[] => {
+    const sheet = asideRef.current;
+    if (sheet === null) return [];
+    const boxes: VisibilityRowBox[] = [];
+    for (const element of sheet.querySelectorAll<HTMLElement>("[data-visibility-row]")) {
+      const group = element
+        .closest("[data-visibility-group]")
+        ?.getAttribute("data-visibility-group");
+      const id = element.getAttribute("data-visibility-row");
+      if ((group !== "visible" && group !== "hidden") || id === null) continue;
+      const rect = element.getBoundingClientRect();
+      boxes.push({ id, group, top: rect.top, height: rect.height });
+    }
+    return boxes;
+  };
+  const beginVisibilityDrag = (
+    event: React.PointerEvent<HTMLSpanElement>,
+    propertyId: Uuid,
+  ): void => {
+    if (event.button !== 0 || visibilityDrag !== null) return;
+    visibilitySettledRef.current = false;
+    const row = event.currentTarget.closest<HTMLElement>("[data-visibility-row]");
+    if (row === null || visibilityRowRefs.current.get(propertyId) === undefined) return;
+    event.preventDefault();
+    const drag = {
+      id: propertyId,
+      grabOffset: event.clientY - row.getBoundingClientRect().top,
+      pointerY: event.clientY,
+      node: null as HTMLLIElement | null,
+      translate: 0,
+      target: null as VisibilityDropTarget | null,
+    };
+    visibilityDragRef.current = drag;
+    setVisibilityDrag({ id: propertyId, target: null, settled: false });
+    const clearDraggedRow = (): void => {
+      const node = visibilityRowRefs.current.get(propertyId);
+      if (node !== undefined) node.style.transform = "";
+    };
+    const cleanup = (): void => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("keydown", onKeyDown, true);
+      visibilityDragCleanupRef.current = null;
+    };
+    const onMove = (moveEvent: PointerEvent): void => {
+      const active = visibilityDragRef.current;
+      if (active === null) return;
+      active.pointerY = moveEvent.clientY;
+      const target = resolveVisibilityDropTarget(
+        readVisibilityRowBoxes(),
+        moveEvent.clientY,
+        active.id,
+      );
+      if (target !== null && !sameVisibilityTarget(target, active.target)) {
+        active.target = target;
+        flushSync(() => {
+          setVisibilityDrag({ id: active.id, target, settled: false });
+        });
+      }
+      const node = visibilityRowRefs.current.get(active.id);
+      if (node !== undefined) applyVisibilityDragTransform(node, active);
+    };
+    const onUp = (): void => {
+      cleanup();
+      const active = visibilityDragRef.current;
+      visibilityDragRef.current = null;
+      if (active === null) return;
+      clearDraggedRow();
+      if (active.target === null) {
+        setVisibilityDrag(null);
+        return;
+      }
+      const next = moveVisibilityProperty(
+        propertiesRef.current,
+        viewRef.current.properties,
+        active.id,
+        active.target,
+      );
+      if (next === null) {
+        setVisibilityDrag(null);
+        return;
+      }
+      visibilitySettledRef.current = true;
+      flushSync(() => {
+        setVisibilityDrag({ id: active.id, target: active.target, settled: true });
+      });
+      onChangeView({ ...viewRef.current, properties: next });
+    };
+    const onCancel = (): void => {
+      cleanup();
+      const active = visibilityDragRef.current;
+      visibilityDragRef.current = null;
+      if (active !== null) clearDraggedRow();
+      setVisibilityDrag(null);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onCancel();
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    window.addEventListener("keydown", onKeyDown, true);
+    visibilityDragCleanupRef.current = cleanup;
+  };
   const query = propertyQuery.trim().toLocaleLowerCase();
   const listedProperties = activeProperties.filter((property) =>
     query === "" ? true : property.name.toLocaleLowerCase().includes(query),
@@ -565,11 +744,14 @@ export function ViewSettingsPanel({
             {VIEW_TYPE_CHOICES.map((choice) => {
               const unavailable =
                 (choice === "board" && !boardAvailable) ||
-                (choice === "calendar" && !calendarAvailable);
+                (choice === "calendar" && !calendarAvailable) ||
+                (choice === "map" && !placeAvailable);
               const reason =
                 choice === "board"
                   ? DATABASE_COPY.toolbar.boardNeedsProperty
-                  : DATABASE_COPY.toolbar.calendarNeedsProperty;
+                  : choice === "calendar"
+                    ? DATABASE_COPY.toolbar.calendarNeedsProperty
+                    : "Ajoutez d'abord une propriété Lieu";
               return (
                 <button
                   key={choice}
@@ -592,47 +774,111 @@ export function ViewSettingsPanel({
           </div>
         ) : null}
         {screen === "visibility" ? (
-          <ul className="database-view-settings__body database-view-settings__list">
-            {columns.map((column, index) => (
-              <li key={column.property.id} className="database-view-settings__switch-row">
-                <span className="database-view-settings__switch-copy">
-                  {column.property.name}
-                  <span className="database-view-settings__meta">
-                    {DATABASE_COPY.property.typeLabels[column.property.type]}
-                  </span>
-                </span>
-                <PropertyVisibilitySwitch
-                  property={column.property}
-                  visible={column.visible}
-                  onToggle={onToggleProperty}
-                />
-                {([-1, 1] as const).map((offset) => (
-                  <Button
-                    key={offset}
-                    size="square"
-                    variant="ghost"
-                    disabled={offset === -1 ? index === 0 : index === columns.length - 1}
-                    aria-label={
-                      offset === -1
-                        ? DATABASE_COPY.toolbar.moveColumnEarlier(column.property.name)
-                        : DATABASE_COPY.toolbar.moveColumnLater(column.property.name)
-                    }
-                    onClick={() => {
-                      const properties = moveViewColumn(
-                        activeProperties,
-                        view.properties,
-                        column.property.id,
-                        offset,
-                      );
-                      if (properties !== null) onChangeView({ ...view, properties });
-                    }}
-                  >
-                    <AppIcon name={offset === -1 ? "arrowLeft" : "chevronRight"} size="small" />
-                  </Button>
-                ))}
-              </li>
-            ))}
-          </ul>
+          <div className="database-view-settings__body database-property-visibility-page">
+            <InputSurface className="database-view-settings__search" density="compact">
+              <AppIcon name="search" size="small" />
+              <NativeInput
+                aria-label="Rechercher une propriété"
+                placeholder="Rechercher une propriété…"
+                value={visibilityQuery}
+                onChange={(event) => setVisibilityQuery(event.target.value)}
+              />
+            </InputSurface>
+            {(["visible", "hidden"] as const).map((group) => {
+              const groupColumns = (
+                group === "visible" ? visibilityGroups.visible : visibilityGroups.hidden
+              ).filter(
+                (column) =>
+                  visibilityQuery.trim() === "" ||
+                  column.property.name
+                    .toLocaleLowerCase()
+                    .includes(visibilityQuery.trim().toLocaleLowerCase()),
+              );
+              if (group === "hidden" && groupColumns.length === 0) return null;
+              return (
+                <section
+                  key={group}
+                  className="database-property-visibility-section"
+                  data-visibility-group={group}
+                >
+                  <header className="database-property-visibility-section__header">
+                    <span>
+                      {group === "visible" ? "Affiché dans la table" : "Masqué dans la table"}
+                    </span>
+                    <button
+                      type="button"
+                      className="database-property-visibility-section__action"
+                      onClick={() =>
+                        onChangeView({
+                          ...view,
+                          properties: view.properties.map((presentation) => {
+                            const property = properties.find(
+                              (candidate) => candidate.id === presentation.propertyId,
+                            );
+                            if (property?.type === "title") return presentation;
+                            return { ...presentation, visible: group !== "visible" };
+                          }),
+                        })
+                      }
+                    >
+                      {group === "visible" ? "Tout masquer" : "Tout afficher"}
+                    </button>
+                  </header>
+                  <ul className="database-property-visibility-list">
+                    {groupColumns.map((column) => (
+                      <li
+                        key={column.property.id}
+                        className="database-property-visibility-row"
+                        data-dragging={
+                          visibilityDrag?.id === column.property.id &&
+                          visibilityDrag.settled === false
+                            ? ""
+                            : undefined
+                        }
+                        data-visibility-row={column.property.id}
+                        ref={(node) => {
+                          if (node === null) visibilityRowRefs.current.delete(column.property.id);
+                          else visibilityRowRefs.current.set(column.property.id, node);
+                        }}
+                      >
+                        <span
+                          className="database-property-visibility-handle"
+                          aria-hidden="true"
+                          onPointerDown={(event) => beginVisibilityDrag(event, column.property.id)}
+                        >
+                          <AppIcon name="drag" size="small" />
+                        </span>
+                        <DatabasePropertyIcon
+                          type={column.property.type}
+                          icon={column.property.icon}
+                        />
+                        <span className="database-property-visibility-name">
+                          {column.property.name}
+                        </span>
+                        <span className="database-property-visibility-type">
+                          {DATABASE_COPY.property.typeLabels[column.property.type]}
+                        </span>
+                        <Button
+                          type="button"
+                          size="square"
+                          variant="ghost"
+                          disabled={column.property.type === "title"}
+                          aria-label={
+                            column.visible
+                              ? `Masquer ${column.property.name}`
+                              : `Afficher ${column.property.name}`
+                          }
+                          onClick={() => onToggleProperty(column.property.id, !column.visible)}
+                        >
+                          <AppIcon name={column.visible ? "eye" : "eyeOff"} size="small" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
+          </div>
         ) : null}
         {screen === "filter" ? (
           <div className="database-view-settings__body">
@@ -770,6 +1016,12 @@ export function ViewSettingsPanel({
             <ul className="database-view-settings__list">
               {listedProperties.map((property) => (
                 <li key={property.id} className="database-view-settings__property-row">
+                  <PropertyIconPicker
+                    property={property}
+                    onChange={(icon) =>
+                      onEditProperty(property.id, (current) => ({ ...current, icon }))
+                    }
+                  />
                   <button
                     type="button"
                     className="database-view-settings__row"
@@ -797,7 +1049,6 @@ export function ViewSettingsPanel({
                       });
                     }}
                   >
-                    <DatabasePropertyIcon type={property.type} icon={property.icon} />
                     <span className="database-view-settings__row-label">{property.name}</span>
                     <span className="database-view-settings__aside">
                       {DATABASE_COPY.property.typeLabels[property.type]}
@@ -808,6 +1059,7 @@ export function ViewSettingsPanel({
             </ul>
             {editedProperty === undefined || propertyEditor === null ? null : (
               <PropertyConfiguration
+                properties={properties}
                 property={editedProperty}
                 anchor={propertyEditor.anchor}
                 open
@@ -847,6 +1099,7 @@ export function ViewSettingsPanel({
             ) : null}
             {creatingProperty ? (
               <PropertyEditor
+                properties={properties}
                 draft={propertyDraft}
                 error={propertyError}
                 submitting={savingProperty}

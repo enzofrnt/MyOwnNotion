@@ -51,7 +51,8 @@ ENV NODE_ENV=production \
     TZ=UTC \
     MYOWNNOTION_APPLICATION_VERSION=${APPLICATION_VERSION} \
     MYOWNNOTION_API_HOST=0.0.0.0 \
-    MYOWNNOTION_API_PORT=3001
+    MYOWNNOTION_API_PORT=3001 \
+    MYOWNNOTION_LOG_FORMAT=human
 
 # Apply the distribution's security point releases. The runtime contains the
 # exact Bun binary and the self-contained production bundles, but no workspace

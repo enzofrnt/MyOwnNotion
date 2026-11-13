@@ -159,6 +159,28 @@ describe("typed mutation dispatch (T073)", () => {
         values: {},
         relationTargets: {},
       },
+      "database.entry.relation.patch": {
+        databaseId: itemId,
+        entryId,
+        propertyId: generateUuidV7(),
+        targetItemId: generateUuidV7(),
+        present: true,
+        baseRevisionId: revisionId,
+      },
+      "database.relation.pair.create": {
+        databaseId: itemId,
+        relationPropertyId: generateUuidV7(),
+        inversePropertyId: generateUuidV7(),
+        inverseName: "Inverse",
+        baseRevisionId: revisionId,
+        inverseBaseRevisionId: revisionId,
+      },
+      "database.relation.pair.remove": {
+        databaseId: itemId,
+        relationPropertyId: generateUuidV7(),
+        baseRevisionId: revisionId,
+        inverseBaseRevisionId: revisionId,
+      },
     };
     for (const commandType of COMMAND_TYPES) {
       const payload = samples[commandType];

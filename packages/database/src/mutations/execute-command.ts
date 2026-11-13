@@ -787,6 +787,9 @@ export async function executeCommand(
     case "database.entry.create":
     case "database.entry.values.replace":
     case "database.entry.values.resolve-conflict":
+    case "database.entry.relation.patch":
+    case "database.relation.pair.create":
+    case "database.relation.pair.remove":
       return executeDatabaseCommand(tx, context, command);
     default: {
       const exhaustive: never = command;

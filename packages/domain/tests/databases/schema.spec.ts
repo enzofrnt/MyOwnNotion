@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  asUuid,
+  type DatabaseDefinition,
+  DEFAULT_NUMBER_CONFIG,
   type DomainResult,
   jsonValuesEqual,
+  numberConfigOf,
   previewDefinitionImpact,
   projectTaskSemantics,
-  validateDatabaseDefinition,
+  statusDefaultOptionId,
+  uniqueIdPrefixOf,
+  validateDatabaseDefinition as validateTypedDatabaseDefinition,
 } from "../../src/index.ts";
 import { definition, IDS, values } from "./fixtures.ts";
+
+// These decoder tests deliberately pass malformed configuration and legacy
+// payloads. Keep the unsafe boundary explicit rather than widening production types.
+function validateDatabaseDefinition(input: unknown) {
+  return validateTypedDatabaseDefinition(input as DatabaseDefinition);
+}
 
 function unwrap<T>(result: DomainResult<T>): T {
   if (!result.ok) throw new Error(result.error.code);
@@ -445,5 +457,251 @@ describe("task values and destructive option changes", () => {
       await expect(
         previewDefinitionImpact({ baseRevisionId: IDS.revision, current, candidate, entries }),
       ).rejects.toThrow("invalid database definition impact input");
+  });
+});
+
+describe("number property configuration", () => {
+  it("accepts the legacy empty config and exposes defaults", () => {
+    const valid = definition();
+    const number = valid.properties.find((property) => property.type === "number");
+    expect(number).toBeDefined();
+    expect(validateDatabaseDefinition(valid).ok).toBe(true);
+    expect(numberConfigOf(required(number))).toEqual(DEFAULT_NUMBER_CONFIG);
+  });
+
+  it("validates format, decimals and display", () => {
+    const valid = definition();
+    const number = valid.properties.find((property) => property.type === "number");
+    const property = {
+      ...required(number),
+      config: { format: "euro", decimals: 2, display: "bar" },
+    };
+    const candidate = {
+      ...valid,
+      properties: valid.properties.map((entry) =>
+        entry.id === required(number).id ? property : entry,
+      ),
+    };
+    const normalized = unwrap(validateDatabaseDefinition(candidate));
+    const normalizedNumber = normalized.properties.find(
+      (entry) => entry.id === required(number).id,
+    );
+    expect(numberConfigOf(required(normalizedNumber))).toEqual(property.config);
+    for (const config of [
+      { format: "invalid", decimals: 2, display: "bar" },
+      { format: "euro", decimals: 9, display: "bar" },
+      { format: "euro", decimals: 2, display: "pie" },
+      { format: "euro", decimals: 2, display: "bar", extra: true },
+    ]) {
+      expect(
+        validateDatabaseDefinition({
+          ...valid,
+          properties: valid.properties.map((entry) =>
+            entry.id === required(number).id ? { ...entry, config } : entry,
+          ),
+        }).ok,
+      ).toBe(false);
+    }
+  });
+});
+
+describe("date property configuration", () => {
+  it("validates date and time display settings", () => {
+    const valid = definition();
+    const date = valid.properties.find((property) => property.type === "date");
+    expect(date).toBeDefined();
+    const configured = {
+      ...required(date),
+      config: { mode: "instant", dateFormat: "day-month-year", timeFormat: "24h" },
+    };
+    const candidate = {
+      ...valid,
+      properties: valid.properties.map((entry) =>
+        entry.id === required(date).id ? configured : entry,
+      ),
+    };
+    expect(validateDatabaseDefinition(candidate).ok).toBe(true);
+    for (const config of [
+      { mode: "date", dateFormat: "invalid", timeFormat: "24h" },
+      { mode: "date", dateFormat: "full", timeFormat: "invalid" },
+      { mode: "invalid", dateFormat: "full", timeFormat: "24h" },
+    ]) {
+      expect(
+        validateDatabaseDefinition({
+          ...valid,
+          properties: valid.properties.map((entry) =>
+            entry.id === required(date).id ? { ...entry, config } : entry,
+          ),
+        }).ok,
+      ).toBe(false);
+    }
+  });
+});
+
+describe("automatic date configuration", () => {
+  it("validates display settings for created and last edited time", () => {
+    const valid = definition();
+    const id = asUuid("018f0000-0000-7000-8000-000000000030");
+    const created = {
+      id,
+      name: "Créée",
+      type: "created-time" as const,
+      positionKey: "zz-created",
+      state: "active" as const,
+      config: { dateFormat: "day-month-year" as const, timeFormat: "24h" as const },
+    };
+    const base = { ...valid, properties: [...valid.properties, created] };
+    expect(validateDatabaseDefinition(base).ok).toBe(true);
+    for (const config of [
+      { dateFormat: "invalid", timeFormat: "24h" },
+      { dateFormat: "full", timeFormat: "invalid" },
+      { dateFormat: "full", timeFormat: "24h", extra: true },
+    ]) {
+      expect(
+        validateDatabaseDefinition({
+          ...base,
+          properties: base.properties.map((entry) =>
+            entry.id === id ? { ...entry, config } : entry,
+          ),
+        }).ok,
+      ).toBe(false);
+    }
+  });
+});
+
+describe("status groups", () => {
+  it("infers groups for legacy options and keeps a valid default", () => {
+    const valid = definition();
+    const status = valid.properties.find((property) => property.type === "status");
+    expect(status).toBeDefined();
+    const legacy = {
+      ...required(status),
+      config: {
+        options: required(status).config.options.map(({ id, label, positionKey, tone, state }) => ({
+          id,
+          label,
+          positionKey,
+          tone,
+          state,
+        })),
+      },
+    };
+    const candidate = {
+      ...valid,
+      properties: valid.properties.map((entry) =>
+        entry.id === required(status).id ? legacy : entry,
+      ),
+    };
+    const normalized = unwrap(validateDatabaseDefinition(candidate));
+    const normalizedStatus = normalized.properties.find(
+      (entry) => entry.id === required(status).id,
+    );
+    expect(normalizedStatus?.type).toBe("status");
+    expect(
+      normalizedStatus?.type === "status"
+        ? normalizedStatus.config.options.map((option) => option.group)
+        : [],
+    ).toEqual(["todo", "in-progress"]);
+    expect(normalizedStatus === undefined ? null : statusDefaultOptionId(normalizedStatus)).toBe(
+      IDS.todo,
+    );
+  });
+});
+
+describe("unique id prefix", () => {
+  it("validates and reads the prefix", () => {
+    const valid = definition();
+    const id = asUuid("018f0000-0000-7000-8000-000000000031");
+    const base = {
+      ...valid,
+      properties: [
+        ...valid.properties,
+        {
+          id,
+          name: "Identifiant",
+          type: "unique-id" as const,
+          positionKey: "zz-id",
+          state: "active" as const,
+          config: { prefix: "TASK" },
+        },
+      ],
+    };
+    const normalized = unwrap(validateDatabaseDefinition(base));
+    const property = normalized.properties.find((entry) => entry.id === id);
+    expect(property === undefined ? "" : uniqueIdPrefixOf(property)).toBe("TASK");
+    for (const config of [
+      { prefix: 42 },
+      { prefix: "x".repeat(33) },
+      { prefix: "TASK", extra: true },
+    ]) {
+      expect(
+        validateDatabaseDefinition({
+          ...base,
+          properties: base.properties.map((entry) =>
+            entry.id === id ? { ...entry, config } : entry,
+          ),
+        }).ok,
+      ).toBe(false);
+    }
+  });
+});
+
+describe("rollup configuration", () => {
+  it("accepts the Notion aggregate functions and an optional target property", () => {
+    const valid = definition();
+    const id = asUuid("018f0000-0000-7000-8000-000000000032");
+    const base = {
+      ...valid,
+      properties: [
+        ...valid.properties,
+        {
+          id,
+          name: "Total",
+          type: "rollup" as const,
+          positionKey: "zz-rollup",
+          state: "active" as const,
+          config: {
+            relationPropertyId: IDS.relation,
+            targetPropertyId: IDS.number,
+            aggregate: "sum" as const,
+          },
+        },
+      ],
+    };
+    expect(validateDatabaseDefinition(base).ok).toBe(true);
+    for (const aggregate of ["invalid", "maxx"]) {
+      expect(
+        validateDatabaseDefinition({
+          ...base,
+          properties: base.properties.map((entry) =>
+            entry.id === id ? { ...entry, config: { ...entry.config, aggregate } } : entry,
+          ),
+        }).ok,
+      ).toBe(false);
+    }
+  });
+});
+
+describe("place property", () => {
+  it("accepts an empty config and rejects extra configuration", () => {
+    const valid = definition();
+    const property = {
+      id: asUuid("018f0000-0000-7000-8000-000000000033"),
+      name: "Lieu",
+      type: "place" as const,
+      positionKey: "zz-place",
+      state: "active" as const,
+      config: {},
+    };
+    const candidate = { ...valid, properties: [...valid.properties, property] };
+    expect(validateDatabaseDefinition(candidate).ok).toBe(true);
+    expect(
+      validateDatabaseDefinition({
+        ...candidate,
+        properties: candidate.properties.map((entry) =>
+          entry.id === property.id ? { ...entry, config: { extra: true } } : entry,
+        ),
+      }).ok,
+    ).toBe(false);
   });
 });

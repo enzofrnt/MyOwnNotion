@@ -200,6 +200,48 @@ async function sealPayloads(
     }
   }
   if (
+    command.type === "database.relation.pair.create" ||
+    command.type === "database.relation.pair.remove"
+  ) {
+    // A pair changes two definitions in one mutation. Both envelopes must be
+    // resealed, or the change feed fails to resolve the partner source.
+    const sealSource = async (sourceId: Uuid) => {
+      const record = await readDatabaseRecordBySourceId(tx, sourceId);
+      if (record === null) return;
+      const definition = await readCurrentDatabaseDefinition(
+        tx,
+        record.databaseId,
+        resolveSnapshot,
+        sourceId,
+      );
+      if (definition === null) return;
+      await protectedContent.writeDatabaseDefinition(tx, {
+        sourceId,
+        definitionVersion: record.definitionVersion,
+        definition,
+      });
+    };
+    await sealSource(command.databaseId);
+    const origin =
+      (await readDatabaseRecordBySourceId(tx, command.databaseId)) ??
+      (await readDatabaseRecord(tx, command.databaseId));
+    const originDefinition =
+      origin === null
+        ? null
+        : await readCurrentDatabaseDefinition(
+            tx,
+            origin.databaseId,
+            resolveSnapshot,
+            origin.sourceId,
+          );
+    const relation = originDefinition?.properties.find(
+      (property) => property.id === command.relationPropertyId,
+    );
+    const targetSourceId =
+      relation?.type === "relation" ? relation.config.targetSourceId : undefined;
+    if (targetSourceId !== undefined) await sealSource(targetSourceId);
+  }
+  if (
     command.type === "database.entry.create" ||
     command.type === "database.entry.values.replace" ||
     command.type === "database.entry.values.resolve-conflict"

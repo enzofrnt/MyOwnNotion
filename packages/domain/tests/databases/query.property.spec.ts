@@ -62,6 +62,27 @@ describe("saved database query evaluation", () => {
     expect(idsFor(tableView({ filter: { mode: "any", criteria: [] } }), entries)).toHaveLength(3);
   });
 
+  it("orders an unsorted view by creation time, so a new entry lands last", () => {
+    const view = tableView();
+    const newest = { ...entries[0], createdAt: "2026-11-06T10:00:03.000Z" };
+    const oldest = { ...entries[2], createdAt: "2026-11-06T10:00:00.000Z" };
+    const middle = { ...entries[1], createdAt: "2026-11-06T10:00:01.000Z" };
+    expect(idsFor(view, [newest, oldest, middle])).toEqual([IDS.entryC, IDS.entryB, IDS.entryA]);
+  });
+
+  it("breaks equal creation timestamps by entry identity instead of title", () => {
+    const view = tableView();
+    const stamp = "2026-11-06T10:00:00.000Z";
+    const created = entries.map((entry) => ({
+      ...entry,
+      createdAt: stamp,
+    }));
+    const [first, second, third] = created;
+    if (first === undefined || second === undefined || third === undefined)
+      throw new Error("Missing fixture entry");
+    expect(idsFor(view, [second, third, first])).toEqual([IDS.entryA, IDS.entryB, IDS.entryC]);
+  });
+
   it("sorts numbers canonically, then normalized/raw title, then entry identity", () => {
     const view = tableView({
       sorts: [{ propertyId: IDS.number, direction: "ascending", missing: "last" }],

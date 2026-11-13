@@ -30,16 +30,14 @@
   height: 100%;
 }
 
-.workspace-page-header .editor-history-controls .ui-button,
-.workspace-page-title__history .editor-history-controls .ui-button {
+.workspace-page-header .editor-history-controls .ui-button {
   width: var(--editor-history-target);
   min-width: var(--editor-history-target);
   min-height: var(--editor-history-target);
   padding: 0;
 }
 
-.workspace-page-header .editor-history-controls .ui-icon,
-.workspace-page-title__history .editor-history-controls .ui-icon {
+.workspace-page-header .editor-history-controls .ui-icon {
   width: 0.875rem;
   height: 0.875rem;
 }
@@ -144,16 +142,13 @@
 }
 
 @media (pointer: fine) {
-  .workspace-page-header .editor-history-controls,
-  .workspace-page-title__history .editor-history-controls {
+  .workspace-page-header .editor-history-controls {
     opacity: 0.55;
     transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
   }
 
   .workspace-page-header:hover .editor-history-controls,
-  .workspace-page-header .editor-history-controls:focus-within,
-  .workspace-page-title__path:hover .editor-history-controls,
-  .workspace-page-title__history .editor-history-controls:focus-within {
+  .workspace-page-header .editor-history-controls:focus-within {
     opacity: 1;
   }
 }
@@ -1391,8 +1386,7 @@ html[data-block-grabbing="true"] .bn-formatting-toolbar {
   .editor-history-controls {
     --editor-history-target: var(--ui-target-compact);
   }
-  .workspace-page-header .editor-history-controls,
-  .workspace-page-title__history .editor-history-controls {
+  .workspace-page-header .editor-history-controls {
     --editor-history-target: 1.5rem;
   }
 
@@ -1566,4 +1560,158 @@ html[data-block-grabbing="true"] .bn-formatting-toolbar {
 .editor-contents-link:focus-visible {
   outline: 2px solid var(--ui-color-focus);
   outline-offset: 2px;
+}
+
+/* Notion-like block handle menu. */
+.bn-drag-handle-menu {
+  min-width: 240px;
+  padding: var(--ui-space-1);
+  border-radius: 10px;
+  background: var(--ui-color-surface-raised);
+  box-shadow: var(--ui-shadow-overlay);
+}
+
+.bn-block-menu-search {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin: var(--ui-space-1);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border: 1px solid var(--ui-color-border);
+  border-radius: 6px;
+  color: var(--ui-color-text-muted);
+}
+
+.bn-block-menu-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--ui-color-text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.bn-block-menu-type {
+  padding: var(--ui-space-1) var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.bn-drag-handle-menu .bn-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-height: var(--ui-menu-item-height);
+  padding: 0 var(--ui-space-2);
+  border-radius: 6px;
+  color: var(--ui-color-text);
+  font-size: 13px;
+  text-align: left;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.bn-drag-handle-menu .bn-menu-item:hover,
+.bn-drag-handle-menu .bn-menu-item[data-active-item] {
+  background: var(--ui-menu-item-hover-bg);
+}
+
+.bn-block-menu-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bn-block-menu-shortcut {
+  margin-left: auto;
+  color: var(--ui-color-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bn-block-menu-danger {
+  color: var(--ui-color-text);
+}
+
+.bn-drag-handle-menu .bn-block-menu-danger:hover,
+.bn-drag-handle-menu .bn-block-menu-danger[data-active-item],
+.bn-drag-handle-menu .bn-block-menu-danger:focus-visible {
+  color: var(--ui-color-danger-text);
+  background: var(--ui-menu-item-hover-bg);
+}
+
+.bn-block-menu-footer {
+  display: flex;
+  gap: var(--ui-space-1);
+  margin-top: var(--ui-space-1);
+  padding: var(--ui-space-2);
+  border-top: 1px solid color-mix(in srgb, var(--ui-color-border) 60%, transparent);
+  color: var(--ui-color-text-muted);
+  font-size: 11px;
+}
+
+.bn-block-menu-empty {
+  margin: 0;
+  padding: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  font-size: 12px;
+}
+
+.bn-drag-handle-menu hr,
+.bn-drag-handle-menu .bn-ak-separator {
+  height: 1px;
+  margin: var(--ui-space-1) var(--ui-space-2);
+  border: 0;
+  background: color-mix(in srgb, var(--ui-color-border) 70%, transparent);
+}
+
+.bn-ak-menu.bn-drag-handle-menu {
+  width: min(226px, calc(100vw - 24px));
+  min-width: min(226px, calc(100vw - 24px));
+  transform: translateX(var(--bn-block-menu-x, 12px)) translateY(120px);
+}
+
+.bn-drag-handle-menu .bn-menu-item.bn-block-menu-active {
+  background: var(--ui-menu-item-hover-bg);
+}
+
+/* The block handle menu lives in a BlockNote floating context. Lift that
+   context above the app chrome (sidebar, sticky headers) so it can never be
+   painted under another surface. */
+div:has(> .bn-side-menu) {
+  z-index: 70 !important;
+}
+
+/* Compact color submenu: no horizontal scroll, one clean vertical scrollbar. */
+.bn-color-picker-dropdown {
+  width: 260px !important;
+  max-width: min(260px, calc(100vw - 24px));
+  height: auto !important;
+  max-height: 340px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ui-color-text) 28%, transparent) transparent;
+}
+
+.bn-color-picker-dropdown > * {
+  min-width: 0;
+}
+
+.bn-color-picker-dropdown::-webkit-scrollbar {
+  width: 8px;
+  height: 0;
+}
+
+.bn-color-picker-dropdown::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-color-text) 28%, transparent);
+  background-clip: padding-box;
 }

@@ -377,7 +377,9 @@ export const CURRENT_PROTOCOL_HEADERS = {
 // generic assertion budget while the app is still making forward progress.
 // Keep interaction assertions strict; only the initial application boundary
 // receives the same 30-second allowance already used by authentication boots.
-const WORKSPACE_BOOT_TIMEOUT_MS = 30_000;
+// The workspace shell boots from local storage; a cold WebKit mobile context on a
+// shared runner has needed more than thirty seconds to paint it after a reload.
+const WORKSPACE_BOOT_TIMEOUT_MS = 45_000;
 
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -448,6 +450,26 @@ export async function createBusinessRelationship(
   return relationshipId;
 }
 
+/**
+ * Fills a controlled input until the value sticks.
+ *
+ * WebKit can project the input's previous state back over a single native fill
+ * between its value set and the input event; the journey then acts on an empty
+ * or stale field. Retrying the fill is the same gesture an owner repeats.
+ */
+export async function fillStable(locator: Locator, value: string): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        if ((await locator.inputValue().catch(() => null)) === value) return true;
+        await locator.fill(value).catch(() => {});
+        return (await locator.inputValue().catch(() => null)) === value;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+}
+
 export async function openWorkspace(
   page: Page,
   options: { navigationTimeoutMs?: number } = {},
@@ -506,7 +528,7 @@ export async function openWorkspace(
           '[data-testid="active-item-title"], [data-testid="active-item-heading"], .entry-panel',
         )
         .first(),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: WORKSPACE_BOOT_TIMEOUT_MS });
     // Wait for the initial load (tree or empty state) to settle. On a phone the
     // navigation is a closed modal drawer, so readiness is represented by the
     // settled content being attached rather than necessarily visible. Derived
@@ -770,12 +792,18 @@ export async function renameItem(
     },
     { timeout: options.responseTimeoutMs ?? 20_000 },
   );
-  page.once("dialog", (dialog) => void dialog.accept(nextName));
   await clickItemAction(page, itemName, `rename-${itemName}`);
-  // The click handler intentionally runs asynchronously. A generic "queue is
-  // empty" assertion can therefore pass before this specific rename has even
-  // reached the outbox. Observe its own batch response so following actions
-  // cannot accidentally race the mutation they are meant to follow.
+  // The row turns into its own input field. Filling it and pressing Enter is
+  // the same gesture an owner makes; no native dialog is involved, so nothing
+  // can be suppressed by a browser that blocks dialogs.
+  const field = page.getByTestId(`rename-input-${itemName}`);
+  await expect(field).toBeVisible();
+  await field.fill(nextName);
+  await field.press("Enter");
+  // The commit runs asynchronously. A generic "queue is empty" assertion can
+  // therefore pass before this specific rename has even reached the outbox.
+  // Observe its own batch response so following actions cannot accidentally
+  // race the mutation they are meant to follow.
   const response = await submitted;
   expect(response.ok(), `rename batch returned HTTP ${response.status()}`).toBe(true);
   const request = response.request().postDataJSON() as {
@@ -903,7 +931,7 @@ export async function createDatabaseEntry(
   title: string,
   kind: "page" | "folder" = "page",
 ): Promise<Locator> {
-  const form = page.locator(".database-entry-create");
+  const form = page.locator(".database-entry-create, .database-table-add-entry");
   const button = form.getByRole("button", {
     name: kind === "folder" ? "Nouveau dossier" : "Nouvelle page",
   });
@@ -994,7 +1022,10 @@ export async function dropEditorFile(
     { name: file.name, mimeType: file.mimeType, base64: file.buffer.toString("base64") },
   );
   if (file.mimeType.startsWith("image/")) {
-    await expect(editor.getByRole("img", { name: file.name, exact: true })).toBeVisible({
+    // Attachment journeys also pass bytes a browser cannot decode under an image
+    // MIME type; the node is still inserted, but it has no painted box. Wait for
+    // the node itself and let each journey assert what it needs.
+    await expect(editor.getByRole("img", { name: file.name, exact: true })).toBeAttached({
       timeout: 30_000,
     });
   } else {
@@ -1012,14 +1043,69 @@ export async function dropEditorFile(
   return result.itemId;
 }
 
-/** Creates a property using the current per-option form, then closes its panel. */
+/** Capitalised owner-facing labels of the inline column type picker. */
+const PROPERTY_TYPE_CHOICE_LABELS: Readonly<
+  Record<Exclude<DatabasePropertyType, "title">, string>
+> = {
+  text: "Texte",
+  number: "Nombre",
+  select: "Sélection",
+  "multi-select": "Sélection multiple",
+  status: "Statut",
+  date: "Date",
+  files: "Fichiers et médias",
+  place: "Lieu",
+  checkbox: "Case à cocher",
+  url: "URL",
+  phone: "Téléphone",
+  email: "E-mail",
+  relation: "Relation",
+  rollup: "Agrégation",
+  formula: "Formule",
+  "unique-id": "Identifiant",
+  "created-time": "Date de création",
+  "last-edited-time": "Dernière modification",
+};
+
+/** Section labels the status editor uses to add an option in a group. */
+const STATUS_GROUP_SECTION_LABELS = {
+  todo: "À faire",
+  "in-progress": "En cours",
+  complete: "Terminé",
+} as const;
+
+/** Mirrors `inferStatusGroup` in the domain for options added after creation. */
+function statusGroupForLabel(label: string): keyof typeof STATUS_GROUP_SECTION_LABELS {
+  const normalized = label.toLocaleLowerCase();
+  if (/termin|done|complete/u.test(normalized)) return "complete";
+  if (/cours|progress|doing/u.test(normalized)) return "in-progress";
+  return "todo";
+}
+
+function isChoicePropertyType(
+  type: Exclude<DatabasePropertyType, "title">,
+): type is "select" | "multi-select" | "status" {
+  return type === "select" || type === "multi-select" || type === "status";
+}
+
+/**
+ * Creates a property through the table's inline column control, then configures
+ * its options in the properties screen of the view settings.
+ *
+ * The retired per-property form is not used: the header's « Ajouter une
+ * propriété » button opens a name field and a type picker that persists the
+ * property immediately, so options, status groups and multi-select capacity are
+ * edited afterwards on the created property.
+ */
 export async function addDatabaseProperty(
   page: Page,
   name: string,
   type: Exclude<DatabasePropertyType, "title">,
   options?: readonly string[],
 ): Promise<void> {
-  const add = page.getByRole("button", { name: "Ajouter une propriété", exact: true });
+  const add = page
+    .locator(".database-table-add-property")
+    .getByRole("button", { name: "Ajouter une propriété", exact: true });
   await expect(add).toBeEnabled();
   // Header focus reveals the control through the body's horizontal scroll,
   // including on mobile engines without mouse.wheel support.
@@ -1045,54 +1131,168 @@ export async function addDatabaseProperty(
     .toBe(true);
   await expect(add).toBeInViewport();
   await add.click();
-  const form = page.getByRole("form", { name: "Éditeur de propriété" });
-  await form.getByLabel("Nom", { exact: true }).fill(name);
-  // The native select's wrapping label also contains its option text. Use
-  // its accessible combobox name rather than the label's full text content.
-  const typeControl = form.getByRole("combobox", { name: "Type", exact: true });
-  const draftType = type === "status" || type === "multi-select" ? "select" : type;
-  await typeControl.selectOption(draftType);
-  await expect(typeControl).toHaveValue(draftType);
-  if (options !== undefined) {
-    const inputs = form.getByLabel("Nom de l'option", { exact: true });
-    while ((await inputs.count()) > options.length) {
-      await form
-        .getByRole("button", { name: /^Retirer / })
-        .last()
-        .click();
-    }
-    while ((await inputs.count()) < options.length) {
-      await form.getByRole("button", { name: "Ajouter une option", exact: true }).click();
-    }
-    for (const [index, label] of options.entries()) await inputs.nth(index).fill(label);
-  }
-  await form.getByRole("button", { name: "Enregistrer la propriété" }).click();
-  await expect(form).toBeHidden();
+  const nameField = page.getByRole("textbox", {
+    name: "Nom de la nouvelle propriété",
+    exact: true,
+  });
+  await expect(nameField).toBeVisible();
+  // WebKit can project the controlled input's previous empty value back over a
+  // single fill, which would create the property under its type's default name.
+  await expect
+    .poll(
+      async () => {
+        if ((await nameField.inputValue().catch(() => "")) === name) return true;
+        await nameField.fill(name).catch(() => {});
+        return (await nameField.inputValue().catch(() => "")) === name;
+      },
+      { timeout: 10_000 },
+    )
+    .toBe(true);
+  const typeButton = page
+    .locator(".database-new-column__types")
+    .getByRole("button", { name: PROPERTY_TYPE_CHOICE_LABELS[type], exact: true });
+  await expect(typeButton).toBeEnabled();
+  await typeButton.click();
+  await expect(nameField).toBeHidden();
+  // The column header follows the acknowledged definition mutation; wait for
+  // the queue instead of racing the render on a slower engine.
+  await waitForSynchronized(page);
+  await expect(
+    page.getByTestId("database-view-surface").getByRole("columnheader").filter({ hasText: name }),
+  ).toBeVisible({ timeout: 20_000 });
   await waitForDatabaseDefinitionSaved(page);
-  await page.keyboard.press("Escape");
-  if (type === "multi-select") {
-    await openPropertyConfiguration(page, name);
-    await page.getByRole("checkbox", { name: "Autoriser plusieurs options" }).click();
-    await page.getByRole("button", { name: "Confirmer la modification", exact: true }).click();
-    await expect(page.getByRole("checkbox", { name: "Autoriser plusieurs options" })).toBeChecked();
-    await waitForSynchronized(page);
-    await page.keyboard.press("Escape");
-    await page
-      .locator(".database-view-settings")
-      .getByRole("button", { name: "Fermer", exact: true })
-      .click();
-    await expect(page.locator(".database-view-settings")).toBeHidden();
+  if (options === undefined) return;
+  if (!isChoicePropertyType(type)) {
+    throw new Error(`addDatabaseProperty only accepts options for choice properties, not ${type}`);
   }
+  await configureChoicePropertyOptions(page, name, type, options);
 }
 
-export async function openPropertyConfiguration(page: Page, name: string): Promise<void> {
-  await page.getByRole("button", { name: "Options de la vue", exact: true }).click();
+/**
+ * Opens a property's settings flyout from the view-settings properties screen.
+ *
+ * The view-settings trigger is shared by every view format, unlike the table
+ * header's own « Options de la vue » control that duplicates its label.
+ */
+export async function openPropertyConfiguration(page: Page, name: string): Promise<Locator> {
+  const config = page.locator(".property-settings:visible");
+  if (await config.isVisible()) return config;
   const settings = page.locator(".database-view-settings");
-  await settings.getByRole("button", { name: /Modifier les propriétés/ }).click();
-  await settings
-    .getByRole("button", { name: `Modifier la propriété ${name}`, exact: true })
+  if (!(await settings.isVisible())) {
+    await page.locator("[data-view-settings-trigger]").click();
+  }
+  await expect(settings).toBeVisible();
+  const nameInput = page.getByLabel("Nom de la propriété", { exact: true });
+  if (!(await nameInput.isVisible())) {
+    const screen = settings.getByRole("button", { name: /Modifier les propriétés/ });
+    if (await screen.isVisible()) await screen.click();
+    await settings
+      .getByRole("button", { name: `Modifier la propriété ${name}`, exact: true })
+      .click();
+  }
+  await expect(nameInput).toBeVisible();
+  await expect(config).toBeVisible();
+  return config;
+}
+
+/** Renames one configured option through its own settings menu. */
+async function renameConfiguredOption(page: Page, trigger: Locator, label: string): Promise<void> {
+  await trigger.click();
+  const input = page.getByRole("textbox", { name: "Nom de l'option", exact: true });
+  await expect(input).toBeVisible();
+  await input.fill(label);
+  // Enter blurs the field, which commits the trimmed label immediately.
+  await input.press("Enter");
+  await expect(trigger).toHaveAttribute("aria-label", `Modifier l’option ${label}`);
+  // Dismiss the menu by pressing inside the hosting sheet: a pointer-down there
+  // closes the portaled menu without being read as "outside the settings
+  // screen", and it does not depend on toggling a trigger whose menu may have
+  // moved under a stale pointer position on a narrow viewport.
+  await dismissPortaledMenu(page);
+  await expect(input).toBeHidden();
+}
+
+/** Closes an open portaled menu without dismissing the hosting settings screen. */
+async function dismissPortaledMenu(page: Page): Promise<void> {
+  const menu = page.locator(".ui-menu:visible");
+  if ((await menu.count()) === 0) return;
+  // Escape must be received from inside the menu: the settings screen ignores
+  // keys whose target is inside a portaled overlay, while a body-level Escape
+  // would dismiss the screen that hosts the editor.
+  const input = page.getByRole("textbox", { name: "Nom de l'option", exact: true });
+  if (await input.isVisible().catch(() => false)) await input.focus();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+}
+
+/** Adds one option after the defaults, in the group the status editor expects. */
+async function appendConfiguredOption(
+  config: Locator,
+  type: "select" | "multi-select" | "status",
+  label: string,
+): Promise<void> {
+  const section =
+    type === "status" ? STATUS_GROUP_SECTION_LABELS[statusGroupForLabel(label)] : undefined;
+  const input = config.getByRole("textbox", {
+    name: section === undefined ? "Nouvelle option" : `Nouvelle option ${section}`,
+    exact: true,
+  });
+  await input.fill(label);
+  await config
+    .getByRole("button", {
+      name: section === undefined ? "Ajouter l’option" : `Ajouter l’option ${section}`,
+      exact: true,
+    })
     .click();
-  await expect(page.getByLabel("Nom de la propriété", { exact: true })).toBeVisible();
+  await expect(
+    config.getByRole("button", { name: `Modifier l’option ${label}`, exact: true }),
+  ).toBeVisible();
+}
+
+/**
+ * Renames the creation defaults and appends any extra option labels, in order.
+ *
+ * Retiring a seeded option is deliberately not done here: retirement is a
+ * destructive schema change whose confirmed mutation currently ends in a
+ * `database.impact-stale` sync conflict on this branch. The journeys below only
+ * address options by label, so a remaining default stays inactive in practice.
+ */
+async function configureChoicePropertyOptions(
+  page: Page,
+  name: string,
+  type: "select" | "multi-select" | "status",
+  options: readonly string[],
+): Promise<void> {
+  const created = await openPropertyConfiguration(page, name);
+  const existing = await created.locator(".property-settings__option").count();
+  for (let index = 0; index < Math.min(existing, options.length); index += 1) {
+    const label = options[index];
+    if (label === undefined) continue;
+    const config = await openPropertyConfiguration(page, name);
+    await dismissPortaledMenu(page);
+    await renameConfiguredOption(
+      page,
+      config.locator(".property-settings__option").nth(index),
+      label,
+    );
+  }
+  for (let index = existing; index < options.length; index += 1) {
+    const label = options[index];
+    if (label === undefined) continue;
+    const config = await openPropertyConfiguration(page, name);
+    await appendConfiguredOption(config, type, label);
+  }
+  await waitForDatabaseDefinitionSaved(page);
+  // The property flyout overlaps the panel header: close it from inside its own
+  // portaled dialog so the same Escape is never read as a screen dismissal.
+  const settings = page.locator(".database-view-settings");
+  if (await page.locator(".property-settings:visible").isVisible()) {
+    await page.getByLabel("Nom de la propriété", { exact: true }).focus();
+    await page.keyboard.press("Escape");
+  }
+  await expect(page.locator(".property-settings:visible")).toBeHidden();
+  await settings.getByRole("button", { name: "Fermer", exact: true }).click();
+  await expect(settings).toBeHidden();
 }
 
 export function databaseViewButton(scope: Page | Locator, name: string | RegExp): Locator {

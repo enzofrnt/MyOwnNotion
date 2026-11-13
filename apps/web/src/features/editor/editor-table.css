@@ -174,7 +174,7 @@
 }
 
 .editor-table-cell:focus-within {
-  background: var(--ui-color-surface-hover);
+  background: transparent;
   box-shadow: inset 0 0 0 1px var(--ui-color-border-strong);
 }
 
@@ -197,6 +197,14 @@
 
 .editor-table-resize:focus-visible {
   outline: 0;
+}
+
+/* The bare-button hover fill from compatibility.css painted a grey strip that
+   followed the pointer down the separator and hid the blue column edge. */
+.editor-table-resize:hover,
+.editor-table-resize:focus-visible {
+  background: transparent;
+  border-color: transparent;
 }
 
 /* Continuous column-edge stroke (viewport-fixed). Never paint per-cell
@@ -579,4 +587,18 @@
 .bn-drag-preview .editor-table-column-stroke,
 .bn-drag-preview .editor-table-menu {
   display: none;
+}
+
+.editor-table-column-stroke {
+  z-index: 1000;
+}
+
+.editor-table-cell:hover,
+.editor-table-cell:focus,
+.editor-table-cell:focus-within {
+  background: transparent !important;
+}
+
+.editor-table-column-stroke {
+  z-index: 9999 !important;
 }

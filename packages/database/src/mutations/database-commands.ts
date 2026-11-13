@@ -4,6 +4,7 @@ import {
   type DatabaseImpactConfirmation,
   type DatabaseMutationCommand,
   type DatabasePresentationDefinition,
+  type DatabaseProperty,
   type DatabaseSourceDefinition,
   type DomainResult,
   databaseEntryPlacementId,
@@ -12,6 +13,7 @@ import {
   err,
   generateUuidV7,
   keyAfterAll,
+  type NonRelationPropertyValue,
   normalizeEntryValueMap,
   normalizeRelationTargets,
   ok,
@@ -43,6 +45,7 @@ import {
   readDatabasePresentationRecord,
   readDatabaseRecord,
   readDatabaseRecordBySourceId,
+  readDatabaseRelationTargets,
   replaceDatabaseRelationships,
 } from "../repositories/database-repository.ts";
 import { getItem } from "../repositories/hierarchy-repository.ts";
@@ -147,6 +150,8 @@ async function validateStructuredValues(
   tx: Transaction,
   input: {
     readonly definition: DatabaseDefinition;
+    readonly workspaceId: Uuid;
+    readonly previousRelations?: RelationTargets;
     readonly values: Extract<
       DatabaseMutationCommand,
       {
@@ -180,10 +185,47 @@ async function validateStructuredValues(
         ? err("validation.invalid-payload", "Relationship target set is absent")
         : (normalized as DomainResult<never>);
     }
-    for (const targetId of normalized.value) {
+    // Validate additions only: an unavailable historical endpoint must not prevent
+    // an unrelated edit or removal. The persisted link set, never the command,
+    // is the authority for this exemption.
+    const previous = new Set(input.previousRelations?.[propertyId as Uuid] ?? []);
+    const additions = normalized.value.filter((targetId) => !previous.has(targetId));
+    const targetSourceId = property.config.targetSourceId;
+    const source =
+      additions.length > 0 && targetSourceId !== undefined
+        ? await readDatabaseRecordBySourceId(tx, targetSourceId)
+        : null;
+    if (additions.length > 0 && targetSourceId !== undefined) {
+      const owner = source === null ? null : await getItem(tx, source.databaseId);
+      if (
+        source === null ||
+        source.workspaceId !== input.workspaceId ||
+        owner?.workspaceId !== input.workspaceId ||
+        owner.kind !== "database" ||
+        owner.lifecycle !== "active"
+      ) {
+        return err("database.source-unavailable", "Relationship source is unavailable");
+      }
+    }
+    for (const targetId of additions) {
       const target = await getItem(tx, targetId);
-      if (target === null || target.lifecycle === "purged") {
+      if (
+        target === null ||
+        target.workspaceId !== input.workspaceId ||
+        target.lifecycle !== "active"
+      ) {
         return err("relationship.endpoint-unavailable", "Relationship target is unavailable");
+      }
+      if (source !== null) {
+        const membership = await readDatabaseEntryRecord(tx, targetId, source.databaseId);
+        if (
+          membership === null ||
+          membership.sourceId !== targetSourceId ||
+          membership.workspaceId !== input.workspaceId ||
+          !(await isActiveDatabaseEntry(tx, source.databaseId, targetId))
+        ) {
+          return err("relationship.endpoint-unavailable", "Relationship target is unavailable");
+        }
       }
     }
     relations[propertyId] = normalized.value;
@@ -726,6 +768,7 @@ async function executeCreateEntry(
     definition,
     values: command.values,
     relationTargets: command.relationTargets,
+    workspaceId: context.workspaceId,
   });
   if (!structured.ok) return structured as DomainResult<DatabaseCommandExecution>;
 
@@ -838,6 +881,8 @@ async function executeReplaceEntryValues(
     definition,
     values: command.values,
     relationTargets: command.relationTargets,
+    workspaceId: context.workspaceId,
+    previousRelations: await readDatabaseRelationTargets(tx, command),
   });
   if (!structured.ok) return structured as DomainResult<DatabaseCommandExecution>;
 
@@ -915,6 +960,7 @@ async function executeResolveEntryValuesConflict(
     tx,
     command.databaseId,
     snapshotResolver(tx, context),
+    entry?.sourceId,
   );
   const priorValues = await readCurrentDatabaseEntryValues(
     tx,
@@ -947,6 +993,8 @@ async function executeResolveEntryValuesConflict(
     definition,
     values: command.values,
     relationTargets: command.relationTargets,
+    workspaceId: context.workspaceId,
+    previousRelations: await readDatabaseRelationTargets(tx, command),
   });
   if (!structured.ok) return structured as DomainResult<DatabaseCommandExecution>;
 
@@ -1157,7 +1205,527 @@ export async function executeDatabaseCommand(
       return executeReplaceEntryValues(tx, context, command);
     case "database.entry.values.resolve-conflict":
       return executeResolveEntryValuesConflict(tx, context, command);
+    case "database.entry.relation.patch":
+      return executeRelationPatch(tx, context, command);
+    case "database.relation.pair.create":
+      return executeRelationPairCreate(tx, context, command);
+    case "database.relation.pair.remove":
+      return executeRelationPairRemove(tx, context, command);
   }
+}
+
+/** A paired property cannot disappear on its own: the pair is one feature. */
+function dropsPairedRelation(current: DatabaseDefinition, candidate: DatabaseDefinition): boolean {
+  return current.properties.some(
+    (property) =>
+      property.type === "relation" &&
+      property.config.reciprocalPropertyId !== undefined &&
+      !candidate.properties.some((next) => next.id === property.id),
+  );
+}
+
+/**
+ * Apply one edge patch on the entry that owns the edge. Both sides of a
+ * two-way pair use this: the identifiers always describe the canonical entry,
+ * so one edge is written and both properties read the same truth.
+ */
+async function executeRelationPatch(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  command: Extract<DatabaseMutationCommand, { type: "database.entry.relation.patch" }>,
+): Promise<DomainResult<DatabaseCommandExecution>> {
+  const entry = await readDatabaseEntryRecord(tx, command.entryId, command.databaseId);
+  const item = await getItem(tx, command.entryId);
+  if (item === null || !(await isActiveDatabaseEntry(tx, command.databaseId, command.entryId))) {
+    return err("database.entry-not-found", "Database entry does not exist");
+  }
+  const ownerSource =
+    entry === null
+      ? await readDatabaseRecord(tx, command.databaseId)
+      : await readDatabaseRecordBySourceId(tx, entry.sourceId);
+  const definition = await readCurrentDatabaseDefinition(
+    tx,
+    command.databaseId,
+    snapshotResolver(tx, context),
+    entry?.sourceId,
+  );
+  if (definition === null || ownerSource === null) {
+    return err("database.not-found", "Database definition is unavailable");
+  }
+  const property = definition.properties.find((candidate) => candidate.id === command.propertyId);
+  if (property === undefined || property.type !== "relation" || property.state !== "active") {
+    return err("validation.invalid-payload", "Relationship property is unavailable");
+  }
+  if (item.currentRevisionId !== command.baseRevisionId) {
+    return err("revision.stale-base", "Database entry changed since the link was prepared", {
+      competingRevisionIds: [item.currentRevisionId],
+    });
+  }
+  const current = await readDatabaseRelationTargets(tx, {
+    databaseId: command.databaseId,
+    entryId: command.entryId,
+  });
+  const existing = current[command.propertyId] ?? [];
+  const present = existing.includes(command.targetItemId);
+  if (present === command.present) {
+    // Idempotent: replaying an accepted patch must not advance a revision.
+    return ok({ revisionIds: [], changedItemIds: [], primaryItemId: command.entryId });
+  }
+  const next = command.present
+    ? [...existing, command.targetItemId]
+    : existing.filter((target) => target !== command.targetItemId);
+  const priorValues = await readCurrentDatabaseEntryValues(
+    tx,
+    command.entryId,
+    snapshotResolver(tx, context),
+    command.databaseId,
+  );
+  return executeReplaceEntryValues(tx, context, {
+    type: "database.entry.values.replace",
+    databaseId: command.databaseId,
+    entryId: command.entryId,
+    baseRevisionId: command.baseRevisionId,
+    values: (priorValues?.values ?? {}) as Readonly<Record<Uuid, NonRelationPropertyValue>>,
+    relationTargets: { ...current, [command.propertyId]: next } as RelationTargets,
+  });
+}
+
+/** The inverse property a definition would add for this pair, isolated for tests. */
+function pairedInverseProperty(input: {
+  readonly inversePropertyId: Uuid;
+  readonly inverseName: string;
+  readonly sourceId: Uuid;
+  readonly reciprocalPropertyId: Uuid;
+  readonly positionKey: string;
+}): DatabaseProperty {
+  return {
+    id: input.inversePropertyId,
+    name: input.inverseName,
+    type: "relation",
+    positionKey: input.positionKey,
+    state: "active",
+    config: {
+      cardinality: "many",
+      targetSourceId: input.sourceId,
+      reciprocalPropertyId: input.reciprocalPropertyId,
+      inverseEdges: true,
+    },
+  };
+}
+
+/**
+ * Add the inverse column to the *saved presentation* of the partner owner.
+ * The definition alone is not displayed: the table renders the presentation's
+ * column list, so a pair without this update creates an invisible property.
+ */
+async function addPairColumnToPresentation(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  ownerItemId: Uuid,
+  sourceId: Uuid,
+  propertyId: Uuid,
+): Promise<DomainResult<Uuid | null>> {
+  const record = await readDatabasePresentationRecord(tx, ownerItemId);
+  const current = await readCurrentDatabasePresentation(
+    tx,
+    ownerItemId,
+    snapshotResolver(tx, context),
+  );
+  const item = await getItem(tx, ownerItemId);
+  if (record === null || current === null || item === null) {
+    return err("database.not-found", "Database presentation is unavailable");
+  }
+  let changed = false;
+  const views = current.views.map((view) => {
+    if (view.sourceId !== sourceId) return view;
+    if (view.properties.some((column) => column.propertyId === propertyId)) return view;
+    changed = true;
+    return {
+      ...view,
+      properties: [
+        ...view.properties,
+        {
+          propertyId,
+          visible: true,
+          positionKey: keyAfterAll(view.properties.map((column) => column.positionKey)),
+        },
+      ],
+    };
+  });
+  if (!changed) return ok(null);
+  const candidate = validateDatabasePresentation(
+    { ...current, views },
+    item.kind === "database_view" ? "database_view" : "database",
+  );
+  if (!candidate.ok) return candidate as DomainResult<never>;
+  const revisionId = generateUuidV7();
+  const advanced = await advanceDatabasePresentationVersion(tx, {
+    containerItemId: ownerItemId,
+    presentationRevisionId: revisionId,
+    expectedVersion: record.presentationVersion,
+    acceptedAt: context.acceptedAt,
+  });
+  if (!advanced) return err("mutation.conflict", "Database presentation version changed");
+  const snapshot = await buildItemSnapshot(tx, ownerItemId);
+  snapshot["databasePresentation"] = candidate.value;
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: ownerItemId,
+    mutationId: context.mutationId,
+    parentRevisionIds: [item.currentRevisionId],
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  return ok(revisionId);
+}
+
+/** Show a newly paired property in every existing view, as adding a column does. */
+function attachPropertyToViews(
+  definition: DatabaseDefinition,
+  propertyId: Uuid,
+): DatabaseDefinition {
+  return {
+    ...definition,
+    views: definition.views.map((view) => {
+      if (view.properties.some((column) => column.propertyId === propertyId)) return view;
+      return {
+        ...view,
+        properties: [
+          ...view.properties,
+          {
+            propertyId,
+            visible: true,
+            positionKey: keyAfterAll(view.properties.map((column) => column.positionKey)),
+          },
+        ],
+      };
+    }),
+  } as DatabaseDefinition;
+}
+
+/**
+ * Retire the inverse property instead of deleting it. Notion removes the column;
+ * retiring keeps its identity and history while hiding it, and avoids a
+ * destructive-definition impact on a deliberate pair removal.
+ */
+function retireProperty(definition: DatabaseDefinition, propertyId: Uuid): DatabaseDefinition {
+  return {
+    ...definition,
+    properties: definition.properties.map((property) =>
+      property.id === propertyId ? { ...property, state: "retired" as const } : property,
+    ),
+  };
+}
+
+async function executeRelationPairCreate(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  command: Extract<DatabaseMutationCommand, { type: "database.relation.pair.create" }>,
+): Promise<DomainResult<DatabaseCommandExecution>> {
+  // The command carries the canonical source identity, never the host item.
+  const sourceA =
+    (await readDatabaseRecordBySourceId(tx, command.databaseId)) ??
+    (await readDatabaseRecord(tx, command.databaseId));
+  const owner = sourceA === null ? null : await getItem(tx, sourceA.databaseId);
+  if (sourceA === null || owner === null || owner.lifecycle !== "active") {
+    return err("database.not-found", "Database does not exist");
+  }
+  const definitionA = await readCurrentDatabaseDefinition(
+    tx,
+    sourceA.databaseId,
+    snapshotResolver(tx, context),
+    sourceA.sourceId,
+  );
+  if (definitionA === null) return err("database.not-found", "Database definition is unavailable");
+  const propertyA = definitionA.properties.find(
+    (property) => property.id === command.relationPropertyId,
+  );
+  if (
+    propertyA === undefined ||
+    propertyA.type !== "relation" ||
+    propertyA.state !== "active" ||
+    propertyA.config.targetSourceId === undefined
+  ) {
+    return err("validation.invalid-payload", "Relationship property is unavailable");
+  }
+  if (propertyA.config.cardinality !== "many") {
+    return err("validation.invalid-payload", "A two-way relation needs unlimited pages");
+  }
+  if (propertyA.config.reciprocalPropertyId !== undefined) {
+    return err("validation.invalid-payload", "This relation is already two-way");
+  }
+  if (definitionA.properties.some((property) => property.id === command.inversePropertyId)) {
+    return err("validation.invalid-payload", "Inverse property identity is already used");
+  }
+  const recordB = await readDatabaseRecordBySourceId(tx, propertyA.config.targetSourceId);
+  const ownerB = recordB === null ? null : await getItem(tx, recordB.databaseId);
+  if (
+    recordB === null ||
+    recordB.workspaceId !== context.workspaceId ||
+    ownerB === null ||
+    ownerB.lifecycle !== "active"
+  ) {
+    return err("database.source-unavailable", "The related source is unavailable");
+  }
+  const definitionB = await readCurrentDatabaseDefinition(
+    tx,
+    recordB.databaseId,
+    snapshotResolver(tx, context),
+    recordB.sourceId,
+  );
+  if (definitionB === null) return err("database.not-found", "Related definition is unavailable");
+  if (definitionB.properties.some((property) => property.id === command.inversePropertyId)) {
+    return err("validation.invalid-payload", "Inverse property identity is already used");
+  }
+  const sameSource = recordB.sourceId === sourceA.sourceId;
+  const nextA: DatabaseDefinition = {
+    ...definitionA,
+    properties: definitionA.properties.map((property) =>
+      property.id === propertyA.id && property.type === "relation"
+        ? {
+            ...property,
+            config: { ...property.config, reciprocalPropertyId: command.inversePropertyId },
+          }
+        : property,
+    ),
+  };
+  const inverse = pairedInverseProperty({
+    inversePropertyId: command.inversePropertyId,
+    inverseName: command.inverseName,
+    sourceId: sourceA.sourceId,
+    reciprocalPropertyId: propertyA.id,
+    positionKey: keyAfterAll(definitionB.properties.map((property) => property.positionKey)),
+  });
+  const nextB: DatabaseDefinition = attachPropertyToViews(
+    { ...definitionB, properties: [...definitionB.properties, inverse] },
+    inverse.id,
+  );
+  if (sameSource) {
+    // A self-relation keeps both properties in one definition and one CAS.
+    const paired: DatabaseDefinition = attachPropertyToViews(
+      { ...nextA, properties: [...nextA.properties, inverse] },
+      inverse.id,
+    );
+    const prepared = await prepareDefinitionChange(
+      tx,
+      context,
+      sourceA,
+      definitionA,
+      sourceA.databaseId,
+      paired,
+      command.baseRevisionId,
+      undefined,
+      "Database impact changed before creating the relation pair",
+    );
+    if (!prepared.ok) return prepared as DomainResult<DatabaseCommandExecution>;
+    const committed = await commitDefinitionChange(
+      tx,
+      context,
+      sourceA,
+      sourceA.databaseId,
+      prepared.value,
+      [command.baseRevisionId],
+    );
+    if (!committed.ok) return committed;
+    const presentation = await addPairColumnToPresentation(
+      tx,
+      context,
+      sourceA.databaseId,
+      sourceA.sourceId as Uuid,
+      inverse.id,
+    );
+    if (!presentation.ok) return presentation as DomainResult<DatabaseCommandExecution>;
+    return ok({
+      revisionIds: [
+        ...committed.value.revisionIds,
+        ...(presentation.value === null ? [] : [presentation.value]),
+      ],
+      changedItemIds: committed.value.changedItemIds,
+      primaryItemId: committed.value.primaryItemId,
+    });
+  }
+  const [preparedA, preparedB] = await Promise.all([
+    prepareDefinitionChange(
+      tx,
+      context,
+      sourceA,
+      definitionA,
+      sourceA.databaseId,
+      nextA,
+      command.baseRevisionId,
+      undefined,
+      "Database impact changed before creating the relation pair",
+    ),
+    prepareDefinitionChange(
+      tx,
+      context,
+      recordB,
+      definitionB,
+      recordB.databaseId,
+      nextB,
+      command.inverseBaseRevisionId,
+      undefined,
+      "Related database impact changed before creating the relation pair",
+    ),
+  ]);
+  if (!preparedA.ok) return preparedA as DomainResult<DatabaseCommandExecution>;
+  if (!preparedB.ok) return preparedB as DomainResult<DatabaseCommandExecution>;
+  const first = await commitDefinitionChange(
+    tx,
+    context,
+    sourceA,
+    sourceA.databaseId,
+    preparedA.value,
+    [command.baseRevisionId],
+  );
+  if (!first.ok) return first;
+  const second = await commitDefinitionChange(
+    tx,
+    context,
+    recordB,
+    recordB.databaseId,
+    preparedB.value,
+    [command.inverseBaseRevisionId],
+  );
+  if (!second.ok) return second;
+  const presentationB = await addPairColumnToPresentation(
+    tx,
+    context,
+    recordB.databaseId,
+    recordB.sourceId as Uuid,
+    command.inversePropertyId,
+  );
+  if (!presentationB.ok) return presentationB as DomainResult<DatabaseCommandExecution>;
+  return ok({
+    revisionIds: [
+      ...first.value.revisionIds,
+      ...second.value.revisionIds,
+      ...(presentationB.value === null ? [] : [presentationB.value]),
+    ],
+    changedItemIds: [sourceA.databaseId, recordB.databaseId],
+    primaryItemId: sourceA.databaseId,
+  });
+}
+
+async function executeRelationPairRemove(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  command: Extract<DatabaseMutationCommand, { type: "database.relation.pair.remove" }>,
+): Promise<DomainResult<DatabaseCommandExecution>> {
+  const sourceA =
+    (await readDatabaseRecordBySourceId(tx, command.databaseId)) ??
+    (await readDatabaseRecord(tx, command.databaseId));
+  const definitionA =
+    sourceA === null
+      ? null
+      : await readCurrentDatabaseDefinition(
+          tx,
+          sourceA.databaseId,
+          snapshotResolver(tx, context),
+          sourceA.sourceId,
+        );
+  if (sourceA === null || definitionA === null)
+    return err("database.not-found", "Database does not exist");
+  const propertyA = definitionA.properties.find(
+    (property) => property.id === command.relationPropertyId,
+  );
+  if (propertyA === undefined || propertyA.type !== "relation") {
+    return err("validation.invalid-payload", "Relationship property is unavailable");
+  }
+  const reciprocalId = propertyA.config.reciprocalPropertyId;
+  const targetSourceId = propertyA.config.targetSourceId;
+  const nextA: DatabaseDefinition = {
+    ...definitionA,
+    properties: definitionA.properties.map((property) => {
+      if (property.id !== propertyA.id || property.type !== "relation") return property;
+      const { reciprocalPropertyId: _drop, ...config } = property.config;
+      return { ...property, config };
+    }),
+  };
+  const recordB =
+    targetSourceId === undefined ? null : await readDatabaseRecordBySourceId(tx, targetSourceId);
+  const definitionB =
+    recordB === null
+      ? null
+      : await readCurrentDatabaseDefinition(
+          tx,
+          recordB.databaseId,
+          snapshotResolver(tx, context),
+          recordB.sourceId,
+        );
+  const preparedA = await prepareDefinitionChange(
+    tx,
+    context,
+    sourceA,
+    definitionA,
+    sourceA.databaseId,
+    nextA,
+    command.baseRevisionId,
+    undefined,
+    "Database impact changed before removing the pair",
+    { allowDestructive: true },
+  );
+  if (!preparedA.ok) return preparedA as DomainResult<DatabaseCommandExecution>;
+  if (reciprocalId === undefined || recordB === null || definitionB === null) {
+    return commitDefinitionChange(tx, context, sourceA, sourceA.databaseId, preparedA.value, [
+      command.baseRevisionId,
+    ]);
+  }
+  const nextB = retireProperty(definitionB, reciprocalId);
+  const preparedB = await prepareDefinitionChange(
+    tx,
+    context,
+    recordB,
+    definitionB,
+    recordB.databaseId,
+    nextB,
+    command.inverseBaseRevisionId,
+    undefined,
+    "Related database impact changed before removing the pair",
+    { allowDestructive: true },
+  );
+  if (!preparedB.ok) return preparedB as DomainResult<DatabaseCommandExecution>;
+  const first = await commitDefinitionChange(
+    tx,
+    context,
+    sourceA,
+    sourceA.databaseId,
+    preparedA.value,
+    [command.baseRevisionId],
+  );
+  if (!first.ok) return first;
+  const second = await commitDefinitionChange(
+    tx,
+    context,
+    recordB,
+    recordB.databaseId,
+    preparedB.value,
+    [command.inverseBaseRevisionId],
+  );
+  if (!second.ok) return second;
+  return ok({
+    revisionIds: [...first.value.revisionIds, ...second.value.revisionIds],
+    changedItemIds: [sourceA.databaseId, recordB.databaseId],
+    primaryItemId: sourceA.databaseId,
+  });
+}
+
+/** Reject lossy replacements from clients that do not know targetSourceId. */
+function dropsConfiguredRelationSource(
+  current: DatabaseDefinition,
+  candidate: DatabaseDefinition,
+): boolean {
+  return current.properties.some(
+    (property) =>
+      property.type === "relation" &&
+      property.config.targetSourceId !== undefined &&
+      candidate.properties.some(
+        (next) =>
+          next.id === property.id &&
+          next.type === "relation" &&
+          next.config.targetSourceId === undefined,
+      ),
+  );
 }
 
 type DatabaseRecord = NonNullable<Awaited<ReturnType<typeof readDatabaseRecord>>>;
@@ -1178,10 +1746,23 @@ async function prepareDefinitionChange(
   baseRevisionId: Uuid,
   impactConfirmation: DatabaseImpactConfirmation | undefined,
   impactMessage: string,
+  options?: { readonly allowDestructive?: boolean },
 ): Promise<DomainResult<PreparedDefinitionChange>> {
   const candidate = validateDatabaseDefinition(definitionInput);
   if (!candidate.ok || candidate.value.databaseId !== databaseId) {
     return err("validation.invalid-payload", "Database definition is invalid");
+  }
+  if (dropsPairedRelation(currentDefinition, candidate.value)) {
+    return err(
+      "database.relation.pair-active",
+      "Retirez d’abord la relation liée avant de supprimer cette propriété",
+    );
+  }
+  if (dropsConfiguredRelationSource(currentDefinition, candidate.value)) {
+    return err(
+      "validation.invalid-payload",
+      "This client must preserve configured relationship sources",
+    );
   }
   for (const embedding of candidate.value.embeddings ?? []) {
     const previous = currentDefinition.embeddings?.find((value) => value.id === embedding.id);
@@ -1210,7 +1791,14 @@ async function prepareDefinitionChange(
     candidate: candidate.value,
     entries: entryValues,
   });
-  if (impact.destructive && impactConfirmation === undefined) {
+  // Retiring the inverse property of a pair is deliberate and loses no user
+  // data: its links are the canonical edges, kept on the other entry. Only the
+  // pair command may skip the confirmation it would otherwise require.
+  if (
+    impact.destructive &&
+    impactConfirmation === undefined &&
+    options?.allowDestructive !== true
+  ) {
     return err("database.impact-confirmation-required", "Database change requires confirmation");
   }
   if (

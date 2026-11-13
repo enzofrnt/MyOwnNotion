@@ -1,0 +1,12 @@
+{
+  "steps": [
+    { "action": "mouseMove", "x": 600, "y": 515, "ms": 700 },
+    {
+      "action": "clickVisibleRole",
+      "role": "button",
+      "name": "Ouvrir le menu",
+      "minX": 100,
+      "ms": 700
+    }
+  ]
+}

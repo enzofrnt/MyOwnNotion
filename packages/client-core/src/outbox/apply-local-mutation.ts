@@ -192,6 +192,7 @@ export class LocalValidationError extends Error {
     | "database.projection-unavailable"
     | "database.impact-confirmation-required"
     | "database.impact-stale"
+    | "database.relation.pair-active"
     | "revision.stale-base";
   constructor(code: LocalValidationError["code"], message: string) {
     super(message);

@@ -49,6 +49,9 @@ function viewFilter(
       "status",
       "multi_select",
       "date",
+      "url",
+      "email",
+      "phone_number",
     ].find((kind) => entry[kind] !== undefined);
     if (!prop || !kind) return null;
     const condition = Object.entries(object(entry[kind]));
@@ -62,7 +65,11 @@ function viewFilter(
       continue;
     }
     const converted =
-      kind === "title" || kind === "rich_text"
+      kind === "title" ||
+      kind === "rich_text" ||
+      kind === "url" ||
+      kind === "email" ||
+      kind === "phone_number"
         ? { kind: "text" as const, value: string(value) }
         : convertValue(
             prop,

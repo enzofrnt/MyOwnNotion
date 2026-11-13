@@ -1,6 +1,6 @@
 import type { DatabaseProperty } from "@myownnotion/domain";
 import { useState } from "react";
-import { AppIcon } from "../../ui/icons.tsx";
+import { AppIcon, type AppIconName } from "../../ui/icons.tsx";
 import { PopoverContent, PopoverRoot, PopoverTrigger } from "../../ui/primitives/index.ts";
 import { DatabaseIconPicker } from "./database-icon-picker.tsx";
 import { viewIconChoice } from "./view-icon.tsx";
@@ -19,37 +19,57 @@ export function DatabasePropertyIcon({
     return (
       <Icon
         className="ui-icon"
-        size={14}
+        size={16}
         focusable="false"
         aria-hidden="true"
         data-icon={choice.id}
       />
     );
   }
-  if (type === "title" || type === "text") return <span aria-hidden="true">Aa</span>;
-  if (type === "number") return <span aria-hidden="true">#</span>;
-  return (
-    <AppIcon
-      name={
-        type === "date"
-          ? "calendar"
-          : type === "checkbox"
-            ? "check"
-            : type === "relation"
-              ? "link"
-              : "list"
-      }
-      size="small"
-    />
-  );
+  const name =
+    type === "title" || type === "text"
+      ? "type"
+      : type === "number"
+        ? "hash"
+        : type === "unique-id"
+          ? "fingerprint"
+          : type === "status"
+            ? "status"
+            : type === "select"
+              ? "select"
+              : type === "multi-select"
+                ? "list"
+                : type === "checkbox"
+                  ? "checkbox"
+                  : type === "date"
+                    ? "calendar"
+                    : type === "created-time" || type === "last-edited-time"
+                      ? "clock"
+                      : type === "files"
+                        ? "paperclip"
+                        : type === "rollup" || type === "formula"
+                          ? "rollup"
+                          : type === "relation" || type === "url"
+                            ? "link"
+                            : type === "email"
+                              ? "mail"
+                              : type === "phone"
+                                ? "phone"
+                                : type === "place"
+                                  ? "mapPin"
+                                  : "list";
+  return <AppIcon name={name} size="small" />;
 }
 
 export function PropertyIconPicker({
   property,
   onChange,
+  placeholderIcon,
 }: {
   readonly property: Pick<DatabaseProperty, "type" | "name" | "icon">;
   readonly onChange: (icon: string | null) => void;
+  /** Mark for a field that is being created and has no icon yet. */
+  readonly placeholderIcon?: AppIconName;
 }) {
   const [query, setQuery] = useState("");
   return (
@@ -58,7 +78,15 @@ export function PropertyIconPicker({
         className="property-icon-picker__trigger"
         aria-label={`Changer l’icône de ${property.name}`}
       >
-        <DatabasePropertyIcon type={property.type} icon={property.icon} />
+        {property.icon === null || property.icon === undefined ? (
+          placeholderIcon === undefined ? (
+            <DatabasePropertyIcon type={property.type} icon={property.icon} />
+          ) : (
+            <AppIcon name={placeholderIcon} size="small" />
+          )
+        ) : (
+          <DatabasePropertyIcon type={property.type} icon={property.icon} />
+        )}
       </PopoverTrigger>
       <PopoverContent
         className="database-view-icon-picker"

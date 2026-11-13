@@ -14,6 +14,7 @@ import {
   type DatabaseDefinition,
   type DatabaseMutationCommand,
   type DatabasePresentationDefinition,
+  type DatabaseProperty,
   databaseEntryPlacementId,
   type EntryValues,
   generateUuidV7,
@@ -161,6 +162,24 @@ async function reconcileLocalPageLinks(
   }
 }
 
+/** Reject lossy replacements from clients that do not know targetSourceId. */
+function dropsConfiguredRelationSource(
+  current: DatabaseDefinition,
+  candidate: DatabaseDefinition,
+): boolean {
+  return current.properties.some(
+    (property) =>
+      property.type === "relation" &&
+      property.config.targetSourceId !== undefined &&
+      candidate.properties.some(
+        (next) =>
+          next.id === property.id &&
+          next.type === "relation" &&
+          next.config.targetSourceId === undefined,
+      ),
+  );
+}
+
 async function normalizeStructuredCommandValues(
   db: LocalDatabase,
   definition: DatabaseDefinition,
@@ -180,6 +199,14 @@ async function normalizeStructuredCommandValues(
     throw new LocalValidationError("validation.invalid-payload", normalizedValues.error.title);
   const values = normalizedValues.value;
 
+  const previous =
+    command.type === "database.entry.create"
+      ? []
+      : (await db.relationships.where("sourceItemId").equals(command.entryId).toArray()).filter(
+          (relationship) =>
+            relationship.relationType === "database:property" &&
+            relationship.metadata["databaseId"] === command.databaseId,
+        );
   const relationTargets: Record<string, readonly Uuid[]> = {};
   for (const [propertyId, rawTargets] of Object.entries(command.relationTargets)) {
     const property = properties.get(propertyId as Uuid);
@@ -196,13 +223,58 @@ async function normalizeStructuredCommandValues(
         normalized.ok ? "Relationship targets are absent" : normalized.error.title,
       );
     }
-    for (const targetId of normalized.value) {
+    const existing = new Set(
+      previous
+        .filter((relationship) => relationship.metadata["propertyId"] === propertyId)
+        .map((relationship) => relationship.targetItemId),
+    );
+    const additions = normalized.value.filter((targetId) => !existing.has(targetId));
+    const targetSourceId = property.config.targetSourceId;
+    // The local store and its codec are scoped to one workspace. Resolve only
+    // owned sources in that store, never a linked view's copied definition.
+    const source =
+      additions.length > 0 && targetSourceId !== undefined
+        ? ((await db.databaseSources.get(targetSourceId)) ??
+          (await db.databases.toArray()).find(
+            (row) => (row.sourceId ?? ownedSourceIdFromItemId(row.itemId)) === targetSourceId,
+          ))
+        : undefined;
+    if (additions.length > 0 && targetSourceId !== undefined) {
+      const owner = source === undefined ? undefined : await db.items.get(source.itemId);
+      if (source === undefined || owner?.kind !== "database" || owner.lifecycle !== "active") {
+        throw new LocalValidationError(
+          "database.source-unavailable",
+          "Relationship source is unavailable locally",
+        );
+      }
+    }
+    for (const targetId of additions) {
       const target = await db.items.get(targetId);
-      if (target === undefined || target.lifecycle === "purged") {
+      if (target === undefined || target.lifecycle !== "active") {
         throw new LocalValidationError(
           "relationship.endpoint-unavailable",
           "Relationship target is unavailable locally",
         );
+      }
+      if (source !== undefined) {
+        const membership = await db.databaseEntryPairs.get(
+          databaseEntryPairKey(source.itemId, targetId),
+        );
+        const placed = (await db.placements.where("itemId").equals(targetId).toArray()).some(
+          (placement) => placement.kind === "hierarchy" && placement.parentItemId === source.itemId,
+        );
+        if (
+          membership === undefined ||
+          (membership.sourceId ?? ownedSourceIdFromItemId(membership.databaseId)) !==
+            targetSourceId ||
+          (target.kind !== "page" && target.kind !== "folder") ||
+          !placed
+        ) {
+          throw new LocalValidationError(
+            "relationship.endpoint-unavailable",
+            "Relationship target is unavailable locally",
+          );
+        }
       }
     }
     relationTargets[propertyId] = normalized.value;
@@ -291,6 +363,284 @@ export interface PreparedProjectionWrite {
   readonly deletedSourceId?: Uuid;
   readonly databaseEntry?: SealedLocalDatabaseEntryRow;
   readonly relationTargets?: RelationTargets;
+  /** Two-way relation commands write two definitions in one transaction. */
+  readonly pair?: {
+    readonly sides: readonly {
+      readonly row: SealedLocalDatabaseRow;
+      readonly intoSources: boolean;
+      readonly item?: SealedLocalItemRow;
+      readonly ownerItemId: Uuid;
+      readonly revisionId: Uuid;
+      readonly baseRevisionId: Uuid;
+    }[];
+  };
+}
+
+/**
+ * Translate a single-edge patch into the values replacement the projection
+ * already knows how to apply. The patch carries the coordinates of the entry
+ * that owns the edge, so the same command serves both sides of a two-way pair.
+ */
+export async function patchAsEntryValues(
+  db: LocalDatabase,
+  command: Extract<MutationCommand, { type: "database.entry.relation.patch" }>,
+  codec: LocalRecordCodec,
+): Promise<Extract<MutationCommand, { type: "database.entry.values.replace" }> | null> {
+  const storedEntry = await db.databaseEntryPairs.get(
+    databaseEntryPairKey(command.databaseId, command.entryId),
+  );
+  const rows = await db.relationships.where("sourceItemId").equals(command.entryId).toArray();
+  const targets: Record<string, Uuid[]> = {};
+  // Property identities are unique, so the edge on this entry carrying this
+  // property is the edge the patch means. The owner identifier written with an
+  // edge varies with the surface (owning item, source, host page), and matching
+  // on it silently turned removals into no-ops.
+  for (const row of rows) {
+    if (row.relationType !== "database:property") continue;
+    const metadata = row.metadata as Record<string, unknown>;
+    const propertyId = metadata["propertyId"];
+    if (typeof propertyId !== "string") continue;
+    const list = targets[propertyId] ?? [];
+    list.push(row.targetItemId as Uuid);
+    targets[propertyId] = list;
+  }
+  const existing = targets[command.propertyId] ?? [];
+  // An addition already present is a replay. A removal of an edge this device
+  // cannot see is not: the server may hold it, so the command still goes out and
+  // the executor decides whether there is anything to remove.
+  if (command.present && existing.includes(command.targetItemId)) return null;
+  const next = command.present
+    ? [...existing, command.targetItemId]
+    : existing.filter((target) => target !== command.targetItemId);
+  const opened = storedEntry === undefined ? null : await codec.openDatabaseEntry(storedEntry);
+  return {
+    type: "database.entry.values.replace",
+    databaseId: command.databaseId,
+    entryId: command.entryId,
+    baseRevisionId: command.baseRevisionId,
+    values: opened?.values.values ?? {},
+    relationTargets: { ...targets, [command.propertyId]: next } as RelationTargets,
+  };
+}
+
+/** A source row can live in the container table or in the extra-sources table. */
+async function findSourceRow(
+  db: LocalDatabase,
+  sourceId: Uuid,
+  codec: LocalRecordCodec,
+): Promise<
+  | {
+      readonly row: SealedLocalDatabaseRow;
+      readonly opened: Awaited<ReturnType<LocalRecordCodec["openDatabase"]>>;
+      readonly intoSources: boolean;
+    }
+  | undefined
+> {
+  for (const row of await db.databases.toArray()) {
+    const opened = await codec.openDatabase(row);
+    if ((opened.sourceId ?? ownedSourceIdFromItemId(opened.itemId)) === sourceId) {
+      return { row, opened, intoSources: false };
+    }
+  }
+  const extra = await db.databaseSources.get(sourceId);
+  if (extra === undefined) return undefined;
+  return { row: extra, opened: await codec.openDatabase(extra), intoSources: true };
+}
+
+/** Mirrors the server's pair shapes so both projections agree byte for byte. */
+async function prepareRelationPair(
+  db: LocalDatabase,
+  command: Extract<
+    MutationCommand,
+    { type: "database.relation.pair.create" | "database.relation.pair.remove" }
+  >,
+  codec: LocalRecordCodec,
+): Promise<PreparedProjectionWrite> {
+  const sideA = await findSourceRow(db, command.databaseId, codec);
+  if (sideA === undefined)
+    throw new LocalValidationError("database.not-found", "Source is not available locally");
+  const relation = sideA.opened.definition.properties.find(
+    (property) => property.id === command.relationPropertyId,
+  );
+  if (relation === undefined || relation.type !== "relation" || relation.state !== "active")
+    throw new LocalValidationError(
+      "validation.invalid-payload",
+      "Relationship property is unavailable",
+    );
+  const seal = async (
+    side: typeof sideA,
+    definition: DatabaseDefinition,
+    revisionId: Uuid,
+    presentation?: typeof sideA.opened.presentation,
+  ) => {
+    const itemRow = await db.items.get(side.opened.itemId);
+    if (itemRow === undefined)
+      throw new LocalValidationError("database.not-found", "Source owner is unavailable");
+    const item = await codec.openItem(itemRow);
+    return {
+      row: await codec.sealDatabase({
+        ...side.opened,
+        definitionVersion: side.opened.definitionVersion + 1,
+        definitionRevisionId: revisionId,
+        definition,
+        ...(presentation === undefined
+          ? {}
+          : { presentation, presentationVersion: (side.opened.presentationVersion ?? 1) + 1 }),
+      }),
+      intoSources: side.intoSources,
+      item: await codec.sealItem({ ...item, currentRevisionId: revisionId }),
+      ownerItemId: side.opened.itemId,
+      revisionId,
+      baseRevisionId: revisionId,
+    };
+  };
+  if (command.type === "database.relation.pair.remove") {
+    if (sideA.opened.definitionRevisionId !== command.baseRevisionId)
+      throw new LocalValidationError(
+        "revision.stale-base",
+        "Database changed since this definition was prepared",
+      );
+    const targetSourceId = relation.config.targetSourceId;
+    const reciprocalId = relation.config.reciprocalPropertyId;
+    const nextA: DatabaseDefinition = {
+      ...sideA.opened.definition,
+      properties: sideA.opened.definition.properties.map((property) => {
+        if (property.id !== relation.id || property.type !== "relation") return property;
+        const { reciprocalPropertyId: _drop, ...config } = property.config;
+        return { ...property, config };
+      }),
+    };
+    const revisionA = generateUuidV7();
+    const sealedA = await seal(sideA, nextA, revisionA);
+    if (targetSourceId === undefined || reciprocalId === undefined)
+      return { pair: { sides: [{ ...sealedA, baseRevisionId: command.baseRevisionId }] } };
+    const sideB = await findSourceRow(db, targetSourceId, codec);
+    if (sideB === undefined)
+      throw new LocalValidationError("database.not-found", "Related source is unavailable locally");
+    if (sideB.opened.definitionRevisionId !== command.inverseBaseRevisionId)
+      throw new LocalValidationError(
+        "revision.stale-base",
+        "Related database changed since this definition was prepared",
+      );
+    const nextB: DatabaseDefinition = {
+      ...sideB.opened.definition,
+      properties: sideB.opened.definition.properties.map((property) =>
+        property.id === reciprocalId ? { ...property, state: "retired" as const } : property,
+      ),
+    };
+    const revisionB = generateUuidV7();
+    const sealedB = await seal(sideB, nextB, revisionB);
+    return {
+      pair: {
+        sides: [
+          { ...sealedA, baseRevisionId: command.baseRevisionId },
+          { ...sealedB, baseRevisionId: command.inverseBaseRevisionId },
+        ],
+      },
+    };
+  }
+  if (sideA.opened.definitionRevisionId !== command.baseRevisionId)
+    throw new LocalValidationError(
+      "revision.stale-base",
+      "Database changed since this definition was prepared",
+    );
+  if (relation.config.targetSourceId === undefined || relation.config.cardinality !== "many")
+    throw new LocalValidationError(
+      "validation.invalid-payload",
+      "A two-way relation needs a known source and unlimited pages",
+    );
+  if (relation.config.reciprocalPropertyId !== undefined)
+    throw new LocalValidationError(
+      "validation.invalid-payload",
+      "This relation is already two-way",
+    );
+  const sideB = await findSourceRow(db, relation.config.targetSourceId, codec);
+  if (sideB === undefined)
+    throw new LocalValidationError("database.not-found", "Related source is unavailable locally");
+  if (sideB.opened.definitionRevisionId !== command.inverseBaseRevisionId)
+    throw new LocalValidationError(
+      "revision.stale-base",
+      "Related database changed since this definition was prepared",
+    );
+  const inverse: DatabaseProperty = {
+    id: command.inversePropertyId,
+    name: command.inverseName,
+    type: "relation",
+    positionKey: keyAfterAll(
+      sideB.opened.definition.properties.map((property) => property.positionKey),
+    ),
+    state: "active",
+    config: {
+      cardinality: "many",
+      targetSourceId: command.databaseId,
+      reciprocalPropertyId: relation.id,
+      inverseEdges: true,
+    },
+  };
+  const withColumn = (
+    view: {
+      readonly properties: readonly { readonly propertyId: Uuid; readonly positionKey: string }[];
+    },
+    propertyId: Uuid,
+  ) =>
+    view.properties.some((column) => column.propertyId === propertyId)
+      ? view
+      : {
+          ...view,
+          properties: [
+            ...view.properties,
+            {
+              propertyId,
+              visible: true,
+              positionKey: keyAfterAll(view.properties.map((column) => column.positionKey)),
+            },
+          ],
+        };
+  // The canonical definition and the saved presentation both need the column:
+  // the table renders the presentation.
+  const attach = (side: typeof sideA, property: DatabaseProperty) => ({
+    definition: {
+      ...side.opened.definition,
+      properties: [...side.opened.definition.properties, property],
+      views: side.opened.definition.views.map((view) => withColumn(view, property.id)),
+    } as unknown as DatabaseDefinition,
+    presentation:
+      side.opened.presentation === undefined
+        ? undefined
+        : ({
+            ...side.opened.presentation,
+            views: side.opened.presentation.views.map((view) => withColumn(view, property.id)),
+          } as unknown as typeof side.opened.presentation),
+  });
+  const nextA: DatabaseDefinition = {
+    ...sideA.opened.definition,
+    properties: sideA.opened.definition.properties.map((property) =>
+      property.id === relation.id && property.type === "relation"
+        ? {
+            ...property,
+            config: { ...property.config, reciprocalPropertyId: command.inversePropertyId },
+          }
+        : property,
+    ),
+  };
+  const revisionA = generateUuidV7();
+  const revisionB = generateUuidV7();
+  const sameSide =
+    sideA.opened.itemId === sideB.opened.itemId && sideA.opened.sourceId === sideB.opened.sourceId;
+  const attachedA = sameSide ? attach(sideA, inverse) : undefined;
+  const sealedA = await seal(
+    sideA,
+    attachedA?.definition ?? nextA,
+    revisionA,
+    attachedA?.presentation,
+  );
+  const sides = [{ ...sealedA, baseRevisionId: command.baseRevisionId }];
+  if (!sameSide) {
+    const attachedB = attach(sideB, inverse);
+    const sealedB = await seal(sideB, attachedB.definition, revisionB, attachedB.presentation);
+    sides.push({ ...sealedB, baseRevisionId: command.inverseBaseRevisionId });
+  }
+  return { pair: { sides } };
 }
 
 export async function prepareProjectionWrite(
@@ -298,6 +648,17 @@ export async function prepareProjectionWrite(
   command: MutationCommand,
   codec: LocalRecordCodec,
 ): Promise<PreparedProjectionWrite> {
+  if (
+    command.type === "database.relation.pair.create" ||
+    command.type === "database.relation.pair.remove"
+  ) {
+    return prepareRelationPair(db, command, codec);
+  }
+  if (command.type === "database.entry.relation.patch") {
+    const normalized = await patchAsEntryValues(db, command, codec);
+    // Replaying an already-applied patch must not advance a revision.
+    return normalized === null ? {} : prepareProjectionWrite(db, normalized, codec);
+  }
   switch (command.type) {
     case "database_view.create": {
       const sources = await Promise.all(
@@ -568,6 +929,25 @@ export async function prepareProjectionWrite(
           "Database definition is invalid",
         );
       }
+      if (
+        database.definition.properties.some(
+          (property) =>
+            property.type === "relation" &&
+            property.config.reciprocalPropertyId !== undefined &&
+            !candidate.value.properties.some((next) => next.id === property.id),
+        )
+      ) {
+        throw new LocalValidationError(
+          "database.relation.pair-active",
+          "Retirez d’abord la relation liée avant de supprimer cette propriété",
+        );
+      }
+      if (dropsConfiguredRelationSource(database.definition, candidate.value)) {
+        throw new LocalValidationError(
+          "validation.invalid-payload",
+          "This client must preserve configured relationship sources",
+        );
+      }
       if (database.definition.embeddings !== undefined && candidate.value.embeddings === undefined)
         throw new LocalValidationError(
           "validation.invalid-payload",
@@ -756,7 +1136,14 @@ export async function prepareProjectionWrite(
       if (storedDatabase === undefined) {
         throw new LocalValidationError("database.not-found", "Database is not available locally");
       }
-      if (storedItem === undefined) return {};
+      if (storedItem === undefined) {
+        // Returning an empty prepared write hid *why* an entry write could not
+        // be applied; say it instead.
+        throw new LocalValidationError(
+          "database.entry-not-found",
+          "Entry item is not available locally",
+        );
+      }
       const activePlacement = (
         await db.placements.where("itemId").equals(command.entryId).toArray()
       ).some(
@@ -1235,7 +1622,8 @@ export async function applyCommandToProjection(
     }
 
     case "database.entry.values.replace":
-    case "database.entry.values.resolve-conflict": {
+    case "database.entry.values.resolve-conflict":
+    case "database.entry.relation.patch": {
       const item = await db.items.get(command.entryId);
       if (
         item === undefined ||
@@ -1278,6 +1666,36 @@ export async function applyCommandToProjection(
         relationTargets: prepared.relationTargets,
       });
       return [revisionId];
+    }
+
+    case "database.relation.pair.create":
+    case "database.relation.pair.remove": {
+      if (prepared.pair === undefined) {
+        throw new LocalValidationError(
+          "database.not-found",
+          "The two-way relation write was not prepared",
+        );
+      }
+      const revisions: Uuid[] = [];
+      for (const side of prepared.pair.sides) {
+        const revisionId = await writeLocalRevision(
+          db,
+          side.ownerItemId,
+          [side.baseRevisionId],
+          now,
+          side.revisionId,
+          mutationId,
+        );
+        if (side.item !== undefined) await db.items.put(side.item);
+        if (side.intoSources) {
+          await db.databaseSources.put(side.row);
+        } else {
+          await db.databases.put(side.row);
+          if (side.row.sourceId !== undefined) await db.databaseSources.put(side.row);
+        }
+        revisions.push(revisionId);
+      }
+      return revisions;
     }
 
     case "item.create": {

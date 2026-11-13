@@ -19,12 +19,17 @@ export function SortGroupEditor({
   view,
   onChange,
   showGrouping = true,
+  defaultOpen = false,
+  live = false,
 }: {
   readonly properties: readonly DatabaseProperty[];
   readonly view: DatabaseView;
   readonly onChange: (view: DatabaseView) => void | Promise<void>;
   readonly showGrouping?: boolean;
+  readonly defaultOpen?: boolean;
+  readonly live?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(defaultOpen);
   const active = properties.filter(({ state }) => state === "active");
   const groupable = active.filter(
     ({ type }) =>
@@ -38,6 +43,8 @@ export function SortGroupEditor({
   const [sorts, setSorts] = useState(view.sorts);
   const [group, setGroup] = useState<GroupCriterion | null>(effectiveGroup);
   const [saving, setSaving] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const liveSaved = useRef(draftSignature(view.sorts, effectiveGroup));
   const sortsRef = useRef(sorts);
   const groupRef = useRef(group);
   const dirty = useRef(false);
@@ -74,6 +81,46 @@ export function SortGroupEditor({
     setSorts(view.sorts);
     setGroup(incomingGroup);
   }, [view.group, view.sorts, view.type, view.options]);
+  useEffect(() => {
+    if (!live || !dirty.current) return;
+    const signature = draftSignature(sorts, group);
+    if (signature === liveSaved.current) return;
+    const timer = window.setTimeout(() => {
+      pendingSignature.current = signature;
+      setSaving(true);
+      const next = !showGrouping
+        ? { ...view, sorts }
+        : view.type === "board" && group !== null
+          ? {
+              ...view,
+              sorts,
+              group,
+              options: {
+                ...view.options,
+                axisPropertyId: group.propertyId,
+                ...(group.propertyId === view.options.axisPropertyId
+                  ? {}
+                  : { columnOrder: [], collapsedColumnIds: [] }),
+              },
+            }
+          : { ...view, sorts, group };
+      void Promise.resolve(onChange(next))
+        .then(() => {
+          liveSaved.current = signature;
+          if (draftSignature(sortsRef.current, groupRef.current) === signature)
+            dirty.current = false;
+          setLiveError(null);
+        })
+        .catch((error: unknown) => {
+          pendingSignature.current = null;
+          setLiveError(
+            error instanceof Error ? error.message : "Les tris n’ont pas pu être appliqués.",
+          );
+        })
+        .finally(() => setSaving(false));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [sorts, group, live, onChange, view, showGrouping]);
   const updateSort = (index: number, change: Partial<SortCriterion>): void => {
     updateSorts((current) =>
       current.map((sort, position) => (position === index ? { ...sort, ...change } : sort)),
@@ -94,7 +141,11 @@ export function SortGroupEditor({
   );
 
   return (
-    <details className="database-rule-editor">
+    <details
+      className="database-rule-editor"
+      open={expanded}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
       <summary>
         {showGrouping
           ? DATABASE_COPY.sort.summary(sorts.length, group !== null)
@@ -235,44 +286,51 @@ export function SortGroupEditor({
             </NativeSelect>
           </label>
         ) : null}
-        <Button
-          size="compact"
-          variant="primary"
-          type="button"
-          onClick={() => {
-            pendingSignature.current = draftSignature(sorts, group);
-            setSaving(true);
-            const next = !showGrouping
-              ? { ...view, sorts }
-              : view.type === "board" && group !== null
-                ? {
-                    ...view,
-                    sorts,
-                    group,
-                    options: {
-                      ...view.options,
-                      axisPropertyId: group.propertyId,
-                      ...(group.propertyId === view.options.axisPropertyId
-                        ? {}
-                        : { columnOrder: [], collapsedColumnIds: [] }),
-                    },
-                  }
-                : { ...view, sorts, group };
-            void Promise.resolve(onChange(next))
-              .catch(() => {
-                pendingSignature.current = null;
-              })
-              .finally(() => setSaving(false));
-          }}
-        >
-          {showGrouping
-            ? saving
-              ? DATABASE_COPY.sort.saving
-              : DATABASE_COPY.sort.save
-            : saving
-              ? "Enregistrement des tris…"
-              : "Enregistrer les tris"}
-        </Button>
+        {live ? null : (
+          <Button
+            size="compact"
+            variant="primary"
+            type="button"
+            onClick={() => {
+              pendingSignature.current = draftSignature(sorts, group);
+              setSaving(true);
+              const next = !showGrouping
+                ? { ...view, sorts }
+                : view.type === "board" && group !== null
+                  ? {
+                      ...view,
+                      sorts,
+                      group,
+                      options: {
+                        ...view.options,
+                        axisPropertyId: group.propertyId,
+                        ...(group.propertyId === view.options.axisPropertyId
+                          ? {}
+                          : { columnOrder: [], collapsedColumnIds: [] }),
+                      },
+                    }
+                  : { ...view, sorts, group };
+              void Promise.resolve(onChange(next))
+                .catch(() => {
+                  pendingSignature.current = null;
+                })
+                .finally(() => setSaving(false));
+            }}
+          >
+            {showGrouping
+              ? saving
+                ? DATABASE_COPY.sort.saving
+                : DATABASE_COPY.sort.save
+              : saving
+                ? "Enregistrement des tris…"
+                : "Enregistrer les tris"}
+          </Button>
+        )}
+        {live && liveError !== null ? (
+          <p className="database-rule-error" role="alert">
+            {liveError}
+          </p>
+        ) : null}
       </fieldset>
     </details>
   );

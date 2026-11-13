@@ -64,6 +64,31 @@ describe("logging configuration (T091)", () => {
     expect(() => JSON.parse(output.trim().split("\n")[0] ?? "")).toThrow();
   });
 
+  it.each([
+    { format: "human", isTTY: false, json: false },
+    { format: "json", isTTY: true, json: false },
+    { format: "auto", isTTY: false, json: true },
+  ] as const)("honours MYOWNNOTION_LOG_FORMAT=$format (TTY=$isTTY)", async (sample) => {
+    const output = await emitLog({
+      env: { MYOWNNOTION_LOG_FORMAT: sample.format, MYOWNNOTION_LOG_COLOR: "never" },
+      isTTY: sample.isTTY,
+    });
+    const line = output.trim().split("\n")[0] ?? "";
+    if (sample.format === "json" || sample.json) {
+      expect(() => JSON.parse(line)).not.toThrow();
+    } else {
+      // A container is not a TTY: readable text, and still no ANSI.
+      expect(() => JSON.parse(line)).toThrow();
+      expect(output.includes("\u001b[")).toBe(false);
+    }
+  });
+
+  it("rejects unknown formats", () => {
+    expect(() => registerLogging({ env: { MYOWNNOTION_LOG_FORMAT: "xml" }, isTTY: false })).toThrow(
+      /MYOWNNOTION_LOG_FORMAT/u,
+    );
+  });
+
   it("rejects unknown color modes and levels", () => {
     expect(() =>
       registerLogging({ env: { MYOWNNOTION_LOG_COLOR: "sometimes" }, isTTY: false }),
