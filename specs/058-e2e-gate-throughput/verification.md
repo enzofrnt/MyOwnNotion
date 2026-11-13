@@ -122,10 +122,20 @@ Each browser journey passed 8 of 8 local repetitions after the change
 views) on firefox-desktop, `database-relations-rollups` (empty source) on
 webkit-mobile. The web unit test passes; it was not repeated under load.
 
+### Second complete run 43519009785 (documentation commit)
+
+Browser jobs 17.9 min. Red: `page-protocol-migration.spec.ts:181` failed on
+webkit-desktop and webkit-mobile with a page error
+`…/v1/changes?after=0&limit=200 due to access control checks.` — WebKit's
+diagnostic for a request aborted by the journey's own `setOffline(true)`,
+which the application already handles as "offline". The journey now ignores
+that one engine diagnostic (6 of 6 local repetitions on webkit-desktop; the
+race is rare, so the repetitions do not prove its absence). The
+`Browser gate report` job failed with the lanes, which is the first real CI
+exercise of the guard on a failing run.
+
 ### Not exercised yet
 
 - The timings cache save/restore: it only runs on `main`.
 - The nightly schedule.
-- The guard on a real CI failure (covered by contract tests and a local run
-  with a missing lane report).
 - The per-engine install saving was not measured separately (T042).

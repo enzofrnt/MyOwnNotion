@@ -184,7 +184,15 @@ test.describe("page protocol migration", () => {
     request,
   }) => {
     const pageErrors: string[] = [];
-    page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("pageerror", (error) => {
+      // This journey cuts the network on purpose. When a poll of the change
+      // feed is in flight at that instant, WebKit reports the aborted request
+      // as a page error ("… due to access control checks.") although the
+      // application handles the rejected fetch as "offline". That engine
+      // diagnostic is not an application exception; everything else still is.
+      if (error.message.endsWith("due to access control checks.")) return;
+      pageErrors.push(error.message);
+    });
     const pageName = uniqueName("PendingV2Migration");
     const replacementText = `ancienne écriture en attente ${pageName}`;
     const operationalText = `nouvelle écriture opérationnelle ${pageName}`;
