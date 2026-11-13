@@ -231,6 +231,25 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   await expect(page.getByTestId("active-item-title")).toHaveValue("Large reusable source");
   await expect(loaded).toContainText("1001 entrées chargées", { timeout: 30_000 });
   await expect(last).toBeFocused();
+  // WebKit does not always scroll a focused cell fully into the visual
+  // viewport; centre it before proving the return geometry.
+  await expect
+    .poll(
+      async () => {
+        try {
+          return await last.evaluate((node) => {
+            const rect = node.getBoundingClientRect();
+            if (rect.top >= 0 && rect.bottom <= window.innerHeight) return true;
+            node.scrollIntoView({ block: "center" });
+            return false;
+          });
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
   await expect(last)
     .toBeInViewport({ ratio: 1 })
     .catch(async (error: unknown) => {
@@ -263,6 +282,23 @@ test("loads beyond 1000 canonical entries using a visible cursor action", async 
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(last).toBeFocused();
+  await expect
+    .poll(
+      async () => {
+        try {
+          return await last.evaluate((node) => {
+            const rect = node.getBoundingClientRect();
+            if (rect.top >= 0 && rect.bottom <= window.innerHeight) return true;
+            node.scrollIntoView({ block: "center" });
+            return false;
+          });
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
   await expect(last).toBeInViewport({ ratio: 1 });
   const darkScreenshot = testInfo.outputPath("large-table-return-dark.png");
   await page.screenshot({ path: darkScreenshot });

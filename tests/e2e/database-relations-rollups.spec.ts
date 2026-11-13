@@ -19,7 +19,22 @@ async function addProperty(page: Page, name: string, type: string) {
     .getByRole("button", { name: "Ajouter une propriété", exact: true });
   await add.focus();
   await add.click();
-  await page.getByRole("textbox", { name: "Nom de la nouvelle propriété", exact: true }).fill(name);
+  const nameField = page.getByRole("textbox", {
+    name: "Nom de la nouvelle propriété",
+    exact: true,
+  });
+  // WebKit can project the controlled input's previous empty value back over a
+  // single fill, which would create the property under its type's default name.
+  await expect
+    .poll(
+      async () => {
+        if ((await nameField.inputValue().catch(() => "")) === name) return true;
+        await nameField.fill(name).catch(() => {});
+        return (await nameField.inputValue().catch(() => "")) === name;
+      },
+      { timeout: 10_000 },
+    )
+    .toBe(true);
   await page
     .locator(".database-new-column__types")
     .getByRole("button", { name: type, exact: true })
@@ -179,17 +194,31 @@ test("configured relation to an empty source persists and computes 10 + 20 = 30,
   await waitForSynchronized(page);
   await (await createDatabaseEntry(page, "057 Project")).click();
   const panel = page.locator(".entry-panel");
+  const relatedPill = panel.getByRole("button", { name: "Related", exact: true });
   for (const title of ["057 Ten", "057 Twenty"]) {
-    const relation = panel.getByRole("button", { name: "Related", exact: true });
-    const option = page.getByRole("menuitemcheckbox", { name: title, exact: true });
-    // The menu can already be open from the previous pick; only click to open
-    // when the option is not rendered, so the trigger is never toggled twice.
-    if (!(await option.isVisible().catch(() => false))) await relation.click();
-    await expect(option).toBeVisible({ timeout: 15_000 });
-    await option.click();
-    // The chosen pill is the durable projection of the link, whether the menu
-    // stays open or closes after the pick.
-    await expect(panel.getByRole("button", { name: "Related", exact: true })).toContainText(title);
+    const visibleMenu = page.locator('[role="menu"]:visible');
+    const option = visibleMenu.getByRole("menuitemcheckbox", { name: title, exact: true });
+    // The menu can close on selection before the checkbox state is observable,
+    // and a click can be dropped while it settles. Retry the open-and-pick
+    // gesture until the durable pill shows the linked page.
+    await expect
+      .poll(
+        async () => {
+          if (((await relatedPill.textContent().catch(() => "")) ?? "").includes(title)) {
+            return true;
+          }
+          if (!(await option.isVisible().catch(() => false))) {
+            await relatedPill.click().catch(() => {});
+          }
+          if (await option.isVisible().catch(() => false)) {
+            await option.click().catch(() => {});
+          }
+          return ((await relatedPill.textContent().catch(() => "")) ?? "").includes(title);
+        },
+        { timeout: 30_000, intervals: [500, 1_000, 2_000] },
+      )
+      .toBe(true);
+    await expect(relatedPill).toContainText(title, { timeout: 15_000 });
   }
   const relationControl = panel.getByRole("button", { name: "Related", exact: true });
   if ((await relationControl.getAttribute("aria-expanded")) === "true")

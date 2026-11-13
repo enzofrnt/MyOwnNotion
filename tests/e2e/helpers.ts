@@ -1111,7 +1111,18 @@ export async function addDatabaseProperty(
     exact: true,
   });
   await expect(nameField).toBeVisible();
-  await nameField.fill(name);
+  // WebKit can project the controlled input's previous empty value back over a
+  // single fill, which would create the property under its type's default name.
+  await expect
+    .poll(
+      async () => {
+        if ((await nameField.inputValue().catch(() => "")) === name) return true;
+        await nameField.fill(name).catch(() => {});
+        return (await nameField.inputValue().catch(() => "")) === name;
+      },
+      { timeout: 10_000 },
+    )
+    .toBe(true);
   const typeButton = page
     .locator(".database-new-column__types")
     .getByRole("button", { name: PROPERTY_TYPE_CHOICE_LABELS[type], exact: true });
