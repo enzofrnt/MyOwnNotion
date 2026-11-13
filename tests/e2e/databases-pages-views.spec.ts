@@ -9,6 +9,7 @@ import {
   databaseViewButton,
   ensureNavigationVisible,
   entryTrigger,
+  fillStable,
   nameNewlyCreatedItem,
   openRootDatabaseCreation,
   openWorkspace,
@@ -148,7 +149,7 @@ test("views can use different sources while the owner's original source remains 
   await expect(entryTrigger(container, entryA)).toBeVisible();
   await settings.getByRole("button", { name: "Retour", exact: true }).click();
   const name = settings.getByLabel("Nom de la vue");
-  await name.fill("Source A retrouvée");
+  await fillStable(name, "Source A retrouvée");
   await name.press("Enter");
   await expect(databaseViewButton(page, "Source A retrouvée")).toBeVisible();
   await settings.getByRole("button", { name: "Fermer", exact: true }).click();

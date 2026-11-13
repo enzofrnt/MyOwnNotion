@@ -450,6 +450,26 @@ export async function createBusinessRelationship(
   return relationshipId;
 }
 
+/**
+ * Fills a controlled input until the value sticks.
+ *
+ * WebKit can project the input's previous state back over a single native fill
+ * between its value set and the input event; the journey then acts on an empty
+ * or stale field. Retrying the fill is the same gesture an owner repeats.
+ */
+export async function fillStable(locator: Locator, value: string): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        if ((await locator.inputValue().catch(() => null)) === value) return true;
+        await locator.fill(value).catch(() => {});
+        return (await locator.inputValue().catch(() => null)) === value;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+}
+
 export async function openWorkspace(
   page: Page,
   options: { navigationTimeoutMs?: number } = {},
