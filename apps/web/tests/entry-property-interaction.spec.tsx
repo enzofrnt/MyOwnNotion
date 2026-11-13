@@ -93,8 +93,10 @@ describe("entry property configuration menus", () => {
         .querySelector('[role="dialog"]')
         ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
     );
-    await delay();
-    expect(document.querySelector('input[aria-label="Nom de la propriété"]')).toBeNull();
+    await vi.waitFor(
+      () => expect(document.querySelector('input[aria-label="Nom de la propriété"]')).toBeNull(),
+      { timeout: 5_000 },
+    );
     act(() =>
       button("Modifier la propriété État").dispatchEvent(
         new MouseEvent("contextmenu", { bubbles: true, clientX: 100, clientY: 80 }),
@@ -124,8 +126,11 @@ describe("entry property configuration menus", () => {
         new KeyboardEvent("keydown", { key: "F10", shiftKey: true, bubbles: true }),
       ),
     );
-    await delay();
-    expect(document.querySelector('input[aria-label="Nom de la propriété"]')).not.toBeNull();
+    await vi.waitFor(
+      () =>
+        expect(document.querySelector('input[aria-label="Nom de la propriété"]')).not.toBeNull(),
+      { timeout: 5_000 },
+    );
   });
   it("opens the property editor without crashing and renames automatically", async () => {
     const { edits } = render();
