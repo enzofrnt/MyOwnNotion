@@ -144,7 +144,6 @@ export default defineConfig({
     coverage: {
       provider: "istanbul",
       enabled: false,
-      all: true,
       include: ["packages/*/src/**/*.ts", "apps/api/src/**/*.ts"],
       exclude: [
         "**/node_modules/**",
