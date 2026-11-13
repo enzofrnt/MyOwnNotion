@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import {
   LOCAL_ENTITY_TYPES,
   LocalCipher,

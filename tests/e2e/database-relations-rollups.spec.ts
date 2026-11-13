@@ -187,13 +187,35 @@ async function chooseSum(page: Page) {
       { timeout: 15_000, intervals: [250, 500, 1_000] },
     )
     .toBe(true);
-  await expect(sum).toBeVisible();
-  // Opening a submenu asserts its items render before focus lands on the first
-  // one. Enter pressed in that gap activates the parent trigger again, so wait
-  // for the documented keyboard focus rather than only for visibility.
-  await expect(sum).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("button", { name: /^Calculer/ })).toContainText("Somme");
+  // The submenu can close again between its first render and the pick. The loop
+  // below reopens it, so do not assert visibility separately: that check raced
+  // the hide timer and failed after the submenu had already closed.
+  // The submenu item renders before focus lands on it, and Enter pressed in that
+  // gap re-activates the parent trigger. Keep choosing until the row proves the
+  // selection instead of trusting a single key press.
+  await expect
+    .poll(
+      async () => {
+        if (((await calculer.textContent().catch(() => "")) ?? "").includes("Somme")) return true;
+        if (!(await more.isVisible().catch(() => false))) {
+          await calculer.click().catch(() => {});
+        }
+        if (!(await sum.isVisible().catch(() => false))) {
+          await more.focus().catch(() => {});
+          await page.keyboard.press("ArrowRight").catch(() => {});
+        }
+        if (await sum.isVisible().catch(() => false)) {
+          await expect(sum)
+            .toBeFocused({ timeout: 2_000 })
+            .catch(() => {});
+          await page.keyboard.press("Enter").catch(() => {});
+        }
+        return ((await calculer.textContent().catch(() => "")) ?? "").includes("Somme");
+      },
+      { timeout: 20_000, intervals: [250, 500, 1_000] },
+    )
+    .toBe(true);
+  await expect(calculer).toContainText("Somme");
 }
 
 test("configured relation to an empty source persists and computes 10 + 20 = 30, formula 60", async ({

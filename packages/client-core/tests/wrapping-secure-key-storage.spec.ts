@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {

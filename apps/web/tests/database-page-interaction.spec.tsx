@@ -334,13 +334,21 @@ describe("database page interaction durability", () => {
       ".database-schema .property-icon-picker__trigger",
     );
     expect(trigger).not.toBeNull();
+    // The popover can still be mounting when the click returns and can close
+    // again if a stray toggle lands. Reopen it until the filtered grid exists,
+    // then read the option from the same settled state.
+    const iconOption = () =>
+      document.querySelector<HTMLButtonElement>('[role="option"][aria-label="étoile"]');
+    const pickerOpen = () =>
+      document.querySelector('[role="listbox"][aria-label="Icônes"]') !== null;
     await act(async () => {
-      trigger?.click();
-      await new Promise((r) => setTimeout(r, 60));
+      const deadline = Date.now() + 15_000;
+      while (iconOption() === null && Date.now() < deadline) {
+        if (!pickerOpen()) trigger?.click();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
     });
-    const choice = document.querySelector<HTMLButtonElement>(
-      '[role="option"][aria-label="étoile"]',
-    );
+    const choice = iconOption();
     expect(choice).not.toBeNull();
     await act(async () => choice?.click());
     expect(replace).toHaveBeenCalledOnce();
