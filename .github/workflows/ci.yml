@@ -267,10 +267,18 @@ jobs:
       # responsibility of PR/main CI, alongside the local pre-push gate.
       - run: bun run compose:check
 
+  # One job per *lane*. The impact plan sizes the lanes of each browser project
+  # from the selected journeys (scripts/ci/e2e-lanes.ts), so the number of jobs
+  # follows the corpus and nobody maintains a shard count. Every lane is a
+  # complete isolated stack — its own PostgreSQL, API, preview and browser —
+  # and a failure in one never stops another.
   e2e:
-    name: Playwright journeys (${{ matrix.project }})
+    name: Playwright journeys (${{ matrix.project }} ${{ matrix.lane }})
     runs-on: ubuntu-24.04
     needs: impact
+    # A healthy lane takes about a quarter of an hour. A hung one must not hold
+    # the run for the six-hour default.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -347,20 +355,29 @@ jobs:
         if: matrix.project != 'none'
         env:
           PLAYWRIGHT_PROJECT: ${{ matrix.project }}
+          PLAYWRIGHT_LANE_ID: ${{ matrix.laneId }}
           DATABASE_URL: postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion
           MYOWNNOTION_E2E_PREBUILT_WEB: '1'
+        # The lane's journeys come from the plan, not from Playwright's own
+        # shard arithmetic: the planner balances lanes by duration and proves
+        # that they partition the selection. `--shard=1/1` keeps the lane in
+        # one browser process; a lane is already shorter than the third of the
+        # corpus that bounded a WebKit process before.
         run: |
-          mapfile -t journeys < <(jq -r '.e2e.testFiles[]' test-impact.json)
+          mapfile -t journeys < <(
+            jq -r --arg lane "$PLAYWRIGHT_LANE_ID" \
+              '.e2e.lanes[] | select(.id == $lane) | .testFiles[]' test-impact.json
+          )
           if [ "${#journeys[@]}" -eq 0 ]; then
-            echo "Impact plan selected no journeys for $PLAYWRIGHT_PROJECT."
+            echo "Impact plan assigned no journeys to lane $PLAYWRIGHT_LANE_ID."
             exit 1
           fi
           bash scripts/e2e/run-container-project.sh \
-            --project="$PLAYWRIGHT_PROJECT" "${journeys[@]}"
+            --project="$PLAYWRIGHT_PROJECT" --shard=1/1 "${journeys[@]}"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always() && matrix.project != 'none'
         with:
-          name: playwright-report-${{ matrix.project }}
+          name: playwright-report-${{ matrix.laneId }}
           path: |
             playwright-report/
             test-results/
