@@ -170,6 +170,10 @@ test("connected devices exchange text, marks and block order without reload or r
     const toolbar = second.page.locator(".bn-formatting-toolbar");
     await expect(toolbar).toBeVisible();
     const formatStartedAt = Date.now();
+    // The block handle portal can sit above the selection toolbar while the
+    // pointer is over the block; move it away before pressing the mark.
+    await second.page.mouse.move(0, 0);
+    await expect(second.page.locator(".editor-block-handle")).toBeHidden({ timeout: 5_000 });
     await toolbar.getByRole("button", { name: "Gras" }).click();
     await waitForEditorSettled(second.page, { afterApplyCount: beforeFormat });
     propagationMs.push(

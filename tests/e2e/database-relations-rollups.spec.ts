@@ -159,7 +159,20 @@ async function configureTotal(page: Page) {
  * path (ArrowRight then Enter) is used; it is also the documented interaction.
  */
 async function chooseSum(page: Page) {
+  const calculer = page.locator(".rollup-settings").getByRole("button", { name: /^Calculer/ });
   const more = page.getByRole("menuitem", { name: "Plus d’options", exact: true });
+  // The calculation menu can still be opening (or was toggled shut) when the
+  // journey asks for its submenu; reopen it until the item exists.
+  await expect
+    .poll(
+      async () => {
+        if (await more.isVisible().catch(() => false)) return true;
+        await calculer.click().catch(() => {});
+        return more.isVisible().catch(() => false);
+      },
+      { timeout: 15_000, intervals: [250, 500, 1_000] },
+    )
+    .toBe(true);
   await more.focus();
   await page.keyboard.press("ArrowRight");
   const sum = page.getByRole("menuitemradio", { name: "Somme", exact: true });
