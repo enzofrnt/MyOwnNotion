@@ -17,63 +17,67 @@ export default defineConfig({
     // unbounded worker count can starve their short tests and long convergence
     // fixture on a busy host; four workers keep every assertion in the gate.
     maxWorkers: 4,
+    // Every project keeps the repository as its Vite root and scopes itself by
+    // path. Coverage's include/exclude patterns resolve against a project's
+    // root in Vitest 5, so per-package roots would make the shared coverage
+    // contract point at nothing.
     projects: [
       {
         test: {
           name: "domain",
-          root: "packages/domain",
+          root: ".",
           environment: "node",
-          include: ["tests/**/*.spec.ts"],
+          include: ["packages/domain/tests/**/*.spec.ts"],
         },
       },
       {
         test: {
           name: "graph",
-          root: "packages/graph",
+          root: ".",
           environment: "node",
-          include: ["tests/**/*.spec.ts"],
+          include: ["packages/graph/tests/**/*.spec.ts"],
         },
       },
       {
         test: {
           name: "page-state",
-          root: "packages/page-state",
+          root: ".",
           environment: "node",
-          include: ["tests/**/*.spec.ts"],
+          include: ["packages/page-state/tests/**/*.spec.ts"],
         },
       },
       {
         test: {
           name: "contracts",
-          root: "packages/contracts",
+          root: ".",
           environment: "node",
-          include: ["tests/**/*.spec.ts"],
+          include: ["packages/contracts/tests/**/*.spec.ts"],
         },
       },
       {
         test: {
           name: "blob-store",
-          root: "packages/blob-store",
+          root: ".",
           environment: "node",
-          include: ["tests/**/*.spec.ts"],
+          include: ["packages/blob-store/tests/**/*.spec.ts"],
         },
       },
       {
         test: {
           name: "client-core",
-          root: "packages/client-core",
+          root: ".",
           environment: "node",
-          include: ["tests/**/*.spec.ts"],
-          setupFiles: ["tests/setup/indexeddb.ts"],
+          include: ["packages/client-core/tests/**/*.spec.ts"],
+          setupFiles: ["packages/client-core/tests/setup/indexeddb.ts"],
         },
       },
       {
         test: {
           name: "web",
-          root: "apps/web",
+          root: ".",
           environment: "node",
-          include: ["tests/**/*.spec.{ts,tsx}"],
-          setupFiles: ["tests/setup/indexeddb.ts"],
+          include: ["apps/web/tests/**/*.spec.{ts,tsx}"],
+          setupFiles: ["apps/web/tests/setup/indexeddb.ts"],
           // jsdom has no IntersectionObserver, so the lazy Lucide catalogue
           // renders eagerly: opening an icon picker mounts the whole symbol
           // grid and its dynamic imports. That stays well inside five seconds
@@ -86,9 +90,9 @@ export default defineConfig({
       {
         test: {
           name: "desktop",
-          root: "apps/desktop",
+          root: ".",
           environment: "node",
-          include: ["tests/**/*.spec.ts"],
+          include: ["apps/desktop/tests/**/*.spec.ts"],
           // Native ACL helpers spawn PowerShell synchronously; ARM runners need
           // the same budget as other long desktop suites.
           testTimeout: 120_000,
@@ -98,9 +102,9 @@ export default defineConfig({
       {
         test: {
           name: "database-integration",
-          root: "packages/database",
+          root: ".",
           environment: "node",
-          include: ["tests/**/*.spec.ts"],
+          include: ["packages/database/tests/**/*.spec.ts"],
           testTimeout: 120_000,
           hookTimeout: 180_000,
         },
@@ -108,9 +112,9 @@ export default defineConfig({
       {
         test: {
           name: "api-contract",
-          root: "apps/api",
+          root: ".",
           environment: "node",
-          include: ["tests/**/*.spec.ts"],
+          include: ["apps/api/tests/**/*.spec.ts"],
           testTimeout: 120_000,
           hookTimeout: 180_000,
         },
