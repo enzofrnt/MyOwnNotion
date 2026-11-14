@@ -102,7 +102,13 @@ test("updates both contents projections, scrolls nested headings and leaves no s
   request,
 }, testInfo) => {
   const pageErrors: string[] = [];
-  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("pageerror", (error) => {
+    // The browser reports a coalesced ResizeObserver delivery as a page error.
+    // It describes layout scheduling, never an application exception: the
+    // editor keeps working and every visual assertion below still runs.
+    if (error.message.startsWith("ResizeObserver loop")) return;
+    pageErrors.push(error.message);
+  });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const ids = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const,
