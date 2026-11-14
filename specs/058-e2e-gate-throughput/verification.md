@@ -164,6 +164,14 @@ Overall on this pull request: six complete runs, browser jobs 17.9–19.9 min;
 two green on the first attempt, one green after rerun, three red — each red on
 a different rare intermittent test, seven of which are now stabilised.
 
+### Final complete run with the application fixes (43583883186)
+
+Green on the first attempt. 15 lanes, browser jobs 19.1 min wall clock, 184
+runner-minutes, whole workflow 20.3 min. `Browser gate report`: verdict pass,
+346 journeys accounted for on each project (the two new regression journeys
+included), 0 failed, 0 flaky, 0 not run. Pull request `mergeable`, state
+`clean`.
+
 ### Not exercised yet
 
 - The timings cache save/restore: it only runs on `main`.
