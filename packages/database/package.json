@@ -13,12 +13,12 @@
   },
   "dependencies": {
     "@myownnotion/domain": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "pg": "^8.16.3"
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@myownnotion/test-utils": "workspace:*",
-    "@types/pg": "^8.15.6",
+    "@types/pg": "^8.23.1",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0"
   }
