@@ -76,7 +76,7 @@
     "notion:parity:verify": "bun scripts/notion-parity/verify.ts"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.14.0",
+    "@axe-core/playwright": "4.13.0",
     "@biomejs/biome": "^2.6.6",
     "@myownnotion/blob-store": "workspace:*",
     "@myownnotion/contracts": "workspace:*",
