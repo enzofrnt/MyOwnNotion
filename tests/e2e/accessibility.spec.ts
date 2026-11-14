@@ -393,6 +393,10 @@ test.describe("synchronization accessibility (feature 006)", () => {
 
 test.describe("structured database view accessibility (feature 009)", () => {
   async function seriousViolations(page: import("@playwright/test").Page) {
+    // Switching view replaces the database page for an instant. Axe throws
+    // "No elements found for include" if it samples the document in that gap,
+    // which made this journey fail intermittently on Firefox.
+    await expect(page.locator(".database-page")).toBeVisible();
     const results = await new AxeBuilder({ page })
       .include(".database-page")
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])

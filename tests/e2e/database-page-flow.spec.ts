@@ -13,7 +13,7 @@ for (const flow of ["full", "inline"]) {
   test(`database ${flow} flow pins original headers and reads 1000 cards/rows through the page`, async ({
     page,
   }, testInfo) => {
-    test.slow();
+    test.setTimeout(150_000);
     for (const format of ["board", "table"]) {
       await page.goto(`/__ui-lab?review=database&format=${format}&flow=${flow}&rows=1000`);
       const main = page.locator(".workspace-main");
@@ -360,7 +360,7 @@ test("creates canonical pages and folders in multi-select columns, reloads and q
   page,
   context,
 }) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   await createRootDatabase(page, uniqueName("Column source"));
   await addDatabaseProperty(page, "Matières", "multi-select", ["Alpha", "Beta"]);

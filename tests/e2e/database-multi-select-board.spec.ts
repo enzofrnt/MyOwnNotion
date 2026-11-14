@@ -42,7 +42,7 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   page,
   context,
 }, testInfo) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   await createRootDatabase(page, uniqueName("Multi board"));
   await addDatabaseProperty(page, "Matières", "multi-select", ["Alpha", "Beta", "Gamma"]);

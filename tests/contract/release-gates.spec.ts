@@ -145,6 +145,7 @@ describe("the aggregate", () => {
       "reference-backups",
       "contract",
       "e2e",
+      "e2e-report",
       "build",
     ]) {
       expect(needs, `${job} does not block the gate`).toContain(job);
@@ -182,9 +183,11 @@ describe("safe reusable work", () => {
 
   it("keys Playwright browsers by runner and pinned runtime version", () => {
     expect(ci).toContain(
-      `key: playwright-${gha("runner.os")}-${gha("runner.arch")}-${gha("steps.playwright-version.outputs.value")}`,
+      `key: playwright-${gha("runner.os")}-${gha("runner.arch")}-${gha("steps.playwright-version.outputs.value")}-${gha("steps.engine.outputs.name")}`,
     );
-    expect(ci).toContain("bun run --bun playwright install --with-deps");
+    // A lane drives one engine and installs only that one.
+    expect(ci).toContain('bun run --bun playwright install --with-deps "$ENGINE"');
+    expect(ci).toContain('echo "name=${PLAYWRIGHT_PROJECT%%-*}" >> "$GITHUB_OUTPUT"');
   });
 
   it("provisions the protected-storage fixtures before migrating an E2E database", () => {
@@ -254,7 +257,43 @@ describe("affected test topology", () => {
   it("uses a dynamic E2E matrix with an explicit no-op sentinel", () => {
     expect(ci).toContain(`include: ${gha("fromJSON(needs.impact.outputs.e2e_matrix)")}`);
     expect(ci).toContain("if: matrix.project == 'none'");
-    expect(ci).toContain(`playwright-report-${gha("matrix.project")}`);
+    expect(ci).toContain(`name: blob-report-${gha("matrix.laneId")}`);
+    expect(ci).toContain(`PLAYWRIGHT_BLOB_OUTPUT_NAME: report-${gha("matrix.laneId")}.zip`);
+    expect(ci).toContain(
+      `name: Playwright journeys (${gha("matrix.project")} ${gha("matrix.lane")})`,
+    );
+    const block = /\n {2}e2e:\n([\s\S]*?)\n {2}build:\n/.exec(ci)?.[1] ?? "";
+    expect(block).toContain("fail-fast: false");
+    expect(block).toContain("timeout-minutes: 30");
+  });
+
+  it("merges the lane reports and accounts for every journey in a blocking job", () => {
+    const block = /\n {2}e2e-report:\n([\s\S]*?)\n {2}build:\n/.exec(ci)?.[1] ?? "";
+    expect(block).toContain("needs: [impact, e2e]");
+    // It must run when a lane failed or was cancelled: that is when it matters.
+    expect(block).toContain("if: always()");
+    expect(block).toContain("pattern: blob-report-*");
+    expect(block).toContain("playwright merge-reports --reporter=html,json all-blob-reports");
+    expect(block).toContain("bun run ci:e2e:summary");
+  });
+
+  it("lets only trusted complete runs on main write the lane timings", () => {
+    const block = /\n {2}e2e-report:\n([\s\S]*?)\n {2}build:\n/.exec(ci)?.[1] ?? "";
+    expect(block).toContain(
+      "if: success() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.impact.outputs.e2e_mode == 'full'",
+    );
+    expect(block).toContain(`key: e2e-timings-${gha("github.run_id")}`);
+    // Every other job only restores: exactly one step in the workflow saves.
+    expect(ci.match(/actions\/cache\/save@/gu)).toHaveLength(1);
+    const impact = /\n {2}impact:\n([\s\S]*?)\n {2}install:\n/.exec(ci)?.[1] ?? "";
+    expect(impact).toContain("actions/cache/restore@");
+    expect(impact).toContain("--timings e2e-timings.json");
+  });
+
+  it("runs the complete gate nightly without any path to publication", () => {
+    expect(ci).toMatch(/\n {2}schedule:\n {4}- cron: "[^"]+"\n/u);
+    const publish = /\n {2}publish-commit-images:\n([\s\S]*)$/.exec(ci)?.[1] ?? "";
+    expect(publish).toContain("github.event_name == 'push' && github.ref == 'refs/heads/main'");
   });
 
   it("cancels only superseded runs for the same pull request", () => {

@@ -960,11 +960,32 @@ export async function waitForEntryAutosave(
   await panel.evaluate(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
-  await expect(panel.locator(".entry-properties__status")).toHaveAttribute(
-    "data-save-state",
-    "saved",
-    { timeout: 15_000 },
-  );
+  // "saved" is not durable evidence: the hook returns to "idle" whenever the
+  // panel is remounted, which happens when the entry's projection reloads
+  // right after a write (a just-created entry, typically). A save that
+  // completed a few hundred milliseconds before this check then shows "idle"
+  // for good, and waiting for "saved" timed out although the value was stored.
+  // Accept either the "saved" mark or a quiet "idle" that has outlasted the
+  // 350 ms draft debounce; "saving" keeps waiting and "error" fails here. The
+  // synchronization wait below and the caller's own assertions prove the data.
+  const status = panel.locator(".entry-properties__status");
+  let idleSince: number | null = null;
+  await expect
+    .poll(
+      async () => {
+        const state = await status.getAttribute("data-save-state");
+        if (state === "saved") return "settled";
+        if (state === "error") return "error";
+        if (state !== "idle") {
+          idleSince = null;
+          return state;
+        }
+        idleSince ??= Date.now();
+        return Date.now() - idleSince >= 1_000 ? "settled" : "idle";
+      },
+      { timeout: 15_000, intervals: [100] },
+    )
+    .toBe("settled");
   if (options.synchronize !== false) await waitForSynchronized(page);
 }
 

@@ -989,6 +989,48 @@ html[data-tree-grabbing="true"] * {
   flex: 0 0 var(--inline-create-slot);
 }
 
+/* Opening is paint-only: the choices are at their final place and size from
+   the first frame, and only opacity, colour and the icons animate. Width,
+   padding and transform transitions moved the buttons for 200 ms inside a
+   clipping container, so a click made in that window landed on the surface
+   instead of a choice — the menu stayed open and nothing was created. Closing
+   keeps its geometric transition: the cluster ignores the pointer while it
+   closes. */
+.navigation-inline-create[data-open="true"]:not([data-closing="true"]) {
+  transition: none;
+}
+
+.navigation-inline-create[data-open="true"]:not([data-closing="true"])
+  .navigation-inline-create__surface {
+  transition: background-color 200ms var(--ui-ease-standard);
+}
+
+.navigation-inline-create[data-open="true"]:not([data-closing="true"])
+  .navigation-inline-create__choices {
+  transition: opacity 200ms var(--ui-ease-standard);
+}
+
+.navigation-inline-create[data-open="true"]:not([data-closing="true"])
+  .ui-button[data-size="square"] {
+  transition:
+    background-color 200ms var(--ui-ease-standard),
+    border-radius 200ms var(--ui-ease-standard);
+}
+
+/* The slide the choices used to make is kept on their icons, which are painted
+   inside a button whose hit area does not move. */
+.navigation-inline-create[data-open="true"]:not([data-closing="true"])
+  .navigation-inline-create__choices
+  .ui-icon {
+  animation: navigation-inline-create-choice-in 200ms var(--ui-ease-standard);
+}
+
+@keyframes navigation-inline-create-choice-in {
+  from {
+    transform: translateX(0.375rem);
+  }
+}
+
 .navigation-item-menu__trigger[data-size="square"] {
   width: var(--ui-target-compact);
   height: var(--ui-target-compact);
@@ -1526,6 +1568,12 @@ html[data-tree-grabbing="true"] * {
   .workspace-navigation .tree-row,
   .tree-twisty__icon {
     transition: none;
+  }
+
+  .navigation-inline-create[data-open="true"]:not([data-closing="true"])
+    .navigation-inline-create__choices
+    .ui-icon {
+    animation: none;
   }
 }
 

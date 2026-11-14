@@ -68,7 +68,7 @@ test("preserves native property input across a remote projection before input de
   browser,
   baseURL,
 }) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   const databaseName = uniqueName("Draft projection");
   const title = uniqueName("Draft entry");

@@ -90,15 +90,16 @@ describe("shared E2E project runner", () => {
     },
   );
 
-  it("propagates failure and never retries or runs a later shard", () => {
+  it("runs every recycled slice and still propagates the first failure", () => {
+    // A failing slice used to stop the loop, so one broken journey hid the
+    // other two thirds of the corpus behind a short, red job (feature 058).
     const args = ["--project=webkit-mobile", "tests/e2e/protected-files.spec.ts"];
     const result = runProject(args, "2/3");
     expect(result.status).toBe(23);
-    expect(result.commands).toEqual([
-      [...playwright, ...args, "--shard=1/3"],
-      [...playwright, ...args, "--shard=2/3"],
-    ]);
-    expect(result.stdout).not.toContain("shard 3/3");
+    expect(result.commands).toEqual(
+      ["1/3", "2/3", "3/3"].map((shard) => [...playwright, ...args, `--shard=${shard}`]),
+    );
+    expect(result.stdout).toContain("shard 3/3");
   });
 
   it("rejects a missing project argument before launching tests", () => {
@@ -112,9 +113,11 @@ describe("shared E2E project runner", () => {
     const step = workflow.split("- name: Run selected journeys in this isolated project")[1];
     expect(step).toBeDefined();
     const run = step?.split("- uses: actions/upload-artifact@")[0];
-    expect(run).toContain("jq -r '.e2e.testFiles[]' test-impact.json");
+    // The lane's journeys come from the plan; `--shard=1/1` keeps the lane in
+    // one browser process instead of re-slicing it.
+    expect(run).toContain("'.e2e.lanes[] | select(.id == $lane) | .testFiles[]' test-impact.json");
     expect(run).toContain("bash scripts/e2e/run-container-project.sh");
-    expect(run).toContain(`--project="$PLAYWRIGHT_PROJECT" "\${journeys[@]}"`);
+    expect(run).toContain(`--project="$PLAYWRIGHT_PROJECT" --shard=1/1 "\${journeys[@]}"`);
     expect(run).not.toContain("bun run --bun playwright test");
   });
 });

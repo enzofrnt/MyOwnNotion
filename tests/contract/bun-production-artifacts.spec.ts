@@ -117,6 +117,13 @@ describe("Bun production artifacts", () => {
     const playwrightConfig = read("playwright.config.ts");
     expect(playwrightConfig).toContain('timeout: name.startsWith("webkit-") ? 120_000 : 60_000');
     expect(playwrightConfig).toContain("expect: { timeout: 10_000 }");
+    // Feature 058: one interaction is bounded apart from the journey budget,
+    // and the gate never pays for an attempt that cannot turn it green.
+    expect(playwrightConfig).toContain("actionTimeout: 15_000");
+    expect(playwrightConfig).toContain("navigationTimeout: 30_000");
+    expect(playwrightConfig).toContain("retries: 0,");
+    expect(playwrightConfig).not.toMatch(/retries:\s*isCI/u);
+    expect(playwrightConfig).toContain("maxFailures: 10");
   });
 
   it("packages a Bun-only API runtime and a static nginx web runtime", () => {
