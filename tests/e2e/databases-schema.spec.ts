@@ -67,15 +67,13 @@ test("creates a typed database whose entry and relations keep canonical page ide
     page.locator(".entry-panel").getByRole("textbox", { name: "Titre de la page", exact: true }),
   ).toHaveValue(entryName);
   const entryPanel = page.locator(".entry-panel");
-  await entryPanel
-    .getByLabel("Notes", { exact: true })
-    .fill("Move the customer data without downtime");
-  await entryPanel.getByLabel("Estimate", { exact: true }).fill("12.5");
-  await entryPanel.getByLabel("Due", { exact: true }).fill("2026-09-15");
+  await entryPanel.getByLabel(/^Notes/u).fill("Move the customer data without downtime");
+  await entryPanel.getByLabel(/^Estimate/u).fill("12.5");
+  await entryPanel.getByLabel(/^Due/u).fill("2026-09-15");
   await chooseEntryOptions(page, "Status", ["In progress"]);
   await chooseEntryOptions(page, "Priority", ["High"]);
   await chooseEntryOptions(page, "Tags", ["Backend", "Migration"]);
-  await entryPanel.getByLabel("Done", { exact: true }).check();
+  await entryPanel.getByLabel(/^Done/u).check();
   await chooseEntryRelation(page, "Related", targetName);
   await waitForEntryAutosave(page);
 
@@ -97,10 +95,8 @@ test("creates a typed database whose entry and relations keep canonical page ide
   const reopenedEntryButton = entryTrigger(page, entryName);
   await expect(reopenedEntryButton).toBeVisible({ timeout: 15_000 });
   await reopenedEntryButton.click();
-  await expect(entryPanel.getByRole("button", { name: "Related", exact: true })).toHaveText(
-    renamedTarget,
-  );
-  await expect(entryPanel.getByLabel("Notes", { exact: true })).toHaveValue(
+  await expect(entryPanel.getByRole("button", { name: /^Related/u })).toHaveText(renamedTarget);
+  await expect(entryPanel.getByLabel(/^Notes/u)).toHaveValue(
     "Move the customer data without downtime",
   );
 

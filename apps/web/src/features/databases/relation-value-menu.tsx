@@ -4,6 +4,7 @@ import { AppIcon } from "../../ui/icons.tsx";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "../../ui/primitives/menu.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { inverseRelationPatch } from "./inverse-relation-edit.ts";
+import { valuePickerName } from "./option-appearance.tsx";
 import { useRelationCandidates, useRelationCatalog } from "./relation-catalog.tsx";
 import type { RelationOption, ValueDraft } from "./value-editor.tsx";
 
@@ -127,7 +128,12 @@ export function RelationDraftMenu({
           bare
           className="option-menu__trigger"
           id={id}
-          aria-label={property.name}
+          aria-label={valuePickerName(
+            property.name,
+            chosen.length === 0
+              ? [emptyLabel ?? DATABASE_COPY.common.noPage]
+              : chosen.map((option) => option.label),
+          )}
           aria-describedby={describedBy}
         >
           {chosen.length === 0 ? (

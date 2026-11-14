@@ -213,7 +213,13 @@ export function AttachmentPanel({
           type="button"
           size="compact"
           variant="ghost"
-          aria-label={`${FR_COPY.files.attachments.preview} : ${row.item.name}`}
+          // The accessible name starts with the visible text (WCAG 2.5.3): a
+          // voice-control user says what the button shows, in either state.
+          aria-label={`${
+            previewing === row.item.id
+              ? FR_COPY.files.attachments.closePreview
+              : FR_COPY.files.attachments.previewAction
+          } : ${row.item.name}`}
           data-testid={`preview-file-${row.item.name}`}
           onClick={() => setPreviewing((current) => (current === row.item.id ? null : row.item.id))}
         >

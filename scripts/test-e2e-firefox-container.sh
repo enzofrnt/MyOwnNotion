@@ -11,7 +11,7 @@ set -euo pipefail
 # itself has to stay — a CDPATH set in the environment makes `cd` print the
 # directory it landed in, which would end up inside `repo_root`.
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-playwright_image="${MYOWNNOTION_PLAYWRIGHT_IMAGE:-mcr.microsoft.com/playwright:v1.62.1-noble}"
+playwright_image="${MYOWNNOTION_PLAYWRIGHT_IMAGE:-mcr.microsoft.com/playwright:v1.65.0-noble}"
 database_url="${DATABASE_URL:-postgres://myownnotion:myownnotion-dev@host.docker.internal:5432/myownnotion}"
 deployment_key_file="${MYOWNNOTION_DEPLOYMENT_KEY_FILE:-${repo_root}/secrets/deployment-key}"
 container_web_dist="/tmp/myownnotion-e2e-web-dist"

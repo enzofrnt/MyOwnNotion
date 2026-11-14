@@ -29,14 +29,14 @@ async function createEntry(
   await trigger.click();
   const panel = page.locator(".entry-panel");
   await expect(panel).toBeVisible();
-  const status = panel.getByLabel("Status", { exact: true });
+  const status = panel.getByLabel(/^Status/u);
   await chooseEntryOptions(page, "Status", ["To do"]);
   await expect(status).toContainText("To do");
-  const summary = panel.getByLabel("Summary", { exact: true });
+  const summary = panel.getByLabel(/^Summary/u);
   await summary.fill(values.summary);
   await expect(summary).toHaveValue(values.summary);
   if (values.due !== undefined) {
-    const due = panel.getByLabel("Due", { exact: true });
+    const due = panel.getByLabel(/^Due/u);
     await due.fill(values.due);
     await expect(due).toHaveValue(values.due);
   }
@@ -79,7 +79,7 @@ test("preserves native property input across a remote projection before input de
   const trigger = await createDatabaseEntry(page, title);
   await waitForSynchronized(page);
   await trigger.click();
-  const summary = page.locator(".entry-panel").getByLabel("Summary", { exact: true });
+  const summary = page.locator(".entry-panel").getByLabel(/^Summary/u);
   await expect(summary).toBeVisible();
   const second = await openSecondDevice(browser, baseURL);
   try {
@@ -92,7 +92,7 @@ test("preserves native property input across a remote projection before input de
       );
     });
     await addDatabaseProperty(second.page, "Extra", "text");
-    await expect(page.locator(".entry-panel").getByLabel("Extra", { exact: true })).toBeVisible();
+    await expect(page.locator(".entry-panel").getByLabel(/^Extra/u)).toBeVisible();
     await expect(summary).toHaveValue("Native pending summary");
     await summary.dispatchEvent("input");
     await waitForEntryAutosave(page);

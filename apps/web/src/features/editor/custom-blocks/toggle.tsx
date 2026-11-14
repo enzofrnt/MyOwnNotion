@@ -126,10 +126,19 @@ function AccessibleToggleBlock({
  * extension. MyOwnNotion replaces only its visual wrapper because the
  * Community button does not expose `aria-expanded` or an accessible name.
  */
+// BlockNote 0.57 ships DOM drawing hooks this React block must not inherit:
+// `renderFrame` draws the Community toggle's own frame, which reads the
+// dictionary off the editor it is handed, and `node` is the core node view that
+// draws that frame. A React spec calls neither with an editor, so a page that
+// contained a toggle threw "Cannot read properties of undefined (reading
+// 'dictionary')" and the error boundary replaced the whole stage. Parsing,
+// keyboard behaviour and metadata stay.
+const { renderFrame: _communityFrame, ...communityHooks } = communityToggle.implementation;
+
 export const toggleBlockSpec = createReactBlockSpec(
   communityToggle.config,
   {
-    ...communityToggle.implementation,
+    ...communityHooks,
     render: AccessibleToggleBlock,
     toExternalHTML: ({ contentRef }) => (
       <details open>

@@ -75,6 +75,14 @@ describe("entry property configuration menus", () => {
     if (el === null) throw Error(`Missing ${name}`);
     return el;
   };
+  // A picker's name starts with the property and then states the value it
+  // shows (WCAG 2.5.3), so tests address it by its prefix instead of pinning
+  // the value into the query.
+  const picker = (property: string) => {
+    const el = document.querySelector<HTMLButtonElement>(`button[aria-label^="${property}"]`);
+    if (el === null) throw Error(`Missing picker for ${property}`);
+    return el;
+  };
   const configure = async (name: string) => {
     act(() => button(`Modifier la propriété ${name}`).click());
     await delay();
@@ -188,7 +196,7 @@ describe("entry property configuration menus", () => {
   });
   it("creates and selects an option from the value picker without a save step", async () => {
     const { edits, saves } = render();
-    act(() => button("Catégories").click());
+    act(() => picker("Catégories").click());
     await delay();
     const input = document.querySelector<HTMLInputElement>(
       'input[aria-label="Rechercher ou créer une option"]',
@@ -204,14 +212,14 @@ describe("entry property configuration menus", () => {
     await delay();
     expect(edits).toHaveBeenCalledOnce();
     expect(saves).toHaveBeenCalledOnce();
-    expect(button("Catégories").textContent).toContain("Partners");
+    expect(picker("Catégories").textContent).toContain("Partners");
     const values = saves.mock.calls[0]?.[0][reviewId(7)];
     expect(values.kind).toBe("multi-select");
     expect(values.optionIds).toHaveLength(2);
   });
   it("removes only the chosen value, keeps the search query and returns its focus", async () => {
     const { edits, saves } = render();
-    act(() => button("Catégories").click());
+    act(() => picker("Catégories").click());
     await delay();
     const search = document.querySelector<HTMLInputElement>(
       'input[aria-label="Rechercher ou créer une option"]',
@@ -225,7 +233,7 @@ describe("entry property configuration menus", () => {
     expect(document.activeElement).toBe(search);
     expect(search.value).toBe("UX");
     expect(document.querySelector(".entry-choice__token")).toBeNull();
-    expect(button("Catégories").textContent).toBe("Vide");
+    expect(picker("Catégories").textContent).toBe("Vide");
     expect(saves).toHaveBeenCalledOnce();
     expect(saves.mock.calls[0]?.[0][reviewId(7)]).toEqual({ kind: "multi-select", optionIds: [] });
     expect(edits).not.toHaveBeenCalled();

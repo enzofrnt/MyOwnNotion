@@ -9,6 +9,7 @@ import {
   useDictionary,
   useExtension,
   useExtensionState,
+  usePortalElement,
 } from "@blocknote/react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppIcon } from "../../../ui/icons.tsx";
@@ -114,6 +115,10 @@ function MyOwnNotionDragHandleMenu({
   readonly anchor: { readonly left: number; readonly top: number };
 }) {
   const components = useComponentsContext();
+  // BlockNote 0.57 no longer guesses where a menu portals: every menu root
+  // names the element, and the editor's own anchor keeps the menu themed and
+  // inside the surface the side menu belongs to.
+  const portalElement = usePortalElement();
   const editor = useBlockNoteEditor() as unknown as EditorInstance;
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -289,7 +294,7 @@ function MyOwnNotionDragHandleMenu({
         {normalizedQuery.length === 0 ? (
           <>
             {isTable ? null : (
-              <SubRoot position="right" sub={true}>
+              <SubRoot position="right" sub={true} portalElement={portalElement}>
                 <SubTrigger sub={true}>
                   <Item
                     className="bn-menu-item"
@@ -328,7 +333,7 @@ function MyOwnNotionDragHandleMenu({
               </span>
               {shortcut("⌘D")}
             </Item>
-            <SubRoot position="right" sub={true}>
+            <SubRoot position="right" sub={true} portalElement={portalElement}>
               <SubTrigger sub={true}>
                 <Item
                   className="bn-menu-item"
@@ -422,6 +427,7 @@ function MyOwnNotionDragHandleButton({
   readonly onError: (message: string) => void;
 }) {
   const components = useComponentsContext();
+  const portalElement = usePortalElement();
   const dictionary = useDictionary();
   const editor = useBlockNoteEditor() as unknown as EditorInstance;
   const sideMenu = useExtension(SideMenuExtension);
@@ -439,6 +445,7 @@ function MyOwnNotionDragHandleButton({
 
   return (
     <components.Generic.Menu.Root
+      portalElement={portalElement}
       onOpenChange={(open: boolean) => {
         if (open) sideMenu.freezeMenu();
         else sideMenu.unfreezeMenu();

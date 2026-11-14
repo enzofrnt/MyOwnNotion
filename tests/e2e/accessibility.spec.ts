@@ -428,10 +428,10 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await expect(openEntryButton).toBeVisible({ timeout: 15_000 });
     await openEntryButton.click();
     const panel = page.locator(".entry-panel");
-    const status = panel.getByLabel("Status", { exact: true });
+    const status = panel.getByLabel(/^Status/u);
     await chooseEntryOptions(page, "Status", ["To do"]);
     await expect(status).toContainText("To do");
-    const due = panel.getByLabel("Due", { exact: true });
+    const due = panel.getByLabel(/^Due/u);
     const now = new Date();
     const currentMonthDate = `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, "0")}-15`;
     await due.fill(currentMonthDate);

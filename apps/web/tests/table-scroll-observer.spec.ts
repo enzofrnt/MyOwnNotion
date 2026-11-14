@@ -37,8 +37,12 @@ describe("table scroll measurements", () => {
     try {
       instance._willUpdate();
       instance.getVirtualItems();
+      // The virtualizer (3.14.26) defers a correction on iOS only while a
+      // touch gesture owns the scroll; a scroll event alone no longer does.
+      main.dispatchEvent(new Event("touchstart"));
       main.scrollTop = 501;
       main.dispatchEvent(new Event("scroll"));
+      main.dispatchEvent(new Event("touchend"));
       expect(instance.isScrolling).toBe(true);
       writes.length = 0;
       instance.resizeItem(0, 35);
@@ -48,9 +52,12 @@ describe("table scroll measurements", () => {
       main.scrollTop = 1000;
       vi.advanceTimersByTime(instance.options.isScrollingResetDelay);
       expect(instance.isScrolling).toBe(false);
-      expect(main.scrollTop).toBe(1000);
-      expect(instance.scrollOffset).toBe(1000);
-      expect(writes).toEqual([]);
+      // The held correction (the row above shrank by 9 px) is applied to the
+      // viewport's *current* position. Had the stale 501 been used, the write
+      // would have rewound the page to 492 and thrown away the owner's scroll.
+      expect(writes).toEqual([991]);
+      expect(main.scrollTop).toBe(991);
+      expect(instance.scrollOffset).toBe(991);
     } finally {
       unmount();
     }

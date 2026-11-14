@@ -990,8 +990,20 @@ export async function waitForEntryAutosave(
 }
 
 /** Chooses values through the entry popup rather than the old native select. */
+/**
+ * The trigger of an entry value picker.
+ *
+ * Its accessible name starts with the property and then states the value it
+ * shows ("Statut : To do"), because a control whose visible text is not part
+ * of its name breaks WCAG 2.5.3. Tests address it by that prefix.
+ */
+function entryPicker(page: Page, property: string) {
+  const escaped = property.replace(/[.*+?^${}()[\]\\]/gu, "\\$&");
+  return page.locator(".entry-panel").getByRole("button", { name: new RegExp(`^${escaped}`, "u") });
+}
+
 export async function chooseEntryOptions(page: Page, property: string, labels: readonly string[]) {
-  const trigger = page.locator(".entry-panel").getByRole("button", { name: property, exact: true });
+  const trigger = entryPicker(page, property);
   for (const label of labels) {
     if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
     const choice = page.locator(".entry-choice");
@@ -1006,7 +1018,7 @@ export async function chooseEntryRelation(
   property: string,
   label: string,
 ): Promise<void> {
-  const trigger = page.locator(".entry-panel").getByRole("button", { name: property, exact: true });
+  const trigger = entryPicker(page, property);
   await trigger.click();
   const option = page
     .getByRole("menuitemcheckbox", { name: label, exact: true })
