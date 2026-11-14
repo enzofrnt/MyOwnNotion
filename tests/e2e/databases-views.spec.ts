@@ -203,6 +203,20 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     for (const width of [1280, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await openVisibility();
+      // The sheet is visible before it is placed: right after a resize its box
+      // can still be empty or lie outside the viewport, and a clip that does
+      // not intersect the viewport makes the capture throw. Wait until the
+      // sheet has a real box on screen instead of measuring the first frame.
+      await expect
+        .poll(
+          async () => {
+            const box = await settings.boundingBox();
+            if (box === null) return false;
+            return box.height >= 1 && box.y < 900 && box.y + box.height > 0;
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(true);
       const rect = await settings.boundingBox();
       if (rect === null) throw new Error("Missing visible view settings");
       expect(rect.x).toBeGreaterThanOrEqual(0);

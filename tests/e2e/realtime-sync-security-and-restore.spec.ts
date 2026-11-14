@@ -74,8 +74,17 @@ test("revoking a device closes all of its live page sockets immediately", async 
   const second = await openSecondDevice(browser, baseURL, deviceName);
   try {
     await Promise.all([openWorkspace(page), openWorkspace(second.page)]);
-    await createRootItem(page, "page", uniqueName("RevokerConnection"));
+    const revokerPageName = uniqueName("RevokerConnection");
+    await createRootItem(page, "page", revokerPageName);
     await openNoteInformation(page);
+    // The first device's new page reaches the second one through live sync and
+    // re-renders its tree. A creation clicked in that same instant was
+    // intermittently swallowed (the menu stayed open and no page appeared).
+    // This journey is about revocation, not concurrent creation, so let the
+    // second device settle on the incoming page first.
+    await expect(second.page.getByTestId(`tree-item-${revokerPageName}`)).toBeAttached({
+      timeout: 15_000,
+    });
     await createRootItem(second.page, "page", uniqueName("RevokedConnection"));
     await openNoteInformation(second.page);
     await expect(page.getByTestId("live-connection-state")).toHaveAttribute("data-state", "live");
