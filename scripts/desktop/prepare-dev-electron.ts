@@ -68,7 +68,7 @@ function restoreStockElectron(stockApp: string): void {
     console.error("[desktop:dev] Could not restore stock Electron.app. Run from repo root:");
     console.error("  bun run desktop:dev");
     console.error("If it still fails:");
-    console.error("  cd apps/desktop && bun install electron@44.1.1");
+    console.error("  cd apps/desktop && bun install electron@44.10.2");
     process.exit(restore.status ?? 1);
   }
 }

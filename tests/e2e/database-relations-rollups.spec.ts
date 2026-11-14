@@ -79,7 +79,10 @@ async function pickRelation(
   trigger: string,
   optionName: string,
 ): Promise<void> {
-  const pill = panel.getByRole("button", { name: trigger, exact: true });
+  // A picker is named "<propriété> : <valeur affichée>" (WCAG 2.5.3).
+  const pill = panel.getByRole("button", {
+    name: new RegExp(`^${trigger.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`, "u"),
+  });
   await expect
     .poll(
       async () => {
@@ -103,7 +106,10 @@ async function unpickRelation(
   trigger: string,
   optionName: string,
 ): Promise<void> {
-  const pill = panel.getByRole("button", { name: trigger, exact: true });
+  // A picker is named "<propriété> : <valeur affichée>" (WCAG 2.5.3).
+  const pill = panel.getByRole("button", {
+    name: new RegExp(`^${trigger.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`, "u"),
+  });
   await expect
     .poll(
       async () => {
@@ -274,7 +280,10 @@ test("configured relation to an empty source persists and computes 10 + 20 = 30,
     ["057 Twenty", "20"],
   ] as const) {
     await (await createDatabaseEntry(page, title)).click();
-    await page.locator(".entry-panel").getByLabel("Amount", { exact: true }).fill(amount);
+    await page
+      .locator(".entry-panel")
+      .getByLabel(/^Amount/u)
+      .fill(amount);
     await waitForEntryAutosave(page);
     await page.getByRole("button", { name: "Fermer le volet" }).click();
   }
@@ -291,7 +300,7 @@ test("configured relation to an empty source persists and computes 10 + 20 = 30,
   await waitForSynchronized(page);
   await (await createDatabaseEntry(page, "057 Project")).click();
   const panel = page.locator(".entry-panel");
-  const relatedPill = panel.getByRole("button", { name: "Related", exact: true });
+  const relatedPill = panel.getByRole("button", { name: /^Related/u });
   for (const title of ["057 Ten", "057 Twenty"]) {
     const visibleMenu = page.locator('[role="menu"]:visible');
     const option = visibleMenu.getByRole("menuitemcheckbox", { name: title, exact: true });
@@ -317,7 +326,7 @@ test("configured relation to an empty source persists and computes 10 + 20 = 30,
       .toBe(true);
     await expect(relatedPill).toContainText(title, { timeout: 15_000 });
   }
-  const relationControl = panel.getByRole("button", { name: "Related", exact: true });
+  const relationControl = panel.getByRole("button", { name: /^Related/u });
   if ((await relationControl.getAttribute("aria-expanded")) === "true")
     await page.keyboard.press("Escape");
   await waitForEntryAutosave(page);
@@ -337,9 +346,7 @@ test("configured relation to an empty source persists and computes 10 + 20 = 30,
   await expect(row).toContainText("30");
   await expect(row).toContainText("60");
   await entryTrigger(page, "057 Project").click();
-  await expect(panel.getByRole("button", { name: "Related", exact: true })).toContainText(
-    "057 Ten",
-  );
+  await expect(panel.getByRole("button", { name: /^Related/u })).toContainText("057 Ten");
   await expect(total).toContainText("30");
   await expect(double).toContainText("60");
   await panel.screenshot({ path: testInfo.outputPath("relation-values-light.png") });
@@ -357,7 +364,7 @@ test("configured relation to an empty source persists and computes 10 + 20 = 30,
   // The related entries are already local. Removing a link works without the
   // network and the same derived result is persisted when the device reconnects.
   await page.context().setOffline(true);
-  await panel.getByRole("button", { name: "Related", exact: true }).click();
+  await panel.getByRole("button", { name: /^Related/u }).click();
   await page.getByRole("menuitemcheckbox", { name: "057 Twenty", exact: true }).click();
   await waitForEntryAutosave(page, { synchronize: false });
   await expect(total.locator(".database-field__readonly")).toHaveText("10");
@@ -378,7 +385,10 @@ test("relation and rollup isolate a second source in the same database container
   await createRootDatabase(page, host);
   await addProperty(page, "Ignored", "Nombre");
   await (await createDatabaseEntry(page, "057 Primary only")).click();
-  await page.locator(".entry-panel").getByLabel("Ignored", { exact: true }).fill("999");
+  await page
+    .locator(".entry-panel")
+    .getByLabel(/^Ignored/u)
+    .fill("999");
   await waitForEntryAutosave(page);
   await page.getByRole("button", { name: "Fermer le volet" }).click();
   await page.getByRole("button", { name: "Ajouter une vue", exact: true }).click();
@@ -417,13 +427,16 @@ test("relation and rollup isolate a second source in the same database container
   await selectItem(page, host);
   await page.getByRole("button", { name: "Tableau 2", exact: true }).click();
   await (await createDatabaseEntry(page, "057 Secondary only")).click();
-  await page.locator(".entry-panel").getByLabel("Amount", { exact: true }).fill("17");
+  await page
+    .locator(".entry-panel")
+    .getByLabel(/^Amount/u)
+    .fill("17");
   await waitForEntryAutosave(page);
   await page.getByRole("button", { name: "Fermer le volet" }).click();
   await selectItem(page, "057 Consumer");
   await (await createDatabaseEntry(page, "057 Secondary project")).click();
   const panel = page.locator(".entry-panel");
-  await panel.getByRole("button", { name: "Related", exact: true }).click();
+  await panel.getByRole("button", { name: /^Related/u }).click();
   await expect(
     page.getByRole("menuitemcheckbox", { name: "057 Primary only", exact: true }),
   ).toHaveCount(0);

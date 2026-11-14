@@ -13,7 +13,7 @@ import {
   PopoverTrigger,
 } from "../../ui/primitives/index.ts";
 import { EntrySchemaImpact } from "./edit-entry-properties.ts";
-import { nextOptionTone, OptionPill } from "./option-appearance.tsx";
+import { nextOptionTone, OptionPill, valuePickerName } from "./option-appearance.tsx";
 import { PropertyOptionSettings } from "./property-configuration.tsx";
 import type { ValueDraft } from "./value-editor.tsx";
 
@@ -101,7 +101,10 @@ export function EntryChoicePicker({
       <PopoverTrigger
         id={id}
         className="option-menu__trigger"
-        aria-label={property.name}
+        aria-label={valuePickerName(
+          property.name,
+          chosen.length === 0 ? [emptyLabel ?? "Vide"] : chosen.map((o) => o.label),
+        )}
         aria-describedby={describedBy}
         aria-invalid={invalid || undefined}
       >

@@ -724,7 +724,7 @@ surfaces.
 | États, copie et éditeur | matrice Vitest ciblée `french-copy`, `v1-surface-consistency`, bases, synchronisation, ambiguïtés et échecs locaux | tests ciblés passés ; aucune ancienne classe d'état ni confirmation native dans `apps/web/src` |
 | Typage Web | `bun run --filter @myownnotion/web typecheck` | passé après migration des primitives et du statut workspace |
 | Références hôte | `MYOWNNOTION_E2E_JOBS=2 bun run test:e2e:local -- tests/e2e/v1-surface-visuals.spec.ts` | 5/5 profils passés en 62 s ; 4 références Chromium propriétaires et skips de pixels explicites sur les autres moteurs |
-| Références Linux CI | image épinglée `mcr.microsoft.com/playwright:v1.62.1-noble`, projets Chromium desktop/mobile | 4/4 références Linux générées et rejouables sur base jetable dédiée |
+| Références Linux CI | image épinglée `mcr.microsoft.com/playwright:v1.65.0-noble`, projets Chromium desktop/mobile | 4/4 références Linux générées et rejouables sur base jetable dédiée |
 | Sélection CI | `bun run test:contract -- tests/contract/test-impact.spec.ts` | 34/34 contrats passés ; le journey multi-surfaces et le nouveau propriétaire du statut sync sont enregistrés |
 | Régression Chromium complète | `bun run test:e2e:local -- --project=chromium-desktop` | 252 tests passés et 2 scénarios visuels mobiles ignorés par conception, sans échec, en 5,5 min |
 | Confirmation de corbeille mobile | quatre parcours ciblés sur Chromium mobile et WebKit mobile | 8/8 exécutions passées ; le tiroir modal cède la place à la confirmation et se rouvre après annulation |
@@ -780,7 +780,7 @@ navigateurs pris en charge, sans campagne VoiceOver.
 | Emoji hors ligne et géométrie | `MYOWNNOTION_E2E_JOBS=5 bun run test:e2e:local -- tests/e2e/hierarchy.spec.ts --grep "one emoji identity"` | 5/5 profils passés en 37 s ; sélection locale hors ligne, reprise automatique, recherche, reload et déplacement du libellé ≤ 1 px |
 | Chevron et états de branche | `bun run test:e2e:local -- tests/e2e/keyboard-navigation.spec.ts --grep "what a branch says when it has nothing to show"` | 5/5 profils passés en 47 s ; la zone du chevron reçoit le pointeur avant son apparition et l'icône superposée ne l'intercepte jamais |
 | Références visuelles macOS | `bun run test:e2e:local -- tests/e2e/v1-surface-visuals.spec.ts --project=chromium-desktop` | recherche claire et base sombre passées après inspection et mise à jour intentionnelle ; les deux références mobiles sont ignorées sur ce projet par conception |
-| Références visuelles Linux | image épinglée `mcr.microsoft.com/playwright:v1.62.1-noble`, Chromium desktop, base jetable migrée | recherche claire et base sombre régénérées puis rejouées sans mode mise à jour dans leur environnement natif |
+| Références visuelles Linux | image épinglée `mcr.microsoft.com/playwright:v1.65.0-noble`, Chromium desktop, base jetable migrée | recherche claire et base sombre régénérées puis rejouées sans mode mise à jour dans leur environnement natif |
 | Statique | `bun x biome ci . --reporter=github` et `git diff --check` | passés ; aucune référence exécutable à l'ancien dialogue unifié |
 | Gate pré-push exact | `bun run checks:local` | passé sur le commit destiné à la branche : outillage, shell, format/lint, types, couverture, performance, PostgreSQL/migrations/contrats, matrice navigateur complète, builds, images, sécurité, licences et Compose |
 

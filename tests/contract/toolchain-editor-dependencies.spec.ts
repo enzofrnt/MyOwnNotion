@@ -68,10 +68,10 @@ describe("the V1 editor toolchain", () => {
   const pageState = readManifest("packages/page-state/package.json");
 
   it("locks the Fastify WebSocket adapter without adding a collaboration service", () => {
-    expect(api.dependencies?.["@fastify/websocket"]).toBe("^11.3.0");
+    expect(api.dependencies?.["@fastify/websocket"]).toBe("^11.3.7");
     expect(lockedImporterDependency("apps/api", "dependencies", "@fastify/websocket")).toEqual({
-      specifier: "^11.3.0",
-      version: "11.3.0",
+      specifier: "^11.3.7",
+      version: "11.3.7",
     });
 
     const forbidden = new Set([
@@ -95,9 +95,9 @@ describe("the V1 editor toolchain", () => {
 
   it("locks the three BlockNote Community packages to one exact version", () => {
     const expected = {
-      "@blocknote/ariakit": "0.54.0",
-      "@blocknote/core": "0.54.0",
-      "@blocknote/react": "0.54.0",
+      "@blocknote/ariakit": "0.57.0",
+      "@blocknote/core": "0.57.0",
+      "@blocknote/react": "0.57.0",
     } as const;
 
     for (const [name, version] of Object.entries(expected)) {
@@ -108,15 +108,15 @@ describe("the V1 editor toolchain", () => {
 
   it("locks the operational and visual foundations to reviewed versions", () => {
     const expectedWebDependencies = {
-      "@ariakit/react": "0.4.37",
+      "@ariakit/react": "0.4.43",
       "@dnd-kit/core": "6.3.1",
       "@dnd-kit/sortable": "10.0.0",
       "@dnd-kit/utilities": "3.2.2",
-      "lucide-react": "1.33.0",
+      "lucide-react": "1.70.0",
     } as const;
     const expectedWebDevDependencies = {
-      "@tailwindcss/vite": "4.3.3",
-      tailwindcss: "4.3.3",
+      "@tailwindcss/vite": "4.3.5",
+      tailwindcss: "4.3.5",
     } as const;
 
     for (const [name, version] of Object.entries(expectedWebDependencies)) {
@@ -130,10 +130,10 @@ describe("the V1 editor toolchain", () => {
       );
     }
 
-    expect(pageState.dependencies?.["loro-crdt"]).toBe("1.14.1");
+    expect(pageState.dependencies?.["loro-crdt"]).toBe("1.17.1");
     expect(
       lockedImporterDependency("packages/page-state", "dependencies", "loro-crdt")?.specifier,
-    ).toBe("1.14.1");
+    ).toBe("1.17.1");
   });
 
   it("copies every workspace manifest before installing image dependencies", () => {

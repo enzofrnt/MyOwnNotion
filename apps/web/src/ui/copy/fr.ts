@@ -313,7 +313,6 @@ export const FR_COPY = {
       add: "Ajouter un fichier à cette page",
       remove: "Retirer ce fichier de la page",
       removeAction: "Retirer",
-      preview: "Prévisualiser le fichier",
       previewAction: "Aperçu",
       closePreview: "Fermer l’aperçu",
       location: "cette page",

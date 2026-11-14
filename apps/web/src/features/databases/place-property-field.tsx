@@ -133,7 +133,7 @@ export function PlacePropertyField({
       });
   };
 
-  const useCurrentPosition = (): void => {
+  const requestCurrentPosition = (): void => {
     if (typeof navigator === "undefined" || navigator.geolocation === undefined) {
       setNotice("La localisation n’est pas disponible dans ce navigateur.");
       return;
@@ -244,7 +244,7 @@ export function PlacePropertyField({
         type="button"
         className="place-property-field__current"
         disabled={disabled || locating}
-        onClick={useCurrentPosition}
+        onClick={requestCurrentPosition}
       >
         <AppIcon name="mapPin" size="small" />
         <span>{locating ? "Localisation en cours…" : "Emplacement actuel"}</span>

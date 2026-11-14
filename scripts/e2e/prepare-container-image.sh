@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${repo_root}"
 
-playwright_base="${MYOWNNOTION_PLAYWRIGHT_IMAGE:-mcr.microsoft.com/playwright:v1.62.1-noble}"
+playwright_base="${MYOWNNOTION_PLAYWRIGHT_IMAGE:-mcr.microsoft.com/playwright:v1.65.0-noble}"
 bun_base="$(bun -e 'const value = await Bun.file("docker/base-images.json").json(); console.log(value.bases.bun.ref + "@" + value.bases.bun.digest);')"
 image_key="$({
     shasum -a 256 \

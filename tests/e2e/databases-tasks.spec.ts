@@ -174,7 +174,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await chooseEntryOptions(page, "Workflow", ["In progress"]);
   await entryPanel.getByLabel("Deadline", { exact: true }).fill("2026-09-15");
   await chooseEntryOptions(page, "Importance", ["High"]);
-  await entryPanel.getByLabel("Notes", { exact: true }).fill(propertyNote);
+  await entryPanel.getByLabel(/^Notes/u).fill(propertyNote);
   await chooseEntryRelation(page, "Project", projectName);
   await waitForEntryAutosave(page);
 
@@ -278,9 +278,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
 
   await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(editorialNote);
   await expect(documentCheckbox).toBeChecked();
-  await expect(entryPanel.getByRole("button", { name: "Project", exact: true })).toHaveText(
-    projectName,
-  );
+  await expect(entryPanel.getByRole("button", { name: /^Project/u })).toHaveText(projectName);
   await page.getByRole("button", { name: "Fermer l'entrée" }).click();
   await expect(page.locator("[data-entry-trigger]")).toHaveCount(1);
 });

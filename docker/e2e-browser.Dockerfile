@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.9
 
 ARG BUN_BASE=oven/bun:1.4.2-debian@sha256:4f6e31d1a54d6a3dd312daef655fc998101b5043d52e12592ac293ef04b9bc73
-ARG PLAYWRIGHT_BASE=mcr.microsoft.com/playwright:v1.62.1-noble
+ARG PLAYWRIGHT_BASE=mcr.microsoft.com/playwright:v1.65.0-noble
 
 FROM ${BUN_BASE} AS bun-runtime
 
