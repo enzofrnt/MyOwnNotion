@@ -169,3 +169,43 @@ a different rare intermittent test, seven of which are now stabilised.
 - The timings cache save/restore: it only runs on `main`.
 - The nightly schedule.
 - The per-engine install saving was not measured separately (T042).
+
+## Application defects found while stabilising the gate
+
+Two defects were reported as test flakiness and are fixed in the application,
+not worked around in the tests.
+
+### The creation menu swallowed a click made while it opened
+
+`navigation-inline-create` animated width, padding and transform for 200 ms
+inside an `overflow: hidden` container, so for that window the choice buttons
+were clipped into a surface that ignored the pointer. A click made right after
+opening the menu created nothing and left the menu open. The opening is now
+paint-only (opacity, colour, icon slide); the hit areas are final from the
+first frame. Closing keeps its geometric transition, and the cluster still
+ignores the pointer while it closes.
+
+Evidence: `tests/e2e/hierarchy.spec.ts` "a creation choice answers a click from
+the first frame its menu is open" uses raw pointer input at the rest positions,
+with no waiting. Before the fix it failed 3 times out of 3 (no page created,
+title never focused); after the fix it passes 3/3 on Chromium, 1/1 on Firefox
+and 8/8 in an earlier run, and the geometry journey still passes.
+
+### Keys typed right after applying an inline equation could be dropped
+
+`updateInlineContent` replaces the ProseMirror node with `replaceWith`, which
+destroys the node view holding the caret and mounts a new one. When that
+leaves the document selection on a removed node, the browser keeps the editor
+focused but discards every keystroke until something moves the caret. The
+inline equation node view now repairs only a dead selection (no range, or an
+anchor no longer in the document) and only while the editor holds focus; a
+live caret is never moved, so an owner's own click still decides where they
+continue writing.
+
+Evidence: `tests/e2e/editor-math-contents.spec.ts` "keeps typing in the
+document right after applying an inline equation" applies three times and
+types straight away with no click and no waiting; it passes on Firefox,
+Chromium and WebKit. The defect itself was reproduced once, in CI on Firefox
+(run 43497237616), and never locally in about 60 apply/type cycles across
+several delay sweeps, so the repair is defensive and the journey is a contract
+test rather than a deterministic reproducer.

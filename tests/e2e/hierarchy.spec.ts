@@ -23,6 +23,51 @@ import {
 } from "./helpers.ts";
 
 test.describe("hierarchy organization (US1)", () => {
+  test("a creation choice answers a click from the first frame its menu is open", async ({
+    page,
+  }) => {
+    // The choices used to slide and grow into place for 200 ms, clipped by
+    // their container. A click in that window landed on the clipped surface:
+    // the menu stayed open and nothing was created. An owner who opens the
+    // menu and clicks at once — or a busy device that renders the opening
+    // late — must still get the page they asked for.
+    await openWorkspace(page);
+    await ensureNavigationVisible(page);
+    const cluster = page.getByTestId("root-inline-create");
+    const toggle = page.getByTestId("toggle-root-creation");
+    const choice = page.getByTestId("new-root-page");
+    const settled = (): Promise<boolean> =>
+      cluster.evaluate((element) =>
+        element
+          .getAnimations({ subtree: true })
+          .every((animation) => animation.playState !== "running"),
+      );
+    const centre = async (locator: typeof toggle): Promise<{ x: number; y: number }> => {
+      const box = await locator.boundingBox();
+      if (box === null) throw new Error("The creation control has no box");
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+
+    // Learn where the choice rests once the menu is fully open, then close it.
+    await toggle.click();
+    await expect(choice).toBeVisible();
+    await expect.poll(settled).toBe(true);
+    const choiceCentre = await centre(choice);
+    await toggle.click();
+    await expect(cluster).not.toHaveAttribute("data-open", "true");
+    await expect.poll(settled).toBe(true);
+    const toggleCentre = await centre(toggle);
+
+    // Raw pointer input: no waiting for the opening to finish.
+    await page.mouse.click(toggleCentre.x, toggleCentre.y);
+    await page.mouse.click(choiceCentre.x, choiceCentre.y);
+
+    const title = page.getByTestId("active-item-title");
+    await expect(title).toBeFocused({ timeout: 15_000 });
+    await expect(title).toHaveValue("");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
   test("creates, nests, reorders, moves, and rejects cycles", async ({ page }) => {
     await openWorkspace(page);
 

@@ -76,23 +76,8 @@ test("edits math, preserves invalid source and supports history, slash and offli
   await inline.getByRole("button", { name: "Modifier l’équation LaTeX" }).click();
   await inline.getByRole("textbox", { name: "Source LaTeX" }).fill("E=mc^3");
   await inline.getByRole("button", { name: "Appliquer", exact: true }).click();
-  // Applying replaces the inline equation's node view. Until the new one has
-  // rendered, the editor can still move the selection back to it, and keys
-  // typed in that window are lost — on Firefox the slash menu then never
-  // opened. Wait for the applied result, then prove the caret is in the blank
-  // block before typing.
-  await expect(inline.getByRole("textbox", { name: "Source LaTeX" })).toHaveCount(0);
-  await expect(inline.locator(".katex")).toHaveCount(1);
   const blankContent = editor.locator(`[data-id="${blank}"] .bn-block-content`).first();
   await blankContent.click();
-  await expect
-    .poll(() =>
-      blankContent.evaluate((element) => {
-        const anchor = window.getSelection()?.anchorNode ?? null;
-        return anchor !== null && element.contains(anchor);
-      }),
-    )
-    .toBe(true);
   await page.keyboard.type("/latex");
   await expect(blankContent).toContainText("/latex");
   await page.getByRole("option", { name: /^Équation/ }).click();
@@ -269,6 +254,53 @@ test("updates both contents projections, scrolls nested headings and leaves no s
     )
     .toBeLessThan(180);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+});
+
+test("keeps typing in the document right after applying an inline equation", async ({
+  page,
+  request,
+}) => {
+  // The apply replaces the ProseMirror node that held the caret. When the
+  // replacement left the selection on a detached node, keys typed immediately
+  // afterwards were dropped (observed once on Firefox in CI). A contract:
+  // after "Appliquer", typing reaches the document with no extra click and no
+  // wait for the projection.
+  const name = uniqueName("InlineApplyCaret");
+  await createUnopenedPage(
+    request,
+    name,
+    pageDocument({
+      blocks: [
+        {
+          type: "paragraph",
+          id: generateUuidV7(),
+          content: [
+            { text: "Résultat : " },
+            {
+              text: "E=mc^2",
+              marks: [{ type: "equation", equationId: generateUuidV7(), expression: "E=mc^2" }],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  await openWorkspace(page);
+  await selectItem(page, name);
+  const editor = page.locator('[data-testid="block-editor"]:visible');
+  const inline = editor.locator(".editor-inline-equation");
+  const paragraph = editor.locator(".bn-block-content").first();
+  await expect(inline.locator(".katex")).toHaveCount(1);
+
+  for (const round of [1, 2, 3]) {
+    await inline.getByRole("button", { name: "Modifier l’équation LaTeX" }).click();
+    await inline.getByRole("textbox", { name: "Source LaTeX" }).fill(`E=mc^${round + 2}`);
+    await inline.getByRole("button", { name: "Appliquer", exact: true }).click();
+    // No click, no polling: straight from the apply to typing.
+    await page.keyboard.type(` ${round} `);
+    await expect(paragraph).toContainText(` ${round} `, { timeout: 15_000 });
+  }
+  await expect(paragraph).toContainText("E=mc^5");
 });
 
 test("keeps list values aligned and property names out of visual rows at narrow widths", async ({
