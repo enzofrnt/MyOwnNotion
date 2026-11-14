@@ -16,11 +16,11 @@
     "@myownnotion/domain": "workspace:*",
     "@myownnotion/graph": "workspace:*",
     "@myownnotion/page-state": "workspace:*",
-    "dexie": "^4.2.1"
+    "dexie": "^4.4.7"
   },
   "devDependencies": {
     "@types/node": "^24.10.9",
-    "fake-indexeddb": "^6.2.5",
+    "fake-indexeddb": "^6.2.8",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0"
   }
