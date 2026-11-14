@@ -134,6 +134,36 @@ race is rare, so the repetitions do not prove its absence). The
 `Browser gate report` job failed with the lanes, which is the first real CI
 exercise of the guard on a failing run.
 
+### Later complete runs
+
+| Run | Browser jobs | Result | Cause |
+| --- | ---: | --- | --- |
+| 43521962935 | 19.9 min | red | web unit test `database-page-interaction.spec.tsx` (browser lanes and gate report green); the option is now clicked in the tick that finds it |
+| 43524911626 | 19.8 min | red, green after rerun of two lanes | `database-relations-rollups` "isolate a second source" (webkit-desktop) and `realtime-sync-security-and-restore.spec.ts:68` (chromium-desktop) |
+| 43573131882 | 19.2 min | **green on the first attempt** | after the three stabilisations below |
+
+Stabilisations made from the failure traces of run 43524911626 and a local run:
+
+- `waitForEntryAutosave` (33 call sites) waited for the transient `saved`
+  mark, which the autosave hook resets to `idle` when the entry panel is
+  remounted. The same journey failed the same way in run 43470032368, an
+  unrelated pull request on `main`'s code. The helper accepts `saved` or an
+  `idle` that outlasted the draft debounce. Local evidence: the 39 journeys
+  that use it pass on webkit-desktop and chromium-desktop; the failing journey
+  passes 6 of 6 repetitions on webkit-desktop.
+- Device revocation: the second device now waits for the first device's page
+  before creating its own (6 of 6 repetitions on chromium-desktop).
+- `databases-views`: the settings sheet is measured only once it has a box on
+  screen after a resize (failed 1 of 5 locally before, 8 of 8 after).
+
+Two application behaviours were observed and not investigated: a "new page"
+click can be swallowed while live sync re-renders the tree, and keys typed
+right after applying an inline equation can be lost on Firefox.
+
+Overall on this pull request: six complete runs, browser jobs 17.9–19.9 min;
+two green on the first attempt, one green after rerun, three red — each red on
+a different rare intermittent test, seven of which are now stabilised.
+
 ### Not exercised yet
 
 - The timings cache save/restore: it only runs on `main`.
