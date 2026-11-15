@@ -206,7 +206,13 @@ export function PageEditor({
       defaultStyles: false,
       setIdAttribute: true,
       extensions: [
-        SyntaxHighlightingExtension({ createHighlighter: createCodeHighlighter }),
+        SyntaxHighlightingExtension({
+          // BlockNote resolves its own copy of Shiki's type package; the
+          // highlighter is the same object, only the nominal types differ.
+          createHighlighter: createCodeHighlighter as unknown as NonNullable<
+            Parameters<typeof SyntaxHighlightingExtension>[0]
+          >["createHighlighter"],
+        }),
         CodeBlockInputExtension,
         TableKeymapExtension,
         DocumentEndExtension,

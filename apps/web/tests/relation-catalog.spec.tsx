@@ -63,6 +63,69 @@ describe("relation catalogue loading", () => {
     }
   });
 
+  it("keeps the offered pages on screen while a synchronization refreshes them", async () => {
+    // A projection change used to empty the list and rebuild every option.
+    // A click made in that window landed on a removed element: the menu stayed
+    // open, nothing was linked, and the rollup kept its old value (CI run
+    // 43613845751, WebKit mobile, "relation and rollup isolate a second source").
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const listeners: Array<() => void> = [];
+    const notify = () => {
+      for (const listener of listeners) listener();
+    };
+    let releaseRefresh: ((items: unknown[]) => void) | undefined;
+    let entryReads = 0;
+    const service = {
+      listDatabases: async () => [source(2)],
+      getItems: async (ids: readonly Uuid[]) => {
+        if (ids.includes(id(1)))
+          return [{ id: id(1), kind: "database", lifecycle: "active", name: "Owner" }];
+        entryReads += 1;
+        if (entryReads === 1)
+          return [{ id: id(10), kind: "page", lifecycle: "active", name: "Linked page" }];
+        return new Promise<unknown[]>((resolve) => {
+          releaseRefresh = resolve;
+        });
+      },
+      listDatabaseEntries: async () => [{ entryItemId: id(10), sourceId: id(2) }],
+      // Every subscriber hears a synchronization, the catalogue included.
+      subscribeProjection: (listener: () => void) => {
+        listeners.push(listener);
+        return () => {};
+      },
+    } as unknown as LocalContentService;
+    function Harness() {
+      const { options } = useRelationCandidates(id(2));
+      return <output>{options.map(({ label }) => label).join(",")}</output>;
+    }
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(
+          <RelationCatalogProvider service={service}>
+            <Harness />
+          </RelationCatalogProvider>,
+        ),
+      );
+      expect(container.textContent).toBe("Linked page");
+      await act(async () => notify());
+      // The refresh is still reading: the option the owner may be clicking stays.
+      expect(releaseRefresh).toBeDefined();
+      expect(container.textContent).toBe("Linked page");
+      await act(async () =>
+        releaseRefresh?.([
+          { id: id(10), kind: "page", lifecycle: "active", name: "Renamed linked page" },
+        ]),
+      );
+      expect(container.textContent).toBe("Renamed linked page");
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
   it("does not show a delayed answer from a source that is no longer selected", async () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     let resolveFirst: ((items: unknown[]) => void) | undefined;

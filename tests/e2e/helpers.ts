@@ -960,38 +960,32 @@ export async function waitForEntryAutosave(
   await panel.evaluate(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
-  // "saved" is not durable evidence: the hook returns to "idle" whenever the
-  // panel is remounted, which happens when the entry's projection reloads
-  // right after a write (a just-created entry, typically). A save that
-  // completed a few hundred milliseconds before this check then shows "idle"
-  // for good, and waiting for "saved" timed out although the value was stored.
-  // Accept either the "saved" mark or a quiet "idle" that has outlasted the
-  // 350 ms draft debounce; "saving" keeps waiting and "error" fails here. The
-  // synchronization wait below and the caller's own assertions prove the data.
-  const status = panel.locator(".entry-properties__status");
-  let idleSince: number | null = null;
-  await expect
-    .poll(
-      async () => {
-        const state = await status.getAttribute("data-save-state");
-        if (state === "saved") return "settled";
-        if (state === "error") return "error";
-        if (state !== "idle") {
-          idleSince = null;
-          return state;
-        }
-        idleSince ??= Date.now();
-        return Date.now() - idleSince >= 1_000 ? "settled" : "idle";
-      },
-      { timeout: 15_000, intervals: [100] },
-    )
-    .toBe("settled");
+  // An idle panel may have emitted no write at all (or still have an invalid
+  // or unavailable draft). Neither elapsed time nor an empty sync queue proves
+  // local durability. Require the acknowledgment from the save operation.
+  await expect(panel.locator(".entry-properties__status")).toHaveAttribute(
+    "data-save-state",
+    "saved",
+    { timeout: 15_000 },
+  );
   if (options.synchronize !== false) await waitForSynchronized(page);
 }
 
 /** Chooses values through the entry popup rather than the old native select. */
+/**
+ * The trigger of an entry value picker.
+ *
+ * Its accessible name starts with the property and then states the value it
+ * shows ("Statut : To do"), because a control whose visible text is not part
+ * of its name breaks WCAG 2.5.3. Tests address it by that prefix.
+ */
+function entryPicker(page: Page, property: string) {
+  const escaped = property.replace(/[.*+?^${}()[\]\\]/gu, "\\$&");
+  return page.locator(".entry-panel").getByRole("button", { name: new RegExp(`^${escaped}`, "u") });
+}
+
 export async function chooseEntryOptions(page: Page, property: string, labels: readonly string[]) {
-  const trigger = page.locator(".entry-panel").getByRole("button", { name: property, exact: true });
+  const trigger = entryPicker(page, property);
   for (const label of labels) {
     if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
     const choice = page.locator(".entry-choice");
@@ -1006,7 +1000,7 @@ export async function chooseEntryRelation(
   property: string,
   label: string,
 ): Promise<void> {
-  const trigger = page.locator(".entry-panel").getByRole("button", { name: property, exact: true });
+  const trigger = entryPicker(page, property);
   await trigger.click();
   const option = page
     .getByRole("menuitemcheckbox", { name: label, exact: true })

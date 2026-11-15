@@ -62,7 +62,7 @@ test("configures entry properties directly, shares symbols, and preserves indepe
   await page.keyboard.press("Escape");
 
   await chooseEntryOptions(page, "Team", ["Long option for the application team", "Research"]);
-  const team = page.locator(".entry-panel").getByRole("button", { name: "Team", exact: true });
+  const team = page.locator(".entry-panel").getByRole("button", { name: /^Team/u });
   await team.click();
   const choice = page.locator(".entry-choice");
   const inputSurface = choice.locator(".ui-input-surface");

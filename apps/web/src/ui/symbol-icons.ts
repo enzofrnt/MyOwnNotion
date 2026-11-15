@@ -488,6 +488,7 @@ const CHOICES: readonly SymbolIconChoice[] = [
 const STATIC_IDS = new Set(CHOICES.map((choice) => choice.id));
 
 function dynamicChoice(id: string): SymbolIconChoice {
+  // biome-ignore lint/correctness/noComponentHookFactories: called once per icon name at module load (EXTRA_CHOICES), never during a render, so each component keeps one identity.
   const Icon = (props: LucideProps) =>
     createElement(LazyDynamicIcon, { ...props, name: id }) as React.ReactElement;
   return {

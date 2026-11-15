@@ -21,7 +21,13 @@ vi.mock("node:fs/promises", async (importOriginal) => {
       options?: Parameters<typeof actual.stat>[1],
     ) => {
       const result = await actual.stat(path, options);
-      if (fsFault.tamperPublishedArchive && String(path).endsWith(".monfull")) {
+      // @types/node 26 types `stat` as possibly undefined (`throwIfNoEntry:
+      // false`). This fault only tampers with an archive that exists.
+      if (
+        result !== undefined &&
+        fsFault.tamperPublishedArchive &&
+        String(path).endsWith(".monfull")
+      ) {
         return new Proxy(result, {
           get(target, property, receiver) {
             if (property === "size") return Number(target.size) + 1;

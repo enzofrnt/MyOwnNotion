@@ -102,7 +102,14 @@ test("updates both contents projections, scrolls nested headings and leaves no s
   request,
 }, testInfo) => {
   const pageErrors: string[] = [];
-  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("pageerror", (error) => {
+    // The HTML standard makes the browser report this exact notice when a
+    // ResizeObserver delivery is deferred to the next frame. No application
+    // code throws it; any other page error, including any other
+    // ResizeObserver message, still fails the journey.
+    if (error.message === "ResizeObserver loop completed with undelivered notifications.") return;
+    pageErrors.push(error.message);
+  });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const ids = [generateUuidV7(), generateUuidV7(), generateUuidV7()] as const,
