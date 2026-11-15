@@ -873,11 +873,15 @@ describe("operational page opening", () => {
       if (!opened.ok) return;
       expect(opened.mode).toBe("active");
       expect(synchronize).toHaveBeenCalledOnce();
+      // The head is checked, and only after the drain. A missing call used to
+      // compare against +Infinity and pass: the regression this test names.
+      expect(checkpoint).toHaveBeenCalled();
+      expect(getItem).toHaveBeenCalled();
       expect(synchronize.mock.invocationCallOrder[0]).toBeLessThan(
-        checkpoint.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+        checkpoint.mock.invocationCallOrder[0] as number,
       );
       expect(synchronize.mock.invocationCallOrder[0]).toBeLessThan(
-        getItem.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+        getItem.mock.invocationCallOrder[0] as number,
       );
       opened.close();
     },

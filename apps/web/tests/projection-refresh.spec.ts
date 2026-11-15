@@ -11,9 +11,13 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-async function advance() {
-  await Promise.resolve();
-  await Promise.resolve();
+/**
+ * Waits until the queue has started its `count`-th read. The queue's work is
+ * promise continuations; their depth is an implementation detail, so the test
+ * waits for the read itself rather than a fixed number of microtask turns.
+ */
+async function readsStarted(load: { mock: { calls: unknown[] } }, count: number) {
+  await vi.waitFor(() => expect(load.mock.calls).toHaveLength(count));
 }
 
 describe("projection refresh drain", () => {
@@ -38,7 +42,7 @@ describe("projection refresh drain", () => {
     const queue = createProjectionRefresh({ load, publish });
     queue.activate();
     const first = queue.refresh();
-    await advance();
+    await readsStarted(load, 1);
     const saved = queue.refresh();
     expect(saved).toBe(first);
     expect(queue.refresh()).toBe(first);
@@ -48,7 +52,7 @@ describe("projection refresh drain", () => {
       settled = true;
     });
     obsolete.resolve("obsolete");
-    await advance();
+    await readsStarted(load, 2);
     expect(publish).not.toHaveBeenCalled();
     expect(load).toHaveBeenCalledTimes(2);
     expect(settled).toBe(false);
@@ -65,13 +69,13 @@ describe("projection refresh drain", () => {
     const queue = createProjectionRefresh({ load, publish });
     queue.activate();
     const completion = queue.refresh();
-    await advance();
+    await readsStarted(load, 1);
     void queue.refresh();
     reads[0]?.resolve(1);
-    await advance();
+    await readsStarted(load, 2);
     void queue.refresh();
     reads[1]?.resolve(2);
-    await advance();
+    await readsStarted(load, 3);
     expect(load).toHaveBeenCalledTimes(3);
     expect(publish).not.toHaveBeenCalled();
     reads[2]?.resolve(3);
@@ -88,7 +92,7 @@ describe("projection refresh drain", () => {
     const queue = createProjectionRefresh({ load, publish, onError });
     queue.activate();
     const completion = queue.refresh();
-    await advance();
+    await readsStarted(load, 1);
     void queue.refresh();
     obsolete.reject(error);
     await completion;
@@ -119,12 +123,12 @@ describe("projection refresh drain", () => {
     const queue = createProjectionRefresh({ load, publish, onError });
     queue.activate();
     const oldCompletion = queue.refresh();
-    await advance();
+    await readsStarted(load, 1);
     void queue.refresh();
     queue.deactivate();
     queue.activate();
     const newCompletion = queue.refresh();
-    await advance();
+    await readsStarted(load, 2);
     latest.resolve("new scope");
     await newCompletion;
     obsolete.reject(new Error("old scope"));
@@ -143,7 +147,7 @@ describe("projection refresh drain", () => {
     expect(load).not.toHaveBeenCalled();
     queue.activate();
     const completion = queue.refresh();
-    await advance();
+    await readsStarted(load, 1);
     void queue.refresh();
     queue.deactivate();
     pending.resolve("unmounted");

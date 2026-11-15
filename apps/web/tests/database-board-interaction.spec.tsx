@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import { BoardView } from "../src/features/databases/board-view.tsx";
 import type { DatabaseViewPage } from "../src/services/databases.ts";
+import { present, until } from "./support/until.ts";
 
 it("blocks repeated moves while pending, shows a refusal without claiming success and allows retry", async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -90,14 +91,15 @@ it("blocks repeated moves while pending, shows a refusal without claiming succes
     const trigger = host.querySelector<HTMLButtonElement>(".database-card__menu");
     if (!trigger) throw new Error("Missing move menu");
     const open = async () => {
-      await act(async () => {
-        trigger.click();
-        await new Promise((r) => setTimeout(r, 60));
-      });
-      const move = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) =>
-        item.textContent?.includes("Déplacer dans un groupe"),
+      await act(async () => trigger.click());
+      const move = await until(() =>
+        present(
+          [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) =>
+            item.textContent?.includes("Déplacer dans un groupe"),
+          ),
+          "the grouping destinations item",
+        ),
       );
-      if (!move) throw new Error("Missing grouping destinations menu");
       await act(async () => move.click());
       const choice = document.querySelector<HTMLElement>(`[data-board-destination="${b}"]`);
       if (!choice) throw new Error("Missing destination");

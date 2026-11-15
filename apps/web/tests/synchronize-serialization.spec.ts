@@ -243,10 +243,11 @@ describe("synchronize serialization", () => {
     const second = service.synchronize();
     const third = service.synchronize();
 
-    // Hold the first pass open long enough for any unserialized pass to reach
-    // the transport. Releasing immediately would let pass one finish first and
-    // the test would pass even without serialization.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The first pass is held inside the transport. Coalescing is decided
+    // synchronously when each caller arrives, so an unserialized
+    // implementation is caught deterministically below: it runs three passes,
+    // not one held pass plus one coalesced follow-up.
+    await vi.waitFor(() => expect(recorder.passes, "the first pass reached the transport").toBe(1));
     expect(recorder.peakConcurrency, "a second pass entered the transport").toBe(1);
 
     gate.resolve();
@@ -265,12 +266,11 @@ describe("synchronize serialization", () => {
     await service.db.open();
 
     const held = service.synchronize();
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Mid-pass means inside the transport, observed rather than assumed.
+    await vi.waitFor(() => expect(recorder.passes, "the held pass reached the transport").toBe(1));
     // Arrives mid-pass: coalescing must not swallow it, or a mutation
     // enqueued now would sit `pending` with nobody to resubmit it.
     const late = service.synchronize();
-    // Give the late caller time to reach the transport if it were unserialized.
-    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(recorder.peakConcurrency, "the late caller started its own pass").toBe(1);
 
     gate.resolve();

@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import { NavigationItemMenu } from "../src/features/navigation/navigation-item-menu.tsx";
+import { until } from "./support/until.ts";
 
 it("mounts contextual controls only on demand and uses current callbacks when reopened", async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -47,10 +48,7 @@ it("mounts contextual controls only on demand and uses current callbacks when re
       document.querySelector<HTMLElement>('[data-testid="rename-Page"]')?.click(),
     );
     expect(firstRename).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    });
-    expect(document.querySelector('[role="menu"]')).toBeNull();
+    await until(() => expect(document.querySelector('[role="menu"]')).toBeNull());
     await act(async () => root.render(<NavigationItemMenu {...props} onRename={latestRename} />));
     await act(async () => trigger?.click());
     await act(async () =>

@@ -4,6 +4,7 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import { BoardCardEditor } from "../src/features/databases/board-card-editor.tsx";
+import { drainPromiseWork } from "./support/until.ts";
 
 const propertyId = "00000000-0000-7000-8000-000000000001" as Uuid;
 const property: DatabaseProperty = {
@@ -14,7 +15,10 @@ const property: DatabaseProperty = {
   state: "active",
   positionKey: "a",
 };
-const pause = () => new Promise((resolve) => setTimeout(resolve, 15));
+// The editor and board under test schedule no timers: their asynchronous
+// work is promise continuations from resolved mocks and React updates, which
+// `drainPromiseWork` runs to completion. A 15 ms sleep stood in for that.
+const pause = drainPromiseWork;
 
 it("creates atomically from the editable title, then clears the next draft without creating an empty entry", async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

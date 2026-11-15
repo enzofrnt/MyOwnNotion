@@ -4,6 +4,7 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import { GroupEditor, withGroupingProperty } from "../src/features/databases/group-editor.tsx";
+import { present, until } from "./support/until.ts";
 
 const statusId = generateUuidV7();
 const subjectId = generateUuidV7();
@@ -88,12 +89,9 @@ it("applies from the selector once, retains a refused choice for retry and exclu
     await act(async () => root.render(createElement(GroupEditor, { properties, view, onChange })));
     const trigger = host.querySelector<HTMLButtonElement>("button");
     if (!trigger) throw new Error("Missing selector");
-    await act(async () => {
-      trigger.click();
-      await new Promise((resolve) => setTimeout(resolve, 60));
-    });
-    const menu = document.querySelector('[role="menu"]');
-    expect(menu?.textContent).not.toMatch(/Retirée|Texte|Aucun/);
+    await act(async () => trigger.click());
+    const menu = await until(() => present(document.querySelector('[role="menu"]'), "the menu"));
+    expect(menu.textContent).not.toMatch(/Retirée|Texte|Aucun/);
     const choice = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
       (item) => item.textContent === "Matière",
     );
