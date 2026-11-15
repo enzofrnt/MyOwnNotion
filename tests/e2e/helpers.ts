@@ -582,7 +582,9 @@ export async function createRootDatabase(page: Page, name: string): Promise<void
   // committed projection holds it only once the write and its outbox row are
   // in IndexedDB, which is what makes a following `waitForSynchronized`
   // about this item rather than an already empty queue.
-  await expectCommittedNameCount(page, name, namedBefore + 1);
+  // The packaged desktop build exposes no local service (`null`); its
+  // journeys keep the row check and do not use the queue witness either.
+  if (namedBefore !== null) await expectCommittedNameCount(page, name, namedBefore + 1);
 }
 
 export async function clickEditorInsertBlock(page: Page): Promise<void> {
@@ -629,7 +631,9 @@ export async function createRootItem(
   // committed projection holds it only once the write and its outbox row are
   // in IndexedDB, which is what makes a following `waitForSynchronized`
   // about this item rather than an already empty queue.
-  await expectCommittedNameCount(page, name, namedBefore + 1);
+  // The packaged desktop build exposes no local service (`null`); its
+  // journeys keep the row check and do not use the queue witness either.
+  if (namedBefore !== null) await expectCommittedNameCount(page, name, namedBefore + 1);
 }
 
 export async function createChildItem(
@@ -649,7 +653,9 @@ export async function createChildItem(
   // committed projection holds it only once the write and its outbox row are
   // in IndexedDB, which is what makes a following `waitForSynchronized`
   // about this item rather than an already empty queue.
-  await expectCommittedNameCount(page, name, namedBefore + 1);
+  // The packaged desktop build exposes no local service (`null`); its
+  // journeys keep the row check and do not use the queue witness either.
+  if (namedBefore !== null) await expectCommittedNameCount(page, name, namedBefore + 1);
 }
 
 export async function ensureNavigationVisible(page: Page): Promise<void> {

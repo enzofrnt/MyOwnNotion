@@ -113,6 +113,10 @@ cannot see every disguised wait — a review still asks what each wait proves.
 
 ## Known limits
 
+- The packaged desktop journeys (`desktop-*.spec.ts`) run a production build,
+  which does not expose the local service. There the creation helpers keep
+  their row check only; those journeys do not use the queue witness either.
+
 - Two negative checks still have no positive anchor:
   `apps/api/tests/realtime-page-sync.contract.spec.ts` (no broadcast to the
   second socket, 20 ms window, declared in the contract) and the late-caller

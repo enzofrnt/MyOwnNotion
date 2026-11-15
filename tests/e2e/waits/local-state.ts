@@ -239,11 +239,15 @@ export async function beginEntryChange(
   };
 }
 
-/** How many committed active items carry exactly this name. */
-export async function committedNameCount(page: Page, name: string): Promise<number> {
+/**
+ * How many committed active items carry exactly this name, or `null` in a
+ * runtime that does not expose the local service: the packaged desktop
+ * application is a production build, so its journeys cannot read local state.
+ */
+export async function committedNameCount(page: Page, name: string): Promise<number | null> {
   return await page.evaluate(async (wanted) => {
     const service = window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.();
-    if (service === undefined) throw new Error("the E2E build exposes no local content service");
+    if (service === undefined) return null;
     return (await service.listActiveItems()).filter((item) => item.name === wanted).length;
   }, name);
 }
@@ -259,6 +263,9 @@ export async function expectCommittedNameCount(
   name: string,
   atLeast: number,
 ): Promise<void> {
+  if ((await committedNameCount(page, name)) === null) {
+    throw new Error("the E2E build exposes no local content service");
+  }
   await expect
     .poll(async () => await committedNameCount(page, name), {
       message: `the device committed an item named "${name}"`,

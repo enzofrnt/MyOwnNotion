@@ -284,6 +284,11 @@ describe("entry property configuration menus", () => {
     await act(async () => confirm.click());
     await until(() => expect(edits).toHaveBeenCalledTimes(3));
     expect(edits.mock.calls[2]?.[1]).toBe(true);
-    expect(container.querySelector('button[aria-label="Modifier la propriété Texte"]')).toBeNull();
+    // The confirmed retirement re-renders the list after the edit resolves.
+    await until(() =>
+      expect(
+        container.querySelector('button[aria-label="Modifier la propriété Texte"]'),
+      ).toBeNull(),
+    );
   });
 });
