@@ -468,6 +468,10 @@ test("a two-way relation shows on both sides and reads the same link", async ({ 
   await createRootDatabase(page, sourceB);
   await (await createDatabaseEntry(page, "057 Pair target")).click();
   await page.getByRole("button", { name: "Fermer le volet" }).click();
+  // The peek slides out for a moment. Creating the next database while it is
+  // still on screen leaves two page titles, which the strict title lookup
+  // rightly refuses: wait for the peek to be gone, as an owner would see it.
+  await expect(page.locator(".database-entry-peek")).toHaveCount(0);
   await waitForSynchronized(page);
   await createRootDatabase(page, sourceA);
   await addProperty(page, "Related", "Relation");
