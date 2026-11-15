@@ -97,6 +97,27 @@ fixed, recorded with the reason).
 
 Recorded in the pull request description and below as runs complete.
 
+## Product defect found by the first CI run
+
+CI run 43751330536 (attempt 1) failed `database-relations-rollups.spec.ts`
+« configured relation … 10 + 20 = 30 » on Firefox: `waitForSynchronized`
+read `conflict`. The same message had already failed this file on `main`
+(runs 43587097289, 43706222653). The CI trace shows the cause: a
+`database.presentation.replace` sent with base revision `…73aacfa7` right
+after a `database.definition.replace` had moved the server's container head to
+`…b781d049`; the server answered `revision.stale-base`.
+
+The server commits every definition change on the container's own source
+together with its presentation, at the same revision, with views re-derived
+from the definition (`commitDefinitionChange`). The local projection advanced
+only the definition, so the next view edit started from a stale presentation
+revision. `apply-to-projection.ts` now mirrors the server. The unit test
+"advances the container's presentation with a definition change, like the
+server" fails without the fix. Acknowledgement already remaps both revisions,
+and queued payload bases are rewritten. A definition change on a *secondary*
+source does not advance the container locally; that path is unchanged and was
+not observed failing.
+
 ## Files the audit left to confirm
 
 | File | Use of the clock | Classification |

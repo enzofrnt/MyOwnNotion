@@ -987,8 +987,34 @@ export async function prepareProjectionWrite(
         throw new LocalValidationError("database.impact-stale", "Database impact changed");
       }
       const revisionId = generateUuidV7();
+      // The server commits a definition change on the container's own source
+      // together with its presentation: the views are re-derived from the
+      // definition and the presentation advances to the same revision
+      // (`commitDefinitionChange`). Mirroring that here keeps the next view
+      // edit's base revision current; without it a view change made right
+      // after a schema change was refused as `revision.stale-base` and showed
+      // the owner a conflict (feature 060, CI run 43751330536).
+      const presentation =
+        extraRow === undefined &&
+        database.presentation !== undefined &&
+        database.presentationRevisionId !== undefined
+          ? {
+              presentation: {
+                ...database.presentation,
+                views: candidate.value.views.map((view) => ({
+                  ...view,
+                  sourceId:
+                    database.presentation?.views.find((existing) => existing.id === view.id)
+                      ?.sourceId ?? containerSourceId,
+                })),
+              },
+              presentationVersion: (database.presentationVersion ?? 0) + 1,
+              presentationRevisionId: revisionId,
+            }
+          : {};
       const sealedDefinition = await codec.sealDatabase({
         ...database,
+        ...presentation,
         itemId: command.databaseId,
         definitionVersion: database.definitionVersion + 1,
         definitionRevisionId: revisionId,

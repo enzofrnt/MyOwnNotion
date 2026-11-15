@@ -369,6 +369,52 @@ describe("atomic structured local mutation (T021)", () => {
     ).toBe(true);
   });
 
+  it("advances the container's presentation with a definition change, like the server", async () => {
+    // The server commits a definition change together with the container's
+    // presentation, at the same revision. A view edit made right after a
+    // schema edit must therefore start from that revision, or the server
+    // refuses it as stale and the owner sees a conflict (CI run 43751330536).
+    const payload = createPayload();
+    expect((await apply("database.create", payload)).ok).toBe(true);
+    const before = required(await databases.getDatabase(payload.id));
+    const previousPresentationRevisionId = required(before.presentationRevisionId);
+    const renamedView = { ...required(before.definition.views[0]), name: "Renommée" };
+    expect(
+      (
+        await apply("database.definition.replace", {
+          databaseId: payload.id,
+          baseRevisionId: before.definitionRevisionId,
+          definition: { ...before.definition, views: [renamedView] },
+        })
+      ).ok,
+    ).toBe(true);
+    const after = required(await databases.getDatabase(payload.id));
+    expect(after.presentationRevisionId).toBe(after.definitionRevisionId);
+    expect(after.presentationVersion).toBe((before.presentationVersion ?? 0) + 1);
+    expect(after.presentation?.views.map((view) => view.name)).toEqual(["Renommée"]);
+
+    const presentation = required(after.presentation);
+    expect(
+      (
+        await apply("database.presentation.replace", {
+          containerItemId: payload.id,
+          baseRevisionId: previousPresentationRevisionId,
+          presentation,
+        })
+      ).ok,
+      "the pre-change presentation revision is stale, as on the server",
+    ).toBe(false);
+    expect(
+      (
+        await apply("database.presentation.replace", {
+          containerItemId: payload.id,
+          baseRevisionId: after.presentationRevisionId,
+          presentation,
+        })
+      ).ok,
+    ).toBe(true);
+  });
+
   it("creates a page, sealed database definition, revision and outbox atomically", async () => {
     const payload = createPayload();
     const result = await apply("database.create", payload);
