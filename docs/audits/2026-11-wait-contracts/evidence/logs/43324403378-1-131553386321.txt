@@ -1,0 +1,5 @@
+# run=43324403378 attempt=1 job=131553386321 name=Playwright journeys (webkit-desktop)
+  ✘   83 [webkit-desktop] › tests/e2e/database-relations-rollups.spec.ts:110:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (41.9s)
+  ✘  104 [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery (24.9s)
+  1) [webkit-desktop] › tests/e2e/database-relations-rollups.spec.ts:110:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+  2) [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery 

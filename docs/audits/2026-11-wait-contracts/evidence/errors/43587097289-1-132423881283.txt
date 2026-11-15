@@ -1,0 +1,181 @@
+# run=43587097289 attempt=1 job=132423881283 name=Playwright journeys (firefox-desktop 3/3)
+  1) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "synced"
+    Received: "conflict"
+
+    Call Log:
+    - Timeout 20000ms exceeded while waiting on the predicate
+
+       at helpers.ts:1391
+
+      1389 |       { timeout: options.timeoutMs ?? 20_000 },
+      1390 |     )
+    > 1391 |     .toBe("synced");
+           |     ^
+      1392 | }
+      1393 |
+      1394 | /** Reveals connection details in the existing information control of an open note. */
+        at waitForSynchronized (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1391:5)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:416:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [firefox-desktop] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByRole('dialog', { name: 'Rechercher dans l’espace de travail' }).getByRole('listitem')
+    Expected: 3
+    Received: 2
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "to.have.count" with timeout 10000ms
+      - waiting for getByRole('dialog', { name: 'Rechercher dans l’espace de travail' }).getByRole('listitem')
+        24 × locator resolved to 2 elements
+           - unexpected value "2"
+
+
+      186 |
+      187 |     await dialog.getByRole("button", { name: "Réinitialiser les filtres" }).click();
+    > 188 |     await expect(dialog.getByRole("listitem")).toHaveCount(3);
+          |                                               ^
+      189 |     await dialog.getByLabel("Branch").selectOption({ label: branch });
+      190 |     await expect(dialog.getByRole("listitem")).toHaveCount(2);
+      191 |     await expect(dialog.getByRole("listitem").filter({ hasText: inside })).toBeVisible();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/search.spec.ts:188:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container 
+    [firefox-desktop] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths 
+  10 skipped
+  105 passed (13.1m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: blob-report-firefox-desktop-3-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-firefox-desktop-3-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 5488237
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 7065c105f8b366319bf480f14a1cfa14a4714978fb8e371b08aecb4a016db48f
+Finalizing artifact upload
+Artifact blob-report-firefox-desktop-3-3 successfully finalized. Artifact ID 14112026981
+Artifact blob-report-firefox-desktop-3-3 has been successfully uploaded! Final size is 5488237 bytes. Artifact ID is 14112026981
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587097289/artifacts/14112026981
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: test-results-firefox-desktop-3-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 46 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-firefox-desktop-3-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 5754988
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is b71b6ef16bc71495d202658b6f40e6f5d2cf81de285b9903390f60c46efeef3f
+Finalizing artifact upload
+Artifact test-results-firefox-desktop-3-3 successfully finalized. Artifact ID 14111223784
+Artifact test-results-firefox-desktop-3-3 has been successfully uploaded! Final size is 5754988 bytes. Artifact ID is 14111223784
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587097289/artifacts/14111223784
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__5979db23-7b86-4eb5-9a50-77c1ae00bf16.__oven-sh_setup-bun]
+##[end-action id=__5979db23-7b86-4eb5-9a50-77c1ae00bf16.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/64c1f207-d855-40e5-a258-99b94cdc2d83' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-d0af7653-5a5d-4eff-b464-7354d93b7db5.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-d0af7653\-5a5d\-4eff\-b464\-7354d93b7db5\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-d0af7653-5a5d-4eff-b464-7354d93b7db5.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-d0af7653\-5a5d\-4eff\-b464\-7354d93b7db5\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-d0af7653-5a5d-4eff-b464-7354d93b7db5.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-d0af7653\-5a5d\-4eff\-b464\-7354d93b7db5\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-d0af7653-5a5d-4eff-b464-7354d93b7db5.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-d0af7653\-5a5d\-4eff\-b464\-7354d93b7db5\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-d0af7653-5a5d-4eff-b464-7354d93b7db5.config'
+Cleaning up orphan processes

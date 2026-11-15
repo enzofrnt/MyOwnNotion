@@ -1,0 +1,464 @@
+# run=43470717395 attempt=1 job=132042570899 name=Playwright journeys (chromium-mobile)
+  1) [chromium-mobile] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf9hdky-hmx0l\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf9hg5e-b5txl.txt\" data-testid=\"preview-file-a11y-mwf9hg5e-b5txl.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Aperçu</span></button>)",
+    + ]
+
+      322 |   test("the attachment list has no critical or serious violations", async ({ page }) => {
+      323 |     await pageWithAttachment(page);
+    > 324 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      325 |   });
+      326 |
+      327 |   test("the deletion confirmation has no critical or serious violations", async ({ page }) => {
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:324:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf9hi0r-067m5\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf9hjuv-7sfpi.txt\" data-testid=\"preview-file-a11y-mwf9hjuv-7sfpi.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Aperçu</span></button>)",
+    + ]
+
+      322 |   test("the attachment list has no critical or serious violations", async ({ page }) => {
+      323 |     await pageWithAttachment(page);
+    > 324 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      325 |   });
+      326 |
+      327 |   test("the deletion confirmation has no critical or serious violations", async ({ page }) => {
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:324:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium-mobile] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf9hqeu-dqo34\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf9hs5c-a8sb9.txt\" data-testid=\"preview-file-a11y-mwf9hs5c-a8sb9.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Fermer l’aperçu</span></button>)",
+    + ]
+
+      352 |       timeout: 30_000,
+      353 |     });
+    > 354 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      355 |   });
+      356 | });
+      357 |
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:354:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf9hu3w-ykodn\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf9hvxz-n48xj.txt\" data-testid=\"preview-file-a11y-mwf9hvxz-n48xj.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Fermer l’aperçu</span></button>)",
+    + ]
+
+      352 |       timeout: 30_000,
+      353 |     });
+    > 354 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      355 |   });
+      356 | });
+      357 |
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:354:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium-mobile] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name",
+    + ]
+
+      473 |       await tab.click();
+      474 |       await expect(tab).toHaveAttribute("aria-current", "page");
+    > 475 |       expect(await seriousViolations(page)).toEqual([]);
+          |                                             ^
+      476 |     }
+      477 |
+      478 |     await databaseViewButton(page, /Kanban/).click();
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:475:45)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name",
+    + ]
+
+      473 |       await tab.click();
+      474 |       await expect(tab).toHaveAttribute("aria-current", "page");
+    > 475 |       expect(await seriousViolations(page)).toEqual([]);
+          |                                             ^
+      476 |     }
+      477 |
+      478 |     await databaseViewButton(page, /Kanban/).click();
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:475:45)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:98:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link')
+    Expected: 3
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link') with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      161 |   await selectItem(page, firstName);
+      162 |   const editor = page.locator('[data-testid="block-editor"]:visible');
+    > 163 |   await expect(editor.locator(".editor-contents-link")).toHaveCount(3);
+          |                                                         ^
+      164 |   await editor.locator(".editor-contents-link").filter({ hasText: "Suite actuelle" }).click();
+      165 |   await expect
+      166 |     .poll(() =>
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/editor-math-contents.spec.ts:163:57)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link')
+    Expected: 3
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link') with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      161 |   await selectItem(page, firstName);
+      162 |   const editor = page.locator('[data-testid="block-editor"]:visible');
+    > 163 |   await expect(editor.locator(".editor-contents-link")).toHaveCount(3);
+          |                                                         ^
+      164 |   await editor.locator(".editor-contents-link").filter({ hasText: "Suite actuelle" }).click();
+      165 |   await expect
+      166 |     .poll(() =>
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/editor-math-contents.spec.ts:163:57)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium-mobile] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' })
+    Expected: "false"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' }) with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' })
+
+
+      94 |     const toggleBody = editor.locator('[data-content-type="toggleListItem"]').first();
+      95 |     const toggleButton = toggleBody.getByRole("button", { name: "Déplier cette section" });
+    > 96 |     await expect(toggleButton).toHaveAttribute("aria-expanded", "false");
+         |                                ^
+      97 |     await toggleButton.click();
+      98 |     await expect(toggleBody.getByRole("button", { name: "Replier cette section" })).toHaveAttribute(
+      99 |       "aria-expanded",
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/rich-page.spec.ts:96:32)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' })
+    Expected: "false"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' }) with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' })
+
+
+      94 |     const toggleBody = editor.locator('[data-content-type="toggleListItem"]').first();
+      95 |     const toggleButton = toggleBody.getByRole("button", { name: "Déplier cette section" });
+    > 96 |     await expect(toggleButton).toHaveAttribute("aria-expanded", "false");
+         |                                ^
+      97 |     await toggleButton.click();
+      98 |     await expect(toggleBody.getByRole("button", { name: "Replier cette section" })).toHaveAttribute(
+      99 |       "aria-expanded",
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/rich-page.spec.ts:96:32)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5 failed
+    [chromium-mobile] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+    [chromium-mobile] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+    [chromium-mobile] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+    [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:98:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
+    [chromium-mobile] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably 
+  25 skipped
+  314 passed (21.7m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-chromium-mobile
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 272 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-chromium-mobile.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 33554432
+Uploaded bytes 41943040
+Uploaded bytes 50331648
+Uploaded bytes 58720256
+Uploaded bytes 67108864
+Uploaded bytes 75497472
+Uploaded bytes 83886080
+Uploaded bytes 91034709
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is c75820ccf846af1490b4e7c28e780fb7a4cdb8531bb3d3b0b3cee922cface25c
+Finalizing artifact upload
+Artifact playwright-report-chromium-mobile successfully finalized. Artifact ID 14063189422
+Artifact playwright-report-chromium-mobile has been successfully uploaded! Final size is 91034709 bytes. Artifact ID is 14063189422
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43470717395/artifacts/14063189422
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__b230bece-105a-4b83-bce9-416435fae7b8.__oven-sh_setup-bun]
+##[end-action id=__b230bece-105a-4b83-bce9-416435fae7b8.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/c75d1f09-0d57-41e8-8167-4002c9e8a41a' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-9d05696b-1acf-435c-9c0c-464f8bc379e6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-9d05696b\-1acf\-435c\-9c0c\-464f8bc379e6\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-9d05696b-1acf-435c-9c0c-464f8bc379e6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-9d05696b\-1acf\-435c\-9c0c\-464f8bc379e6\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-9d05696b-1acf-435c-9c0c-464f8bc379e6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-9d05696b\-1acf\-435c\-9c0c\-464f8bc379e6\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-9d05696b-1acf-435c-9c0c-464f8bc379e6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-9d05696b\-1acf\-435c\-9c0c\-464f8bc379e6\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-9d05696b-1acf-435c-9c0c-464f8bc379e6.config'
+Cleaning up orphan processes

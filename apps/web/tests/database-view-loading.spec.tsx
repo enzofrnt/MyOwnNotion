@@ -22,6 +22,7 @@ import {
   loadView,
 } from "../src/features/editor/custom-blocks/database-view.tsx";
 import type { LocalContentService, LocalContentSnapshot } from "../src/services/local-content.ts";
+import { drainPromiseWork } from "./support/until.ts";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -31,9 +32,9 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-async function advance() {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
+// The view loader is exercised against mocked services whose answers are
+// promises the test resolves; `drainPromiseWork` runs every continuation.
+const advance = drainPromiseWork;
 
 function item(id: Uuid, name: string, kind: "page" | "folder" = "page"): ProjectedItem {
   return {

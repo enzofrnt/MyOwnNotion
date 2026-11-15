@@ -608,6 +608,23 @@ the maximum live heap observed there. Those collections are outside the
 ingest, catch-up and compaction clocks. This measures retained working state
 rather than garbage whose reclamation timing depends on the host.
 
+### Waiting for states, not for time
+
+Every test waits for the state its next step needs, produced by the code that
+completes the operation and correlated with that operation — never for elapsed
+time, a merely visible element, an unrelated network response or an `idle`
+state. Timeouts are maximum bounds with a diagnostic. The rule, the witnesses
+(`tests/e2e/waits/`, `apps/web/tests/support/until.ts`) and their producers are
+in [`docs/testing/wait-contracts.md`](testing/wait-contracts.md);
+`tests/contract/test-wait-contracts.spec.ts` rejects `waitForTimeout` and timer
+sleeps outside the timers it declares.
+
+CI keeps the browser evidence of every attempt: lane artifacts are named
+`blob-report-<lane>-attempt-<n>` and `test-results-<lane>-attempt-<n>`, and the
+gate merges each lane's newest attempt and lists which one it used in
+`e2e-lane-attempts.txt` and the job summary. Prefer « Re-run failed jobs » when
+the red attempt is the evidence; a re-run is never a fix.
+
 ### Journey timing budgets
 
 A browser journey has three separate bounds, and none of them scales with

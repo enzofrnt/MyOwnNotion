@@ -94,6 +94,8 @@
       "tests/e2e/global-setup.ts",
       "tests/e2e/helpers.ts",
       "tests/e2e/projects.ts",
+      "tests/e2e/waits/local-state.ts",
+      "tests/e2e/waits/observation.ts",
       "tests/e2e/reset-content.ts",
       "tests/e2e/reset-installation.ts",
       "tests/e2e/desktop-skip.ts",
@@ -1158,6 +1160,18 @@
           "packages/domain/src/security/wrapping-key-",
           "packages/domain/src/security/rotation-",
           "packages/database/src/repositories/security/rotation-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/wait-witnesses.spec.ts",
+      "owners": {
+        "exact": [],
+        "prefixes": [
+          "apps/web/src/features/hierarchy/",
+          "packages/client-core/src/navigation/",
+          "tests/e2e/waits/"
         ],
         "suffixes": []
       }

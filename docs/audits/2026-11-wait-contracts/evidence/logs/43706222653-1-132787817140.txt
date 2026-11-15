@@ -1,0 +1,3 @@
+# run=43706222653 attempt=1 job=132787817140 name=Playwright journeys (chromium-mobile 3/3)
+  ✘  117 [chromium-mobile] › tests/e2e/workspace-tabs-folder.spec.ts:27:0 › keeps tabs, a deep path and folder ordering coherent at desktop and phone widths (22.5s)
+  1) [chromium-mobile] › tests/e2e/workspace-tabs-folder.spec.ts:27:0 › keeps tabs, a deep path and folder ordering coherent at desktop and phone widths 

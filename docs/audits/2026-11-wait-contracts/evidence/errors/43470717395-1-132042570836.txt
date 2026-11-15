@@ -1,0 +1,303 @@
+# run=43470717395 attempt=1 job=132042570836 name=Playwright journeys (webkit-mobile)
+  1) [webkit-mobile] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf9ehgw-9sst2\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf9elpf-7b9x4.txt\" data-testid=\"preview-file-a11y-mwf9elpf-7b9x4.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Aperçu</span></button>)",
+    + ]
+
+      322 |   test("the attachment list has no critical or serious violations", async ({ page }) => {
+      323 |     await pageWithAttachment(page);
+    > 324 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      325 |   });
+      326 |
+      327 |   test("the deletion confirmation has no critical or serious violations", async ({ page }) => {
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:324:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf9epge-en3ow\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf9etlf-be7gn.txt\" data-testid=\"preview-file-a11y-mwf9etlf-be7gn.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Aperçu</span></button>)",
+    + ]
+
+      322 |   test("the attachment list has no critical or serious violations", async ({ page }) => {
+      323 |     await pageWithAttachment(page);
+    > 324 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      325 |   });
+      326 |
+      327 |   test("the deletion confirmation has no critical or serious violations", async ({ page }) => {
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:324:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [webkit-mobile] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf9f88g-83lbd\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf9fcf5-fri5b.txt\" data-testid=\"preview-file-a11y-mwf9fcf5-fri5b.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Fermer l’aperçu</span></button>)",
+    + ]
+
+      352 |       timeout: 30_000,
+      353 |     });
+    > 354 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      355 |   });
+      356 | });
+      357 |
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:354:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf9fghq-1v4oe\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf9fklm-czo60.txt\" data-testid=\"preview-file-a11y-mwf9fklm-czo60.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Fermer l’aperçu</span></button>)",
+    + ]
+
+      352 |       timeout: 30_000,
+      353 |     });
+    > 354 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      355 |   });
+      356 | });
+      357 |
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:354:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [webkit-mobile] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name",
+    + ]
+
+      473 |       await tab.click();
+      474 |       await expect(tab).toHaveAttribute("aria-current", "page");
+    > 475 |       expect(await seriousViolations(page)).toEqual([]);
+          |                                             ^
+      476 |     }
+      477 |
+      478 |     await databaseViewButton(page, /Kanban/).click();
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:475:45)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name",
+    + ]
+
+      473 |       await tab.click();
+      474 |       await expect(tab).toHaveAttribute("aria-current", "page");
+    > 475 |       expect(await seriousViolations(page)).toEqual([]);
+          |                                             ^
+      476 |     }
+      477 |
+      478 |     await databaseViewButton(page, /Kanban/).click();
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:475:45)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [webkit-mobile] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+    [webkit-mobile] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+    [webkit-mobile] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  16 skipped
+  103 passed (17.9m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-mobile
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 144 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-mobile.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 33554432
+Uploaded bytes 41943040
+Uploaded bytes 50331648
+Uploaded bytes 58720256
+Uploaded bytes 64293290
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 57d2ca38cedf6b1d7e2250a113b36c9970c31e8782b7154a7a54ad7acb1996bd
+Finalizing artifact upload
+Artifact playwright-report-webkit-mobile successfully finalized. Artifact ID 14062958363
+Artifact playwright-report-webkit-mobile has been successfully uploaded! Final size is 64293290 bytes. Artifact ID is 14062958363
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43470717395/artifacts/14062958363
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__39a653dd-aa95-4cd7-a20c-9dc7b98509ab.__oven-sh_setup-bun]
+##[end-action id=__39a653dd-aa95-4cd7-a20c-9dc7b98509ab.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/494bd7aa-dd1f-479e-9374-ae3a43f0739f' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-b7975a9a-22d4-46c3-9f0f-61bd8c2b2f28.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-b7975a9a\-22d4\-46c3\-9f0f\-61bd8c2b2f28\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-b7975a9a-22d4-46c3-9f0f-61bd8c2b2f28.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-b7975a9a\-22d4\-46c3\-9f0f\-61bd8c2b2f28\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-b7975a9a-22d4-46c3-9f0f-61bd8c2b2f28.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-b7975a9a\-22d4\-46c3\-9f0f\-61bd8c2b2f28\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-b7975a9a-22d4-46c3-9f0f-61bd8c2b2f28.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-b7975a9a\-22d4\-46c3\-9f0f\-61bd8c2b2f28\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-b7975a9a-22d4-46c3-9f0f-61bd8c2b2f28.config'
+Cleaning up orphan processes

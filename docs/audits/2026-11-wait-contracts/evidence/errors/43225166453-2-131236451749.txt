@@ -1,0 +1,15 @@
+# run=43225166453 attempt=2 job=131236451749 name=Unit, property & coverage
+   ✓ visible history consolidation > reports a canonical rename as a stale restore head instead of an internal error  1380ms
+ ✓  database-integration  tests/security-repository-errors.spec.ts (3 tests) 5ms
+   ✓ entry property configuration menus > opens the property editor without crashing and renames automatically  618ms
+     → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ✓  web  tests/error-boundary.spec.tsx (2 tests) 32ms
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+##[error]Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+error: "vitest" exited with code 1
+error: script "test:coverage" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

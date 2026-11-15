@@ -16,7 +16,7 @@ import { Readable, Writable } from "node:stream";
 import type { DatabaseDefinition, Uuid } from "@myownnotion/domain";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { sealBackupArchiveStream } from "../src/backup/archive-crypto.ts";
 import { BackupService } from "../src/backup/backup-service.ts";
 import type { BackupDestination, StoredBackup } from "../src/backup/destinations/destination.ts";
@@ -59,14 +59,15 @@ async function exportArtifact(): Promise<Record<string, unknown>> {
   expect(started.statusCode, started.body).toBe(202);
   const exportId = (started.json() as { exportId: string }).exportId;
   let status = "pending";
-  for (let attempt = 0; attempt < 50 && status === "pending"; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const response = await injectAsOwner({
-      method: "GET",
-      url: `/v1/export/${exportId}`,
-    });
-    status = (response.json() as { status: string }).status;
-  }
+  // Poll the export's own state; the bound only names an export that never ends.
+  await vi.waitFor(
+    async () => {
+      const response = await injectAsOwner({ method: "GET", url: `/v1/export/${exportId}` });
+      status = (response.json() as { status: string }).status;
+      expect(status, "the export left the pending state").not.toBe("pending");
+    },
+    { timeout: 5_000, interval: 25 },
+  );
   expect(status).toBe("ready");
   const artifact = await injectAsOwner({
     method: "GET",

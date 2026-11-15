@@ -1,0 +1,501 @@
+# run=43266767307 attempt=1 job=131352667657 name=Playwright journeys (chromium-mobile)
+  1) [chromium-mobile] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for locator('.property-settings:visible').locator('.property-settings__option').first()
+        - locator resolved to <button id="_r_2f_" type="button" tabindex="-1" data-tabindex="" aria-expanded="true" aria-haspopup="menu" aria-controls="_r_2i_" aria-label="Modifier l’option To do" class="ui-menu__trigger property-settings__option">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="To do" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="To do" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        109 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <input value="To do" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+
+
+       at helpers.ts:1171
+
+      1169 |   // drops focus to the body, and a body-level Escape is a settings-screen
+      1170 |   // dismissal, not something the portaled editor owns.
+    > 1171 |   await trigger.click();
+           |                ^
+      1172 |   await expect(input).toBeHidden();
+      1173 | }
+      1174 |
+        at renameConfiguredOption (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1171:16)
+        at configureChoicePropertyOptions (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1219:10)
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1129:8)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:418:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 60000ms exceeded.
+
+    Error: click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for locator('.property-settings:visible').locator('.property-settings__option').first()
+        - locator resolved to <button id="_r_2f_" type="button" tabindex="-1" data-tabindex="" aria-expanded="true" aria-haspopup="menu" aria-controls="_r_2i_" aria-label="Modifier l’option To do" class="ui-menu__trigger property-settings__option">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="To do" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="To do" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        109 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <input value="To do" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+       at helpers.ts:1171
+
+      1169 |   // drops focus to the body, and a body-level Escape is a settings-screen
+      1170 |   // dismissal, not something the portaled editor owns.
+    > 1171 |   await trigger.click();
+           |                ^
+      1172 |   await expect(input).toBeHidden();
+      1173 | }
+      1174 |
+        at renameConfiguredOption (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1171:16)
+        at configureChoicePropertyOptions (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1219:10)
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1129:8)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:418:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      187 |             );
+      188 |           })
+    > 189 |           .toBe(true);
+          |           ^
+      190 |       }
+      191 |       if (width === 320) {
+      192 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:189:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      187 |             );
+      188 |           })
+    > 189 |           .toBe(true);
+          |           ^
+      190 |       }
+      191 |       if (width === 320) {
+      192 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:189:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium-mobile] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.property-settings:visible').locator('.property-settings__option').first()
+        - locator resolved to <button id="_r_2h_" type="button" tabindex="-1" data-tabindex="" aria-expanded="true" aria-haspopup="menu" aria-controls="_r_2k_" class="ui-menu__trigger property-settings__option" aria-label="Modifier l’option Long option for the application team">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option" value="Long option for the application team"/> from <div id="portal/_r_2k_">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option" value="Long option for the application team"/> from <div id="portal/_r_2k_">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        341 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <input tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option" value="Long option for the application team"/> from <div id="portal/_r_2k_">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+       at helpers.ts:1171
+
+      1169 |   // drops focus to the body, and a body-level Escape is a settings-screen
+      1170 |   // dismissal, not something the portaled editor owns.
+    > 1171 |   await trigger.click();
+           |                ^
+      1172 |   await expect(input).toBeHidden();
+      1173 | }
+      1174 |
+        at renameConfiguredOption (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1171:16)
+        at configureChoicePropertyOptions (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1219:10)
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1129:8)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-entry-properties.spec.ts:23:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.property-settings:visible').locator('.property-settings__option').first()
+        - locator resolved to <button id="_r_2h_" type="button" tabindex="-1" data-tabindex="" aria-expanded="true" aria-haspopup="menu" aria-controls="_r_2k_" class="ui-menu__trigger property-settings__option" aria-label="Modifier l’option Long option for the application team">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option" value="Long option for the application team"/> from <div id="portal/_r_2k_">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option" value="Long option for the application team"/> from <div id="portal/_r_2k_">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        341 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <input tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option" value="Long option for the application team"/> from <div id="portal/_r_2k_">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+       at helpers.ts:1171
+
+      1169 |   // drops focus to the body, and a body-level Escape is a settings-screen
+      1170 |   // dismissal, not something the portaled editor owns.
+    > 1171 |   await trigger.click();
+           |                ^
+      1172 |   await expect(input).toBeHidden();
+      1173 | }
+      1174 |
+        at renameConfiguredOption (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1171:16)
+        at configureChoicePropertyOptions (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1219:10)
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1129:8)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-entry-properties.spec.ts:23:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium-mobile] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.property-settings:visible').locator('.property-settings__option').first()
+        - locator resolved to <button id="_r_2f_" type="button" tabindex="-1" data-tabindex="" aria-expanded="true" aria-haspopup="menu" aria-controls="_r_2i_" aria-label="Modifier l’option Alpha" class="ui-menu__trigger property-settings__option">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        342 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+       at helpers.ts:1171
+
+      1169 |   // drops focus to the body, and a body-level Escape is a settings-screen
+      1170 |   // dismissal, not something the portaled editor owns.
+    > 1171 |   await trigger.click();
+           |                ^
+      1172 |   await expect(input).toBeHidden();
+      1173 | }
+      1174 |
+        at renameConfiguredOption (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1171:16)
+        at configureChoicePropertyOptions (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1219:10)
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1129:8)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-multi-select-board.spec.ts:48:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.property-settings:visible').locator('.property-settings__option').first()
+        - locator resolved to <button id="_r_2f_" type="button" tabindex="-1" data-tabindex="" aria-expanded="true" aria-haspopup="menu" aria-controls="_r_2i_" aria-label="Modifier l’option Alpha" class="ui-menu__trigger property-settings__option">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        342 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+       at helpers.ts:1171
+
+      1169 |   // drops focus to the body, and a body-level Escape is a settings-screen
+      1170 |   // dismissal, not something the portaled editor owns.
+    > 1171 |   await trigger.click();
+           |                ^
+      1172 |   await expect(input).toBeHidden();
+      1173 | }
+      1174 |
+        at renameConfiguredOption (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1171:16)
+        at configureChoicePropertyOptions (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1219:10)
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1129:8)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-multi-select-board.spec.ts:48:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:340:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.property-settings:visible').locator('.property-settings__option').first()
+        - locator resolved to <button id="_r_2f_" type="button" tabindex="-1" data-tabindex="" aria-expanded="true" aria-haspopup="menu" aria-controls="_r_2i_" aria-label="Modifier l’option Alpha" class="ui-menu__trigger property-settings__option">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        343 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+       at helpers.ts:1171
+
+      1169 |   // drops focus to the body, and a body-level Escape is a settings-screen
+      1170 |   // dismissal, not something the portaled editor owns.
+    > 1171 |   await trigger.click();
+           |                ^
+      1172 |   await expect(input).toBeHidden();
+      1173 | }
+      1174 |
+        at renameConfiguredOption (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1171:16)
+        at configureChoicePropertyOptions (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1219:10)
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1129:8)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-page-flow.spec.ts:347:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-page-flow-creates-4a1ea--reloads-and-queues-offline-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-page-flow-creates-4a1ea--reloads-and-queues-offline-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-page-flow-creates-4a1ea--reloads-and-queues-offline-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-page-flow-creates-4a1ea--reloads-and-queues-offline-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.property-settings:visible').locator('.property-settings__option').first()
+        - locator resolved to <button id="_r_2f_" type="button" tabindex="-1" data-tabindex="" aria-expanded="true" aria-haspopup="menu" aria-controls="_r_2i_" aria-label="Modifier l’option Alpha" class="ui-menu__trigger property-settings__option">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <input value="Alpha" tabindex="-1" data-tabindex="" data-size="compact" class="ui-native-input" aria-label="Nom de l'option"/> from <div id="portal/_r_2i_">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        342 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable

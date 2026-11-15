@@ -460,7 +460,9 @@ test("relation and rollup isolate a second source in the same database container
   ).toBeVisible();
 });
 
-test("a two-way relation shows on both sides and reads the same link", async ({ page }) => {
+test("a two-way relation shows on both sides and reads the same link", async ({
+  page,
+}, testInfo) => {
   test.setTimeout(180_000);
   await openWorkspace(page);
   const sourceB = "057 Pair amounts";
@@ -506,12 +508,16 @@ test("a two-way relation shows on both sides and reads the same link", async ({ 
   });
   await page
     .locator(".relation-property-settings:visible")
-    .screenshot({ path: "test-results/057-pair-active.png" });
+    .screenshot({ path: testInfo.outputPath("057-pair-active.png") });
   await page.emulateMedia({ colorScheme: "dark" });
+  // The capture is evidence of the dark theme only once the document has
+  // switched to it.
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page
     .locator(".relation-property-settings:visible")
-    .screenshot({ path: "test-results/057-pair-active-dark.png" });
+    .screenshot({ path: testInfo.outputPath("057-pair-active-dark.png") });
   await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await closeConfiguration(page);
   await selectItem(page, sourceB);
   await expect(

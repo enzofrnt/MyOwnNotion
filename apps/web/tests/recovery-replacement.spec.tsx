@@ -9,6 +9,7 @@ import {
 } from "../src/features/security/recovery-replacement-panel.tsx";
 import { SecuritySettings } from "../src/features/security/security-settings.tsx";
 import { SecurityApi } from "../src/services/security-api.ts";
+import { drainPromiseWork } from "./support/until.ts";
 
 vi.mock("../src/features/security/device-panel.tsx", () => ({
   DevicePanel: () => null,
@@ -213,7 +214,7 @@ describe("recovery replacement ceremony", () => {
     await act(async () => {
       root.render(<SecuritySettings api={api} currentSessionId={null} onSignedOut={vi.fn()} />);
       for (let index = 0; index < 4; index += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await drainPromiseWork();
       }
     });
   }
@@ -222,7 +223,7 @@ describe("recovery replacement ceremony", () => {
     await act(async () => {
       container.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)?.click();
       for (let index = 0; index < 4; index += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await drainPromiseWork();
       }
     });
   }

@@ -1,0 +1,153 @@
+# run=43349203856 attempt=1 job=131635931875 name=Playwright journeys (webkit-mobile)
+  1) [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:401:0 › a two-way relation shows on both sides and reads the same link 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "synced"
+    Received: "offline"
+
+    Call Log:
+    - Timeout 20000ms exceeded while waiting on the predicate
+
+       at helpers.ts:1345
+
+      1343 |       { timeout: options.timeoutMs ?? 20_000 },
+      1344 |     )
+    > 1345 |     .toBe("synced");
+           |     ^
+      1346 | }
+      1347 |
+      1348 | /** Reveals connection details in the existing information control of an open note. */
+        at waitForSynchronized (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1345:5)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:480:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "synced"
+    Received: "offline"
+
+    Call Log:
+    - Timeout 20000ms exceeded while waiting on the predicate
+
+       at helpers.ts:1345
+
+      1343 |       { timeout: options.timeoutMs ?? 20_000 },
+      1344 |     )
+    > 1345 |     .toBe("synced");
+           |     ^
+      1346 | }
+      1347 |
+      1348 | /** Reveals connection details in the existing information control of an open note. */
+        at waitForSynchronized (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1345:5)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:480:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:401:0 › a two-way relation shows on both sides and reads the same link 
+  15 skipped
+  106 passed (19.2m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-mobile
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 116 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-mobile.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 28433918
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is bcfa3a5e4b6b641a8a3e689f8a98ba1778ca4827dc3fcab8273d210f00bfa0b7
+Finalizing artifact upload
+Artifact playwright-report-webkit-mobile successfully finalized. Artifact ID 14003898233
+Artifact playwright-report-webkit-mobile has been successfully uploaded! Final size is 28433918 bytes. Artifact ID is 14003898233
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43349203856/artifacts/14003898233
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__f966a0a8-bbbc-40de-9089-99bc31eeb228.__oven-sh_setup-bun]
+##[end-action id=__f966a0a8-bbbc-40de-9089-99bc31eeb228.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.0
+Temporarily overriding HOME='/home/runner/work/_temp/94a2f8b5-8a47-4f2c-b83d-cf62765cb7c5' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-3145a1bf-1c1e-4e15-8853-204173ab5cf6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-3145a1bf\-1c1e\-4e15\-8853\-204173ab5cf6\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-3145a1bf-1c1e-4e15-8853-204173ab5cf6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-3145a1bf\-1c1e\-4e15\-8853\-204173ab5cf6\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-3145a1bf-1c1e-4e15-8853-204173ab5cf6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-3145a1bf\-1c1e\-4e15\-8853\-204173ab5cf6\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-3145a1bf-1c1e-4e15-8853-204173ab5cf6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-3145a1bf\-1c1e\-4e15\-8853\-204173ab5cf6\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-3145a1bf-1c1e-4e15-8853-204173ab5cf6.config'
+Cleaning up orphan processes

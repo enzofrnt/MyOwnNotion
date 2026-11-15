@@ -122,13 +122,9 @@ test("delete/edit ambiguity survives restart and restores the edited block", asy
     // Deletion reaches the server first; editing arrives later and must create
     // one durable question instead of choosing either complete document.
     await setOffline(context, page, false);
-    await expect(page.getByTestId("editor-sync-status")).not.toHaveAttribute(
-      "data-sync",
-      "offline",
-      {
-        timeout: 20_000,
-      },
-    );
+    // "Not offline" flips at reconnection; the order this journey depends on
+    // needs the server to have confirmed the deleting device's frontier.
+    await waitForPageSync(page, "synced");
     // A keep-alive session on the deleting device also receives the question.
     // Close that tab so restore is decided on the editing device, then reopen.
     await page.locator(".open-tab__close").click({ force: true });

@@ -1,0 +1,145 @@
+# run=43609826504 attempt=1 job=132492239128 name=Playwright journeys (webkit-mobile 1/3)
+  1) [webkit-mobile] › tests/e2e/databases-tasks.spec.ts:127:1 › tracks one task page through roles, notes, relations, search and an independent checkbox 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.entry-panel').getByRole('button', { name: 'Project', exact: true })
+    Expected: "Related project-mwgk5ejz-7ki6m"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" locator('.entry-panel').getByRole('button', { name: 'Project', exact: true }) with timeout 10000ms
+      - waiting for locator('.entry-panel').getByRole('button', { name: 'Project', exact: true })
+
+
+      279 |   await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(editorialNote);
+      280 |   await expect(documentCheckbox).toBeChecked();
+    > 281 |   await expect(entryPanel.getByRole("button", { name: "Project", exact: true })).toHaveText(
+          |                                                                                  ^
+      282 |     projectName,
+      283 |   );
+      284 |   await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-tasks.spec.ts:281:82)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-tasks-tracks-one-4b37e-and-an-independent-checkbox-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-tasks-tracks-one-4b37e-and-an-independent-checkbox-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-tasks-tracks-one-4b37e-and-an-independent-checkbox-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-tasks-tracks-one-4b37e-and-an-independent-checkbox-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [webkit-mobile] › tests/e2e/databases-tasks.spec.ts:127:1 › tracks one task page through roles, notes, relations, search and an independent checkbox 
+  11 skipped
+  106 passed (9.8m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+with:
+  name: blob-report-webkit-mobile-1-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-webkit-mobile-1-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 10338932
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is d093d817124ce2efc7e5425773d579a578f0da0cf9ac383bfa9a6cf77ec285b2
+Finalizing artifact upload
+Artifact blob-report-webkit-mobile-1-3 successfully finalized. Artifact ID 14120311747
+Artifact blob-report-webkit-mobile-1-3 has been successfully uploaded! Final size is 10338932 bytes. Artifact ID is 14120311747
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43609826504/artifacts/14120311747
+##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+with:
+  name: test-results-webkit-mobile-1-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 33 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-webkit-mobile-1-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 12615177
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is ce394164f1e46e09b94ca9f319757421351752f9d88efc9440494e2aec487acf
+Finalizing artifact upload
+Artifact test-results-webkit-mobile-1-3 successfully finalized. Artifact ID 14119962271
+Artifact test-results-webkit-mobile-1-3 has been successfully uploaded! Final size is 12615177 bytes. Artifact ID is 14119962271
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43609826504/artifacts/14119962271
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__8ddd71be-be0e-4287-80c5-bf0ae411edaa.__oven-sh_setup-bun]
+##[end-action id=__8ddd71be-be0e-4287-80c5-bf0ae411edaa.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/6734a49c-d6b3-4e22-ae01-1b994521cbcd' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-0f19155b-46fd-4cfc-8b68-6d17c47ef6dc.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-0f19155b\-46fd\-4cfc\-8b68\-6d17c47ef6dc\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-0f19155b-46fd-4cfc-8b68-6d17c47ef6dc.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-0f19155b\-46fd\-4cfc\-8b68\-6d17c47ef6dc\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-0f19155b-46fd-4cfc-8b68-6d17c47ef6dc.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-0f19155b\-46fd\-4cfc\-8b68\-6d17c47ef6dc\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-0f19155b-46fd-4cfc-8b68-6d17c47ef6dc.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-0f19155b\-46fd\-4cfc\-8b68\-6d17c47ef6dc\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-0f19155b-46fd-4cfc-8b68-6d17c47ef6dc.config'
+Cleaning up orphan processes

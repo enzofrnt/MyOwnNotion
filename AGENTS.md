@@ -63,6 +63,10 @@ comparaison. Une silhouette sans états ni preuve n'est pas terminée.
 - Record decisions and clarifications in the active feature artifacts so another agent can continue without relying on chat history.
 - Treat user data, offline behavior, synchronization, permissions, and migrations as explicit design concerns.
 - Add tests for changed behavior and run the relevant checks before marking tasks complete.
+- A test step that depends on an asynchronous operation waits for proof that
+  this operation finished (committed state, a revision, an acknowledgment),
+  never for time, visibility, an unrelated response or `idle`. Follow
+  [the wait contracts](docs/testing/wait-contracts.md).
 - Before every branch push, read the current gate inventory in
   `docs/development.md` and select checks from the changes since the last
   validated publication (the branch base for a first push). Run targeted

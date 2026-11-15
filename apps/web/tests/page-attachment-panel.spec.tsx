@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AttachmentPanel } from "../src/features/attachments/attachment-panel.tsx";
 import { ContentApi } from "../src/services/content-api.ts";
+import { until } from "./support/until.ts";
 
 const pageId = generateUuidV7();
 const pdf = {
@@ -89,9 +90,10 @@ describe("the page attachment panel", () => {
     expect(details?.querySelector('[data-testid="preview-file-brief.pdf"]')).not.toBeNull();
     await act(async () => {
       details?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-      await new Promise((resolve) => setTimeout(resolve, 100));
     });
-    expect(document.querySelector('[data-testid="attachment-details-brief.pdf"]')).toBeNull();
+    await until(() =>
+      expect(document.querySelector('[data-testid="attachment-details-brief.pdf"]')).toBeNull(),
+    );
     expect(container.querySelector('[data-testid="attachment-actions-brief.pdf"]')).toBe(trigger);
   });
 

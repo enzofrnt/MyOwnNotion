@@ -1,0 +1,150 @@
+# run=43524911626 attempt=1 job=132228285425 name=Playwright journeys (webkit-desktop 3/3)
+  1) [webkit-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('.entry-panel').locator('.entry-properties__status')
+    Expected: "saved"
+    Received: "idle"
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "to.have.attribute.value" with timeout 15000ms
+      - waiting for locator('.entry-panel').locator('.entry-properties__status')
+        34 × locator resolved to <div role="status" aria-live="polite" data-save-state="idle" class="entry-properties__status"></div>
+           - unexpected value "idle"
+
+
+       at helpers.ts:963
+
+      961 |     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      962 |   });
+    > 963 |   await expect(panel.locator(".entry-properties__status")).toHaveAttribute(
+          |                                                           ^
+      964 |     "data-save-state",
+      965 |     "saved",
+      966 |     { timeout: 15_000 },
+        at waitForEntryAutosave (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:963:59)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:431:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-d86d8-the-same-database-container-webkit-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-d86d8-the-same-database-container-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [webkit-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container 
+  6 skipped
+  103 passed (15.1m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: blob-report-webkit-desktop-3-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-webkit-desktop-3-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 11977114
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 63f08802f1767c7e3dc199b18d6fd47bd33af063e7d4c5e8193ba4ff129b0aa3
+Finalizing artifact upload
+Artifact blob-report-webkit-desktop-3-3 successfully finalized. Artifact ID 14084834246
+Artifact blob-report-webkit-desktop-3-3 has been successfully uploaded! Final size is 11977114 bytes. Artifact ID is 14084834246
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43524911626/artifacts/14084834246
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: test-results-webkit-desktop-3-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 87 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-webkit-desktop-3-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 17766951
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 5ed08eff6f50882beda2421d5346b5681c0efdaf5b8bb06745bd24a6d3b57cb7
+Finalizing artifact upload
+Artifact test-results-webkit-desktop-3-3 successfully finalized. Artifact ID 14085851269
+Artifact test-results-webkit-desktop-3-3 has been successfully uploaded! Final size is 17766951 bytes. Artifact ID is 14085851269
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43524911626/artifacts/14085851269
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__62b09e38-be26-4c92-b5be-ddc338b3deb1.__oven-sh_setup-bun]
+##[end-action id=__62b09e38-be26-4c92-b5be-ddc338b3deb1.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/a9759576-6fad-4928-8488-eff1f24a4086' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-1297c428-2e69-4b94-8638-fa1e9f52037b.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-1297c428\-2e69\-4b94\-8638\-fa1e9f52037b\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-1297c428-2e69-4b94-8638-fa1e9f52037b.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-1297c428\-2e69\-4b94\-8638\-fa1e9f52037b\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-1297c428-2e69-4b94-8638-fa1e9f52037b.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-1297c428\-2e69\-4b94\-8638\-fa1e9f52037b\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-1297c428-2e69-4b94-8638-fa1e9f52037b.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-1297c428\-2e69\-4b94\-8638\-fa1e9f52037b\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-1297c428-2e69-4b94-8638-fa1e9f52037b.config'
+Cleaning up orphan processes

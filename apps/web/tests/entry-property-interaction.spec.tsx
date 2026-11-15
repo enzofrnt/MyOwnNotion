@@ -7,15 +7,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EntrySchemaImpact } from "../src/features/databases/edit-entry-properties.ts";
 import { EntryPanel } from "../src/features/databases/entry-panel.tsx";
 import { reviewDefinition, reviewId, reviewPage } from "../src/ui/ui-lab-review-fixtures.ts";
+import { present, until } from "./support/until.ts";
 
 function typeInto(input: HTMLInputElement, value: string) {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
-const delay = async (ms = 60) =>
-  act(async () => {
-    await new Promise((r) => setTimeout(r, ms));
-  });
+const nameField = () =>
+  present(
+    document.querySelector<HTMLInputElement>('input[aria-label="Nom de la propriété"]'),
+    "the property name field",
+  );
 describe("entry property configuration menus", () => {
   let container: HTMLDivElement, root: Root;
   beforeEach(() => {
@@ -85,15 +87,14 @@ describe("entry property configuration menus", () => {
   };
   const configure = async (name: string) => {
     act(() => button(`Modifier la propriété ${name}`).click());
-    await delay();
+    await until(nameField);
   };
   const settingsText = () =>
     document.querySelector('[role="dialog"][aria-label^="Modifier "]')?.textContent ?? "";
   it("opens the property editor directly from click, right click and keyboard", async () => {
     const { edits } = render();
     act(() => button("Modifier la propriété État").click());
-    await delay();
-    expect(document.querySelector('input[aria-label="Nom de la propriété"]')).not.toBeNull();
+    await until(nameField);
     expect(settingsText()).toContain("Dupliquer la propriété");
     expect(settingsText()).not.toContain("Renommer");
     act(() =>
@@ -110,15 +111,13 @@ describe("entry property configuration menus", () => {
         new MouseEvent("contextmenu", { bubbles: true, clientX: 100, clientY: 80 }),
       ),
     );
-    await delay();
-    expect(settingsText()).toContain("Supprimer la propriété");
+    await until(() => expect(settingsText()).toContain("Supprimer la propriété"));
     const move = [...document.querySelectorAll<HTMLElement>("button")].find(
       (el) => el.textContent === "Déplacer vers le bas",
     );
     if (move === undefined) throw Error();
     await act(async () => move.click());
-    await delay();
-    expect(edits).toHaveBeenCalledOnce();
+    await until(() => expect(edits).toHaveBeenCalledOnce());
     const rows = [...container.querySelectorAll("[data-property-id]")].map((el) =>
       el.getAttribute("data-property-id"),
     );
@@ -128,7 +127,8 @@ describe("entry property configuration menus", () => {
         .querySelector('[role="dialog"]')
         ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
     );
-    await delay();
+    // The keyboard path must open the editor itself, from a closed state.
+    await until(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
     act(() =>
       button("Modifier la propriété État").dispatchEvent(
         new KeyboardEvent("keydown", { key: "F10", shiftKey: true, bubbles: true }),
@@ -143,14 +143,11 @@ describe("entry property configuration menus", () => {
   it("opens the property editor without crashing and renames automatically", async () => {
     const { edits } = render();
     act(() => button("Modifier la propriété Texte").click());
-    await delay();
-    const input = document.querySelector<HTMLInputElement>(
-      'input[aria-label="Nom de la propriété"]',
-    );
-    if (input === null) throw Error();
+    const input = await until(nameField);
     act(() => typeInto(input, "Brief"));
-    await delay(400);
-    expect(edits).toHaveBeenCalledOnce();
+    // The rename is debounced; the claim is that it happens without a save
+    // step, so wait for the write itself rather than for the debounce length.
+    await until(() => expect(edits).toHaveBeenCalledOnce());
     expect(
       container.querySelector('button[aria-label="Modifier la propriété Brief"]'),
     ).not.toBeNull();
@@ -160,34 +157,36 @@ describe("entry property configuration menus", () => {
     const { edits, saves } = render();
     await configure("Texte");
     act(() => button("Changer l’icône de Texte").click());
-    await delay();
-    const search = document.querySelector<HTMLInputElement>(
-      'input[aria-label="Filtrer les icônes"]',
+    const search = await until(() =>
+      present(
+        document.querySelector<HTMLInputElement>('input[aria-label="Filtrer les icônes"]'),
+        "the icon filter",
+      ),
     );
-    if (search === null) throw Error();
     act(() => typeInto(search, "zz-nothing"));
-    await delay();
-    expect(document.body.textContent).toContain("Aucune icône trouvée.");
+    await until(() => expect(document.body.textContent).toContain("Aucune icône trouvée."));
     act(() => typeInto(search, "ampoule"));
-    await delay();
-    const choice = document.querySelector<HTMLButtonElement>(
-      '[role="option"][aria-label="ampoule"]',
+    const choice = await until(() =>
+      present(
+        document.querySelector<HTMLButtonElement>('[role="option"][aria-label="ampoule"]'),
+        "the lightbulb option",
+      ),
     );
-    if (choice === null) throw Error();
     await act(async () => choice.click());
-    await delay();
-    expect(edits).toHaveBeenCalledOnce();
+    await until(() => expect(edits).toHaveBeenCalledOnce());
     expect(
       button("Modifier la propriété Texte").querySelector('[data-icon="lightbulb"]'),
     ).not.toBeNull();
     expect(saves).not.toHaveBeenCalled();
     act(() => button("Changer l’icône de Texte").click());
-    await delay();
-    const remove = document.querySelector<HTMLButtonElement>(".database-view-icon-picker__remove");
-    if (remove === null) throw Error();
+    const remove = await until(() =>
+      present(
+        document.querySelector<HTMLButtonElement>(".database-view-icon-picker__remove"),
+        "the remove-icon action",
+      ),
+    );
     await act(async () => remove.click());
-    await delay();
-    expect(edits).toHaveBeenCalledTimes(2);
+    await until(() => expect(edits).toHaveBeenCalledTimes(2));
     expect(
       button("Modifier la propriété Texte").querySelector('[data-icon="type"]'),
     ).not.toBeNull();
@@ -197,21 +196,26 @@ describe("entry property configuration menus", () => {
   it("creates and selects an option from the value picker without a save step", async () => {
     const { edits, saves } = render();
     act(() => picker("Catégories").click());
-    await delay();
-    const input = document.querySelector<HTMLInputElement>(
-      'input[aria-label="Rechercher ou créer une option"]',
+    const input = await until(() =>
+      present(
+        document.querySelector<HTMLInputElement>(
+          'input[aria-label="Rechercher ou créer une option"]',
+        ),
+        "the option search",
+      ),
     );
-    if (input === null) throw Error();
     act(() => typeInto(input, "Partners"));
-    await delay();
-    const create = [...document.querySelectorAll("button")].find(
-      (el) => el.textContent === "Créer « Partners »",
+    const create = await until(() =>
+      present(
+        [...document.querySelectorAll("button")].find(
+          (el) => el.textContent === "Créer « Partners »",
+        ),
+        "the create-option action",
+      ),
     );
-    if (create === undefined) throw Error();
     await act(async () => create.click());
-    await delay();
+    await until(() => expect(saves).toHaveBeenCalledOnce());
     expect(edits).toHaveBeenCalledOnce();
-    expect(saves).toHaveBeenCalledOnce();
     expect(picker("Catégories").textContent).toContain("Partners");
     const values = saves.mock.calls[0]?.[0][reviewId(7)];
     expect(values.kind).toBe("multi-select");
@@ -220,17 +224,21 @@ describe("entry property configuration menus", () => {
   it("removes only the chosen value, keeps the search query and returns its focus", async () => {
     const { edits, saves } = render();
     act(() => picker("Catégories").click());
-    await delay();
-    const search = document.querySelector<HTMLInputElement>(
-      'input[aria-label="Rechercher ou créer une option"]',
+    const search = await until(() =>
+      present(
+        document.querySelector<HTMLInputElement>(
+          'input[aria-label="Rechercher ou créer une option"]',
+        ),
+        "the option search",
+      ),
     );
-    if (search === null) throw Error();
     act(() => typeInto(search, "UX"));
     const selected = document.querySelector<HTMLButtonElement>(".entry-choice__token");
     if (selected === null) throw Error();
     await act(async () => selected.click());
-    await delay();
-    expect(document.activeElement).toBe(search);
+    await until(() => expect(saves).toHaveBeenCalledOnce());
+    // Focus is handed back after the removal re-renders the token list.
+    await until(() => expect(document.activeElement).toBe(search));
     expect(search.value).toBe("UX");
     expect(document.querySelector(".entry-choice__token")).toBeNull();
     expect(picker("Catégories").textContent).toBe("Vide");
@@ -238,8 +246,7 @@ describe("entry property configuration menus", () => {
     expect(saves.mock.calls[0]?.[0][reviewId(7)]).toEqual({ kind: "multi-select", optionIds: [] });
     expect(edits).not.toHaveBeenCalled();
     act(() => typeInto(search, ""));
-    await delay();
-    expect(document.querySelectorAll(".entry-choice__option")).toHaveLength(1);
+    await until(() => expect(document.querySelectorAll(".entry-choice__option")).toHaveLength(1));
     expect(document.querySelector(".entry-choice__option")?.textContent).toContain(
       "Une option au nom particulièrement long",
     );
@@ -251,7 +258,9 @@ describe("entry property configuration menus", () => {
       const retire = document.querySelector<HTMLButtonElement>(".property-settings__danger");
       if (retire === null) throw Error();
       await act(async () => retire.click());
-      await delay();
+      await until(() =>
+        present(document.querySelector('[role="dialog"][aria-modal="true"]'), "the impact dialog"),
+      );
     };
     await requestRetire();
     const dialog = document.querySelector('[role="dialog"][aria-modal="true"]');
@@ -262,7 +271,9 @@ describe("entry property configuration menus", () => {
     );
     if (cancel === undefined) throw Error();
     await act(async () => cancel.click());
-    await delay();
+    await until(() =>
+      expect(document.querySelector('[role="dialog"][aria-modal="true"]')).toBeNull(),
+    );
     expect(edits).toHaveBeenCalledOnce();
     expect(button("Modifier la propriété Texte")).toBeTruthy();
     await requestRetire();
@@ -271,9 +282,13 @@ describe("entry property configuration menus", () => {
     );
     if (confirm === undefined) throw Error();
     await act(async () => confirm.click());
-    await delay();
-    expect(edits).toHaveBeenCalledTimes(3);
+    await until(() => expect(edits).toHaveBeenCalledTimes(3));
     expect(edits.mock.calls[2]?.[1]).toBe(true);
-    expect(container.querySelector('button[aria-label="Modifier la propriété Texte"]')).toBeNull();
+    // The confirmed retirement re-renders the list after the edit resolves.
+    await until(() =>
+      expect(
+        container.querySelector('button[aria-label="Modifier la propriété Texte"]'),
+      ).toBeNull(),
+    );
   });
 });

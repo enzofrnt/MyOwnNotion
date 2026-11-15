@@ -1,0 +1,4 @@
+# run=43349203856 attempt=1 job=131635931875 name=Playwright journeys (webkit-mobile)
+  ✘   85 [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:401:0 › a two-way relation shows on both sides and reads the same link (44.3s)
+  ✘   86 [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:401:0 › a two-way relation shows on both sides and reads the same link (retry #1) (43.7s)
+  1) [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:401:0 › a two-way relation shows on both sides and reads the same link 

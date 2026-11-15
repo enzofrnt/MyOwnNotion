@@ -1,0 +1,220 @@
+# run=43706222653 attempt=1 job=132787817023 name=Playwright journeys (firefox-desktop 3/3)
+  1) [firefox-desktop] › tests/e2e/block-editor.spec.ts:254:2 › the contextual BlockNote controls › formats a selection and creates a durable internal page link in two actions 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('strong')
+    Expected substring: "relier"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.have.text" with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('strong')
+
+
+      279 |     await expect(toolbar).toBeVisible();
+      280 |     await toolbar.getByRole("button", { name: "Gras" }).click();
+    > 281 |     await expect(editor.locator("strong")).toContainText("relier");
+          |                                           ^
+      282 |     // Formatting is one durable editor action. Wait for its projection to
+      283 |     // settle before the separate link action so a toolbar replacement cannot
+      284 |     // swallow the pointer release that opens the picker (notably in Firefox).
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/block-editor.spec.ts:281:43
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/block-editor-the-contextua-3441f-al-page-link-in-two-actions-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/block-editor-the-contextua-3441f-al-page-link-in-two-actions-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/block-editor-the-contextua-3441f-al-page-link-in-two-actions-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/block-editor-the-contextua-3441f-al-page-link-in-two-actions-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:224:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    Call Log:
+    - Timeout 15000ms exceeded while waiting on the predicate
+
+      173 |       { timeout: 15_000, intervals: [250, 500, 1_000] },
+      174 |     )
+    > 175 |     .toBe(true);
+          |     ^
+      176 |   const sum = page.getByRole("menuitemradio", { name: "Somme", exact: true });
+      177 |   // ArrowRight opens the submenu only from the focused parent item; a dropped
+      178 |   // key or focus reassignment leaves the menu open with no submenu.
+        at chooseSum (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:175:5)
+        at configureTotal (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:151:8)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:262:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('.entry-panel').locator('.database-field--entry').filter({ has: getByRole('button', { name: 'Modifier la propriété Total', exact: true }) }).locator('.database-field__readonly')
+    Expected: "17"
+    Received: "0"
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "to.have.text" with timeout 10000ms
+      - waiting for locator('.entry-panel').locator('.database-field--entry').filter({ has: getByRole('button', { name: 'Modifier la propriété Total', exact: true }) }).locator('.database-field__readonly')
+        24 × locator resolved to <span class="database-field__readonly">0</span>
+           - unexpected value "0"
+
+
+      437 |       })
+      438 |       .locator(".database-field__readonly"),
+    > 439 |   ).toHaveText("17");
+          |    ^
+      440 |   await page.getByRole("button", { name: "Fermer le volet" }).click();
+      441 |   await page.reload();
+      442 |   await expect(
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:439:4
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [firefox-desktop] › tests/e2e/block-editor.spec.ts:254:2 › the contextual BlockNote controls › formats a selection and creates a durable internal page link in two actions 
+    [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:224:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+    [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container 
+  10 skipped
+  104 passed (16.6m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: blob-report-firefox-desktop-3-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-firefox-desktop-3-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 9027690
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 8cf332add93b5f9caf80944e6d84bee609377f702ec9c8b0192da509b1227f3e
+Finalizing artifact upload
+Artifact blob-report-firefox-desktop-3-3 successfully finalized. Artifact ID 14158952438
+Artifact blob-report-firefox-desktop-3-3 has been successfully uploaded! Final size is 9027690 bytes. Artifact ID is 14158952438
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43706222653/artifacts/14158952438
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: test-results-firefox-desktop-3-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 45 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-firefox-desktop-3-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 9275168
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 1a72f46a4732d43547eb0c2d2ab7ebed1f8fb115f60e35e5416791dd0b2faae6
+Finalizing artifact upload
+Artifact test-results-firefox-desktop-3-3 successfully finalized. Artifact ID 14158847949
+Artifact test-results-firefox-desktop-3-3 has been successfully uploaded! Final size is 9275168 bytes. Artifact ID is 14158847949
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43706222653/artifacts/14158847949
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__eb519f56-8232-4bce-839c-ab3fe260b463.__oven-sh_setup-bun]
+##[end-action id=__eb519f56-8232-4bce-839c-ab3fe260b463.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/8e0e6650-538f-4cce-a0ad-c60dd73f9256' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-e61a670e-888a-4f26-afee-30f7d9403931.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-e61a670e\-888a\-4f26\-afee\-30f7d9403931\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-e61a670e-888a-4f26-afee-30f7d9403931.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-e61a670e\-888a\-4f26\-afee\-30f7d9403931\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-e61a670e-888a-4f26-afee-30f7d9403931.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-e61a670e\-888a\-4f26\-afee\-30f7d9403931\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-e61a670e-888a-4f26-afee-30f7d9403931.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-e61a670e\-888a\-4f26\-afee\-30f7d9403931\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-e61a670e-888a-4f26-afee-30f7d9403931.config'
+Cleaning up orphan processes

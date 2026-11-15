@@ -1,0 +1,501 @@
+# run=43470717395 attempt=1 job=132042570772 name=Playwright journeys (firefox-desktop)
+  1) [firefox-desktop] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf94qso-tl35t\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf94tzh-llz80.txt\" data-testid=\"preview-file-a11y-mwf94tzh-llz80.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Aperçu</span></button>)",
+    + ]
+
+      322 |   test("the attachment list has no critical or serious violations", async ({ page }) => {
+      323 |     await pageWithAttachment(page);
+    > 324 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      325 |   });
+      326 |
+      327 |   test("the deletion confirmation has no critical or serious violations", async ({ page }) => {
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:324:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf94yvn-c2aqx\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf952fw-vhzbe.txt\" data-testid=\"preview-file-a11y-mwf952fw-vhzbe.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Aperçu</span></button>)",
+    + ]
+
+      322 |   test("the attachment list has no critical or serious violations", async ({ page }) => {
+      323 |     await pageWithAttachment(page);
+    > 324 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      325 |   });
+      326 |
+      327 |   test("the deletion confirmation has no critical or serious violations", async ({ page }) => {
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:324:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [firefox-desktop] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf95efa-1hzsp\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf95hfz-48sjn.txt\" data-testid=\"preview-file-a11y-mwf95hfz-48sjn.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Fermer l’aperçu</span></button>)",
+    + ]
+
+      352 |       timeout: 30_000,
+      353 |     });
+    > 354 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      355 |   });
+      356 | });
+      357 |
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:354:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwf95lsh-yp7di\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwf95pbc-mrfi2.txt\" data-testid=\"preview-file-a11y-mwf95pbc-mrfi2.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Fermer l’aperçu</span></button>)",
+    + ]
+
+      352 |       timeout: 30_000,
+      353 |     });
+    > 354 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      355 |   });
+      356 | });
+      357 |
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:354:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name",
+    + ]
+
+      473 |       await tab.click();
+      474 |       await expect(tab).toHaveAttribute("aria-current", "page");
+    > 475 |       expect(await seriousViolations(page)).toEqual([]);
+          |                                             ^
+      476 |     }
+      477 |
+      478 |     await databaseViewButton(page, /Kanban/).click();
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:475:45)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name",
+    + ]
+
+      473 |       await tab.click();
+      474 |       await expect(tab).toHaveAttribute("aria-current", "page");
+    > 475 |       expect(await seriousViolations(page)).toEqual([]);
+          |                                             ^
+      476 |     }
+      477 |
+      478 |     await databaseViewButton(page, /Kanban/).click();
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:475:45)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [firefox-desktop] › tests/e2e/editor-math-contents.spec.ts:98:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link')
+    Expected: 3
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link') with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      161 |   await selectItem(page, firstName);
+      162 |   const editor = page.locator('[data-testid="block-editor"]:visible');
+    > 163 |   await expect(editor.locator(".editor-contents-link")).toHaveCount(3);
+          |                                                         ^
+      164 |   await editor.locator(".editor-contents-link").filter({ hasText: "Suite actuelle" }).click();
+      165 |   await expect
+      166 |     .poll(() =>
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/editor-math-contents.spec.ts:163:57)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link')
+    Expected: 3
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link') with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      161 |   await selectItem(page, firstName);
+      162 |   const editor = page.locator('[data-testid="block-editor"]:visible');
+    > 163 |   await expect(editor.locator(".editor-contents-link")).toHaveCount(3);
+          |                                                         ^
+      164 |   await editor.locator(".editor-contents-link").filter({ hasText: "Suite actuelle" }).click();
+      165 |   await expect
+      166 |     .poll(() =>
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/editor-math-contents.spec.ts:163:57)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [firefox-desktop] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' })
+    Expected: "false"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' }) with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' })
+
+
+      94 |     const toggleBody = editor.locator('[data-content-type="toggleListItem"]').first();
+      95 |     const toggleButton = toggleBody.getByRole("button", { name: "Déplier cette section" });
+    > 96 |     await expect(toggleButton).toHaveAttribute("aria-expanded", "false");
+         |                                ^
+      97 |     await toggleButton.click();
+      98 |     await expect(toggleBody.getByRole("button", { name: "Replier cette section" })).toHaveAttribute(
+      99 |       "aria-expanded",
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/rich-page.spec.ts:96:32)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' })
+    Expected: "false"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' }) with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' })
+
+
+      94 |     const toggleBody = editor.locator('[data-content-type="toggleListItem"]').first();
+      95 |     const toggleButton = toggleBody.getByRole("button", { name: "Déplier cette section" });
+    > 96 |     await expect(toggleButton).toHaveAttribute("aria-expanded", "false");
+         |                                ^
+      97 |     await toggleButton.click();
+      98 |     await expect(toggleBody.getByRole("button", { name: "Replier cette section" })).toHaveAttribute(
+      99 |       "aria-expanded",
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/rich-page.spec.ts:96:32)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [firefox-desktop] › tests/e2e/block-editor.spec.ts:254:3 › the contextual BlockNote controls › formats a selection and creates a durable internal page link in two actions 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('strong')
+    Expected substring: "relier"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('strong') with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('strong')
+
+
+      279 |     await expect(toolbar).toBeVisible();
+      280 |     await toolbar.getByRole("button", { name: "Gras" }).click();
+    > 281 |     await expect(editor.locator("strong")).toContainText("relier");
+          |                                            ^
+      282 |     // Formatting is one durable editor action. Wait for its projection to
+      283 |     // settle before the separate link action so a toolbar replacement cannot
+      284 |     // swallow the pointer release that opens the picker (notably in Firefox).
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/block-editor.spec.ts:281:44)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/block-editor-the-contextua-3441f-al-page-link-in-two-actions-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/block-editor-the-contextua-3441f-al-page-link-in-two-actions-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/block-editor-the-contextua-3441f-al-page-link-in-two-actions-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/block-editor-the-contextua-3441f-al-page-link-in-two-actions-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5 failed
+    [firefox-desktop] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+    [firefox-desktop] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+    [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+    [firefox-desktop] › tests/e2e/editor-math-contents.spec.ts:98:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
+    [firefox-desktop] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably 
+  1 flaky
+    [firefox-desktop] › tests/e2e/block-editor.spec.ts:254:3 › the contextual BlockNote controls › formats a selection and creates a durable internal page link in two actions 
+  27 skipped
+  311 passed (44.0m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-firefox-desktop
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 278 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-firefox-desktop.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 33554432
+Uploaded bytes 41943040
+Uploaded bytes 50331648
+Uploaded bytes 58720256
+Uploaded bytes 67108864
+Uploaded bytes 75497472
+Uploaded bytes 83886080
+Uploaded bytes 89298861
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 030885e5b8f4b1570da54f7396b526b61c1e10c720de6a8f785176b957cde58b
+Finalizing artifact upload
+Artifact playwright-report-firefox-desktop successfully finalized. Artifact ID 14063933820
+Artifact playwright-report-firefox-desktop has been successfully uploaded! Final size is 89298861 bytes. Artifact ID is 14063933820
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43470717395/artifacts/14063933820
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__b3ccd9cc-3d84-4969-a6fb-c7340c7c8768.__oven-sh_setup-bun]
+##[end-action id=__b3ccd9cc-3d84-4969-a6fb-c7340c7c8768.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/0cbaf2de-ff30-4c9d-bd82-e09b51c672d2' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-8e55f31d-aafb-456a-8204-91c606a5bd31.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-8e55f31d\-aafb\-456a\-8204\-91c606a5bd31\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-8e55f31d-aafb-456a-8204-91c606a5bd31.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-8e55f31d\-aafb\-456a\-8204\-91c606a5bd31\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-8e55f31d-aafb-456a-8204-91c606a5bd31.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-8e55f31d\-aafb\-456a\-8204\-91c606a5bd31\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-8e55f31d-aafb-456a-8204-91c606a5bd31.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-8e55f31d\-aafb\-456a\-8204\-91c606a5bd31\.config

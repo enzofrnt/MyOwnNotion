@@ -10,6 +10,7 @@ import {
   submitMutation,
 } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
 
@@ -349,7 +350,14 @@ describe("locked append and idempotence", () => {
       secondLock();
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The second transaction is proved to be waiting on that row lock, in
+    // PostgreSQL's own lock table, rather than assumed to be after 50 ms.
+    await vi.waitFor(async () => {
+      const result = await context.handle.db.execute<{ waiting: number }>(
+        sql`select count(*)::int as waiting from pg_locks where not granted`,
+      );
+      expect(result.rows[0]?.waiting ?? 0).toBeGreaterThan(0);
+    });
     expect(secondLock).not.toHaveBeenCalled();
     release();
     await Promise.all([first, second]);

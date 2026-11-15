@@ -53,13 +53,12 @@ describe("favourites", () => {
 
 describe("recents", () => {
   it("puts the most recently changed item first", async () => {
-    // Generated in order with a real gap between them, because the claim under
-    // test is that the identifiers themselves carry the ordering.
-    const first = generateUuidV7();
-    await new Promise((resolve) => setTimeout(resolve, 2));
-    const second = generateUuidV7();
-    await new Promise((resolve) => setTimeout(resolve, 2));
-    const third = generateUuidV7();
+    // The claim under test is that the identifiers themselves carry the
+    // ordering, so they are minted at three explicit instants rather than
+    // across real sleeps that a busy runner may or may not separate.
+    const first = generateUuidV7(() => 1_800_000_000_000);
+    const second = generateUuidV7(() => 1_800_000_000_001);
+    const third = generateUuidV7(() => 1_800_000_000_002);
 
     const ordered = recentsOf([
       item("oldest", false, first),

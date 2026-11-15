@@ -1,0 +1,3 @@
+# run=43297784969 attempt=1 job=131460685004 name=Playwright journeys (firefox-desktop)
+  ✘   86 [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:272:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict (42.3s)
+  1) [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:272:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict 

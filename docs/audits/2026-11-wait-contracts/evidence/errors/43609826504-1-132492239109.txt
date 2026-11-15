@@ -1,0 +1,147 @@
+# run=43609826504 attempt=1 job=132492239109 name=Playwright journeys (firefox-desktop 1/3)
+  1) [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:127:1 › tracks one task page through roles, notes, relations, search and an independent checkbox 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('.entry-panel').getByRole('button', { name: 'Project', exact: true })
+    Expected: "Related project-mwgk6v6d-9l59f"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" locator('.entry-panel').getByRole('button', { name: 'Project', exact: true }) with timeout 10000ms
+      - waiting for locator('.entry-panel').getByRole('button', { name: 'Project', exact: true })
+
+
+      279 |   await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(editorialNote);
+      280 |   await expect(documentCheckbox).toBeChecked();
+    > 281 |   await expect(entryPanel.getByRole("button", { name: "Project", exact: true })).toHaveText(
+          |                                                                                  ^
+      282 |     projectName,
+      283 |   );
+      284 |   await page.getByRole("button", { name: "Fermer l'entrée" }).click();
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-tasks.spec.ts:281:82)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-tasks-tracks-one-4b37e-and-an-independent-checkbox-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-tasks-tracks-one-4b37e-and-an-independent-checkbox-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-tasks-tracks-one-4b37e-and-an-independent-checkbox-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-tasks-tracks-one-4b37e-and-an-independent-checkbox-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:127:1 › tracks one task page through roles, notes, relations, search and an independent checkbox 
+  8 skipped
+  109 passed (10.9m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+with:
+  name: blob-report-firefox-desktop-1-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-firefox-desktop-1-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 18127761
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is e69534e5a9044fc3f24510026cd5b6dd2e85ffb320fc12f47067e001dd17c417
+Finalizing artifact upload
+Artifact blob-report-firefox-desktop-1-3 successfully finalized. Artifact ID 14120710201
+Artifact blob-report-firefox-desktop-1-3 has been successfully uploaded! Final size is 18127761 bytes. Artifact ID is 14120710201
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43609826504/artifacts/14120710201
+##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+with:
+  name: test-results-firefox-desktop-1-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 34 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-firefox-desktop-1-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 18667430
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 46790206da777de2f36e4b4a1f36b98a31d11cea6f3843c79788a9a142b0cccc
+Finalizing artifact upload
+Artifact test-results-firefox-desktop-1-3 successfully finalized. Artifact ID 14120361161
+Artifact test-results-firefox-desktop-1-3 has been successfully uploaded! Final size is 18667430 bytes. Artifact ID is 14120361161
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43609826504/artifacts/14120361161
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__881f2174-637a-4a16-beb9-1a55bb788194.__oven-sh_setup-bun]
+##[end-action id=__881f2174-637a-4a16-beb9-1a55bb788194.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/e4d3d7fa-8f9b-4a2d-982c-9c3d7ed311ec' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-d04b5d05-5410-40e1-ba04-a0a9314e0a4b.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-d04b5d05\-5410\-40e1\-ba04\-a0a9314e0a4b\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-d04b5d05-5410-40e1-ba04-a0a9314e0a4b.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-d04b5d05\-5410\-40e1\-ba04\-a0a9314e0a4b\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-d04b5d05-5410-40e1-ba04-a0a9314e0a4b.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-d04b5d05\-5410\-40e1\-ba04\-a0a9314e0a4b\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-d04b5d05-5410-40e1-ba04-a0a9314e0a4b.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-d04b5d05\-5410\-40e1\-ba04\-a0a9314e0a4b\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-d04b5d05-5410-40e1-ba04-a0a9314e0a4b.config'
+Cleaning up orphan processes

@@ -1,0 +1,6 @@
+# run=43391759590 attempt=1 job=131773444029 name=Unit, property & coverage
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+error: "vitest" exited with code 1
+error: script "test:coverage" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

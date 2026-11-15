@@ -19,6 +19,7 @@ import {
   createRootItem,
   openPageAttachments,
   openWorkspace,
+  saveDocument,
   selectItem,
   uniqueName,
 } from "./helpers.ts";
@@ -70,6 +71,10 @@ test.describe("editor media offline", () => {
     await expect(stateLine.first()).toBeVisible();
     await expect(stateLine.first()).not.toContainText("vérifiés sur le serveur");
     await expect(stateLine.last()).not.toContainText("vérifiés sur le serveur");
+
+    // The dropped blocks are rendered optimistically; the abrupt close below
+    // must follow their local commit, or the restart would test nothing.
+    await saveDocument(page);
 
     // Abrupt process boundary: close the only page. The replacement may load
     // Vite's shell, but the API stays unreachable until the reconnect below.

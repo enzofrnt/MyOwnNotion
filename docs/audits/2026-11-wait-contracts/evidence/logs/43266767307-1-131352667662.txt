@@ -1,0 +1,22 @@
+# run=43266767307 attempt=1 job=131352667662 name=Playwright journeys (firefox-desktop)
+  ✘   15 [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (1.0m)
+  ✘   16 [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (retry #1) (1.0m)
+  ✘   36 [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (13.2s)
+  ✘   37 [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (retry #1) (13.9s)
+  ✘   85 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:97:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (3.1m)
+  ✘   86 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:97:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (retry #1) (3.1m)
+  ✘   87 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:224:0 › relation and rollup isolate a second source in the same database container (3.1m)
+  ✘   88 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:224:0 › relation and rollup isolate a second source in the same database container (retry #1) (3.1m)
+  ✘  108 [firefox-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (42.8s)
+  ✘  109 [firefox-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (retry #1) (45.3s)
+  ✘  214 [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys (23.7s)
+  ✘  215 [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys (retry #1) (25.1s)
+  ✘  216 [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:215:0 › backlinks, local graph, global filters and offline restart stay coherent (9.1s)
+  ✘  217 [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:215:0 › backlinks, local graph, global filters and offline restart stay coherent (retry #1) (8.9s)
+  1) [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  2) [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+  3) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:97:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+  4) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:224:0 › relation and rollup isolate a second source in the same database container 
+  5) [firefox-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts 
+  6) [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys 
+  7) [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:215:0 › backlinks, local graph, global filters and offline restart stay coherent 

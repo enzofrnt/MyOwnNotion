@@ -1,0 +1,140 @@
+# run=43519009785 attempt=1 job=132208337202 name=Playwright journeys (webkit-mobile 2/3)
+  1) [webkit-mobile] › tests/e2e/page-protocol-migration.spec.ts:181:2 › page protocol migration › acknowledges a pending v2 replacement before convergent activation 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "/localhost:5173/v1/changes?after=0&limit=200 due to access control checks.",
+    + ]
+
+      217 |     }, itemId);
+      218 |     expect(JSON.stringify(durableBranch?.branch.localDocument)).toContain(operationalText);
+    > 219 |     expect(pageErrors).toEqual([]);
+          |                       ^
+      220 |
+      221 |     // Reconnection alone owns the handover. The old outbox write must be
+      222 |     // accepted first (giving its local revision a canonical alias), then the
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/page-protocol-migration.spec.ts:219:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/page-protocol-migration-pa-8e6f0-efore-convergent-activation-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/page-protocol-migration-pa-8e6f0-efore-convergent-activation-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/page-protocol-migration-pa-8e6f0-efore-convergent-activation-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/page-protocol-migration-pa-8e6f0-efore-convergent-activation-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [webkit-mobile] › tests/e2e/page-protocol-migration.spec.ts:181:2 › page protocol migration › acknowledges a pending v2 replacement before convergent activation 
+  10 skipped
+  104 passed (13.3m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: blob-report-webkit-mobile-2-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-webkit-mobile-2-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 3527991
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is bf659c2c058ec92f3a2af7641446361bf3e6bc8d7fae5b662dcba57a8a7fba20
+Finalizing artifact upload
+Artifact blob-report-webkit-mobile-2-3 successfully finalized. Artifact ID 14081974571
+Artifact blob-report-webkit-mobile-2-3 has been successfully uploaded! Final size is 3527991 bytes. Artifact ID is 14081974571
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43519009785/artifacts/14081974571
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: test-results-webkit-mobile-2-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 47 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-webkit-mobile-2-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 6682809
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 15e15a7bd5b03c74b7e189ead700559abaf311f249c893979a6759a4b200a2cd
+Finalizing artifact upload
+Artifact test-results-webkit-mobile-2-3 successfully finalized. Artifact ID 14081914643
+Artifact test-results-webkit-mobile-2-3 has been successfully uploaded! Final size is 6682809 bytes. Artifact ID is 14081914643
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43519009785/artifacts/14081914643
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__462bb27e-a874-4afa-9129-b4113dd167c4.__oven-sh_setup-bun]
+##[end-action id=__462bb27e-a874-4afa-9129-b4113dd167c4.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/2b229484-8462-490b-8823-2716516864c3' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-4845a8e5-20e8-4780-ae03-c8e92d757884.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-4845a8e5\-20e8\-4780\-ae03\-c8e92d757884\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-4845a8e5-20e8-4780-ae03-c8e92d757884.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-4845a8e5\-20e8\-4780\-ae03\-c8e92d757884\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-4845a8e5-20e8-4780-ae03-c8e92d757884.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-4845a8e5\-20e8\-4780\-ae03\-c8e92d757884\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-4845a8e5-20e8-4780-ae03-c8e92d757884.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-4845a8e5\-20e8\-4780\-ae03\-c8e92d757884\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-4845a8e5-20e8-4780-ae03-c8e92d757884.config'
+Cleaning up orphan processes

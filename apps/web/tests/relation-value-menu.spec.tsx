@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RelationCatalogProvider } from "../src/features/databases/relation-catalog.tsx";
 import { RelationDraftMenu } from "../src/features/databases/relation-value-menu.tsx";
 import type { LocalContentService } from "../src/services/local-content.ts";
+import { present, until } from "./support/until.ts";
 
 const id = (n: number) => `018f0000-0000-7000-8000-${String(n).padStart(12, "0")}` as Uuid;
 const owner = id(1);
@@ -123,16 +124,14 @@ describe("relation value menu", () => {
     await act(async () =>
       container.querySelector<HTMLButtonElement>(".option-menu__trigger")?.click(),
     );
-    const retained = await vi.waitFor(
-      () => {
-        const node = items().find((item) => item.textContent?.includes("Retirer"));
-        // The retained label is resolved through the catalogue, one asynchronous
-        // lookup per out-of-source value; a slower runner needs more than the
-        // default one second.
-        if (node === undefined) throw new Error("Retained link row is not rendered yet");
-        return node;
-      },
-      { timeout: 10_000 },
+    // The retained label is resolved through the catalogue, one asynchronous
+    // lookup per out-of-source value. The previous 10 s bound compensated for
+    // polls that could not see React commit outside `act`; `until` flushes it.
+    const retained = await until(() =>
+      present(
+        items().find((item) => item.textContent?.includes("Retirer")),
+        "the retained link row",
+      ),
     );
     expect(retained.textContent).toContain("hors source");
     await act(async () => retained.click());

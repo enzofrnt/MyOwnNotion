@@ -36,6 +36,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await db.delete();
 });
 
@@ -314,6 +315,7 @@ describe("LegacyPageEditingSession", () => {
   });
 
   it("does not convert a page that was only looked at", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const requestConversion = vi.fn(async () => "converted" as const);
     await LegacyPageEditingSession.open({
       pageId: generateUuidV7(),
@@ -325,9 +327,12 @@ describe("LegacyPageEditingSession", () => {
       requestConversion,
     });
 
-    // Let every queued drain-point task run its course.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Every drain point is a promise continuation or a backoff timer. Running
+    // the owned clock past the longest backoff runs all of them, so "not
+    // called" covers every scheduled attempt rather than one task turn.
+    await vi.advanceTimersByTimeAsync(5_001);
     expect(requestConversion).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it("retries a transient conversion after the queued v2 base is acknowledged", async () => {
@@ -367,6 +372,11 @@ describe("LegacyPageEditingSession", () => {
   });
 
   it("stops retrying and blocks new edits after an orphaned branch is retained", async () => {
+    // Retries are scheduled with setTimeout and back off up to 5 s. Owning
+    // that clock lets the test move past every possible retry instead of
+    // sleeping through one guess at it. IndexedDB (fake-indexeddb) schedules
+    // with setImmediate, which stays real.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const input = fixture();
     const requestConversion = vi.fn(async () => {
       const record = await log.getLegacyBranch(input.pageId);
@@ -405,8 +415,10 @@ describe("LegacyPageEditingSession", () => {
         text: " should not be accepted",
       }),
     ).rejects.toBeInstanceOf(LegacyPageEditingSessionBlockedError);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Past the longest backoff (min(250 * 2^n, 5 000) ms) any scheduled retry has fired.
+    await vi.advanceTimersByTimeAsync(5_001);
     expect(requestConversion).toHaveBeenCalledOnce();
+    vi.useRealTimers();
   });
 
   it("lets application routing hand a converted branch over to the active session", async () => {

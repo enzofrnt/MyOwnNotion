@@ -1,0 +1,12 @@
+# run=43266767307 attempt=1 job=131352667791 name=Playwright journeys (webkit-desktop)
+  ✘   15 [webkit-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (2.0m)
+  ✘   16 [webkit-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (retry #1) (2.0m)
+  ✘   36 [webkit-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (12.2s)
+  ✘   37 [webkit-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (retry #1) (12.4s)
+  ✘  105 [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery (19.6s)
+  ✘  107 [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (32.1s)
+  ✘  108 [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (retry #1) (34.1s)
+  1) [webkit-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  2) [webkit-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+  3) [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts 
+  4) [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery 

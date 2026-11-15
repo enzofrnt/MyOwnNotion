@@ -1,0 +1,13 @@
+# run=43455992441 attempt=1 job=131990661116 name=Unit, property & coverage
+  digest-mismatch: error
+     ✓ reports a canonical rename as a stale restore head instead of an internal error 1646ms
+ ✓  database-integration  packages/database/tests/security-repository-errors.spec.ts (3 tests) 7ms
+     ✓ opens the property editor without crashing and renames automatically 696ms
+ ✓  web  apps/web/tests/error-boundary.spec.tsx (2 tests) 66ms
+Error: Icon option is not rendered yet
+    348|         if (option === null) throw new Error("Icon option is not rende…
+##[error]Error: Icon option is not rendered yet
+error: "vitest" exited with code 1
+error: script "test:coverage" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

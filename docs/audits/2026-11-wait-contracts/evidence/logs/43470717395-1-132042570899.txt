@@ -1,0 +1,16 @@
+# run=43470717395 attempt=1 job=132042570899 name=Playwright journeys (chromium-mobile)
+  ✘   10 [chromium-mobile] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations (5.1s)
+  ✘   11 [chromium-mobile] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations (retry #1) (4.3s)
+  ✘   14 [chromium-mobile] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology (4.2s)
+  ✘   15 [chromium-mobile] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology (retry #1) (4.4s)
+  ✘   17 [chromium-mobile] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (10.9s)
+  ✘   18 [chromium-mobile] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (retry #1) (10.9s)
+  ✘  129 [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:98:1 › updates both contents projections, scrolls nested headings and leaves no stale outline (11.2s)
+  ✘  130 [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:98:1 › updates both contents projections, scrolls nested headings and leaves no stale outline (retry #1) (11.4s)
+  ✘  277 [chromium-mobile] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably (13.4s)
+  ✘  278 [chromium-mobile] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably (retry #1) (13.8s)
+  1) [chromium-mobile] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+  2) [chromium-mobile] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+  3) [chromium-mobile] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  4) [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:98:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
+  5) [chromium-mobile] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably 

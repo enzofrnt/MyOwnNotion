@@ -1,0 +1,144 @@
+# run=43587332746 attempt=1 job=132424695799 name=Playwright journeys (webkit-desktop 1/3)
+  1) [webkit-desktop] › tests/e2e/database-form-lifecycle.spec.ts:143:0 › cancels a pressed property action outside its button and activates exactly once from the keyboard 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  getByRole('textbox', { name: 'Nom de la nouvelle propriété', exact: true })
+    Expected: "Owner draft-mwgbg3q2-f79y4"
+    Received: ""
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "to.have.value" with timeout 10000ms
+      - waiting for getByRole('textbox', { name: 'Nom de la nouvelle propriété', exact: true })
+        24 × locator resolved to <input value="" class="database-new-column__name" aria-label="Nom de la nouvelle propriété" placeholder="Saisir le nom de la propriété…"/>
+           - unexpected value ""
+
+
+      171 |   await page.mouse.up();
+      172 |   await expect(nameField).toBeVisible();
+    > 173 |   await expect(nameField).toHaveValue(name);
+          |                          ^
+      174 |   const columns = page
+      175 |     .getByTestId("database-view-surface")
+      176 |     .getByRole("columnheader")
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-form-lifecycle.spec.ts:173:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-webkit-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [webkit-desktop] › tests/e2e/database-form-lifecycle.spec.ts:143:0 › cancels a pressed property action outside its button and activates exactly once from the keyboard 
+  8 skipped
+  109 passed (10.8m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: blob-report-webkit-desktop-1-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-webkit-desktop-1-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 3109960
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 6ed366d10732c226dec2322c6b47e2c610f7de77389052e6fc4f0623cbc6965d
+Finalizing artifact upload
+Artifact blob-report-webkit-desktop-1-3 successfully finalized. Artifact ID 14112029122
+Artifact blob-report-webkit-desktop-1-3 has been successfully uploaded! Final size is 3109960 bytes. Artifact ID is 14112029122
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587332746/artifacts/14112029122
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: test-results-webkit-desktop-1-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 34 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-webkit-desktop-1-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 5112361
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 0116c08bab4c05a69015c454a859ecf9ee217f647dd40dfb9846884f46d545d4
+Finalizing artifact upload
+Artifact test-results-webkit-desktop-1-3 successfully finalized. Artifact ID 14111954443
+Artifact test-results-webkit-desktop-1-3 has been successfully uploaded! Final size is 5112361 bytes. Artifact ID is 14111954443
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587332746/artifacts/14111954443
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__6fdff96c-0f86-4901-8514-61d4d90d740e.__oven-sh_setup-bun]
+##[end-action id=__6fdff96c-0f86-4901-8514-61d4d90d740e.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/6c5afb14-2d7d-42ce-8b8e-cad14586af63' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-f84329e3-7c83-4e72-874d-2e2221f3f8b8.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-f84329e3\-7c83\-4e72\-874d\-2e2221f3f8b8\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-f84329e3-7c83-4e72-874d-2e2221f3f8b8.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-f84329e3\-7c83\-4e72\-874d\-2e2221f3f8b8\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-f84329e3-7c83-4e72-874d-2e2221f3f8b8.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-f84329e3\-7c83\-4e72\-874d\-2e2221f3f8b8\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-f84329e3-7c83-4e72-874d-2e2221f3f8b8.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-f84329e3\-7c83\-4e72\-874d\-2e2221f3f8b8\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-f84329e3-7c83-4e72-874d-2e2221f3f8b8.config'
+Cleaning up orphan processes

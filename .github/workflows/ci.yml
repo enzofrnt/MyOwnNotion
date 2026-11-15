@@ -403,14 +403,16 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && matrix.project != 'none'
         with:
-          name: blob-report-${{ matrix.laneId }}
+          # One artifact per attempt: re-running jobs must never replace the
+          # evidence of the attempt that failed (feature 060).
+          name: blob-report-${{ matrix.laneId }}-attempt-${{ github.run_attempt }}
           path: blob-report/
           if-no-files-found: warn
           retention-days: 3
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure() && matrix.project != 'none'
         with:
-          name: test-results-${{ matrix.laneId }}
+          name: test-results-${{ matrix.laneId }}-attempt-${{ github.run_attempt }}
           path: test-results/
           retention-days: 14
 
@@ -432,8 +434,12 @@ jobs:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: blob-report-*
-          path: all-blob-reports
-          merge-multiple: true
+          path: lane-blob-artifacts
+      - name: Select each lane's latest attempt
+        # A re-run of failed jobs keeps the earlier attempts' artifacts. Merging
+        # them all would count a re-run lane twice; the gate judges each lane's
+        # newest attempt and says which one it used.
+        run: bash scripts/ci/select-lane-blobs.sh lane-blob-artifacts all-blob-reports
       - name: Merge the lane reports
         if: needs.impact.outputs.e2e_mode != 'none'
         # A missing lane leaves nothing to merge for it; the guard below names
@@ -455,6 +461,7 @@ jobs:
             playwright-report/
             e2e-gate-summary.json
             e2e-timings.json
+            e2e-lane-attempts.txt
           retention-days: 14
       # Trusted complete runs feed the next lane sizing. Restricted to `main`
       # so a pull request can never write the timings another run will trust.

@@ -1,0 +1,7 @@
+# run=43587630795 attempt=1 job=132426635559 name=Playwright journeys (chromium-desktop 3/3)
+  ✘   10 [chromium-desktop] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations (5.1s)
+  ✘   13 [chromium-desktop] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology (5.2s)
+  ✘   15 [chromium-desktop] › tests/e2e/accessibility.spec.ts:412:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (14.2s)
+  1) [chromium-desktop] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+  2) [chromium-desktop] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+  3) [chromium-desktop] › tests/e2e/accessibility.spec.ts:412:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 

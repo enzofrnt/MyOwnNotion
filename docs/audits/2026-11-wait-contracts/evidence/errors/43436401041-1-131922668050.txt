@@ -1,0 +1,12 @@
+# run=43436401041 attempt=1 job=131922668050 name=Unit, property & coverage
+  digest-mismatch: error
+     ✓ reports a canonical rename as a stale restore head instead of an internal error 1974ms
+ ✓  database-integration  packages/database/tests/security-repository-errors.spec.ts (3 tests) 23ms
+     ✓ retains a fully discovered canvas with a retryable error when its refresh fails 333ms
+     ✓ opens the property editor without crashing and renames automatically 651ms
+ ✓  web  apps/web/tests/error-boundary.spec.tsx (2 tests) 74ms
+Error: EBADF: bad file descriptor, close
+error: "vitest" exited with code 1
+error: script "test:coverage" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

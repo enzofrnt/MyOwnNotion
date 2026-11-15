@@ -1,0 +1,5 @@
+# run=43225166453 attempt=2 job=131236451749 name=Unit, property & coverage
+     → Test timed out in 5000ms.
+ FAIL   web  tests/entry-property-interaction.spec.tsx > entry property configuration menus > uses the view icon catalog and automatically sets and removes a property icon
+Error: Test timed out in 5000ms.
+##[error]Error: Test timed out in 5000ms.

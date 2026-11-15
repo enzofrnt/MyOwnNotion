@@ -1,0 +1,14 @@
+# run=43317240835 attempt=1 job=131528683544 name=Unit, property & coverage
+   ✓ visible history consolidation > reports a canonical rename as a stale restore head instead of an internal error  2386ms
+ ✓  database-integration  tests/security-repository-errors.spec.ts (3 tests) 8ms
+   ✓ database projection subscribers > shows a retryable error state for an undiscovered embedded source  385ms
+   ✓ database projection subscribers > retains a fully discovered canvas with a retryable error when its refresh fails  334ms
+   ✓ entry property configuration menus > opens the property editor without crashing and renames automatically  707ms
+ ✓  web  tests/error-boundary.spec.tsx (2 tests) 62ms
+Error: Retained link row is not rendered yet
+    125|       if (node === undefined) throw new Error("Retained link row is no…
+##[error]Error: Retained link row is not rendered yet
+error: "vitest" exited with code 1
+error: script "test:coverage" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

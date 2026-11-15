@@ -1,0 +1,81 @@
+# run=43243026089 attempt=1 job=131268699038 name=Playwright journeys (chromium-mobile)
+  ✘   15 [chromium-mobile] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (1.0m)
+  ✘   16 [chromium-mobile] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (retry #1) (1.0m)
+  ✘   36 [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (12.4s)
+  ✘   37 [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (retry #1) (12.6s)
+  ✘   71 [chromium-mobile] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order (3.0m)
+  ✘   72 [chromium-mobile] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order (retry #1) (3.0m)
+  ✘   73 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:19:0 › converts a card without editorial history locally while workspace requests are held (1.0m)
+  ✘   74 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:19:0 › converts a card without editorial history locally while workspace requests are held (retry #1) (1.0m)
+  ✘   75 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:85:0 › keeps conversion confirmation immediate and returns to the card without a pointer selection outline (3.0m)
+  ✘   76 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:85:0 › keeps conversion confirmation immediate and returns to the card without a pointer selection outline (retry #1) (3.0m)
+  ✘   77 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:157:0 › cancels a pressed property action outside its button and activates exactly once from the keyboard (1.0m)
+  ✘   78 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:157:0 › cancels a pressed property action outside its button and activates exactly once from the keyboard (retry #1) (1.0m)
+  ✘   79 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:188:0 › preserves a composing dirty field while another device updates an untouched property (3.0m)
+  ✘   80 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:188:0 › preserves a composing dirty field while another device updates an untouched property (retry #1) (3.0m)
+  ✘   82 [chromium-mobile] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline (3.0m)
+  ✘   83 [chromium-mobile] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline (retry #1) (3.0m)
+  ✘   88 [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:187:0 › keeps Nouvel élément below the edited card, creates successive durable entries and uses full column colors (1.0m)
+  ✘   89 [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:187:0 › keeps Nouvel élément below the edited card, creates successive durable entries and uses full column colors (retry #1) (1.0m)
+  ✘   91 [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:340:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline (3.0m)
+  ✘   92 [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:340:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline (retry #1) (3.0m)
+  ✘   93 [chromium-mobile] › tests/e2e/database-relations-rollups.spec.ts:87:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (3.0m)
+  ✘   97 [chromium-mobile] › tests/e2e/databases-offline-sync.spec.ts:265:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict (2.0m)
+  ✘   98 [chromium-mobile] › tests/e2e/databases-offline-sync.spec.ts:265:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict (retry #1) (2.0m)
+  ✘   99 [chromium-mobile] › tests/e2e/databases-offline-sync.spec.ts:451:2 › structured offline convergence (US5) › measures live structured propagation and states partial offline coverage (1.0m)
+  ✘  100 [chromium-mobile] › tests/e2e/databases-offline-sync.spec.ts:451:2 › structured offline convergence (US5) › measures live structured propagation and states partial offline coverage (retry #1) (1.0m)
+  ✘  102 [chromium-mobile] › tests/e2e/databases-pages-views.spec.ts:40:0 › a database is a navigable owner with direct page and folder entries (16.2s)
+  ✘  103 [chromium-mobile] › tests/e2e/databases-pages-views.spec.ts:40:0 › a database is a navigable owner with direct page and folder entries (retry #1) (16.0s)
+  ✘  109 [chromium-mobile] › tests/e2e/databases-schema.spec.ts:30:0 › creates a typed database whose entry and relations keep canonical page identities (2.0m)
+  ✘  110 [chromium-mobile] › tests/e2e/databases-schema.spec.ts:30:0 › creates a typed database whose entry and relations keep canonical page identities (retry #1) (2.0m)
+  ✘  112 [chromium-mobile] › tests/e2e/databases-security.spec.ts:92:0 › keeps structured content out of local storage, addresses and diagnostics (2.0m)
+  ✘  113 [chromium-mobile] › tests/e2e/databases-security.spec.ts:92:0 › keeps structured content out of local storage, addresses and diagnostics (retry #1) (2.0m)
+  ✘  114 [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens (13.0s)
+  ✘  115 [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens (retry #1) (12.9s)
+  ✘  116 [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens and permits cancellation (13.0s)
+  ✘  117 [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens and permits cancellation (retry #1) (13.2s)
+  ✘  118 [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:116:0 › tracks one task page through roles, notes, relations, search and an independent checkbox (1.0m)
+  ✘  119 [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:116:0 › tracks one task page through roles, notes, relations, search and an independent checkbox (retry #1) (1.0m)
+  ✘  120 [chromium-mobile] › tests/e2e/databases-views.spec.ts:21:0 › persists table/list filters, sorts, groups, columns and focus on two browsers (3.0m)
+  ✘  121 [chromium-mobile] › tests/e2e/databases-views.spec.ts:21:0 › persists table/list filters, sorts, groups, columns and focus on two browsers (retry #1) (3.0m)
+  ✘  122 [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery (3.0m)
+  ✘  123 [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery (retry #1) (3.0m)
+  ✘  124 [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (1.0m)
+  ✘  125 [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (retry #1) (1.0m)
+  ✘  230 [chromium-mobile] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys (19.0s)
+  ✘  231 [chromium-mobile] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys (retry #1) (19.4s)
+  ✘  232 [chromium-mobile] › tests/e2e/knowledge-graph.spec.ts:215:0 › backlinks, local graph, global filters and offline restart stay coherent (6.9s)
+  ✘  233 [chromium-mobile] › tests/e2e/knowledge-graph.spec.ts:215:0 › backlinks, local graph, global filters and offline restart stay coherent (retry #1) (7.1s)
+  ✘  312 [chromium-mobile] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths (1.0m)
+  ✘  313 [chromium-mobile] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths (retry #1) (1.0m)
+  ✘  351 [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:121:2 › matches the dark mobile security surface (2.6s)
+  ✘  352 [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:121:2 › matches the dark mobile security surface (retry #1) (2.7s)
+  ✘  359 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:22:0 › welcomes an empty workspace on a page-shaped canvas and opens its first page (12.0s)
+  ✘  360 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:22:0 › welcomes an empty workspace on a page-shaped canvas and opens its first page (retry #1) (12.0s)
+  1) [chromium-mobile] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  2) [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+  3) [chromium-mobile] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order 
+  4) [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:19:0 › converts a card without editorial history locally while workspace requests are held 
+  5) [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:85:0 › keeps conversion confirmation immediate and returns to the card without a pointer selection outline 
+  6) [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:157:0 › cancels a pressed property action outside its button and activates exactly once from the keyboard 
+  7) [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:188:0 › preserves a composing dirty field while another device updates an untouched property 
+  8) [chromium-mobile] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline 
+  9) [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:187:0 › keeps Nouvel élément below the edited card, creates successive durable entries and uses full column colors 
+  10) [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:340:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline 
+  11) [chromium-mobile] › tests/e2e/databases-offline-sync.spec.ts:265:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict 
+  12) [chromium-mobile] › tests/e2e/databases-offline-sync.spec.ts:451:2 › structured offline convergence (US5) › measures live structured propagation and states partial offline coverage 
+  13) [chromium-mobile] › tests/e2e/databases-pages-views.spec.ts:40:0 › a database is a navigable owner with direct page and folder entries 
+  14) [chromium-mobile] › tests/e2e/databases-schema.spec.ts:30:0 › creates a typed database whose entry and relations keep canonical page identities 
+  15) [chromium-mobile] › tests/e2e/databases-security.spec.ts:92:0 › keeps structured content out of local storage, addresses and diagnostics 
+  16) [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens 
+  17) [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens and permits cancellation 
+  18) [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:116:0 › tracks one task page through roles, notes, relations, search and an independent checkbox 
+  19) [chromium-mobile] › tests/e2e/databases-views.spec.ts:21:0 › persists table/list filters, sorts, groups, columns and focus on two browsers 
+  20) [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery 
+  21) [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts 
+  22) [chromium-mobile] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys 
+  23) [chromium-mobile] › tests/e2e/knowledge-graph.spec.ts:215:0 › backlinks, local graph, global filters and offline restart stay coherent 
+  24) [chromium-mobile] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths 
+  25) [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:121:2 › matches the dark mobile security surface 
+  26) [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:22:0 › welcomes an empty workspace on a page-shaped canvas and opens its first page 
+  27) [chromium-mobile] › tests/e2e/database-relations-rollups.spec.ts:87:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 

@@ -1,0 +1,464 @@
+# run=43285025189 attempt=1 job=131416160449 name=Playwright journeys (firefox-desktop)
+  1) [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      189 |             );
+      190 |           })
+    > 191 |           .toBe(true);
+          |           ^
+      192 |       }
+      193 |       if (width === 320) {
+      194 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:191:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      189 |             );
+      190 |           })
+    > 191 |           .toBe(true);
+          |           ^
+      192 |       }
+      193 |       if (width === 320) {
+      194 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:191:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Propri\u00E9t\u00E9 cible/ })
+        - locator resolved to <button id="_r_4f_" type="button" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        337 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+
+
+      69 |     .locator(".rollup-settings")
+      70 |     .getByRole("button", { name: /^Propriété cible/ })
+    > 71 |     .click();
+         |     ^
+      72 |   // This must exist while B has NO rows: source schema, never inferred links.
+      73 |   await page.getByRole("menuitemradio", { name: "Amount", exact: true }).click();
+      74 |   await page
+        at configureTotal (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:71:5)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:140:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Propri\u00E9t\u00E9 cible/ })
+        - locator resolved to <button id="_r_4f_" type="button" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        334 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+      69 |     .locator(".rollup-settings")
+      70 |     .getByRole("button", { name: /^Propriété cible/ })
+    > 71 |     .click();
+         |     ^
+      72 |   // This must exist while B has NO rows: source schema, never inferred links.
+      73 |   await page.getByRole("menuitemradio", { name: "Amount", exact: true }).click();
+      74 |   await page
+        at configureTotal (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:71:5)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:140:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:229:0 › relation and rollup isolate a second source in the same database container 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Calculer/ })
+        - locator resolved to <button disabled id="_r_6d_" type="button" aria-disabled="true" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+        - waiting 20ms
+        - waiting for element to be visible, enabled and stable
+        - element is not enabled
+      2 × retrying click action
+          - waiting 100ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+      323 × retrying click action
+            - waiting 500ms
+            - waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+      266 |     .locator(".rollup-settings")
+      267 |     .getByRole("button", { name: /^Calculer/ })
+    > 268 |     .click();
+          |     ^
+      269 |   await chooseSum(page);
+      270 |   await closeConfiguration(page);
+      271 |   await waitForSynchronized(page);
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:268:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Calculer/ })
+        - locator resolved to <button disabled id="_r_6d_" type="button" aria-disabled="true" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+        - waiting 20ms
+        - waiting for element to be visible, enabled and stable
+        - element is not enabled
+      2 × retrying click action
+          - waiting 100ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+      326 × retrying click action
+            - waiting 500ms
+            - waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+      266 |     .locator(".rollup-settings")
+      267 |     .getByRole("button", { name: /^Calculer/ })
+    > 268 |     .click();
+          |     ^
+      269 |   await chooseSum(page);
+      270 |   await closeConfiguration(page);
+      271 |   await waitForSynchronized(page);
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:268:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:272:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict 
+
+    Error: expect(received).toHaveLength(expected)
+
+    Expected length: 2
+    Received length: 1
+    Received array:  ["01a1d135-9378-7000-8305-506da624fbd3"]
+
+      438 |         return revision.parentRevisionIds ?? [];
+      439 |       }, entryName);
+    > 440 |       expect(lineage).toHaveLength(2);
+          |                      ^
+      441 |       await expectPrivateCanonicalStorage([
+      442 |         databaseName,
+      443 |         entryName,
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-offline-sync.spec.ts:440:22
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-offline-sync-str-f4f91-olves-a-same-field-conflict-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-offline-sync-str-f4f91-olves-a-same-field-conflict-firefox-desktop/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-offline-sync-str-f4f91-olves-a-same-field-conflict-firefox-desktop/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-offline-sync-str-f4f91-olves-a-same-field-conflict-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-offline-sync-str-f4f91-olves-a-same-field-conflict-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+    [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+    [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:229:0 › relation and rollup isolate a second source in the same database container 
+  1 flaky
+    [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:272:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict 
+  26 skipped
+  314 passed (56.5m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-firefox-desktop
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 248 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-firefox-desktop.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 33554432
+Uploaded bytes 41943040
+Uploaded bytes 50331648
+Uploaded bytes 58720256
+Uploaded bytes 67108864
+Uploaded bytes 75497472
+Uploaded bytes 83886080
+Uploaded bytes 92274688
+Uploaded bytes 100663296
+Uploaded bytes 109051904
+Uploaded bytes 117440512
+Uploaded bytes 125829120
+Uploaded bytes 134217728
+Uploaded bytes 142606336
+Uploaded bytes 150994944
+Uploaded bytes 159383552
+Uploaded bytes 167772160
+Uploaded bytes 176160768
+Uploaded bytes 184549376
+Uploaded bytes 192937984
+Uploaded bytes 201326592
+Uploaded bytes 209715200
+Uploaded bytes 218103808
+Uploaded bytes 226492416
+Uploaded bytes 234881024
+Uploaded bytes 243269632
+Uploaded bytes 251658240
+Uploaded bytes 260046848
+Uploaded bytes 268435456
+Uploaded bytes 276824064
+Uploaded bytes 285212672
+Uploaded bytes 293601280
+Uploaded bytes 301989888
+Uploaded bytes 310378496
+Uploaded bytes 318767104
+Uploaded bytes 327155712
+Uploaded bytes 335544320
+Uploaded bytes 343932928
+Uploaded bytes 352321536
+Uploaded bytes 360710144
+Uploaded bytes 369098752
+Uploaded bytes 377487360
+Uploaded bytes 385875968
+Uploaded bytes 394264576
+Uploaded bytes 402653184
+Uploaded bytes 411041792
+Uploaded bytes 419430400
+Uploaded bytes 427819008
+Uploaded bytes 436207616
+Uploaded bytes 444596224
+Uploaded bytes 452984832
+Uploaded bytes 461373440
+Uploaded bytes 469762048
+Uploaded bytes 478150656
+Uploaded bytes 486539264
+Uploaded bytes 494927872
+Uploaded bytes 503316480
+Uploaded bytes 511705088
+Uploaded bytes 520093696
+Uploaded bytes 528482304
+Uploaded bytes 536870912
+Uploaded bytes 545259520
+Uploaded bytes 553648128
+Uploaded bytes 562036736
+Uploaded bytes 570425344
+Uploaded bytes 574973764
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 2a5c2b95c9aa7bef34046a11e3909e224bd6b6497ba69944d774929f35b6a338
+Finalizing artifact upload
+Artifact playwright-report-firefox-desktop successfully finalized. Artifact ID 13977489243
+Artifact playwright-report-firefox-desktop has been successfully uploaded! Final size is 574973764 bytes. Artifact ID is 13977489243
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43285025189/artifacts/13977489243
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__c93c6386-0e44-4990-912a-54af50e0e824.__oven-sh_setup-bun]
+##[end-action id=__c93c6386-0e44-4990-912a-54af50e0e824.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.0
+Temporarily overriding HOME='/home/runner/work/_temp/add277de-10a9-449d-977e-e40587a31be7' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-a1826915-2a7b-48a1-8759-29f8c4f16337.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-a1826915\-2a7b\-48a1\-8759\-29f8c4f16337\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-a1826915-2a7b-48a1-8759-29f8c4f16337.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-a1826915\-2a7b\-48a1\-8759\-29f8c4f16337\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-a1826915-2a7b-48a1-8759-29f8c4f16337.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-a1826915\-2a7b\-48a1\-8759\-29f8c4f16337\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-a1826915-2a7b-48a1-8759-29f8c4f16337.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-a1826915\-2a7b\-48a1\-8759\-29f8c4f16337\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-a1826915-2a7b-48a1-8759-29f8c4f16337.config'
+Cleaning up orphan processes

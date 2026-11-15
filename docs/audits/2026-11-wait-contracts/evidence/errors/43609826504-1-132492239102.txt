@@ -1,0 +1,176 @@
+# run=43609826504 attempt=1 job=132492239102 name=Playwright journeys (webkit-mobile 2/3)
+  1) [webkit-mobile] › tests/e2e/database-entry-properties.spec.ts:14:1 › configures entry properties directly, shares symbols, and preserves independent property order 
+
+    TimeoutError: click: Timeout 15000ms exceeded.
+    Call log:
+      - waiting for locator('.entry-panel').getByRole('button', { name: 'Team', exact: true })
+
+
+      64 |   await chooseEntryOptions(page, "Team", ["Long option for the application team", "Research"]);
+      65 |   const team = page.locator(".entry-panel").getByRole("button", { name: "Team", exact: true });
+    > 66 |   await team.click();
+         |              ^
+      67 |   const choice = page.locator(".entry-choice");
+      68 |   const inputSurface = choice.locator(".ui-input-surface");
+      69 |   const search = choice.getByLabel("Rechercher ou créer une option");
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-entry-properties.spec.ts:66:14)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-entry-properties--c2968--independent-property-order-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-entry-properties--c2968--independent-property-order-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-entry-properties--c2968--independent-property-order-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-entry-properties--c2968--independent-property-order-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [webkit-mobile] › tests/e2e/editor-math-contents.spec.ts:100:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "ResizeObserver loop completed with undelivered notifications.",
+    + ]
+
+      210 |   await expect(page.getByTestId("page-outline")).toContainText("modifiée");
+      211 |   await saveDocument(page, { until: "synced" });
+    > 212 |   expect(pageErrors).toEqual([]);
+          |                      ^
+      213 |   if (testInfo.repeatEachIndex === 0) {
+      214 |     for (const theme of ["light", "dark"] as const) {
+      215 |       await page.emulateMedia({ colorScheme: theme });
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/editor-math-contents.spec.ts:212:22)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [webkit-mobile] › tests/e2e/database-entry-properties.spec.ts:14:1 › configures entry properties directly, shares symbols, and preserves independent property order 
+    [webkit-mobile] › tests/e2e/editor-math-contents.spec.ts:100:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
+  10 skipped
+  99 passed (11.8m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+with:
+  name: blob-report-webkit-mobile-2-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-webkit-mobile-2-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 12173864
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 9b796fca854a53589969b6fc280daa9ea58591514b0bf17463a6b52a27a17642
+Finalizing artifact upload
+Artifact blob-report-webkit-mobile-2-3 successfully finalized. Artifact ID 14120187043
+Artifact blob-report-webkit-mobile-2-3 has been successfully uploaded! Final size is 12173864 bytes. Artifact ID is 14120187043
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43609826504/artifacts/14120187043
+##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+with:
+  name: test-results-webkit-mobile-2-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 90 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-webkit-mobile-2-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 17881500
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is e66e68b43fe886b03b53909bf93626a4dd6ac937597725d0a41e2688ac5078d0
+Finalizing artifact upload
+Artifact test-results-webkit-mobile-2-3 successfully finalized. Artifact ID 14120541299
+Artifact test-results-webkit-mobile-2-3 has been successfully uploaded! Final size is 17881500 bytes. Artifact ID is 14120541299
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43609826504/artifacts/14120541299
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__92099fcc-54cc-4109-8f6f-21ac4150e8e3.__oven-sh_setup-bun]
+##[end-action id=__92099fcc-54cc-4109-8f6f-21ac4150e8e3.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/e7fbb92a-63fd-4cbc-942a-b9127a1cd510' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-58f17287-3e17-4d6c-b3f7-3bb87393f0f5.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-58f17287\-3e17\-4d6c\-b3f7\-3bb87393f0f5\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-58f17287-3e17-4d6c-b3f7-3bb87393f0f5.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-58f17287\-3e17\-4d6c\-b3f7\-3bb87393f0f5\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-58f17287-3e17-4d6c-b3f7-3bb87393f0f5.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-58f17287\-3e17\-4d6c\-b3f7\-3bb87393f0f5\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-58f17287-3e17-4d6c-b3f7-3bb87393f0f5.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-58f17287\-3e17\-4d6c\-b3f7\-3bb87393f0f5\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-58f17287-3e17-4d6c-b3f7-3bb87393f0f5.config'
+Cleaning up orphan processes
