@@ -391,6 +391,29 @@ test.describe("synchronization accessibility (feature 006)", () => {
   });
 });
 
+test.describe("accessibility audit runtime (feature 059)", () => {
+  // Playwright 1.65's Firefox (159) crashes the content process when a page
+  // reads `ariaLabelledByElements` on an element its role engine has already
+  // examined. axe reads that property for every `aria-labelledby`, so the
+  // structured-view audit below killed the tab on its first view. The suite is
+  // pinned to Playwright 1.64.1 (Firefox 157); this is the minimal reproduction
+  // that fails on the broken build, independent of the application.
+  test("a role query followed by an ARIA reference read keeps the page alive", async ({ page }) => {
+    await page.setContent(
+      '<!doctype html><html lang="fr"><title>Repro</title><main><section class="probe" aria-labelledby="probe-heading"><h2 id="probe-heading">Contenu</h2></section></main></html>',
+    );
+    await expect(page.getByRole("region", { name: "Contenu" })).toHaveCount(1);
+    const references = await page.evaluate(() => {
+      const section = document.querySelector(".probe") as
+        | (Element & { ariaLabelledByElements?: readonly Element[] | null })
+        | null;
+      return section?.ariaLabelledByElements?.map((element) => element.id) ?? null;
+    });
+    // Engines without element reflection report null; none may crash.
+    expect(references === null || references.join(",") === "probe-heading").toBe(true);
+  });
+});
+
 test.describe("structured database view accessibility (feature 009)", () => {
   async function seriousViolations(page: import("@playwright/test").Page) {
     // Switching view replaces the database page for an instant. Axe throws
