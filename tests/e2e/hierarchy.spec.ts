@@ -600,6 +600,9 @@ test.describe("hierarchy organization (US1)", () => {
     await row.click({ button: "right" });
     await expect(page.getByTestId(`rename-${item}`)).toBeVisible();
     await page.keyboard.press("Escape");
+    // The keyboard path below must open the menu itself: a pointer menu that
+    // never closed would satisfy the same visibility check.
+    await expect(page.getByTestId(`rename-${item}`)).toHaveCount(0);
 
     await row.focus();
     await page.keyboard.press("Shift+F10");

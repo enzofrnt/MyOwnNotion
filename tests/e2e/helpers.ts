@@ -23,6 +23,7 @@ import {
   type Request,
 } from "@playwright/test";
 import { seedSessionOnNewDevice } from "./reset-installation.ts";
+import { committedNameCount, expectCommittedNameCount } from "./waits/local-state.ts";
 
 export interface CssTransitionSample {
   readonly height: number;
@@ -307,6 +308,17 @@ export async function triggerAndSampleMountedCssTransition(
 
 interface E2ELocalContentService {
   synchronize(): Promise<string>;
+  listActiveItems(): Promise<Array<{ readonly id: string; readonly name: string }>>;
+  getDatabaseEntry(entryId: string): Promise<{ readonly valueVersion: number } | null>;
+  listDatabases(): Promise<
+    Array<{
+      readonly itemId: string;
+      readonly definitionVersion: number;
+      readonly definitionRevisionId?: string;
+      readonly presentationVersion?: number;
+      readonly presentationRevisionId?: string;
+    }>
+  >;
   getSnapshot(): { readonly syncState: string };
   getItem(itemId: string): Promise<{
     readonly currentRevisionId: string;
@@ -338,6 +350,7 @@ interface E2ELocalContentService {
     activeConflicts(): Promise<unknown[]>;
   };
   readonly db: {
+    readonly meta: { get(key: string): Promise<{ readonly value: unknown } | undefined> };
     readonly legacySyncRecoveries: { clear(): Promise<void> };
     readonly revisionHeaders: {
       get(revisionId: string): Promise<{ readonly canonicalRevisionId?: string } | undefined>;
@@ -557,6 +570,7 @@ export async function openRootDatabaseCreation(page: Page): Promise<void> {
 
 /** A root database opens untitled, like a page. The name is typed on its page. */
 export async function createRootDatabase(page: Page, name: string): Promise<void> {
+  const namedBefore = await committedNameCount(page, name);
   await openRootDatabaseCreation(page);
   await page
     .getByRole("dialog", { name: "Nouvelle base de données" })
@@ -564,6 +578,11 @@ export async function createRootDatabase(page: Page, name: string): Promise<void
     .click();
   await nameNewlyCreatedItem(page, name);
   await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached({ timeout: 15_000 });
+  // The row can show the typed title before the rename is written. The
+  // committed projection holds it only once the write and its outbox row are
+  // in IndexedDB, which is what makes a following `waitForSynchronized`
+  // about this item rather than an already empty queue.
+  await expectCommittedNameCount(page, name, namedBefore + 1);
 }
 
 export async function clickEditorInsertBlock(page: Page): Promise<void> {
@@ -596,6 +615,7 @@ export async function createRootItem(
   kind: "page" | "folder",
   name: string,
 ): Promise<void> {
+  const namedBefore = await committedNameCount(page, name);
   await openRootCreation(page);
   await page.getByTestId(kind === "page" ? "new-root-page" : "new-root-folder").click();
   await nameNewlyCreatedItem(page, name);
@@ -605,6 +625,11 @@ export async function createRootItem(
   // close that follows the mutation. Callers that need the row interactively
   // use `ensureNavigationRowVisible` afterwards.
   await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached({ timeout: 15_000 });
+  // The row can show the typed title before the rename is written. The
+  // committed projection holds it only once the write and its outbox row are
+  // in IndexedDB, which is what makes a following `waitForSynchronized`
+  // about this item rather than an already empty queue.
+  await expectCommittedNameCount(page, name, namedBefore + 1);
 }
 
 export async function createChildItem(
@@ -613,12 +638,18 @@ export async function createChildItem(
   kind: "page" | "folder",
   name: string,
 ): Promise<void> {
+  const namedBefore = await committedNameCount(page, name);
   await clickItemAction(page, parentName, `new-${kind}-inside-${parentName}`);
   await nameNewlyCreatedItem(page, name);
   // Page creation is navigation on mobile, so the drawer closing is success,
   // not a reason for this helper to reopen it. The child remains mounted in the
   // tree and later row interactions reopen navigation explicitly.
   await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached({ timeout: 15_000 });
+  // The row can show the typed title before the rename is written. The
+  // committed projection holds it only once the write and its outbox row are
+  // in IndexedDB, which is what makes a following `waitForSynchronized`
+  // about this item rather than an already empty queue.
+  await expectCommittedNameCount(page, name, namedBefore + 1);
 }
 
 export async function ensureNavigationVisible(page: Page): Promise<void> {

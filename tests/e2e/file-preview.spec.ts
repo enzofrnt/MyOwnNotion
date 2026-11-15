@@ -150,6 +150,9 @@ const HOSTILE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="
     } catch (error) {
       // Expected: the sandbox denies it.
     }
+    // Posted after the attempt, whatever its outcome: the journey's proof that
+    // the script ran and that any theft would already have been reported.
+    window.parent.postMessage({ attempted: true }, "*");
   </script>
   <rect width="80" height="80" fill="currentColor" />
 </svg>`;
@@ -183,12 +186,19 @@ test.describe("a preview cannot reach the workspace", () => {
 
     // Anything the file managed to exfiltrate would arrive as a message.
     const stolen: unknown[] = [];
+    let attempted = false;
     await page.exposeFunction("__recordStolen", (value: unknown) => stolen.push(value));
+    await page.exposeFunction("__recordAttempt", () => {
+      attempted = true;
+    });
     await page.evaluate(() => {
       window.addEventListener("message", (event) => {
-        const data = event.data as { stolen?: number } | null;
+        const data = event.data as { stolen?: number; attempted?: boolean } | null;
         if (data !== null && typeof data === "object" && "stolen" in data) {
           (window as unknown as { __recordStolen: (v: unknown) => void }).__recordStolen(data);
+        }
+        if (data !== null && typeof data === "object" && data.attempted === true) {
+          (window as unknown as { __recordAttempt: () => void }).__recordAttempt();
         }
       });
     });
@@ -200,7 +210,15 @@ test.describe("a preview cannot reach the workspace", () => {
     // The sandbox has no allow-same-origin, so the frame is an opaque origin
     // and the read throws inside it.
     await expect(frame).toHaveAttribute("sandbox", "allow-scripts");
-    await page.waitForTimeout(1000);
+    // The file's script reports that its read attempt is over. Messages from
+    // one frame arrive in order, so anything it stole is recorded by now. A
+    // fixed delay certified nothing: a script that never ran passed it too.
+    await expect
+      .poll(() => attempted, {
+        message: "the previewed file's script ran and finished its read attempt",
+        timeout: 15_000,
+      })
+      .toBe(true);
     expect(stolen).toEqual([]);
 
     // The workspace is still there and still working.

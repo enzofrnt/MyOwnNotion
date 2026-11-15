@@ -202,6 +202,8 @@ test.describe("the contextual BlockNote controls", () => {
     await expect(slashMenu).toBeVisible();
     await slashMenu.getByRole("option", { name: /^Citation/u }).click();
     await expect(slashMenu).toBeHidden();
+    // A hidden menu is not proof the choice applied: the last block is a quote.
+    await expect(rootBlocks(editor).last().locator('[data-content-type="quote"]')).toHaveCount(1);
     const quoteBlock = rootBlocks(editor).last();
     await typeIntoBlock(editor, quoteBlock, "Une citation");
     await expect(inlineContent(quoteBlock)).toHaveJSProperty("tagName", "BLOCKQUOTE");
@@ -449,8 +451,13 @@ test.describe("a block this client does not recognise", () => {
     await expect(placeholder).toContainText("kanbanBoard");
 
     // Now edit beside it; autosave makes the edit durable and synchronized.
+    const blocks = surface(page).locator(".bn-block-outer[data-id]");
+    const blocksBefore = await blocks.count();
     await placeholder.click({ button: "right" });
     await page.getByTestId("context-insert-after").click();
+    // The typing below belongs in the inserted block, not wherever the caret was.
+    await expect(blocks).toHaveCount(blocksBefore + 1);
+    await expect(surface(page)).toBeFocused();
     await surface(page).pressSequentially("a paragraph beside it");
     await saveDocument(page, { until: "synced" });
 

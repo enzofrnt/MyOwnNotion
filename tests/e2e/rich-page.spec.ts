@@ -72,6 +72,9 @@ test.describe("rich page composition", () => {
     await expect(menu).toBeVisible();
     await menu.getByRole("option", { name: /^Encadré/u }).click();
     await expect(menu).toBeHidden();
+    // A closed menu is not the result: the callout block must exist before
+    // the journey types into it.
+    await expect(editor.locator(".editor-callout")).toHaveCount(1);
     // Target the callout body explicitly instead of trusting cursor placement.
     const calloutBody = editor.locator(".editor-callout");
     await calloutBody.click();
@@ -90,6 +93,7 @@ test.describe("rich page composition", () => {
     const toggleMenu = page.getByRole("listbox");
     await toggleMenu.getByRole("option", { name: /^Liste dépliable/u }).click();
     await expect(toggleMenu).toBeHidden();
+    await expect(editor.locator('[data-content-type="toggleListItem"]')).toHaveCount(1);
     // The disclosure is a real accessible control, not an unlabelled chevron.
     const toggleBody = editor.locator('[data-content-type="toggleListItem"]').first();
     const toggleButton = toggleBody.getByRole("button", { name: "Déplier cette section" });

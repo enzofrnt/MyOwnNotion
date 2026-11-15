@@ -7,6 +7,7 @@ import {
   closeMobileNavigation,
   createRootItem,
   dropEditorFile,
+  editorApplyCount,
   ensureNavigationRowVisible,
   openAttachmentDetails,
   openItemActions,
@@ -14,8 +15,10 @@ import {
   openSettingsSection,
   openWorkspace,
   sampleCssTransition,
+  saveDocument,
   selectSettledPage,
   uniqueName,
+  waitForEditorSettled,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -201,9 +204,14 @@ test.describe("canonical files (US2)", () => {
     const block = page
       .locator('[data-testid="block-editor"]:visible')
       .locator(".editor-file-block");
+    const beforeDelete = await editorApplyCount(page);
     await block.click({ button: "right" });
     await page.getByTestId("context-delete").click();
     await expect(block).toHaveCount(0);
+    // The block leaves the DOM before the editor commits the removal; the
+    // reload below must read that commit, then the server's confirmation.
+    await waitForEditorSettled(page, { afterApplyCount: beforeDelete });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
     await openPageAttachments(page, pageName);
     await expect(row).toHaveCount(0);
@@ -216,6 +224,9 @@ test.describe("canonical files (US2)", () => {
     await page.reload();
     await openWorkspace(page);
     await openPageAttachments(page, pageName);
+    // A positive anchor first: the list has loaded and is empty, rather than
+    // not rendered yet.
+    await expect(page.getByTestId("attachments-empty")).toBeVisible();
     await expect(row).toHaveCount(0);
   });
 });

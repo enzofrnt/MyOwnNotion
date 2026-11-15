@@ -10,6 +10,7 @@ import {
   waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
+import { beginDefinitionChange } from "./waits/local-state.ts";
 
 test("configures entry properties directly, shares symbols, and preserves independent property order", async ({
   page,
@@ -144,12 +145,16 @@ test("configures entry properties directly, shares symbols, and preserves indepe
   await handle.press("ArrowDown");
   await expect(rows.nth(1)).toHaveAttribute("data-preview", "after");
   await expect(dragAnnouncement).toHaveText("Après Team.");
+  // The reorder is a definition write started by the drop; the rows move
+  // optimistically before it is committed.
+  const reorder = await beginDefinitionChange(page, database);
   await handle.press("Space");
   await expect
     .poll(() =>
       rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-property-id"))),
     )
     .toEqual([orderBefore[1], orderBefore[0], orderBefore[2]]);
+  await reorder.committed();
   await waitForSynchronized(page);
   await page
     .locator(".entry-panel")

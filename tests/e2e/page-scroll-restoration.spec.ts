@@ -9,7 +9,7 @@
  */
 
 import { expect, test } from "./fixtures.ts";
-import { createRootItem, openWorkspace, selectItem, uniqueName } from "./helpers.ts";
+import { createRootItem, openWorkspace, saveDocument, selectItem, uniqueName } from "./helpers.ts";
 
 const PARAGRAPHS = 32;
 
@@ -31,10 +31,9 @@ async function fillLongPage(page: import("@playwright/test").Page): Promise<void
   }
   const blocks = editor.locator(".bn-block-outer[data-id]");
   await expect(blocks).toHaveCount(PARAGRAPHS);
-  const status = page.getByTestId("editor-sync-status");
-  if (await status.count()) {
-    await expect(status).toHaveAttribute("data-sync", "synced", { timeout: 30_000 });
-  }
+  // The typed paragraphs' own commit and confirmation, not a page-level flag
+  // that an earlier write could have left at "synced".
+  await saveDocument(page, { until: "synced" });
 }
 
 test.describe("scroll restoration", () => {

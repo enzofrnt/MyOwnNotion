@@ -454,6 +454,8 @@ test.describe("navigation actions without shortcut sections", () => {
       "true",
     );
     await page.keyboard.press("Escape");
+    // Reopening a menu that never closed would toggle twice.
+    await expect(page.getByTestId(`favourite-action-${name}`)).toHaveCount(0);
     await clickItemAction(page, name, `favourite-action-${name}`);
     await openItemActions(page, name);
     await expect(page.getByTestId(`favourite-action-${name}`)).toHaveAttribute(

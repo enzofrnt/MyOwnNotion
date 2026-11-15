@@ -490,6 +490,9 @@ test("/page creates one linked subpage under the current page", async ({ page })
   }
   await expect(child).toHaveCount(1);
   await expect(child).toContainText(childName);
+  // The link lives in the parent's document: wait for that page write to be
+  // committed and confirmed, not only for the workspace queue.
+  await saveDocument(page, { until: "synced" });
   await waitForSynchronized(page);
 
   await page.reload();
