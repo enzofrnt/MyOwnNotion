@@ -1,0 +1,501 @@
+# run=43285025189 attempt=1 job=131416160443 name=Playwright journeys (chromium-desktop)
+  1) [chromium-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      189 |             );
+      190 |           })
+    > 191 |           .toBe(true);
+          |           ^
+      192 |       }
+      193 |       if (width === 320) {
+      194 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:191:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      189 |             );
+      190 |           })
+    > 191 |           .toBe(true);
+          |           ^
+      192 |       }
+      193 |       if (width === 320) {
+      194 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:191:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium-desktop] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Calculer/ })
+        - locator resolved to <button id="_r_4g_" type="button" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        336 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+
+
+      75 |     .locator(".rollup-settings")
+      76 |     .getByRole("button", { name: /^Calculer/ })
+    > 77 |     .click();
+         |     ^
+      78 |   await chooseSum(page);
+      79 |   await closeConfiguration(page);
+      80 |   await waitForSynchronized(page);
+        at configureTotal (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:77:5)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:140:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Propri\u00E9t\u00E9 cible/ })
+        - locator resolved to <button id="_r_4f_" type="button" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        335 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+      69 |     .locator(".rollup-settings")
+      70 |     .getByRole("button", { name: /^Propriété cible/ })
+    > 71 |     .click();
+         |     ^
+      72 |   // This must exist while B has NO rows: source schema, never inferred links.
+      73 |   await page.getByRole("menuitemradio", { name: "Amount", exact: true }).click();
+      74 |   await page
+        at configureTotal (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:71:5)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:140:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium-desktop] › tests/e2e/database-relations-rollups.spec.ts:229:0 › relation and rollup isolate a second source in the same database container 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Calculer/ })
+        - locator resolved to <button disabled id="_r_6d_" type="button" aria-disabled="true" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        335 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+      266 |     .locator(".rollup-settings")
+      267 |     .getByRole("button", { name: /^Calculer/ })
+    > 268 |     .click();
+          |     ^
+      269 |   await chooseSum(page);
+      270 |   await closeConfiguration(page);
+      271 |   await waitForSynchronized(page);
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:268:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-chromium-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-d86d8-the-same-database-container-chromium-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-chromium-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-d86d8-the-same-database-container-chromium-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Calculer/ })
+        - locator resolved to <button disabled id="_r_6d_" type="button" aria-disabled="true" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is not enabled
+      - retrying click action
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        335 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+      266 |     .locator(".rollup-settings")
+      267 |     .getByRole("button", { name: /^Calculer/ })
+    > 268 |     .click();
+          |     ^
+      269 |   await chooseSum(page);
+      270 |   await closeConfiguration(page);
+      271 |   await waitForSynchronized(page);
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:268:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-chromium-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-d86d8-the-same-database-container-chromium-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-chromium-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-d86d8-the-same-database-container-chromium-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium-desktop] › tests/e2e/v1-surface-visuals.spec.ts:78:0 › matches the dark empty-database surface 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      7508 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: v1-database-dark.png
+
+    Call log:
+      - Expect screenshot with timeout 10000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 7508 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 7508 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      104 |   await settlePixels(page);
+      105 |
+    > 106 |   await expect(page).toHaveScreenshot("v1-database-dark.png", {
+          |                     ^
+      107 |     animations: "disabled",
+      108 |     caret: "hide",
+      109 |     clip: { x: 0, y: 0, ...DESKTOP },
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/v1-surface-visuals.spec.ts:106:21
+
+    attachment #1: v1-database-dark (image/png) ────────────────────────────────────────────────────
+    Expected: tests/e2e/v1-surface-visuals.spec.ts-snapshots/v1-database-dark-chromium-desktop-linux.png
+    Received: test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop/v1-database-dark-actual.png
+    Diff:     test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop/v1-database-dark-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      7508 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: v1-database-dark.png
+
+    Call log:
+      - Expect screenshot with timeout 10000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 7508 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 7508 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      104 |   await settlePixels(page);
+      105 |
+    > 106 |   await expect(page).toHaveScreenshot("v1-database-dark.png", {
+          |                     ^
+      107 |     animations: "disabled",
+      108 |     caret: "hide",
+      109 |     clip: { x: 0, y: 0, ...DESKTOP },
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/v1-surface-visuals.spec.ts:106:21
+
+    attachment #1: v1-database-dark (image/png) ────────────────────────────────────────────────────
+    Expected: tests/e2e/v1-surface-visuals.spec.ts-snapshots/v1-database-dark-chromium-desktop-linux.png
+    Received: test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop-retry1/v1-database-dark-actual.png
+    Diff:     test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop-retry1/v1-database-dark-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop-retry1/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/v1-surface-visuals-matches-the-dark-empty-database-surface-chromium-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium-desktop] › tests/e2e/workspace-shell-visual.spec.ts:156:2 › matches the controlled light shell reference 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      9112 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: workspace-shell-light.png
+
+    Call log:
+      - Expect screenshot with timeout 10000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 9112 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 9112 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      162 |     await hoverContextualRowWithoutShift(page);
+      163 |
+    > 164 |     await expect(page).toHaveScreenshot(`workspace-shell-${theme}.png`, {
+          |                       ^
+      165 |       animations: "disabled",
+      166 |       caret: "hide",
+      167 |       clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height },
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/workspace-shell-visual.spec.ts:164:23
+
+    attachment #1: workspace-shell-light (image/png) ───────────────────────────────────────────────
+    Expected: tests/e2e/workspace-shell-visual.spec.ts-snapshots/workspace-shell-light-chromium-desktop-linux.png
+    Received: test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop/workspace-shell-light-actual.png
+    Diff:     test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop/workspace-shell-light-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      9112 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: workspace-shell-light.png
+
+    Call log:
+      - Expect screenshot with timeout 10000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 9112 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 9112 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      162 |     await hoverContextualRowWithoutShift(page);
+      163 |
+    > 164 |     await expect(page).toHaveScreenshot(`workspace-shell-${theme}.png`, {
+          |                       ^
+      165 |       animations: "disabled",
+      166 |       caret: "hide",
+      167 |       clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height },
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/workspace-shell-visual.spec.ts:164:23
+
+    attachment #1: workspace-shell-light (image/png) ───────────────────────────────────────────────
+    Expected: tests/e2e/workspace-shell-visual.spec.ts-snapshots/workspace-shell-light-chromium-desktop-linux.png
+    Received: test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop-retry1/workspace-shell-light-actual.png
+    Diff:     test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop-retry1/workspace-shell-light-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop-retry1/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/workspace-shell-visual-mat-efa3f-olled-light-shell-reference-chromium-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium-desktop] › tests/e2e/workspace-shell-visual.spec.ts:172:2 › matches the controlled light settings reference 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      16943 pixels (ratio 0.02 of all image pixels) are different.
+
+      Snapshot: settings-shell-light.png
+
+    Call log:
+      - Expect screenshot with timeout 10000ms

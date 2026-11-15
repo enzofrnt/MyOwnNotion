@@ -1,0 +1,201 @@
+# run=43324403378 attempt=1 job=131553386362 name=Playwright journeys (webkit-mobile)
+  1) [webkit-mobile] › tests/e2e/database-page-flow.spec.ts:13:2 › database full flow pins original headers and reads 1000 cards/rows through the page 
+
+    Error: expect(locator).toBeInViewport() failed
+
+    Locator:  locator('.database-grid tbody tr[data-index]').filter({ hasText: 'Carte 0999' })
+    Expected: in viewport
+    Received: viewport ratio 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "to.be.in.viewport" with timeout 10000ms
+      - waiting for locator('.database-grid tbody tr[data-index]').filter({ hasText: 'Carte 0999' })
+        23 × locator resolved to <tr data-index="999" aria-rowindex="1001">…</tr>
+           - unexpected value "viewport ratio 0"
+
+
+      116 |         )
+      117 |         .toBe(true);
+    > 118 |       await expect(last).toBeInViewport();
+          |                         ^
+      119 |       expect(await surface.evaluate((node) => node.scrollTop)).toBe(0);
+      120 |       await main.evaluate((node) => {
+      121 |         node.scrollTop = node.scrollHeight;
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-page-flow.spec.ts:118:25
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-page-flow-databas-5eab3-cards-rows-through-the-page-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-page-flow-databas-5eab3-cards-rows-through-the-page-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-page-flow-databas-5eab3-cards-rows-through-the-page-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-page-flow-databas-5eab3-cards-rows-through-the-page-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:110:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.entry-panel').locator('.database-field--entry').filter({ has: getByRole('button', { name: 'Modifier la propriété Total', exact: true }) })
+    Expected substring: "30"
+    Received string:    "Total10"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "to.have.text" with timeout 10000ms
+      - waiting for locator('.entry-panel').locator('.database-field--entry').filter({ has: getByRole('button', { name: 'Modifier la propriété Total', exact: true }) })
+        24 × locator resolved to <div class="database-field database-field--entry">…</div>
+           - unexpected value "Total10"
+
+
+      193 |     has: page.getByRole("button", { name: "Modifier la propriété Double", exact: true }),
+      194 |   });
+    > 195 |   await expect(total).toContainText("30");
+          |                      ^
+      196 |   await expect(double).toContainText("60");
+      197 |   await page.getByRole("button", { name: "Fermer le volet" }).click();
+      198 |   const row = page.getByRole("row").filter({ hasText: "057 Project" });
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:195:22
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:315:0 › a two-way relation shows on both sides and reads the same link 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator:  getByRole('textbox', { name: 'Nom de la propriété liée' })
+    Expected: "Projets liés"
+    Received: ""
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "to.have.value" with timeout 10000ms
+      - waiting for getByRole('textbox', { name: 'Nom de la propriété liée' })
+        24 × locator resolved to <input value="" data-size="compact" class="ui-native-input" placeholder="057 Pair amounts" aria-label="Nom de la propriété liée"/>
+           - unexpected value ""
+
+
+      334 |   // The activation action stays disabled until the linked name is committed;
+      335 |   // WebKit can drop the input event of a fill issued right after the click.
+    > 336 |   await expect(linkedName).toHaveValue("Projets liés");
+          |                           ^
+      337 |   const activate = page.getByRole("menuitem", { name: "Activer la relation liée" });
+      338 |   await expect(activate).toBeEnabled();
+      339 |   await activate.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:336:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 flaky
+    [webkit-mobile] › tests/e2e/database-page-flow.spec.ts:13:2 › database full flow pins original headers and reads 1000 cards/rows through the page 
+    [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:110:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+    [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:315:0 › a two-way relation shows on both sides and reads the same link 
+  15 skipped
+  104 passed (16.4m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-mobile
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 131 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-mobile.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 33554432
+Uploaded bytes 35438324
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 1179445f7b002eaf822e0d1edbe9188f74d9d388454a4f190ae2f7b894835f27
+Finalizing artifact upload
+Artifact playwright-report-webkit-mobile successfully finalized. Artifact ID 13993296873
+Artifact playwright-report-webkit-mobile has been successfully uploaded! Final size is 35438324 bytes. Artifact ID is 13993296873
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43324403378/artifacts/13993296873
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__5d04200c-31db-46f4-95a9-a48de6bd7a23.__oven-sh_setup-bun]
+##[end-action id=__5d04200c-31db-46f4-95a9-a48de6bd7a23.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.0
+Temporarily overriding HOME='/home/runner/work/_temp/1a953777-4cf7-42ae-913f-41a57124a6a7' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-60c8b419-9b2a-4962-995c-87d8fe97c842.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-60c8b419\-9b2a\-4962\-995c\-87d8fe97c842\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-60c8b419-9b2a-4962-995c-87d8fe97c842.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-60c8b419\-9b2a\-4962\-995c\-87d8fe97c842\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-60c8b419-9b2a-4962-995c-87d8fe97c842.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-60c8b419\-9b2a\-4962\-995c\-87d8fe97c842\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-60c8b419-9b2a-4962-995c-87d8fe97c842.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-60c8b419\-9b2a\-4962\-995c\-87d8fe97c842\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-60c8b419-9b2a-4962-995c-87d8fe97c842.config'
+Cleaning up orphan processes

@@ -1,0 +1,3 @@
+# run=43358068123 attempt=1 job=131664974172 name=Playwright journeys (webkit-mobile)
+  ✘   16 [webkit-mobile] › tests/e2e/file-preview.spec.ts:210:2 › a preview cannot reach the workspace › the frame never carries allow-same-origin (37.2s)
+  1) [webkit-mobile] › tests/e2e/file-preview.spec.ts:210:2 › a preview cannot reach the workspace › the frame never carries allow-same-origin 

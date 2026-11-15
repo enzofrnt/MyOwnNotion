@@ -1,0 +1,7 @@
+# run=43706222653 attempt=1 job=132787817023 name=Playwright journeys (firefox-desktop 3/3)
+  ✘   21 [firefox-desktop] › tests/e2e/block-editor.spec.ts:254:2 › the contextual BlockNote controls › formats a selection and creates a durable internal page link in two actions (17.4s)
+  ✘   40 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:224:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (27.9s)
+  ✘   41 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container (38.5s)
+  1) [firefox-desktop] › tests/e2e/block-editor.spec.ts:254:2 › the contextual BlockNote controls › formats a selection and creates a durable internal page link in two actions 
+  2) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:224:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+  3) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container 

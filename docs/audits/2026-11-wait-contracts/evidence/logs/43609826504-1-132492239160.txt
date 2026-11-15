@@ -1,0 +1,3 @@
+# run=43609826504 attempt=1 job=132492239160 name=Playwright journeys (webkit-desktop 2/3)
+  ✘   32 [webkit-desktop] › tests/e2e/database-entry-properties.spec.ts:14:1 › configures entry properties directly, shares symbols, and preserves independent property order (29.7s)
+  1) [webkit-desktop] › tests/e2e/database-entry-properties.spec.ts:14:1 › configures entry properties directly, shares symbols, and preserves independent property order 

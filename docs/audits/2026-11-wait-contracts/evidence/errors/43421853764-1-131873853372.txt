@@ -1,0 +1,13 @@
+# run=43421853764 attempt=1 job=131873853372 name=Unit, property & coverage
+     ✓ reports a canonical rename as a stale restore head instead of an internal error 2021ms
+ ✓  database-integration  packages/database/tests/security-repository-errors.spec.ts (3 tests) 10ms
+     ✓ shows a retryable error state for an undiscovered embedded source 314ms
+     ✓ retains a fully discovered canvas with a retryable error when its refresh fails 341ms
+     ✓ opens the property editor without crashing and renames automatically 697ms
+ ✓  web  apps/web/tests/error-boundary.spec.tsx (2 tests) 79ms
+AssertionError: expected null not to be null
+##[error]AssertionError: expected null not to be null
+error: "vitest" exited with code 1
+error: script "test:coverage" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

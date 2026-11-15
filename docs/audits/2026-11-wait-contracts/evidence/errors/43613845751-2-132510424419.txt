@@ -1,0 +1,132 @@
+# run=43613845751 attempt=2 job=132510424419 name=Playwright journeys (firefox-desktop 3/3)
+  1) [firefox-desktop] › tests/e2e/accessibility.spec.ts:412:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+
+    Error: evaluate: Page crashed
+
+      401 |       .include(".database-page")
+      402 |       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    > 403 |       .analyze();
+          |        ^
+      404 |     return results.violations
+      405 |       .filter(
+      406 |         (violation: { impact?: string | null | undefined }) =>
+        at runPartialRecursive (/home/runner/work/MyOwnNotion/MyOwnNotion/node_modules/.bun/@axe-core+playwright@4.13.0+2a7b4cfcd80375bc/node_modules/@axe-core/playwright/dist/index.mjs:283:34)
+        at async analyze (/home/runner/work/MyOwnNotion/MyOwnNotion/node_modules/.bun/@axe-core+playwright@4.13.0+2a7b4cfcd80375bc/node_modules/@axe-core/playwright/dist/index.mjs:210:39)
+        at async seriousViolations (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:403:8)
+        at async <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:479:20)
+        at processTicksAndRejections (native:7:39)
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [firefox-desktop] › tests/e2e/accessibility.spec.ts:412:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  10 skipped
+  106 passed (11.2m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+with:
+  name: blob-report-firefox-desktop-3-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-firefox-desktop-3-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 6815822
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is a19f6c2289da874a0bca37c2cbd8dfc6fd1861e599efca35ef469c66aa66ab3f
+Finalizing artifact upload
+Artifact blob-report-firefox-desktop-3-3 successfully finalized. Artifact ID 14122313319
+Artifact blob-report-firefox-desktop-3-3 has been successfully uploaded! Final size is 6815822 bytes. Artifact ID is 14122313319
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43613845751/artifacts/14122313319
+##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+with:
+  name: test-results-firefox-desktop-3-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 42 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-firefox-desktop-3-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 7212976
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is ce2598cac12c1803175015e6b5cc42089be35040cf141485d5de9ae13b7ea148
+Finalizing artifact upload
+Artifact test-results-firefox-desktop-3-3 successfully finalized. Artifact ID 14122597741
+Artifact test-results-firefox-desktop-3-3 has been successfully uploaded! Final size is 7212976 bytes. Artifact ID is 14122597741
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43613845751/artifacts/14122597741
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__8ee1e049-5f45-40a9-a16e-b92b76d69668.__oven-sh_setup-bun]
+##[end-action id=__8ee1e049-5f45-40a9-a16e-b92b76d69668.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/5d223875-6a7b-45cb-bcf4-f7ac22db80b2' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-cde4e477-fc43-4c30-845c-34bfd76e1a3f.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-cde4e477\-fc43\-4c30\-845c\-34bfd76e1a3f\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-cde4e477-fc43-4c30-845c-34bfd76e1a3f.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-cde4e477\-fc43\-4c30\-845c\-34bfd76e1a3f\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-cde4e477-fc43-4c30-845c-34bfd76e1a3f.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-cde4e477\-fc43\-4c30\-845c\-34bfd76e1a3f\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-cde4e477-fc43-4c30-845c-34bfd76e1a3f.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-cde4e477\-fc43\-4c30\-845c\-34bfd76e1a3f\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-cde4e477-fc43-4c30-845c-34bfd76e1a3f.config'
+Cleaning up orphan processes

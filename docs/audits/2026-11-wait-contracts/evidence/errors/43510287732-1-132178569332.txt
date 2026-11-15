@@ -1,0 +1,15 @@
+# run=43510287732 attempt=1 job=132178569332 name=Unit, property & coverage
+  digest-mismatch: error
+     ✓ reports a canonical rename as a stale restore head instead of an internal error 1941ms
+   ✓ a crash at each stage before the scrub (7)
+     ✓ resumes from a crash and still finishes 322ms
+ ✓  database-integration  packages/database/tests/security-repository-errors.spec.ts (3 tests) 12ms
+     ✓ retains a fully discovered canvas with a retryable error when its refresh fails 539ms
+     ✓ opens the property editor without crashing and renames automatically 805ms
+ ✓  web  apps/web/tests/error-boundary.spec.tsx (2 tests) 103ms
+AssertionError: expected null not to be null
+##[error]AssertionError: expected null not to be null
+error: "vitest" exited with code 1
+error: script "test:coverage" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

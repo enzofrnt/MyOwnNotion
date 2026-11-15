@@ -1,0 +1,4 @@
+# run=43376534470 attempt=1 job=131724461433 name=Unit, property & coverage
+ FAIL   web  tests/entry-property-interaction.spec.tsx > entry property configuration menus > opens the property editor directly from click, right click and keyboard
+AssertionError: expected <input …(4)></input> to be null
+##[error]AssertionError: expected <input …(4)></input> to be null

@@ -1,0 +1,4 @@
+# run=43469992082 attempt=1 job=132039422496 name=Strict TypeScript
+@myownnotion/api:typecheck         | tests/full-backup-service-branches.spec.ts(25,26): error TS2345: Argument of type 'Stats | BigIntStats | undefined' is not assignable to parameter of type 'object'.
+@myownnotion/api:typecheck         | tests/full-backup-service-branches.spec.ts(27,59): error TS2339: Property 'size' does not exist on type 'object'.
+##[error]Process completed with exit code 2.

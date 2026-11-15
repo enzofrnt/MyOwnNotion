@@ -1,0 +1,208 @@
+# run=43285025189 attempt=1 job=131416160532 name=Playwright journeys (webkit-mobile)
+  1) [webkit-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      189 |             );
+      190 |           })
+    > 191 |           .toBe(true);
+          |           ^
+      192 |       }
+      193 |       if (width === 320) {
+      194 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:191:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      189 |             );
+      190 |           })
+    > 191 |           .toBe(true);
+          |           ^
+      192 |       }
+      193 |       if (width === 320) {
+      194 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:191:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [webkit-mobile] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers 
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 324
+    Received:    336.875
+
+      211 |       // real overflow (not the 1 px assertion) so a genuinely off-screen sheet
+      212 |       // still fails.
+    > 213 |       expect(rect.x + rect.width).toBeLessThanOrEqual(width + 4);
+          |                                  ^
+      214 |       const path = testInfo.outputPath(`column-order-${theme}-${width}.png`);
+      215 |       await settings.screenshot({ path });
+      216 |       await testInfo.attach(`column-order-${theme}-${width}`, { path, contentType: "image/png" });
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-views.spec.ts:213:34
+
+    attachment #1: column-order-light-1280 (image/png) ─────────────────────────────────────────────
+    test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-mobile/attachments/column-order-light-1280-2998dd72674d094854d30d88fd26dd0ddeadd803.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-mobile/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 324
+    Received:    336.70465087890625
+
+      211 |       // real overflow (not the 1 px assertion) so a genuinely off-screen sheet
+      212 |       // still fails.
+    > 213 |       expect(rect.x + rect.width).toBeLessThanOrEqual(width + 4);
+          |                                  ^
+      214 |       const path = testInfo.outputPath(`column-order-${theme}-${width}.png`);
+      215 |       await settings.screenshot({ path });
+      216 |       await testInfo.attach(`column-order-${theme}-${width}`, { path, contentType: "image/png" });
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-views.spec.ts:213:34
+
+    attachment #1: column-order-light-1280 (image/png) ─────────────────────────────────────────────
+    test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-mobile-retry1/attachments/column-order-light-1280-14f0d5f03686e8db89496b713bf974b1d8793f3e.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-mobile-retry1/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [webkit-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+    [webkit-mobile] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers 
+  15 skipped
+  105 passed (12.7m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-mobile
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 114 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-mobile.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 33554432
+Uploaded bytes 41943040
+Uploaded bytes 50331648
+Uploaded bytes 58720256
+Uploaded bytes 64617695
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is d86255131ea6037f911acbc3007ce22b8e46918d81a269fd88f9bbd47e4a452b
+Finalizing artifact upload
+Artifact playwright-report-webkit-mobile successfully finalized. Artifact ID 13976006094
+Artifact playwright-report-webkit-mobile has been successfully uploaded! Final size is 64617695 bytes. Artifact ID is 13976006094
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43285025189/artifacts/13976006094
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__46a7fb30-d897-4503-b193-2d32890b9c39.__oven-sh_setup-bun]
+##[end-action id=__46a7fb30-d897-4503-b193-2d32890b9c39.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.0
+Temporarily overriding HOME='/home/runner/work/_temp/51d05e08-43e6-4b56-b6fc-2fb3ddd1624c' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-22e7ae5f-6ba5-4752-a5db-42ede112fbce.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-22e7ae5f\-6ba5\-4752\-a5db\-42ede112fbce\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-22e7ae5f-6ba5-4752-a5db-42ede112fbce.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-22e7ae5f\-6ba5\-4752\-a5db\-42ede112fbce\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-22e7ae5f-6ba5-4752-a5db-42ede112fbce.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-22e7ae5f\-6ba5\-4752\-a5db\-42ede112fbce\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-22e7ae5f-6ba5-4752-a5db-42ede112fbce.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-22e7ae5f\-6ba5\-4752\-a5db\-42ede112fbce\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-22e7ae5f-6ba5-4752-a5db-42ede112fbce.config'
+Cleaning up orphan processes

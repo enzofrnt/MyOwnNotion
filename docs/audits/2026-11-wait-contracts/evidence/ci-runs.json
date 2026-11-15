@@ -1,0 +1,1005 @@
+{
+  "source": "GET /repos/enzofrnt/MyOwnNotion/actions/workflows/ci.yml/runs?per_page=100 (full payload kept outside the repository)",
+  "workflow_runs": [
+    {
+      "id": 43722479700,
+      "run_attempt": 2,
+      "event": "push",
+      "conclusion": "success",
+      "created_at": "2026-11-15T14:05:59Z",
+      "head_sha": "0679cdeb1ba43d4e0d0658c228e7b35067b4c215",
+      "head_branch": "main",
+      "display_title": "Merge pull request #202 from enzofrnt/chore/059-deps-consolidation-st…"
+    },
+    {
+      "id": 43709453347,
+      "run_attempt": 2,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-15T11:32:55Z",
+      "head_sha": "f73b449c70f8b055be9b1363ab2986c1d58f2192",
+      "head_branch": "chore/059-deps-consolidation-stability",
+      "display_title": "chore(deps): consolidate the open Dependabot updates and stabilise the CI"
+    },
+    {
+      "id": 43706222653,
+      "run_attempt": 1,
+      "event": "schedule",
+      "conclusion": "failure",
+      "created_at": "2026-11-15T10:53:09Z",
+      "head_sha": "e35dd26893e5ac993cdcaf5fbe49f4044df91de4",
+      "head_branch": "main",
+      "display_title": "CI"
+    },
+    {
+      "id": 43706172859,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-15T10:52:31Z",
+      "head_sha": "20fd3ac21a4a3d4cca4c1913d107583fe8983a60",
+      "head_branch": "chore/059-deps-consolidation-stability",
+      "display_title": "chore(deps): consolidate the open Dependabot updates and stabilise the CI"
+    },
+    {
+      "id": 43705898794,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-15T10:49:04Z",
+      "head_sha": "d5f94502988cb99ea41652b4d58d430383fcdd28",
+      "head_branch": "chore/059-deps-consolidation-stability",
+      "display_title": "chore(deps): consolidate the open Dependabot updates and stabilise the CI"
+    },
+    {
+      "id": 43617700745,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-14T16:49:27Z",
+      "head_sha": "52ffa7c0fb06134feb7f73ffcef7203d32b2385c",
+      "head_branch": "chore/059-deps-consolidation-stability",
+      "display_title": "chore(deps): consolidate the open Dependabot updates and stabilise the CI"
+    },
+    {
+      "id": 43613845751,
+      "run_attempt": 2,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-14T16:07:13Z",
+      "head_sha": "8fc7cde275e5d03ba291477982683d8b4f8cb8b6",
+      "head_branch": "chore/059-deps-consolidation-stability",
+      "display_title": "chore(deps): consolidate the open Dependabot updates and stabilise the CI"
+    },
+    {
+      "id": 43611677776,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-14T15:43:11Z",
+      "head_sha": "05da5f9ee105d454140ee39bae4882a86177e7f0",
+      "head_branch": "chore/059-deps-consolidation-stability",
+      "display_title": "chore(deps): consolidate the open Dependabot updates and stabilise the CI"
+    },
+    {
+      "id": 43609826504,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-14T15:22:21Z",
+      "head_sha": "e533326aedae199ca6a1626c857c8ba76d08c781",
+      "head_branch": "chore/059-deps-consolidation-stability",
+      "display_title": "chore(deps): consolidate the open Dependabot updates and stabilise the CI"
+    },
+    {
+      "id": 43587630795,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-14T10:56:32Z",
+      "head_sha": "ce028e7f69a1a4ebf5e2e50a510ae091b944aa4b",
+      "head_branch": "dependabot/bun/minor-and-patch-12818c83d2",
+      "display_title": "chore(deps): bump the minor-and-patch group across 1 directory with 38 updates"
+    },
+    {
+      "id": 43587343230,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-14T10:52:46Z",
+      "head_sha": "87ddea11f46e318f2397bfbbb317f62dfd7124da",
+      "head_branch": "dependabot/bun/fastify/multipart-10.1.6",
+      "display_title": "chore(deps): bump @fastify/multipart from 9.4.0 to 10.1.8"
+    },
+    {
+      "id": 43587333718,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-14T10:52:38Z",
+      "head_sha": "4b8d10e985b636a17cd55541e1e25224b8a2877e",
+      "head_branch": "dependabot/github_actions/actions-9eaf89b02f",
+      "display_title": "ci(deps): bump the actions group across 1 directory with 4 updates"
+    },
+    {
+      "id": 43587332746,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-14T10:52:37Z",
+      "head_sha": "108f464672f37447da9c4c87989da2a1798baa85",
+      "head_branch": "dependabot/bun/types/node-26.6.6",
+      "display_title": "chore(deps-dev): bump @types/node from 24.13.3 to 26.6.6"
+    },
+    {
+      "id": 43587097289,
+      "run_attempt": 1,
+      "event": "push",
+      "conclusion": "failure",
+      "created_at": "2026-11-14T10:49:39Z",
+      "head_sha": "e35dd26893e5ac993cdcaf5fbe49f4044df91de4",
+      "head_branch": "main",
+      "display_title": "Merge pull request #200 from enzofrnt/ci/058-e2e-gate-throughput"
+    },
+    {
+      "id": 43585542265,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-14T10:29:52Z",
+      "head_sha": "82430ed1064bfb85269aa8536a535f3a670d64a6",
+      "head_branch": "ci/058-e2e-gate-throughput",
+      "display_title": "ci(e2e): faster and stricter browser gate — fast failure, self-sizing lanes, merged report (058)"
+    },
+    {
+      "id": 43583883186,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-14T10:09:00Z",
+      "head_sha": "a3f4460ac624dc31a7567e5271ecf1705e323b8c",
+      "head_branch": "ci/058-e2e-gate-throughput",
+      "display_title": "ci(e2e): faster and stricter browser gate — fast failure, self-sizing lanes, merged report (058)"
+    },
+    {
+      "id": 43574789066,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-14T08:13:40Z",
+      "head_sha": "20e3ba72ac239f957689662ee676890d01a72f16",
+      "head_branch": "ci/058-e2e-gate-throughput",
+      "display_title": "ci(e2e): faster and stricter browser gate — fast failure, self-sizing lanes, merged report (058)"
+    },
+    {
+      "id": 43573131882,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-14T07:52:39Z",
+      "head_sha": "20f1748427a35e0d9aa7976980361eefdd44601b",
+      "head_branch": "ci/058-e2e-gate-throughput",
+      "display_title": "ci(e2e): faster and stricter browser gate — fast failure, self-sizing lanes, merged report (058)"
+    },
+    {
+      "id": 43524911626,
+      "run_attempt": 2,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-13T23:09:07Z",
+      "head_sha": "ea1e956cb3bead288d17c261378dea625551f551",
+      "head_branch": "ci/058-e2e-gate-throughput",
+      "display_title": "ci(e2e): faster and stricter browser gate — fast failure, self-sizing lanes, merged report (058)"
+    },
+    {
+      "id": 43521962935,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T22:46:16Z",
+      "head_sha": "3f041ccac31d01ed3489f14aec50c4a8e6b3571c",
+      "head_branch": "ci/058-e2e-gate-throughput",
+      "display_title": "ci(e2e): faster and stricter browser gate — fast failure, self-sizing lanes, merged report (058)"
+    },
+    {
+      "id": 43519009785,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T22:24:24Z",
+      "head_sha": "c8ca5059ba9c577205f9e21c45b760cfcf2aecdc",
+      "head_branch": "ci/058-e2e-gate-throughput",
+      "display_title": "ci(e2e): faster and stricter browser gate — fast failure, self-sizing lanes, merged report (058)"
+    },
+    {
+      "id": 43516042267,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-13T22:03:22Z",
+      "head_sha": "da2411c7769a1b55bf2e0911b7a100a39956dfde",
+      "head_branch": "ci/058-e2e-gate-throughput",
+      "display_title": "ci(e2e): faster and stricter browser gate — fast failure, self-sizing lanes, merged report (058)"
+    },
+    {
+      "id": 43513463573,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T21:45:10Z",
+      "head_sha": "4f496afd27379f862ad75404222faceda89906a5",
+      "head_branch": "ci/058-self-sizing-lanes",
+      "display_title": "ci(e2e): size isolated browser lanes from the selected journeys (058, lot 2)"
+    },
+    {
+      "id": 43510287732,
+      "run_attempt": 1,
+      "event": "workflow_dispatch",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T21:23:38Z",
+      "head_sha": "ef51744f613b69c6b1088ef7ccb20c525cb4fbf0",
+      "head_branch": "ci/058-self-sizing-lanes",
+      "display_title": "CI"
+    },
+    {
+      "id": 43497246937,
+      "run_attempt": 2,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-13T19:58:53Z",
+      "head_sha": "ef51744f613b69c6b1088ef7ccb20c525cb4fbf0",
+      "head_branch": "ci/058-self-sizing-lanes",
+      "display_title": "ci(e2e): size isolated browser lanes from the selected journeys (058, lot 2)"
+    },
+    {
+      "id": 43497237616,
+      "run_attempt": 2,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-13T19:58:50Z",
+      "head_sha": "9bde16d8e99c74afc813e5735f67e0c48f88c99f",
+      "head_branch": "ci/058-e2e-gate-throughput",
+      "display_title": "ci(e2e): faster and stricter browser gate — fast failure, self-sizing lanes, merged report (058)"
+    },
+    {
+      "id": 43470717395,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T17:13:53Z",
+      "head_sha": "f54c9bb6de957ab6e67cf89d77e315795af0f1d2",
+      "head_branch": "dependabot/bun/minor-and-patch-12818c83d2",
+      "display_title": "chore(deps): bump the minor-and-patch group across 1 directory with 38 updates"
+    },
+    {
+      "id": 43470032368,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T17:09:54Z",
+      "head_sha": "fb249980819b771b95d8994bd383726ac3973edc",
+      "head_branch": "dependabot/bun/fastify/multipart-10.1.6",
+      "display_title": "chore(deps): bump @fastify/multipart from 9.4.0 to 10.1.8"
+    },
+    {
+      "id": 43469992082,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T17:09:40Z",
+      "head_sha": "1d0204b78c3a57814bb82f6c0cdd167d3a73f799",
+      "head_branch": "dependabot/bun/types/node-26.6.6",
+      "display_title": "chore(deps-dev): bump @types/node from 24.13.3 to 26.6.6"
+    },
+    {
+      "id": 43469487647,
+      "run_attempt": 1,
+      "event": "push",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T17:06:42Z",
+      "head_sha": "b0aa58a4438d08cacf0629c20f6268f3ee74a0f6",
+      "head_branch": "main",
+      "display_title": "Merge pull request #199 from enzofrnt/chore/vitest-5"
+    },
+    {
+      "id": 43459822957,
+      "run_attempt": 2,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-13T16:09:20Z",
+      "head_sha": "fccbbd6031588a2dc9529cd09def8abaddb50c8a",
+      "head_branch": "chore/vitest-5",
+      "display_title": "chore(deps): upgrade Vitest to 5.1.0 with its coverage provider"
+    },
+    {
+      "id": 43455992441,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T15:46:39Z",
+      "head_sha": "cfdb493005e09bb0b83502a489e8a1b15da6f02e",
+      "head_branch": "chore/vitest-5",
+      "display_title": "chore(deps): upgrade Vitest to 5.1.0 with its coverage provider"
+    },
+    {
+      "id": 43455692444,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T15:44:52Z",
+      "head_sha": "cfdb493005e09bb0b83502a489e8a1b15da6f02e",
+      "head_branch": "chore/vitest-5",
+      "display_title": "chore(deps): upgrade Vitest to 5.1.0 with its coverage provider"
+    },
+    {
+      "id": 43436401041,
+      "run_attempt": 3,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T13:45:13Z",
+      "head_sha": "e969c0573ff044a066de2d1af07b24e0d6958b34",
+      "head_branch": "chore/vitest-5",
+      "display_title": "chore(deps): upgrade Vitest to 5.1.0 with its coverage provider"
+    },
+    {
+      "id": 43436361292,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T13:44:58Z",
+      "head_sha": "e969c0573ff044a066de2d1af07b24e0d6958b34",
+      "head_branch": "chore/vitest-5",
+      "display_title": "chore(deps): upgrade Vitest to 5.1.0 with its coverage provider"
+    },
+    {
+      "id": 43423809991,
+      "run_attempt": 2,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-13T12:16:43Z",
+      "head_sha": "69279563ad6ab226b1eadd2ac16ba90150aa692d",
+      "head_branch": "chore/vitest-5",
+      "display_title": "chore(deps): upgrade Vitest to 5.1.0 with its coverage provider"
+    },
+    {
+      "id": 43421853764,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T12:02:35Z",
+      "head_sha": "6e2bdcfe66ca2e13949cd138befb7e87f07df682",
+      "head_branch": "chore/vitest-5",
+      "display_title": "chore(deps): upgrade Vitest to 5.1.0 with its coverage provider"
+    },
+    {
+      "id": 43419522076,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T11:44:58Z",
+      "head_sha": "b463ef91d49370bc746ecd2c67793e73b00a910d",
+      "head_branch": "chore/vitest-5",
+      "display_title": "chore(deps): upgrade Vitest to 5.1.0 with its coverage provider"
+    },
+    {
+      "id": 43417925560,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-13T11:32:48Z",
+      "head_sha": "050cc85b32d6dac6d1a3c8c99df4929a47bf9227",
+      "head_branch": "dependabot/github_actions/actions-9eaf89b02f",
+      "display_title": "ci(deps): bump the actions group across 1 directory with 4 updates"
+    },
+    {
+      "id": 43417465029,
+      "run_attempt": 1,
+      "event": "push",
+      "conclusion": "success",
+      "created_at": "2026-11-13T11:29:26Z",
+      "head_sha": "018f72ee23d8a4c9fad3ad62633e5d8653fcfd26",
+      "head_branch": "main",
+      "display_title": "Merge pull request #189 from enzofrnt/dependabot/github_actions/actio…"
+    },
+    {
+      "id": 43392306416,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T08:19:20Z",
+      "head_sha": "2a85422b320e9f842a633000b3aa893c7d32cfbc",
+      "head_branch": "dependabot/bun/minor-and-patch-12818c83d2",
+      "display_title": "chore(deps): bump the minor-and-patch group across 1 directory with 38 updates"
+    },
+    {
+      "id": 43391838230,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T08:15:42Z",
+      "head_sha": "56512778d29115160a3c554f104e39cb9ef91bae",
+      "head_branch": "dependabot/bun/fastify/multipart-10.1.6",
+      "display_title": "chore(deps): bump @fastify/multipart from 9.4.0 to 10.1.8"
+    },
+    {
+      "id": 43391821297,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T08:15:34Z",
+      "head_sha": "6843cf64e206f46d1767e3048476d1293372c9f9",
+      "head_branch": "dependabot/bun/types/node-26.6.6",
+      "display_title": "chore(deps-dev): bump @types/node from 24.13.3 to 26.6.6"
+    },
+    {
+      "id": 43391812508,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T08:15:31Z",
+      "head_sha": "f7d530f5cfc509915746e70a7dd355e57f4846fb",
+      "head_branch": "dependabot/bun/vitest/coverage-istanbul-5.0.5",
+      "display_title": "chore(deps-dev): bump @vitest/coverage-istanbul from 3.2.7 to 5.1.0"
+    },
+    {
+      "id": 43391791498,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T08:15:22Z",
+      "head_sha": "9ed7a832b63b9a19e22b43da547a46fa2eec579f",
+      "head_branch": "dependabot/github_actions/actions-9eaf89b02f",
+      "display_title": "ci(deps): bump the actions group across 1 directory with 4 updates"
+    },
+    {
+      "id": 43391759590,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T08:15:08Z",
+      "head_sha": "26a079de1947d53a156dd80f7e36cabb0833ebfb",
+      "head_branch": "dependabot/bun/vitest-5.0.5",
+      "display_title": "chore(deps-dev): bump vitest from 3.2.7 to 5.1.0"
+    },
+    {
+      "id": 43391752818,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-13T08:15:06Z",
+      "head_sha": "16290022b314dabf30513fbc5eafcb342b7f2450",
+      "head_branch": "dependabot/github_actions/actions/download-artifact-8.0.2",
+      "display_title": "ci(deps): bump actions/download-artifact from 7.0.0 to 8.0.2"
+    },
+    {
+      "id": 43391370583,
+      "run_attempt": 1,
+      "event": "push",
+      "conclusion": "success",
+      "created_at": "2026-11-13T08:12:08Z",
+      "head_sha": "13a797300694b30c9537ffd2e48e7a2dca35b414",
+      "head_branch": "main",
+      "display_title": "Merge pull request #196 from enzofrnt/codex/database-ui-parity"
+    },
+    {
+      "id": 43381499791,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "success",
+      "created_at": "2026-11-13T06:50:32Z",
+      "head_sha": "928cb135c74359b2a6a0ff765519f690d714a8be",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43378996877,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T06:28:56Z",
+      "head_sha": "ff6e2e55115ec0b2e65451987b908e14e3ea5f8c",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43376534470,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T06:07:43Z",
+      "head_sha": "db4494ef8d7de3a95e51ba781a09372e432af93b",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43374207601,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T05:46:31Z",
+      "head_sha": "c4beb4bb491594fc45aa3ab93ccc65b50b1922f7",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43368263709,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T04:52:06Z",
+      "head_sha": "776f10272ab35d9cdc9ed129d4c8736b83d2ff56",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43362692741,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T04:00:53Z",
+      "head_sha": "5c533e93779120f3072996fe5cb57ba8a1ea66d1",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43358068123,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T03:18:26Z",
+      "head_sha": "570ba939fd4f235b4fef60bb15960d235f68b4bc",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43355506538,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T02:55:54Z",
+      "head_sha": "747bb8b8982317e62f82cea52b92aadc286830c7",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43353143809,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T02:34:42Z",
+      "head_sha": "0d46366c0e2fabe0c65707b7452a66330098be1d",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43349203856,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T02:01:59Z",
+      "head_sha": "698b74d8feebd5abde8bd6929bb4b81d48077ee9",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43342261569,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-13T01:05:50Z",
+      "head_sha": "f4f633c204e5f2e897dc7066487019faf6c3ccb0",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43339349895,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-13T00:43:40Z",
+      "head_sha": "cbf3e1bdceb3bd2ee337ad9d16a7baac0c809f61",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43332025764,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T23:49:12Z",
+      "head_sha": "e227e5ff2242b23d6eb3a9de80ffd77f6ced4792",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43328783642,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T23:25:49Z",
+      "head_sha": "e6924b336bb495da838c0b6a433c68eb5542bb0d",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43324403378,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T22:56:01Z",
+      "head_sha": "0bc295686ca53a6738975f1c2352e5cb3ecd036e",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43320517723,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T22:30:24Z",
+      "head_sha": "22a1af0729413b2a0d0a0e5bba5a1b1be7691055",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43317240835,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T22:09:26Z",
+      "head_sha": "ddb11ecc0f0eae60b90de7b2ef3231bb24783978",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43313424264,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T21:45:46Z",
+      "head_sha": "642019af6a918ec67a06c17d74689298b44c4808",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43309730792,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T21:23:07Z",
+      "head_sha": "418284eeb787ec0b2b1ca649672763a87e3bfe9e",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43305875600,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T21:00:22Z",
+      "head_sha": "b16bb8991eb77975884b5b4c0523dd74bfc6945c",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43297784969,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T20:11:24Z",
+      "head_sha": "96bc9d09ba0c5323eb01a0be7ba7d6d0ee53ddf9",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43285025189,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T18:56:34Z",
+      "head_sha": "baa00938a8611c253ffbda3808ed81ffe4d3fd5d",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43266767307,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T17:11:28Z",
+      "head_sha": "910d18fed62fb3cdbf3630f3899182fa0cae064a",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43243026089,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T15:00:02Z",
+      "head_sha": "7e50e3c2e14777beac574c458ae55fa943185278",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43237314129,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T14:27:07Z",
+      "head_sha": "a041a671c742e4c63016dbbea6cddfcae50345b6",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43225166453,
+      "run_attempt": 2,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T13:13:01Z",
+      "head_sha": "f1ae7911ffd07d3587debcd442da4aeaafda00af",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43225124427,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T13:12:44Z",
+      "head_sha": "133842cb55a59d11e09ff3b9b3541552b0f4b188",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43225069277,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T13:12:23Z",
+      "head_sha": "7492f39fe1e86e6c74fe1bfdc1ff92058d536912",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43224433803,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T13:08:25Z",
+      "head_sha": "a63b356c7c02ce391f614d070260cad928358b3f",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43224350500,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T13:07:53Z",
+      "head_sha": "a5cd98e6eb25da2224416e01a90ae8bd802e8041",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43223200942,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T13:00:48Z",
+      "head_sha": "8e4fda41dfa27ef8b1c0c5d359cf74f8431ce37a",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43223152002,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T13:00:30Z",
+      "head_sha": "eb4978990e4f601966101c5aca30282081f5b49b",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43222441031,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:55:50Z",
+      "head_sha": "847dfa7bedb5c916087a82e27a159040a695cefe",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43221822130,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:51:52Z",
+      "head_sha": "d9a7d805707b136efc4a0232ddf801dfef485865",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43221810795,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T12:51:47Z",
+      "head_sha": "0077a724af48c1f7ce2947c89d4827228b7fa4a4",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43221093187,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:47:09Z",
+      "head_sha": "8750370b102603316860deb149b647e95fc65a74",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43221079381,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T12:47:04Z",
+      "head_sha": "f1802e83c92ec55761fb1bfea534ee6a837b0f1c",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43220926615,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:46:04Z",
+      "head_sha": "53111a8ccbf3415ccd4aa5c4995f045f20a796b4",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43220376801,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:42:31Z",
+      "head_sha": "7f1eb6f1762acf120f7031cf73418c8b08b887da",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43220359634,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "cancelled",
+      "created_at": "2026-11-12T12:42:25Z",
+      "head_sha": "4c7c726fc724a3555373eac7ac3693b7fbf324e8",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43220159854,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:41:06Z",
+      "head_sha": "5252053c296a63217b862b841ad0db1fe8f52fd0",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43219789305,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:38:42Z",
+      "head_sha": "ef796cbe4db1db1a7391652f91292c8a246121c2",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43219018923,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:33:43Z",
+      "head_sha": "d05538e25fc2eecf179a439fb637f76e91b77818",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43218482124,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:30:17Z",
+      "head_sha": "850d57b30a0adaa85be2d4d5aa362a45e91326c9",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43216291070,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:15:45Z",
+      "head_sha": "080faef03f50ed1fb8738dfde7006cfe9aee38c1",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43214799319,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T12:05:44Z",
+      "head_sha": "560dd7b1815b4a471a3d9c42cffc693ad2d01c9e",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43213300510,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T11:55:25Z",
+      "head_sha": "7e255e459b37b7e39cb2122e3faa72034b2eadbd",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43213269331,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T11:55:12Z",
+      "head_sha": "9f38a113533d5e3cc192f86d3e2a714380f8df5c",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43212741257,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T11:51:30Z",
+      "head_sha": "71d778ee926563d825112d8cbc76c7e47ac23066",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43210625696,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T11:36:37Z",
+      "head_sha": "78247656e6283515865698242c3d5cab05e75bca",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43210560379,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T11:36:09Z",
+      "head_sha": "9f87f48057b26b21e1237642eb9d47c0412dba26",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    },
+    {
+      "id": 43210470662,
+      "run_attempt": 1,
+      "event": "pull_request",
+      "conclusion": "failure",
+      "created_at": "2026-11-12T11:35:31Z",
+      "head_sha": "f698d1bec3fe0bb869cc9ee9b8afc981d2e49708",
+      "head_branch": "codex/database-ui-parity",
+      "display_title": "feat(databases): relations entre sources explicites et agrégations fiables"
+    }
+  ]
+}

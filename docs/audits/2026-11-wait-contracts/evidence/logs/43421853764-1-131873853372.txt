@@ -1,0 +1,4 @@
+# run=43421853764 attempt=1 job=131873853372 name=Unit, property & coverage
+ FAIL   web  apps/web/tests/database-page-interaction.spec.tsx > database page interaction durability > sets a property icon from the schema panel without changing its type or views
+AssertionError: expected null not to be null
+##[error]AssertionError: expected null not to be null

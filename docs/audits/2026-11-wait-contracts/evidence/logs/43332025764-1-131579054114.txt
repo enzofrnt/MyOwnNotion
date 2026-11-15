@@ -1,0 +1,3 @@
+# run=43332025764 attempt=1 job=131579054114 name=Playwright journeys (webkit-mobile)
+  ✘   91 [webkit-mobile] › tests/e2e/linked-databases.spec.ts:118:0 › loads beyond 1000 canonical entries using a visible cursor action (52.9s)
+  1) [webkit-mobile] › tests/e2e/linked-databases.spec.ts:118:0 › loads beyond 1000 canonical entries using a visible cursor action 

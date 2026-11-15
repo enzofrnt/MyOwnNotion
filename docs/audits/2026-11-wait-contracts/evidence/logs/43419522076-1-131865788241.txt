@@ -1,0 +1,2 @@
+# run=43419522076 attempt=1 job=131865788241 name=Unit, property & coverage
+ FAIL   api-contract  apps/api/tests/protected-file-references.integration.spec.ts > requires the matching protected runtime only when file identities exist

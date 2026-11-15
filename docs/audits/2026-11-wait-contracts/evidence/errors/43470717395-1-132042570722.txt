@@ -1,0 +1,20 @@
+# run=43470717395 attempt=1 job=132042570722 name=Unit, property & coverage
+  digest-mismatch: error
+     ✓ reports a canonical rename as a stale restore head instead of an internal error 1938ms
+ ✓  database-integration  packages/database/tests/security-repository-errors.spec.ts (3 tests) 15ms
+     ✓ shows a retryable error state for an undiscovered embedded source 386ms
+     ✓ retains a fully discovered canvas with a retryable error when its refresh fails 330ms
+     ✓ opens the property editor without crashing and renames automatically 742ms
+ ✓  web  apps/web/tests/error-boundary.spec.tsx (2 tests) 90ms
+AssertionError: expected '^11.3.7' to be '^11.3.0' // Object.is equality
+AssertionError: expected '0.57.0' to be '0.54.0' // Object.is equality
+AssertionError: expected '0.4.42' to be '0.4.37' // Object.is equality
+AssertionError: expected [ 491 ] to deeply equal []
+##[error]AssertionError: expected '^11.3.7' to be '^11.3.0' // Object.is equality
+##[error]AssertionError: expected '0.57.0' to be '0.54.0' // Object.is equality
+##[error]AssertionError: expected '0.4.42' to be '0.4.37' // Object.is equality
+##[error]AssertionError: expected [ 491 ] to deeply equal []
+error: "vitest" exited with code 1
+error: script "test:coverage" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

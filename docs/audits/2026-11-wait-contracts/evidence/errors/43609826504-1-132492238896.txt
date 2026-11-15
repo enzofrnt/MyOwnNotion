@@ -1,0 +1,9 @@
+# run=43609826504 attempt=1 job=132492238896 name=Unit, property & coverage
+  digest-mismatch: error
+     ✓ reports a canonical rename as a stale restore head instead of an internal error 2014ms
+oh no: Bun has crashed. This indicates a bug in Bun, not your code.
+To send a redacted crash report to Bun's team,
+error: Failed to run "vitest" due to signal SIGABRT
+error: script "test:coverage" exited with code 134
+error: script "ci:test:affected" exited with code 134
+##[error]Process completed with exit code 134.

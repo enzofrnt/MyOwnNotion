@@ -1,0 +1,10 @@
+# run=43419522076 attempt=1 job=131865950092 name=Strict TypeScript
+@myownnotion/client-core:typecheck | tests/desktop-key-storage.integration.spec.ts(20,25): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+@myownnotion/client-core:typecheck | tests/desktop-key-storage.integration.spec.ts(27,13): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+@myownnotion/client-core:typecheck | tests/desktop-key-storage.integration.spec.ts(28,24): error TS18046: 'value' is of type 'unknown'.
+@myownnotion/client-core:typecheck | tests/wrapping-secure-key-storage.spec.ts(1,63): error TS2307: Cannot find module 'node:crypto' or its corresponding type declarations.
+@myownnotion/client-core:typecheck | tests/wrapping-secure-key-storage.spec.ts(17,23): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+@myownnotion/client-core:typecheck | tests/wrapping-secure-key-storage.spec.ts(21,21): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+@myownnotion/client-core:typecheck | tests/wrapping-secure-key-storage.spec.ts(27,22): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+@myownnotion/client-core:typecheck | tests/wrapping-secure-key-storage.spec.ts(31,9): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+##[error]Process completed with exit code 2.

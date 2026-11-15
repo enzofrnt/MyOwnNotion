@@ -1,0 +1,118 @@
+# run=43332025764 attempt=1 job=131579054114 name=Playwright journeys (webkit-mobile)
+  1) [webkit-mobile] › tests/e2e/linked-databases.spec.ts:118:0 › loads beyond 1000 canonical entries using a visible cursor action 
+
+    Error: expect(locator).toBeInViewport() failed
+
+    Locator:  locator('.database-table:visible tr').filter({ hasText: 'Entry 1000' }).locator('[data-entry-trigger]').or(locator('[data-entry-trigger]:visible').filter({ hasText: 'Entry 1000' })).first()
+    Expected: in viewport
+    Received: viewport ratio 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "to.be.in.viewport" with timeout 10000ms
+      - waiting for locator('.database-table:visible tr').filter({ hasText: 'Entry 1000' }).locator('[data-entry-trigger]').or(locator('[data-entry-trigger]:visible').filter({ hasText: 'Entry 1000' })).first()
+        23 × locator resolved to <button type="button" tabindex="-1" data-size="square" data-variant="ghost" title="Ouvrir en volet latéral" aria-label="Ouvrir en volet latéral" class="ui-button database-cell-title__open" data-entry-trigger="01a1d247-aa22-7001-9330-f631792d1f46">…</button>
+           - unexpected value "viewport ratio 0"
+
+
+      233 |   await expect(last).toBeFocused();
+      234 |   await expect(last)
+    > 235 |     .toBeInViewport({ ratio: 1 })
+          |     ^
+      236 |     .catch(async (error: unknown) => {
+      237 |       console.error(
+      238 |         "[table-return] geometry",
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/linked-databases.spec.ts:235:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/linked-databases-loads-bey-66799-ing-a-visible-cursor-action-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/linked-databases-loads-bey-66799-ing-a-visible-cursor-action-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/linked-databases-loads-bey-66799-ing-a-visible-cursor-action-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/linked-databases-loads-bey-66799-ing-a-visible-cursor-action-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 flaky
+    [webkit-mobile] › tests/e2e/linked-databases.spec.ts:118:0 › loads beyond 1000 canonical entries using a visible cursor action 
+  6 skipped
+  105 passed (16.1m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-mobile
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 61 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-mobile.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 15594121
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 61be632e36d924a1c534f368d84c9ebb14aecaeaee73b6ef7c2d81d3f8e0b58b
+Finalizing artifact upload
+Artifact playwright-report-webkit-mobile successfully finalized. Artifact ID 13998340444
+Artifact playwright-report-webkit-mobile has been successfully uploaded! Final size is 15594121 bytes. Artifact ID is 13998340444
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43332025764/artifacts/13998340444
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__1c0a5405-9b5f-4ade-941f-329a488dd35c.__oven-sh_setup-bun]
+##[end-action id=__1c0a5405-9b5f-4ade-941f-329a488dd35c.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.0
+Temporarily overriding HOME='/home/runner/work/_temp/da3e0e10-26f1-43ea-8f9c-bd050c64ee88' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-3301e6a1-3373-446e-86a7-c6f1eb8c5150.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-3301e6a1\-3373\-446e\-86a7\-c6f1eb8c5150\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-3301e6a1-3373-446e-86a7-c6f1eb8c5150.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-3301e6a1\-3373\-446e\-86a7\-c6f1eb8c5150\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-3301e6a1-3373-446e-86a7-c6f1eb8c5150.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-3301e6a1\-3373\-446e\-86a7\-c6f1eb8c5150\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-3301e6a1-3373-446e-86a7-c6f1eb8c5150.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-3301e6a1\-3373\-446e\-86a7\-c6f1eb8c5150\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-3301e6a1-3373-446e-86a7-c6f1eb8c5150.config'
+Cleaning up orphan processes

@@ -1,0 +1,116 @@
+# run=43297784969 attempt=1 job=131460685004 name=Playwright journeys (firefox-desktop)
+  1) [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:272:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict 
+
+    Error: expect(received).toHaveLength(expected)
+
+    Expected length: 2
+    Received length: 1
+    Received array:  ["01a1d16f-5fcd-7000-90ea-c0cba715b2da"]
+
+      438 |         return revision.parentRevisionIds ?? [];
+      439 |       }, entryName);
+    > 440 |       expect(lineage).toHaveLength(2);
+          |                      ^
+      441 |       await expectPrivateCanonicalStorage([
+      442 |         databaseName,
+      443 |         entryName,
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-offline-sync.spec.ts:440:22
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-offline-sync-str-f4f91-olves-a-same-field-conflict-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-offline-sync-str-f4f91-olves-a-same-field-conflict-firefox-desktop/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-offline-sync-str-f4f91-olves-a-same-field-conflict-firefox-desktop/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-offline-sync-str-f4f91-olves-a-same-field-conflict-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-offline-sync-str-f4f91-olves-a-same-field-conflict-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 flaky
+    [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:272:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict 
+  26 skipped
+  317 passed (42.2m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-firefox-desktop
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 225 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-firefox-desktop.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 29102181
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 311bd0bbc252d6593c574434629549098767a0189a7c1d94a8c08dc763da8c3f
+Finalizing artifact upload
+Artifact playwright-report-firefox-desktop successfully finalized. Artifact ID 13983571971
+Artifact playwright-report-firefox-desktop has been successfully uploaded! Final size is 29102181 bytes. Artifact ID is 13983571971
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43297784969/artifacts/13983571971
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__3aa75772-f045-4b98-b3ce-e0d3c6f8deef.__oven-sh_setup-bun]
+##[end-action id=__3aa75772-f045-4b98-b3ce-e0d3c6f8deef.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/82aeb58d-2dd0-4055-b26c-c91cf237dc05' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-05d77d32-a830-4572-91be-8ab110e347cd.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-05d77d32\-a830\-4572\-91be\-8ab110e347cd\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-05d77d32-a830-4572-91be-8ab110e347cd.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-05d77d32\-a830\-4572\-91be\-8ab110e347cd\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-05d77d32-a830-4572-91be-8ab110e347cd.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-05d77d32\-a830\-4572\-91be\-8ab110e347cd\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-05d77d32-a830-4572-91be-8ab110e347cd.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-05d77d32\-a830\-4572\-91be\-8ab110e347cd\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-05d77d32-a830-4572-91be-8ab110e347cd.config'
+Cleaning up orphan processes

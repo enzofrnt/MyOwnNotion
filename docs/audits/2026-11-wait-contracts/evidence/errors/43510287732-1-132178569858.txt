@@ -1,0 +1,154 @@
+# run=43510287732 attempt=1 job=132178569858 name=Playwright journeys (firefox-desktop 3/4)
+  1) [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+
+    Error: evaluate: No elements found for include in page Context
+    validateContext@debugger eval code line 311 > eval:16463:17
+    Context@debugger eval code line 311 > eval:16446:24
+    _getFrameContexts@debugger eval code line 311 > eval:16481:24
+    @debugger eval code line 311 > eval:4:27
+    evaluate@debugger eval code:313:16
+    @debugger eval code:1:44
+    @debugger eval code:1:62
+
+        at validateContext@debugger eval code line 311 > eval:16463:17
+        at Context@debugger eval code line 311 > eval:16446:24
+        at _getFrameContexts@debugger eval code line 311 > eval:16481:24
+        at @debugger eval code line 311 > eval:4:27
+        at evaluate@debugger eval code:313:16
+        at @debugger eval code:1:44
+        at @debugger eval code:1:62
+        at runPartialRecursive (/home/runner/work/MyOwnNotion/MyOwnNotion/node_modules/.bun/@axe-core+playwright@4.13.0+7b158de583efec09/node_modules/@axe-core/playwright/dist/index.mjs:280:38)
+        at analyze (/home/runner/work/MyOwnNotion/MyOwnNotion/node_modules/.bun/@axe-core+playwright@4.13.0+7b158de583efec09/node_modules/@axe-core/playwright/dist/index.mjs:210:38)
+        at seriousViolations (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:399:7)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:475:19
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: evaluate: No elements found for include in page Context
+    validateContext@debugger eval code line 311 > eval:16463:17
+    Context@debugger eval code line 311 > eval:16446:24
+    _getFrameContexts@debugger eval code line 311 > eval:16481:24
+    @debugger eval code line 311 > eval:4:27
+    evaluate@debugger eval code:313:16
+    @debugger eval code:1:44
+    @debugger eval code:1:62
+
+        at validateContext@debugger eval code line 311 > eval:16463:17
+        at Context@debugger eval code line 311 > eval:16446:24
+        at _getFrameContexts@debugger eval code line 311 > eval:16481:24
+        at @debugger eval code line 311 > eval:4:27
+        at evaluate@debugger eval code:313:16
+        at @debugger eval code:1:44
+        at @debugger eval code:1:62
+        at runPartialRecursive (/home/runner/work/MyOwnNotion/MyOwnNotion/node_modules/.bun/@axe-core+playwright@4.13.0+7b158de583efec09/node_modules/@axe-core/playwright/dist/index.mjs:280:38)
+        at analyze (/home/runner/work/MyOwnNotion/MyOwnNotion/node_modules/.bun/@axe-core+playwright@4.13.0+7b158de583efec09/node_modules/@axe-core/playwright/dist/index.mjs:210:38)
+        at seriousViolations (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:399:7)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:475:19
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  12 skipped
+  76 passed (7.0m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-firefox-desktop-3-4
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 71 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-firefox-desktop-3-4.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 19438765
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 3c2a67b01418ae2256086a5b15c72948ba235cd685c63c5f2bdf1758dc8a375e
+Finalizing artifact upload
+Artifact playwright-report-firefox-desktop-3-4 successfully finalized. Artifact ID 14079121498
+Artifact playwright-report-firefox-desktop-3-4 has been successfully uploaded! Final size is 19438765 bytes. Artifact ID is 14079121498
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43510287732/artifacts/14079121498
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__4f8a6ef2-8740-4c33-a307-0a1f1fd94d44.__oven-sh_setup-bun]
+##[end-action id=__4f8a6ef2-8740-4c33-a307-0a1f1fd94d44.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/ab4e6629-5565-4d0e-b970-07beb0314859' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-e69ede5f-3a1a-4a0b-8a88-cfb0339ae280.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-e69ede5f\-3a1a\-4a0b\-8a88\-cfb0339ae280\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-e69ede5f-3a1a-4a0b-8a88-cfb0339ae280.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-e69ede5f\-3a1a\-4a0b\-8a88\-cfb0339ae280\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-e69ede5f-3a1a-4a0b-8a88-cfb0339ae280.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-e69ede5f\-3a1a\-4a0b\-8a88\-cfb0339ae280\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-e69ede5f-3a1a-4a0b-8a88-cfb0339ae280.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-e69ede5f\-3a1a\-4a0b\-8a88\-cfb0339ae280\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-e69ede5f-3a1a-4a0b-8a88-cfb0339ae280.config'
+Cleaning up orphan processes

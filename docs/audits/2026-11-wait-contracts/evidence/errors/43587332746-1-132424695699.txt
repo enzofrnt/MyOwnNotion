@@ -1,0 +1,145 @@
+# run=43587332746 attempt=1 job=132424695699 name=Playwright journeys (chromium-mobile 2/3)
+  1) [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:18:0 › edits math, preserves invalid source and supports history, slash and offline navigation 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('[data-testid="block-editor"]:visible').locator('[data-id="01a1d9c4-0ff4-7001-8c49-d48b83b95238"] .bn-block-content').first()
+    Expected substring: "/latex"
+    Received string:    ""
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "to.have.text" with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('[data-id="01a1d9c4-0ff4-7001-8c49-d48b83b95238"] .bn-block-content').first()
+        24 × locator resolved to <div class="bn-block-content" data-content-type="paragraph" data-is-empty-and-focused="true">…</div>
+           - unexpected value ""
+
+
+      80 |   await blankContent.click();
+      81 |   await page.keyboard.type("/latex");
+    > 82 |   await expect(blankContent).toContainText("/latex");
+         |                             ^
+      83 |   await page.getByRole("option", { name: /^Équation/ }).click();
+      84 |   await editor.getByRole("textbox", { name: "Source LaTeX" }).fill("a^2+b^2=c^2");
+      85 |   await editor.getByRole("button", { name: "Appliquer", exact: true }).click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/editor-math-contents.spec.ts:82:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/editor-math-contents-edits-98f2f-lash-and-offline-navigation-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/editor-math-contents-edits-98f2f-lash-and-offline-navigation-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/editor-math-contents-edits-98f2f-lash-and-offline-navigation-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/editor-math-contents-edits-98f2f-lash-and-offline-navigation-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:18:0 › edits math, preserves invalid source and supports history, slash and offline navigation 
+  5 skipped
+  105 passed (7.5m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: blob-report-chromium-mobile-2-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-chromium-mobile-2-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 6469900
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 974c1bf981bd0166328a1eae94eff4f6902aa2f68426ca5e477e91bf20bcb1fc
+Finalizing artifact upload
+Artifact blob-report-chromium-mobile-2-3 successfully finalized. Artifact ID 14110989563
+Artifact blob-report-chromium-mobile-2-3 has been successfully uploaded! Final size is 6469900 bytes. Artifact ID is 14110989563
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587332746/artifacts/14110989563
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: test-results-chromium-mobile-2-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 93 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-chromium-mobile-2-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 12350424
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 71c65983f21d624811ef992b633eed315351e0cbbb8edfe35e118729c6e8c105
+Finalizing artifact upload
+Artifact test-results-chromium-mobile-2-3 successfully finalized. Artifact ID 14112091784
+Artifact test-results-chromium-mobile-2-3 has been successfully uploaded! Final size is 12350424 bytes. Artifact ID is 14112091784
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587332746/artifacts/14112091784
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__3d2823ca-8f55-4be4-a27a-59ceb06b6ad0.__oven-sh_setup-bun]
+##[end-action id=__3d2823ca-8f55-4be4-a27a-59ceb06b6ad0.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/d0369a58-5aa3-4c38-a811-b948d550429c' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-5a8c22b2-79e9-4c93-a981-80016cb65225.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-5a8c22b2\-79e9\-4c93\-a981\-80016cb65225\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-5a8c22b2-79e9-4c93-a981-80016cb65225.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-5a8c22b2\-79e9\-4c93\-a981\-80016cb65225\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-5a8c22b2-79e9-4c93-a981-80016cb65225.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-5a8c22b2\-79e9\-4c93\-a981\-80016cb65225\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-5a8c22b2-79e9-4c93-a981-80016cb65225.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-5a8c22b2\-79e9\-4c93\-a981\-80016cb65225\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-5a8c22b2-79e9-4c93-a981-80016cb65225.config'
+Cleaning up orphan processes

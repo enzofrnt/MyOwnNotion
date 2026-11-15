@@ -1,0 +1,127 @@
+# run=43305875600 attempt=1 job=131489059978 name=Playwright journeys (webkit-desktop)
+  1) [webkit-desktop] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers 
+
+    Error: screenshot: Element is not attached to the DOM
+    Call log:
+      - taking element screenshot
+      - waiting for fonts to load...
+      - fonts loaded
+      - attempting scroll into view action
+        2 × waiting for element to be stable
+          - element is not stable
+        - retrying scroll into view action
+        - waiting 20ms
+        - waiting for element to be stable
+        - element is not stable
+      - retrying scroll into view action
+        - waiting 100ms
+        - waiting for element to be stable
+
+
+      213 |       expect(rect.x + rect.width).toBeLessThanOrEqual(width + 4);
+      214 |       const path = testInfo.outputPath(`column-order-${theme}-${width}.png`);
+    > 215 |       await settings.screenshot({ path });
+          |                     ^
+      216 |       await testInfo.attach(`column-order-${theme}-${width}`, { path, contentType: "image/png" });
+      217 |     }
+      218 |   }
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-views.spec.ts:215:21
+
+    attachment #1: column-order-light-1280 (image/png) ─────────────────────────────────────────────
+    test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-desktop/attachments/column-order-light-1280-684e9637a8ea4ec6dcb2a3aae3ae538cb396b832.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-desktop/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-views-persists-t-bb870-s-and-focus-on-two-browsers-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 flaky
+    [webkit-desktop] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers 
+  15 skipped
+  106 passed (13.2m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-desktop
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 115 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-desktop.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 30804640
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 367c65640359183f5ead6b1dcd4f403216b1d1f140c1aab2a6224652b36f767f
+Finalizing artifact upload
+Artifact playwright-report-webkit-desktop successfully finalized. Artifact ID 13985056286
+Artifact playwright-report-webkit-desktop has been successfully uploaded! Final size is 30804640 bytes. Artifact ID is 13985056286
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43305875600/artifacts/13985056286
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__cf3a3e53-fd16-4a31-b240-41abf8f5182b.__oven-sh_setup-bun]
+##[end-action id=__cf3a3e53-fd16-4a31-b240-41abf8f5182b.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.0
+Temporarily overriding HOME='/home/runner/work/_temp/997f216d-cd8b-4b1d-b1c8-600f09821b7a' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-61250c41-c370-4ac8-96a4-1c225c54a163.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-61250c41\-c370\-4ac8\-96a4\-1c225c54a163\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-61250c41-c370-4ac8-96a4-1c225c54a163.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-61250c41\-c370\-4ac8\-96a4\-1c225c54a163\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-61250c41-c370-4ac8-96a4-1c225c54a163.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-61250c41\-c370\-4ac8\-96a4\-1c225c54a163\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-61250c41-c370-4ac8-96a4-1c225c54a163.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-61250c41\-c370\-4ac8\-96a4\-1c225c54a163\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-61250c41-c370-4ac8-96a4-1c225c54a163.config'
+Cleaning up orphan processes

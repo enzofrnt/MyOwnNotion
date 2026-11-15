@@ -1,0 +1,118 @@
+# run=43305875600 attempt=1 job=131489059212 name=Playwright journeys (webkit-mobile)
+  1) [webkit-mobile] › tests/e2e/database-page-flow.spec.ts:13:2 › database inline flow pins original headers and reads 1000 cards/rows through the page 
+
+    Error: expect(locator).toBeInViewport() failed
+
+    Locator:  locator('.database-grid tbody tr[data-index]').filter({ hasText: 'Carte 0999' })
+    Expected: in viewport
+    Received: viewport ratio 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "to.be.in.viewport" with timeout 10000ms
+      - waiting for locator('.database-grid tbody tr[data-index]').filter({ hasText: 'Carte 0999' })
+        23 × locator resolved to <tr data-index="999" aria-rowindex="1001">…</tr>
+           - unexpected value "viewport ratio 0"
+
+
+       98 |       // actual last card using the native page owner rather than stale heights.
+       99 |       await last.scrollIntoViewIfNeeded();
+    > 100 |       await expect(last).toBeInViewport();
+          |                         ^
+      101 |       expect(await surface.evaluate((node) => node.scrollTop)).toBe(0);
+      102 |       await main.evaluate((node) => {
+      103 |         node.scrollTop = node.scrollHeight;
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-page-flow.spec.ts:100:25
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-page-flow-databas-d3fee-cards-rows-through-the-page-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-page-flow-databas-d3fee-cards-rows-through-the-page-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-page-flow-databas-d3fee-cards-rows-through-the-page-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-page-flow-databas-d3fee-cards-rows-through-the-page-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 flaky
+    [webkit-mobile] › tests/e2e/database-page-flow.spec.ts:13:2 › database inline flow pins original headers and reads 1000 cards/rows through the page 
+  15 skipped
+  106 passed (12.6m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-mobile
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 113 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-mobile.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 12412039
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 15610e0a6dbcd4e3be70171b6bbb463b9541f698c3708b23c66831c5b6d1f849
+Finalizing artifact upload
+Artifact playwright-report-webkit-mobile successfully finalized. Artifact ID 13983309736
+Artifact playwright-report-webkit-mobile has been successfully uploaded! Final size is 12412039 bytes. Artifact ID is 13983309736
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43305875600/artifacts/13983309736
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__d7819047-f99e-4561-a6f8-e9b3d8d4dd5f.__oven-sh_setup-bun]
+##[end-action id=__d7819047-f99e-4561-a6f8-e9b3d8d4dd5f.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.0
+Temporarily overriding HOME='/home/runner/work/_temp/6292656e-1364-46a8-a7d6-c8c9f70a9d0c' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-e0431560-fb8e-44fd-96e7-99a3f3fa4434.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-e0431560\-fb8e\-44fd\-96e7\-99a3f3fa4434\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-e0431560-fb8e-44fd-96e7-99a3f3fa4434.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-e0431560\-fb8e\-44fd\-96e7\-99a3f3fa4434\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-e0431560-fb8e-44fd-96e7-99a3f3fa4434.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-e0431560\-fb8e\-44fd\-96e7\-99a3f3fa4434\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-e0431560-fb8e-44fd-96e7-99a3f3fa4434.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-e0431560\-fb8e\-44fd\-96e7\-99a3f3fa4434\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-e0431560-fb8e-44fd-96e7-99a3f3fa4434.config'
+Cleaning up orphan processes

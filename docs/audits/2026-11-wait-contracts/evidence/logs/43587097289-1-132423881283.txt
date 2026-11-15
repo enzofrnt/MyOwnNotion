@@ -1,0 +1,5 @@
+# run=43587097289 attempt=1 job=132423881283 name=Playwright journeys (firefox-desktop 3/3)
+  ✘   41 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container (34.0s)
+  ✘   96 [firefox-desktop] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths (15.5s)
+  1) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container 
+  2) [firefox-desktop] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths 

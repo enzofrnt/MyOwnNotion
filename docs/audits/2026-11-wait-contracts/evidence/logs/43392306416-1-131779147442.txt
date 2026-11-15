@@ -1,0 +1,10 @@
+# run=43392306416 attempt=1 job=131779147442 name=API & workspace contract tests
+ FAIL   workspace-contract  tests/contract/toolchain-editor-dependencies.spec.ts > the V1 editor toolchain > locks the Fastify WebSocket adapter without adding a collaboration service
+AssertionError: expected '^11.3.7' to be '^11.3.0' // Object.is equality
+ FAIL   workspace-contract  tests/contract/toolchain-editor-dependencies.spec.ts > the V1 editor toolchain > locks the three BlockNote Community packages to one exact version
+AssertionError: expected '0.57.0' to be '0.54.0' // Object.is equality
+ FAIL   workspace-contract  tests/contract/toolchain-editor-dependencies.spec.ts > the V1 editor toolchain > locks the operational and visual foundations to reviewed versions
+AssertionError: expected '0.4.42' to be '0.4.37' // Object.is equality
+##[error]AssertionError: expected '^11.3.7' to be '^11.3.0' // Object.is equality
+##[error]AssertionError: expected '0.57.0' to be '0.54.0' // Object.is equality
+##[error]AssertionError: expected '0.4.42' to be '0.4.37' // Object.is equality
