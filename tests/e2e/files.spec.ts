@@ -14,9 +14,10 @@ import {
   openPageAttachments,
   openSettingsSection,
   openWorkspace,
-  sampleCssTransition,
   saveDocument,
   selectSettledPage,
+  triggerAndSampleCssTransition,
+  triggerAndSampleMountedCssTransition,
   uniqueName,
   waitForEditorSettled,
   waitForSynchronized,
@@ -38,9 +39,16 @@ test.describe("canonical files (US2)", () => {
     await row.hover();
     await expect(trigger.locator(".ui-icon")).toHaveAttribute("data-icon", "paperclip");
     const before = await row.boundingBox();
-    await trigger.click();
+    // The click and the observation of the resulting transition happen in one
+    // browser task: a driver round trip could arrive after a 210 ms production
+    // transition, which is what made this journey fail twice on WebKit
+    // (lessons L-008).
     const region = page.getByTestId(`page-attachments-${pageName}`);
-    const middle = await sampleCssTransition(region, "grid-template-rows");
+    const middle = await triggerAndSampleMountedCssTransition(
+      trigger,
+      `page-attachments-${pageName}`,
+      "grid-template-rows",
+    );
     expect(middle.height).toBeGreaterThan(0);
 
     await expect(page.getByTestId("attachments-empty")).toBeVisible();
@@ -55,8 +63,7 @@ test.describe("canonical files (US2)", () => {
     expect(Math.abs((before?.width ?? 0) - (after?.width ?? 0))).toBeLessThanOrEqual(1);
     expect(Math.abs((before?.height ?? 0) - (after?.height ?? 0))).toBeLessThanOrEqual(1);
 
-    await trigger.click();
-    const closing = await sampleCssTransition(region, "grid-template-rows");
+    const closing = await triggerAndSampleCssTransition(trigger, region, "grid-template-rows");
     expect(closing.height).toBeGreaterThan(0);
     expect(closing.height).toBeLessThan(opened?.height ?? 0);
     await expect(region).toHaveCount(0);
