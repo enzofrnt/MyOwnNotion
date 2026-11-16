@@ -8,4 +8,4 @@
 - [X] T006 Amend the constitution (article III, 4.0.0 → 4.1.0) with the Sync Impact Report.
 - [X] T007 Create the maintained `test-quality` skill and its lessons journal (`L-001`…`L-007`); point `AGENTS.md`, `docs/testing/wait-contracts.md` at it.
 - [X] T008 Validation on WebKit and Chromium, repeated; record evidence in `validation.md`.
-- [ ] T009 Pull-request CI green on the final commit.
+- [X] T009 Pull-request CI green on the first attempt on the final commit (`fff46ef6`, run 43915711937).
