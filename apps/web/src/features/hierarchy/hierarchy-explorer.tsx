@@ -2357,7 +2357,6 @@ function HierarchyExplorerContent({
                           size="square"
                           variant="ghost"
                           className="workspace-page-attachments-trigger"
-                          aria-label={`Pièces jointes de ${node.item.name}`}
                           aria-expanded={attachmentsOpen}
                           aria-controls={`page-attachments-${node.item.id}`}
                           data-testid={`toggle-attachments-${node.item.name}`}
@@ -2367,8 +2366,12 @@ function HierarchyExplorerContent({
                           }}
                         >
                           <AppIcon name="paperclip" size="small" />
+                          {/* The name is the visible text (WCAG 2.5.3): the count
+                              is announced and the context is read aloud, so the
+                              name and what the control shows are one string. */}
+                          <span className="sr-only">Pièces jointes de {node.item.name}</span>
                           {pageAttachments !== undefined && pageAttachments.length > 0 ? (
-                            <span className="workspace-page-attachments-count" aria-hidden="true">
+                            <span className="workspace-page-attachments-count">
                               {pageAttachments.length}
                             </span>
                           ) : null}
@@ -2474,13 +2477,12 @@ function HierarchyExplorerContent({
                 className="workspace-page-attachments"
                 data-testid={`page-attachments-${node.item.name}`}
                 role="group"
+                aria-label={`Pièces jointes de ${node.item.name}`}
               >
-                <div
-                  role="treeitem"
-                  aria-level={level + 1}
-                  aria-label={`Pièces jointes de ${node.item.name}`}
-                  tabIndex={-1}
-                >
+                {/* The group carries the label. A tree item is named by its
+                    content, and an author label that left out the file names
+                    and actions it shows broke WCAG 2.5.3 (label in name). */}
+                <div role="treeitem" aria-level={level + 1} tabIndex={-1}>
                   <AttachmentPanel
                     compact
                     pageId={node.item.id}

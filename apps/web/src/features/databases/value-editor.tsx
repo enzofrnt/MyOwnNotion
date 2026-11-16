@@ -348,7 +348,7 @@ export function ValueEditor({
         className="option-menu__trigger"
         size="compact"
         variant="ghost"
-        aria-label={property.name}
+        aria-label={`Ajouter ${property.name}`}
         aria-describedby={describedBy}
         onClick={() => setEditingCardDate(true)}
       >

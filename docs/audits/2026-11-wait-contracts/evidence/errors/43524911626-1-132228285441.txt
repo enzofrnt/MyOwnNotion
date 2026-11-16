@@ -1,0 +1,150 @@
+# run=43524911626 attempt=1 job=132228285441 name=Playwright journeys (chromium-desktop 2/3)
+  1) [chromium-desktop] › tests/e2e/realtime-sync-security-and-restore.spec.ts:68:0 › revoking a device closes all of its live page sockets immediately 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTestId('active-item-title')
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.be.visible" with timeout 15000ms
+      - waiting for getByTestId('active-item-title')
+
+
+       at helpers.ts:585
+
+      583 | export async function nameNewlyCreatedItem(page: Page, name: string): Promise<void> {
+      584 |   const title = page.getByTestId("active-item-title");
+    > 585 |   await expect(title).toBeVisible({ timeout: 15_000 });
+          |                      ^
+      586 |   await expect(title).toBeFocused({ timeout: 15_000 });
+      587 |   await expect(title).toHaveValue("");
+      588 |   await title.fill(name);
+        at nameNewlyCreatedItem (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:585:22)
+        at createRootItem (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:601:8)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/realtime-sync-security-and-restore.spec.ts:79:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/realtime-sync-security-and-0b64a-ve-page-sockets-immediately-chromium-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/realtime-sync-security-and-0b64a-ve-page-sockets-immediately-chromium-desktop/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/realtime-sync-security-and-0b64a-ve-page-sockets-immediately-chromium-desktop/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/realtime-sync-security-and-0b64a-ve-page-sockets-immediately-chromium-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/realtime-sync-security-and-0b64a-ve-page-sockets-immediately-chromium-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-desktop] › tests/e2e/realtime-sync-security-and-restore.spec.ts:68:0 › revoking a device closes all of its live page sockets immediately 
+  3 skipped
+  111 passed (10.8m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: blob-report-chromium-desktop-2-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-chromium-desktop-2-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 3185909
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is d5c5a04d0c47a08cc1d75f3cdeaf5edf215771f11ff0a4ec8a8ab134111a8d08
+Finalizing artifact upload
+Artifact blob-report-chromium-desktop-2-3 successfully finalized. Artifact ID 14085845682
+Artifact blob-report-chromium-desktop-2-3 has been successfully uploaded! Final size is 3185909 bytes. Artifact ID is 14085845682
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43524911626/artifacts/14085845682
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: test-results-chromium-desktop-2-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 48 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-chromium-desktop-2-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 3524342
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 413d1b310da8ae6b18313ac8ad86f5b9fe149d9f51b20d78f449f3f5d4e59541
+Finalizing artifact upload
+Artifact test-results-chromium-desktop-2-3 successfully finalized. Artifact ID 14085611023
+Artifact test-results-chromium-desktop-2-3 has been successfully uploaded! Final size is 3524342 bytes. Artifact ID is 14085611023
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43524911626/artifacts/14085611023
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__b9dc051a-f40d-4dd5-ac74-82e0cffe036d.__oven-sh_setup-bun]
+##[end-action id=__b9dc051a-f40d-4dd5-ac74-82e0cffe036d.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/ca3ea59b-f85a-413a-a2c5-2d451f79068c' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-33d6eae6-65a1-47bf-b43f-2afce4911634.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-33d6eae6\-65a1\-47bf\-b43f\-2afce4911634\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-33d6eae6-65a1-47bf-b43f-2afce4911634.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-33d6eae6\-65a1\-47bf\-b43f\-2afce4911634\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-33d6eae6-65a1-47bf-b43f-2afce4911634.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-33d6eae6\-65a1\-47bf\-b43f\-2afce4911634\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-33d6eae6-65a1-47bf-b43f-2afce4911634.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-33d6eae6\-65a1\-47bf\-b43f\-2afce4911634\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-33d6eae6-65a1-47bf-b43f-2afce4911634.config'
+Cleaning up orphan processes

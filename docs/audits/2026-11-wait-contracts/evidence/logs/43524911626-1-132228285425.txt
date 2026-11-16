@@ -1,0 +1,3 @@
+# run=43524911626 attempt=1 job=132228285425 name=Playwright journeys (webkit-desktop 3/3)
+  ✘   39 [webkit-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container (39.6s)
+  1) [webkit-desktop] › tests/e2e/database-relations-rollups.spec.ts:372:0 › relation and rollup isolate a second source in the same database container 

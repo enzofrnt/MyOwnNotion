@@ -23,6 +23,7 @@ import {
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
+import { expectNavigationPersisted } from "./waits/local-state.ts";
 
 test("keeps tabs, a deep path and folder ordering coherent at desktop and phone widths", async ({
   baseURL,
@@ -30,7 +31,7 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   page,
   isMobile,
 }, testInfo) => {
-  test.slow();
+  test.setTimeout(150_000);
   await page.setViewportSize({ width: 1024, height: 800 });
   await openWorkspace(page);
 
@@ -89,6 +90,9 @@ test("keeps tabs, a deep path and folder ordering coherent at desktop and phone 
   await expect(firstTab).toHaveAttribute("aria-current", "page");
   await page.goForward();
   await expect(leafTab).toHaveAttribute("aria-current", "page");
+  // The reload below restores the tab strip from the device's committed
+  // navigation record; `aria-current` only shows the click was handled.
+  await expectNavigationPersisted(page, { lastVisited: leaf, openTabsInclude: [first, leaf] });
   await page.reload();
   await openWorkspace(page);
   await expect(leafTab).toHaveAttribute("aria-current", "page");

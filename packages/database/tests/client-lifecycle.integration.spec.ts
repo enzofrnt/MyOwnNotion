@@ -1,7 +1,7 @@
 import { createDatabase } from "@myownnotion/database";
 import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 let postgres: DisposablePostgres;
 
@@ -55,6 +55,13 @@ describe("database client lifecycle", () => {
     const closing = handle.close().then(() => {
       closeResolved = true;
     });
+    // The pool's own shutdown has finished, observed rather than given one
+    // event-loop turn: from here only the retired socket can hold `close`.
+    await vi.waitFor(() => expect((handle.pool as { ended?: boolean }).ended).toBe(true));
+    // Once the pool has ended, a close that did not wait for the socket would
+    // resolve through promise continuations alone. One macrotask runs only
+    // after the microtask queue is empty, so it drains that path completely:
+    // a deterministic barrier, not a guess at elapsed time.
     await new Promise<void>((resolve) => setImmediate(resolve));
     const resolvedBeforeSocketClosed = closeResolved;
 

@@ -1,0 +1,12 @@
+# run=43392306416 attempt=1 job=131779147442 name=API & workspace contract tests
+   ✓ visible history consolidation > reports a canonical rename as a stale restore head instead of an internal error  1750ms
+AssertionError: expected '^11.3.7' to be '^11.3.0' // Object.is equality
+AssertionError: expected '0.57.0' to be '0.54.0' // Object.is equality
+AssertionError: expected '0.4.42' to be '0.4.37' // Object.is equality
+##[error]AssertionError: expected '^11.3.7' to be '^11.3.0' // Object.is equality
+##[error]AssertionError: expected '0.57.0' to be '0.54.0' // Object.is equality
+##[error]AssertionError: expected '0.4.42' to be '0.4.37' // Object.is equality
+error: "vitest" exited with code 1
+error: script "test:contract" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

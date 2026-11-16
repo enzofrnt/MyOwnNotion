@@ -34,6 +34,21 @@ export const OPTION_TONE_LABELS: Readonly<Record<OptionTone, string>> = {
   red: "Rouge",
 };
 
+/**
+ * Accessible name of a control that shows the current value of a property.
+ *
+ * The name must contain the text the control displays (WCAG 2.5.3, label in
+ * name): someone using voice control says what they read. The property name
+ * stays first, so the control is still found by it.
+ */
+export function valuePickerName(propertyName: string, shown: readonly string[]): string {
+  const text = shown
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .join(", ");
+  return text.length === 0 ? propertyName : `${propertyName} : ${text}`;
+}
+
 export function optionTone(tone: string): OptionTone {
   if (tone === "neutral") return "gray";
   return OPTION_TONES.includes(tone as OptionTone) ? (tone as OptionTone) : "gray";
@@ -201,7 +216,10 @@ export function OptionDraftMenu({
         bare
         id={id}
         className="option-menu__trigger"
-        aria-label={property.name}
+        aria-label={valuePickerName(
+          property.name,
+          chosen.length === 0 ? [emptyLabel ?? ""] : chosen.map((option) => option.label),
+        )}
         aria-describedby={describedBy}
         aria-invalid={invalid || undefined}
         tabIndex={tabIndex}

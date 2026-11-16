@@ -1,0 +1,128 @@
+# run=43313424264 attempt=1 job=131515448581 name=Playwright journeys (webkit-mobile)
+  1) [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:305:0 › a two-way relation shows on both sides and reads the same link 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('menuitem', { name: 'Activer la relation liée' })
+        - locator resolved to <div id="_r_56_" role="menuitem" aria-disabled="true" class="ui-menu__item">…</div>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+          - waiting 100ms
+        323 × waiting for element to be visible, enabled and stable
+            - element is not enabled
+          - retrying click action
+            - waiting 500ms
+
+
+      321 |   await page.locator("[data-relation-pair]").click();
+      322 |   await page.getByRole("textbox", { name: "Nom de la propriété liée" }).fill("Projets liés");
+    > 323 |   await page.getByRole("menuitem", { name: "Activer la relation liée" }).click();
+          |                                                                         ^
+      324 |   await waitForSynchronized(page);
+      325 |   // The row must reflect the new state, not just the projection behind it.
+      326 |   await expect(page.locator("[data-relation-pair]")).toContainText("Activé", {
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:323:73
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-32cc7-des-and-reads-the-same-link-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 flaky
+    [webkit-mobile] › tests/e2e/database-relations-rollups.spec.ts:305:0 › a two-way relation shows on both sides and reads the same link 
+  15 skipped
+  106 passed (17.5m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-mobile
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 112 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-mobile.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 33554432
+Uploaded bytes 33570662
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 16e37102fc7c2261cb644b1bb880dc4391ae634088b3f124e4d35963bf2936e5
+Finalizing artifact upload
+Artifact playwright-report-webkit-mobile successfully finalized. Artifact ID 13987234341
+Artifact playwright-report-webkit-mobile has been successfully uploaded! Final size is 33570662 bytes. Artifact ID is 13987234341
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43313424264/artifacts/13987234341
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__ef56f63f-8051-44bc-bbb1-6f53e670f29b.__oven-sh_setup-bun]
+##[end-action id=__ef56f63f-8051-44bc-bbb1-6f53e670f29b.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.0
+Temporarily overriding HOME='/home/runner/work/_temp/d28b3426-7b33-432b-93a1-67dc4a4dda10' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-cd81167c-478c-462e-8ebf-64361f5b73db.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-cd81167c\-478c\-462e\-8ebf\-64361f5b73db\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-cd81167c-478c-462e-8ebf-64361f5b73db.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-cd81167c\-478c\-462e\-8ebf\-64361f5b73db\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-cd81167c-478c-462e-8ebf-64361f5b73db.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-cd81167c\-478c\-462e\-8ebf\-64361f5b73db\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-cd81167c-478c-462e-8ebf-64361f5b73db.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-cd81167c\-478c\-462e\-8ebf\-64361f5b73db\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-cd81167c-478c-462e-8ebf-64361f5b73db.config'
+Cleaning up orphan processes

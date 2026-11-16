@@ -1,0 +1,18 @@
+# run=43392306416 attempt=1 job=131779147574 name=Playwright journeys (firefox-desktop)
+  ✘   10 [firefox-desktop] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations (7.4s)
+  ✘   11 [firefox-desktop] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations (retry #1) (8.2s)
+  ✘   14 [firefox-desktop] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology (7.1s)
+  ✘   15 [firefox-desktop] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology (retry #1) (8.0s)
+  ✘   17 [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (25.2s)
+  ✘   18 [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (retry #1) (26.6s)
+  ✘   86 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:199:1 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (27.3s)
+  ✘  130 [firefox-desktop] › tests/e2e/editor-math-contents.spec.ts:98:1 › updates both contents projections, scrolls nested headings and leaves no stale outline (12.6s)
+  ✘  131 [firefox-desktop] › tests/e2e/editor-math-contents.spec.ts:98:1 › updates both contents projections, scrolls nested headings and leaves no stale outline (retry #1) (13.6s)
+  ✘  278 [firefox-desktop] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably (17.2s)
+  ✘  279 [firefox-desktop] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably (retry #1) (17.2s)
+  1) [firefox-desktop] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+  2) [firefox-desktop] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+  3) [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  4) [firefox-desktop] › tests/e2e/editor-math-contents.spec.ts:98:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
+  5) [firefox-desktop] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably 
+  6) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:199:1 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 

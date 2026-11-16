@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Impact plan \u2014 e2e section (delta for feature 058)",
+  "type": "object",
+  "required": ["mode", "testFiles", "lanes", "matrix"],
+  "properties": {
+    "mode": {
+      "enum": ["none", "selected", "full"]
+    },
+    "testFiles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^tests/e2e/.+\\.spec\\.ts$"
+      }
+    },
+    "matrix": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["project", "lane", "laneId"],
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "lane": {
+            "type": "string",
+            "pattern": "^[0-9]+/[0-9]+$"
+          },
+          "laneId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "lanes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "project", "index", "total", "testFiles", "estimatedSeconds"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+-[0-9]+-[0-9]+$"
+          },
+          "project": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "testFiles": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^tests/e2e/.+\\.spec\\.ts$"
+            }
+          },
+          "estimatedSeconds": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

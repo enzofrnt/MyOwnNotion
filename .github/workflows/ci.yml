@@ -34,6 +34,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # A nightly complete run. It catches what no pull request causes (engine,
+  # runner image, time-dependent data) and refreshes the measured journey
+  # timings that size the browser lanes. It can publish nothing.
+  schedule:
+    - cron: "17 3 * * *"
   workflow_call:
     outputs:
       candidate_sha:
@@ -74,6 +79,15 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.1.3
         with:
           bun-version: 1.4.2
+      # Measured journey durations of the last trusted run, when one exists.
+      # Only `main` writes this cache (see e2e-report); a pull request can read
+      # it but never replace it. Without it the plan falls back to counting
+      # declared tests, so a missing cache is slower lanes, never a failure.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: e2e-timings.json
+          key: e2e-timings-restore-only
+          restore-keys: e2e-timings-
       - name: Calculate and validate the exact candidate impact
         id: plan
         env:
@@ -89,8 +103,9 @@ jobs:
             --base "$BASE_SHA" \
             --head "$HEAD_SHA" \
             --pr-number "$PR_NUMBER" \
+            --timings e2e-timings.json \
             --output test-impact.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-impact-plan
           path: test-impact.json
@@ -159,7 +174,7 @@ jobs:
           name: test-impact-plan
       - if: needs.impact.outputs.unit_mode != 'none'
         run: bun run ci:test:affected --plan test-impact.json --group unit
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && needs.impact.outputs.unit_mode == 'full'
         with:
           name: coverage
@@ -267,10 +282,18 @@ jobs:
       # responsibility of PR/main CI, alongside the local pre-push gate.
       - run: bun run compose:check
 
+  # One job per *lane*. The impact plan sizes the lanes of each browser project
+  # from the selected journeys (scripts/ci/e2e-lanes.ts), so the number of jobs
+  # follows the corpus and nobody maintains a shard count. Every lane is a
+  # complete isolated stack — its own PostgreSQL, API, preview and browser —
+  # and a failure in one never stops another.
   e2e:
-    name: Playwright journeys (${{ matrix.project }})
+    name: Playwright journeys (${{ matrix.project }} ${{ matrix.lane }})
     runs-on: ubuntu-24.04
     needs: impact
+    # A healthy lane takes about a quarter of an hour. A hung one must not hold
+    # the run for the six-hour default.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -314,18 +337,27 @@ jobs:
       - id: playwright-version
         if: matrix.project != 'none'
         run: echo "value=$(bun run --bun playwright --version | tr -d ' ')" >> "$GITHUB_OUTPUT"
+      - id: engine
+        if: matrix.project != 'none'
+        # `webkit-mobile` → `webkit`.
+        run: echo "name=${PLAYWRIGHT_PROJECT%%-*}" >> "$GITHUB_OUTPUT"
+        env:
+          PLAYWRIGHT_PROJECT: ${{ matrix.project }}
       - id: playwright-cache
         if: matrix.project != 'none'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.value }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.value }}-${{ steps.engine.outputs.name }}
       - name: Install browsers
         if: matrix.project != 'none'
-        # `--with-deps` still runs on a hit: the system libraries live outside
-        # the cached directory, and a cached browser without them fails at
-        # launch with an error that says nothing about the cause.
-        run: bun run --bun playwright install --with-deps
+        # Only the engine this lane drives: a lane never launches the other
+        # two. `--with-deps` still runs on a hit: the system libraries live
+        # outside the cached directory, and a cached browser without them fails
+        # at launch with an error that says nothing about the cause.
+        run: bun run --bun playwright install --with-deps "$ENGINE"
+        env:
+          ENGINE: ${{ steps.engine.outputs.name }}
       - name: Start disposable PostgreSQL and migrate
         if: matrix.project != 'none'
         run: |
@@ -347,24 +379,97 @@ jobs:
         if: matrix.project != 'none'
         env:
           PLAYWRIGHT_PROJECT: ${{ matrix.project }}
+          PLAYWRIGHT_LANE_ID: ${{ matrix.laneId }}
+          PLAYWRIGHT_BLOB_OUTPUT_DIR: blob-report
+          PLAYWRIGHT_BLOB_OUTPUT_NAME: report-${{ matrix.laneId }}.zip
           DATABASE_URL: postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion
           MYOWNNOTION_E2E_PREBUILT_WEB: '1'
+        # The lane's journeys come from the plan, not from Playwright's own
+        # shard arithmetic: the planner balances lanes by duration and proves
+        # that they partition the selection. `--shard=1/1` keeps the lane in
+        # one browser process; a lane is already shorter than the third of the
+        # corpus that bounded a WebKit process before.
         run: |
-          mapfile -t journeys < <(jq -r '.e2e.testFiles[]' test-impact.json)
+          mapfile -t journeys < <(
+            jq -r --arg lane "$PLAYWRIGHT_LANE_ID" \
+              '.e2e.lanes[] | select(.id == $lane) | .testFiles[]' test-impact.json
+          )
           if [ "${#journeys[@]}" -eq 0 ]; then
-            echo "Impact plan selected no journeys for $PLAYWRIGHT_PROJECT."
+            echo "Impact plan assigned no journeys to lane $PLAYWRIGHT_LANE_ID."
             exit 1
           fi
           bash scripts/e2e/run-container-project.sh \
-            --project="$PLAYWRIGHT_PROJECT" "${journeys[@]}"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+            --project="$PLAYWRIGHT_PROJECT" --shard=1/1 "${journeys[@]}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && matrix.project != 'none'
         with:
-          name: playwright-report-${{ matrix.project }}
+          # One artifact per attempt: re-running jobs must never replace the
+          # evidence of the attempt that failed (feature 060).
+          name: blob-report-${{ matrix.laneId }}-attempt-${{ github.run_attempt }}
+          path: blob-report/
+          if-no-files-found: warn
+          retention-days: 3
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure() && matrix.project != 'none'
+        with:
+          name: test-results-${{ matrix.laneId }}-attempt-${{ github.run_attempt }}
+          path: test-results/
+          retention-days: 14
+
+  # One report and one verdict for all lanes. A green lane only says that
+  # Playwright exited zero there; this job compares what the plan selected with
+  # what the lanes reported, so a lane that ran nothing, or a journey that was
+  # never attempted, turns the gate red instead of passing unnoticed.
+  e2e-report:
+    name: Browser gate report
+    runs-on: ubuntu-24.04
+    needs: [impact, e2e]
+    if: always()
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-bun
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: test-impact-plan
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: blob-report-*
+          path: lane-blob-artifacts
+      - name: Select each lane's latest attempt
+        # A re-run of failed jobs keeps the earlier attempts' artifacts. Merging
+        # them all would count a re-run lane twice; the gate judges each lane's
+        # newest attempt and says which one it used.
+        run: bash scripts/ci/select-lane-blobs.sh lane-blob-artifacts all-blob-reports
+      - name: Merge the lane reports
+        if: needs.impact.outputs.e2e_mode != 'none'
+        # A missing lane leaves nothing to merge for it; the guard below names
+        # it. An empty directory must not hide that behind a merge error.
+        run: |
+          mkdir -p all-blob-reports
+          if compgen -G "all-blob-reports/*.zip" > /dev/null; then
+            bun run --bun playwright merge-reports --reporter=html,json all-blob-reports
+          fi
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-results.json
+      - name: Account for every selected journey
+        run: bun run ci:e2e:summary
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: playwright-report
           path: |
             playwright-report/
-            test-results/
+            e2e-gate-summary.json
+            e2e-timings.json
+            e2e-lane-attempts.txt
           retention-days: 14
+      # Trusted complete runs feed the next lane sizing. Restricted to `main`
+      # so a pull request can never write the timings another run will trust.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: success() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.impact.outputs.e2e_mode == 'full'
+        with:
+          path: e2e-timings.json
+          key: e2e-timings-${{ github.run_id }}
 
   build:
     name: Production builds
@@ -386,7 +491,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Read pinned build inputs
         id: bases
         run: |
@@ -402,7 +507,7 @@ jobs:
           echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
       - name: Build API for every pinned platform
         id: build-api
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/api.Dockerfile
@@ -417,7 +522,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=api-${{ needs.impact.outputs.cache_scope }},ignore-error=true
       - name: Build web for every pinned platform
         id: build-web
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/web.Dockerfile
@@ -449,7 +554,7 @@ jobs:
               images: { api: $api, web: $web }
             }' > image-build.json
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: image-build
           path: image-build.json
@@ -473,7 +578,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-bun
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Read pinned runtime base
         id: base
         run: |
@@ -482,7 +587,7 @@ jobs:
           [[ "$runtime_base" =~ ^[^@]+@sha256:[0-9a-f]{64}$ ]]
           echo "bun=$runtime_base" >> "$GITHUB_OUTPUT"
       - name: Build the native packaged API
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/api.Dockerfile
@@ -500,7 +605,7 @@ jobs:
           set -euo pipefail
           bash scripts/ci/smoke-api-image.sh myownnotion-api:recovery-smoke 2>&1 | tee image-runtime.log
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: image-runtime-${{ matrix.arch }}
           path: image-runtime.log
@@ -535,7 +640,7 @@ jobs:
         # that never ran.
         run: bun run security:audit --json > dependency-audit.json || (cat dependency-audit.json; exit 1)
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dependency-audit
           path: dependency-audit.json
@@ -570,7 +675,7 @@ jobs:
           sarif_file: secret-scan.sarif
           category: secret-scan
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: secret-scan
           path: secret-scan.sarif
@@ -596,7 +701,7 @@ jobs:
           sarif_file: static-security.sarif
           category: static-security-analysis
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: static-security
           path: static-security.sarif
@@ -618,7 +723,7 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Read the pinned base image
         id: bases
         # The Dockerfile takes its base as a build argument with no default, so
@@ -628,7 +733,7 @@ jobs:
         # to supply the digest, including this one.
         run: echo "bun=$(jq -r '.bases.bun | "\(.ref)@\(.digest)"' docker/base-images.json)" >> "$GITHUB_OUTPUT"
       - name: Build the API image for scanning
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/api.Dockerfile
@@ -704,7 +809,7 @@ jobs:
           # replace the first.
           category: container-vulnerability-scan
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: container-scan
           path: container-scan.sarif
@@ -721,7 +826,7 @@ jobs:
       - uses: ./.github/actions/setup-bun
       - run: bun run security:licenses
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: license-policy
           path: license-policy.json
@@ -751,6 +856,7 @@ jobs:
       - security-tests
       - compose-check
       - e2e
+      - e2e-report
       - build
       - build-images
       - image-runtime
@@ -799,8 +905,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -823,7 +929,7 @@ jobs:
           echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
       - name: Publish immutable API image
         id: publish-api
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/api.Dockerfile
@@ -848,7 +954,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=api-main,ignore-error=true
       - name: Publish immutable web image
         id: publish-web
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/web.Dockerfile
@@ -891,7 +997,7 @@ jobs:
                }
              }' > published-images.json
           cat published-images.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: published-images
           path: published-images.json

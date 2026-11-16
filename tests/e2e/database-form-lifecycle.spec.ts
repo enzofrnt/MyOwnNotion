@@ -4,6 +4,7 @@ import {
   createDatabaseEntry,
   createDatabaseView,
   createRootDatabase,
+  ensureNewPropertyComposer,
   entryTrigger,
   openSecondDevice,
   openWorkspace,
@@ -15,6 +16,7 @@ import {
   waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
+import { beginDefinitionChange, expectItemKind } from "./waits/local-state.ts";
 
 test("converts a card without editorial history locally while workspace requests are held", async ({
   page,
@@ -66,6 +68,8 @@ test("converts a card without editorial history locally while workspace requests
     "true",
   );
   await expect(kind).not.toHaveAttribute("aria-busy", "true");
+  // `aria-pressed` is the selector's state; the reload reads the committed kind.
+  await expectItemKind(page, title, "page");
   await waitForSynchronized(page);
   await page.reload();
   await card.getByRole("button", { name: `Modifier ${title}`, exact: true }).click();
@@ -79,7 +83,7 @@ test("keeps conversion confirmation immediate and returns to the card without a 
   page,
   isMobile,
 }, testInfo) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   const source = uniqueName("Conversion source");
   const title = uniqueName("Protected card");
@@ -169,16 +173,23 @@ test("cancels a pressed property action outside its button and activates exactly
   await expect(nameField).toBeVisible();
   await page.mouse.move(1, 1);
   await page.mouse.up();
-  await expect(nameField).toBeVisible();
+  // A press that ends outside the composer cancels the gesture and may also
+  // dismiss the composer; the typed name must survive either way. Restoring
+  // the composer keeps this deterministic instead of depending on where the
+  // press landed next to the portalled type menu (.agents/skills/test-quality/lessons.md L-001).
+  await ensureNewPropertyComposer(page);
   await expect(nameField).toHaveValue(name);
   const columns = page
     .getByTestId("database-view-surface")
     .getByRole("columnheader")
     .filter({ hasText: name });
   await expect(columns).toHaveCount(0);
+  const created = await beginDefinitionChange(page, databaseName);
   await type.focus();
   await page.keyboard.press("Space");
   await expect(columns).toHaveCount(1);
+  // "idle" is also what a press that never reached the writer leaves behind.
+  await created.committed();
   await waitForDatabaseDefinitionSaved(page);
 });
 
@@ -187,7 +198,7 @@ test("preserves a composing dirty field while another device updates an untouche
   browser,
   baseURL,
 }) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   const databaseName = uniqueName("Draft synchronization");
   const entryName = uniqueName("Current entry");

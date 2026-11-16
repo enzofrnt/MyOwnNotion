@@ -1,0 +1,15 @@
+# run=43237314129 attempt=1 job=131248447740 name=Unit, property & coverage
+   ✓ visible history consolidation > reports a canonical rename as a stale restore head instead of an internal error  1743ms
+   ✓ a crash at each stage before the scrub > resumes from a crash and still finishes  342ms
+ ✓  database-integration  tests/security-repository-errors.spec.ts (3 tests) 10ms
+   ✓ database projection subscribers > retains a fully discovered canvas with a retryable error when its refresh fails  480ms
+   ✓ entry property configuration menus > opens the property editor without crashing and renames automatically  699ms
+ ✓  web  tests/error-boundary.spec.tsx (2 tests) 73ms
+  errors.ts        |     100 |      100 |     100 |     100 |                   
+  ...ion-errors.ts |     100 |      100 |     100 |     100 |                   
+  errors.ts        |   96.77 |    91.83 |     100 |    98.3 | 122               
+  ...age-errors.ts |     100 |      100 |     100 |     100 |                   
+error: "vitest" exited with code 1
+error: script "test:coverage" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

@@ -6,7 +6,8 @@ import {
 } from "@myownnotion/contracts";
 import { findDevice } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { sql } from "drizzle-orm";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebSocket } from "ws";
 import { authorizeSynchronizationWrite } from "../src/security/synchronization-authorization.ts";
 import {
@@ -166,7 +167,14 @@ describe("realtime device revocation", () => {
       revocationSettled = true;
       return response;
     });
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    // The revocation is proved to be queued behind the write's row lock, in
+    // PostgreSQL's lock table, before its absence of completion is read.
+    await vi.waitFor(async () => {
+      const result = await harness.api.built.database.db.execute<{ waiting: number }>(
+        sql`select count(*)::int as waiting from pg_locks where not granted`,
+      );
+      expect(result.rows[0]?.waiting ?? 0).toBeGreaterThan(0);
+    });
     expect(revocationSettled).toBe(false);
 
     releaseWrite();

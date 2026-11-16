@@ -1,0 +1,501 @@
+# run=43266767307 attempt=1 job=131352667662 name=Playwright journeys (firefox-desktop)
+  1) [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for locator('.database-entry-create').getByRole('button', { name: 'Nouvelle page' })
+
+
+      420 |
+      421 |     const entryForm = page.locator(".database-entry-create");
+    > 422 |     await entryForm.getByRole("button", { name: "Nouvelle page" }).click();
+          |                                                                   ^
+      423 |     const titleEditor = page.locator(".database-cell-title-input");
+      424 |     await expect(titleEditor).toBeVisible({ timeout: 15_000 });
+      425 |     await titleEditor.fill(entryName);
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:422:67
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 60000ms exceeded.
+
+    Error: click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for locator('.database-entry-create').getByRole('button', { name: 'Nouvelle page' })
+
+
+      420 |
+      421 |     const entryForm = page.locator(".database-entry-create");
+    > 422 |     await entryForm.getByRole("button", { name: "Nouvelle page" }).click();
+          |                                                                   ^
+      423 |     const titleEditor = page.locator(".database-cell-title-input");
+      424 |     await expect(titleEditor).toBeVisible({ timeout: 15_000 });
+      425 |     await titleEditor.fill(entryName);
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:422:67
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      187 |             );
+      188 |           })
+    > 189 |           .toBe(true);
+          |           ^
+      190 |       }
+      191 |       if (width === 320) {
+      192 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:189:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      187 |             );
+      188 |           })
+    > 189 |           .toBe(true);
+          |           ^
+      190 |       }
+      191 |       if (width === 320) {
+      192 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:189:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:97:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Propri\u00E9t\u00E9 cible/ })
+        - locator resolved to <button id="_r_4f_" type="button" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        338 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+      64 |     .locator(".rollup-settings")
+      65 |     .getByRole("button", { name: /^Propriété cible/ })
+    > 66 |     .click();
+         |     ^
+      67 |   // This must exist while B has NO rows: source schema, never inferred links.
+      68 |   await page.getByRole("menuitemradio", { name: "Amount", exact: true }).click();
+      69 |   await page
+        at configureTotal (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:66:5)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:135:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Calculer/ })
+        - locator resolved to <button id="_r_4g_" type="button" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        334 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+
+
+      70 |     .locator(".rollup-settings")
+      71 |     .getByRole("button", { name: /^Calculer/ })
+    > 72 |     .click();
+         |     ^
+      73 |   await chooseSum(page);
+      74 |   await closeConfiguration(page);
+      75 |   await waitForSynchronized(page);
+        at configureTotal (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:72:5)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:135:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:224:0 › relation and rollup isolate a second source in the same database container 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Calculer/ })
+        - locator resolved to <button disabled id="_r_6d_" type="button" aria-disabled="true" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+        - waiting 20ms
+        - waiting for element to be visible, enabled and stable
+        - element is not enabled
+      2 × retrying click action
+          - waiting 100ms
+          - waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+      325 × retrying click action
+            - waiting 500ms
+            - waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+      261 |     .locator(".rollup-settings")
+      262 |     .getByRole("button", { name: /^Calculer/ })
+    > 263 |     .click();
+          |     ^
+      264 |   await chooseSum(page);
+      265 |   await closeConfiguration(page);
+      266 |   await waitForSynchronized(page);
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:263:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Calculer/ })
+        - locator resolved to <button disabled id="_r_6d_" type="button" aria-disabled="true" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        327 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <div role="menu" aria-label="Trier" data-property-submenu="true" class="database-column-editor__flyout">…</div> intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+
+
+      261 |     .locator(".rollup-settings")
+      262 |     .getByRole("button", { name: /^Calculer/ })
+    > 263 |     .click();
+          |     ^
+      264 |   await chooseSum(page);
+      265 |   await closeConfiguration(page);
+      266 |   await waitForSynchronized(page);
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:263:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-d86d8-the-same-database-container-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [firefox-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.database-grid tbody tr').filter({ hasText: 'Alpha visual-mwdu8i9z-ang1h' }).getByRole('gridcell', { name: 'Due, 2026-11-11' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.be.visible" with timeout 10000ms
+      - waiting for locator('.database-grid tbody tr').filter({ hasText: 'Alpha visual-mwdu8i9z-ang1h' }).getByRole('gridcell', { name: 'Due, 2026-11-11' })
+
+
+      186 |   const alphaRow = page.locator(".database-grid tbody tr").filter({ hasText: alpha });
+      187 |   await expect(alphaRow.getByRole("gridcell", { name: "Status, Done" })).toBeVisible();
+    > 188 |   await expect(alphaRow.getByRole("gridcell", { name: `Due, ${secondDate}` })).toBeVisible();
+          |                                                                               ^
+      189 |   await expect(alphaRow.locator("[data-entry-trigger]")).toHaveAttribute(
+      190 |     "data-entry-trigger",
+      191 |     canonicalEntryId as string,
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-visual-views.spec.ts:188:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.database-grid tbody tr').filter({ hasText: 'Alpha visual-mwdu9ir9-dgk24' }).getByRole('gridcell', { name: 'Due, 2026-11-11' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.be.visible" with timeout 10000ms
+      - waiting for locator('.database-grid tbody tr').filter({ hasText: 'Alpha visual-mwdu9ir9-dgk24' }).getByRole('gridcell', { name: 'Due, 2026-11-11' })
+
+
+      186 |   const alphaRow = page.locator(".database-grid tbody tr").filter({ hasText: alpha });
+      187 |   await expect(alphaRow.getByRole("gridcell", { name: "Status, Done" })).toBeVisible();
+    > 188 |   await expect(alphaRow.getByRole("gridcell", { name: `Due, ${secondDate}` })).toBeVisible();
+          |                                                                               ^
+      189 |   await expect(alphaRow.locator("[data-entry-trigger]")).toHaveAttribute(
+      190 |     "data-entry-trigger",
+      191 |     canonicalEntryId as string,
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-visual-views.spec.ts:188:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys 
+
+    Error: check: Error: strict mode violation: getByLabel('Hiérarchie') resolved to 3 elements:
+        1) <button type="button" aria-expanded="false" aria-haspopup="dialog" aria-controls="_r_if_" data-variant="secondary" aria-label="À propos de Hiérarchie" class="ui-button ui-popover__trigger graph-panel__help">…</button> aka getByRole('button', { name: 'À propos de Hiérarchie' })
+        2) <button type="button" role="switch" class="ui-switch" aria-checked="false" aria-label="Hiérarchie">…</button> aka getByRole('switch', { name: 'Hiérarchie' })
+        ...
+
+    Call log:
+      - waiting for getByLabel('Hiérarchie')
+
+
+      133 |
+      134 |   await page.getByTestId("graph-filters-toggle").click();
+    > 135 |   await page.getByLabel("Hiérarchie").check();
+          |                                      ^
+      136 |   await expect(canvas.locator(`[data-graph-node="${productFolderId}"]`)).toHaveCount(1);
+      137 |   await expect(canvas.locator(`[data-graph-node="${researchFolderId}"]`)).toHaveCount(1);
+      138 |   await page.getByLabel("Hiérarchie").uncheck();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/knowledge-graph.spec.ts:135:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/knowledge-graph-the-conten-8d812-pports-ten-pointer-journeys-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/knowledge-graph-the-conten-8d812-pports-ten-pointer-journeys-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/knowledge-graph-the-conten-8d812-pports-ten-pointer-journeys-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/knowledge-graph-the-conten-8d812-pports-ten-pointer-journeys-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: check: Error: strict mode violation: getByLabel('Hiérarchie') resolved to 3 elements:
+        1) <button type="button" aria-expanded="false" aria-haspopup="dialog" aria-controls="_r_if_" data-variant="secondary" aria-label="À propos de Hiérarchie" class="ui-button ui-popover__trigger graph-panel__help">…</button> aka getByRole('button', { name: 'À propos de Hiérarchie' })
+        2) <button type="button" role="switch" class="ui-switch" aria-checked="false" aria-label="Hiérarchie">…</button> aka getByRole('switch', { name: 'Hiérarchie' })
+        ...
+
+    Call log:
+      - waiting for getByLabel('Hiérarchie')
+
+
+      133 |
+      134 |   await page.getByTestId("graph-filters-toggle").click();
+    > 135 |   await page.getByLabel("Hiérarchie").check();
+          |                                      ^
+      136 |   await expect(canvas.locator(`[data-graph-node="${productFolderId}"]`)).toHaveCount(1);
+      137 |   await expect(canvas.locator(`[data-graph-node="${researchFolderId}"]`)).toHaveCount(1);
+      138 |   await page.getByLabel("Hiérarchie").uncheck();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/knowledge-graph.spec.ts:135:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/knowledge-graph-the-conten-8d812-pports-ten-pointer-journeys-firefox-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/knowledge-graph-the-conten-8d812-pports-ten-pointer-journeys-firefox-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/knowledge-graph-the-conten-8d812-pports-ten-pointer-journeys-firefox-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/knowledge-graph-the-conten-8d812-pports-ten-pointer-journeys-firefox-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:215:0 › backlinks, local graph, global filters and offline restart stay coherent 
+
+    Error: check: Error: strict mode violation: getByLabel('Afficher les éléments isolés') resolved to 3 elements:
+        1) <button type="button" aria-expanded="false" aria-haspopup="dialog" aria-controls="_r_3f_" data-variant="secondary" aria-label="À propos de Afficher les éléments isolés" class="ui-button ui-popover__trigger graph-panel__help">…</button> aka getByRole('button', { name: 'À propos de Afficher les élé' })
+        2) <button type="button" role="switch" class="ui-switch" aria-checked="false" aria-label="Afficher les éléments isolés">…</button> aka getByRole('switch', { name: 'Afficher les éléments isolés' })
+        ...
+
+    Call log:
+      - waiting for getByLabel('Afficher les éléments isolés')
+
+
+      271 |   await expect(graph.locator(`[data-graph-node="${isolatedId}"]`)).toHaveCount(0);
+      272 |   await page.getByTestId("graph-filters-toggle").click();
+    > 273 |   await page.getByLabel("Afficher les éléments isolés").check();
+          |                                                        ^
+      274 |   await expect(graph.locator(`[data-graph-node="${isolatedId}"]`)).toHaveCount(1);

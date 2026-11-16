@@ -1,0 +1,218 @@
+# run=43587630795 attempt=1 job=132426635651 name=Playwright journeys (webkit-desktop 3/3)
+  1) [webkit-desktop] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwgcbpcj-kfjrl\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwgcbs1k-x3p77.txt\" data-testid=\"preview-file-a11y-mwgcbs1k-x3p77.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Aperçu</span></button>)",
+    + ]
+
+      322 |   test("the attachment list has no critical or serious violations", async ({ page }) => {
+      323 |     await pageWithAttachment(page);
+    > 324 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      325 |   });
+      326 |
+      327 |   test("the deletion confirmation has no critical or serious violations", async ({ page }) => {
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:324:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-16364-tical-or-serious-violations-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [webkit-desktop] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name ([\".workspace-page-attachments-trigger\"]: <button type=\"button\" aria-label=\"Pièces jointes de A1...\" aria-expanded=\"true\" aria-controls=\"page-attachments-01a...\" data-testid=\"toggle-attachments-A...\" class=\"ui-button workspace-...\" data-size=\"square\" data-variant=\"ghost\">; [\"div[aria-level=\\\"2\\\"]\"]: <div role=\"treeitem\" aria-level=\"2\" aria-label=\"Pièces jointes de A11yFiles-mwgcc1rg-tnfvp\" tabindex=\"-1\">; [\".workspace-attachment-file__actions > .ui-button[data-size=\\\"compact\\\"][data-variant=\\\"ghost\\\"]\"]: <button type=\"button\" aria-label=\"Prévisualiser le fichier : a11y-mwgcc4aw-8irqe.txt\" data-testid=\"preview-file-a11y-mwgcc4aw-8irqe.txt\" class=\"ui-button\" data-size=\"compact\" data-variant=\"ghost\"><span class=\"ui-button__label\">Fermer l’aperçu</span></button>)",
+    + ]
+
+      352 |       timeout: 30_000,
+      353 |     });
+    > 354 |     expect(await fileViolations(page)).toEqual([]);
+          |                                        ^
+      355 |   });
+      356 | });
+      357 |
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:354:40)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-the-file-sur-1d748-ed-for-assistive-technology-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [webkit-desktop] › tests/e2e/accessibility.spec.ts:412:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "label-content-name-mismatch: Elements must have their visible text as part of their accessible name",
+    + ]
+
+      477 |       await tab.click();
+      478 |       await expect(tab).toHaveAttribute("aria-current", "page");
+    > 479 |       expect(await seriousViolations(page)).toEqual([]);
+          |                                             ^
+      480 |     }
+      481 |
+      482 |     await databaseViewButton(page, /Kanban/).click();
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:479:45)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [webkit-desktop] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+    [webkit-desktop] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+    [webkit-desktop] › tests/e2e/accessibility.spec.ts:412:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  10 skipped
+  104 passed (13.7m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: blob-report-webkit-desktop-3-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-webkit-desktop-3-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 15904757
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 8a87a1164ebd3355acf34253a80ab3e38eea983bc2e159b21ed56bec85974bf1
+Finalizing artifact upload
+Artifact blob-report-webkit-desktop-3-3 successfully finalized. Artifact ID 14113022909
+Artifact blob-report-webkit-desktop-3-3 has been successfully uploaded! Final size is 15904757 bytes. Artifact ID is 14113022909
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587630795/artifacts/14113022909
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: test-results-webkit-desktop-3-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 49 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-webkit-desktop-3-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 17846367
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 4b0d4ab6cb89098623a77917cbdaa4050a42b718b237aab88de106bbe5754c62
+Finalizing artifact upload
+Artifact test-results-webkit-desktop-3-3 successfully finalized. Artifact ID 14112379583
+Artifact test-results-webkit-desktop-3-3 has been successfully uploaded! Final size is 17846367 bytes. Artifact ID is 14112379583
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587630795/artifacts/14112379583
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__67c9bba7-b00c-418e-99cc-de9ac9a5d0fa.__oven-sh_setup-bun]
+##[end-action id=__67c9bba7-b00c-418e-99cc-de9ac9a5d0fa.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/ea2bf81b-523f-4293-8a41-69dc5024be54' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-2ae02281-67dd-4510-9659-5feb93e9d1da.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-2ae02281\-67dd\-4510\-9659\-5feb93e9d1da\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-2ae02281-67dd-4510-9659-5feb93e9d1da.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-2ae02281\-67dd\-4510\-9659\-5feb93e9d1da\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-2ae02281-67dd-4510-9659-5feb93e9d1da.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-2ae02281\-67dd\-4510\-9659\-5feb93e9d1da\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-2ae02281-67dd-4510-9659-5feb93e9d1da.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-2ae02281\-67dd\-4510\-9659\-5feb93e9d1da\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-2ae02281-67dd-4510-9659-5feb93e9d1da.config'
+Cleaning up orphan processes

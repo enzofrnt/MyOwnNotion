@@ -7,6 +7,7 @@ import {
   minimalTextReplacement,
   rebaseBlockNoteChanges,
 } from "../src/features/editor/editor-adapter.ts";
+import { drainPromiseWork } from "./support/until.ts";
 
 const BLOCK_ID = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056" as Uuid;
 
@@ -445,7 +446,7 @@ describe("editor input boundaries", () => {
       [second],
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await drainPromiseWork();
     expect(order).not.toContain("undo");
     releaseFirst?.();
     await history;

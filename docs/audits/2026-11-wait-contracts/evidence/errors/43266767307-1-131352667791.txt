@@ -1,0 +1,324 @@
+# run=43266767307 attempt=1 job=131352667791 name=Playwright journeys (webkit-desktop)
+  1) [webkit-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+
+    Test timeout of 120000ms exceeded.
+
+    Error: click: Test timeout of 120000ms exceeded.
+    Call log:
+      - waiting for locator('.database-entry-create').getByRole('button', { name: 'Nouvelle page' })
+
+
+      420 |
+      421 |     const entryForm = page.locator(".database-entry-create");
+    > 422 |     await entryForm.getByRole("button", { name: "Nouvelle page" }).click();
+          |                                                                   ^
+      423 |     const titleEditor = page.locator(".database-cell-title-input");
+      424 |     await expect(titleEditor).toBeVisible({ timeout: 15_000 });
+      425 |     await titleEditor.fill(entryName);
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:422:67
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 120000ms exceeded.
+
+    Error: click: Test timeout of 120000ms exceeded.
+    Call log:
+      - waiting for locator('.database-entry-create').getByRole('button', { name: 'Nouvelle page' })
+
+
+      420 |
+      421 |     const entryForm = page.locator(".database-entry-create");
+    > 422 |     await entryForm.getByRole("button", { name: "Nouvelle page" }).click();
+          |                                                                   ^
+      423 |     const titleEditor = page.locator(".database-cell-title-input");
+      424 |     await expect(titleEditor).toBeVisible({ timeout: 15_000 });
+      425 |     await titleEditor.fill(entryName);
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:422:67
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-webkit-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [webkit-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      187 |             );
+      188 |           })
+    > 189 |           .toBe(true);
+          |           ^
+      190 |       }
+      191 |       if (width === 320) {
+      192 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:189:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      187 |             );
+      188 |           })
+    > 189 |           .toBe(true);
+          |           ^
+      190 |       }
+      191 |       if (width === 320) {
+      192 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:189:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-webkit-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.database-grid tbody tr').filter({ hasText: 'Alpha visual-mwdtqg1x-9p128' }).getByRole('gridcell', { name: 'Due, 2026-11-11' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.be.visible" with timeout 10000ms
+      - waiting for locator('.database-grid tbody tr').filter({ hasText: 'Alpha visual-mwdtqg1x-9p128' }).getByRole('gridcell', { name: 'Due, 2026-11-11' })
+
+
+      186 |   const alphaRow = page.locator(".database-grid tbody tr").filter({ hasText: alpha });
+      187 |   await expect(alphaRow.getByRole("gridcell", { name: "Status, Done" })).toBeVisible();
+    > 188 |   await expect(alphaRow.getByRole("gridcell", { name: `Due, ${secondDate}` })).toBeVisible();
+          |                                                                               ^
+      189 |   await expect(alphaRow.locator("[data-entry-trigger]")).toHaveAttribute(
+      190 |     "data-entry-trigger",
+      191 |     canonicalEntryId as string,
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-visual-views.spec.ts:188:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-webkit-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.database-grid tbody tr').filter({ hasText: 'Alpha visual-mwdtr5lt-wo6iz' }).getByRole('gridcell', { name: 'Due, 2026-11-11' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.be.visible" with timeout 10000ms
+      - waiting for locator('.database-grid tbody tr').filter({ hasText: 'Alpha visual-mwdtr5lt-wo6iz' }).getByRole('gridcell', { name: 'Due, 2026-11-11' })
+
+
+      186 |   const alphaRow = page.locator(".database-grid tbody tr").filter({ hasText: alpha });
+      187 |   await expect(alphaRow.getByRole("gridcell", { name: "Status, Done" })).toBeVisible();
+    > 188 |   await expect(alphaRow.getByRole("gridcell", { name: `Due, ${secondDate}` })).toBeVisible();
+          |                                                                               ^
+      189 |   await expect(alphaRow.locator("[data-entry-trigger]")).toHaveAttribute(
+      190 |     "data-entry-trigger",
+      191 |     canonicalEntryId as string,
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-visual-views.spec.ts:188:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-webkit-desktop-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-webkit-desktop-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-webkit-desktop-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-webkit-desktop-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator: locator('.entry-panel').getByLabel('Summary', { exact: true })
+    Expected: "Native pending summary"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.have.value" with timeout 10000ms
+      - waiting for locator('.entry-panel').getByLabel('Summary', { exact: true })
+
+
+       99 |     await page.getByRole("button", { name: "Fermer le volet" }).click();
+      100 |     await trigger.click();
+    > 101 |     await expect(summary).toHaveValue("Native pending summary");
+          |                          ^
+      102 |   } finally {
+      103 |     await second.context.close();
+      104 |   }
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-visual-views.spec.ts:101:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-visual-views-pre-be1c8-ction-before-input-delivery-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-visual-views-pre-be1c8-ction-before-input-delivery-webkit-desktop/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-visual-views-pre-be1c8-ction-before-input-delivery-webkit-desktop/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-visual-views-pre-be1c8-ction-before-input-delivery-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-visual-views-pre-be1c8-ction-before-input-delivery-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [webkit-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+    [webkit-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+    [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts 
+  1 flaky
+    [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery 
+  15 skipped
+  103 passed (17.7m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-desktop
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 141 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-desktop.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 33554432
+Uploaded bytes 41943040
+Uploaded bytes 50331648
+Uploaded bytes 58720256
+Uploaded bytes 67108864
+Uploaded bytes 75497472
+Uploaded bytes 75859702
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 1814f715746de5b30d9b3374ea9fe04360ff58f32e0fc5909bd908e3ee7aa5c7
+Finalizing artifact upload
+Artifact playwright-report-webkit-desktop successfully finalized. Artifact ID 13967203887
+Artifact playwright-report-webkit-desktop has been successfully uploaded! Final size is 75859702 bytes. Artifact ID is 13967203887
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43266767307/artifacts/13967203887
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__b58b3507-c073-4198-b6af-e05f5b33c954.__oven-sh_setup-bun]
+##[end-action id=__b58b3507-c073-4198-b6af-e05f5b33c954.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/db317281-f2dc-4395-881b-87a2a9436201' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-5fa90679-81b8-4e66-a17e-c04d72d0ea7c.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-5fa90679\-81b8\-4e66\-a17e\-c04d72d0ea7c\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-5fa90679-81b8-4e66-a17e-c04d72d0ea7c.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-5fa90679\-81b8\-4e66\-a17e\-c04d72d0ea7c\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-5fa90679-81b8-4e66-a17e-c04d72d0ea7c.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-5fa90679\-81b8\-4e66\-a17e\-c04d72d0ea7c\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-5fa90679-81b8-4e66-a17e-c04d72d0ea7c.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-5fa90679\-81b8\-4e66\-a17e\-c04d72d0ea7c\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-5fa90679-81b8-4e66-a17e-c04d72d0ea7c.config'
+Cleaning up orphan processes

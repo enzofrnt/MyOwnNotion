@@ -1123,6 +1123,11 @@ export function TableView({
     (property) => property.type === "relation" && property.state === "active",
   );
   const singleAddColumn = properties.length <= 1;
+  // The draft of the inline property composer. It survives an implicit close —
+  // a press outside the cell, a scroll, a re-render — and is cleared only when
+  // the composer is actually used (a property is created) or explicitly
+  // abandoned (Escape). Losing typed text to a stray press is a data-loss bug,
+  // not a dismissal (feature 061, .agents/skills/test-quality/lessons.md L-002).
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnIcon, setNewColumnIcon] = useState<string | null>(null);
   const addPropertyRef = useRef<HTMLTableCellElement>(null);
@@ -1837,7 +1842,11 @@ export function TableView({
                     value={newColumnName}
                     onChange={(event) => setNewColumnName(event.target.value)}
                     onKeyDown={(event) => {
-                      if (event.key === "Escape") setAddingProperty(false);
+                      if (event.key !== "Escape") return;
+                      // Escape is the only dismissal that discards the draft.
+                      setAddingProperty(false);
+                      setNewColumnName("");
+                      setNewColumnIcon(null);
                     }}
                   />
 
@@ -1869,6 +1878,8 @@ export function TableView({
                                       icon: newColumnIcon,
                                     });
                                     setAddingProperty(false);
+                                    setNewColumnName("");
+                                    setNewColumnIcon(null);
                                   }}
                                 >
                                   <DatabasePropertyIcon type={type} />
@@ -1902,8 +1913,8 @@ export function TableView({
                         onAddProperty(event.currentTarget);
                         return;
                       }
-                      setNewColumnName("");
-                      setNewColumnIcon(null);
+                      // Opens on the retained draft: a composer closed by a
+                      // press outside must not lose what the owner typed.
                       setAddingProperty(true);
                     }}
                   >

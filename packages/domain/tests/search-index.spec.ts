@@ -5,7 +5,7 @@ import {
   type SearchDocument,
   WorkspaceSearchIndex,
 } from "@myownnotion/domain";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { definition, IDS, values } from "./databases/fixtures.ts";
 
 const itemIds = {
@@ -44,7 +44,12 @@ function query(raw: string) {
 }
 
 describe("WorkspaceSearchIndex", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("keeps a large writable index consistent beyond the engine vacuum threshold", async () => {
+    vi.useFakeTimers();
     const index = new WorkspaceSearchIndex();
     const largeBody = Array.from({ length: 1_100 }, (_, position) => `term-${position}`).join(" ");
 
@@ -64,9 +69,11 @@ describe("WorkspaceSearchIndex", () => {
     // must remain safe even after enough replacements to trigger maintenance.
     expect(index.search(query("retired marker"))).toHaveLength(0);
 
-    // MiniSearch's batched vacuum resumes on a timer. Give any background work
-    // time to complete before exercising the same index again.
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    // MiniSearch's batched vacuum resumes on a timer. The test owns that
+    // clock and runs every scheduled batch to completion before exercising the
+    // same index again, instead of hoping 25 ms covered them.
+    await vi.runAllTimersAsync();
+    vi.useRealTimers();
 
     expect(index.search(query("current marker"))).toMatchObject([{ itemId: itemIds.exact }]);
     expect(index.upsert(document(itemIds.body, "Still writable", "after maintenance", 31))).toBe(

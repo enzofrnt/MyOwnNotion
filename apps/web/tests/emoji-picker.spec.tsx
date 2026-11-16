@@ -7,6 +7,7 @@ import {
   EmojiPickerPanel,
   ItemEmojiPicker,
 } from "../src/ui/emoji-picker.tsx";
+import { until } from "./support/until.ts";
 
 describe("local emoji picker", () => {
   let container: HTMLDivElement;
@@ -171,10 +172,8 @@ describe("local emoji picker", () => {
       document.querySelector<HTMLButtonElement>('[data-testid="lazy-emoji"]')?.click(),
     );
     expect(onChange).toHaveBeenCalledWith("📌");
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    });
-    expect(document.querySelector('[data-testid="lazy-emoji"]')).toBeNull();
+    // Choosing closes the picker; reopening must start from that closed state.
+    await until(() => expect(document.querySelector('[data-testid="lazy-emoji"]')).toBeNull());
     await act(async () => trigger?.click());
     expect(factory).toHaveBeenCalledTimes(2);
     await act(async () =>

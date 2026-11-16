@@ -126,7 +126,7 @@ describe("pull-request selection", () => {
   ])("selects the stale-notice journey when %s changes", (source) => {
     const plan = pullRequestPlan([source]);
     expect(plan.e2e.testFiles).toContain("tests/e2e/backup.spec.ts");
-    expect(plan.e2e.matrix.map(({ project }) => project)).toEqual(policy.e2eProjects);
+    expect([...new Set(plan.e2e.matrix.map(({ project }) => project))]).toEqual(policy.e2eProjects);
   });
 
   it.each([
@@ -137,14 +137,15 @@ describe("pull-request selection", () => {
   ])("selects the bounded menu journey when %s changes", (source) => {
     const plan = pullRequestPlan([source]);
     expect(plan.e2e.testFiles).toContain("tests/e2e/editor-suggestion-menu.spec.ts");
-    expect(plan.e2e.matrix.map(({ project }) => project)).toEqual(policy.e2eProjects);
+    expect([...new Set(plan.e2e.matrix.map(({ project }) => project))]).toEqual(policy.e2eProjects);
   });
 
   it("uses an explicit no-op for documentation-only changes", () => {
     const plan = pullRequestPlan(["README.md", "docs/development.md"]);
     expect(plan.mode).toBe("none");
     expect(plan.vitest).toEqual({ mode: "none", sourceFiles: [], testFiles: [], groups: [] });
-    expect(plan.e2e.matrix).toEqual([{ project: "none" }]);
+    expect(plan.e2e.lanes).toEqual([]);
+    expect(plan.e2e.matrix).toEqual([{ project: "none", lane: "1/1", laneId: "none" }]);
   });
 
   it("uses Vitest relationships and explicit E2E owners for narrow source changes", () => {

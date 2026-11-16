@@ -24,6 +24,7 @@ import {
   waitForSynchronized,
 } from "./helpers.ts";
 import { setDataKeyWriteBlock } from "./reset-installation.ts";
+import { nextPageSyncProblem, recordAttribute } from "./waits/observation.ts";
 
 function indicator(page: import("@playwright/test").Page) {
   return page.getByTestId("editor-sync-status");
@@ -68,14 +69,19 @@ test.describe("the honest states", () => {
 
     await setDeviceOffline(page, true);
     try {
+      // Every value the indicator takes from the first keystroke onward, not
+      // one look after an arbitrary delay. The page was synchronized before
+      // going offline; that earlier state is not part of the claim.
+      await expect(indicator(page)).toHaveAttribute("data-sync", "offline");
+      const sync = await recordAttribute(page, '[data-testid="editor-sync-status"]', "data-sync");
       await typeIntoEditor(page, "written while the server is gone");
       await saveDocument(page);
-
-      // Give the interface every chance to be wrong.
-      await page.waitForTimeout(2_000);
-      await expect(indicator(page)).not.toHaveAttribute("data-sync", "synced");
-      await expect(page.getByTestId("editor-sync-label")).not.toHaveText("Synchronisé");
+      // The window closes on the honest answer, observed positively: the
+      // write is durable here and the indicator reports the missing server.
+      await expect(indicator(page)).toHaveAttribute("data-sync", "offline");
       await expect(indicator(page)).toHaveAttribute("data-durable", "true");
+      expect(await sync.values()).not.toContain("synced");
+      await expect(page.getByTestId("editor-sync-label")).not.toHaveText("Synchronisé");
     } finally {
       await setDeviceOffline(page, false);
     }
@@ -135,11 +141,10 @@ test.describe("what survives an unexpected close", () => {
     await openPage(page, name);
 
     await typeIntoEditor(page, "typed before the crash");
+    // `data-durable` is set from the session's committed local frontier. A
+    // reload keeps the browser's storage, so nothing else has to settle; if a
+    // committed edit were lost here, the application acknowledged it too early.
     await saveDocument(page);
-    // The session's Dexie transaction resolved; engines differ in when the
-    // browser flushes that write-back to disk. Reloading inside that window
-    // tests the engine, not the application boundary (FR-028).
-    await page.waitForTimeout(400);
 
     await page.reload();
     await openWorkspace(page);
@@ -208,15 +213,24 @@ test.describe("when the server refuses the write", () => {
 
   test("keeps the work durable and readable while sending is refused", async ({ page }) => {
     const name = uniqueName("Blocked");
+    // The claim is about a refused send, so the window closes on one. Frames
+    // are events: listen before the page opens its synchronization socket.
+    const refused = nextPageSyncProblem(page);
     await pageThenBlock(page, name);
+    // The page starts synchronized: that state belongs to before the edit and
+    // is the value the history excludes, so it must be in place first.
+    await expect(indicator(page)).toHaveAttribute("data-sync", "synced", { timeout: 30_000 });
+    const sync = await recordAttribute(page, '[data-testid="editor-sync-status"]', "data-sync");
     await typeIntoEditor(page, "Notes taken while saving was paused");
     await saveDocument(page);
+    await refused;
 
     // Whatever the transport decides — retry later or report the block — the
     // two facts an owner needs are unchanged: the words are on this device,
     // and the server has not confirmed them.
     await expect(indicator(page)).toHaveAttribute("data-durable", "true", { timeout: 30_000 });
     await expect(indicator(page)).not.toHaveAttribute("data-sync", "synced");
+    expect(await sync.values()).not.toContain("synced");
     await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
       "Notes taken while saving was paused",
     );

@@ -1,0 +1,31 @@
+# run=43266767307 attempt=1 job=131352667543 name=Playwright journeys (webkit-mobile)
+  ✘   15 [webkit-mobile] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (2.0m)
+  ✘   16 [webkit-mobile] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (retry #1) (2.0m)
+  ✘   36 [webkit-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (12.7s)
+  ✘   37 [webkit-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (retry #1) (12.8s)
+  ✘   71 [webkit-mobile] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order (6.0m)
+  ✘   72 [webkit-mobile] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order (retry #1) (6.0m)
+  ✘   78 [webkit-mobile] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline (6.0m)
+  ✘   79 [webkit-mobile] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline (retry #1) (6.0m)
+  ✘   86 [webkit-mobile] › tests/e2e/database-page-flow.spec.ts:340:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline (6.0m)
+  ✘   87 [webkit-mobile] › tests/e2e/database-page-flow.spec.ts:340:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline (retry #1) (6.0m)
+  ✘  100 [webkit-mobile] › tests/e2e/databases-schema.spec.ts:30:0 › creates a typed database whose entry and relations keep canonical page identities (2.0m)
+  ✘  101 [webkit-mobile] › tests/e2e/databases-schema.spec.ts:30:0 › creates a typed database whose entry and relations keep canonical page identities (retry #1) (2.0m)
+  ✘  106 [webkit-mobile] › tests/e2e/databases-tasks.spec.ts:127:0 › tracks one task page through roles, notes, relations, search and an independent checkbox (2.0m)
+  ✘  107 [webkit-mobile] › tests/e2e/databases-tasks.spec.ts:127:0 › tracks one task page through roles, notes, relations, search and an independent checkbox (retry #1) (2.0m)
+  ✘  108 [webkit-mobile] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers (6.0m)
+  ✘  109 [webkit-mobile] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers (retry #1) (6.0m)
+  ✘  110 [webkit-mobile] › tests/e2e/databases-views.spec.ts:281:0 › property editing from the view settings keeps the panel mounted (2.0m)
+  ✘  111 [webkit-mobile] › tests/e2e/databases-views.spec.ts:281:0 › property editing from the view settings keeps the panel mounted (retry #1) (2.0m)
+  ✘  113 [webkit-mobile] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (2.0m)
+  ✘  114 [webkit-mobile] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (retry #1) (2.0m)
+  1) [webkit-mobile] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  2) [webkit-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+  3) [webkit-mobile] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order 
+  4) [webkit-mobile] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline 
+  5) [webkit-mobile] › tests/e2e/database-page-flow.spec.ts:340:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline 
+  6) [webkit-mobile] › tests/e2e/databases-schema.spec.ts:30:0 › creates a typed database whose entry and relations keep canonical page identities 
+  7) [webkit-mobile] › tests/e2e/databases-tasks.spec.ts:127:0 › tracks one task page through roles, notes, relations, search and an independent checkbox 
+  8) [webkit-mobile] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers 
+  9) [webkit-mobile] › tests/e2e/databases-views.spec.ts:281:0 › property editing from the view settings keeps the panel mounted 
+  10) [webkit-mobile] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts 

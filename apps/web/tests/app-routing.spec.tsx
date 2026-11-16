@@ -8,6 +8,7 @@ import { App } from "../src/app.tsx";
 import type { BootstrapPageProps } from "../src/features/auth/bootstrap-page.tsx";
 import type { HierarchyExplorerProps } from "../src/features/hierarchy/hierarchy-explorer.tsx";
 import type { SecurityApi } from "../src/services/security-api.ts";
+import { drainPromiseWork } from "./support/until.ts";
 
 const renderedGraphModes: HierarchyExplorerProps["graphMode"][] = [];
 const renderedOpenItems: HierarchyExplorerProps["onOpenItem"][] = [];
@@ -196,7 +197,7 @@ describe("application routing", () => {
           <LocationProbe />
         </MemoryRouter>,
       );
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
   }
 
@@ -262,7 +263,7 @@ describe("application routing", () => {
       expect(api.currentSession).not.toHaveBeenCalled();
       await act(async () => {
         releaseProfile();
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await drainPromiseWork();
       });
       expect(api.currentSession).toHaveBeenCalledTimes(1);
       expect(container.querySelector('[data-testid="routed-hierarchy"]')).not.toBeNull();
@@ -306,7 +307,7 @@ describe("application routing", () => {
       container
         .querySelector<HTMLButtonElement>('[data-testid="reconcile-hidden-workspace"]')
         ?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
 
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
@@ -316,7 +317,7 @@ describe("application routing", () => {
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="back-to-workspace"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe("/notes");
   });
@@ -326,7 +327,7 @@ describe("application routing", () => {
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="open-routing-settings"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
       "/settings/security",
@@ -336,7 +337,7 @@ describe("application routing", () => {
       container
         .querySelector<HTMLButtonElement>('[data-testid="reconcile-hidden-workspace-to-note"]')
         ?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
       "/settings/security",
@@ -344,7 +345,7 @@ describe("application routing", () => {
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="back-to-workspace"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
       `/notes/${replacementItemId}`,
@@ -358,7 +359,7 @@ describe("application routing", () => {
       container
         .querySelector<HTMLButtonElement>('[data-testid="reconcile-hidden-workspace-to-graph"]')
         ?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
       "/settings/trash",
@@ -366,7 +367,7 @@ describe("application routing", () => {
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="back-to-workspace"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe("/graph");
   });
@@ -411,7 +412,7 @@ describe("application routing", () => {
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="rerender-routed-app"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
 
     expect(renderedGraphModes.at(-1)).toBe(initialGraphMode);
@@ -444,7 +445,7 @@ describe("application routing", () => {
       );
       password.dispatchEvent(new Event("input", { bubbles: true }));
       container.querySelector<HTMLButtonElement>('[data-testid="sign-in-password"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
 
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
@@ -468,7 +469,7 @@ describe("application routing", () => {
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="finish-routed-setup"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
       `/notes/${itemId}`,

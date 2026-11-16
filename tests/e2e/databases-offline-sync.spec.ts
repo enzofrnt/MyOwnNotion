@@ -26,6 +26,7 @@ import {
   waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
+import { beginEntryChange } from "./waits/local-state.ts";
 
 async function goOffline(page: Page): Promise<void> {
   await page.context().route("**/v1/**", (route) => route.abort("connectionrefused"));
@@ -343,7 +344,11 @@ test.describe("structured offline convergence (US5)", () => {
 
       // The online device changes another stable field from the common entry
       // revision. Both edits must survive without asking the owner anything.
+      // The cell label is shown from the optimistic update; the other device
+      // can only merge what this one committed and sent.
+      const remoteOwner = await beginEntryChange(page, entryName);
       await updateTextCell(page, entryName, "Owner", "remote compatible owner");
+      await remoteOwner.committed();
       await waitForSynchronized(page);
 
       await goOnline(second.page);
@@ -386,7 +391,9 @@ test.describe("structured offline convergence (US5)", () => {
         "local divergent note",
       );
 
+      const remoteNote = await beginEntryChange(page, entryName);
       await updateTextCell(page, entryName, "Notes", "remote divergent note");
+      await remoteNote.committed();
       await waitForSynchronized(page);
 
       await goOnline(second.page);

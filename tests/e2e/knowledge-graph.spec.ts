@@ -14,7 +14,7 @@ test("the content graph stays distinct from folders and supports ten pointer jou
   page,
   browserName,
 }, testInfo) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   const productFolder = uniqueName("GraphProduct");
   const researchFolder = uniqueName("GraphResearch");
@@ -221,7 +221,7 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   page,
   request,
 }) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   const source = uniqueName("GraphSource");
   const target = uniqueName("GraphTarget");

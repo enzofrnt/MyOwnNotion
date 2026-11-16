@@ -1,0 +1,12 @@
+# run=43285025189 attempt=1 job=131416160449 name=Playwright journeys (firefox-desktop)
+  ✘   35 [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (12.7s)
+  ✘   36 [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (retry #1) (13.8s)
+  ✘   84 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (3.1m)
+  ✘   85 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (retry #1) (3.1m)
+  ✘   86 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:229:0 › relation and rollup isolate a second source in the same database container (3.1m)
+  ✘   87 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:229:0 › relation and rollup isolate a second source in the same database container (retry #1) (3.1m)
+  ✘   89 [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:272:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict (44.1s)
+  1) [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+  2) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+  3) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:229:0 › relation and rollup isolate a second source in the same database container 
+  4) [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:272:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict 

@@ -21,7 +21,7 @@ import os from "node:os";
 import path from "node:path";
 import { createInstallation, schema } from "@myownnotion/database";
 import { eq, sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { RotationPolicyService } from "../src/security/rotation-policy-service.ts";
 import { DAILY_INTERVAL_MS, RotationScheduler } from "../src/security/rotation-scheduler.ts";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
@@ -205,10 +205,10 @@ describe("startup evaluation against real policies", () => {
 
     await scheduler.start();
     const afterStartup = entries.length;
-    await new Promise((resolve) => setTimeout(resolve, 120));
+    // The claim is that the schedule evaluates again; wait for that
+    // evaluation's log entry rather than for four guessed intervals.
+    await vi.waitFor(() => expect(entries.length).toBeGreaterThan(afterStartup));
     scheduler.stop();
-
-    expect(entries.length).toBeGreaterThan(afterStartup);
   });
 
   it("survives a failing evaluation rather than losing the schedule", async () => {

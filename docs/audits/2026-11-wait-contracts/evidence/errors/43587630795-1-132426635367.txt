@@ -1,0 +1,13 @@
+# run=43587630795 attempt=1 job=132426635367 name=API & workspace contract tests
+  digest-mismatch: error
+     ✓ reports a canonical rename as a stale restore head instead of an internal error 1315ms
+AssertionError: expected '^11.3.7' to be '^11.3.0' // Object.is equality
+AssertionError: expected '0.57.0' to be '0.54.0' // Object.is equality
+##[error]AssertionError: expected '^11.3.7' to be '^11.3.0' // Object.is equality
+AssertionError: expected '0.4.43' to be '0.4.37' // Object.is equality
+##[error]AssertionError: expected '0.57.0' to be '0.54.0' // Object.is equality
+##[error]AssertionError: expected '0.4.43' to be '0.4.37' // Object.is equality
+error: "vitest" exited with code 1
+error: script "test:contract" exited with code 1
+error: script "ci:test:affected" exited with code 1
+##[error]Process completed with exit code 1.

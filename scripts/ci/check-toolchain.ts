@@ -176,6 +176,7 @@ const requiredGateScripts = [
   "toolchain:check",
   "ci:test-impact",
   "ci:test:affected",
+  "ci:e2e:summary",
   "shell:check",
   "format:check",
   "lint:ci",

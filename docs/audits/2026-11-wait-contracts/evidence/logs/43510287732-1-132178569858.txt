@@ -1,0 +1,4 @@
+# run=43510287732 attempt=1 job=132178569858 name=Playwright journeys (firefox-desktop 3/4)
+  ✘  15 [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (15.7s)
+  ✘  16 [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (retry #1) (16.6s)
+  1) [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 

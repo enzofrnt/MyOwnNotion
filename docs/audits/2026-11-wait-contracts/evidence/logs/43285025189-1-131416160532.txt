@@ -1,0 +1,7 @@
+# run=43285025189 attempt=1 job=131416160532 name=Playwright journeys (webkit-mobile)
+  ✘   35 [webkit-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (12.1s)
+  ✘   36 [webkit-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (retry #1) (12.3s)
+  ✘  102 [webkit-mobile] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers (22.7s)
+  ✘  103 [webkit-mobile] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers (retry #1) (23.9s)
+  1) [webkit-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+  2) [webkit-mobile] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers 

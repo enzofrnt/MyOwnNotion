@@ -1,0 +1,16 @@
+# run=43285025189 attempt=1 job=131416160748 name=Playwright journeys (chromium-mobile)
+  ✘   35 [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (12.1s)
+  ✘   36 [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (retry #1) (12.3s)
+  ✘   84 [chromium-mobile] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (3.0m)
+  ✘   85 [chromium-mobile] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (retry #1) (3.0m)
+  ✘  291 [chromium-mobile] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths (1.0m)
+  ✘  292 [chromium-mobile] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths (retry #1) (1.0m)
+  ✘  330 [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:122:2 › matches the dark mobile security surface (2.4s)
+  ✘  331 [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:122:2 › matches the dark mobile security surface (retry #1) (2.5s)
+  ✘  338 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:22:0 › welcomes an empty workspace on a page-shaped canvas and opens its first page (11.7s)
+  ✘  339 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:22:0 › welcomes an empty workspace on a page-shaped canvas and opens its first page (retry #1) (11.8s)
+  1) [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+  2) [chromium-mobile] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+  3) [chromium-mobile] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths 
+  4) [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:122:2 › matches the dark mobile security surface 
+  5) [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:22:0 › welcomes an empty workspace on a page-shaped canvas and opens its first page 

@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DatabaseViewPage } from "../src/services/databases.ts";
+import { drainPromiseWork } from "./support/until.ts";
 
 const id = (suffix: string) => `018f5000-0000-7000-8000-0000000003${suffix}` as Uuid;
 const property: DatabaseProperty = {
@@ -82,7 +83,7 @@ describe("map view states", () => {
       ),
     );
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
   }
 
@@ -119,7 +120,7 @@ describe("map view states", () => {
     );
     await act(async () => {
       retry?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await drainPromiseWork();
     });
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(container.querySelector("[role=alert]")?.textContent).toContain("n’est pas configurée");

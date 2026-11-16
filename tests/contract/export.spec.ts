@@ -10,7 +10,7 @@ import {
   generateUuidV7,
   validateCanonicalExport,
 } from "@myownnotion/domain";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   type ApiHarness,
   createApiHarness,
@@ -44,13 +44,18 @@ async function runExport(): Promise<{
 
   let status = "pending";
   let digest = "";
-  for (let attempt = 0; attempt < 50 && status === "pending"; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    const poll = await harness.built.app.inject({ method: "GET", url: `/v1/export/${exportId}` });
-    const body = poll.json() as { status: string; digest?: string };
-    status = body.status;
-    digest = body.digest ?? "";
-  }
+  // Poll the export's own state until it leaves "pending"; the bound only
+  // turns an export that never finishes into a failure naming it.
+  await vi.waitFor(
+    async () => {
+      const poll = await harness.built.app.inject({ method: "GET", url: `/v1/export/${exportId}` });
+      const body = poll.json() as { status: string; digest?: string };
+      status = body.status;
+      digest = body.digest ?? "";
+      expect(status, "the export left the pending state").not.toBe("pending");
+    },
+    { timeout: 5_000, interval: 50 },
+  );
   expect(status).toBe("ready");
 
   const artifact = await harness.built.app.inject({

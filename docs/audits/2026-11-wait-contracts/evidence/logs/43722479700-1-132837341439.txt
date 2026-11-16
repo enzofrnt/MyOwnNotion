@@ -1,0 +1,3 @@
+# run=43722479700 attempt=1 job=132837341439 name=Playwright journeys (webkit-mobile 1/3)
+  ✘   79 [webkit-mobile] › tests/e2e/page-multi-device-convergence.spec.ts:344:0 › a restarted device drains a closed page without reopening it (22.8s)
+  1) [webkit-mobile] › tests/e2e/page-multi-device-convergence.spec.ts:344:0 › a restarted device drains a closed page without reopening it 

@@ -1,0 +1,501 @@
+# run=43285025189 attempt=1 job=131416160748 name=Playwright journeys (chromium-mobile)
+  1) [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      189 |             );
+      190 |           })
+    > 191 |           .toBe(true);
+          |           ^
+      192 |       }
+      193 |       if (width === 320) {
+      194 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:191:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      189 |             );
+      190 |           })
+    > 191 |           .toBe(true);
+          |           ^
+      192 |       }
+      193 |       if (width === 320) {
+      194 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:191:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium-mobile] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: click: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for locator('.rollup-settings').getByRole('button', { name: /^Propri\u00E9t\u00E9 cible/ })
+        - locator resolved to <button id="_r_4j_" type="button" aria-haspopup="menu" aria-expanded="false" class="ui-menu__trigger property-settings__type rollup-settings__row">…</button>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <button type="button" data-size="compact" aria-pressed="false" data-variant="ghost" class="ui-button database-column-editor__action-row">…</button> from <div class="ui-popover__positioner">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      - retrying click action
+        - waiting 20ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      - retrying click action
+        - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="workspace-reading-column">…</div> from <div id="root">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <button type="button" role="menuitemradio" aria-checked="false">…</button> from <div role="menu" data-property-submenu="true" aria-label="Type de propriété" class="database-column-editor__flyout">…</div> subtree intercepts pointer events
+      83 × retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <button type="button" role="button" tabindex="-1" aria-disabled="false" data-open-tab-activate="" class="open-tab__activate" aria-roledescription="sortable" aria-describedby="DndDescribedBy-1" title="057 Amounts B — glisser pour réordonner" data-tab-id="01a1d126-adc9-7000-ac85-29e819eb669d">…</button> from <div id="root">…</div> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="workspace-page-title__path">…</div> from <div id="root">…</div> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="workspace-reading-column">…</div> from <div id="root">…</div> subtree intercepts pointer events
+         - retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="workspace-reading-column">…</div> from <div id="root">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <button type="button" role="button" tabindex="-1" aria-disabled="false" data-open-tab-activate="" class="open-tab__activate" aria-roledescription="sortable" aria-describedby="DndDescribedBy-1" title="057 Amounts B — glisser pour réordonner" data-tab-id="01a1d126-adc9-7000-ac85-29e819eb669d">…</button> from <div id="root">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+      69 |     .locator(".rollup-settings")
+      70 |     .getByRole("button", { name: /^Propriété cible/ })
+    > 71 |     .click();
+         |     ^
+      72 |   // This must exist while B has NO rows: source schema, never inferred links.
+      73 |   await page.getByRole("menuitemradio", { name: "Amount", exact: true }).click();
+      74 |   await page
+        at configureTotal (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:71:5)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:140:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: focus: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('menuitem', { name: 'Plus d’options', exact: true })
+
+
+      88 | async function chooseSum(page: Page) {
+      89 |   const more = page.getByRole("menuitem", { name: "Plus d’options", exact: true });
+    > 90 |   await more.focus();
+         |             ^
+      91 |   await page.keyboard.press("ArrowRight");
+      92 |   const sum = page.getByRole("menuitemradio", { name: "Somme", exact: true });
+      93 |   await expect(sum).toBeVisible();
+        at chooseSum (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:90:13)
+        at configureTotal (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:78:8)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:140:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium-mobile] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: focus: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /Rechercher.*\u2318 K/u })
+
+
+      174 |     await ensureNavigationVisible(page);
+      175 |     const searchTrigger = page.getByRole("button", { name: /Rechercher.*⌘ K/u });
+    > 176 |     await searchTrigger.focus();
+          |                        ^
+      177 |     dialog = await searchFor(page, token);
+      178 |     await dialog.getByLabel("Dossiers").uncheck();
+      179 |     await dialog.getByLabel("Fichiers").uncheck();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/search.spec.ts:176:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 60000ms exceeded.
+
+    Error: focus: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /Rechercher.*\u2318 K/u })
+
+
+      174 |     await ensureNavigationVisible(page);
+      175 |     const searchTrigger = page.getByRole("button", { name: /Rechercher.*⌘ K/u });
+    > 176 |     await searchTrigger.focus();
+          |                        ^
+      177 |     dialog = await searchFor(page, token);
+      178 |     await dialog.getByLabel("Dossiers").uncheck();
+      179 |     await dialog.getByLabel("Fichiers").uncheck();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/search.spec.ts:176:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/search-workspace-search-re-d5bdc-d-operable-at-narrow-widths-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:122:2 › matches the dark mobile security surface 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      23507 pixels (ratio 0.07 of all image pixels) are different.
+
+      Snapshot: v1-security-dark-mobile.png
+
+    Call log:
+      - Expect screenshot with timeout 10000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 23507 pixels (ratio 0.07 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 23507 pixels (ratio 0.07 of all image pixels) are different.
+
+
+      146 |     await settlePixels(page);
+      147 |
+    > 148 |     await expect(page).toHaveScreenshot(`v1-${section}-${theme}-mobile.png`, {
+          |                       ^
+      149 |       animations: "disabled",
+      150 |       caret: "hide",
+      151 |       clip: { x: 0, y: 0, ...MOBILE },
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/v1-surface-visuals.spec.ts:148:23
+
+    attachment #1: v1-security-dark-mobile (image/png) ─────────────────────────────────────────────
+    Expected: tests/e2e/v1-surface-visuals.spec.ts-snapshots/v1-security-dark-mobile-chromium-mobile-linux.png
+    Received: test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile/v1-security-dark-mobile-actual.png
+    Diff:     test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile/v1-security-dark-mobile-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      23507 pixels (ratio 0.07 of all image pixels) are different.
+
+      Snapshot: v1-security-dark-mobile.png
+
+    Call log:
+      - Expect screenshot with timeout 10000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 23507 pixels (ratio 0.07 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 23507 pixels (ratio 0.07 of all image pixels) are different.
+
+
+      146 |     await settlePixels(page);
+      147 |
+    > 148 |     await expect(page).toHaveScreenshot(`v1-${section}-${theme}-mobile.png`, {
+          |                       ^
+      149 |       animations: "disabled",
+      150 |       caret: "hide",
+      151 |       clip: { x: 0, y: 0, ...MOBILE },
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/v1-surface-visuals.spec.ts:148:23
+
+    attachment #1: v1-security-dark-mobile (image/png) ─────────────────────────────────────────────
+    Expected: tests/e2e/v1-surface-visuals.spec.ts-snapshots/v1-security-dark-mobile-chromium-mobile-linux.png
+    Received: test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile-retry1/v1-security-dark-mobile-actual.png
+    Diff:     test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile-retry1/v1-security-dark-mobile-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile-retry1/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/v1-surface-visuals-matches-the-dark-mobile-security-surface-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:22:0 › welcomes an empty workspace on a page-shaped canvas and opens its first page 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByRole('tree', { name: 'Arborescence' })
+    Expected substring: "Nouvelle page"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.have.text" with timeout 10000ms
+      - waiting for getByRole('tree', { name: 'Arborescence' })
+
+
+      35 |   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/u);
+      36 |   await expect(page.getByTestId("active-item-title")).toBeVisible();
+    > 37 |   await expect(page.getByRole("tree", { name: "Arborescence" })).toContainText("Nouvelle page");
+         |                                                                 ^
+      38 | });
+      39 |
+      40 | test("recovers the same local page after an explicit storage initialization refusal", async ({
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/workspace-shell.spec.ts:37:65
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/workspace-shell-welcomes-a-12e3b-as-and-opens-its-first-page-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/workspace-shell-welcomes-a-12e3b-as-and-opens-its-first-page-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/workspace-shell-welcomes-a-12e3b-as-and-opens-its-first-page-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/workspace-shell-welcomes-a-12e3b-as-and-opens-its-first-page-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByRole('tree', { name: 'Arborescence' })
+    Expected substring: "Nouvelle page"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.have.text" with timeout 10000ms
+      - waiting for getByRole('tree', { name: 'Arborescence' })
+
+
+      35 |   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/u);
+      36 |   await expect(page.getByTestId("active-item-title")).toBeVisible();
+    > 37 |   await expect(page.getByRole("tree", { name: "Arborescence" })).toContainText("Nouvelle page");
+         |                                                                 ^
+      38 | });
+      39 |
+      40 | test("recovers the same local page after an explicit storage initialization refusal", async ({
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/workspace-shell.spec.ts:37:65
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/workspace-shell-welcomes-a-12e3b-as-and-opens-its-first-page-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/workspace-shell-welcomes-a-12e3b-as-and-opens-its-first-page-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/workspace-shell-welcomes-a-12e3b-as-and-opens-its-first-page-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/workspace-shell-welcomes-a-12e3b-as-and-opens-its-first-page-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5 failed
+    [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+    [chromium-mobile] › tests/e2e/database-relations-rollups.spec.ts:102:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+    [chromium-mobile] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths 
+    [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:122:2 › matches the dark mobile security surface 
+    [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:22:0 › welcomes an empty workspace on a page-shaped canvas and opens its first page 
+  24 skipped
+  315 passed (37.9m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-chromium-mobile
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 271 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-chromium-mobile.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 33554432
+Uploaded bytes 41943040
+Uploaded bytes 50331648
+Uploaded bytes 58720256
+Uploaded bytes 67108864
+Uploaded bytes 75497472
+Uploaded bytes 82280100
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 04107fd9b243e9298c415b76747f589810ab2cff4dc33c0ca5992b6a96b8cf16
+Finalizing artifact upload
+Artifact playwright-report-chromium-mobile successfully finalized. Artifact ID 13978190328
+Artifact playwright-report-chromium-mobile has been successfully uploaded! Final size is 82280100 bytes. Artifact ID is 13978190328
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43285025189/artifacts/13978190328

@@ -1,0 +1,162 @@
+# run=43324403378 attempt=1 job=131553386321 name=Playwright journeys (webkit-desktop)
+  1) [webkit-desktop] › tests/e2e/database-relations-rollups.spec.ts:110:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.entry-panel').locator('.database-field--entry').filter({ has: getByRole('button', { name: 'Modifier la propriété Total', exact: true }) })
+    Expected substring: "30"
+    Received string:    "Total20"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "to.have.text" with timeout 10000ms
+      - waiting for locator('.entry-panel').locator('.database-field--entry').filter({ has: getByRole('button', { name: 'Modifier la propriété Total', exact: true }) })
+        24 × locator resolved to <div class="database-field database-field--entry">…</div>
+           - unexpected value "Total20"
+
+
+      193 |     has: page.getByRole("button", { name: "Modifier la propriété Double", exact: true }),
+      194 |   });
+    > 195 |   await expect(total).toContainText("30");
+          |                      ^
+      196 |   await expect(double).toContainText("60");
+      197 |   await page.getByRole("button", { name: "Fermer le volet" }).click();
+      198 |   const row = page.getByRole("row").filter({ hasText: "057 Project" });
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-relations-rollups.spec.ts:195:22
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-webkit-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-relations-rollups-9a285-omputes-10-20-30-formula-60-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator: locator('.entry-panel').getByLabel('Summary', { exact: true })
+    Expected: "Native pending summary"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.have.value" with timeout 10000ms
+      - waiting for locator('.entry-panel').getByLabel('Summary', { exact: true })
+
+
+       99 |     await page.getByRole("button", { name: "Fermer le volet" }).click();
+      100 |     await trigger.click();
+    > 101 |     await expect(summary).toHaveValue("Native pending summary");
+          |                          ^
+      102 |   } finally {
+      103 |     await second.context.close();
+      104 |   }
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/databases-visual-views.spec.ts:101:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-visual-views-pre-be1c8-ction-before-input-delivery-webkit-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/databases-visual-views-pre-be1c8-ction-before-input-delivery-webkit-desktop/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/databases-visual-views-pre-be1c8-ction-before-input-delivery-webkit-desktop/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/databases-visual-views-pre-be1c8-ction-before-input-delivery-webkit-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/databases-visual-views-pre-be1c8-ction-before-input-delivery-webkit-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 flaky
+    [webkit-desktop] › tests/e2e/database-relations-rollups.spec.ts:110:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+    [webkit-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery 
+  15 skipped
+  105 passed (18.9m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-desktop
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 125 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-desktop.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 26838533
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 20e4d4c9f93b878b345ed5d7960edc309d1fc51eaa1adbdf64ab0e2a6b667d72
+Finalizing artifact upload
+Artifact playwright-report-webkit-desktop successfully finalized. Artifact ID 13993193638
+Artifact playwright-report-webkit-desktop has been successfully uploaded! Final size is 26838533 bytes. Artifact ID is 13993193638
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43324403378/artifacts/13993193638
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__bcf1b98f-df7f-484a-9daf-04b5fd234d8f.__oven-sh_setup-bun]
+##[end-action id=__bcf1b98f-df7f-484a-9daf-04b5fd234d8f.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.0
+Temporarily overriding HOME='/home/runner/work/_temp/cc26b39a-98f8-4b45-b7d3-234b86ac1929' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-ec9b75d6-efa6-42cb-bcf4-70e951ef1cc8.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-ec9b75d6\-efa6\-42cb\-bcf4\-70e951ef1cc8\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-ec9b75d6-efa6-42cb-bcf4-70e951ef1cc8.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-ec9b75d6\-efa6\-42cb\-bcf4\-70e951ef1cc8\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-ec9b75d6-efa6-42cb-bcf4-70e951ef1cc8.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-ec9b75d6\-efa6\-42cb\-bcf4\-70e951ef1cc8\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-ec9b75d6-efa6-42cb-bcf4-70e951ef1cc8.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-ec9b75d6\-efa6\-42cb\-bcf4\-70e951ef1cc8\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-ec9b75d6-efa6-42cb-bcf4-70e951ef1cc8.config'
+Cleaning up orphan processes

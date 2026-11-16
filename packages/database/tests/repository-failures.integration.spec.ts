@@ -171,7 +171,9 @@ describe("executeRestore rejections", () => {
       .set({
         lifecycle: "trashed",
         trashedAt: new Date(),
-        purgeAfter: new Date(Date.now() + 1000),
+        // A day ahead, like the other trashed fixtures: one second made the
+        // case depend on the runner finishing the restore within that second.
+        purgeAfter: new Date(Date.now() + 86_400_000),
       })
       .where(eq(schema.items.id, itemId));
 

@@ -94,6 +94,8 @@
       "tests/e2e/global-setup.ts",
       "tests/e2e/helpers.ts",
       "tests/e2e/projects.ts",
+      "tests/e2e/waits/local-state.ts",
+      "tests/e2e/waits/observation.ts",
       "tests/e2e/reset-content.ts",
       "tests/e2e/reset-installation.ts",
       "tests/e2e/desktop-skip.ts",
@@ -1163,6 +1165,18 @@
       }
     },
     {
+      "test": "tests/e2e/wait-witnesses.spec.ts",
+      "owners": {
+        "exact": [],
+        "prefixes": [
+          "apps/web/src/features/hierarchy/",
+          "packages/client-core/src/navigation/",
+          "tests/e2e/waits/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/workspace-settings-boundary.spec.ts",
       "owners": {
         "exact": ["apps/web/src/app.tsx", "apps/web/src/global.css"],
@@ -1395,5 +1409,11 @@
     "webkit-desktop",
     "chromium-mobile",
     "webkit-mobile"
-  ]
+  ],
+  "e2eLanes": {
+    "targetSeconds": 720,
+    "maxPerProject": 6,
+    "maxTotal": 15,
+    "defaultSecondsPerTest": 7
+  }
 }

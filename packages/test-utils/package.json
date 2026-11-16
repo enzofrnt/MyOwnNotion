@@ -16,11 +16,11 @@
     "@myownnotion/database": "workspace:*",
     "@myownnotion/domain": "workspace:*",
     "@testcontainers/postgresql": "^11.11.1",
-    "fast-check": "^4.5.3",
-    "pg": "^8.16.3"
+    "fast-check": "^4.10.2",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
-    "@types/pg": "^8.15.6",
+    "@types/pg": "^8.23.1",
     "typescript": "^5.9.3"
   }
 }

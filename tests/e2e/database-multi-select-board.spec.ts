@@ -12,6 +12,7 @@ import {
   waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
+import { beginDefinitionChange } from "./waits/local-state.ts";
 
 test("keeps the next view menu open while the entry peek finishes closing", async ({
   page,
@@ -42,9 +43,10 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   page,
   context,
 }, testInfo) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
-  await createRootDatabase(page, uniqueName("Multi board"));
+  const databaseName = uniqueName("Multi board");
+  await createRootDatabase(page, databaseName);
   await addDatabaseProperty(page, "Matières", "multi-select", ["Alpha", "Beta", "Gamma"]);
   const title = uniqueName("Shared task");
   const trigger = await createDatabaseEntry(page, title);
@@ -179,7 +181,10 @@ test("multi-select Kanban preserves other memberships across moves, hidden axis,
   await settings.getByRole("button", { name: /Visibilité des propriétés/ }).click();
   // The visibility screen now exposes eye buttons ("Masquer <propriété>")
   // instead of switches.
+  const hidden = await beginDefinitionChange(page, databaseName);
   await settings.getByRole("button", { name: "Masquer Matières", exact: true }).click();
+  // Hiding a property is a presentation write; the reload reads its commit.
+  await hidden.committed();
   await settings.getByRole("button", { name: "Fermer", exact: true }).click();
   await waitForSynchronized(page);
   await page.reload();

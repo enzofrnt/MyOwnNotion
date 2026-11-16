@@ -1,5 +1,28 @@
 <!--
 Sync Impact Report
+- Version change: 4.0.0 -> 4.1.0
+- Modified principles:
+  - III. Incremental, Verifiable Delivery -> a test waits for a verifiable state
+    of the operation it depends on; elapsed time, visibility, a received
+    response and an idle state are not evidence; failures are diagnosed from
+    evidence and a green re-run is not a correction.
+- Modified sections: none in Product and Technical Constraints; the delivery
+  sequence is unchanged.
+- Added sections: none
+- Removed sections: none
+- Aligned in the same change:
+  - `.agents/skills/test-quality/` (maintained skill: SKILL.md + lessons.md)
+  - `docs/testing/wait-contracts.md` (the normative rule the principle cites)
+  - `AGENTS.md` (required workflow points at the skill)
+  - `specs/061-test-evidence-and-draft-preservation/`
+- Shared templates reviewed: no template mandates time-based waiting.
+- Follow-up TODOs: none
+- Rationale: MINOR. The owner makes verifiable test evidence a delivery
+  obligation and gives its reusable guidance a home the agents actually consult:
+  the constitution, a maintained skill next to `ui-quality`, and the feature
+  artifacts. No product behaviour changes.
+
+Previous report (3.4.0 -> 4.0.0)
 - Version change: 3.4.0 -> 4.0.0
 - Modified principles:
   - III. Incremental, Verifiable Delivery -> local validation is selected from
@@ -213,6 +236,10 @@ updated in the same change.
 
 Features MUST be divided into independently useful user stories that can be implemented and verified incrementally. Changed behavior MUST have automated tests at the appropriate level. Domain and backend behavior MUST be covered by focused unit, property, integration, or contract tests as appropriate. Every changed user-visible interactive flow MUST have a Playwright journey covering the relevant responsive viewport and browser behavior. A task is complete only when its acceptance criteria pass, relevant checks pass, and the shared task list reflects reality. A numeric coverage target MUST NOT be treated as a substitute for testing required behavior and failure paths.
 
+Every automated test MUST wait for a verifiable state produced by the code that completes the operation it depends on, correlated with that operation — the same entity, revision, acknowledgement or a counter captured before the gesture — and that state MUST NOT be missable or stale. Elapsed time, an element that is merely visible, a received network response and an idle state MUST NOT be treated as proof that an operation finished; timeouts are maximum bounds that fail with a diagnostic naming the missing precondition. A test whose subject is time MUST own its clock. Deliberate interruption scenarios MUST remain covered and MUST be triggered by a controlled barrier rather than by chance. No test may be weakened, retried or skipped to obtain a passing gate, and a green re-run of a failed run MUST NOT be recorded as a correction.
+
+Test failures MUST be diagnosed from retained evidence — runs, jobs, logs, traces — including the possibility that the same failure predates the change under review. An unexplained intermittent failure blocks convergence until its cause is established or its limit is recorded in the feature artifacts. The reusable guidance for this principle lives in the maintained `test-quality` skill; its journal of lessons is normative for how tests are written and reviewed.
+
 Local validation MUST be proportionate to the changes being published and their
 dependency impact. Focused checks MUST cover affected behavior and failure paths;
 the complete local gate MUST run for cross-cutting changes or when the affected
@@ -350,4 +377,4 @@ product invariant MUST amend the constitution in the same change. Feature-level
 detail MUST remain in the relevant feature directory rather than being copied
 into the constitution.
 
-**Version**: 4.0.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-10-04
+**Version**: 4.1.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-11-16

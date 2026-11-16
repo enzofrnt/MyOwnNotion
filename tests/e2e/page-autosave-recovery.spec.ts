@@ -34,10 +34,10 @@ test.describe("autosave under abrupt exit", () => {
     // No wait for « synchronized » and no save gesture. The status may only
     // acknowledge this exact browser burst after its local commit is durable.
     await waitForEditorSettled(page, { afterSequence: beforeSequence });
+    // A new page always opens on the operational editor, so its durable
+    // acknowledgment is required, never skipped when it has not rendered yet.
     const status = page.getByTestId("editor-sync-status");
-    if (await status.count()) {
-      await expect(status).toHaveAttribute("data-durable", "true", { timeout: 15_000 });
-    }
+    await expect(status).toHaveAttribute("data-durable", "true", { timeout: 15_000 });
     await page.reload();
 
     await openWorkspace(page);
@@ -61,10 +61,10 @@ test.describe("autosave under abrupt exit", () => {
     await editor.click();
     await editor.pressSequentially("écrit puis fermé brutalement");
     await waitForEditorSettled(page, { afterSequence: beforeSequence });
+    // A new page always opens on the operational editor, so its durable
+    // acknowledgment is required, never skipped when it has not rendered yet.
     const status = page.getByTestId("editor-sync-status");
-    if (await status.count()) {
-      await expect(status).toHaveAttribute("data-durable", "true", { timeout: 15_000 });
-    }
+    await expect(status).toHaveAttribute("data-durable", "true", { timeout: 15_000 });
 
     // Closing the page's tab is the abrupt exit; a fresh tab in the same
     // context keeps both the session and the device's sealed storage. Opening

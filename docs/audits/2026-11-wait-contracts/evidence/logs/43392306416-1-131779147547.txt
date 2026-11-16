@@ -1,0 +1,12 @@
+# run=43392306416 attempt=1 job=131779147547 name=Playwright journeys (webkit-mobile)
+  ✘   10 [webkit-mobile] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations (10.1s)
+  ✘   11 [webkit-mobile] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations (retry #1) (9.2s)
+  ✘   14 [webkit-mobile] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology (9.1s)
+  ✘   15 [webkit-mobile] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology (retry #1) (9.8s)
+  ✘   17 [webkit-mobile] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (20.1s)
+  ✘   18 [webkit-mobile] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (retry #1) (20.1s)
+  ✘   74 [webkit-mobile] › tests/e2e/database-form-lifecycle.spec.ts:78:1 › keeps conversion confirmation immediate and returns to the card without a pointer selection outline (6.0m)
+  1) [webkit-mobile] › tests/e2e/accessibility.spec.ts:322:3 › the file surfaces (feature 005) › the attachment list has no critical or serious violations 
+  2) [webkit-mobile] › tests/e2e/accessibility.spec.ts:344:3 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology 
+  3) [webkit-mobile] › tests/e2e/accessibility.spec.ts:408:3 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  4) [webkit-mobile] › tests/e2e/database-form-lifecycle.spec.ts:78:1 › keeps conversion confirmation immediate and returns to the card without a pointer selection outline 

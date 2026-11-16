@@ -89,6 +89,15 @@ test.describe("a device that is merely behind (FR-011)", () => {
       // Wait for the workspace readiness boundary before opening the drawer.
       await openWorkspace(second.page);
       await selectItem(second.page, name);
+      // Catching up is the precondition of the claim: the first device's edit
+      // is applied here and this device's post-reload pass has finished. Read
+      // before that, "no conflict" was also what a device that had not yet
+      // synchronized at all would show.
+      await expect(second.page.locator('[data-testid="block-editor"]:visible')).toContainText(
+        "written only on the first device",
+        { timeout: 30_000 },
+      );
+      await waitForSynchronized(second.page);
 
       // The assertion that matters: nothing to resolve. A false conflict here
       // would teach an owner that the question is noise, and they would stop

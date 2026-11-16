@@ -23,6 +23,7 @@ import {
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
+import { expectCommittedItemField } from "./waits/local-state.ts";
 
 test.describe("what the owner asks to keep", () => {
   test("a branch can be marked, and the marking is stated rather than implied", async ({
@@ -86,6 +87,9 @@ test.describe("what the owner asks to keep", () => {
     await createChildItem(page, folder, "page", child);
     await waitForSynchronized(page);
     await clickItemAction(page, folder, `offline-action-${folder}`);
+    // The marking is committed with its outbox row; the queue wait below is
+    // then about this change, not an already empty queue.
+    await expectCommittedItemField(page, folder, "offlineIntent", true);
     await waitForSynchronized(page);
 
     await context.setOffline(true);
@@ -151,11 +155,18 @@ test.describe("what this device says it is holding", () => {
       await typeIntoEditor(page, "written while offline and never sent");
       await saveDocument(page);
 
-      // Squeeze the device: 1 GB is the smallest offered, and the eviction pass
-      // runs against whatever it measures.
+      // Squeeze the device: 1 GB is the smallest offered (the default is 5 GB).
+      // No eviction pass runs on this path today: spec 005 FR-017 / T040 is not
+      // wired to a production caller (`runEviction` is only reached by its unit
+      // tests; see docs/testing/wait-contracts.md, D-B). What this journey can
+      // and does prove is that committing a lower limit keeps the unsent edit.
       await openWorkspaceDiagnostics(page);
-      await page.getByTestId("storage-limit").selectOption(String(1024 * 1024 * 1024));
-      await page.waitForTimeout(500);
+      const limit = page.getByTestId("storage-limit");
+      await limit.selectOption(String(1024 * 1024 * 1024));
+      // The panel re-reads the committed limit before it re-enables the
+      // control, so "1024.0 MiB" in the measured line is the stored value.
+      await expect(page.getByTestId("storage-usage")).toContainText("1024.0 MiB");
+      await expect(limit).toBeEnabled();
       await returnToWorkspace(page);
 
       // Still there. Releasing this would destroy an edit the server has never

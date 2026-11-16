@@ -186,6 +186,9 @@ export function RollupPropertySettings({
     onChange((p) => (p.type === "rollup" ? { ...p, config } : p));
 
   const chooseRelation = (relationId: Uuid): void => {
+    // Picking the relation already in use changes nothing. Restarting from
+    // the title here discarded the owner's target and calculation.
+    if (relationId === property.config.relationPropertyId) return;
     // Like Notion: a new relation starts from the linked source's title.
     const title = candidatesFor(relationId).filter(({ type }) => type === "title");
     update(

@@ -1,0 +1,6 @@
+# run=43391791498 attempt=1 job=131774630347 name=Playwright journeys (firefox-desktop)
+  ✘   15 [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (24.4s)
+  ✘  126 [firefox-desktop] › tests/e2e/editor-math-contents.spec.ts:18:0 › edits math, preserves invalid source and supports history, slash and offline navigation (1.0m)
+  ✘  127 [firefox-desktop] › tests/e2e/editor-math-contents.spec.ts:18:0 › edits math, preserves invalid source and supports history, slash and offline navigation (retry #1) (1.0m)
+  1) [firefox-desktop] › tests/e2e/editor-math-contents.spec.ts:18:0 › edits math, preserves invalid source and supports history, slash and offline navigation 
+  2) [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 

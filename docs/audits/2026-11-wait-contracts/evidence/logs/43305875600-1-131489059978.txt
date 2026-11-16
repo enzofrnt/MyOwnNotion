@@ -1,0 +1,3 @@
+# run=43305875600 attempt=1 job=131489059978 name=Playwright journeys (webkit-desktop)
+  ✘  101 [webkit-desktop] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers (25.7s)
+  1) [webkit-desktop] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers 

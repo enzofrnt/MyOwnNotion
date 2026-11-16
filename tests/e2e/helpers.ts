@@ -23,6 +23,7 @@ import {
   type Request,
 } from "@playwright/test";
 import { seedSessionOnNewDevice } from "./reset-installation.ts";
+import { committedNameCount, expectCommittedNameCount } from "./waits/local-state.ts";
 
 export interface CssTransitionSample {
   readonly height: number;
@@ -30,67 +31,22 @@ export interface CssTransitionSample {
   readonly width: number;
 }
 
-/**
- * Freezes a real CSS transition at an exact progress point before measuring it.
- *
- * A fixed sleep does not prove an intermediate frame: on a busy runner 70 ms
- * can take longer than a 210 ms transition. Reading the browser animation and
- * seeking it to its midpoint makes the assertion deterministic while still
- * exercising the production CSS rather than a test-only animation.
- */
-export async function sampleCssTransition(
-  locator: Locator,
-  transitionProperty: string,
-  progress = 0.5,
-): Promise<CssTransitionSample> {
-  await expect(locator).toBeAttached();
-  return await locator.evaluate(
-    async (element, options): Promise<CssTransitionSample> => {
-      const findTransition = (): CSSTransition | undefined =>
-        element
-          .getAnimations()
-          .find(
-            (animation): animation is CSSTransition =>
-              "transitionProperty" in animation &&
-              animation.transitionProperty === options.transitionProperty,
-          );
-
-      let transition = findTransition();
-      for (let frame = 0; transition === undefined && frame < 12; frame += 1) {
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-        transition = findTransition();
-      }
-      if (transition === undefined) {
-        throw new Error(`No active ${options.transitionProperty} transition was found`);
-      }
-
-      transition.pause();
-      const timing = transition.effect?.getComputedTiming();
-      const duration = typeof timing?.duration === "number" ? timing.duration : 0;
-      if (duration <= 0) {
-        throw new Error(`${options.transitionProperty} transition has no measurable duration`);
-      }
-      transition.currentTime = duration * options.progress;
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-      const rectangle = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      const sample = {
-        height: rectangle.height,
-        transform: style.transform,
-        width: rectangle.width,
-      };
-      transition.finish();
-      return sample;
-    },
-    { progress, transitionProperty },
-  );
-}
-
+/** One animated target of an interaction, named by the CSS property it transitions. */
 export interface CssTransitionTarget {
   readonly locator: Locator;
   readonly property: string;
 }
+
+/**
+ * Maximum time a transition witness waits for the transition to exist.
+ *
+ * The witness is an in-page observation started in the same browser task as the
+ * gesture, so it cannot miss a transition that starts immediately. A loaded
+ * runner can still commit the style change later; this bound lets it, and its
+ * expiry is a failure that names the missing transition — never a duration the
+ * test waits out (docs/testing/wait-contracts.md).
+ */
+const TRANSITION_WITNESS_TIMEOUT_MS = 5_000;
 
 /**
  * Starts an interaction and freezes its transitions without a driver round trip.
@@ -153,11 +109,12 @@ export async function triggerAndSampleCssTransitions(
           const property = options.targets[index]?.property;
           return property === undefined ? undefined : findTransition(element, property);
         });
-        for (
-          let frame = 0;
-          transitions.some((transition) => transition === undefined) && frame < 12;
-          frame += 1
-        ) {
+        // A maximum bound, not a wait for time: the transition must be seen,
+        // however long the commit that starts it takes on a loaded runner
+        // (docs/testing/wait-contracts.md, lessons L-008).
+        const deadline = performance.now() + options.transitionTimeoutMs;
+        while (transitions.some((transition) => transition === undefined)) {
+          if (performance.now() > deadline) break;
           await nextFrame();
           for (const [index, element] of elements.entries()) {
             const property = options.targets[index]?.property;
@@ -206,6 +163,7 @@ export async function triggerAndSampleCssTransitions(
       },
       {
         progress,
+        transitionTimeoutMs: TRANSITION_WITNESS_TIMEOUT_MS,
         targets: targets.map((target, index) => ({
           element: targetHandles[index],
           property: target.property,
@@ -260,7 +218,8 @@ export async function triggerAndSampleMountedCssTransition(
 
       let target: HTMLElement | undefined;
       let transition: CSSTransition | undefined;
-      for (let frame = 0; transition === undefined && frame < 12; frame += 1) {
+      const deadline = performance.now() + options.transitionTimeoutMs;
+      while (transition === undefined && performance.now() <= deadline) {
         target = Array.from(document.querySelectorAll<HTMLElement>("[data-testid]")).find(
           (element) => element.dataset["testid"] === options.targetTestId,
         );
@@ -301,12 +260,28 @@ export async function triggerAndSampleMountedCssTransition(
       transition.finish();
       return sample;
     },
-    { progress, targetTestId, transitionProperty },
+    {
+      progress,
+      targetTestId,
+      transitionProperty,
+      transitionTimeoutMs: TRANSITION_WITNESS_TIMEOUT_MS,
+    },
   );
 }
 
 interface E2ELocalContentService {
   synchronize(): Promise<string>;
+  listActiveItems(): Promise<Array<{ readonly id: string; readonly name: string }>>;
+  getDatabaseEntry(entryId: string): Promise<{ readonly valueVersion: number } | null>;
+  listDatabases(): Promise<
+    Array<{
+      readonly itemId: string;
+      readonly definitionVersion: number;
+      readonly definitionRevisionId?: string;
+      readonly presentationVersion?: number;
+      readonly presentationRevisionId?: string;
+    }>
+  >;
   getSnapshot(): { readonly syncState: string };
   getItem(itemId: string): Promise<{
     readonly currentRevisionId: string;
@@ -338,6 +313,7 @@ interface E2ELocalContentService {
     activeConflicts(): Promise<unknown[]>;
   };
   readonly db: {
+    readonly meta: { get(key: string): Promise<{ readonly value: unknown } | undefined> };
     readonly legacySyncRecoveries: { clear(): Promise<void> };
     readonly revisionHeaders: {
       get(revisionId: string): Promise<{ readonly canonicalRevisionId?: string } | undefined>;
@@ -557,6 +533,7 @@ export async function openRootDatabaseCreation(page: Page): Promise<void> {
 
 /** A root database opens untitled, like a page. The name is typed on its page. */
 export async function createRootDatabase(page: Page, name: string): Promise<void> {
+  const namedBefore = await committedNameCount(page, name);
   await openRootDatabaseCreation(page);
   await page
     .getByRole("dialog", { name: "Nouvelle base de données" })
@@ -564,6 +541,13 @@ export async function createRootDatabase(page: Page, name: string): Promise<void
     .click();
   await nameNewlyCreatedItem(page, name);
   await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached({ timeout: 15_000 });
+  // The row can show the typed title before the rename is written. The
+  // committed projection holds it only once the write and its outbox row are
+  // in IndexedDB, which is what makes a following `waitForSynchronized`
+  // about this item rather than an already empty queue.
+  // The packaged desktop build exposes no local service (`null`); its
+  // journeys keep the row check and do not use the queue witness either.
+  if (namedBefore !== null) await expectCommittedNameCount(page, name, namedBefore + 1);
 }
 
 export async function clickEditorInsertBlock(page: Page): Promise<void> {
@@ -596,6 +580,7 @@ export async function createRootItem(
   kind: "page" | "folder",
   name: string,
 ): Promise<void> {
+  const namedBefore = await committedNameCount(page, name);
   await openRootCreation(page);
   await page.getByTestId(kind === "page" ? "new-root-page" : "new-root-folder").click();
   await nameNewlyCreatedItem(page, name);
@@ -605,6 +590,13 @@ export async function createRootItem(
   // close that follows the mutation. Callers that need the row interactively
   // use `ensureNavigationRowVisible` afterwards.
   await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached({ timeout: 15_000 });
+  // The row can show the typed title before the rename is written. The
+  // committed projection holds it only once the write and its outbox row are
+  // in IndexedDB, which is what makes a following `waitForSynchronized`
+  // about this item rather than an already empty queue.
+  // The packaged desktop build exposes no local service (`null`); its
+  // journeys keep the row check and do not use the queue witness either.
+  if (namedBefore !== null) await expectCommittedNameCount(page, name, namedBefore + 1);
 }
 
 export async function createChildItem(
@@ -613,12 +605,20 @@ export async function createChildItem(
   kind: "page" | "folder",
   name: string,
 ): Promise<void> {
+  const namedBefore = await committedNameCount(page, name);
   await clickItemAction(page, parentName, `new-${kind}-inside-${parentName}`);
   await nameNewlyCreatedItem(page, name);
   // Page creation is navigation on mobile, so the drawer closing is success,
   // not a reason for this helper to reopen it. The child remains mounted in the
   // tree and later row interactions reopen navigation explicitly.
   await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached({ timeout: 15_000 });
+  // The row can show the typed title before the rename is written. The
+  // committed projection holds it only once the write and its outbox row are
+  // in IndexedDB, which is what makes a following `waitForSynchronized`
+  // about this item rather than an already empty queue.
+  // The packaged desktop build exposes no local service (`null`); its
+  // journeys keep the row check and do not use the queue witness either.
+  if (namedBefore !== null) await expectCommittedNameCount(page, name, namedBefore + 1);
 }
 
 export async function ensureNavigationVisible(page: Page): Promise<void> {
@@ -960,6 +960,9 @@ export async function waitForEntryAutosave(
   await panel.evaluate(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
+  // An idle panel may have emitted no write at all (or still have an invalid
+  // or unavailable draft). Neither elapsed time nor an empty sync queue proves
+  // local durability. Require the acknowledgment from the save operation.
   await expect(panel.locator(".entry-properties__status")).toHaveAttribute(
     "data-save-state",
     "saved",
@@ -968,9 +971,42 @@ export async function waitForEntryAutosave(
   if (options.synchronize !== false) await waitForSynchronized(page);
 }
 
+/**
+ * Ensures the inline new-property composer is open, with its draft.
+ *
+ * A press outside the composer legitimately closes it (that is a dismissal),
+ * so a journey that cancels a press re-establishes the precondition instead of
+ * depending on where the press landed relative to the portalled type menu.
+ * The draft itself is asserted by the caller; this helper never retries an
+ * assertion (feature 061, .agents/skills/test-quality/lessons.md L-001).
+ */
+export async function ensureNewPropertyComposer(page: Page): Promise<Locator> {
+  const name = page.getByRole("textbox", { name: "Nom de la nouvelle propriété", exact: true });
+  if ((await name.count()) === 0) {
+    await page
+      .locator(".database-table-add-property")
+      .getByRole("button", { name: "Ajouter une propriété", exact: true })
+      .click();
+  }
+  await expect(name).toBeVisible({ timeout: 15_000 });
+  return name;
+}
+
 /** Chooses values through the entry popup rather than the old native select. */
+/**
+ * The trigger of an entry value picker.
+ *
+ * Its accessible name starts with the property and then states the value it
+ * shows ("Statut : To do"), because a control whose visible text is not part
+ * of its name breaks WCAG 2.5.3. Tests address it by that prefix.
+ */
+function entryPicker(page: Page, property: string) {
+  const escaped = property.replace(/[.*+?^${}()[\]\\]/gu, "\\$&");
+  return page.locator(".entry-panel").getByRole("button", { name: new RegExp(`^${escaped}`, "u") });
+}
+
 export async function chooseEntryOptions(page: Page, property: string, labels: readonly string[]) {
-  const trigger = page.locator(".entry-panel").getByRole("button", { name: property, exact: true });
+  const trigger = entryPicker(page, property);
   for (const label of labels) {
     if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
     const choice = page.locator(".entry-choice");
@@ -985,7 +1021,7 @@ export async function chooseEntryRelation(
   property: string,
   label: string,
 ): Promise<void> {
-  const trigger = page.locator(".entry-panel").getByRole("button", { name: property, exact: true });
+  const trigger = entryPicker(page, property);
   await trigger.click();
   const option = page
     .getByRole("menuitemcheckbox", { name: label, exact: true })

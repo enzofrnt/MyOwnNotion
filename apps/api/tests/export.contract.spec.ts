@@ -8,7 +8,7 @@ import {
   validateCanonicalExport,
 } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { resumePendingExports } from "../src/routes/export.ts";
 import {
   type ApiHarness,
@@ -36,12 +36,16 @@ async function exportArtifact(): Promise<{
   expect(started.statusCode, started.body).toBe(202);
   const exportId = (started.json() as { exportId: string }).exportId;
   let status: { status: string; digest?: string } = { status: "pending" };
-  for (let attempt = 0; attempt < 50 && status.status === "pending"; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    status = (
-      await harness.built.app.inject({ method: "GET", url: `/v1/export/${exportId}` })
-    ).json() as typeof status;
-  }
+  // Poll the export's own state; the bound only names an export that never ends.
+  await vi.waitFor(
+    async () => {
+      status = (
+        await harness.built.app.inject({ method: "GET", url: `/v1/export/${exportId}` })
+      ).json() as typeof status;
+      expect(status.status, "the export left the pending state").not.toBe("pending");
+    },
+    { timeout: 5_000, interval: 25 },
+  );
   const [job] = await harness.built.context.db
     .select()
     .from(schema.exports)

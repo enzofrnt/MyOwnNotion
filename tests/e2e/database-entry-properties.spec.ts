@@ -10,11 +10,12 @@ import {
   waitForEntryAutosave,
   waitForSynchronized,
 } from "./helpers.ts";
+import { beginDefinitionChange } from "./waits/local-state.ts";
 
 test("configures entry properties directly, shares symbols, and preserves independent property order", async ({
   page,
 }, testInfo) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   const database = uniqueName("Property interactions");
   const entry = uniqueName("Canonical entry");
@@ -62,7 +63,7 @@ test("configures entry properties directly, shares symbols, and preserves indepe
   await page.keyboard.press("Escape");
 
   await chooseEntryOptions(page, "Team", ["Long option for the application team", "Research"]);
-  const team = page.locator(".entry-panel").getByRole("button", { name: "Team", exact: true });
+  const team = page.locator(".entry-panel").getByRole("button", { name: /^Team/u });
   await team.click();
   const choice = page.locator(".entry-choice");
   const inputSurface = choice.locator(".ui-input-surface");
@@ -144,12 +145,16 @@ test("configures entry properties directly, shares symbols, and preserves indepe
   await handle.press("ArrowDown");
   await expect(rows.nth(1)).toHaveAttribute("data-preview", "after");
   await expect(dragAnnouncement).toHaveText("Après Team.");
+  // The reorder is a definition write started by the drop; the rows move
+  // optimistically before it is committed.
+  const reorder = await beginDefinitionChange(page, database);
   await handle.press("Space");
   await expect
     .poll(() =>
       rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-property-id"))),
     )
     .toEqual([orderBefore[1], orderBefore[0], orderBefore[2]]);
+  await reorder.committed();
   await waitForSynchronized(page);
   await page
     .locator(".entry-panel")

@@ -1,0 +1,3 @@
+# run=43587630795 attempt=1 job=132426635577 name=Playwright journeys (chromium-mobile 2/3)
+  ✘   45 [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:100:1 › updates both contents projections, scrolls nested headings and leaves no stale outline (11.3s)
+  1) [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:100:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 

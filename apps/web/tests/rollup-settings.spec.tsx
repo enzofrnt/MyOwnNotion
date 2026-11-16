@@ -133,6 +133,23 @@ describe("rollup settings", () => {
     });
   });
 
+  it("keeps the target and calculation when the current relation is picked again", async () => {
+    // Re-picking the selected relation used to restart from the linked title:
+    // the owner's target and calculation were thrown away, and the needless
+    // write could close the next menu the owner had just opened (CI run
+    // 43706172859, WebKit desktop, "configured relation to an empty source").
+    const initial = rollup({ targetPropertyId: id("12"), aggregate: "sum" });
+    await render(initial);
+    await open(0);
+    await choose("Achats");
+    expect(current).toBe(initial);
+    expect(current.config).toEqual({
+      relationPropertyId: toPurchases.id,
+      targetPropertyId: id("12"),
+      aggregate: "sum",
+    });
+  });
+
   it("explains a configuration that became invalid and locks dependent choices", async () => {
     // A property from Clients cannot be used through the Achats relation,
     // even when that foreign property exists in the global metadata.

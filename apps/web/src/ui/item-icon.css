@@ -248,7 +248,7 @@
    12 px cross, tucked into the corner. The compact pickers keep the 24 px
    target. */
 .item-emoji-picker[data-picker-variant="page"]
-.item-emoji-picker__clear.ui-button[data-size="square"] {
+  .item-emoji-picker__clear.ui-button[data-size="square"] {
   top: 2px;
   right: 2px;
   width: 18px;

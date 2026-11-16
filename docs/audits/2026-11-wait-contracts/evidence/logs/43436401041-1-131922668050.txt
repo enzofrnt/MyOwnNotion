@@ -1,0 +1,2 @@
+# run=43436401041 attempt=1 job=131922668050 name=Unit, property & coverage
+ FAIL   api-contract  apps/api/tests/protected-file-references.integration.spec.ts > rejects upload index metadata that disagrees with the authenticated manifest

@@ -22,6 +22,7 @@ import {
   waitForEditorSettled,
   waitForSynchronized,
 } from "./helpers.ts";
+import { expectNavigationPersisted } from "./waits/local-state.ts";
 
 type DeviceName = "A" | "B";
 
@@ -382,6 +383,11 @@ test("a restarted device drains a closed page without reopening it", async ({
     // which tests the automation transport rather than application recovery.
     await selectItem(second.page, landingName);
     await expect(second.page.getByTestId("active-item-title")).toHaveValue(landingName);
+    // The title is the selection's intent; the next boot reads the committed
+    // navigation record. Closing before that commit restored the previous page
+    // (run 43722479700). Navigation state is device ergonomics, not content
+    // (spec 003 FR-009 covers edits only), so the journey waits for the write.
+    await expectNavigationPersisted(second.page, { lastVisited: landingName });
     await second.page.close();
 
     await second.context.setOffline(false);

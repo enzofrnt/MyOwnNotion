@@ -1,0 +1,145 @@
+# run=43587630795 attempt=1 job=132426635600 name=Playwright journeys (firefox-desktop 2/3)
+  1) [firefox-desktop] › tests/e2e/editor-math-contents.spec.ts:100:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link')
+    Expected: 3
+    Received: 0
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link') with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.editor-contents-link')
+        24 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      163 |   await selectItem(page, firstName);
+      164 |   const editor = page.locator('[data-testid="block-editor"]:visible');
+    > 165 |   await expect(editor.locator(".editor-contents-link")).toHaveCount(3);
+          |                                                         ^
+      166 |   await editor.locator(".editor-contents-link").filter({ hasText: "Suite actuelle" }).click();
+      167 |   await expect
+      168 |     .poll(() =>
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/editor-math-contents.spec.ts:165:57)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/editor-math-contents-updat-4986e-and-leaves-no-stale-outline-firefox-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [firefox-desktop] › tests/e2e/editor-math-contents.spec.ts:100:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
+  9 skipped
+  101 passed (10.7m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: blob-report-firefox-desktop-2-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-firefox-desktop-2-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 4065798
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is c3acb4f49c697a3e45a30e51eb06a235945c8f565dd1df9f39d7c518f6d63e2f
+Finalizing artifact upload
+Artifact blob-report-firefox-desktop-2-3 successfully finalized. Artifact ID 14112502261
+Artifact blob-report-firefox-desktop-2-3 has been successfully uploaded! Final size is 4065798 bytes. Artifact ID is 14112502261
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587630795/artifacts/14112502261
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: test-results-firefox-desktop-2-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 91 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-firefox-desktop-2-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 6220576
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is d83d84916a87102b8e436953eecdb42ac36fdf49bd6e5276bb4bb4e1304f3319
+Finalizing artifact upload
+Artifact test-results-firefox-desktop-2-3 successfully finalized. Artifact ID 14112542139
+Artifact test-results-firefox-desktop-2-3 has been successfully uploaded! Final size is 6220576 bytes. Artifact ID is 14112542139
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587630795/artifacts/14112542139
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__de60522b-5d28-4539-a5da-13bca38b341f.__oven-sh_setup-bun]
+##[end-action id=__de60522b-5d28-4539-a5da-13bca38b341f.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/86b29908-d201-464a-954e-5bd3725f76c3' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-bea62f17-3e15-4566-a539-3d87cbb3b6ec.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-bea62f17\-3e15\-4566\-a539\-3d87cbb3b6ec\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-bea62f17-3e15-4566-a539-3d87cbb3b6ec.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-bea62f17\-3e15\-4566\-a539\-3d87cbb3b6ec\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-bea62f17-3e15-4566-a539-3d87cbb3b6ec.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-bea62f17\-3e15\-4566\-a539\-3d87cbb3b6ec\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-bea62f17-3e15-4566-a539-3d87cbb3b6ec.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-bea62f17\-3e15\-4566\-a539\-3d87cbb3b6ec\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-bea62f17-3e15-4566-a539-3d87cbb3b6ec.config'
+Cleaning up orphan processes

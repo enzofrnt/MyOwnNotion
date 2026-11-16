@@ -1,0 +1,143 @@
+# run=43587630795 attempt=1 job=132426635585 name=Playwright journeys (webkit-mobile 1/3)
+  1) [webkit-mobile] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' })
+    Expected: "false"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' }) with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('.ProseMirror').locator('[data-content-type="toggleListItem"]').first().getByRole('button', { name: 'Déplier cette section' })
+
+
+      94 |     const toggleBody = editor.locator('[data-content-type="toggleListItem"]').first();
+      95 |     const toggleButton = toggleBody.getByRole("button", { name: "Déplier cette section" });
+    > 96 |     await expect(toggleButton).toHaveAttribute("aria-expanded", "false");
+         |                                ^
+      97 |     await toggleButton.click();
+      98 |     await expect(toggleBody.getByRole("button", { name: "Replier cette section" })).toHaveAttribute(
+      99 |       "aria-expanded",
+        at <anonymous> (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/rich-page.spec.ts:96:32)
+        at processTicksAndRejections (native:7:39)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-webkit-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rich-page-rich-page-compos-94c6c-oad-and-stores-them-durably-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [webkit-mobile] › tests/e2e/rich-page.spec.ts:35:3 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably 
+  11 skipped
+  106 passed (12.1m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: blob-report-webkit-mobile-1-3
+  path: blob-report/
+  if-no-files-found: warn
+  retention-days: 3
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 1 file uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: blob-report-webkit-mobile-1-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 4538267
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 5e8867c1711bcdce3f735057c20896b0651f5dd4f54130d2cca7959701ee6849
+Finalizing artifact upload
+Artifact blob-report-webkit-mobile-1-3 successfully finalized. Artifact ID 14112127082
+Artifact blob-report-webkit-mobile-1-3 has been successfully uploaded! Final size is 4538267 bytes. Artifact ID is 14112127082
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587630795/artifacts/14112127082
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: test-results-webkit-mobile-1-3
+  path: test-results/
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+With the provided path, there will be 33 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: test-results-webkit-mobile-1-3.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 6814253
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 61beef6b4abd70e94a7557ab8bb4104932637bb65ebf16399eceb852ad6b34b2
+Finalizing artifact upload
+Artifact test-results-webkit-mobile-1-3 successfully finalized. Artifact ID 14111628741
+Artifact test-results-webkit-mobile-1-3 has been successfully uploaded! Final size is 6814253 bytes. Artifact ID is 14111628741
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43587630795/artifacts/14111628741
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__c7339eb7-f17e-43fa-80b8-23dcd35e4ebb.__oven-sh_setup-bun]
+##[end-action id=__c7339eb7-f17e-43fa-80b8-23dcd35e4ebb.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/3eaf370c-0e1b-4ddd-be85-e8be0a78ae14' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-a58b82ee-3a7d-42cd-99e7-4d40659d2bc6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-a58b82ee\-3a7d\-42cd\-99e7\-4d40659d2bc6\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-a58b82ee-3a7d-42cd-99e7-4d40659d2bc6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-a58b82ee\-3a7d\-42cd\-99e7\-4d40659d2bc6\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-a58b82ee-3a7d-42cd-99e7-4d40659d2bc6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-a58b82ee\-3a7d\-42cd\-99e7\-4d40659d2bc6\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-a58b82ee-3a7d-42cd-99e7-4d40659d2bc6.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-a58b82ee\-3a7d\-42cd\-99e7\-4d40659d2bc6\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-a58b82ee-3a7d-42cd-99e7-4d40659d2bc6.config'
+Cleaning up orphan processes

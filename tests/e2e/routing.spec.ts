@@ -15,7 +15,7 @@ import {
 test("page, folder, database and entry URLs survive identity changes and history", async ({
   page,
 }) => {
-  test.slow();
+  test.setTimeout(150_000);
   await openWorkspace(page);
   await expect(page).toHaveURL(/\/notes(?:\/|$)/u);
 

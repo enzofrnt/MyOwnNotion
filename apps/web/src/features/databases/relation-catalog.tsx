@@ -99,6 +99,10 @@ export function useRelationCandidates(sourceId: Uuid | undefined) {
   const catalog = useRelationCatalog();
   const service = catalog?.service;
   const source = catalog?.sources.find((candidate) => candidate.id === sourceId);
+  // The catalogue is rebuilt on every synchronization, so the source object is
+  // new each time. Depending on its identity restarted this read from an empty
+  // list on every refresh; the owner page is what the read actually uses.
+  const sourceOwnerItemId = source?.ownerItemId;
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<{
     readonly options: readonly RelationOption[];
@@ -107,18 +111,23 @@ export function useRelationCandidates(sourceId: Uuid | undefined) {
   }>({ options: [], loading: false, error: null });
   // biome-ignore lint/correctness/useExhaustiveDependencies: attempt explicitly retries the source read.
   useEffect(() => {
-    if (sourceId === undefined || service === undefined || source === undefined) {
+    if (sourceId === undefined || service === undefined || sourceOwnerItemId === undefined) {
       setState({ options: [], loading: false, error: null });
       return;
     }
     let disposed = false;
     let generation = 0;
-    const load = async () => {
+    const load = async (refresh: boolean) => {
       const current = ++generation;
-      setState({ options: [], loading: true, error: null });
+      // A synchronization refresh keeps the pages already offered until the
+      // new list is read. Emptying it removed every option from the open
+      // menu and rebuilt them: a click made in that window landed on a
+      // removed element and the owner's link was silently lost. Only the
+      // first read of a source starts from an empty, loading list.
+      if (!refresh) setState({ options: [], loading: true, error: null });
       try {
-        const rows = (await service.listDatabaseEntries(source.ownerItemId)).filter(
-          (row) => (row.sourceId ?? ownedSourceIdFromItemId(source.ownerItemId)) === sourceId,
+        const rows = (await service.listDatabaseEntries(sourceOwnerItemId)).filter(
+          (row) => (row.sourceId ?? ownedSourceIdFromItemId(sourceOwnerItemId)) === sourceId,
         );
         const items = await service.getItems(rows.map((row) => row.entryItemId));
         const options = items
@@ -137,14 +146,14 @@ export function useRelationCandidates(sourceId: Uuid | undefined) {
           });
       }
     };
-    void load();
+    void load(false);
     const unsubscribe = service.subscribeProjection(() => {
-      void load();
+      void load(true);
     });
     return () => {
       disposed = true;
       unsubscribe();
     };
-  }, [service, sourceId, source, attempt]);
+  }, [service, sourceId, sourceOwnerItemId, attempt]);
   return { ...state, source, catalog, retry: () => setAttempt((value) => value + 1) };
 }

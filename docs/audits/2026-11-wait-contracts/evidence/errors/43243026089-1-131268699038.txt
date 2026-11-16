@@ -1,0 +1,501 @@
+# run=43243026089 attempt=1 job=131268699038 name=Playwright journeys (chromium-mobile)
+  1) [chromium-mobile] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: fill: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+       at helpers.ts:1055
+
+      1053 |   await add.click();
+      1054 |   const form = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 1055 |   await form.getByLabel("Nom", { exact: true }).fill(name);
+           |                                                ^
+      1056 |   // The native select's wrapping label also contains its option text. Use
+      1057 |   // its accessible combobox name rather than the label's full text content.
+      1058 |   const typeControl = form.getByRole("combobox", { name: "Type", exact: true });
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1055:48)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:418:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 60000ms exceeded.
+
+    Error: fill: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+       at helpers.ts:1055
+
+      1053 |   await add.click();
+      1054 |   const form = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 1055 |   await form.getByLabel("Nom", { exact: true }).fill(name);
+           |                                                ^
+      1056 |   // The native select's wrapping label also contains its option text. Use
+      1057 |   // its accessible combobox name rather than the label's full text content.
+      1058 |   const typeControl = form.getByRole("combobox", { name: "Type", exact: true });
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1055:48)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/accessibility.spec.ts:418:10
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/accessibility-structured-d-e8450-a-named-keyboard-equivalent-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      187 |             );
+      188 |           })
+    > 189 |           .toBe(true);
+          |           ^
+      190 |       }
+      191 |       if (width === 320) {
+      192 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:189:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: Timeout 10000ms exceeded while waiting on the predicate
+
+      187 |             );
+      188 |           })
+    > 189 |           .toBe(true);
+          |           ^
+      190 |       }
+      191 |       if (width === 320) {
+      192 |         await navigation.click();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/backup.spec.ts:189:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/backup-a-verified-backup-i-b3f44-lain-warning-after-26-hours-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium-mobile] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: fill: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+       at helpers.ts:1055
+
+      1053 |   await add.click();
+      1054 |   const form = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 1055 |   await form.getByLabel("Nom", { exact: true }).fill(name);
+           |                                                ^
+      1056 |   // The native select's wrapping label also contains its option text. Use
+      1057 |   // its accessible combobox name rather than the label's full text content.
+      1058 |   const typeControl = form.getByRole("combobox", { name: "Type", exact: true });
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1055:48)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-entry-properties.spec.ts:22:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: fill: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+       at helpers.ts:1055
+
+      1053 |   await add.click();
+      1054 |   const form = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 1055 |   await form.getByLabel("Nom", { exact: true }).fill(name);
+           |                                                ^
+      1056 |   // The native select's wrapping label also contains its option text. Use
+      1057 |   // its accessible combobox name rather than the label's full text content.
+      1058 |   const typeControl = form.getByRole("combobox", { name: "Type", exact: true });
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1055:48)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-entry-properties.spec.ts:22:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-entry-properties--c2968--independent-property-order-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:19:0 › converts a card without editorial history locally while workspace requests are held 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: fill: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+      26 |   await page.getByRole("button", { name: "Ajouter une propriété", exact: true }).click();
+      27 |   const property = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 28 |   await property.getByLabel("Nom", { exact: true }).fill("Status");
+         |                                                    ^
+      29 |   await property.locator('select[name="property-type"]').selectOption("select");
+      30 |   await property.getByRole("button", { name: "Enregistrer la propriété" }).click();
+      31 |   await expect(property).toBeHidden();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-form-lifecycle.spec.ts:28:52
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-co-21748-workspace-requests-are-held-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-form-lifecycle-co-21748-workspace-requests-are-held-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-co-21748-workspace-requests-are-held-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-form-lifecycle-co-21748-workspace-requests-are-held-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 60000ms exceeded.
+
+    Error: fill: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+      26 |   await page.getByRole("button", { name: "Ajouter une propriété", exact: true }).click();
+      27 |   const property = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 28 |   await property.getByLabel("Nom", { exact: true }).fill("Status");
+         |                                                    ^
+      29 |   await property.locator('select[name="property-type"]').selectOption("select");
+      30 |   await property.getByRole("button", { name: "Enregistrer la propriété" }).click();
+      31 |   await expect(property).toBeHidden();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-form-lifecycle.spec.ts:28:52
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-co-21748-workspace-requests-are-held-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-form-lifecycle-co-21748-workspace-requests-are-held-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-co-21748-workspace-requests-are-held-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-form-lifecycle-co-21748-workspace-requests-are-held-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:85:0 › keeps conversion confirmation immediate and returns to the card without a pointer selection outline 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: fill: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+      94 |   await page.getByRole("button", { name: "Ajouter une propriété", exact: true }).click();
+      95 |   const property = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 96 |   await property.getByLabel("Nom", { exact: true }).fill("Status");
+         |                                                    ^
+      97 |   await property.locator('select[name="property-type"]').selectOption("select");
+      98 |   await property.getByRole("button", { name: "Enregistrer la propriété" }).click();
+      99 |   await expect(property).toBeHidden();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-form-lifecycle.spec.ts:96:52
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-ke-df5e2-a-pointer-selection-outline-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-form-lifecycle-ke-df5e2-a-pointer-selection-outline-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-ke-df5e2-a-pointer-selection-outline-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-form-lifecycle-ke-df5e2-a-pointer-selection-outline-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: fill: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+      94 |   await page.getByRole("button", { name: "Ajouter une propriété", exact: true }).click();
+      95 |   const property = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 96 |   await property.getByLabel("Nom", { exact: true }).fill("Status");
+         |                                                    ^
+      97 |   await property.locator('select[name="property-type"]').selectOption("select");
+      98 |   await property.getByRole("button", { name: "Enregistrer la propriété" }).click();
+      99 |   await expect(property).toBeHidden();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-form-lifecycle.spec.ts:96:52
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-ke-df5e2-a-pointer-selection-outline-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-form-lifecycle-ke-df5e2-a-pointer-selection-outline-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-ke-df5e2-a-pointer-selection-outline-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-form-lifecycle-ke-df5e2-a-pointer-selection-outline-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:157:0 › cancels a pressed property action outside its button and activates exactly once from the keyboard 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: fill: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+      165 |   const form = page.getByRole("form", { name: "Éditeur de propriété" });
+      166 |   const name = uniqueName("Owner draft");
+    > 167 |   await form.getByLabel("Nom", { exact: true }).fill(name);
+          |                                                ^
+      168 |   const save = form.getByRole("button", { name: "Enregistrer la propriété" });
+      169 |   await save.scrollIntoViewIfNeeded();
+      170 |   const box = await save.boundingBox();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-form-lifecycle.spec.ts:167:48
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 60000ms exceeded.
+
+    Error: fill: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+      165 |   const form = page.getByRole("form", { name: "Éditeur de propriété" });
+      166 |   const name = uniqueName("Owner draft");
+    > 167 |   await form.getByLabel("Nom", { exact: true }).fill(name);
+          |                                                ^
+      168 |   const save = form.getByRole("button", { name: "Enregistrer la propriété" });
+      169 |   await save.scrollIntoViewIfNeeded();
+      170 |   const box = await save.boundingBox();
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-form-lifecycle.spec.ts:167:48
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-form-lifecycle-ca-c0928-ctly-once-from-the-keyboard-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:188:0 › preserves a composing dirty field while another device updates an untouched property 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: fill: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+       at helpers.ts:1055
+
+      1053 |   await add.click();
+      1054 |   const form = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 1055 |   await form.getByLabel("Nom", { exact: true }).fill(name);
+           |                                                ^
+      1056 |   // The native select's wrapping label also contains its option text. Use
+      1057 |   // its accessible combobox name rather than the label's full text content.
+      1058 |   const typeControl = form.getByRole("combobox", { name: "Type", exact: true });
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1055:48)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-form-lifecycle.spec.ts:199:48
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-pr-0d27a-dates-an-untouched-property-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-form-lifecycle-pr-0d27a-dates-an-untouched-property-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-pr-0d27a-dates-an-untouched-property-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-form-lifecycle-pr-0d27a-dates-an-untouched-property-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: fill: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+       at helpers.ts:1055
+
+      1053 |   await add.click();
+      1054 |   const form = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 1055 |   await form.getByLabel("Nom", { exact: true }).fill(name);
+           |                                                ^
+      1056 |   // The native select's wrapping label also contains its option text. Use
+      1057 |   // its accessible combobox name rather than the label's full text content.
+      1058 |   const typeControl = form.getByRole("combobox", { name: "Type", exact: true });
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1055:48)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-form-lifecycle.spec.ts:199:48
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-pr-0d27a-dates-an-untouched-property-chromium-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-form-lifecycle-pr-0d27a-dates-an-untouched-property-chromium-mobile-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-form-lifecycle-pr-0d27a-dates-an-untouched-property-chromium-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-form-lifecycle-pr-0d27a-dates-an-untouched-property-chromium-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [chromium-mobile] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: fill: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+
+       at helpers.ts:1055
+
+      1053 |   await add.click();
+      1054 |   const form = page.getByRole("form", { name: "Éditeur de propriété" });
+    > 1055 |   await form.getByLabel("Nom", { exact: true }).fill(name);
+           |                                                ^
+      1056 |   // The native select's wrapping label also contains its option text. Use
+      1057 |   // its accessible combobox name rather than the label's full text content.
+      1058 |   const typeControl = form.getByRole("combobox", { name: "Type", exact: true });
+        at addDatabaseProperty (/home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/helpers.ts:1055:48)
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/database-multi-select-board.spec.ts:48:8
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/database-multi-select-boar-4ee64-den-axis-reload-and-offline-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 180000ms exceeded.
+
+    Error: fill: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByRole('form', { name: 'Éditeur de propriété' }).getByLabel('Nom', { exact: true })
+
+

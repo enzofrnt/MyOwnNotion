@@ -1,0 +1,3 @@
+# run=43339349895 attempt=1 job=131603574054 name=Playwright journeys (webkit-mobile)
+  ✘  103 [webkit-mobile] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery (21.7s)
+  1) [webkit-mobile] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery 

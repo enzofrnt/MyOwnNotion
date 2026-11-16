@@ -6,8 +6,12 @@ import { expect, it, vi } from "vitest";
 import { BoardView } from "../src/features/databases/board-view.tsx";
 import { DatabaseEntryActionsContext } from "../src/features/databases/database-entry-actions-context.tsx";
 import type { DatabaseViewPage } from "../src/services/databases.ts";
+import { drainPromiseWork } from "./support/until.ts";
 
-const pause = () => new Promise((resolve) => setTimeout(resolve, 15));
+// The editor and board under test schedule no timers: their asynchronous
+// work is promise continuations from resolved mocks and React updates, which
+// `drainPromiseWork` runs to completion. A 15 ms sleep stood in for that.
+const pause = drainPromiseWork;
 
 async function mount(
   save: ReturnType<typeof vi.fn>,

@@ -1,0 +1,215 @@
+# run=43368263709 attempt=1 job=131697795258 name=Playwright journeys (webkit-mobile)
+  1) [webkit-mobile] › tests/e2e/realtime-page-sync.spec.ts:83:0 › connected devices exchange text, marks and block order without reload or replacement 
+
+    Test timeout of 120000ms exceeded.
+
+    Error: click: Test ended.
+    Call log:
+      - waiting for locator('.bn-formatting-toolbar').getByRole('button', { name: 'Gras' })
+        - locator resolved to <button id="_r_1e_" type="button" data-test="bold" aria-label="Gras" aria-pressed="false" data-active-item="true" class="bn-ak-button bn-ak-secondary bn-button">…</button>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - performing click action
+        - <button id="_r_2o_" type="button" draggable="true" aria-haspopup="menu" aria-expanded="false" aria-label="Ouvrir le menu du bloc" class="bn-ak-button bn-ak-secondary bn-button editor-block-handle">…</button> from <div id="_r_2n_" data-floating-ui-portal="">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <button id="_r_2o_" type="button" draggable="true" aria-haspopup="menu" aria-expanded="false" aria-label="Ouvrir le menu du bloc" class="bn-ak-button bn-ak-secondary bn-button editor-block-handle">…</button> from <div id="_r_2n_" data-floating-ui-portal="">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <button id="_r_2o_" type="button" draggable="true" aria-haspopup="menu" aria-expanded="false" aria-label="Ouvrir le menu du bloc" class="bn-ak-button bn-ak-secondary bn-button editor-block-handle">…</button> from <div id="_r_2n_" data-floating-ui-portal="">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        204 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <button id="_r_2o_" type="button" draggable="true" aria-haspopup="menu" aria-expanded="false" aria-label="Ouvrir le menu du bloc" class="bn-ak-button bn-ak-secondary bn-button editor-block-handle">…</button> from <div id="_r_2n_" data-floating-ui-portal="">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+      175 |     await second.page.mouse.move(0, 0);
+      176 |     await expect(second.page.locator(".editor-block-handle")).toBeHidden({ timeout: 5_000 });
+    > 177 |     await toolbar.getByRole("button", { name: "Gras" }).click();
+          |                                                        ^
+      178 |     await waitForEditorSettled(second.page, { afterApplyCount: beforeFormat });
+      179 |     propagationMs.push(
+      180 |       await expectPropagated(page, formatStartedAt, async () => {
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/realtime-page-sync.spec.ts:177:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/realtime-page-sync-connect-4e63e-thout-reload-or-replacement-webkit-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/realtime-page-sync-connect-4e63e-thout-reload-or-replacement-webkit-mobile/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/realtime-page-sync-connect-4e63e-thout-reload-or-replacement-webkit-mobile/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/realtime-page-sync-connect-4e63e-thout-reload-or-replacement-webkit-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/realtime-page-sync-connect-4e63e-thout-reload-or-replacement-webkit-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 120000ms exceeded.
+
+    Error: click: Test ended.
+    Call log:
+      - waiting for locator('.bn-formatting-toolbar').getByRole('button', { name: 'Gras' })
+        - locator resolved to <button id="_r_1e_" type="button" data-test="bold" aria-label="Gras" aria-pressed="false" data-active-item="true" class="bn-ak-button bn-ak-secondary bn-button">…</button>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - performing click action
+        - <button id="_r_2o_" type="button" draggable="true" aria-haspopup="menu" aria-expanded="false" aria-label="Ouvrir le menu du bloc" class="bn-ak-button bn-ak-secondary bn-button editor-block-handle">…</button> from <div id="_r_2n_" data-floating-ui-portal="">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <button id="_r_2o_" type="button" draggable="true" aria-haspopup="menu" aria-expanded="false" aria-label="Ouvrir le menu du bloc" class="bn-ak-button bn-ak-secondary bn-button editor-block-handle">…</button> from <div id="_r_2n_" data-floating-ui-portal="">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <button id="_r_2o_" type="button" draggable="true" aria-haspopup="menu" aria-expanded="false" aria-label="Ouvrir le menu du bloc" class="bn-ak-button bn-ak-secondary bn-button editor-block-handle">…</button> from <div id="_r_2n_" data-floating-ui-portal="">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        201 × waiting for element to be visible, enabled and stable
+            - element is visible, enabled and stable
+            - scrolling into view if needed
+            - done scrolling
+            - <button id="_r_2o_" type="button" draggable="true" aria-haspopup="menu" aria-expanded="false" aria-label="Ouvrir le menu du bloc" class="bn-ak-button bn-ak-secondary bn-button editor-block-handle">…</button> from <div id="_r_2n_" data-floating-ui-portal="">…</div> subtree intercepts pointer events
+          - retrying click action
+            - waiting 500ms
+
+
+      175 |     await second.page.mouse.move(0, 0);
+      176 |     await expect(second.page.locator(".editor-block-handle")).toBeHidden({ timeout: 5_000 });
+    > 177 |     await toolbar.getByRole("button", { name: "Gras" }).click();
+          |                                                        ^
+      178 |     await waitForEditorSettled(second.page, { afterApplyCount: beforeFormat });
+      179 |     propagationMs.push(
+      180 |       await expectPropagated(page, formatStartedAt, async () => {
+        at /home/runner/work/MyOwnNotion/MyOwnNotion/tests/e2e/realtime-page-sync.spec.ts:177:56
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/realtime-page-sync-connect-4e63e-thout-reload-or-replacement-webkit-mobile-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/realtime-page-sync-connect-4e63e-thout-reload-or-replacement-webkit-mobile-retry1/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/realtime-page-sync-connect-4e63e-thout-reload-or-replacement-webkit-mobile-retry1/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/realtime-page-sync-connect-4e63e-thout-reload-or-replacement-webkit-mobile-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/realtime-page-sync-connect-4e63e-thout-reload-or-replacement-webkit-mobile-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [webkit-mobile] › tests/e2e/realtime-page-sync.spec.ts:83:0 › connected devices exchange text, marks and block order without reload or replacement 
+  10 skipped
+  99 passed (18.6m)
+error: "playwright" exited with code 1
+##[error]Process completed with exit code 1.
+##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+with:
+  name: playwright-report-webkit-mobile
+  path: playwright-report/
+test-results/
+
+  retention-days: 14
+  if-no-files-found: warn
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+  archive: true
+env:
+  CI: true
+  SHELLCHECK_VERSION: 0.11.0
+  SHFMT_VERSION: 3.12.0
+  MYOWNNOTION_E2E_ROOT: /home/runner/work/_temp/myownnotion-e2e
+  MYOWNNOTION_BLOB_ROOT: /home/runner/work/_temp/myownnotion-e2e/blobs
+  MYOWNNOTION_BACKUP_ROOT: /home/runner/work/_temp/myownnotion-e2e/backups
+  MYOWNNOTION_DEPLOYMENT_KEY_FILE: /home/runner/work/_temp/myownnotion-e2e/deployment-key
+##[endgroup]
+Multiple search paths detected. Calculating the least common ancestor of all paths
+The least common ancestor is /home/runner/work/MyOwnNotion/MyOwnNotion. This will be the root directory of the artifact
+With the provided path, there will be 109 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Uploading artifact: playwright-report-webkit-mobile.zip
+Beginning upload of artifact content to blob storage
+Uploaded bytes 8388608
+Uploaded bytes 16777216
+Uploaded bytes 25165824
+Uploaded bytes 33554432
+Uploaded bytes 41943040
+Uploaded bytes 45181074
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact is 18aa49165cc44d1c6dbd1099cecb3fea61a9e5ec00a4b516e5e89b1714ba81d5
+Finalizing artifact upload
+Artifact playwright-report-webkit-mobile successfully finalized. Artifact ID 14013213495
+Artifact playwright-report-webkit-mobile has been successfully uploaded! Final size is 45181074 bytes. Artifact ID is 14013213495
+Artifact download URL: https://github.com/enzofrnt/MyOwnNotion/actions/runs/43368263709/artifacts/14013213495
+Post job cleanup.
+##[start-action display=Install Bun 1.4.2;id=__52cf7cef-bb7d-4189-ab49-ba4d0f7e6c77.__oven-sh_setup-bun]
+##[end-action id=__52cf7cef-bb7d-4189-ab49-ba4d0f7e6c77.__oven-sh_setup-bun;outcome=skipped;conclusion=skipped;duration_ms=0]
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.1
+Temporarily overriding HOME='/home/runner/work/_temp/594b5306-c75f-40b0-ae4f-a8df8d8422f2' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/MyOwnNotion/MyOwnNotion
+Removing SSH command configuration
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Removing HTTP extra header
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Removing includeIf entries pointing to credentials config files
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+includeif.gitdir:/github/workspace/.git.path
+includeif.gitdir:/github/workspace/.git/worktrees/*.path
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path
+/home/runner/work/_temp/git-credentials-a778164a-5ea5-464f-b80e-d05ce0d5c25f.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-a778164a\-5ea5\-464f\-b80e\-d05ce0d5c25f\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path
+/home/runner/work/_temp/git-credentials-a778164a-5ea5-464f-b80e-d05ce0d5c25f.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/MyOwnNotion/MyOwnNotion/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-a778164a\-5ea5\-464f\-b80e\-d05ce0d5c25f\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+/github/runner_temp/git-credentials-a778164a-5ea5-464f-b80e-d05ce0d5c25f.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-a778164a\-5ea5\-464f\-b80e\-d05ce0d5c25f\.config
+[command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+/github/runner_temp/git-credentials-a778164a-5ea5-464f-b80e-d05ce0d5c25f.config
+[command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-a778164a\-5ea5\-464f\-b80e\-d05ce0d5c25f\.config
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Removing credentials config '/home/runner/work/_temp/git-credentials-a778164a-5ea5-464f-b80e-d05ce0d5c25f.config'
+Cleaning up orphan processes

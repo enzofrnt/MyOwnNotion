@@ -1,0 +1,73 @@
+# run=43243026089 attempt=1 job=131268699158 name=Playwright journeys (firefox-desktop)
+  ✘   15 [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (1.0m)
+  ✘   16 [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (retry #1) (1.0m)
+  ✘   36 [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (13.0s)
+  ✘   37 [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (retry #1) (13.6s)
+  ✘   71 [firefox-desktop] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order (3.0m)
+  ✘   72 [firefox-desktop] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order (retry #1) (3.0m)
+  ✘   73 [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:19:0 › converts a card without editorial history locally while workspace requests are held (1.0m)
+  ✘   74 [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:19:0 › converts a card without editorial history locally while workspace requests are held (retry #1) (1.0m)
+  ✘   75 [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:85:0 › keeps conversion confirmation immediate and returns to the card without a pointer selection outline (3.0m)
+  ✘   76 [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:85:0 › keeps conversion confirmation immediate and returns to the card without a pointer selection outline (retry #1) (3.0m)
+  ✘   77 [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:157:0 › cancels a pressed property action outside its button and activates exactly once from the keyboard (1.0m)
+  ✘   78 [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:157:0 › cancels a pressed property action outside its button and activates exactly once from the keyboard (retry #1) (1.0m)
+  ✘   79 [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:188:0 › preserves a composing dirty field while another device updates an untouched property (3.0m)
+  ✘   80 [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:188:0 › preserves a composing dirty field while another device updates an untouched property (retry #1) (3.0m)
+  ✘   82 [firefox-desktop] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline (3.0m)
+  ✘   83 [firefox-desktop] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline (retry #1) (3.0m)
+  ✘   88 [firefox-desktop] › tests/e2e/database-page-flow.spec.ts:187:0 › keeps Nouvel élément below the edited card, creates successive durable entries and uses full column colors (1.0m)
+  ✘   89 [firefox-desktop] › tests/e2e/database-page-flow.spec.ts:187:0 › keeps Nouvel élément below the edited card, creates successive durable entries and uses full column colors (retry #1) (1.0m)
+  ✘   91 [firefox-desktop] › tests/e2e/database-page-flow.spec.ts:340:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline (3.0m)
+  ✘   92 [firefox-desktop] › tests/e2e/database-page-flow.spec.ts:340:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline (retry #1) (3.0m)
+  ✘   93 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:87:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (3.1m)
+  ✘   94 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:87:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (retry #1) (3.1m)
+  ✘   95 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:214:0 › relation and rollup isolate a second source in the same database container (3.1m)
+  ✘   96 [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:214:0 › relation and rollup isolate a second source in the same database container (retry #1) (3.1m)
+  ✘   98 [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:265:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict (2.0m)
+  ✘   99 [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:265:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict (retry #1) (2.0m)
+  ✘  100 [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:451:2 › structured offline convergence (US5) › measures live structured propagation and states partial offline coverage (1.0m)
+  ✘  101 [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:451:2 › structured offline convergence (US5) › measures live structured propagation and states partial offline coverage (retry #1) (1.0m)
+  ✘  109 [firefox-desktop] › tests/e2e/databases-schema.spec.ts:30:0 › creates a typed database whose entry and relations keep canonical page identities (2.0m)
+  ✘  110 [firefox-desktop] › tests/e2e/databases-schema.spec.ts:30:0 › creates a typed database whose entry and relations keep canonical page identities (retry #1) (2.0m)
+  ✘  112 [firefox-desktop] › tests/e2e/databases-security.spec.ts:92:0 › keeps structured content out of local storage, addresses and diagnostics (2.0m)
+  ✘  113 [firefox-desktop] › tests/e2e/databases-security.spec.ts:92:0 › keeps structured content out of local storage, addresses and diagnostics (retry #1) (2.0m)
+  ✘  114 [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens (14.3s)
+  ✘  115 [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens (retry #1) (14.5s)
+  ✘  116 [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens and permits cancellation (14.4s)
+  ✘  117 [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens and permits cancellation (retry #1) (14.4s)
+  ✘  118 [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:116:0 › tracks one task page through roles, notes, relations, search and an independent checkbox (1.0m)
+  ✘  119 [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:116:0 › tracks one task page through roles, notes, relations, search and an independent checkbox (retry #1) (1.0m)
+  ✘  120 [firefox-desktop] › tests/e2e/databases-views.spec.ts:21:0 › persists table/list filters, sorts, groups, columns and focus on two browsers (3.0m)
+  ✘  121 [firefox-desktop] › tests/e2e/databases-views.spec.ts:21:0 › persists table/list filters, sorts, groups, columns and focus on two browsers (retry #1) (3.0m)
+  ✘  122 [firefox-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery (3.0m)
+  ✘  123 [firefox-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery (retry #1) (3.0m)
+  ✘  124 [firefox-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (1.0m)
+  ✘  125 [firefox-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (retry #1) (1.0m)
+  ✘  230 [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys (21.7s)
+  ✘  231 [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys (retry #1) (22.0s)
+  ✘  232 [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:215:0 › backlinks, local graph, global filters and offline restart stay coherent (8.1s)
+  ✘  233 [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:215:0 › backlinks, local graph, global filters and offline restart stay coherent (retry #1) (8.0s)
+  1) [firefox-desktop] › tests/e2e/accessibility.spec.ts:408:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent 
+  2) [firefox-desktop] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours 
+  3) [firefox-desktop] › tests/e2e/database-entry-properties.spec.ts:14:0 › configures entry properties directly, shares symbols, and preserves independent property order 
+  4) [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:19:0 › converts a card without editorial history locally while workspace requests are held 
+  5) [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:85:0 › keeps conversion confirmation immediate and returns to the card without a pointer selection outline 
+  6) [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:157:0 › cancels a pressed property action outside its button and activates exactly once from the keyboard 
+  7) [firefox-desktop] › tests/e2e/database-form-lifecycle.spec.ts:188:0 › preserves a composing dirty field while another device updates an untouched property 
+  8) [firefox-desktop] › tests/e2e/database-multi-select-board.spec.ts:41:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline 
+  9) [firefox-desktop] › tests/e2e/database-page-flow.spec.ts:187:0 › keeps Nouvel élément below the edited card, creates successive durable entries and uses full column colors 
+  10) [firefox-desktop] › tests/e2e/database-page-flow.spec.ts:340:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline 
+  11) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:87:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 
+  12) [firefox-desktop] › tests/e2e/database-relations-rollups.spec.ts:214:0 › relation and rollup isolate a second source in the same database container 
+  13) [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:265:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict 
+  14) [firefox-desktop] › tests/e2e/databases-offline-sync.spec.ts:451:2 › structured offline convergence (US5) › measures live structured propagation and states partial offline coverage 
+  15) [firefox-desktop] › tests/e2e/databases-schema.spec.ts:30:0 › creates a typed database whose entry and relations keep canonical page identities 
+  16) [firefox-desktop] › tests/e2e/databases-security.spec.ts:92:0 › keeps structured content out of local storage, addresses and diagnostics 
+  17) [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens 
+  18) [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:35:2 › keeps a property action stable while a new database opens and permits cancellation 
+  19) [firefox-desktop] › tests/e2e/databases-tasks.spec.ts:116:0 › tracks one task page through roles, notes, relations, search and an independent checkbox 
+  20) [firefox-desktop] › tests/e2e/databases-views.spec.ts:21:0 › persists table/list filters, sorts, groups, columns and focus on two browsers 
+  21) [firefox-desktop] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery 
+  22) [firefox-desktop] › tests/e2e/databases-visual-views.spec.ts:107:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts 
+  23) [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys 
+  24) [firefox-desktop] › tests/e2e/knowledge-graph.spec.ts:215:0 › backlinks, local graph, global filters and offline restart stay coherent 

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.7/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -76,5 +76,35 @@
     "parser": {
       "allowComments": true
     }
-  }
+  },
+  // Biome 2.6 began formatting Markdown and YAML. Maintained prose and Spec Kit
+  // artifacts are wrapped by hand for review, and the workflows keep a
+  // deliberate layout with pinned-action comments; reflowing some 250 files
+  // would bury real changes. Both formatters stay off until that is a decision
+  // of its own.
+  "markdown": {
+    "formatter": {
+      "enabled": false
+    }
+  },
+  "yaml": {
+    "formatter": {
+      "enabled": false
+    }
+  },
+  "overrides": [
+    {
+      // A test harness is declared inside its test on purpose: it closes over
+      // that test's spies and state, and is mounted once. The rule guards
+      // against production components recreated on every render.
+      "includes": ["**/tests/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noComponentHookFactories": "off"
+          }
+        }
+      }
+    }
+  ]
 }

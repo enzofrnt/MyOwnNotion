@@ -19,6 +19,7 @@ import { DatabasePage } from "../src/features/databases/database-page.tsx";
 import { DatabaseToolbar } from "../src/features/databases/database-toolbar.tsx";
 import type { DatabaseViewPage, DatabaseViewResult } from "../src/services/databases.ts";
 import type { LocalContentService } from "../src/services/local-content.ts";
+import { present, until } from "./support/until.ts";
 
 function database(): DatabaseDto {
   const databaseId = generateUuidV7();
@@ -207,14 +208,17 @@ describe("database page interaction durability", () => {
           />
         </MemoryRouter>,
       );
-      await new Promise((resolve) => setTimeout(resolve, 10));
     });
-    const title = container.querySelector<HTMLTextAreaElement>(
-      '[data-testid="current-source-title"]',
+    // The source title appears once the container has read its sources.
+    const title = await until(() =>
+      present(
+        container.querySelector<HTMLTextAreaElement>('[data-testid="current-source-title"]'),
+        "the integrated source title",
+      ),
     );
-    expect(title?.value).toBe("Tâches");
+    expect(title.value).toBe("Tâches");
     const tabs = container.querySelector(".database-container-page__tabs");
-    expect(title?.compareDocumentPosition(tabs as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+    expect(title.compareDocumentPosition(tabs as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
   });
@@ -231,19 +235,25 @@ describe("database page interaction durability", () => {
           />
         </MemoryRouter>,
       );
-      await new Promise((resolve) => setTimeout(resolve, 10));
     });
-    const linkedTab = [
-      ...container.querySelectorAll<HTMLButtonElement>(".database-container-page__tab"),
-    ].find((tab) => tab.textContent?.includes("Vue liée"));
-    expect(linkedTab).toBeDefined();
-    await act(async () => {
-      linkedTab?.click();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+    const linkedTab = await until(() =>
+      present(
+        [...container.querySelectorAll<HTMLButtonElement>(".database-container-page__tab")].find(
+          (tab) => tab.textContent?.includes("Vue liée"),
+        ),
+        "the linked source tab",
+      ),
+    );
+    await act(async () => linkedTab.click());
+    const title = await until(() => {
+      const node = present(
+        container.querySelector<HTMLElement>('[data-testid="current-source-title"]'),
+        "the source title",
+      );
+      expect(node.textContent).toContain("Archives");
+      return node;
     });
-    const title = container.querySelector<HTMLElement>('[data-testid="current-source-title"]');
-    expect(title?.textContent).toContain("Archives");
-    expect(title?.tagName).toBe("P");
+    expect(title.tagName).toBe("P");
   });
 
   it.each(["accepted", "rejected"] as const)(
@@ -330,27 +340,37 @@ describe("database page interaction durability", () => {
         .querySelector<HTMLButtonElement>('[aria-label="Filtrer, trier et configurer"]')
         ?.click(),
     );
-    const trigger = document.querySelector<HTMLButtonElement>(
-      ".database-schema .property-icon-picker__trigger",
-    );
-    expect(trigger).not.toBeNull();
-    // The popover can still be mounting when the click returns and can close
-    // again if a stray toggle lands. Reopen it until the filtered grid exists,
-    // then read the option from the same settled state.
-    const iconOption = () =>
-      document.querySelector<HTMLButtonElement>('[role="option"][aria-label="étoile"]');
-    const pickerOpen = () =>
-      document.querySelector('[role="listbox"][aria-label="Icônes"]') !== null;
-    await act(async () => {
-      const deadline = Date.now() + 15_000;
-      while (iconOption() === null && Date.now() < deadline) {
-        if (!pickerOpen()) trigger?.click();
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
+    // The settings panel has finished opening only once it has taken focus.
+    // Opening the nested icon picker before that let the panel's own
+    // open-focus land afterwards, which moved focus out of the picker and
+    // closed it: the "spurious close" an earlier version answered by clicking
+    // the trigger again until it stayed open.
+    const trigger = await until(() => {
+      const panel = present(
+        document.querySelector(".database-settings-panel"),
+        "the settings panel",
+      );
+      if (!panel.contains(document.activeElement))
+        throw new Error("the settings panel has not taken focus");
+      return present(
+        document.querySelector<HTMLButtonElement>(
+          ".database-schema .property-icon-picker__trigger",
+        ),
+        "the property icon trigger",
+      );
     });
-    const choice = iconOption();
-    expect(choice).not.toBeNull();
-    await act(async () => choice?.click());
+    // Open once. A popover that closes again on its own is the defect this
+    // journey must report, so the trigger is never clicked a second time.
+    act(() => trigger.click());
+    const choice = await until(() => {
+      present(document.querySelector('[role="listbox"][aria-label="Icônes"]'), "the icon picker");
+      return present(
+        document.querySelector<HTMLButtonElement>('[role="option"][aria-label="étoile"]'),
+        "the star option",
+      );
+    });
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    await act(async () => choice.click());
     expect(replace).toHaveBeenCalledOnce();
     const definition = replace.mock.calls[0]?.[0] as DatabaseDefinition;
     expect(definition.properties[0]).toEqual({ ...value.definition.properties[0], icon: "star" });
@@ -838,10 +858,8 @@ describe("database page interaction durability", () => {
     expect(addButton).not.toBeNull();
     if (addButton === null) return;
 
-    await act(async () => {
-      addButton.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    await act(async () => addButton.click());
+    await until(() => present(container.querySelector("[data-naming-entry]"), "the naming row"));
     // The optimistic row is visible and its title is editable before the write
     // resolves, and the row is last.
     const rowsBefore = [...container.querySelectorAll("tbody tr:not(.database-table-add-entry)")];
@@ -859,10 +877,9 @@ describe("database page interaction durability", () => {
     });
     expect(onUpdateEntry).not.toHaveBeenCalled();
 
-    await act(async () => {
-      resolveCreate?.();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    await act(async () => resolveCreate?.());
+    // The queued title is sent once the creation it waited for has resolved.
+    await until(() => expect(onUpdateEntry).toHaveBeenCalled());
     expect(pendingId).toBeDefined();
     expect(onUpdateEntry).toHaveBeenCalledWith(pendingId, { kind: "title", title: "Ma page" });
   });
@@ -890,12 +907,10 @@ describe("database page interaction durability", () => {
       "tr.database-table-add-entry button",
     );
     if (addButton === null) return;
-    await act(async () => {
-      addButton.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    await act(async () => addButton.click());
+    // The refusal is reported; only then is the optimistic row's absence meaningful.
+    await until(() => expect(container.textContent).toContain("L'entrée n'a pas pu être créée"));
     expect(container.querySelectorAll("tbody tr:not(.database-table-add-entry)")).toHaveLength(0);
-    expect(container.textContent).toContain("L'entrée n'a pas pu être créée");
     expect(container.querySelector(".database-cell-title-input")).toBeNull();
   });
 });
@@ -928,8 +943,8 @@ describe("database toolbar creation intent", () => {
     );
     await act(async () => {
       window.dispatchEvent(new CustomEvent("myownnotion:create-database-entry"));
-      await new Promise((resolve) => setTimeout(resolve, 0));
     });
+    await until(() => expect(onCreateEntry).toHaveBeenCalled());
     expect(onCreateEntry).toHaveBeenCalledWith("Nouvelle page", {}, {}, expect.any(String));
     act(() => localRoot.unmount());
     localContainer.remove();

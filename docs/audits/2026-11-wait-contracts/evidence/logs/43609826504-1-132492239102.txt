@@ -1,0 +1,5 @@
+# run=43609826504 attempt=1 job=132492239102 name=Playwright journeys (webkit-mobile 2/3)
+  ✘   32 [webkit-mobile] › tests/e2e/database-entry-properties.spec.ts:14:1 › configures entry properties directly, shares symbols, and preserves independent property order (29.9s)
+  ✘   45 [webkit-mobile] › tests/e2e/editor-math-contents.spec.ts:100:1 › updates both contents projections, scrolls nested headings and leaves no stale outline (5.1s)
+  1) [webkit-mobile] › tests/e2e/database-entry-properties.spec.ts:14:1 › configures entry properties directly, shares symbols, and preserves independent property order 
+  2) [webkit-mobile] › tests/e2e/editor-math-contents.spec.ts:100:1 › updates both contents projections, scrolls nested headings and leaves no stale outline 
