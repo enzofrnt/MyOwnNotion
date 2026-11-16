@@ -66,7 +66,10 @@ comparaison. Une silhouette sans états ni preuve n'est pas terminée.
 - A test step that depends on an asynchronous operation waits for proof that
   this operation finished (committed state, a revision, an acknowledgment),
   never for time, visibility, an unrelated response or `idle`. Follow
-  [the wait contracts](docs/testing/wait-contracts.md).
+  [the wait contracts](docs/testing/wait-contracts.md) and read
+  [the test lessons](docs/testing/lessons.md) before writing a journey that
+  touches a portalled menu or a gesture whose meaning depends on where a press
+  lands.
 - Before every branch push, read the current gate inventory in
   `docs/development.md` and select checks from the changes since the last
   validated publication (the branch base for a first push). Run targeted

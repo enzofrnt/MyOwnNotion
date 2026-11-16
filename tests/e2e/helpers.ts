@@ -1008,6 +1008,27 @@ export async function waitForEntryAutosave(
   if (options.synchronize !== false) await waitForSynchronized(page);
 }
 
+/**
+ * Ensures the inline new-property composer is open, with its draft.
+ *
+ * A press outside the composer legitimately closes it (that is a dismissal),
+ * so a journey that cancels a press re-establishes the precondition instead of
+ * depending on where the press landed relative to the portalled type menu.
+ * The draft itself is asserted by the caller; this helper never retries an
+ * assertion (feature 061, docs/testing/lessons.md L-001).
+ */
+export async function ensureNewPropertyComposer(page: Page): Promise<Locator> {
+  const name = page.getByRole("textbox", { name: "Nom de la nouvelle propriété", exact: true });
+  if ((await name.count()) === 0) {
+    await page
+      .locator(".database-table-add-property")
+      .getByRole("button", { name: "Ajouter une propriété", exact: true })
+      .click();
+  }
+  await expect(name).toBeVisible({ timeout: 15_000 });
+  return name;
+}
+
 /** Chooses values through the entry popup rather than the old native select. */
 /**
  * The trigger of an entry value picker.
