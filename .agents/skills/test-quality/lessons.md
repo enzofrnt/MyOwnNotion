@@ -154,3 +154,24 @@ jamais d'une intuition.
 - Preuve : `recordAttribute` dans `tests/e2e/waits/observation.ts` ; lectures
   d'état validé pour les cas migrés. Les deux cas cités restent des limites
   déclarées, pas des garanties.
+
+### L-008 — Un état transitoire s'enregistre avant, il ne se prélève pas après
+- Statut : validée
+- Surface : `tests/e2e/helpers.ts` (`sampleCssTransition`), appelé par
+  `files.spec.ts:26` et sept autres parcours.
+- Symptôme : deux échecs sous WebKit desktop, à messages identiques —
+  « No active grid-template-rows transition was found » — aux runs
+  `43803790517` et `43919332602`, sur un parcours que les diffs concernés ne
+  touchaient pas.
+- Anti-pattern : cliquer, puis **prélever** après coup une transition CSS qui a
+  peut-être déjà démarré et fini (le helper attend 12 images, soit ~200 ms pour
+  une transition de 210 ms ; un runner chargé dépasse cette fenêtre et la
+  transition n'existe plus au moment du prélèvement).
+- Règle : un état transitoire s'**enregistre** avant l'action qui le produit
+  (observateur d'animations, `getAnimations()` capturé dès l'apparition), puis
+  s'analyse après. On ne prélève jamais un état dont la durée de vie est plus
+  courte que le trajet de l'action.
+- Preuve : `recordAttribute` fait déjà cela pour les attributs
+  (`tests/e2e/waits/observation.ts`) ; la correction de
+  `sampleCssTransition` est proposée en suivi, hors du périmètre de la feature
+  061, avec ses huit sites d'appel à revalider.

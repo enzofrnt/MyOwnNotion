@@ -63,7 +63,9 @@ unchanged.
 | --- | --- | --- | --- |
 | 43898767141 | `669ebceb` | failure | one journey, `offline-reconciliation.spec.ts:41`, WebKit desktop. The failure screenshot and `error-context.md` show the application's own error state: « L'espace n'a pas pu être chargé — Le stockage local est inaccessible. » Local storage could not be opened in that WebKit instance; the journey waited for a title that could not appear. Engine/storage unavailability, not this diff. |
 | 43909551678 (attempt 1) | `d1fc582e` | failure | `desktop / windows-11-arm`: the runtime failed to create its own stdio pipe — `error: Failed to connect` at `net.connect` inside `child_process` `#createStdioObject`, during `spawn`, before any assertion of the fixture. `chromium-desktop 2/3` never started: `apt-get update` stalled and the lane hit its 30-minute `timeout-minutes` (`##[error]The operation was canceled` after 1 792 s of system-package installation, no blob report produced). Both are runner-level; this change has no `apps/desktop` and no workflow diff. |
-| 43909551678 (attempt 2) | `d1fc582e` | see the pull request | re-run of the failed jobs only, after the diagnoses above |
+| 43909551678 (attempt 2) | `d1fc582e` | cancelled | aborted by the push of `fff46ef6` (concurrency cancels an in-progress attempt) |
+| 43915711937 | `fff46ef6` | **success, first attempt** | full gate, no job re-run: 350 journeys per project, 0 failed, 0 flaky, 0 not run |
+| 43919332602 | `518f081a` | failure | `files.spec.ts:26` on WebKit desktop: `No active grid-template-rows transition was found` — the same message as run `43803790517` (2026-11-16 04:23 UTC) on a commit this branch does not touch. A witness defect: the helper samples a ~210 ms CSS transition after the fact. Recorded as lessons L-008 and scheduled as a follow-up (`sampleCssTransition` and its eight call sites), not fixed here. |
 
 The three failures are recorded here rather than silently re-run: a green re-run
 is not a correction (constitution article III, lessons L-004 and L-005). They
@@ -78,7 +80,9 @@ attributable to this change.
 - `apps/api/tests/realtime-page-sync.contract.spec.ts` (negative window, 20 ms)
   and the late-caller case of `synchronize-serialization.spec.ts` remain declared
   limits of feature 060 (lessons L-007).
-- The WebKit storage failure and the two runner-level failures above are not
-  fixed by this branch; they are documented with their evidence. If they recur,
-  they need their own investigation (engine storage in the container, runner
-  package mirrors, Windows ARM pipe creation).
+- The WebKit storage failure, the two runner-level failures and the
+  `sampleCssTransition` witness are not fixed by this branch; they are documented
+  with their evidence. If they recur, they need their own investigation (engine
+  storage in the container, runner package mirrors, Windows ARM pipe creation)
+  or their own fix (`sampleCssTransition`: record the transition before the
+  action that produces it — lessons L-008).
