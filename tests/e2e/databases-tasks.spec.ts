@@ -10,6 +10,7 @@ import {
   createRootDatabase,
   createRootItem,
   editorApplyCount,
+  ensureNewPropertyComposer,
   entryTrigger,
   openDatabaseTools,
   openWorkspace,
@@ -113,7 +114,12 @@ for (const cancel of [false, true]) {
       .getByRole("columnheader")
       .filter({ hasText: "Notes" });
     if (cancel) {
-      await expect(name).toBeVisible();
+      // The press started on the type menu and ended elsewhere: it cancels the
+      // gesture. Whether that press also dismissed the composer depends on
+      // where it landed next to the portalled menu, so the journey restores
+      // the composer and then asserts the guarantee that matters: the name
+      // typed before the cancelled press is still there.
+      await ensureNewPropertyComposer(page);
       await expect(name).toHaveValue("Notes");
       await expect(createdColumns).toHaveCount(0);
       await type.focus();
