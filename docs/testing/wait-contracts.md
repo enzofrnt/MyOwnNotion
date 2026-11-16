@@ -84,6 +84,14 @@ If no existing witness answers 2–4, expose a reading of real state through the
 application's service (as `listActiveItems`, `listDatabases`,
 `getDatabaseEntry` and `db.meta` are read today) rather than an E2E-only flag.
 
+Read the [`test-quality` skill](../../.agents/skills/test-quality/SKILL.md) and
+its [lessons journal](../../.agents/skills/test-quality/lessons.md) first when a
+journey touches a portalled menu, a gesture whose meaning depends on where a
+press lands, or a component that holds typed text. The journal records the
+failures that produced these rules, with their CI proof, and it is the place to
+add a new one: an intermittent failure is a window nobody has proved yet, not
+noise. Article III of the constitution makes this obligation non-negotiable.
+
 ## What is checked automatically
 
 `tests/contract/test-wait-contracts.spec.ts` scans every test root and fails
@@ -125,6 +133,10 @@ cannot see every disguised wait — a review still asks what each wait proves.
   only if it overlaps the held one).
 - `apps/web/tests/operational-page-opening.spec.ts` still checks "conversion
   does not overtake activation" one microtask after the call.
+- A press that lands outside the inline property composer closes it. The draft
+  now survives that close (feature 061, `lessons.md` L-002), but the journey
+  still restores the composer before asserting, because the press may legitimately
+  dismiss it (`.agents/skills/test-quality/lessons.md` L-001).
 - The folder keyboard-drag journey (`workspace-tabs-folder.spec.ts`, CI run
   43706222653) still moves after `data-dragging` without a witness that dnd-kit
   measured its droppables; no reliable signal was found.

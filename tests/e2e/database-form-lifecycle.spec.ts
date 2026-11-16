@@ -4,6 +4,7 @@ import {
   createDatabaseEntry,
   createDatabaseView,
   createRootDatabase,
+  ensureNewPropertyComposer,
   entryTrigger,
   openSecondDevice,
   openWorkspace,
@@ -172,7 +173,11 @@ test("cancels a pressed property action outside its button and activates exactly
   await expect(nameField).toBeVisible();
   await page.mouse.move(1, 1);
   await page.mouse.up();
-  await expect(nameField).toBeVisible();
+  // A press that ends outside the composer cancels the gesture and may also
+  // dismiss the composer; the typed name must survive either way. Restoring
+  // the composer keeps this deterministic instead of depending on where the
+  // press landed next to the portalled type menu (.agents/skills/test-quality/lessons.md L-001).
+  await ensureNewPropertyComposer(page);
   await expect(nameField).toHaveValue(name);
   const columns = page
     .getByTestId("database-view-surface")
