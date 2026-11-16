@@ -31,67 +31,22 @@ export interface CssTransitionSample {
   readonly width: number;
 }
 
-/**
- * Freezes a real CSS transition at an exact progress point before measuring it.
- *
- * A fixed sleep does not prove an intermediate frame: on a busy runner 70 ms
- * can take longer than a 210 ms transition. Reading the browser animation and
- * seeking it to its midpoint makes the assertion deterministic while still
- * exercising the production CSS rather than a test-only animation.
- */
-export async function sampleCssTransition(
-  locator: Locator,
-  transitionProperty: string,
-  progress = 0.5,
-): Promise<CssTransitionSample> {
-  await expect(locator).toBeAttached();
-  return await locator.evaluate(
-    async (element, options): Promise<CssTransitionSample> => {
-      const findTransition = (): CSSTransition | undefined =>
-        element
-          .getAnimations()
-          .find(
-            (animation): animation is CSSTransition =>
-              "transitionProperty" in animation &&
-              animation.transitionProperty === options.transitionProperty,
-          );
-
-      let transition = findTransition();
-      for (let frame = 0; transition === undefined && frame < 12; frame += 1) {
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-        transition = findTransition();
-      }
-      if (transition === undefined) {
-        throw new Error(`No active ${options.transitionProperty} transition was found`);
-      }
-
-      transition.pause();
-      const timing = transition.effect?.getComputedTiming();
-      const duration = typeof timing?.duration === "number" ? timing.duration : 0;
-      if (duration <= 0) {
-        throw new Error(`${options.transitionProperty} transition has no measurable duration`);
-      }
-      transition.currentTime = duration * options.progress;
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-      const rectangle = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      const sample = {
-        height: rectangle.height,
-        transform: style.transform,
-        width: rectangle.width,
-      };
-      transition.finish();
-      return sample;
-    },
-    { progress, transitionProperty },
-  );
-}
-
+/** One animated target of an interaction, named by the CSS property it transitions. */
 export interface CssTransitionTarget {
   readonly locator: Locator;
   readonly property: string;
 }
+
+/**
+ * Maximum time a transition witness waits for the transition to exist.
+ *
+ * The witness is an in-page observation started in the same browser task as the
+ * gesture, so it cannot miss a transition that starts immediately. A loaded
+ * runner can still commit the style change later; this bound lets it, and its
+ * expiry is a failure that names the missing transition — never a duration the
+ * test waits out (docs/testing/wait-contracts.md).
+ */
+const TRANSITION_WITNESS_TIMEOUT_MS = 5_000;
 
 /**
  * Starts an interaction and freezes its transitions without a driver round trip.
@@ -154,11 +109,12 @@ export async function triggerAndSampleCssTransitions(
           const property = options.targets[index]?.property;
           return property === undefined ? undefined : findTransition(element, property);
         });
-        for (
-          let frame = 0;
-          transitions.some((transition) => transition === undefined) && frame < 12;
-          frame += 1
-        ) {
+        // A maximum bound, not a wait for time: the transition must be seen,
+        // however long the commit that starts it takes on a loaded runner
+        // (docs/testing/wait-contracts.md, lessons L-008).
+        const deadline = performance.now() + options.transitionTimeoutMs;
+        while (transitions.some((transition) => transition === undefined)) {
+          if (performance.now() > deadline) break;
           await nextFrame();
           for (const [index, element] of elements.entries()) {
             const property = options.targets[index]?.property;
@@ -207,6 +163,7 @@ export async function triggerAndSampleCssTransitions(
       },
       {
         progress,
+        transitionTimeoutMs: TRANSITION_WITNESS_TIMEOUT_MS,
         targets: targets.map((target, index) => ({
           element: targetHandles[index],
           property: target.property,
@@ -261,7 +218,8 @@ export async function triggerAndSampleMountedCssTransition(
 
       let target: HTMLElement | undefined;
       let transition: CSSTransition | undefined;
-      for (let frame = 0; transition === undefined && frame < 12; frame += 1) {
+      const deadline = performance.now() + options.transitionTimeoutMs;
+      while (transition === undefined && performance.now() <= deadline) {
         target = Array.from(document.querySelectorAll<HTMLElement>("[data-testid]")).find(
           (element) => element.dataset["testid"] === options.targetTestId,
         );
@@ -302,7 +260,12 @@ export async function triggerAndSampleMountedCssTransition(
       transition.finish();
       return sample;
     },
-    { progress, targetTestId, transitionProperty },
+    {
+      progress,
+      targetTestId,
+      transitionProperty,
+      transitionTimeoutMs: TRANSITION_WITNESS_TIMEOUT_MS,
+    },
   );
 }
 
