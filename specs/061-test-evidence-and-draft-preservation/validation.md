@@ -49,15 +49,36 @@ unchanged.
 | `AGENTS.md` | required workflow loads the skill for any test work |
 | `docs/testing/wait-contracts.md` | points at the skill; normative rule unchanged |
 
-## Limits
-
 - The exact press geometry that triggered the nightly is not reconstructed: the
   fix removes the consequence (draft loss), not the geometry. The journeys no
   longer depend on it.
 - `apps/api/tests/realtime-page-sync.contract.spec.ts` (negative window, 20 ms)
   and the late-caller case of `synchronize-serialization.spec.ts` remain declared
   limits of feature 060 (lessons L-007).
-- The first pull-request CI run of this branch failed on
-  `offline-reconciliation.spec.ts:41` (workspace did not boot within 45 s on
-  WebKit desktop) — a different journey, in a lane this change does not touch.
-  It is investigated separately and is not evidence about this fix.
+## CI runs of this branch, and why three failures were not this change
+
+`main` before this branch: `499b6a49`.
+
+| Run | Commit | Outcome | Diagnosis |
+| --- | --- | --- | --- |
+| 43898767141 | `669ebceb` | failure | one journey, `offline-reconciliation.spec.ts:41`, WebKit desktop. The failure screenshot and `error-context.md` show the application's own error state: « L'espace n'a pas pu être chargé — Le stockage local est inaccessible. » Local storage could not be opened in that WebKit instance; the journey waited for a title that could not appear. Engine/storage unavailability, not this diff. |
+| 43909551678 (attempt 1) | `d1fc582e` | failure | `desktop / windows-11-arm`: the runtime failed to create its own stdio pipe — `error: Failed to connect` at `net.connect` inside `child_process` `#createStdioObject`, during `spawn`, before any assertion of the fixture. `chromium-desktop 2/3` never started: `apt-get update` stalled and the lane hit its 30-minute `timeout-minutes` (`##[error]The operation was canceled` after 1 792 s of system-package installation, no blob report produced). Both are runner-level; this change has no `apps/desktop` and no workflow diff. |
+| 43909551678 (attempt 2) | `d1fc582e` | see the pull request | re-run of the failed jobs only, after the diagnoses above |
+
+The three failures are recorded here rather than silently re-run: a green re-run
+is not a correction (constitution article III, lessons L-004 and L-005). They
+were diagnosed from retained evidence before the re-run, and none of them is
+attributable to this change.
+
+## Limits, honestly
+
+- The exact press geometry that triggered nightly run 43856315749 is not
+  reconstructed: the fix removes the consequence (draft loss), not the geometry.
+  The journeys no longer depend on it.
+- `apps/api/tests/realtime-page-sync.contract.spec.ts` (negative window, 20 ms)
+  and the late-caller case of `synchronize-serialization.spec.ts` remain declared
+  limits of feature 060 (lessons L-007).
+- The WebKit storage failure and the two runner-level failures above are not
+  fixed by this branch; they are documented with their evidence. If they recur,
+  they need their own investigation (engine storage in the container, runner
+  package mirrors, Windows ARM pipe creation).
