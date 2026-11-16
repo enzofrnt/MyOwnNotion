@@ -118,12 +118,13 @@ describe("graph canvas paint", () => {
 
 describe("graph label legibility", () => {
   it("keeps names readable while zoomed out", () => {
-    // Solid from half zoom, still visible on a wide overview.
+    // Solid from 22 % zoom, still visible on a wide overview.
     expect(labelAlpha(0.5, false)).toBe(1);
-    expect(labelAlpha(0.35, false)).toBeGreaterThan(0.4);
-    expect(labelAlpha(0.1, false)).toBe(0);
-    // On screen (world size × zoom) a name never drops under 11px.
-    for (const zoom of [0.2, 0.5, 0.9]) expect(labelFont(zoom) * zoom).toBeCloseTo(11);
+    expect(labelAlpha(0.23, false)).toBe(1);
+    expect(labelAlpha(0.16, false)).toBeGreaterThan(0.4);
+    expect(labelAlpha(0.07, false)).toBe(0);
+    // On screen (world size × zoom) a name never drops under 10px.
+    for (const zoom of [0.1, 0.2, 0.5]) expect(labelFont(zoom) * zoom).toBeCloseTo(10);
     expect(labelFont(2)).toBe(12);
   });
 });

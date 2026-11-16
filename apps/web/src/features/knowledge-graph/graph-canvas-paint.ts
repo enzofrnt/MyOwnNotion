@@ -4,7 +4,7 @@ import { GRAPH_COPY } from "./graph-copy.ts";
 /** World-space type size when zoomed in. */
 export const GRAPH_LABEL_FONT = 12;
 /** Smallest on-screen type size: names stay legible while zoomed out. */
-export const GRAPH_LABEL_MIN_SCREEN_FONT = 11;
+export const GRAPH_LABEL_MIN_SCREEN_FONT = 10;
 
 /**
  * World-space font size for a zoom level. Zoomed in, labels scale with the
@@ -21,10 +21,10 @@ export function shortGraphLabel(value: string | null): string {
   return label.length <= 26 ? label : `${label.slice(0, 23)}…`;
 }
 
-/** Names fade in early: ghosted only on a far overview, solid from half zoom. */
+/** Names stay readable on wide overviews: ghosted only when very far, solid from 22 % zoom. */
 export function graphLabelAlpha(zoom: number, pinned: boolean): number {
   if (pinned) return 1;
-  return Math.min(1, Math.max(0, (zoom - 0.2) / 0.3));
+  return Math.min(1, Math.max(0, (zoom - 0.08) / 0.14));
 }
 
 interface LabelBox {
@@ -90,9 +90,9 @@ export function visibleGraphLabelIds(
   const visible = new Set<string>();
   const font = graphLabelFont(zoom);
   // Padding is a screen distance, so it grows in world units as the map shrinks.
-  const pad = (fade < 0.45 ? 4 : 10) / Math.min(1, zoom);
+  const pad = (fade < 0.45 ? 3 : 6) / Math.min(1, zoom);
   // Overlap already thins labels out; the cap only bounds the work on huge maps.
-  const maxUnpinned = fade < 0.12 ? 0 : zoom < 0.5 ? 40 : zoom < 1.2 ? 80 : 140;
+  const maxUnpinned = fade < 0.05 ? 0 : zoom < 0.5 ? 150 : zoom < 1.2 ? 250 : 350;
   let unpinned = 0;
   for (const node of ranked) {
     const position = positions.get(node.id);
