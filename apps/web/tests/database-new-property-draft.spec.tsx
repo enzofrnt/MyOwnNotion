@@ -5,7 +5,7 @@
  * A press outside the composer closes it — that is a dismissal, not a
  * decision to throw the text away. Clearing the draft on every open made a
  * cancelled press lose the name, and the owner had to type it again
- * (docs/testing/lessons.md L-002). Escape and a created property are the only
+ * (.agents/skills/test-quality/lessons.md L-002). Escape and a created property are the only
  * paths that discard it.
  */
 import { asUuid, type DatabaseProperty, type DatabaseView } from "@myownnotion/domain";

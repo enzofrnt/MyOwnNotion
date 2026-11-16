@@ -49,11 +49,16 @@ comparaison. Une silhouette sans états ni preuve n'est pas terminée.
 - Read the constitution and the active feature artifacts before editing code.
 - For UI/UX planning, implementation and review, load the
   [UI quality skill](.agents/skills/ui-quality/SKILL.md) and its
-  [lessons journal](.agents/skills/ui-quality/lessons.md). Reference both in
-  the feature plan and UI tasks; keep specific states, acceptance criteria and
-  visual evidence in the feature artifacts. Speckit `plan` / `tasks` /
-  `implement` / `converge` phases that touch the interface MUST follow the
-  skill's Speckit gates; a material UI/UX gap blocks convergence.
+  [lessons journal](.agents/skills/ui-quality/lessons.md). For test design and
+  review — including Speckit `plan`, `tasks`, `implement` and `converge` — load
+  the [test quality skill](.agents/skills/test-quality/SKILL.md) and its
+  [lessons journal](.agents/skills/test-quality/lessons.md). Reference both in
+  the feature plan and its UI or test tasks; keep specific states, acceptance
+  criteria and visual evidence in the feature artifacts. Speckit `plan` /
+  `tasks` / `implement` / `converge` phases that touch the interface MUST follow
+  the UI skill's gates, and every phase that writes or reviews a test MUST
+  follow the test skill's gates; a material UI/UX gap or an unexplained
+  intermittent test failure blocks convergence.
   Use [the UI system guide](docs/design/ui-system.md) for current CSS owners,
   exported primitives and real composition examples in `/__ui-lab`.
 - Read `docs/product/product-canvas.md` before specifying or planning a feature,
@@ -65,11 +70,12 @@ comparaison. Une silhouette sans états ni preuve n'est pas terminée.
 - Add tests for changed behavior and run the relevant checks before marking tasks complete.
 - A test step that depends on an asynchronous operation waits for proof that
   this operation finished (committed state, a revision, an acknowledgment),
-  never for time, visibility, an unrelated response or `idle`. Follow
-  [the wait contracts](docs/testing/wait-contracts.md) and read
-  [the test lessons](docs/testing/lessons.md) before writing a journey that
-  touches a portalled menu or a gesture whose meaning depends on where a press
-  lands.
+  never for time, visibility, an unrelated response or `idle`. This is a
+  constitution obligation (article III): follow
+  [the wait contracts](docs/testing/wait-contracts.md) and load the
+  [test quality skill](.agents/skills/test-quality/SKILL.md) with its
+  [lessons journal](.agents/skills/test-quality/lessons.md) before writing or
+  reviewing any test.
 - Before every branch push, read the current gate inventory in
   `docs/development.md` and select checks from the changes since the last
   validated publication (the branch base for a first push). Run targeted

@@ -176,7 +176,7 @@ test("cancels a pressed property action outside its button and activates exactly
   // A press that ends outside the composer cancels the gesture and may also
   // dismiss the composer; the typed name must survive either way. Restoring
   // the composer keeps this deterministic instead of depending on where the
-  // press landed next to the portalled type menu (docs/testing/lessons.md L-001).
+  // press landed next to the portalled type menu (.agents/skills/test-quality/lessons.md L-001).
   await ensureNewPropertyComposer(page);
   await expect(nameField).toHaveValue(name);
   const columns = page

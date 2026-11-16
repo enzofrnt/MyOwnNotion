@@ -1015,7 +1015,7 @@ export async function waitForEntryAutosave(
  * so a journey that cancels a press re-establishes the precondition instead of
  * depending on where the press landed relative to the portalled type menu.
  * The draft itself is asserted by the caller; this helper never retries an
- * assertion (feature 061, docs/testing/lessons.md L-001).
+ * assertion (feature 061, .agents/skills/test-quality/lessons.md L-001).
  */
 export async function ensureNewPropertyComposer(page: Page): Promise<Locator> {
   const name = page.getByRole("textbox", { name: "Nom de la nouvelle propriété", exact: true });

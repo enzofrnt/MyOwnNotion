@@ -1,8 +1,16 @@
 # Leçons — robustesse des tests
 
 Journal **append-only** des échecs qui nous ont appris quelque chose sur la
-façon d'écrire un test. Les agents le lisent avec
-[`wait-contracts.md`](wait-contracts.md) avant d'écrire ou de modifier un test.
+façon d'écrire un test. Il se lit avec [SKILL.md](SKILL.md) avant d'écrire ou de
+modifier un test, et la norme reste
+[`docs/testing/wait-contracts.md`](../../../docs/testing/wait-contracts.md).
+
+Il vit ici, dans un skill maintenu du dossier `.agents/skills/`, parce que c'est
+l'endroit que les agents consultent réellement (catalogue de skills et
+`AGENTS.md`) — et non dans un dossier de documentation que personne n'ouvre. Le
+principe non négociable correspondant est inscrit dans
+[`.specify/memory/constitution.md`](../../../.specify/memory/constitution.md),
+article III.
 
 L'équivalent existe pour l'interface : `.agents/skills/ui-quality/lessons.md`.
 Même esprit, même format, même exigence : une leçon naît d'un échec réel observé,
@@ -17,8 +25,9 @@ jamais d'une intuition.
 4. Ajouter une entrée `L-NNN` ici, avec le statut `validée` si une correction et
    un test l'accompagnent, `candidate` si la règle reste à éprouver.
 5. Si la règle devient générale, la remonter dans
-   [`wait-contracts.md`](wait-contracts.md) (la norme) plutôt que de la laisser
-   dans ce journal.
+   [`docs/testing/wait-contracts.md`](../../../docs/testing/wait-contracts.md)
+   (la norme) plutôt que de la laisser dans ce journal ; si elle vaut pour toute
+   livraison, l'inscrire dans la constitution.
 
 ## Format
 
@@ -112,7 +121,8 @@ jamais d'une intuition.
 - Règle : avant d'attribuer, chercher la **même signature** dans les preuves
   conservées (runs, jobs, erreurs). Ici, l'assertion, la valeur vide et le geste
   identiques existaient le 14 novembre, avant la PR.
-- Preuve : `docs/audits/2026-11-wait-contracts/evidence/errors/43587332746-1-132424695799.txt`.
+- Preuve : `docs/audits/2026-11-wait-contracts/evidence/errors/43587332746-1-132424695799.txt`,
+  cité dans `specs/061-test-evidence-and-draft-preservation/validation.md`.
 
 ### L-006 — Un témoin d'achèvement se lit dans l'état validé
 - Statut : validée
@@ -122,9 +132,9 @@ jamais d'une intuition.
   schéma.
 - Anti-pattern : avancer sur un élément visible, un titre affiché, une réponse
   réseau reçue ou un état `idle`.
-- Règle : voir [`wait-contracts.md`](wait-contracts.md) — la preuve est produite
-  par le code qui achève l'opération, corrélée à l'entité, et ne peut être ni
-  manquée ni périmée.
+- Règle : voir [`docs/testing/wait-contracts.md`](../../../docs/testing/wait-contracts.md)
+  — la preuve est produite par le code qui achève l'opération, corrélée à
+  l'entité, et ne peut être ni manquée ni périmée.
 - Preuve : `tests/e2e/wait-witnesses.spec.ts` (les témoins échouent quand
   l'opération n'a pas lieu), `specs/060-wait-contracts/validation.md`.
 

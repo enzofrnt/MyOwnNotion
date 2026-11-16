@@ -1127,7 +1127,7 @@ export function TableView({
   // a press outside the cell, a scroll, a re-render — and is cleared only when
   // the composer is actually used (a property is created) or explicitly
   // abandoned (Escape). Losing typed text to a stray press is a data-loss bug,
-  // not a dismissal (feature 061, docs/testing/lessons.md L-002).
+  // not a dismissal (feature 061, .agents/skills/test-quality/lessons.md L-002).
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnIcon, setNewColumnIcon] = useState<string | null>(null);
   const addPropertyRef = useRef<HTMLTableCellElement>(null);
