@@ -511,9 +511,11 @@ export async function openWorkspace(
       // a state, not a slow page. Name it, so a failed journey reports what the
       // product actually said instead of "locator not visible". `workspace-state-offline`
       // is a legitimate offline state and is deliberately not read here.
+      // A short bound: probing must never consume the journey's own budget when
+      // the application is simply still loading.
       const refusal = await page
         .getByTestId("workspace-state-error")
-        .innerText()
+        .innerText({ timeout: 1_000 })
         .catch(() => null);
       if (refusal !== null) {
         throw new Error(`workspace refused to boot: ${refusal.replace(/\s+/g, " ").trim()}`, {
