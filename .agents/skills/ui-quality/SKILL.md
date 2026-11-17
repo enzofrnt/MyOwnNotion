@@ -126,6 +126,11 @@ y compris avec un texte long, une icône, un état vide et un message d'erreur.
 
 ## Formulaires
 
+- **Aucun décalage dû à un message** (`L-068`, règle majeure) : erreur de champ =
+  `invalid` + `FormMessage` à place réservée ; retour de section = toast hors flux ;
+  étape manquante (confirmation d'identité) = modal sur place puis reprise automatique
+  de l'action. Mesurer la position du bouton avant/après : écart 0.
+
 - Définir le protocole avant le layout : édition d'un contenu existant,
   création atomique ou opération destructive. L'édition courante applique les
   changements automatiquement ; ne pas ajouter Enregistrer/Annuler par réflexe.

@@ -66,6 +66,7 @@ function looksLikeVersionMismatch(frame: string): boolean {
 export class PageSyncSession {
   readonly connectionId: Uuid;
   readonly ownerId: string;
+  readonly workspaceId: string;
   readonly deviceId: string;
   readonly #deps: PageSyncSessionDeps;
   readonly #limits: PageSyncLimits;
@@ -82,6 +83,7 @@ export class PageSyncSession {
     this.#deps = deps;
     this.connectionId = (deps.createConnectionId ?? generateUuidV7)();
     this.ownerId = deps.principal.ownerId;
+    this.workspaceId = deps.principal.workspaceId;
     this.deviceId = deps.principal.deviceId;
     this.#now = deps.now ?? Date.now;
     this.#limits = new PageSyncLimits(this.#now);
@@ -330,7 +332,13 @@ export class PageSyncSession {
 
   sendPageAdvance(event: PageAdvanceEvent): boolean {
     if (this.#state !== "ready") return false;
-    return this.#send({ type: "page-advanced", ...event });
+    // The workspace routes the event to this socket; it is not part of what
+    // the client is told, which stays exactly the page and its frontier.
+    return this.#send({
+      type: "page-advanced",
+      pageId: event.pageId,
+      latestPageSequence: event.latestPageSequence,
+    });
   }
 
   close(code: number, reason: string): void {

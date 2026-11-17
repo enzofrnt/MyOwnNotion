@@ -311,6 +311,32 @@ cookies or service-worker caches.
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.
 
+### Migration baseline and several accounts (feature 058)
+
+Before the first release, the migration history was replaced by one
+`packages/database/migrations/0001_baseline.sql`. A development database built
+from the former `0001_initial … 0021` files is **refused** at startup with an
+explicit "recreate the development database" error; it is not upgraded. Inventory
+anything worth keeping in that profile, then run `bun run dev:stack:reset` (or
+`docker compose down -v`) and start again. Clear the browser's IndexedDB for
+that profile as well.
+
+A fresh installation opens on the administrator form (email, pseudonym,
+password). The administrator chooses in *Réglages › Administration* whether
+other accounts are created by them only, through private invitation links, or
+by open sign-up. Each account has its own workspace, keys and MCP accesses.
+
+Host commands for accounts:
+
+```bash
+bun run admin -- security accounts list --json
+# New password read from a file descriptor, never from the command line:
+bun run admin -- security accounts recover-access --email someone@example.org --fd 3 --yes 3<password.txt
+```
+
+`security recovery import` now needs `--email` (and optionally `--pseudonym`)
+for the administrator it adopts.
+
 ### Reset before the database page/view refactor (feature 029)
 
 Migration `0019_database_pages_views` refuses to run when the installation still

@@ -24,7 +24,7 @@ it("holds physical deletion until file capture is released while retaining run c
     await coordinator.connect();
     await writeFile(file, "durable attachment");
     release = await acquireFullBackupLocks(coordinator);
-    deletion = harness.built.context.db.transaction(async (tx) => {
+    deletion = harness.context.db.transaction(async (tx) => {
       await shareFullBlobDeletion(tx);
       await rm(file);
     });
@@ -108,11 +108,11 @@ it("keeps upload finalization and prefix deletion behind the snapshot, then coal
       payload: Buffer.from("head"),
     });
     expect(prefix.statusCode).toBe(204);
-    const files = harness.built.context.protectedFiles;
+    const files = harness.context.protectedFiles;
     if (files === undefined) throw new Error("Missing protected file fixture");
     const transfers = new ProtectedUploadService(files);
     const [chunk] = await listProtectedFileChunks(
-      harness.built.context.db,
+      harness.context.db,
       files.scope("upload", uploadId),
     );
     if (chunk === undefined) throw new Error("Missing committed upload chunk");
@@ -142,7 +142,7 @@ it("keeps upload finalization and prefix deletion behind the snapshot, then coal
         ),
       )
       .toBeGreaterThan(0);
-    const committed = await transfers.get(harness.built.context.db, uploadId as Uuid);
+    const committed = await transfers.get(harness.context.db, uploadId as Uuid);
     if (committed === null) throw new Error("Missing partial transfer");
     // Ordinary readers now wait behind capture as well: assert the committed
     // offset and immutable ciphertext without waiting on that same held lock.
@@ -151,7 +151,7 @@ it("keeps upload finalization and prefix deletion behind the snapshot, then coal
     releaseDump();
     const result = await backup;
     expect((await completed).statusCode).toBe(201);
-    expect(await transfers.get(harness.built.context.db, uploadId as Uuid)).toBeNull();
+    expect(await transfers.get(harness.context.db, uploadId as Uuid)).toBeNull();
     const archive = await VerifiedFullArchive.open(result.path, key, root);
     try {
       const index = archive.manifest.components.findIndex(

@@ -81,10 +81,10 @@ async function seedOwner(options: { withPassword?: boolean } = {}): Promise<void
     .execute(sql`SELECT id FROM workspaces LIMIT 1`)
     .then((result) => (result as unknown as { rows: { id: string }[] }).rows ?? []);
   await db.execute(sql`
-    INSERT INTO owners (id, installation_id, state) VALUES (${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active')
+    WITH ws AS (INSERT INTO workspaces (id, schema_version) VALUES (COALESCE(${workspace?.id ?? null}::uuid, gen_random_uuid()), 1) ON CONFLICT (id) DO UPDATE SET schema_version = workspaces.schema_version RETURNING id) INSERT INTO owners (id, installation_id, state, workspace_id, email, email_normalized, pseudonym, role, origin) SELECT ${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active', ws.id, ${OWNER_ID}::uuid::text || '@example.test', ${OWNER_ID}::uuid::text || '@example.test', 'Owner', 'administrator', 'bootstrap' FROM ws
   `);
   await db.execute(sql`
-    UPDATE installations SET state = 'ready', owner_id = ${OWNER_ID}::uuid, workspace_id = ${workspace?.id}::uuid
+    UPDATE installations SET state = 'ready', administrator_id = ${OWNER_ID}::uuid
   `);
   await db.execute(sql`
     INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
@@ -133,7 +133,12 @@ function inject(options: Inject) {
 const login = (
   password = PASSWORD,
   device: { deviceBindingId: string; name: string; platform: string } = DEVICE_CLAIM,
-) => inject({ method: "POST", url: "/v1/auth/login/password", payload: { password, device } });
+) =>
+  inject({
+    method: "POST",
+    url: "/v1/auth/login/password",
+    payload: { email: `${OWNER_ID}@example.test`, password, device },
+  });
 
 /** Extracts the session cookie value from a `Set-Cookie` header. */
 function cookieFrom(response: { headers: Record<string, unknown> }): string {
@@ -912,7 +917,7 @@ describe("passkey enrollment", () => {
         id: "fabricated",
         rawId: "fabricated",
         type: "public-key",
-        response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" },
+        response: { clientDataJSON: "e30", attestationObject: "AA" },
         label: "Fabricated",
       },
     });
@@ -938,7 +943,7 @@ describe("passkey enrollment", () => {
         id: "fabricated",
         rawId: "fabricated",
         type: "public-key",
-        response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" },
+        response: { clientDataJSON: "e30", attestationObject: "AA" },
         label: "Fabricated",
       },
     });

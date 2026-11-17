@@ -24,6 +24,9 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AdministrativeRecoveryService } from "../src/security/administrative-recovery-service.ts";
 
+/** The adopted administrator's identity, which the operator supplies (feature 058). */
+const ADOPTED = { administratorEmail: "admin@example.test", administratorPseudonym: "Admin" };
+
 let postgres: DisposablePostgres;
 let handle: DatabaseHandle;
 
@@ -58,7 +61,7 @@ function makeKit(overrides: Record<string, unknown> = {}): RecoveryKit {
 /** Collects the message of a refusal, or fails loudly if there was none. */
 async function refusalOf(kit: RecoveryKit): Promise<string> {
   try {
-    await service().import(kit);
+    await service().import(kit, ADOPTED);
   } catch (error) {
     return error instanceof Error ? error.message : String(error);
   }

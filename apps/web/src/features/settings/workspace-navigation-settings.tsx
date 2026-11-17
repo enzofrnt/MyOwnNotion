@@ -43,7 +43,10 @@ export function WorkspaceNavigationSettings({ db }: { readonly db: LocalDatabase
   }
 
   return (
-    <section className="settings-navigation-preferences" data-testid="navigation-settings">
+    <section
+      className="settings-navigation-preferences ui-settings-panel"
+      data-testid="navigation-settings"
+    >
       <h2>Barre latérale</h2>
       <p className="muted">
         Ces choix concernent uniquement cet appareil. Vos notes et leur synchronisation ne sont pas

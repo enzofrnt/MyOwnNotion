@@ -83,7 +83,12 @@ export async function setDesktopOffline(
 export async function desktopOutbox(page: Page): Promise<unknown[]> {
   return page.evaluate(async () => {
     return new Promise<unknown[]>((resolve, reject) => {
-      const request = indexedDB.open("myownnotion-local");
+      const request = indexedDB.open(
+        // Feature 058: one local database per account on this browser.
+        localStorage.getItem("myownnotion-last-account") === null
+          ? "myownnotion-local"
+          : `myownnotion-local-${localStorage.getItem("myownnotion-last-account")}`,
+      );
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const db = request.result;

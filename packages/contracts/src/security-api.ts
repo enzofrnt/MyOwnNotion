@@ -113,7 +113,17 @@ export const RotationPolicyViewSchema = Type.Object(
 );
 export type RotationPolicyViewDto = Static<typeof RotationPolicyViewSchema>;
 
+/** Who may create an account (feature 058). */
+export const RegistrationModeSchema = Type.Union([
+  Type.Literal("closed"),
+  Type.Literal("invitation"),
+  Type.Literal("open"),
+]);
+export type RegistrationModeDto = Static<typeof RegistrationModeSchema>;
+
 const installationStatusCommon = {
+  /** Present once the installation is initialized, so sign-in can offer sign-up. */
+  registrationMode: Type.Optional(RegistrationModeSchema),
   recoveryReady: Type.Boolean(),
   securityReady: Type.Boolean(),
   wrappingPolicy: Type.Optional(RotationPolicyViewSchema),
@@ -346,8 +356,28 @@ export type BootstrapConfirmationResultDto = Static<typeof BootstrapConfirmation
 // Credentials, sessions, devices
 // ---------------------------------------------------------------------------
 
+/**
+ * A registration ceremony's result: an attestation, not an assertion. It has
+ * no signature of its own; the server verifies the attestation object.
+ */
+export const WebAuthnRegistrationSchema = Type.Object(
+  {
+    id: Type.String(),
+    rawId: Type.String(),
+    type: Type.Literal("public-key"),
+    response: Type.Object(
+      {
+        clientDataJSON: Type.String(),
+        attestationObject: Type.String(),
+      },
+      { additionalProperties: true },
+    ),
+  },
+  { additionalProperties: true },
+);
+
 export const PasskeyEnrollmentCompletionSchema = Type.Intersect([
-  WebAuthnAssertionSchema,
+  WebAuthnRegistrationSchema,
   Type.Object({ label: Type.String({ minLength: 1, maxLength: 120 }) }),
 ]);
 export type PasskeyEnrollmentCompletionDto = Static<typeof PasskeyEnrollmentCompletionSchema>;
@@ -372,6 +402,7 @@ export type PasswordChangeDto = Static<typeof PasswordChangeSchema>;
 
 export const PasswordLoginSchema = Type.Object(
   {
+    email: Type.String({ minLength: 3, maxLength: 254 }),
     password: Type.String({ minLength: 12, maxLength: 1024, writeOnly: true }),
     device: BrowserDeviceClaimSchema,
   },
@@ -598,3 +629,188 @@ export type SecurityProblemDto = Static<typeof SecurityProblemSchema>;
 export const SECURITY_API_INSTALLATION_STATES = INSTALLATION_STATES;
 export const SECURITY_API_RECOVERY_AUTHORIZATION_STATES = RECOVERY_AUTHORIZATION_STATES;
 export const SECURITY_API_RECOVERY_DELIVERY_STATES = RECOVERY_DELIVERY_STATES;
+
+// ---------------------------------------------------------------------------
+// Accounts, registration and invitations (feature 058)
+// ---------------------------------------------------------------------------
+
+export const AccountEmailSchema = Type.String({
+  minLength: 3,
+  maxLength: 254,
+  pattern: "^\\s*[^\\s@]+@[^\\s@]+\\s*$",
+});
+export const PseudonymSchema = Type.String({ minLength: 1, maxLength: 64, pattern: "\\S" });
+/** The one rule the API enforces on a new password (see the web meter). */
+export const PASSWORD_MINIMUM_LENGTH = 12;
+
+export const NewPasswordSchema = Type.String({
+  minLength: PASSWORD_MINIMUM_LENGTH,
+  maxLength: 1024,
+  writeOnly: true,
+});
+
+export const AccountRoleSchema = Type.Union([
+  Type.Literal("administrator"),
+  Type.Literal("member"),
+]);
+export const AccountOriginSchema = Type.Union([
+  Type.Literal("bootstrap"),
+  Type.Literal("administrator"),
+  Type.Literal("invitation"),
+  Type.Literal("open"),
+]);
+export const AccountStateSchema = Type.Union([
+  Type.Literal("active"),
+  Type.Literal("disabled"),
+  Type.Literal("recovery-required"),
+]);
+
+/** What a signed-in user knows about themself. */
+export const MeSchema = Type.Object(
+  {
+    accountId: SecurityUuidSchema,
+    email: Type.String(),
+    pseudonym: Type.String(),
+    role: AccountRoleSchema,
+  },
+  { additionalProperties: false },
+);
+export type MeDto = Static<typeof MeSchema>;
+
+export const MeUpdateSchema = Type.Object(
+  { email: Type.Optional(AccountEmailSchema), pseudonym: Type.Optional(PseudonymSchema) },
+  { additionalProperties: false, minProperties: 1 },
+);
+export type MeUpdateDto = Static<typeof MeUpdateSchema>;
+
+/** First launch: the administrator in one form. */
+export const BootstrapAccountSchema = Type.Object(
+  {
+    email: AccountEmailSchema,
+    pseudonym: PseudonymSchema,
+    password: NewPasswordSchema,
+    device: BrowserDeviceClaimSchema,
+  },
+  { additionalProperties: false },
+);
+export type BootstrapAccountDto = Static<typeof BootstrapAccountSchema>;
+
+export const SignupSchema = Type.Object(
+  {
+    email: AccountEmailSchema,
+    pseudonym: PseudonymSchema,
+    password: NewPasswordSchema,
+    /** The secret from an invitation link's fragment, when signing up through one. */
+    invitation: Type.Optional(Type.String({ minLength: 32, maxLength: 128, writeOnly: true })),
+    device: BrowserDeviceClaimSchema,
+  },
+  { additionalProperties: false },
+);
+export type SignupDto = Static<typeof SignupSchema>;
+
+/** Response of bootstrap and sign-up: the new account, signed in. */
+export const AccountSessionSchema = Type.Object(
+  { account: MeSchema, session: SessionViewSchema, csrfToken: CsrfTokenSchema },
+  { additionalProperties: false },
+);
+export type AccountSessionDto = Static<typeof AccountSessionSchema>;
+
+export const AdminAccountViewSchema = Type.Object(
+  {
+    accountId: SecurityUuidSchema,
+    email: Type.String(),
+    pseudonym: Type.String(),
+    role: AccountRoleSchema,
+    origin: AccountOriginSchema,
+    state: AccountStateSchema,
+    invitationId: Type.Union([SecurityUuidSchema, Type.Null()]),
+    createdAt: DateTime,
+  },
+  { additionalProperties: false },
+);
+export type AdminAccountViewDto = Static<typeof AdminAccountViewSchema>;
+
+export const AdminAccountListSchema = Type.Object(
+  { accounts: Type.Array(AdminAccountViewSchema) },
+  { additionalProperties: false },
+);
+export type AdminAccountListDto = Static<typeof AdminAccountListSchema>;
+
+export const AdminAccountCreateSchema = Type.Object(
+  { email: AccountEmailSchema, pseudonym: PseudonymSchema, password: NewPasswordSchema },
+  { additionalProperties: false },
+);
+export type AdminAccountCreateDto = Static<typeof AdminAccountCreateSchema>;
+
+export const AdminPasswordResetSchema = Type.Object(
+  { password: NewPasswordSchema },
+  { additionalProperties: false },
+);
+export type AdminPasswordResetDto = Static<typeof AdminPasswordResetSchema>;
+
+export const AdminAccountDeleteSchema = Type.Object(
+  { confirmEmail: Type.String({ minLength: 3, maxLength: 254 }) },
+  { additionalProperties: false },
+);
+export type AdminAccountDeleteDto = Static<typeof AdminAccountDeleteSchema>;
+
+export const RegistrationSettingsSchema = Type.Object(
+  { mode: RegistrationModeSchema },
+  { additionalProperties: false },
+);
+export type RegistrationSettingsDto = Static<typeof RegistrationSettingsSchema>;
+
+export const InvitationStateSchema = Type.Union([
+  Type.Literal("active"),
+  Type.Literal("revoked"),
+  Type.Literal("expired"),
+  Type.Literal("exhausted"),
+]);
+
+export const InvitationViewSchema = Type.Object(
+  {
+    invitationId: SecurityUuidSchema,
+    label: Type.Union([Type.String(), Type.Null()]),
+    maxUses: Type.Union([Type.Integer({ minimum: 1 }), Type.Null()]),
+    useCount: Type.Integer({ minimum: 0 }),
+    expiresAt: NullableDateTime,
+    state: InvitationStateSchema,
+    createdAt: DateTime,
+    accounts: Type.Array(
+      Type.Object(
+        {
+          accountId: SecurityUuidSchema,
+          email: Type.String(),
+          pseudonym: Type.String(),
+          createdAt: DateTime,
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+export type InvitationViewDto = Static<typeof InvitationViewSchema>;
+
+export const InvitationListSchema = Type.Object(
+  { invitations: Type.Array(InvitationViewSchema) },
+  { additionalProperties: false },
+);
+export type InvitationListDto = Static<typeof InvitationListSchema>;
+
+export const InvitationCreateSchema = Type.Object(
+  {
+    label: Type.Optional(Type.String({ minLength: 1, maxLength: 120 })),
+    maxUses: Type.Optional(Type.Integer({ minimum: 1, maximum: 10_000 })),
+    expiresInDays: Type.Optional(Type.Integer({ minimum: 1, maximum: 365 })),
+  },
+  { additionalProperties: false },
+);
+export type InvitationCreateDto = Static<typeof InvitationCreateSchema>;
+
+/** The secret is returned exactly once, inside `url`'s fragment. */
+export const InvitationCreatedSchema = Type.Object(
+  { invitation: InvitationViewSchema, url: Type.String({ readOnly: true }) },
+  { additionalProperties: false },
+);
+export type InvitationCreatedDto = Static<typeof InvitationCreatedSchema>;

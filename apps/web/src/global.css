@@ -14,6 +14,7 @@
 @import "./features/backup/backup.css";
 @import "./ui/dotted-canvas-background.css";
 @import "./features/settings/settings-security.css";
+@import "./features/settings/settings-card.css";
 @import "./features/editor/editor-table.css";
 @import "./features/files/attachment-usages.css";
 @import "./ui/compatibility.css";

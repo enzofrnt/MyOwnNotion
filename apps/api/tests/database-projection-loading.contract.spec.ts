@@ -99,7 +99,7 @@ afterAll(async () => {
 });
 
 function dependencies() {
-  const { db, workspaceId, protectedContent } = harness.built.context;
+  const { db, workspaceId, protectedContent } = harness.context;
   if (protectedContent === undefined) throw new Error("Missing protected test boundary");
   return { db, workspaceId, protectedContent };
 }

@@ -20,22 +20,26 @@ import { setSessionCsrf } from "./session-csrf.ts";
  */
 
 import {
+  type AccountSessionDto,
+  type AdminAccountListDto,
+  type AdminAccountViewDto,
   type AuthenticatedSessionDto,
   BOOTSTRAP_CAPABILITY_HEADER,
-  type BootstrapConfirmationResultDto,
-  type BootstrapProgressDto,
-  type BootstrapStartedDto,
   type BrowserDeviceClaimDto,
   CSRF_TOKEN_HEADER,
   type DeviceDto,
   type FullBackupRehearsal,
   type FullBackupStatus,
   type InstallationStatusDto,
+  type InvitationCreatedDto,
+  type InvitationListDto,
   type ItemDto,
   type McpConnectionView,
   type McpGrant,
   type McpGrantResult,
+  type MeDto,
   type PasskeyViewDto,
+  type RegistrationSettingsDto,
   type RotationPolicyViewDto,
   type SecurityProblemDto,
   type SessionViewDto,
@@ -285,90 +289,47 @@ export class SecurityApi {
     return await this.#json<InstallationStatusDto>("/v1/installation/status");
   }
 
-  /** Claims the bootstrap attempt and captures the capability for this page. */
-  async start(clientNonce: string): Promise<SecurityResult<BootstrapStartedDto>> {
-    // Cleared first: a retry after a refusal must not send the old attempt's
-    // capability against a new claim.
-    this.#capability = null;
-    const result = await this.#json<BootstrapStartedDto>("/v1/bootstrap", {
-      method: "POST",
-      body: JSON.stringify({ clientNonce }),
-    });
-    if (result.ok) {
-      this.#capability = result.value.capability;
-    }
-    return result;
-  }
-
-  async verifyCredential(
-    attemptId: string,
-    credential: unknown,
-  ): Promise<SecurityResult<BootstrapProgressDto>> {
-    return await this.#json<BootstrapProgressDto>(`/v1/bootstrap/${attemptId}/credential`, {
-      method: "POST",
-      body: JSON.stringify({ credential }),
-    });
-  }
-
-  /** Records the password alternative during first-run bootstrap. */
-  async setBootstrapPassword(
-    attemptId: string,
-    password: string,
-  ): Promise<SecurityResult<BootstrapProgressDto>> {
-    return await this.#json<BootstrapProgressDto>(`/v1/bootstrap/${attemptId}/password`, {
-      method: "POST",
-      body: JSON.stringify({ password }),
-    });
-  }
-
   /**
-   * Consumes the one-time download and returns the artifact as a blob.
+   * First launch: creates the administrator and signs them in (feature 058).
    *
-   * Settings recovery kits use the authenticated recovery routes; this path
-   * remains for legacy bootstrap kit downloads only.
+   * Accepts the session cookie the server sets, and adopts the CSRF token the
+   * response carries, exactly like a sign-in.
    */
-  async downloadKit(attemptId: string): Promise<SecurityResult<Blob>> {
-    const response = await this.#send(`/v1/bootstrap/${attemptId}/recovery/download`, {
+  async bootstrap(input: {
+    email: string;
+    pseudonym: string;
+    password: string;
+  }): Promise<SecurityResult<AccountSessionDto>> {
+    const result = await this.#json<AccountSessionDto>("/v1/bootstrap", {
       method: "POST",
+      body: JSON.stringify({ ...input, device: this.#deviceIdentity() }),
+      acceptsCookie: true,
     });
-    if (response === null) {
-      return { ok: false, problem: UNREACHABLE };
-    }
-    if (!response.ok) {
-      return { ok: false, problem: await this.#problem(response) };
-    }
-    return { ok: true, value: await response.blob() };
+    return this.#adoptAccountSession(result);
   }
 
-  async regenerateKit(attemptId: string): Promise<SecurityResult<BootstrapProgressDto>> {
-    return await this.#json<BootstrapProgressDto>(
-      `/v1/bootstrap/${attemptId}/recovery/regenerate`,
-      {
-        method: "POST",
-      },
-    );
+  /** Self-service sign-up, open or through an invitation link's secret. */
+  async signup(input: {
+    email: string;
+    pseudonym: string;
+    password: string;
+    invitation?: string;
+  }): Promise<SecurityResult<AccountSessionDto>> {
+    const result = await this.#json<AccountSessionDto>("/v1/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({ ...input, device: this.#deviceIdentity() }),
+      acceptsCookie: true,
+    });
+    return this.#adoptAccountSession(result);
   }
 
-  /** Confirms bootstrap and commits ownership (passkey + password already set). */
-  async confirmBootstrap(
-    attemptId: string,
-  ): Promise<SecurityResult<BootstrapConfirmationResultDto>> {
-    const result = await this.#json<BootstrapConfirmationResultDto>(
-      `/v1/bootstrap/${attemptId}/recovery/confirm`,
-      {
-        method: "POST",
-        body: JSON.stringify({ device: this.#deviceIdentity() }),
-        // The one bootstrap call that accepts a cookie: the server signs the
-        // new owner in here, and with `omit` the browser would discard the
-        // `Set-Cookie` and send the owner straight to a sign-in screen they
-        // have no reason to see.
-        acceptsCookie: true,
-      },
-    );
+  #adoptAccountSession(
+    result: SecurityResult<AccountSessionDto>,
+  ): SecurityResult<AccountSessionDto> {
     if (result.ok) {
-      // The attempt is over: the capability authorizes nothing further, so
-      // holding it is pure risk.
-      this.#capability = null;
+      this.#csrfToken = result.value.csrfToken;
+      this.#accountEmail = result.value.account.email;
+      setSessionCsrf(this.#baseUrl, this.#csrfToken);
     }
     return result;
   }
@@ -435,12 +396,15 @@ export class SecurityApi {
     return result;
   }
 
-  async loginWithPassword(password: string): Promise<SecurityResult<AuthenticatedSessionDto>> {
+  async loginWithPassword(
+    email: string,
+    password: string,
+  ): Promise<SecurityResult<AuthenticatedSessionDto>> {
     const result = await this.#authenticatedJson<AuthenticatedSessionDto>(
       "/v1/auth/login/password",
       {
         method: "POST",
-        body: JSON.stringify({ password, device: this.#deviceIdentity() }),
+        body: JSON.stringify({ email, password, device: this.#deviceIdentity() }),
       },
     );
     return this.#adoptSession(result);
@@ -671,6 +635,133 @@ export class SecurityApi {
       method: "POST",
       csrf: true,
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Accounts (feature 058)
+  // -------------------------------------------------------------------------
+
+  /** The signed-in account, remembered for re-authentication prompts. */
+  async me(): Promise<SecurityResult<MeDto>> {
+    const result = await this.#authenticatedJson<MeDto>("/v1/me");
+    if (result.ok) this.#accountEmail = result.value.email;
+    return result;
+  }
+
+  #accountEmail: string | null = null;
+
+  /**
+   * Proves possession again with the signed-in account's password — the
+   * recent-authentication step sensitive actions ask for.
+   */
+  async reauthenticateWithPassword(
+    password: string,
+  ): Promise<SecurityResult<AuthenticatedSessionDto>> {
+    if (this.#accountEmail === null) {
+      const current = await this.me();
+      if (!current.ok) return current;
+    }
+    return await this.loginWithPassword(this.#accountEmail ?? "", password);
+  }
+
+  async updateMe(changes: { email?: string; pseudonym?: string }): Promise<SecurityResult<MeDto>> {
+    return await this.#authenticatedJson<MeDto>("/v1/me", {
+      method: "PATCH",
+      body: JSON.stringify(changes),
+      csrf: true,
+    });
+  }
+
+  async passkeyEnrollmentOptions(): Promise<SecurityResult<{ challenge: string }>> {
+    return await this.#authenticatedJson<{ challenge: string }>(
+      "/v1/auth/passkeys/enrollment/options",
+      { method: "POST", csrf: true },
+    );
+  }
+
+  async completePasskeyEnrollment(
+    credential: Record<string, unknown>,
+    label: string,
+  ): Promise<SecurityResult<PasskeyViewDto>> {
+    return await this.#authenticatedJson<PasskeyViewDto>("/v1/auth/passkeys/enrollment/complete", {
+      method: "POST",
+      body: JSON.stringify({ ...credential, label }),
+      csrf: true,
+    });
+  }
+
+  async listAccounts(): Promise<SecurityResult<AdminAccountListDto>> {
+    return await this.#authenticatedJson<AdminAccountListDto>("/v1/admin/accounts");
+  }
+
+  async createAccount(input: {
+    email: string;
+    pseudonym: string;
+    password: string;
+  }): Promise<SecurityResult<AdminAccountViewDto>> {
+    return await this.#authenticatedJson<AdminAccountViewDto>("/v1/admin/accounts", {
+      method: "POST",
+      body: JSON.stringify(input),
+      csrf: true,
+    });
+  }
+
+  async setAccountDisabled(accountId: string, disabled: boolean): Promise<SecurityResult<void>> {
+    return await this.#authenticatedJson<void>(
+      `/v1/admin/accounts/${encodeURIComponent(accountId)}/${disabled ? "disable" : "enable"}`,
+      { method: "POST", csrf: true },
+    );
+  }
+
+  async resetAccountPassword(accountId: string, password: string): Promise<SecurityResult<void>> {
+    return await this.#authenticatedJson<void>(
+      `/v1/admin/accounts/${encodeURIComponent(accountId)}/password`,
+      { method: "POST", body: JSON.stringify({ password }), csrf: true },
+    );
+  }
+
+  async deleteAccount(accountId: string, confirmEmail: string): Promise<SecurityResult<void>> {
+    return await this.#authenticatedJson<void>(
+      `/v1/admin/accounts/${encodeURIComponent(accountId)}`,
+      { method: "DELETE", body: JSON.stringify({ confirmEmail }), csrf: true },
+    );
+  }
+
+  async registrationSettings(): Promise<SecurityResult<RegistrationSettingsDto>> {
+    return await this.#authenticatedJson<RegistrationSettingsDto>("/v1/admin/registration");
+  }
+
+  async setRegistrationMode(
+    mode: RegistrationSettingsDto["mode"],
+  ): Promise<SecurityResult<RegistrationSettingsDto>> {
+    return await this.#authenticatedJson<RegistrationSettingsDto>("/v1/admin/registration", {
+      method: "PUT",
+      body: JSON.stringify({ mode }),
+      csrf: true,
+    });
+  }
+
+  async listInvitations(): Promise<SecurityResult<InvitationListDto>> {
+    return await this.#authenticatedJson<InvitationListDto>("/v1/admin/invitations");
+  }
+
+  async createInvitation(input: {
+    label?: string;
+    maxUses?: number;
+    expiresInDays?: number;
+  }): Promise<SecurityResult<InvitationCreatedDto>> {
+    return await this.#authenticatedJson<InvitationCreatedDto>("/v1/admin/invitations", {
+      method: "POST",
+      body: JSON.stringify(input),
+      csrf: true,
+    });
+  }
+
+  async revokeInvitation(invitationId: string): Promise<SecurityResult<void>> {
+    return await this.#authenticatedJson<void>(
+      `/v1/admin/invitations/${encodeURIComponent(invitationId)}`,
+      { method: "DELETE", csrf: true },
+    );
   }
 
   async removePasskey(credentialId: string): Promise<SecurityResult<void>> {

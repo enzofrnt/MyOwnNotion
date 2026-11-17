@@ -131,7 +131,7 @@ describe("item creation contract", () => {
     };
     const applyCommittedChanges = vi.fn(async (changedItemIds: readonly string[]) => {
       expect(changedItemIds).toContain(payload.id);
-      expect((await readItem(harness.built.context.db, payload.id))?.name).toBe("Replayed");
+      expect((await readItem(harness.context.db, payload.id))?.name).toBe("Replayed");
     });
     const originalSearch = Object.getOwnPropertyDescriptor(harness.built.context, "search");
     Object.defineProperty(harness.built.context, "search", {

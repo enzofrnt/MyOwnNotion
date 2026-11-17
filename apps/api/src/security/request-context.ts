@@ -32,6 +32,9 @@ export type RequestPrincipal =
   | {
       readonly kind: "owner";
       readonly ownerId: string;
+      /** The account's own workspace: every private read and write is bound to it (058). */
+      readonly workspaceId: string;
+      readonly role: "administrator" | "member";
       readonly sessionId: string;
       readonly deviceId: string;
       /** When the principal last proved possession of a credential. */

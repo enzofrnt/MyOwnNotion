@@ -1,8 +1,8 @@
 # Spécification produit maître — MyOwnNotion
 
 **Statut** : canevas maître complet, consolidé et prêt pour validation
-**Produit** : application personnelle mono-utilisateur et auto-hébergée
-**Propriétaire fonctionnel** : le propriétaire unique de l'installation
+**Produit** : application personnelle auto-hébergée à comptes privés cloisonnés
+**Propriétaire fonctionnel** : l'administrateur de l'installation
 **Déploiement officiel** : Docker Compose, application exposée localement en HTTP derrière un reverse proxy externe
 **Inspirations principales** : Notion et Obsidian
 **Priorités absolues** : intégrité des données, fonctionnement hors ligne, synchronisation, chiffrement, sauvegarde, récupération et contrôle par le propriétaire
@@ -46,7 +46,7 @@ Les spécifications de fonctionnalité détaillées peuvent préciser ce documen
 
 ## 2. Décisions structurantes validées
 
-1. MyOwnNotion possède exactement un propriétaire et aucun autre compte applicatif.
+1. Une installation MyOwnNotion héberge plusieurs comptes privés et cloisonnés. Le premier compte, créé au premier lancement, est l'administrateur ; les autres comptes sont créés selon le mode d'inscription choisi par l'administrateur (fermé, sur invitation ou ouvert). Décision du propriétaire du 16 novembre 2026, feature 058.
 2. Le document maître distingue la cible complète, la V1 et les versions suivantes.
 3. La V1 est un produit utilisable comprenant le Web responsive, les applications Electron Windows, macOS et Linux (Windows x64 et ARM, macOS ARM, Linux x64 et ARM en AppImage, deb et rpm ; téléchargement direct, sans store), Compose, l'authentification, les pages et dossiers, l'éditeur, les fichiers, la recherche, le hors-ligne, la synchronisation, la sauvegarde/restauration et l'export.
 4. Les données sont chiffrées par l'application au repos sur le serveur.
@@ -92,7 +92,7 @@ Elle doit proposer à terme :
 - des annotations publiques ;
 - un serveur MCP sécurisé.
 
-L'application n'est pas destinée à devenir une plateforme SaaS, un espace de travail d'équipe ou un produit multi-utilisateur.
+L'application peut accueillir plusieurs comptes privés sur une même installation auto-hébergée, mais n'est pas destinée à devenir une plateforme SaaS ni un espace de travail d'équipe : chaque compte travaille dans son propre espace, sans partage privé entre comptes.
 
 ---
 
@@ -124,25 +124,41 @@ L'application n'est pas destinée à devenir une plateforme SaaS, un espace de t
 
 ---
 
-## 5. Acteurs et limites du mono-utilisateur
+## 5. Acteurs et cloisonnement des comptes
 
-### 5.1 Propriétaire
+### 5.1 Utilisateur (propriétaire de son espace)
 
-MyOwnNotion possède exactement un utilisateur : son propriétaire. Il s'agit de l'unique utilisateur authentifié de l'application et il peut utiliser plusieurs appareils autorisés avec la même identité.
+Chaque compte est identifié par une adresse e-mail, un pseudo et un mot de
+passe ; il peut ajouter des passkeys. Dans ce document, « le propriétaire »
+désigne l'utilisateur authentifié propriétaire de l'espace concerné. Chaque
+utilisateur possède un espace strictement privé et peut utiliser plusieurs
+appareils autorisés avec la même identité.
 
 Ces appareils peuvent ouvrir et modifier simultanément une même page, y
 compris après avoir été déconnectés les uns des autres. Cette concurrence entre
-copies du même propriétaire relève de la résilience multi-appareils, pas de la
+copies du même utilisateur relève de la résilience multi-appareils, pas de la
 coédition entre personnes.
+
+Aucun utilisateur, administrateur compris, ne peut lire, rechercher,
+synchroniser, exporter ou ouvrir à un client MCP le contenu privé d'un autre
+compte depuis le produit.
 
 Il n'existe pas :
 
-- de création de comptes supplémentaires ;
-- de rôles d'équipe ;
-- de membres ;
-- d'invités privés ;
-- d'organisation multi-utilisateur ;
+- de rôles d'équipe au-delà d'administrateur et membre ;
+- d'espaces privés partagés entre comptes ;
+- d'invités privés sur un contenu ;
+- d'organisation ou d'équipe ;
 - de coédition privée entre plusieurs identités.
+
+### 5.1 bis Administrateur de l'installation
+
+L'administrateur est le compte créé au premier lancement. En plus de son propre
+espace, il choisit le mode d'inscription (fermé : seul l'administrateur crée
+des comptes ; sur invitation : liens privés à usages limités qu'il gère ;
+ouvert : n'importe qui peut s'inscrire), crée, désactive et supprime des
+comptes et gère les réglages globaux de l'installation. Il n'accède jamais au
+contenu des autres comptes.
 
 ### 5.2 Visiteur public
 
@@ -156,11 +172,11 @@ Un visiteur public :
 
 ### 5.3 Client MCP
 
-Un client MCP est une intégration autorisée par le propriétaire. Il ne constitue pas un second utilisateur et n'obtient que les permissions explicitement accordées.
+Un client MCP est une intégration autorisée par un utilisateur pour son propre espace. Il ne constitue pas un compte et n'obtient que les permissions explicitement accordées, jamais sur le contenu d'un autre compte.
 
 ### 5.4 Administrateur de l'hébergement
 
-L'administrateur de l'hébergement peut exploiter Compose, gérer les secrets, lancer les sauvegardes et exécuter les commandes de récupération. Dans le cas normal, il s'agit du propriétaire lui-même.
+L'administrateur de l'hébergement peut exploiter Compose, gérer les secrets, lancer les sauvegardes et exécuter les commandes de récupération. Dans le cas normal, il s'agit de l'administrateur de l'installation.
 
 ---
 
@@ -174,7 +190,7 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - client Web responsive ;
 - applications Electron Windows, macOS et Linux, hôtes du client Web, connectées au serveur auto-hébergé, chacune livrée comme un installateur natif à sa plateforme, en téléchargement direct ;
 - espace de travail cohérent et qualitatif, avec une structure et un système visuel communs ;
-- authentification mono-utilisateur par passkey et mot de passe ;
+- comptes multiples cloisonnés (administrateur au premier lancement, modes d'inscription fermé, sur invitation ou ouvert), authentification par mot de passe et passkey ;
 - gestion des appareils et sessions ;
 - pages, dossiers, bases de données, vues liées et hiérarchie ;
 - navigation latérale ;
@@ -244,14 +260,15 @@ Le client Web V1 doit prendre en charge les deux dernières versions majeures st
 
 ## 8. Authentification et sessions
 
-Le propriétaire peut se connecter avec :
+Chaque utilisateur peut se connecter avec :
 
-- une passkey suffisante à elle seule ;
-- un mot de passe comme méthode alternative.
+- son adresse e-mail et son mot de passe ;
+- une passkey enregistrée sur son compte, suffisante à elle seule.
 
 Le système doit permettre :
 
-- l'enregistrement initial sécurisé du propriétaire en trois étapes seulement : ouverture, création de la passkey, création du mot de passe alternatif ;
+- la création initiale sécurisée du compte administrateur au premier lancement (e-mail, pseudo, mot de passe, passkey proposée) ;
+- la création des autres comptes selon le mode d'inscription choisi par l'administrateur ;
 - l'ajout et la suppression de passkeys ;
 - la modification du mot de passe ;
 - la révocation d'une session ou de toutes les sessions ;
@@ -259,9 +276,9 @@ Le système doit permettre :
 - la récupération administrative de l'accès ;
 - la détection et la limitation des tentatives d'authentification abusives.
 
-Tant qu'aucun propriétaire n'est confirmé, une tentative de configuration inachevée ne valide pas l'installation. Une autre session navigateur peut reprendre et terminer correctement le parcours ; la première tentative complètement terminée devient le seul propriétaire, et toute tentative précédente incomplète est abandonnée.
+Tant qu'aucun administrateur n'est confirmé, une tentative de configuration inachevée ne valide pas l'installation. La première tentative complètement terminée devient le seul administrateur, et toute autre tentative de configuration est ensuite refusée.
 
-Une session propriétaire expire après 30 jours d'inactivité par défaut. Cette durée est configurable entre 1 et 90 jours. Une opération sensible exige par défaut une authentification datant de moins de 15 minutes.
+Une session utilisateur expire après 30 jours d'inactivité par défaut. Cette durée est configurable entre 1 et 90 jours. Une opération sensible exige par défaut une authentification datant de moins de 15 minutes.
 
 Les mots de passe doivent être traités avec un algorithme de dérivation résistant et paramétrable. Les sessions Web doivent utiliser des cookies sécurisés, non accessibles au JavaScript et protégés contre les requêtes intersites. Aucune session ne doit être placée dans une URL.
 
@@ -1303,9 +1320,10 @@ Un mécanisme de limitation et de modération doit protéger les annotations con
 La feature 013 est obligatoire avant la V1, sur décision du propriétaire du
 5 septembre 2026 ; elle conserve le parcours de réglages et d’autorisation.
 
-Le serveur MCP est géré depuis les réglages.
+Le serveur MCP est géré depuis les réglages de chaque utilisateur. Un accès MCP
+est rattaché à un seul compte et ne peut atteindre que le contenu de ce compte.
 
-Le propriétaire génère un jeton temporaire. L'assistant ouvre une page d'autorisation et échange ce jeton contre un accès dédié.
+L'utilisateur génère un jeton temporaire. L'assistant ouvre une page d'autorisation et échange ce jeton contre un accès dédié.
 
 Chaque accès possède des permissions explicites :
 
@@ -1421,7 +1439,7 @@ Sur une plateforme Web qui ne permet pas une garantie équivalente, l'applicatio
 
 ### 28.4 Kit de récupération
 
-Le premier démarrage établit le propriétaire par passkey puis mot de passe alternatif. Il ne impose pas le téléchargement ni la confirmation offline du kit de récupération : ces actions vivent dans les réglages, après que l'installation est déjà utilisable.
+Le premier démarrage établit le compte administrateur (e-mail, pseudo, mot de passe, passkey proposée). Il ne impose pas le téléchargement ni la confirmation offline du kit de récupération : ces actions vivent dans les réglages, après que l'installation est déjà utilisable.
 
 L'application doit pouvoir générer un kit de récupération chiffré permettant au propriétaire autorisé de restaurer l'accès aux clés nécessaires. Sans kit confirmé, l'installation reste utilisable mais la récupération administrative n'est pas prête ; l'interface des réglages doit le dire clairement.
 
@@ -1602,6 +1620,11 @@ En production, le propriétaire doit être invité à effectuer au minimum une r
 ---
 
 ## 32. Mises à jour, migrations et retour arrière
+
+Avant la première publication, l'historique des migrations peut être remplacé
+par une migration de départ unique ; les données de développement antérieures
+ne sont pas conservées (feature 058). Après publication, les règles suivantes
+s'appliquent sans exception.
 
 Avant toute mise à jour :
 
@@ -2152,7 +2175,7 @@ Les valeurs suivantes constituent des cibles d'acceptation initiales. Toute modi
 
 ### 43.3 Capacité et montée en charge
 
-Le produit reste mono-utilisateur, mais doit être validé avec des volumes réalistes et croissants. Le jeu de référence V1 comprend au minimum :
+Le produit cible quelques comptes cloisonnés par installation et doit être validé avec des volumes réalistes et croissants. Le jeu de référence V1 comprend au minimum dix comptes, dont un seul porte les volumes ci-dessous, et :
 
 - 100 000 pages ;
 - 1 000 000 de blocs ;
@@ -2176,7 +2199,7 @@ Le serveur n'impose pas de quota global applicatif par défaut. Il doit avertir 
 - Les contrastes et indicateurs ne doivent pas dépendre uniquement de la couleur.
 - Le zoom, les tailles de texte et la réduction des animations doivent préserver
   l'utilisation courante de l'application.
-- MyOwnNotion étant une application personnelle mono-propriétaire, la V1 ne vise
+- MyOwnNotion étant une application personnelle auto-hébergée pour quelques comptes privés, la V1 ne vise
   ni certification formelle, ni campagne exhaustive WCAG, ni prise en charge
   spécialisée des technologies d'assistance. Ce périmètre pourra être ajouté
   ultérieurement par une décision produit explicite.
@@ -2296,7 +2319,7 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 
 5. modèle canonique des données ;
 6. chiffrement, clés et kit de récupération ;
-7. authentification mono-utilisateur ;
+7. comptes cloisonnés et authentification ;
 8. appareils et sessions.
 
 ### Phase 2 — Contenu utilisable
@@ -2398,7 +2421,7 @@ Les niveaux de support détaillés des vues de bases de données avancées et de
 
 Toute évolution de ce canevas doit :
 
-- conserver le caractère strictement mono-utilisateur du produit ;
+- conserver le cloisonnement strict entre comptes, sans espace privé partagé ;
 - identifier la version ou phase concernée ;
 - éviter les adjectifs non mesurables sans critère associé ;
 - distinguer une exigence produit d'un choix d'implémentation ;

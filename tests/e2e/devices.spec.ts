@@ -95,6 +95,7 @@ async function openPasswordForm(page: import("@playwright/test").Page): Promise<
 async function openDevices(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("/");
   await openPasswordForm(page);
+  await page.getByTestId("email-input").fill("owner@e2e.test");
   await page.getByTestId("password-input").fill(PASSWORD);
   await page.getByTestId("sign-in-password").click();
   await expect(page.getByTestId("workspace-shell")).toBeVisible({

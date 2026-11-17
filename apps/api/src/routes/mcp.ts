@@ -1,5 +1,5 @@
 import { type McpGrant, McpGrantSchema } from "@myownnotion/contracts";
-import { listAuditEvents } from "@myownnotion/database";
+import { type Database, listAuditEvents } from "@myownnotion/database";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import { McpAccessError, type McpAccessService } from "../mcp/access-service.ts";
@@ -13,6 +13,11 @@ export function registerMcpManagementRoutes(
     access: McpAccessService;
     require: AuthenticationGate;
     publicOrigin: string;
+    db: Database;
+    installationId: string;
+    now: () => Date;
+    /** Binds the request to the workspace of an exchange code; false when unknown. */
+    bindExchangeWorkspace: (code: string) => Promise<boolean>;
   },
 ) {
   const { access } = deps;
@@ -56,7 +61,8 @@ export function registerMcpManagementRoutes(
   );
   app.get("/v1/mcp/audit", async (request, reply) => {
     reply.header("cache-control", "no-store");
-    if (deps.require(request, reply, {}) === null) return reply;
+    const owner = deps.require(request, reply, {});
+    if (owner === null) return reply;
     const events = (
       await Promise.all(
         (
@@ -70,9 +76,20 @@ export function registerMcpManagementRoutes(
           ] as const
         ).map((eventType) =>
           listAuditEvents(
-            access.deps.db,
-            { installationId: access.deps.installationId },
-            { eventType, limit: 100 },
+            deps.db,
+            { installationId: deps.installationId },
+            {
+              eventType,
+              limit: 100,
+              // This account's connections only (feature 058). Credentials that
+              // name no connection belong to no account: the administrator sees
+              // them, a member never does.
+              account: {
+                ownerId: owner.ownerId,
+                workspaceId: owner.workspaceId,
+                includeUnscoped: owner.role === "administrator",
+              },
+            },
           ),
         ),
       )
@@ -113,14 +130,17 @@ export function registerMcpManagementRoutes(
       reply.header("cache-control", "no-store");
       if (request.headers.origin !== undefined && request.headers.origin !== deps.publicOrigin)
         return reply.status(403).send({ code: "mcp.origin-refused" });
-      const limit = await consumeRateLimit(access.deps.db, {
-        installationId: access.deps.installationId,
+      const limit = await consumeRateLimit(deps.db, {
+        installationId: deps.installationId,
         operation: "mcp.exchange",
         subject: request.ip,
-        now: access.deps.now(),
+        now: deps.now(),
       });
       if (!limit.allowed) return reply.status(429).send({ code: "mcp.rate-limited" });
       try {
+        // The code names its connection, the connection names its account.
+        if (!(await deps.bindExchangeWorkspace((request.body as { code: string }).code)))
+          throw new McpAccessError("mcp.invalid-exchange", 401);
         return await access.exchange(
           (request.body as { code: string }).code,
           requestContext(request).correlationId,

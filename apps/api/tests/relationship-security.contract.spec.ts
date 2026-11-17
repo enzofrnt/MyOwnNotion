@@ -118,9 +118,9 @@ describe("generic relationship security (057 T007)", () => {
     const target = await createItemViaApi(harness, { kind: "page", name: "Historical target" });
     const databaseId = generateUuidV7();
     const propertyId = generateUuidV7();
-    const created = await harness.built.context.db.transaction((tx) =>
+    const created = await harness.context.db.transaction((tx) =>
       replaceDatabaseRelationships(tx, {
-        workspaceId: harness.built.context.workspaceId,
+        workspaceId: harness.workspaceId,
         databaseId,
         entryId: source.itemId,
         revisionId: source.revisionId,

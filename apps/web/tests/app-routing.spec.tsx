@@ -154,6 +154,15 @@ function securityApi(
     recoveryStatus: vi.fn().mockResolvedValue({ ok: false, problem: unavailable }),
     loginWithPassword: vi.fn().mockResolvedValue({ ok: true, value: authenticated.value }),
     csrfTokenForSameOriginWrite: vi.fn().mockReturnValue(null),
+    me: vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        accountId: "018f2b7c-0000-7000-8000-0000000000bb",
+        email: "admin@example.test",
+        pseudonym: "Admin",
+        role: "administrator",
+      },
+    }),
   } as unknown as SecurityApi;
 }
 
@@ -439,6 +448,14 @@ describe("application routing", () => {
     expect(password).not.toBeNull();
     await act(async () => {
       if (password === null) return;
+      const email = container.querySelector<HTMLInputElement>('[data-testid="email-input"]');
+      if (email !== null) {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+          email,
+          "admin@example.test",
+        );
+        email.dispatchEvent(new Event("input", { bubbles: true }));
+      }
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
         password,
         "correct horse battery staple",

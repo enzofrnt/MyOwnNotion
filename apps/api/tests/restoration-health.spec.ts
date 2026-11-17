@@ -19,9 +19,9 @@ describe("health while a restoration is unfinished", () => {
   it("refuses readiness and says how to resume or roll back", async () => {
     const backupId = generateUuidV7();
     const attemptId = generateUuidV7();
-    await recordBackup(harness.built.context.db, {
+    await recordBackup(harness.context.db, {
       id: backupId,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       cursor: "42",
       applicationVersion: "0.1.0",
       schemaVersion: 1,
@@ -30,7 +30,7 @@ describe("health while a restoration is unfinished", () => {
       digest: `sha256:${"a".repeat(64)}`,
       reason: "manual",
     });
-    await startRestoration(harness.built.context.db, {
+    await startRestoration(harness.context.db, {
       id: attemptId,
       backupId,
       kind: "destructive",
@@ -43,7 +43,7 @@ describe("health while a restoration is unfinished", () => {
     expect(body.recovery).toMatch(/re-run.*restore/i);
     expect(body.recovery).toMatch(/safety backup/i);
 
-    await finishRestoration(harness.built.context.db, {
+    await finishRestoration(harness.context.db, {
       id: attemptId,
       outcome: "failed",
       detail: "test cleanup",

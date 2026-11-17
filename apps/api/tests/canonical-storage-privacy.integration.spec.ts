@@ -12,7 +12,7 @@ it("keeps a secured page's current name and retained snapshot out of readable ca
     const read = await harness.owner({ method: "GET", url: `/v1/items/${page.itemId}` });
     expect(read.statusCode).toBe(200);
     expect(read.body).toContain(name);
-    const raw = await harness.built.context.db.execute(sql`
+    const raw = await harness.context.db.execute(sql`
       SELECT to_jsonb(i)::text AS payload FROM items i WHERE id = ${page.itemId}
       UNION ALL SELECT to_jsonb(r)::text FROM revisions r WHERE item_id = ${page.itemId}
     `);
@@ -72,14 +72,14 @@ it("preserves private bodies and icons across neutral edits, rename and a no-op 
     expect(revision.body).toContain(text);
     expect(revision.body).toContain(renamed);
     expect(revision.body).toContain("⭐");
-    const raw = await harness.built.context.db.execute(sql`
+    const raw = await harness.context.db.execute(sql`
       SELECT to_jsonb(i)::text AS payload FROM items i WHERE id = ${itemId}
       UNION ALL SELECT to_jsonb(r)::text FROM revisions r WHERE item_id = ${itemId}
       UNION ALL SELECT to_jsonb(p)::text FROM page_documents p WHERE page_id = ${itemId}
     `);
     for (const sentinel of [text, renamed, "⭐", "canonical initial private title"])
       expect(JSON.stringify(raw.rows)).not.toContain(sentinel);
-    await harness.built.context.db.execute(
+    await harness.context.db.execute(
       sql`DELETE FROM protected_envelopes WHERE entity_type = 'page.body' AND entity_id = ${itemId}`,
     );
     expect((await harness.owner({ method: "GET", url: `/v1/items/${itemId}` })).statusCode).toBe(

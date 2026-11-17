@@ -274,7 +274,15 @@ export interface GraphForceRuntime {
   snapshot(): GraphLayout;
 }
 
-export function createGraphForceRuntime(projection: GraphProjection): GraphForceRuntime {
+/**
+ * `previous` keeps a live graph stable: nodes that were already on screen start
+ * where they were, and a new node starts next to an already-placed neighbour, so a
+ * rename, a new page or a new link moves only what changed (feature 062).
+ */
+export function createGraphForceRuntime(
+  projection: GraphProjection,
+  previous?: ReadonlyMap<Uuid, { readonly x: number; readonly y: number }>,
+): GraphForceRuntime {
   if (projection.nodes.length === 0) {
     const empty = { width: 800, height: 520, positions: [] as const };
     return {
@@ -314,6 +322,34 @@ export function createGraphForceRuntime(projection: GraphProjection): GraphForce
   }));
   seedPhyllotaxis(nodes);
   const byId = new Map(nodes.map((node) => [node.id, node]));
+  if (previous !== undefined && previous.size > 0) {
+    const placed = new Set<Uuid>();
+    for (const node of nodes) {
+      const known = previous.get(node.id);
+      if (known === undefined) continue;
+      node.x = known.x;
+      node.y = known.y;
+      placed.add(node.id);
+    }
+    for (const node of nodes) {
+      if (placed.has(node.id)) continue;
+      const neighbour = projection.edges
+        .map((edge) =>
+          edge.sourceId === node.id
+            ? edge.targetId
+            : edge.targetId === node.id
+              ? edge.sourceId
+              : null,
+        )
+        .find((id): id is Uuid => id !== null && placed.has(id));
+      const anchor = neighbour === undefined ? undefined : byId.get(neighbour);
+      if (anchor !== undefined) {
+        const angle = (node.index * 2.399963) % (2 * Math.PI);
+        node.x = anchor.x + Math.cos(angle) * 40;
+        node.y = anchor.y + Math.sin(angle) * 40;
+      }
+    }
+  }
   const { adjacency, components } = graphComponents(projection);
   const componentOf = new Map<Uuid, number>();
   components.forEach((component, index) => {

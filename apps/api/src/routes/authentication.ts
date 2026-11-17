@@ -39,11 +39,13 @@ import {
   claimDeviceForAuthentication,
   DeviceRepositoryError,
   enrollPasskey,
+  findAccountByEmail,
+  findAccountById,
   findActivePassword,
   findPasskeyByCredentialId,
   LastCredentialError,
   listPasskeys,
-  readOwnerId,
+  normalizeEmail,
   recordDeviceActivity,
   recordPasskeyUse,
   revokePasskey,
@@ -313,8 +315,15 @@ export function registerAuthenticationRoutes(
       }
 
       const credential = await findPasskeyByCredentialId(deps.db, assertion.id);
-      // A revoked credential is refused exactly like an unknown one.
-      if (credential === null || credential.state !== "active") {
+      // A revoked credential is refused exactly like an unknown one, and so
+      // is a passkey whose account is disabled (feature 058).
+      const credentialAccount =
+        credential === null ? null : await findAccountById(deps.db, credential.ownerId);
+      if (
+        credential === null ||
+        credential.state !== "active" ||
+        credentialAccount?.state !== "active"
+      ) {
         return await refuseLogin(request, reply);
       }
 
@@ -375,22 +384,30 @@ export function registerAuthenticationRoutes(
       },
     },
     async (request, reply) => {
-      const body = request.body as { password: string; device: BrowserDeviceClaimDto };
+      const body = request.body as {
+        email: string;
+        password: string;
+        device: BrowserDeviceClaimDto;
+      };
       try {
-        // Keyed by the origin rather than by a username: there is only one
-        // owner, so the password itself is the only other candidate and using
-        // it as a bucket key would put it in a stored digest.
+        // Two buckets (feature 058): the origin, so one address cannot spray
+        // every account, and the account's email, so many addresses cannot
+        // grind one account. The rate limiter stores subjects as digests.
         await deps.sessions.chargeLoginAttempt(request.ip);
+        await deps.sessions.chargeLoginAttempt(`email:${normalizeEmail(body.email)}`);
       } catch (error) {
         return fail(request, reply, error);
       }
 
-      const owner = await readOwnerId(deps.db);
-      const stored = owner === null ? null : await findActivePassword(deps.db, owner);
+      const account = await findAccountByEmail(deps.db, body.email);
+      const stored =
+        account === null || account.state !== "active"
+          ? null
+          : await findActivePassword(deps.db, account.id);
       if (stored === null) {
-        // No owner, or no password set. Both burn the same work as a real
-        // verification before answering, so elapsed time does not distinguish
-        // "no password configured" from "wrong password".
+        // Unknown email, disabled account, or no password set: all burn the
+        // same work as a real verification before answering, so neither the
+        // response nor its timing tells which accounts exist.
         await equivalentWork();
         return await refuseLogin(request, reply);
       }

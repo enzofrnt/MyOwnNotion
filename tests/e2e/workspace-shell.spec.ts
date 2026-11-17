@@ -52,7 +52,7 @@ test("recovers the same local page after an explicit storage initialization refu
     const original = IDBFactory.prototype.open;
     IDBFactory.prototype.open = function (name, version) {
       if (
-        name === "myownnotion-local" &&
+        name.startsWith("myownnotion-local") &&
         sessionStorage.getItem("fixture-storage-refusal") === "1"
       ) {
         throw new DOMException("fixture private storage detail", "UnknownError");
@@ -144,7 +144,12 @@ async function storedPresentationState(page: Page): Promise<StoredPresentationSt
   return await page.evaluate(
     async () =>
       await new Promise<StoredPresentationState | null>((resolve, reject) => {
-        const request = indexedDB.open("myownnotion-local");
+        const request = indexedDB.open(
+          // Feature 058: one local database per account on this browser.
+          localStorage.getItem("myownnotion-last-account") === null
+            ? "myownnotion-local"
+            : `myownnotion-local-${localStorage.getItem("myownnotion-last-account")}`,
+        );
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const database = request.result;

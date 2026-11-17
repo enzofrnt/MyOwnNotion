@@ -1,272 +1,239 @@
 /**
- * First-run owner setup (T033 / T140, feature 002).
+ * First launch: create the administrator account (feature 058, US1).
  *
- * Operator flow: open → create passkey → create password → confirm. Done.
- * Recovery-kit download stays in settings after the installation is ready.
- *
- * Nothing here is resumable across a reload: the capability lives in memory
- * only, so a refresh abandons the attempt and starts a new one.
+ * One form — email, pseudonym, password — creates the administrator and signs
+ * them in. A passkey is then offered, and can be skipped: the account already
+ * works with its password, and passkeys can be added later in settings.
  */
 
-import type { InstallationStatusDto } from "@myownnotion/contracts";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { newClientNonce, SecurityApi } from "../../services/security-api.ts";
-import { AsyncState, Button, FR_COPY } from "../../ui/index.ts";
-import { DesktopPasskeyGuidance, useDesktopPlatformPasskey } from "./desktop-passkey-guidance.tsx";
-import {
-  createOwnerPasskey,
-  type PasskeyFailure,
-  passkeysAvailable,
-  platformAuthenticatorAvailable,
-} from "./passkey-client.ts";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { SecurityApi } from "../../services/security-api.ts";
+import { AsyncState, Button, Field, FormMessage, FR_COPY } from "../../ui/index.ts";
+import { AuthShell } from "./auth-shell.tsx";
+import { passkeysAvailable } from "./passkey-client.ts";
+import { enrollAccountPasskey } from "./passkey-enrollment.ts";
+import { PasswordField } from "./password-field.tsx";
+import { PASSWORD_MINIMUM_LENGTH } from "./password-strength.ts";
 
-type Stage = "loading" | "idle" | "verifying" | "password" | "unavailable";
+type Stage = "loading" | "form" | "passkey" | "unavailable";
 
-const PASSKEY_GUIDANCE: Record<PasskeyFailure, string> = {
-  unsupported: FR_COPY.auth.passkey.unsupported,
-  cancelled: FR_COPY.auth.passkey.cancelled,
-  "already-registered": FR_COPY.auth.passkey.alreadyRegistered,
-  "insecure-context": FR_COPY.auth.passkey.insecureContext,
-  failed: FR_COPY.auth.passkey.failed,
-};
+const COPY = FR_COPY.accounts.bootstrap;
+const OFFER = FR_COPY.accounts.passkeyOffer;
 
 export interface BootstrapPageProps {
   /** Injected in tests; defaults to the same-origin client. */
   readonly api?: SecurityApi;
-  /** Called once the installation is ready, so the shell can move on. */
+  /** Called once the administrator exists and is signed in. */
   readonly onReady?: () => void;
 }
 
 export function BootstrapPage(props: BootstrapPageProps) {
   const apiRef = useRef<SecurityApi>(props.api ?? new SecurityApi());
   const api = apiRef.current;
+  const { onReady } = props;
 
   const [stage, setStage] = useState<Stage>("loading");
-  const [status, setStatus] = useState<InstallationStatusDto | null>(null);
-  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [pseudonym, setPseudonym] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const desktopPlatformPasskey = useDesktopPlatformPasskey();
-
-  const refreshStatus = useCallback(async (): Promise<InstallationStatusDto | null> => {
-    const result = await api.status();
-    if (!result.ok) {
-      setMessage(FR_COPY.auth.bootstrap.unavailableServer);
-      setStage("unavailable");
-      return null;
-    }
-    setStatus(result.value);
-    return result.value;
-  }, [api]);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const emailId = useId();
+  const pseudonymId = useId();
+  const passwordId = useId();
+  const passwordConfirmId = useId();
+  const passwordConfirmRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void (async () => {
-      const current = await refreshStatus();
-      if (current === null) {
+      const status = await api.status();
+      if (!status.ok) {
+        setStage("unavailable");
         return;
       }
-      if (current.ownerCount === 1) {
-        props.onReady?.();
+      if (status.value.ownerCount === 1) {
+        onReady?.();
         return;
       }
-      setStage("idle");
+      setStage("form");
     })();
-  }, [refreshStatus, props.onReady]);
+  }, [api, onReady]);
 
-  const fail = useCallback((text: string) => {
-    setMessage(text);
-    setBusy(false);
-  }, []);
-
-  /** Claims the attempt and runs the passkey ceremony as one owner action. */
-  const beginSetup = useCallback(async () => {
-    setBusy(true);
-    setMessage(null);
-
-    if (!passkeysAvailable()) {
-      setStage("idle");
-      fail(PASSKEY_GUIDANCE[window.isSecureContext ? "unsupported" : "insecure-context"]);
-      return;
-    }
-
-    if (window.myownnotionDesktop?.platform === "darwin") {
-      const platformReady = await platformAuthenticatorAvailable();
-      if (!platformReady) {
-        setStage("idle");
-        fail(FR_COPY.auth.passkey.desktopUnavailable);
+  const submit = useCallback(
+    async (event: React.FormEvent) => {
+      event.preventDefault();
+      setBusy(true);
+      setMessage(null);
+      if (password !== passwordConfirm) {
+        setBusy(false);
+        passwordConfirmRef.current?.focus();
         return;
       }
-    }
+      const result = await api.bootstrap({ email, pseudonym, password });
+      if (!result.ok) {
+        setBusy(false);
+        setMessage(
+          result.problem.code === "already_initialized"
+            ? COPY.alreadyInitialized
+            : result.problem.code === "installation_degraded"
+              ? COPY.degraded
+              : result.problem.code === "validation_failed" ||
+                  result.problem.code === "validation.invalid-payload"
+                ? COPY.invalidPassword
+                : COPY.failed,
+        );
+        if (result.problem.code === "already_initialized") onReady?.();
+        return;
+      }
+      // The password leaves the page as soon as it has done its job.
+      setPassword("");
+      setPasswordConfirm("");
+      setBusy(false);
+      if (passkeysAvailable()) setStage("passkey");
+      else onReady?.();
+    },
+    [api, email, pseudonym, password, passwordConfirm, onReady],
+  );
 
-    const started = await api.start(newClientNonce());
-    if (!started.ok) {
-      fail(FR_COPY.auth.bootstrap.startFailed);
-      await refreshStatus();
-      return;
-    }
-
-    setStage("verifying");
-    const ceremony = await createOwnerPasskey({
-      challenge: started.value.challenge,
-      relyingPartyId: window.location.hostname,
-      relyingPartyName: "MyOwnNotion",
-      userId: started.value.attemptId,
-      userName: FR_COPY.auth.passkey.ownerName,
-    });
-    if (!ceremony.ok) {
-      api.forget();
-      setStage("idle");
-      fail(PASSKEY_GUIDANCE[ceremony.failure]);
-      return;
-    }
-
-    const verified = await api.verifyCredential(started.value.attemptId, ceremony.credential);
-    if (!verified.ok) {
-      api.forget();
-      setStage("idle");
-      fail(
-        verified.problem.code === "authentication_failed"
-          ? FR_COPY.auth.bootstrap.passkeyRejected
-          : FR_COPY.auth.bootstrap.continueFailed,
-      );
-      return;
-    }
-
-    setAttemptId(started.value.attemptId);
-    setStage("password");
-    setBusy(false);
-  }, [api, fail, refreshStatus]);
-
-  const submitPassword = useCallback(async () => {
-    if (attemptId === null) {
-      return;
-    }
+  const addPasskey = useCallback(async () => {
     setBusy(true);
     setMessage(null);
-
-    const passwordResult = await api.setBootstrapPassword(attemptId, password);
-    if (!passwordResult.ok) {
-      fail(
-        passwordResult.problem.code === "validation_failed"
-          ? FR_COPY.auth.bootstrap.passwordTooShort
-          : FR_COPY.auth.bootstrap.passwordFailed,
-      );
-      return;
-    }
-
-    const confirmed = await api.confirmBootstrap(attemptId);
-    if (!confirmed.ok) {
-      fail(FR_COPY.auth.bootstrap.completionFailed);
-      await refreshStatus();
-      return;
-    }
-
-    setStatus((previous) =>
-      previous === null
-        ? previous
-        : { ...previous, state: "ready", ownerCount: 1, workspaceCount: 1 },
-    );
-    setAttemptId(null);
-    setPassword("");
+    const outcome = await enrollAccountPasskey(api, { label: OFFER.label });
     setBusy(false);
-    props.onReady?.();
-  }, [api, attemptId, password, fail, refreshStatus, props.onReady]);
+    if (!outcome.ok) {
+      setMessage(OFFER.failed);
+      return;
+    }
+    onReady?.();
+  }, [api, onReady]);
+
+  const passwordsMatch = password.length > 0 && password === passwordConfirm;
+  const formValid =
+    email.includes("@") &&
+    pseudonym.trim().length > 0 &&
+    password.length >= PASSWORD_MINIMUM_LENGTH &&
+    passwordsMatch;
 
   return (
-    <main className="bootstrap-page ui-auth-surface" aria-labelledby="bootstrap-heading">
-      <h1 id="bootstrap-heading">{FR_COPY.auth.bootstrap.title}</h1>
-
-      <p className="bootstrap-counts" data-testid="owner-counts">
-        {FR_COPY.auth.bootstrap.owners} :{" "}
-        <strong data-testid="owner-count">{status?.ownerCount ?? 0}</strong> ·{" "}
-        {FR_COPY.auth.bootstrap.workspaces} :{" "}
-        <strong data-testid="workspace-count">{status?.workspaceCount ?? 0}</strong>
-      </p>
-
-      {message === null ? null : (
-        <AsyncState compact kind="error" title={message} testId="bootstrap-message" />
-      )}
-
+    <AuthShell
+      className="bootstrap-page ui-auth-surface"
+      headingId="bootstrap-heading"
+      title={stage === "passkey" ? OFFER.title : COPY.title}
+      lead={
+        stage === "form" ? COPY.description : stage === "passkey" ? OFFER.description : undefined
+      }
+    >
       {stage === "loading" ? (
-        <AsyncState
-          kind="loading"
-          title={FR_COPY.auth.bootstrap.checking}
-          testId="bootstrap-loading"
-        />
+        <AsyncState kind="loading" title={COPY.checking} testId="bootstrap-loading" />
       ) : null}
 
       {stage === "unavailable" ? (
         <AsyncState
           kind="error"
-          title={FR_COPY.auth.bootstrap.unavailableTitle}
-          description={FR_COPY.auth.bootstrap.unavailable}
+          title={COPY.unavailableTitle}
+          description={COPY.unavailable}
           testId="bootstrap-unavailable"
         />
       ) : null}
 
-      {stage === "idle" ? (
-        desktopPlatformPasskey === false ? (
-          <DesktopPasskeyGuidance testId="bootstrap-desktop-passkey-guidance" />
-        ) : (
-          <section className="ui-auth-card" aria-labelledby="bootstrap-start-heading">
-            <h2 id="bootstrap-start-heading">{FR_COPY.auth.bootstrap.createTitle}</h2>
-            <p>{FR_COPY.auth.bootstrap.createDescription}</p>
+      {stage === "form" ? (
+        <section className="ui-auth-step">
+          <form onSubmit={submit} className="ui-auth-form" data-testid="bootstrap-form">
+            <Field
+              id={emailId}
+              label={COPY.emailLabel}
+              type="email"
+              autoComplete="username"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              disabled={busy}
+              data-testid="bootstrap-email"
+            />
+            <Field
+              id={pseudonymId}
+              label={COPY.pseudonymLabel}
+              description={COPY.pseudonymHint}
+              autoComplete="nickname"
+              required
+              maxLength={64}
+              value={pseudonym}
+              onChange={(event) => setPseudonym(event.target.value)}
+              disabled={busy}
+              data-testid="bootstrap-pseudonym"
+            />
+            <PasswordField
+              id={passwordId}
+              label={COPY.passwordLabel}
+              autoComplete="new-password"
+              required
+              minLength={PASSWORD_MINIMUM_LENGTH}
+              showStrength
+              value={password}
+              onChange={setPassword}
+              disabled={busy}
+              testId="bootstrap-password"
+              inputRef={passwordRef}
+            />
+            <PasswordField
+              id={passwordConfirmId}
+              label={COPY.passwordConfirmLabel}
+              autoComplete="new-password"
+              required
+              value={passwordConfirm}
+              onChange={setPasswordConfirm}
+              disabled={busy}
+              testId="bootstrap-password-confirm"
+              inputRef={passwordConfirmRef}
+              error={
+                passwordConfirm.length > 0 && password !== passwordConfirm
+                  ? COPY.passwordMismatch
+                  : undefined
+              }
+            />
+            <FormMessage testId="bootstrap-message">{message}</FormMessage>
+            <Button
+              type="submit"
+              variant="primary"
+              busy={busy}
+              disabled={!formValid}
+              data-testid="bootstrap-submit"
+            >
+              {COPY.action}
+            </Button>
+          </form>
+        </section>
+      ) : null}
+
+      {stage === "passkey" ? (
+        <section className="ui-auth-step">
+          <FormMessage testId="bootstrap-message">{message}</FormMessage>
+          <div className="ui-actions">
             <Button
               type="button"
               variant="primary"
-              busy={busy || desktopPlatformPasskey === null}
+              busy={busy}
               onClick={() => {
-                void beginSetup();
+                void addPasskey();
               }}
-              data-testid="begin-setup"
+              data-testid="bootstrap-add-passkey"
             >
-              {FR_COPY.auth.bootstrap.createAction}
+              {OFFER.action}
             </Button>
-          </section>
-        )
-      ) : null}
-
-      {stage === "verifying" ? (
-        <AsyncState
-          kind="loading"
-          title={FR_COPY.auth.bootstrap.verifying}
-          testId="bootstrap-verifying"
-        />
-      ) : null}
-
-      {stage === "password" ? (
-        <section className="ui-auth-card" aria-labelledby="bootstrap-password-heading">
-          <h2 id="bootstrap-password-heading">{FR_COPY.auth.bootstrap.passwordTitle}</h2>
-          <p>{FR_COPY.auth.bootstrap.passwordDescription}</p>
-          <label className="ui-field" htmlFor="bootstrap-password">
-            <span>{FR_COPY.auth.bootstrap.passwordLabel}</span>
-            <input
-              id="bootstrap-password"
-              type="password"
-              autoComplete="new-password"
-              minLength={12}
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-              }}
-              data-testid="bootstrap-password"
-            />
-          </label>
-          <Button
-            type="button"
-            variant="primary"
-            busy={busy}
-            disabled={password.length < 12}
-            onClick={() => {
-              void submitPassword();
-            }}
-            data-testid="bootstrap-password-submit"
-          >
-            {FR_COPY.auth.bootstrap.passwordAction}
-          </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => onReady?.()}
+              data-testid="bootstrap-skip-passkey"
+            >
+              {OFFER.later}
+            </Button>
+          </div>
         </section>
       ) : null}
-    </main>
+    </AuthShell>
   );
 }

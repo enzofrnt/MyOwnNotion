@@ -57,7 +57,7 @@ afterAll(async () => {
 
 function serviceFor(): BackupService {
   return new BackupService({
-    context: harness.built.context,
+    context: harness.context,
     destination: new FilesystemDestination(destinationRoot),
     applicationVersion: "0.1.0-test",
     seal: async (plaintext, sealedPath) =>
@@ -93,7 +93,7 @@ async function producedArchive(): Promise<{
 describe("producing an archive", () => {
   it("reports that no backup attempt has been recorded yet", async () => {
     await expect(
-      latestBackupVerificationStatus(harness.built.context.db, harness.built.context.workspaceId),
+      latestBackupVerificationStatus(harness.context.db, harness.workspaceId),
     ).resolves.toBeNull();
   });
 
@@ -163,8 +163,8 @@ describe("producing an archive", () => {
     const destination = new FilesystemDestination(destinationRoot);
     const service = serviceFor();
     const deps = {
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       destination,
       service,
     };
@@ -202,7 +202,7 @@ describe("producing an archive", () => {
       delete: async () => undefined,
     };
     const service = new BackupService({
-      context: harness.built.context,
+      context: harness.context,
       destination,
       applicationVersion: "0.1.0-test",
       seal: async (plaintext, sealedPath) =>
@@ -211,8 +211,8 @@ describe("producing an archive", () => {
 
     const result = await runBackupCommand(
       {
-        db: harness.built.context.db,
-        workspaceId: harness.built.context.workspaceId,
+        db: harness.context.db,
+        workspaceId: harness.workspaceId,
         destination,
         service,
       },
@@ -226,9 +226,9 @@ describe("producing an archive", () => {
     });
     const backupId = String(result.data?.["backupId"]);
     expect(
-      (
-        await backupsWithVerification(harness.built.context.db, harness.built.context.workspaceId)
-      ).find((backup) => backup.id === backupId),
+      (await backupsWithVerification(harness.context.db, harness.workspaceId)).find(
+        (backup) => backup.id === backupId,
+      ),
     ).toMatchObject({
       id: backupId,
       destination: null,
@@ -236,7 +236,7 @@ describe("producing an archive", () => {
       verifiedAtDestination: false,
     });
     await expect(
-      latestBackupVerificationStatus(harness.built.context.db, harness.built.context.workspaceId),
+      latestBackupVerificationStatus(harness.context.db, harness.workspaceId),
     ).resolves.toMatchObject({
       backupId,
       afterCreation: "passed",
@@ -260,15 +260,15 @@ describe("producing an archive", () => {
       delete: async (name) => await filesystem.delete(name),
     };
     const service = new BackupService({
-      context: harness.built.context,
+      context: harness.context,
       destination,
       applicationVersion: "0.1.0-test",
       seal: async (plaintext, sealedPath) =>
         await sealBackupArchiveStream(ARCHIVE_KEY, plaintext, sealedPath),
     });
     const deps = {
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       destination,
       service,
     };
@@ -276,9 +276,9 @@ describe("producing an archive", () => {
     const result = await runBackupCommand(deps, "manual");
     expect(result).toMatchObject({ code: 5 });
     const backupId = String(result.data?.["backupId"]);
-    const recorded = (
-      await backupsWithVerification(harness.built.context.db, harness.built.context.workspaceId)
-    ).find((backup) => backup.id === backupId);
+    const recorded = (await backupsWithVerification(harness.context.db, harness.workspaceId)).find(
+      (backup) => backup.id === backupId,
+    );
     expect(recorded).toMatchObject({
       destination: "corrupting",
       verifiedAtDestination: false,
@@ -306,15 +306,15 @@ describe("producing an archive", () => {
       delete: async (name) => await filesystem.delete(name),
     };
     const service = new BackupService({
-      context: harness.built.context,
+      context: harness.context,
       destination,
       applicationVersion: "0.1.0-test",
       seal: async (plaintext, sealedPath) =>
         await sealBackupArchiveStream(ARCHIVE_KEY, plaintext, sealedPath),
     });
     const deps = {
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       destination,
       service,
     };
@@ -326,9 +326,9 @@ describe("producing an archive", () => {
     });
     const backupId = String(result.data?.["backupId"]);
     expect(
-      (
-        await backupsWithVerification(harness.built.context.db, harness.built.context.workspaceId)
-      ).find((backup) => backup.id === backupId),
+      (await backupsWithVerification(harness.context.db, harness.workspaceId)).find(
+        (backup) => backup.id === backupId,
+      ),
     ).toMatchObject({
       destination: "temporarily-unreadable",
       verifiedAtDestination: false,
@@ -339,8 +339,8 @@ describe("producing an archive", () => {
   it("explains absent selectors, untransferred records and vanished objects", async () => {
     const destination = new FilesystemDestination(destinationRoot);
     const deps = {
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       destination,
       service: serviceFor(),
     };
@@ -350,9 +350,9 @@ describe("producing an archive", () => {
     });
 
     const untransferredId = generateUuidV7();
-    await recordBackup(harness.built.context.db, {
+    await recordBackup(harness.context.db, {
       id: untransferredId,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       cursor: "42",
       applicationVersion: "sha-test",
       schemaVersion: 1,
@@ -367,9 +367,9 @@ describe("producing an archive", () => {
     });
 
     const vanishedId = generateUuidV7();
-    await recordBackup(harness.built.context.db, {
+    await recordBackup(harness.context.db, {
       id: vanishedId,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       cursor: "42",
       applicationVersion: "sha-test",
       schemaVersion: 1,
@@ -389,8 +389,8 @@ describe("producing an archive", () => {
   it("keeps recent backups and prunes an older copy only when a verified successor exists", async () => {
     const destination = new FilesystemDestination(destinationRoot);
     const deps = {
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       destination,
       service: serviceFor(),
       retainDays: 30,
@@ -405,9 +405,9 @@ describe("producing an archive", () => {
     const oldName = `${oldId}.tar`;
     const oldBytes = Buffer.from("old sealed backup");
     await destination.put(oldName, Readable.from(oldBytes), oldBytes.byteLength);
-    await recordBackup(harness.built.context.db, {
+    await recordBackup(harness.context.db, {
       id: oldId,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       cursor: "1",
       applicationVersion: "sha-old",
       schemaVersion: 1,
@@ -419,7 +419,7 @@ describe("producing an archive", () => {
       remoteName: oldName,
       createdAt: new Date("2025-01-01T00:00:00.000Z"),
     });
-    await recordVerification(harness.built.context.db, {
+    await recordVerification(harness.context.db, {
       id: generateUuidV7(),
       backupId: oldId,
       stage: "after-transfer",
@@ -428,9 +428,9 @@ describe("producing an archive", () => {
     });
 
     const recentId = generateUuidV7();
-    await recordBackup(harness.built.context.db, {
+    await recordBackup(harness.context.db, {
       id: recentId,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       cursor: "2",
       applicationVersion: "sha-recent",
       schemaVersion: 1,
@@ -442,7 +442,7 @@ describe("producing an archive", () => {
       remoteName: `${recentId}.tar`,
       createdAt: new Date("2026-08-18T00:00:00.000Z"),
     });
-    await recordVerification(harness.built.context.db, {
+    await recordVerification(harness.context.db, {
       id: generateUuidV7(),
       backupId: recentId,
       stage: "after-transfer",
@@ -478,7 +478,7 @@ describe("producing an archive", () => {
           digest: `sha256:${"a".repeat(64)}`,
           cursor: "0",
           applicationVersion: "sha-test",
-          schemaVersion: harness.built.context.schemaVersion,
+          schemaVersion: harness.context.schemaVersion,
           recordFormatVersion: 1,
           reason,
           verifiedAfterCreation: true,
@@ -489,8 +489,8 @@ describe("producing an archive", () => {
       inspectStored: async () => null,
     };
     const deps = {
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       destination: new FilesystemDestination(destinationRoot),
       service,
     };

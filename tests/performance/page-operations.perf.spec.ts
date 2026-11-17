@@ -224,7 +224,7 @@ async function withPeakLiveHeap<T>(run: (sample: () => void) => Promise<T>): Pro
 }
 
 function checkpoints() {
-  const service = harness.api.built.pageCheckpoints;
+  const service = harness.api.built.forWorkspace(harness.api.workspaceId).pageCheckpoints;
   if (service === undefined) throw new Error("page checkpoint service is unavailable");
   return service;
 }

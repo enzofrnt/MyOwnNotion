@@ -3,6 +3,8 @@
 import type { Uuid } from "@myownnotion/domain";
 
 export interface PageAdvanceEvent {
+  /** Only connections of this workspace may hear about the page (feature 058). */
+  readonly workspaceId: string;
   readonly pageId: Uuid;
   readonly latestPageSequence: number;
 }

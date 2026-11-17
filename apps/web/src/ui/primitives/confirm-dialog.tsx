@@ -16,6 +16,8 @@ export interface ConfirmDialogProps {
   readonly children?: ReactNode;
   readonly confirmLabel?: ReactNode;
   readonly confirmTestId?: string;
+  /** Keeps the dialog open when its content is not ready (field rules). */
+  readonly confirmDisabled?: boolean;
   readonly description: ReactNode;
   readonly destructive?: boolean;
   readonly onCancel: () => void;
@@ -34,6 +36,7 @@ export function ConfirmDialog({
   children,
   confirmLabel = FR_COPY.actions.confirm,
   confirmTestId,
+  confirmDisabled = false,
   description,
   destructive = true,
   onCancel,
@@ -70,6 +73,7 @@ export function ConfirmDialog({
           <Button
             busy={busy}
             data-testid={confirmTestId}
+            disabled={busy || confirmDisabled}
             onClick={onConfirm}
             variant={destructive ? "danger" : "primary"}
           >

@@ -9,7 +9,7 @@ describe("PageAdvanceNotifier", () => {
     const second = vi.fn();
     notifier.subscribe(first);
     notifier.subscribe(second);
-    const event = { pageId: generateUuidV7(), latestPageSequence: 42 };
+    const event = { workspaceId: "ws-a", pageId: generateUuidV7(), latestPageSequence: 42 };
 
     notifier.publish(event);
 
@@ -26,12 +26,12 @@ describe("PageAdvanceNotifier", () => {
     notifier.subscribe(second);
 
     unsubscribe();
-    notifier.publish({ pageId: generateUuidV7(), latestPageSequence: 1 });
+    notifier.publish({ workspaceId: "ws-a", pageId: generateUuidV7(), latestPageSequence: 1 });
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledOnce();
 
     notifier.clear();
-    notifier.publish({ pageId: generateUuidV7(), latestPageSequence: 2 });
+    notifier.publish({ workspaceId: "ws-a", pageId: generateUuidV7(), latestPageSequence: 2 });
     expect(second).toHaveBeenCalledOnce();
     expect(notifier.size).toBe(0);
   });
@@ -44,13 +44,13 @@ describe("PageAdvanceNotifier", () => {
     const healthy = vi.fn();
     notifier.subscribe(broken);
     notifier.subscribe(healthy);
-    const event = { pageId: generateUuidV7(), latestPageSequence: 7 };
+    const event = { workspaceId: "ws-a", pageId: generateUuidV7(), latestPageSequence: 7 };
 
     expect(() => notifier.publish(event)).not.toThrow();
     expect(healthy).toHaveBeenCalledWith(event);
     expect(notifier.size).toBe(1);
 
-    notifier.publish({ pageId: event.pageId, latestPageSequence: 8 });
+    notifier.publish({ workspaceId: "ws-a", pageId: event.pageId, latestPageSequence: 8 });
     expect(broken).toHaveBeenCalledOnce();
     expect(healthy).toHaveBeenCalledTimes(2);
   });
@@ -60,9 +60,9 @@ describe("PageAdvanceNotifier", () => {
     const listener = vi.fn();
     notifier.subscribe(listener);
 
-    expect(() => notifier.publish({ pageId: generateUuidV7(), latestPageSequence: -1 })).toThrow(
-      "page sequence",
-    );
+    expect(() =>
+      notifier.publish({ workspaceId: "ws-a", pageId: generateUuidV7(), latestPageSequence: -1 }),
+    ).toThrow("page sequence");
     expect(listener).not.toHaveBeenCalled();
   });
 });

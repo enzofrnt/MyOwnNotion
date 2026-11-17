@@ -145,7 +145,7 @@ describe("owner database contract (T020)", () => {
       .flatMap((change) => change.databases ?? [])
       .find((candidate) => candidate.itemId === linkedId);
     expect(linkedChange).toBeDefined();
-    const manifest = await buildManifest(harness.built.context);
+    const manifest = await buildManifest(harness.context);
     expect(validateCanonicalExport(manifest)).toEqual([]);
     expect(
       manifest.databases.find((candidate) => candidate.databaseId === source.databaseId)?.sourceId,

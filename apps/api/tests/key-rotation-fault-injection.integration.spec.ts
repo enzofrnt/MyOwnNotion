@@ -149,7 +149,7 @@ describe("interrupted midway", () => {
     // Interruption: nothing marks the operation finished.
 
     expect(
-      await harness.built.context.protectedContent?.readItemName(harness.built.database.db, pageId),
+      await harness.context.protectedContent?.readItemName(harness.built.database.db, pageId),
     ).toBe(SECRET);
   });
 
@@ -211,7 +211,7 @@ describe("when the deployment key becomes unavailable mid-rotation", () => {
     expect(existsSync(keyFile)).toBe(false);
     try {
       await expect(
-        harness.built.context.protectedContent?.readItemName(harness.built.database.db, pageId),
+        harness.context.protectedContent?.readItemName(harness.built.database.db, pageId),
       ).rejects.toThrow();
     } finally {
       // Restored for the tests that follow: the key is read on demand, so

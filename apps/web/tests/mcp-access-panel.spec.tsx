@@ -33,6 +33,8 @@ function mockApi() {
     ),
     revokeMcpConnection: vi.fn().mockResolvedValue(success(undefined)),
     loginWithPassword: vi.fn().mockResolvedValue(success({})),
+    reauthenticateWithPassword: vi.fn().mockResolvedValue(success({})),
+    listPasskeys: vi.fn().mockResolvedValue(success({ passkeys: [] })),
     mcpEndpoint: () => "https://notes.example/mcp",
   };
 }
@@ -66,8 +68,14 @@ async function fill(label: string, value: string) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
+/** Lets Ariakit finish its hide step (skipped under fake timers). */
+async function settle() {
+  if (vi.isFakeTimers()) return;
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
+}
 async function click(node: HTMLElement) {
   await act(async () => node.click());
+  await settle();
 }
 async function submit() {
   await act(async () =>
@@ -75,8 +83,18 @@ async function submit() {
       .querySelector(".mcp-grant")
       ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
   );
+  await settle();
+}
+/** A dialog counts as present only while Ariakit shows it (it unmounts after its hide step). */
+function shown(testId: string) {
+  const node = container.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+  return node !== null && !node.hidden && node.style.display !== "none";
+}
+async function openGrant() {
+  await click(button("Créer un token"));
 }
 async function prepare() {
+  await openGrant();
   await fill("Nom de la connexion", "Assistant");
   await click(field("Tout l’espace"));
 }
@@ -98,6 +116,7 @@ afterEach(async () => {
 
 it("requires explicit scope and unlimited acknowledgement and sends independent permissions", async () => {
   await render();
+  await openGrant();
   await fill("Nom de la connexion", "Assistant");
   await submit();
   expect(api.grantMcpConnection).not.toHaveBeenCalled();
@@ -118,25 +137,30 @@ it("requires explicit scope and unlimited acknowledgement and sends independent 
   });
 });
 
-it("retains a refused draft and requires an explicit retry after fresh identity", async () => {
+it("retains a refused draft and resumes the grant after fresh identity", async () => {
   api.grantMcpConnection.mockResolvedValueOnce(failure("recent_authentication_required"));
   const refreshed = vi.fn();
   await render(refreshed);
   await prepare();
   await submit();
-  expect(field("Nom de la connexion").value).toBe("Assistant");
+  expect(shown("mcp-reauth")).toBe(true);
   await fill("Mot de passe actuel", "owner password");
   await act(async () =>
     container
-      .querySelector(".mcp-reauth form")
+      .querySelector('[data-testid="mcp-reauth"] form')
       ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
   );
-  expect(api.loginWithPassword).toHaveBeenCalledWith("owner password");
+  expect(api.reauthenticateWithPassword).toHaveBeenCalledWith("owner password");
   expect(refreshed).toHaveBeenCalledOnce();
-  expect(api.grantMcpConnection).toHaveBeenCalledOnce();
-  await submit();
+  // The interrupted grant resumes by itself, with the draft the person made.
   expect(api.grantMcpConnection).toHaveBeenCalledTimes(2);
-  expect(field("Code temporaire").value).toBe("private-one-use-code");
+  expect(api.grantMcpConnection.mock.calls[1]?.[0].label).toBe("Assistant");
+  // The code is offered for copying, never displayed in full.
+  const masked = container.querySelector('[data-testid="mcp-code-masked"]')?.textContent ?? "";
+  expect(masked.startsWith("priv")).toBe(true);
+  expect(masked).not.toContain("private-one-use-code");
+  expect(container.textContent).not.toContain("private-one-use-code");
+  expect(shown("mcp-grant-dialog")).toBe(false);
   expect(container.textContent).toContain(
     'https://notes.example/mcp/exchange avec le corps JSON {"code":"CODE_TEMPORAIRE"}',
   );
@@ -145,14 +169,11 @@ it("retains a refused draft and requires an explicit retry after fresh identity"
 it("reports a failed inventory distinctly and retries without clearing the draft", async () => {
   api.listMcpConnections.mockResolvedValueOnce(failure("service_unavailable"));
   await render();
-  await prepare();
-  expect(button("Générer le code").disabled).toBe(true);
+  expect(button("Créer un token").disabled).toBe(true);
 
   expect(container.textContent).not.toContain("Aucun assistant autorisé.");
-  await click(button("Actualiser les accès"));
-  expect(button("Générer le code").disabled).toBe(false);
-
-  expect(field("Nom de la connexion").value).toBe("Assistant");
+  await click(button("Actualiser"));
+  expect(button("Créer un token").disabled).toBe(false);
 });
 
 it("clears the one-use code at expiry and ignores a late clipboard completion", async () => {
@@ -172,12 +193,12 @@ it("clears the one-use code at expiry and ignores a late clipboard completion", 
   await render();
   await prepare();
   await submit();
-  await click(button("Copier le code"));
+  await click(button("Copier le token"));
   await act(async () => vi.advanceTimersByTime(600_001));
-  expect(container.querySelector('[data-testid="mcp-code"]')).toBeNull();
+  expect(shown("mcp-code")).toBe(false);
   await act(async () => resolveCopy?.());
-  expect(container.textContent).not.toContain("Code copié.");
-  expect(container.textContent).toContain("Le code a expiré");
+  expect(container.textContent).not.toContain("Token copié.");
+  expect(container.textContent).toContain("Le token a expiré");
 });
 
 it("keeps a stable code copy control on refusal and allows a retry", async () => {
@@ -186,13 +207,14 @@ it("keeps a stable code copy control on refusal and allows a retry", async () =>
   await render();
   await prepare();
   await submit();
-  const control = button("Copier le code");
+  const control = button("Copier le token");
   await click(control);
   expect(container.textContent).toContain("La copie a été refusée");
-  expect(button("Copier le code")).toBe(control);
+  expect(button("Copier le token")).toBe(control);
   await click(control);
   expect(copy).toHaveBeenLastCalledWith("private-one-use-code");
-  expect(container.textContent).toContain("Code copié.");
+  expect(container.textContent).not.toContain("private-one-use-code");
+  expect(container.textContent).toContain("Token copié.");
 });
 
 it("keeps selected branches while filtering and renews only after another explicit grant", async () => {
@@ -223,7 +245,7 @@ it("keeps selected branches while filtering and renews only after another explic
     }),
   );
   await render();
-  await click(button("Renouveler par un nouvel accès"));
+  await click(button("Renouveler par un nouveau token"));
   expect(field("Notes").checked).toBe(true);
   expect(field("Durée en jours").value).toBe("90");
   expect(api.grantMcpConnection).not.toHaveBeenCalled();
@@ -234,10 +256,13 @@ it("keeps selected branches while filtering and renews only after another explic
   expect(api.grantMcpConnection.mock.calls[0]?.[0].scope.branchRootIds).toEqual(["root", "child"]);
 });
 
-it("reports a refused revoke, then revokes and removes the pending code on retry", async () => {
+it("reports a refused revoke, then revokes on retry", async () => {
   await render();
   await prepare();
   await submit();
+  // The code modal blocks the list; the person copies it, then closes it.
+  await click(button("Terminé"));
+  expect(shown("mcp-code")).toBe(false);
   api.revokeMcpConnection.mockResolvedValueOnce(failure("service_unavailable"));
   await click(button("Révoquer"));
   await click(
@@ -246,7 +271,6 @@ it("reports a refused revoke, then revokes and removes the pending code on retry
     ) as HTMLElement,
   );
   expect(container.textContent).toContain("Rien n’a été mis en attente");
-  expect(container.querySelector('[data-testid="mcp-code"]')).not.toBeNull();
   api.listMcpConnections.mockResolvedValue(
     success({ connections: [{ ...connection, status: "revoked" }] }),
   );
@@ -257,7 +281,6 @@ it("reports a refused revoke, then revokes and removes the pending code on retry
     ) as HTMLElement,
   );
   expect(api.revokeMcpConnection).toHaveBeenCalledTimes(2);
-  expect(container.querySelector('[data-testid="mcp-code"]')).toBeNull();
   expect(container.textContent).toContain("a été révoqué");
 });
 
@@ -328,11 +351,31 @@ it("refresh clears consumed codes and labels safe audit outcomes without renderi
       ],
     }),
   );
-  await click(button("Actualiser les accès"));
-  expect(container.querySelector('[data-testid="mcp-code"]')).toBeNull();
+  await click(button("Actualiser"));
+  expect(shown("mcp-code")).toBe(false);
   expect(container.textContent).toContain("Code échangé · Autorisé");
   expect(container.textContent).toContain("Code refusé · Refusé");
   expect(container.textContent).toContain("Authentification refusée · Refusé");
   expect(container.textContent).toContain("Connexion retirée · Opération MCP · Refusé");
   expect(container.textContent).not.toContain("private-one-use-code");
+});
+
+it("explains a wrong password in the identity modal and hides the passkey when none exists", async () => {
+  api.grantMcpConnection.mockResolvedValueOnce(failure("recent_authentication_required"));
+  api.reauthenticateWithPassword.mockResolvedValueOnce(failure("authentication_failed"));
+  await render();
+  await prepare();
+  await submit();
+  expect(shown("mcp-reauth")).toBe(true);
+  expect(container.textContent).not.toContain("Confirmer avec une passkey");
+  await fill("Mot de passe actuel", "wrong password value");
+  await act(async () =>
+    container
+      .querySelector('[data-testid="mcp-reauth"] form')
+      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+  );
+  expect(container.querySelector('[data-testid="mcp-reauth-message"]')?.textContent).toContain(
+    "Mot de passe incorrect",
+  );
+  expect(container.textContent).not.toContain("Vérifiez votre passkey");
 });

@@ -189,7 +189,7 @@ describe("writing content through the ordinary routes", () => {
     expect(renamed.statusCode, renamed.body).toBe(200);
     const currentRevisionId = (renamed.json() as { item: { currentRevisionId: string } }).item
       .currentRevisionId;
-    const protectedContent = harness.built.context.protectedContent;
+    const protectedContent = harness.context.protectedContent;
     if (protectedContent === undefined) throw new Error("Protected content is unavailable");
     const snapshot = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
       harness.built.database.db,
@@ -302,7 +302,7 @@ describe("writing content through the ordinary routes", () => {
     const before = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
     const beforeItem = before.json() as { currentRevisionId: string };
 
-    const content = harness.built.context.protectedContent;
+    const content = harness.context.protectedContent;
     if (content === undefined) throw new Error("Protected content is unavailable");
     const retained = await content.readRevisionSnapshot<Record<string, unknown>>(
       harness.built.database.db,
@@ -487,7 +487,7 @@ describe("writing content through the ordinary routes", () => {
       },
     });
     expect(created.statusCode, created.body).toBe(201);
-    const content = harness.built.context.protectedContent;
+    const content = harness.context.protectedContent;
     expect(await content?.readItemPresentation(harness.built.database.db, pageId)).toEqual({
       name: "Private identity",
       icon: "🕵️",
@@ -534,7 +534,7 @@ describe("writing content through the ordinary routes", () => {
       icon: "🔐",
     });
     expect(
-      await harness.built.context.protectedContent?.readItemPresentation(
+      await harness.context.protectedContent?.readItemPresentation(
         harness.built.database.db,
         pageId,
       ),
@@ -612,7 +612,7 @@ describe("protected item presentation compatibility", () => {
 
 describe("structured database envelopes", () => {
   it("binds definitions and entry values to distinct protected entity types", async () => {
-    const protectedContent = harness.built.context.protectedContent;
+    const protectedContent = harness.context.protectedContent;
     if (protectedContent === undefined) throw new Error("security harness is not configured");
     const databaseId = generateUuidV7();
     const titlePropertyId = generateUuidV7();
@@ -686,7 +686,7 @@ describe("structured database envelopes", () => {
   });
 
   it("keys each source definition by its source and never reopens the host page envelope", async () => {
-    const protectedContent = harness.built.context.protectedContent;
+    const protectedContent = harness.context.protectedContent;
     if (protectedContent === undefined) throw new Error("security harness is not configured");
     const databaseId = generateUuidV7();
     const firstSourceId = ownedSourceIdFromItemId(databaseId);
@@ -986,7 +986,7 @@ describe("history is sealed too", () => {
     const pageId = await createPage("Missing history envelope");
     const item = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
     const revisionId = item.json().currentRevisionId as string;
-    const content = harness.built.context.protectedContent;
+    const content = harness.context.protectedContent;
     if (content === undefined) throw new Error("Protected content is unavailable");
     const retained = await content.readRevisionSnapshot<Record<string, unknown>>(
       harness.built.database.db,
@@ -1015,7 +1015,7 @@ describe("history is sealed too", () => {
     await replaceBody(pageId, { text: "current body" });
     const current = await injectAsOwner({ method: "GET", url: `/v1/items/${pageId}` });
     const currentRevisionId = current.json().currentRevisionId as string;
-    const content = harness.built.context.protectedContent;
+    const content = harness.context.protectedContent;
     if (content === undefined) throw new Error("Protected content is unavailable");
     const retained = await content.readRevisionSnapshot<Record<string, unknown>>(
       harness.built.database.db,
@@ -1148,7 +1148,7 @@ describe("a refused envelope leaves a trace", () => {
     // serves the plaintext column — switching reads over is the cutover step
     // of the encryption migration, not this task — so going through it would
     // succeed and prove nothing.
-    const protectedContent = harness.built.context.protectedContent;
+    const protectedContent = harness.context.protectedContent;
     expect(protectedContent).toBeDefined();
     await expect(
       protectedContent?.readItemName(harness.built.database.db, pageId),

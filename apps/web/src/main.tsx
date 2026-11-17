@@ -52,7 +52,19 @@ if (window.location.pathname === "/__ui-lab") {
       ({ UiLabReview, isReviewSurface, UiLab }) =>
         render(isReviewSurface(review) ? <UiLabReview surface={review} /> : <UiLab />),
     );
-  } else if (surface === "login" || surface === "setup" || surface === "connection") {
+  } else if (surface?.startsWith("settings-")) {
+    loadInto(
+      () => import("./ui/ui-lab-settings.tsx"),
+      ({ UiLabSettingsPreview }) =>
+        render(<UiLabSettingsPreview section={surface.slice(9) as "account"} />),
+    );
+  } else if (
+    surface === "login" ||
+    surface === "setup" ||
+    surface === "signup" ||
+    surface === "join" ||
+    surface === "connection"
+  ) {
     loadInto(
       () => import("./ui/ui-lab-auth.tsx"),
       ({ UiLabAuthPreview }) => render(<UiLabAuthPreview surface={surface} />),

@@ -1,4 +1,8 @@
-import { McpAccessService } from "./mcp/access-service.ts";
+import {
+  findMcpWorkspace,
+  McpAccessService,
+  recordUnknownMcpCredential,
+} from "./mcp/access-service.ts";
 import { registerMcpHttp } from "./mcp/http.ts";
 import { registerMcpManagementRoutes } from "./routes/mcp.ts";
 import { requiresOwnerHttpAccess } from "./security/http-access.ts";
@@ -16,13 +20,18 @@ import websocket from "@fastify/websocket";
 import { ContentStore, FilesystemBlobStore, PartialUploadStore } from "@myownnotion/blob-store";
 import { MAX_REALTIME_PAGE_SYNC_MESSAGE_BYTES } from "@myownnotion/contracts";
 import {
+  CANONICAL_SCHEMA_VERSION,
   createDatabase,
   createInstallation,
   type DatabaseHandle,
+  findAccountById,
   findCurrentGeneration,
+  findInstallation,
   getOrCreateWorkspace,
+  listAccountWorkspaceIds,
+  setWorkspaceFence,
 } from "@myownnotion/database";
-import { sessionPolicy } from "@myownnotion/domain";
+import { sessionPolicy, type Uuid } from "@myownnotion/domain";
 import Fastify, {
   type FastifyBaseLogger,
   type FastifyInstance,
@@ -64,9 +73,9 @@ import { registerProtocolAnnouncement } from "./plugins/protocol.ts";
 import { PageAdvanceNotifier } from "./realtime/page-advance-notifier.ts";
 import { PageSyncHub } from "./realtime/page-sync-hub.ts";
 import { RealtimePageSyncObservability } from "./realtime/page-sync-observability.ts";
+import { registerAccountRoutes } from "./routes/accounts.ts";
 import { registerAuthenticationRoutes } from "./routes/authentication.ts";
 import { registerBackupRoutes } from "./routes/backups.ts";
-import { registerBootstrapRoutes } from "./routes/bootstrap.ts";
 import { registerChangeStreamRoutes } from "./routes/change-stream.ts";
 import { registerChangeRoutes } from "./routes/changes.ts";
 import { registerDatabaseRoutes } from "./routes/databases.ts";
@@ -91,11 +100,9 @@ import { registerRotationRoutes } from "./routes/security-rotation.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
 import { maxFileBytes, registerUploadRoutes } from "./routes/uploads.ts";
 import { createDatabaseSearchService, type SearchService } from "./search/search-service.ts";
+import { AccountService } from "./security/account-service.ts";
 import { AuditService } from "./security/audit-service.ts";
 import { resolvePrincipal } from "./security/authentication-hook.ts";
-import { renderBootstrapKit } from "./security/bootstrap-kit.ts";
-import { BootstrapService } from "./security/bootstrap-service.ts";
-import { setSessionCookie } from "./security/cookie-policy.ts";
 import { loadDeploymentKey } from "./security/deployment-key.ts";
 import { DeviceService } from "./security/device-service.ts";
 import { assertStorageTransitionReady } from "./security/file-storage-transition-guard.ts";
@@ -118,6 +125,15 @@ import { RotationScheduler } from "./security/rotation-scheduler.ts";
 import { loadSecurityConfig, type SecurityConfig } from "./security/security-config.ts";
 import { SessionService } from "./security/session-service.ts";
 import type { WebAuthnChallenge } from "./security/webauthn-service.ts";
+import {
+  bindWorkspace,
+  boundWorkspaceId,
+  currentWorkspaceId,
+  enterRequestScope,
+  scoped,
+  setUnsecuredFallbackWorkspace,
+  WorkspaceScopeError,
+} from "./workspace-scope.ts";
 
 export interface BuildAppOptions {
   readonly databaseUrl: string;
@@ -157,21 +173,25 @@ export interface BuiltApp {
   readonly context: AppContext;
   readonly database: DatabaseHandle;
   /**
-   * The key hierarchy, when the security layer is configured.
+   * The administrator's key hierarchy, when the security layer is configured.
    *
    * Exposed so a rotation can be driven from a test without reaching into the
    * schema and reimplementing the unwrap. Nothing on the request path reads it
    * from here.
    */
   readonly keyHierarchy?: KeyHierarchy | undefined;
-  /** Internal checkpoint maintenance surface; present with the security layer. */
-  readonly pageCheckpoints?: PageCheckpointService | undefined;
-  /** Consolidated history maintenance; present with operational page sync. */
-  readonly pageHistory?: PageHistoryService | undefined;
-  /** Operational envelope boundary exposed for verified restore tooling. */
-  readonly pageOperationCrypto?: PageOperationCrypto | undefined;
-  /** Portable verified causal-state archive used by backup and restore. */
-  readonly pageOperationArchive?: PageOperationArchiveService | undefined;
+  /**
+   * The services of one workspace (feature 058): checkpoint maintenance,
+   * history consolidation, the operational envelope boundary, the archive.
+   * Tests and tooling use it; requests reach them through their own scope.
+   */
+  forWorkspace(workspaceId: string): WorkspaceRuntime;
+  /** Every registered route, for the isolation suite that must cover them all (058). */
+  readonly routeTable: readonly { readonly method: string; readonly url: string }[];
+  /** An `AppContext` bound to one workspace, for tests and tooling outside a request. */
+  contextFor(workspaceId: string): AppContext;
+  /** The one workspace of an app built without security (feature-001 harness), else null. */
+  readonly unsecuredWorkspaceId: Uuid | null;
   close(): Promise<void>;
 }
 
@@ -239,74 +259,125 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   }
 }
 
+/**
+ * Everything that is built for one workspace (feature 058, research D13).
+ *
+ * The services below were written for a single workspace and stay that way:
+ * the API builds one set per account workspace, lazily, and routes reach the
+ * set of the workspace bound to the current request.
+ */
+export interface WorkspaceRuntime {
+  readonly workspaceId: Uuid;
+  readonly keys?: KeyHierarchy;
+  readonly protectedContent?: ProtectedContent;
+  readonly protectedFiles?: ProtectedFileService;
+  readonly search?: SearchService;
+  readonly structuredQueries: DatabaseQueryService;
+  readonly pageOperationCrypto?: PageOperationCrypto;
+  readonly pageOperationArchive?: PageOperationArchiveService;
+  readonly pageActivation?: PageActivationService;
+  readonly pageHistory?: PageHistoryService;
+  readonly pageOperations?: PageOperationService;
+  readonly pageCheckpoints?: PageCheckpointService;
+  readonly pageAmbiguities?: PageAmbiguityService;
+  readonly legacyBranches?: LegacyBranchService;
+  readonly mcpAccess?: McpAccessService;
+  readonly recoveryKits?: RecoveryKitService;
+  stop(): Promise<void>;
+}
+
+function required<T>(value: T | undefined, name: string): T {
+  if (value === undefined) throw new Error(`${name} is unavailable for this workspace`);
+  return value;
+}
+
 async function composeApp(options: BuildAppOptions, database: DatabaseHandle): Promise<BuiltApp> {
-  const workspace = await getOrCreateWorkspace(database.db);
+  const schemaVersion = CANONICAL_SCHEMA_VERSION;
   const contentStore = new ContentStore(new FilesystemBlobStore(options.blobRoot));
   // Partial uploads live beside the blobs but not among them: they have no
   // digest until they are complete, and the content store is keyed by digest.
   const partialUploads = new PartialUploadStore(options.blobRoot);
+  const now = options.now ?? (() => new Date());
 
-  /**
-   * Set only when the security layer is configured.
-   *
-   * Undefined leaves feature-001 exactly as it was, which is what the
-   * feature-001 contract harness relies on: it builds the app without a
-   * security configuration and must not suddenly need a deployment key to
-   * write a page.
-   */
-  let protectedContent: ProtectedContent | undefined;
-  let protectedFiles: ProtectedFileService | undefined;
-  /** Set with the rest of the security layer; absent leaves feature-001 alone. */
-  let rotationPolicies: RotationPolicyService | undefined;
-  let keyHierarchy: KeyHierarchy | undefined;
-  /**
-   * Set with the rest of the security layer (feature 006).
-   *
-   * The change stream consults it to refuse a revoked device, so revocation is
-   * enforced by the server rather than by asking the client to stop.
-   */
-  let devices: DeviceService | undefined;
-  let search: SearchService | undefined;
-  let structuredQueries: DatabaseQueryService | undefined;
-  let pageCheckpoints: PageCheckpointService | undefined;
-  let pageHistory: PageHistoryService | undefined;
-  let pageOperationCrypto: PageOperationCrypto | undefined;
-  let pageOperationArchive: PageOperationArchiveService | undefined;
+  // Every lookup by identifier is confined to the workspace bound to the
+  // current request (feature 058). Unbound code — CLI, a runtime's own
+  // background work — is unaffected and already names its workspace.
+  setWorkspaceFence(boundWorkspaceId);
+  const runtimes = new Map<string, WorkspaceRuntime>();
+  let buildRuntime: (workspaceId: Uuid) => WorkspaceRuntime = (workspaceId) => ({
+    workspaceId,
+    structuredQueries: createDatabaseQueryService({ db: database.db, workspaceId }),
+    stop: async () => {},
+  });
+  const runtimeFor = (workspaceId: string): WorkspaceRuntime => {
+    let runtime = runtimes.get(workspaceId);
+    if (runtime === undefined) {
+      runtime = buildRuntime(workspaceId as Uuid);
+      runtimes.set(workspaceId, runtime);
+    }
+    return runtime;
+  };
+  /** The runtime of the bound workspace, or null outside any account. */
+  const runtimeOrNull = (): WorkspaceRuntime | null => {
+    const bound = boundWorkspaceId();
+    if (bound !== null) return runtimeFor(bound);
+    try {
+      return runtimeFor(currentWorkspaceId());
+    } catch (error) {
+      if (error instanceof WorkspaceScopeError) return null;
+      throw error;
+    }
+  };
+  const currentRuntime = (): WorkspaceRuntime => runtimeFor(currentWorkspaceId());
 
   const context: AppContext = {
     db: database.db,
-    workspaceId: workspace.id,
-    schemaVersion: workspace.schemaVersion,
-    contentStore,
-    get protectedFiles() {
-      return protectedFiles;
+    get workspaceId() {
+      // Throws outside an authenticated account: there is no default workspace.
+      return currentWorkspaceId() as Uuid;
     },
+    schemaVersion,
+    contentStore,
     partialUploads,
+    get protectedFiles() {
+      return runtimeOrNull()?.protectedFiles;
+    },
     get rotationPolicies() {
       return rotationPolicies;
     },
     get protectedContent() {
-      // A getter, because the security block that assigns it runs after this
-      // object is built and the content routes read it per request.
-      return protectedContent;
+      return runtimeOrNull()?.protectedContent;
     },
     get devices() {
       return devices;
     },
     get search() {
-      return search;
+      return runtimeOrNull()?.search;
     },
     get structuredQueries() {
-      return structuredQueries;
+      return runtimeOrNull()?.structuredQueries;
     },
     get pageOperationArchive() {
-      return pageOperationArchive;
+      return runtimeOrNull()?.pageOperationArchive;
     },
   };
+
+  let rotationPolicies: RotationPolicyService | undefined;
+  let devices: DeviceService | undefined;
 
   const app = Fastify({
     logger: options.logger === false ? false : registerLogging(),
     bodyLimit: 64 * 1024 * 1024,
+  });
+  const routeTable: { method: string; url: string }[] = [];
+  app.addHook("onRoute", (route) => {
+    for (const method of [route.method].flat()) routeTable.push({ method, url: route.url });
+  });
+  // Every request runs in its own workspace scope, unbound until a principal
+  // authenticates. `done` is called inside the scope so every later hook and
+  // the handler inherit it.
+  app.addHook("onRequest", (_request, _reply, done) => {
+    enterRequestScope(() => done());
   });
   // Must precede every route so upgrade requests are intercepted by Fastify's
   // normal authentication hooks rather than falling through as plain HTTP.
@@ -342,21 +413,40 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       app.log,
       options.refuseWithoutSecurity ?? process.env["NODE_ENV"] === "production",
     );
-  if (securityConfig !== null) {
-    // The installation row must exist before anything can claim a bootstrap
-    // attempt against it. Creating it here mirrors how feature 001 ensures the
-    // canonical workspace, and it is idempotent: a restart, or two processes
-    // starting at once, both find the existing row rather than minting a
-    // second installation. It creates no owner, so the installation is still
-    // `uninitialized` and still reports `0/0`.
+
+  let primaryKeys: KeyHierarchy | undefined;
+  let unsecuredWorkspaceId: Uuid | null = null;
+  const onCloseRuntimes = async () => {
+    for (const runtime of runtimes.values()) await runtime.stop();
+    runtimes.clear();
+  };
+  app.addHook("onClose", onCloseRuntimes);
+
+  if (securityConfig === null) {
+    // The feature-001 content harness: no principals, one workspace.
+    const workspace = await getOrCreateWorkspace(database.db);
+    unsecuredWorkspaceId = workspace.id;
+    setUnsecuredFallbackWorkspace(workspace.id);
+    app.addHook("onClose", async () => setUnsecuredFallbackWorkspace(null));
+    const runtime = runtimeFor(workspace.id);
+    void runtime.structuredQueries.rebuild().catch((error: unknown) => {
+      app.log.error(
+        { errorName: error instanceof Error ? error.name : "unknown" },
+        "structured database projection rebuild failed",
+      );
+    });
+  } else {
+    setUnsecuredFallbackWorkspace(null);
+    // The installation row must exist before anything can create the
+    // administrator against it. Idempotent: a restart, or two processes
+    // starting at once, both find the existing row.
     await createInstallation(database.db, {
       id: INSTALLATION_ID,
       sourceLineageId: INSTALLATION_ID,
-      schemaVersion: workspace.schemaVersion,
+      schemaVersion,
     });
     registerInstallationRoutes(app, { db: database.db, config: securityConfig });
     const audit = new AuditService(database.db, { logger: app.log });
-    const now = options.now ?? (() => new Date());
 
     /**
      * Reads the deployment wrapping key on demand rather than caching it.
@@ -373,54 +463,6 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       }
     };
 
-    // The key hierarchy is deliberately *not* established here.
-    //
-    // Establishing it at startup collided with the bootstrap promotion, which
-    // mints the owner's first data key inside its atomic transaction: startup
-    // inserted generation 1, the promotion's own insert then violated the
-    // unique index, and confirming setup failed outright. It also could not
-    // help an installation whose ownership arrives after the process started,
-    // which is every one of them.
-    //
-    // `dataKey` creates it on the first protected write instead. See the
-    // comment there.
-    const protectedRuntime = createProtectedFileRuntime({
-      db: database.db,
-      journalDb: database.journalDb,
-      installationId: INSTALLATION_ID,
-      workspaceId: workspace.id,
-      blobRoot: options.blobRoot,
-      deploymentKey,
-      now,
-      reportIntegrityFailure: async (failure) => {
-        await audit.record(
-          {
-            installationId: INSTALLATION_ID,
-            workspaceId: workspace.id,
-            // No request is in scope here — this is reached from inside a
-            // repository read — so the event carries its own correlation id
-            // rather than borrowing one it cannot verify.
-            correlationId: randomUUID(),
-            actorClass: "system",
-          },
-          {
-            eventType: "integrity.envelope-rejected",
-            outcome: "failure",
-            objectKind: failure.entityType,
-            objectId: failure.entityId,
-            // Reason, generation and version only. No ciphertext, no key,
-            // no opened bytes — the audit trail must stay safe to read.
-            metadata: {
-              reason: failure.reason,
-              keyGeneration: failure.keyGeneration,
-              recordVersion: failure.recordVersion,
-            },
-          },
-        );
-      },
-    });
-    keyHierarchy = protectedRuntime.keys;
-
     // One policy object, shared by the service and the routes. Two calls would
     // be two objects that could drift the moment the policy takes an argument.
     const policy = sessionPolicy();
@@ -431,6 +473,260 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       policy,
       now,
     });
+
+    rotationPolicies = new RotationPolicyService({
+      db: database.db,
+      installationId: INSTALLATION_ID,
+      now,
+    });
+    const policies = rotationPolicies;
+
+    const pageAdvances = new PageAdvanceNotifier();
+    const pageSyncHub = new PageSyncHub();
+    const pageSyncObservability = new RealtimePageSyncObservability(app.log);
+    const unsubscribePageAdvances = pageAdvances.subscribe((event) => pageSyncHub.publish(event));
+    app.addHook("onClose", async () => {
+      unsubscribePageAdvances();
+      pageSyncHub.close();
+      pageAdvances.clear();
+    });
+
+    buildRuntime = (workspaceId) => {
+      // The key hierarchy is deliberately *not* established here; account
+      // creation does it in its transaction, and `dataKey` on the first
+      // protected write covers a workspace that predates that.
+      const protectedRuntime = createProtectedFileRuntime({
+        db: database.db,
+        journalDb: database.journalDb,
+        installationId: INSTALLATION_ID,
+        workspaceId,
+        blobRoot: options.blobRoot,
+        deploymentKey,
+        now,
+        reportIntegrityFailure: async (failure) => {
+          await audit.record(
+            {
+              installationId: INSTALLATION_ID,
+              workspaceId,
+              // No request is in scope here — this is reached from inside a
+              // repository read — so the event carries its own correlation id.
+              correlationId: randomUUID(),
+              actorClass: "system",
+            },
+            {
+              eventType: "integrity.envelope-rejected",
+              outcome: "failure",
+              objectKind: failure.entityType,
+              objectId: failure.entityId,
+              metadata: {
+                reason: failure.reason,
+                keyGeneration: failure.keyGeneration,
+                recordVersion: failure.recordVersion,
+              },
+            },
+          );
+        },
+      });
+      const protectedContent = protectedRuntime.content;
+      const search = createDatabaseSearchService({
+        db: database.db,
+        workspaceId,
+        protectedContent,
+      });
+      const structuredQueries = createDatabaseQueryService({
+        db: database.db,
+        workspaceId,
+        protectedContent,
+      });
+      const pageOperationCrypto = new PageOperationCrypto(protectedRuntime.records);
+      const pageOperationArchive = new PageOperationArchiveService({
+        workspaceId,
+        crypto: pageOperationCrypto,
+      });
+      const canonicalMaterializer = new CanonicalMaterializer(protectedContent);
+      const pageActivation = new PageActivationService({
+        db: database.db,
+        workspaceId,
+        crypto: pageOperationCrypto,
+        protectedContent,
+        rotationPolicies: policies,
+        now,
+      });
+      let pageOperations: PageOperationService;
+      const pageHistory = new PageHistoryService({
+        db: database.db,
+        workspaceId,
+        protectedContent,
+        rotationPolicies: policies,
+        operations: () => pageOperations,
+        search,
+        now,
+      });
+      pageOperations = new PageOperationService({
+        db: database.db,
+        workspaceId,
+        crypto: pageOperationCrypto,
+        materializer: canonicalMaterializer,
+        protectedContent,
+        rotationPolicies: policies,
+        history: pageHistory,
+        search,
+        onPageCommitted: (event) => pageAdvances.publish({ ...event, workspaceId }),
+        now,
+      });
+      const pageCheckpoints = new PageCheckpointService({
+        db: database.db,
+        workspaceId,
+        crypto: pageOperationCrypto,
+        operations: pageOperations,
+        rotationPolicies: policies,
+        retention: options.pageCheckpointRetention ?? {
+          checkpointIsInVerifiedBackup: async (tx, retentionContext) =>
+            await pageOperationArchive.checkpointIsInVerifiedBackup(tx, retentionContext),
+          historyAllowsCompaction: async (tx, retentionContext) =>
+            await pageHistory.historyAllowsCompaction(tx, retentionContext),
+        },
+        now,
+      });
+      const pageAmbiguities = new PageAmbiguityService({
+        db: database.db,
+        workspaceId,
+        crypto: pageOperationCrypto,
+        operations: pageOperations,
+        materializer: canonicalMaterializer,
+        rotationPolicies: policies,
+        onPageCommitted: (event) => pageAdvances.publish({ ...event, workspaceId }),
+        now,
+      });
+      const legacyBranches = new LegacyBranchService({
+        db: database.db,
+        workspaceId,
+        crypto: pageOperationCrypto,
+        protectedContent,
+        materializer: canonicalMaterializer,
+        activation: pageActivation,
+        operations: pageOperations,
+        rotationPolicies: policies,
+        search,
+        onPageCommitted: (event) => pageAdvances.publish({ ...event, workspaceId }),
+        now,
+      });
+      const mcpAccess = new McpAccessService({
+        db: database.db,
+        installationId: INSTALLATION_ID,
+        workspaceId,
+        records: protectedRuntime.records,
+        audit,
+        now,
+        assertReady: async (executor) => {
+          await protectedRuntime.keys.dataKey(executor, { writable: false });
+        },
+      });
+      // Recovery-kit replacement for this workspace. The payload is the
+      // workspace root key, sealed under the mounted deployment key.
+      const recoveryKits = new RecoveryKitService({
+        db: database.db,
+        installationId: INSTALLATION_ID,
+        sourceLineageId: INSTALLATION_ID,
+        workspaceId,
+        deploymentKey,
+        supportedKeyGenerations: async () => {
+          const current = await findCurrentGeneration(database.db, workspaceId);
+          return current === null
+            ? []
+            : Array.from({ length: current.generation }, (_, index) => index + 1);
+        },
+        recoveryPayload: async () =>
+          await protectedRuntime.keys.exportRecoveryMaterial(database.db),
+        now,
+      });
+
+      // Background work of this workspace.
+      void search.rebuild().catch((error: unknown) => {
+        app.log.error(
+          { errorName: error instanceof Error ? error.name : "unknown" },
+          "workspace search rebuild failed",
+        );
+      });
+      void structuredQueries.rebuild().catch((error: unknown) => {
+        app.log.error(
+          { errorName: error instanceof Error ? error.name : "unknown" },
+          "structured database projection rebuild failed",
+        );
+      });
+      const stopCleanup = startProtectedFileCleanup({
+        db: database.db,
+        files: protectedRuntime.files,
+        now,
+        reportFailure: (error) =>
+          app.log.error(
+            { errorName: error instanceof Error ? error.name : "unknown" },
+            "protected file cleanup failed",
+          ),
+      });
+      let consolidationRunning = false;
+      const historyTimer = setInterval(() => {
+        if (consolidationRunning) return;
+        consolidationRunning = true;
+        void pageHistory
+          .consolidateDue()
+          .then(({ failures }) => {
+            for (const failure of failures) {
+              app.log.error(
+                { pageId: failure.pageId, failureCode: failure.code, errorName: failure.errorName },
+                "page history consolidation failed",
+              );
+            }
+          })
+          .catch((error: unknown) => {
+            app.log.error(
+              {
+                failureCode: "page-history.batch-failed",
+                errorName: error instanceof Error ? error.name : "unknown",
+              },
+              "page history consolidation failed",
+            );
+          })
+          .finally(() => {
+            consolidationRunning = false;
+          });
+      }, 15_000);
+      historyTimer.unref();
+
+      return {
+        workspaceId,
+        keys: protectedRuntime.keys,
+        protectedContent,
+        protectedFiles: protectedRuntime.files,
+        search,
+        structuredQueries,
+        pageOperationCrypto,
+        pageOperationArchive,
+        pageActivation,
+        pageHistory,
+        pageOperations,
+        pageCheckpoints,
+        pageAmbiguities,
+        legacyBranches,
+        mcpAccess,
+        recoveryKits,
+        stop: async () => {
+          clearInterval(historyTimer);
+          await stopCleanup();
+          await recoveryKits.dispose();
+        },
+      };
+    };
+
+    // Existing accounts' workspaces start with the process, so their
+    // background work (search, history consolidation, cleanup) runs even
+    // before their owner's first request.
+    for (const workspaceId of await listAccountWorkspaceIds(database.db)) runtimeFor(workspaceId);
+    const administratorRecord = await findInstallation(database.db);
+    if (administratorRecord?.administratorId != null) {
+      const administrator = await findAccountById(database.db, administratorRecord.administratorId);
+      if (administrator !== null) primaryKeys = runtimeFor(administrator.workspaceId).keys;
+    }
 
     const ownerPrincipalResolver = createOwnerPrincipalResolver({
       sessions: sessionService,
@@ -447,7 +743,12 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       )
         updateRequestContext(request, { authenticationRefusal: "device_revoked" });
       if (!outcome.authenticated || outcome.principal.kind !== "owner") return null;
-      updateRequestContext(request, { principal: outcome.principal });
+      updateRequestContext(request, {
+        principal: outcome.principal,
+        workspaceId: outcome.principal.workspaceId,
+      });
+      // From here on, everything this request touches is this account's.
+      bindWorkspace(outcome.principal.workspaceId);
       return outcome.principal;
     };
 
@@ -464,29 +765,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       void authenticateOwner(request).then(() => done(), done);
     });
 
-    // Available to the content routes through the context, so a feature-001
-    // route can seal its payload without knowing anything about key
-    // generations. Absent when security is not configured, which is what keeps
-    // the feature-001 harness behaving exactly as it did.
-    const protectedRecords = protectedRuntime.records;
-    protectedContent = protectedRuntime.content;
-    protectedFiles = protectedRuntime.files;
-
-    search = createDatabaseSearchService({
-      db: database.db,
-      workspaceId: workspace.id,
-      protectedContent,
-    });
-    registerSearchRoutes(app, { service: search });
+    const scopedSearch = scoped(() => required(currentRuntime().search, "search"));
+    registerSearchRoutes(app, { service: scopedSearch });
     registerPlaceRoutes(app);
-    // Search readiness must never delay the rest of the application. The
-    // route reports a safe rebuilding state until this atomic build completes.
-    void search.rebuild().catch((error: unknown) => {
-      app.log.error(
-        { errorName: error instanceof Error ? error.name : "unknown" },
-        "workspace search rebuild failed",
-      );
-    });
 
     const requireOwner = registerAuthenticationRoutes(app, {
       db: database.db,
@@ -499,6 +780,19 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       now,
       challenges: new Map<string, WebAuthnChallenge>(),
     });
+    /** Administration and installation-wide operations: members get a 404. */
+    const requireAdministrator: typeof requireOwner = (request, reply, requirement) => {
+      const owner = requireOwner(request, reply, requirement);
+      if (owner === null) return null;
+      if (owner.role !== "administrator") {
+        sendSecurityProblem(reply, {
+          code: "not_found",
+          correlationId: requestContext(request).correlationId,
+        });
+        return null;
+      }
+      return owner;
+    };
 
     // Route handlers receive resolved principals, but resolving a cookie alone
     // is not authorization. Protect all private HTTP routes before handlers.
@@ -530,11 +824,43 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       done();
     });
 
+    const accounts = new AccountService({
+      db: database.db,
+      installationId: INSTALLATION_ID,
+      audit,
+      sessions: sessionService,
+      now,
+      establishKeys: async (tx, workspaceId) => {
+        await required(runtimeFor(workspaceId).keys, "keys").initialize(tx);
+      },
+      onAccountCreated: ({ workspaceId }) => {
+        const runtime = runtimeFor(workspaceId);
+        if (primaryKeys === undefined) primaryKeys = runtime.keys;
+      },
+      onAccountRevoked: ({ id, workspaceId }) => {
+        pageSyncHub.closeOwner(id, 4401, "account-revoked");
+        const runtime = runtimes.get(workspaceId);
+        runtimes.delete(workspaceId);
+        void runtime?.stop();
+      },
+    });
+    registerAccountRoutes(app, {
+      db: database.db,
+      config: securityConfig,
+      accounts,
+      require: requireOwner,
+      deploymentKey,
+      publicOrigin: securityConfig.publicOrigin.origin,
+      now,
+    });
+
     registerBackupRoutes(app, {
       db: database.db,
-      workspaceId: workspace.id,
+      get workspaceId() {
+        return currentWorkspaceId() as Uuid;
+      },
       now,
-      require: requireOwner,
+      require: requireAdministrator,
       fullBackupService: new FullBackupService({
         connectionString: options.databaseUrl,
         blobRoot: options.blobRoot,
@@ -552,7 +878,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
         return await restoreTestCommand(
           {
             db: database.db,
-            workspaceId: workspace.id,
+            workspaceId: currentWorkspaceId() as Uuid,
             destination,
             open: async (ciphertext) => {
               const key = deploymentKey();
@@ -562,7 +888,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
               return openBackupArchive(key, ciphertext);
             },
             installation: {
-              schemaVersion: workspace.schemaVersion,
+              schemaVersion,
               recordFormatVersion: BACKUP_RECORD_FORMAT_VERSION,
             },
             databaseUrl: options.databaseUrl,
@@ -572,25 +898,17 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       },
     });
 
-    // The device inventory shares the authentication gate rather than building
-    // its own: one idea of what "recent" and "valid CSRF" mean, for the routes
-    // an owner reaches for when they suspect someone else has access.
-    // Rotation: status is readable by any signed-in owner, starting one needs
-    // a fresh proof. The scheduler evaluates at startup so an overdue key is
+    // Rotation: status is readable by the administrator, starting one needs a
+    // fresh proof. The scheduler evaluates at startup so an overdue key is
     // reported by a restart rather than only by a timer the process may never
     // reach.
-    rotationPolicies = new RotationPolicyService({
-      db: database.db,
-      installationId: INSTALLATION_ID,
-      now,
-    });
     registerRotationRoutes(app, {
       db: database.db,
-      policies: rotationPolicies,
+      policies,
       audit,
       installationId: INSTALLATION_ID,
       now,
-      require: requireOwner,
+      require: requireAdministrator,
     });
     registerSecurityAuditRoutes(app, {
       db: database.db,
@@ -598,7 +916,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       require: requireOwner,
     });
     const rotationScheduler = new RotationScheduler({
-      policies: rotationPolicies,
+      policies,
       logger: app.log,
       // Audited from the evaluation rather than from the write path: one row
       // per refused write would bury the event under thousands of copies of
@@ -607,7 +925,6 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
         await audit.record(
           {
             installationId: INSTALLATION_ID,
-            workspaceId: workspace.id,
             correlationId: randomUUID(),
             actorClass: "system",
           },
@@ -626,65 +943,18 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     });
     // Startup is a lifecycle boundary, not fire-and-forget work. Returning the
     // app while this database read is still in flight lets an immediate close
-    // end the pool underneath it; that surfaced on a slow CI runner as an
-    // unhandled "Cannot use a pool after calling end" rejection minutes later.
-    // Waiting here also matches the scheduler's contract: its first evaluation
-    // happens before the installation is reported ready, then the close hook
-    // owns the interval for the rest of the process lifetime.
+    // end the pool underneath it.
     app.addHook("onClose", async () => {
       rotationScheduler.stop();
     });
     await rotationScheduler.start();
 
-    // Recovery-kit replacement. The payload is the workspace root key, taken
-    // through the hierarchy's one named export rather than a general accessor,
-    // and the kit is sealed under the mounted deployment key — so the routes
-    // need the key reader as well as the database.
-    const recoveryKits = new RecoveryKitService({
-      db: database.db,
-      installationId: INSTALLATION_ID,
-      sourceLineageId: INSTALLATION_ID,
-      workspaceId: workspace.id,
-      deploymentKey,
-      supportedKeyGenerations: async () => {
-        const current = await findCurrentGeneration(database.db, workspace.id);
-        // Every generation up to the current one, because a restored
-        // installation has to open records written under any of them. An
-        // empty list means the hierarchy was never established, and the
-        // service refuses rather than sealing a kit that opens nothing.
-        return current === null
-          ? []
-          : Array.from({ length: current.generation }, (_, index) => index + 1);
-      },
-      recoveryPayload: async () => {
-        if (keyHierarchy === undefined) {
-          // Unreachable from this branch — the hierarchy is built above —
-          // but the service must fail closed rather than seal an empty kit
-          // if that ever stops being true.
-          throw new Error("the key hierarchy is unavailable");
-        }
-        return await keyHierarchy.exportRecoveryMaterial(database.db);
-      },
-      now,
-    });
+    // The installation's recovery kit is the administrator's (research D12).
     registerRecoveryRoutes(app, {
-      kits: recoveryKits,
+      kits: scoped(() => required(currentRuntime().recoveryKits, "recovery kits")),
       audit,
       installationId: INSTALLATION_ID,
-      require: requireOwner,
-    });
-    app.addHook("onClose", async () => {
-      await recoveryKits.dispose();
-    });
-
-    const pageAdvances = new PageAdvanceNotifier();
-    const pageSyncHub = new PageSyncHub();
-    const pageSyncObservability = new RealtimePageSyncObservability(app.log);
-    const unsubscribePageAdvances = pageAdvances.subscribe((event) => pageSyncHub.publish(event));
-    app.addHook("onClose", async () => {
-      unsubscribePageAdvances();
-      pageSyncHub.close();
-      pageAdvances.clear();
+      require: requireAdministrator,
     });
 
     devices = new DeviceService({ db: database.db, now });
@@ -698,241 +968,82 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       },
     });
 
-    pageOperationCrypto = new PageOperationCrypto(protectedRecords);
-    pageOperationArchive = new PageOperationArchiveService({
-      workspaceId: workspace.id,
-      crypto: pageOperationCrypto,
-    });
-    const canonicalMaterializer = new CanonicalMaterializer(protectedContent);
-    const pageActivation = new PageActivationService({
-      db: database.db,
-      workspaceId: workspace.id,
-      crypto: pageOperationCrypto,
-      protectedContent,
-      rotationPolicies,
-      now,
-    });
-    let pageOperations: PageOperationService;
-    pageHistory = new PageHistoryService({
-      db: database.db,
-      workspaceId: workspace.id,
-      protectedContent,
-      rotationPolicies,
-      operations: () => pageOperations,
-      search,
-      now,
-    });
-    pageOperations = new PageOperationService({
-      db: database.db,
-      workspaceId: workspace.id,
-      crypto: pageOperationCrypto,
-      materializer: canonicalMaterializer,
-      protectedContent,
-      rotationPolicies,
-      history: pageHistory,
-      search,
-      onPageCommitted: (event) => pageAdvances.publish(event),
-      now,
-    });
-    pageCheckpoints = new PageCheckpointService({
-      db: database.db,
-      workspaceId: workspace.id,
-      crypto: pageOperationCrypto,
-      operations: pageOperations,
-      rotationPolicies,
-      retention: options.pageCheckpointRetention ?? {
-        checkpointIsInVerifiedBackup: async (tx, retentionContext) =>
-          (await pageOperationArchive?.checkpointIsInVerifiedBackup(tx, retentionContext)) ?? false,
-        historyAllowsCompaction: async (tx, retentionContext) =>
-          (await pageHistory?.historyAllowsCompaction(tx, retentionContext)) ?? false,
-      },
-      now,
-    });
-    const pageAmbiguities = new PageAmbiguityService({
-      db: database.db,
-      workspaceId: workspace.id,
-      crypto: pageOperationCrypto,
-      operations: pageOperations,
-      materializer: canonicalMaterializer,
-      rotationPolicies,
-      onPageCommitted: (event) => pageAdvances.publish(event),
-      now,
-    });
-    const legacyBranches = new LegacyBranchService({
-      db: database.db,
-      workspaceId: workspace.id,
-      crypto: pageOperationCrypto,
-      protectedContent,
-      materializer: canonicalMaterializer,
-      activation: pageActivation,
-      operations: pageOperations,
-      rotationPolicies,
-      search,
-      onPageCommitted: (event) => pageAdvances.publish(event),
-      now,
-    });
-    const mcpAccess = new McpAccessService({
-      db: database.db,
-      installationId: INSTALLATION_ID,
-      workspaceId: workspace.id,
-      records: protectedRecords,
-      audit,
-      now,
-      assertReady: async (executor) => {
-        await protectedRuntime.keys.dataKey(executor, { writable: false });
-      },
-    });
+    const scopedActivation = scoped(() => required(currentRuntime().pageActivation, "activation"));
+    const scopedOperations = scoped(() =>
+      required(currentRuntime().pageOperations, "page operations"),
+    );
+    const scopedLegacy = scoped(() => required(currentRuntime().legacyBranches, "legacy branches"));
+    const scopedMcpAccess = scoped(() => required(currentRuntime().mcpAccess, "MCP access"));
     registerMcpManagementRoutes(app, {
-      access: mcpAccess,
+      access: scopedMcpAccess,
       require: requireOwner,
       publicOrigin: securityConfig.publicOrigin.origin,
+      db: database.db,
+      installationId: INSTALLATION_ID,
+      now,
+      bindExchangeWorkspace: async (code) => {
+        const workspaceId = await findMcpWorkspace(database.db, { kind: "exchange", secret: code });
+        if (workspaceId === null) {
+          await recordUnknownMcpCredential(audit, {
+            installationId: INSTALLATION_ID,
+            kind: "exchange",
+            correlationId: randomUUID(),
+          });
+          return false;
+        }
+        bindWorkspace(workspaceId);
+        return true;
+      },
     });
     registerMcpHttp(app, {
       context,
-      access: mcpAccess,
-      operations: pageOperations,
-      activation: pageActivation,
-      onPageCommitted: (event) => pageAdvances.publish(event),
+      access: scopedMcpAccess,
+      operations: scopedOperations,
+      activation: scopedActivation,
+      onPageCommitted: (event) =>
+        pageAdvances.publish({ ...event, workspaceId: currentWorkspaceId() }),
       publicOrigin: securityConfig.publicOrigin.origin,
+      // The bearer names its connection, the connection names its workspace:
+      // bind the request to it before any MCP service is reached.
+      installationId: INSTALLATION_ID,
+      now,
+      bindBearerWorkspace: async (bearer) => {
+        const workspaceId = await findMcpWorkspace(database.db, { kind: "bearer", secret: bearer });
+        if (workspaceId === null) {
+          await recordUnknownMcpCredential(audit, {
+            installationId: INSTALLATION_ID,
+            kind: "bearer",
+            correlationId: randomUUID(),
+          });
+          return false;
+        }
+        bindWorkspace(workspaceId);
+        return true;
+      },
     });
 
     registerPageOperationRoutes(app, {
       db: database.db,
       require: requireOwner,
-      activation: pageActivation,
-      operations: pageOperations,
-      ambiguities: pageAmbiguities,
-      legacy: legacyBranches,
+      activation: scopedActivation,
+      operations: scopedOperations,
+      ambiguities: scoped(() => required(currentRuntime().pageAmbiguities, "ambiguities")),
+      legacy: scopedLegacy,
     });
     registerPageSyncSocketRoutes(app, {
       db: database.db,
       config: securityConfig,
       deploymentKey,
       authenticate: authenticateOwner,
-      activation: pageActivation,
-      operations: pageOperations,
-      legacy: legacyBranches,
+      activation: scopedActivation,
+      operations: scopedOperations,
+      legacy: scopedLegacy,
       hub: pageSyncHub,
       observability: pageSyncObservability,
     });
+  }
 
-    const bootstrap = new BootstrapService({
-      db: database.db,
-      config: securityConfig,
-      audit,
-      installationId: INSTALLATION_ID,
-      workspaceId: workspace.id,
-      workspaceSchemaVersion: workspace.schemaVersion,
-      sealFirstDataKey: async () => {
-        if (keyHierarchy === undefined) {
-          throw new Error("the key hierarchy is unavailable; setup cannot be completed");
-        }
-        return await keyHierarchy.sealFirstDataKey(database.db);
-      },
-      now: options.now ?? (() => new Date()),
-      challenges: new Map<string, WebAuthnChallenge>(),
-    });
-    registerBootstrapRoutes(app, {
-      service: bootstrap,
-      // The artifact lives in `bootstrap-kit.ts`, not here. It is the only
-      // path that produces the file an owner is told to keep forever, and code
-      // that only runs from a composition root is code only ever exercised by
-      // accident.
-      renderKit: async (kitId) =>
-        JSON.stringify(
-          await renderBootstrapKit(
-            {
-              db: database.db,
-              installationId: INSTALLATION_ID,
-              workspaceId: workspace.id,
-              keys: keyHierarchy,
-              deploymentKey,
-              now,
-            },
-            kitId,
-          ),
-        ),
-      // Setup ends signed in: the owner just proved possession, and a
-      // sign-in screen immediately afterwards reads as the ceremony having
-      // failed.
-      startSession: async ({ reply, ownerId, deviceId, correlationId }) => {
-        const issued = await sessionService.issue({
-          ownerId,
-          deviceId,
-          authMethod: "passkey",
-          correlationId,
-        });
-        setSessionCookie(
-          reply,
-          securityConfig,
-          issued.secret,
-          Math.max(0, Math.floor((issued.session.expiresAt.getTime() - now().getTime()) / 1000)),
-        );
-      },
-    });
-  }
-  if (protectedFiles !== undefined) {
-    const stopCleanup = startProtectedFileCleanup({
-      db: database.db,
-      files: protectedFiles,
-      now: options.now ?? (() => new Date()),
-      reportFailure: (error) =>
-        app.log.error(
-          { errorName: error instanceof Error ? error.name : "unknown" },
-          "protected file cleanup failed",
-        ),
-    });
-    app.addHook("onClose", stopCleanup);
-  }
-  if (pageHistory !== undefined) {
-    let consolidationRunning = false;
-    const historyTimer = setInterval(() => {
-      if (consolidationRunning) return;
-      consolidationRunning = true;
-      void pageHistory
-        .consolidateDue()
-        .then(({ failures }) => {
-          for (const failure of failures) {
-            app.log.error(
-              {
-                pageId: failure.pageId,
-                failureCode: failure.code,
-                errorName: failure.errorName,
-              },
-              "page history consolidation failed",
-            );
-          }
-        })
-        .catch((error: unknown) => {
-          app.log.error(
-            {
-              failureCode: "page-history.batch-failed",
-              errorName: error instanceof Error ? error.name : "unknown",
-            },
-            "page history consolidation failed",
-          );
-        })
-        .finally(() => {
-          consolidationRunning = false;
-        });
-    }, 15_000);
-    historyTimer.unref();
-    app.addHook("onClose", async () => {
-      clearInterval(historyTimer);
-    });
-  }
-  structuredQueries = createDatabaseQueryService({
-    db: database.db,
-    workspaceId: workspace.id,
-    protectedContent,
-  });
-  void structuredQueries.rebuild().catch((error: unknown) => {
-    app.log.error(
-      { errorName: error instanceof Error ? error.name : "unknown" },
-      "structured database projection rebuild failed",
-    );
-  });
-
+  const pageHistory = scoped(() => required(currentRuntime().pageHistory, "page history"));
   registerItemRoutes(app, context);
   registerDatabaseRoutes(app, context);
   registerPlacementRoutes(app, context);
@@ -940,22 +1051,58 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   registerFileRoutes(app, context);
   registerUploadRoutes(app, context);
   registerRelationshipRoutes(app, context);
-  registerRevisionRoutes(app, context, { history: pageHistory, now: options.now });
+  registerRevisionRoutes(app, context, {
+    history: securityConfig === null ? undefined : pageHistory,
+    now: options.now,
+  });
   registerChangeRoutes(app, context);
   registerChangeStreamRoutes(app, context);
   registerSnapshotRoutes(app, context);
   registerMutationBatchRoutes(app, context);
   registerExportRoutes(app, context);
 
+  /** Test and tooling access to one workspace's services. */
+  const forWorkspace = (workspaceId: string) => runtimeFor(workspaceId);
+  const contextFor = (workspaceId: string): AppContext => ({
+    db: database.db,
+    workspaceId: workspaceId as Uuid,
+    schemaVersion,
+    contentStore,
+    partialUploads,
+    get protectedFiles() {
+      return runtimeFor(workspaceId).protectedFiles;
+    },
+    get rotationPolicies() {
+      return rotationPolicies;
+    },
+    get protectedContent() {
+      return runtimeFor(workspaceId).protectedContent;
+    },
+    get devices() {
+      return devices;
+    },
+    get search() {
+      return runtimeFor(workspaceId).search;
+    },
+    get structuredQueries() {
+      return runtimeFor(workspaceId).structuredQueries;
+    },
+    get pageOperationArchive() {
+      return runtimeFor(workspaceId).pageOperationArchive;
+    },
+  });
+
   return {
     app,
     context,
     database,
-    keyHierarchy,
-    pageCheckpoints,
-    pageHistory,
-    pageOperationCrypto,
-    pageOperationArchive,
+    forWorkspace,
+    contextFor,
+    routeTable,
+    unsecuredWorkspaceId,
+    get keyHierarchy() {
+      return primaryKeys;
+    },
     close: async () => {
       await app.close();
       await database.close();

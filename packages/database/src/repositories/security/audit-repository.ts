@@ -20,7 +20,7 @@
  */
 
 import { containsUnredactedField, redact, type SafeProblemCode } from "@myownnotion/domain";
-import { and, desc, eq, gte, notInArray } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, notInArray, or } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { securityAuditEvents } from "../../schema/security/index.ts";
 import { SecurityRepositoryError, type SecurityScope } from "./repository-types.ts";
@@ -113,6 +113,18 @@ export const SECURITY_EVENT_TYPES = [
   "integrity.identity-drift-detected",
   "admin.cli-command-executed",
   "admin.cli-command-refused",
+  // Accounts and registration (feature 058)
+  "account.created",
+  "account.updated",
+  "account.disabled",
+  "account.enabled",
+  "account.deleted",
+  "account.password-reset",
+  "registration.mode-changed",
+  "registration.refused",
+  "invitation.created",
+  "invitation.revoked",
+  "invitation.used",
 ] as const;
 export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
 
@@ -139,6 +151,8 @@ export interface AppendAuditEventInput {
   readonly outcome: AuditOutcome;
   readonly actorClass: AuditActorClass;
   readonly correlationId: string;
+  /** The account the event concerns, when known (feature 058). */
+  readonly ownerId?: string;
   readonly safeCode?: SafeProblemCode;
   readonly objectKind?: string;
   /** Opaque where safe. Never a value that reveals a title or a path. */
@@ -214,6 +228,7 @@ export async function appendAuditEvent(
     id: input.id,
     installationId: scope.installationId,
     workspaceId: scope.workspaceId ?? null,
+    ownerId: input.ownerId ?? null,
     eventType: input.eventType,
     outcome: input.outcome,
     actorClass: input.actorClass,
@@ -239,6 +254,16 @@ export interface ListAuditEventsOptions {
   readonly excludeActorClasses?: readonly AuditActorClass[];
   readonly since?: Date;
   readonly limit?: number;
+  /**
+   * Restricts the trail to one account (feature 058): events recorded in its
+   * workspace or naming it. When `includeUnscoped` is set (administrator),
+   * installation-level events that belong to no account are included too.
+   */
+  readonly account?: {
+    readonly ownerId: string;
+    readonly workspaceId: string;
+    readonly includeUnscoped: boolean;
+  };
 }
 
 /** Newest first. Scoped to the installation; there is no cross-scope read. */
@@ -256,6 +281,18 @@ export async function listAuditEvents(
   }
   if (options.since !== undefined) {
     filters.push(gte(securityAuditEvents.occurredAt, options.since));
+  }
+  if (options.account !== undefined) {
+    const own = or(
+      eq(securityAuditEvents.workspaceId, options.account.workspaceId),
+      eq(securityAuditEvents.ownerId, options.account.ownerId),
+    );
+    const unscoped = and(
+      isNull(securityAuditEvents.workspaceId),
+      isNull(securityAuditEvents.ownerId),
+    );
+    const visible = options.account.includeUnscoped ? or(own, unscoped) : own;
+    if (visible !== undefined) filters.push(visible);
   }
   const rows = await executor
     .select()

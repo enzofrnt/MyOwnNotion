@@ -21,7 +21,6 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import {
   authorizedDevices,
-  owners,
   passkeyCredentials,
   passwordCredentialVersions,
 } from "../../schema/security/index.ts";
@@ -29,18 +28,6 @@ import { SecurityRepositoryError } from "./repository-types.ts";
 import { runSecurityTransaction } from "./transaction.ts";
 
 type Executor = Database | Transaction;
-
-/**
- * The single owner's id, or `null` before bootstrap commits one.
- *
- * Read rather than assumed: password login has no other way to know whose
- * credential to check, and the singleton index guarantees at most one row, so
- * "the first" and "the only" are the same thing.
- */
-export async function readOwnerId(executor: Executor): Promise<string | null> {
-  const rows = await executor.select({ id: owners.id }).from(owners).limit(1);
-  return rows[0]?.id ?? null;
-}
 
 export interface PasskeyCredentialRecord {
   readonly id: string;

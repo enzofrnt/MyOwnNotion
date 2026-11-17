@@ -10,7 +10,7 @@ import {
   submitMutation,
 } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
 
@@ -42,6 +42,9 @@ beforeEach(async () => {
   await context.handle.db.delete(schema.pageOperationCheckpoints);
   await context.handle.db.delete(schema.pageOperationStates);
   await context.handle.db.delete(schema.protectedEnvelopes);
+  await context.handle.db
+    .update(schema.installations)
+    .set({ state: "uninitialized", administratorId: null });
   await context.handle.db.delete(schema.authorizedDevices);
   await context.handle.db.delete(schema.owners);
   await context.handle.db.delete(schema.installations);
@@ -49,16 +52,24 @@ beforeEach(async () => {
   await context.handle.db.insert(schema.installations).values({
     id: INSTALLATION_ID,
     sourceLineageId: INSTALLATION_ID,
-    state: "ready",
-    ownerId: OWNER_ID,
-    workspaceId: context.workspaceId,
+    state: "uninitialized",
     schemaVersion: 1,
   });
   await context.handle.db.insert(schema.owners).values({
     id: OWNER_ID,
     installationId: INSTALLATION_ID,
+    workspaceId: context.workspaceId,
+    email: "owner@example.test",
+    emailNormalized: "owner@example.test",
+    pseudonym: "Owner",
+    role: "administrator",
+    origin: "bootstrap",
     state: "active",
   });
+  await context.handle.db
+    .update(schema.installations)
+    .set({ state: "ready", administratorId: OWNER_ID })
+    .where(eq(schema.installations.id, INSTALLATION_ID));
   await context.handle.db.insert(schema.authorizedDevices).values({
     id: DEVICE_ID,
     ownerId: OWNER_ID,

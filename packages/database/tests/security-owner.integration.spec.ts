@@ -77,8 +77,7 @@ describe("installation creation", () => {
       schemaVersion: 1,
     });
     expect(record.state).toBe("uninitialized");
-    expect(record.ownerId).toBeNull();
-    expect(record.workspaceId).toBeNull();
+    expect(record.administratorId).toBeNull();
     expect(await readCounts(context.handle.db)).toEqual({ ownerCount: 0, workspaceCount: 0 });
   });
 
@@ -144,6 +143,8 @@ describe("atomic ownership promotion", () => {
     const status = await promoteOwnership(context.handle.db, {
       installationId: INSTALLATION_ID,
       ownerId: OWNER_ID,
+      email: `${OWNER_ID}@example.test`,
+      pseudonym: "Owner",
       workspaceId: WORKSPACE_ID,
       workspaceSchemaVersion: 1,
       state: "ready",
@@ -151,7 +152,7 @@ describe("atomic ownership promotion", () => {
 
     expect(status.state).toBe("ready");
     expect(status.counts).toEqual({ ownerCount: 1, workspaceCount: 1 });
-    expect(status.workspaceId).toBe(WORKSPACE_ID);
+    expect(status.administratorId).toBe(OWNER_ID);
   });
 
   it("binds the canonical workspace rather than regenerating it", async () => {
@@ -162,11 +163,13 @@ describe("atomic ownership promotion", () => {
     const status = await promoteOwnership(context.handle.db, {
       installationId: INSTALLATION_ID,
       ownerId: OWNER_ID,
+      email: `${OWNER_ID}@example.test`,
+      pseudonym: "Owner",
       workspaceId: WORKSPACE_ID,
       workspaceSchemaVersion: 1,
       state: "ready",
     });
-    expect(status.workspaceId).toBe(WORKSPACE_ID);
+    expect(status.administratorId).toBe(OWNER_ID);
     expect(status.counts.workspaceCount).toBe(1);
   });
 
@@ -179,6 +182,8 @@ describe("atomic ownership promotion", () => {
           promoteOwnership(handle.db, {
             installationId: INSTALLATION_ID,
             ownerId: generateUuidV7(),
+            email: `${generateUuidV7()}@example.test`,
+            pseudonym: "Owner",
             workspaceId: WORKSPACE_ID,
             workspaceSchemaVersion: 1,
             state: "ready",
@@ -196,6 +201,8 @@ describe("atomic ownership promotion", () => {
     await promoteOwnership(context.handle.db, {
       installationId: INSTALLATION_ID,
       ownerId: OWNER_ID,
+      email: `${OWNER_ID}@example.test`,
+      pseudonym: "Owner",
       workspaceId: WORKSPACE_ID,
       workspaceSchemaVersion: 1,
       state: "ready",
@@ -204,6 +211,8 @@ describe("atomic ownership promotion", () => {
       promoteOwnership(context.handle.db, {
         installationId: INSTALLATION_ID,
         ownerId: generateUuidV7(),
+        email: `${generateUuidV7()}@example.test`,
+        pseudonym: "Owner",
         workspaceId: WORKSPACE_ID,
         workspaceSchemaVersion: 1,
         state: "ready",
@@ -217,8 +226,10 @@ describe("atomic ownership promotion", () => {
       INSERT INTO workspaces (id, schema_version) VALUES (${WORKSPACE_ID}::uuid, 1)
     `);
     await context.handle.db.execute(sql`
-      INSERT INTO owners (id, installation_id, state)
-      VALUES (${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active')
+      WITH ws AS (INSERT INTO workspaces (id, schema_version) VALUES (gen_random_uuid(), 1) RETURNING id)
+    INSERT INTO owners (id, installation_id, state, workspace_id, email, email_normalized, pseudonym, role, origin)
+    SELECT ${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active', ws.id, ${OWNER_ID}::uuid::text || '@example.test', ${OWNER_ID}::uuid::text || '@example.test',
+           'Owner', 'member', 'administrator' FROM ws
     `);
     await context.handle.db.execute(sql`DELETE FROM owners`);
     await context.handle.db.execute(sql`DELETE FROM workspaces`);
@@ -229,6 +240,8 @@ describe("atomic ownership promotion", () => {
       promoteOwnership(context.handle.db, {
         installationId: "018f2b7c-0000-7000-8000-0000000000ee",
         ownerId: OWNER_ID,
+        email: `${OWNER_ID}@example.test`,
+        pseudonym: "Owner",
         workspaceId: WORKSPACE_ID,
         workspaceSchemaVersion: 1,
         state: "ready",
@@ -244,6 +257,8 @@ describe("atomic ownership promotion", () => {
       promoteOwnership(context.handle.db, {
         installationId: "018f2b7c-0000-7000-8000-0000000000ee",
         ownerId: OWNER_ID,
+        email: `${OWNER_ID}@example.test`,
+        pseudonym: "Owner",
         workspaceId: WORKSPACE_ID,
         workspaceSchemaVersion: 1,
         state: "ready",
@@ -268,6 +283,8 @@ describe("state transitions", () => {
     await promoteOwnership(context.handle.db, {
       installationId: INSTALLATION_ID,
       ownerId: OWNER_ID,
+      email: `${OWNER_ID}@example.test`,
+      pseudonym: "Owner",
       workspaceId: WORKSPACE_ID,
       workspaceSchemaVersion: 1,
       state: "ready",
@@ -296,6 +313,8 @@ describe("state transitions", () => {
     await promoteOwnership(context.handle.db, {
       installationId: INSTALLATION_ID,
       ownerId: OWNER_ID,
+      email: `${OWNER_ID}@example.test`,
+      pseudonym: "Owner",
       workspaceId: WORKSPACE_ID,
       workspaceSchemaVersion: 1,
       state: "ready",
@@ -317,28 +336,27 @@ describe("fail-closed reads", () => {
     await promoteOwnership(context.handle.db, {
       installationId: INSTALLATION_ID,
       ownerId: OWNER_ID,
+      email: `${OWNER_ID}@example.test`,
+      pseudonym: "Owner",
       workspaceId: WORKSPACE_ID,
       workspaceSchemaVersion: 1,
       state: "ready",
     });
-    // Simulate corruption: the state says `ready` but the owner row is gone.
-    // Reporting a reassuring status here would hide a broken installation.
+    // Simulate corruption: the state says `ready` but the administrator's
+    // workspace row is gone. Both guards are lifted for the experiment only.
     await context.handle.db.execute(sql`
-      ALTER TABLE installations DROP CONSTRAINT installations_counts_check
+      ALTER TABLE owners DROP CONSTRAINT owners_workspace_id_fkey
     `);
-    await context.handle.db.execute(sql`DELETE FROM owners`);
+    await context.handle.db.execute(sql`DELETE FROM workspaces`);
     try {
       await expect(readInstallationStatus(context.handle.db)).rejects.toThrow();
     } finally {
       await context.handle.db.execute(sql`
+        UPDATE installations SET state = 'uninitialized', administrator_id = NULL;
+        DELETE FROM owners;
         DELETE FROM installations;
-        ALTER TABLE installations ADD CONSTRAINT installations_counts_check CHECK (
-          (state IN ('uninitialized', 'bootstrap-in-progress')
-            AND owner_id IS NULL AND workspace_id IS NULL)
-          OR
-          (state IN ('recovery-required', 'ready', 'migration-in-progress', 'degraded')
-            AND owner_id IS NOT NULL AND workspace_id IS NOT NULL)
-        )
+        ALTER TABLE owners ADD CONSTRAINT owners_workspace_id_fkey
+          FOREIGN KEY (workspace_id) REFERENCES workspaces (id)
       `);
     }
   });
@@ -355,6 +373,8 @@ describe("fail-closed reads", () => {
           promoteOwnership(handle.db, {
             installationId: INSTALLATION_ID,
             ownerId: generateUuidV7(),
+            email: `${generateUuidV7()}@example.test`,
+            pseudonym: "Owner",
             workspaceId: WORKSPACE_ID,
             workspaceSchemaVersion: 1,
             state: "ready",

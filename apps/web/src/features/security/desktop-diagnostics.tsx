@@ -32,7 +32,11 @@ export function DesktopDiagnostics() {
   }
 
   return (
-    <section aria-label={FR_COPY.desktop.diagnostics.label} data-testid="desktop-diagnostics">
+    <section
+      className="ui-settings-panel"
+      aria-label={FR_COPY.desktop.diagnostics.label}
+      data-testid="desktop-diagnostics"
+    >
       <h2>{FR_COPY.desktop.diagnostics.label}</h2>
       <ul>
         {lines.map((line) => (

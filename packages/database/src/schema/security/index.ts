@@ -28,6 +28,7 @@
 
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   check,
   index,
@@ -39,6 +40,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { workspaces } from "../index.ts";
 
 /** A single-row table: a unique index on a constant admits at most one row. */
 const singleton = (name: string) => uniqueIndex(name).on(sql`(true)`);
@@ -56,10 +58,10 @@ export const installations = pgTable(
     /** Stable lineage, adopted verbatim during compatible recovery. */
     sourceLineageId: uuid("source_lineage_id").notNull(),
     state: text("state").notNull().default("uninitialized"),
-    /** Null until the atomic promotion; unique once set. */
-    ownerId: uuid("owner_id"),
-    /** The exact feature-001 workspace ID. Security never regenerates it. */
-    workspaceId: uuid("workspace_id"),
+    /** The first-launch account (feature 058). Null until the atomic promotion. */
+    administratorId: uuid("administrator_id"),
+    /** Who may create an account: `closed`, `invitation` or `open`. */
+    registrationMode: text("registration_mode").notNull().default("closed"),
     schemaVersion: integer("schema_version").notNull(),
     /**
      * The build that last ran here (feature 007).
@@ -92,18 +94,21 @@ export const installations = pgTable(
       "installations_state_check",
       sql`${table.state} IN ('uninitialized', 'bootstrap-in-progress', 'recovery-required', 'ready', 'migration-in-progress', 'degraded')`,
     ),
-    // The count rule, enforced structurally: an uninitialized installation has
-    // neither an owner nor a workspace, and an initialized one has both. A
-    // half-committed promotion cannot be persisted.
+    // An uninitialized installation has no administrator; an initialized one
+    // has exactly one. A half-committed promotion cannot be persisted.
     check(
       "installations_counts_check",
       sql`(
         (${table.state} IN ('uninitialized', 'bootstrap-in-progress')
-          AND ${table.ownerId} IS NULL AND ${table.workspaceId} IS NULL)
+          AND ${table.administratorId} IS NULL)
         OR
         (${table.state} IN ('recovery-required', 'ready', 'migration-in-progress', 'degraded')
-          AND ${table.ownerId} IS NOT NULL AND ${table.workspaceId} IS NOT NULL)
+          AND ${table.administratorId} IS NOT NULL)
       )`,
+    ),
+    check(
+      "installations_registration_mode_check",
+      sql`${table.registrationMode} IN ('closed', 'invitation', 'open')`,
     ),
     check("installations_schema_version_check", sql`${table.schemaVersion} >= 1`),
   ],
@@ -120,14 +125,95 @@ export const owners = pgTable(
     installationId: uuid("installation_id")
       .notNull()
       .references(() => installations.id),
+    /** The account's own workspace; one each (feature 058). */
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    email: text("email").notNull(),
+    /** Trimmed and lower-cased; the sign-in identifier. */
+    emailNormalized: text("email_normalized").notNull(),
+    pseudonym: text("pseudonym").notNull(),
+    role: text("role").notNull().default("member"),
+    origin: text("origin").notNull(),
+    invitationId: uuid("invitation_id").references((): AnyPgColumn => invitations.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id").references((): AnyPgColumn => owners.id, {
+      onDelete: "set null",
+    }),
+    disabledAt: utc("disabled_at"),
     state: text("state").notNull().default("active"),
     lastAuthenticatedAt: utc("last_authenticated_at"),
     createdAt: utc("created_at").notNull().defaultNow(),
   },
   (table) => [
-    // One owner per installation, and one installation overall.
-    uniqueIndex("owners_installation_unique").on(table.installationId),
-    check("owners_state_check", sql`${table.state} IN ('active', 'recovery-required')`),
+    uniqueIndex("owners_email_unique").on(table.emailNormalized),
+    uniqueIndex("owners_workspace_unique").on(table.workspaceId),
+    uniqueIndex("owners_single_administrator")
+      .on(table.installationId)
+      .where(sql`${table.role} = 'administrator'`),
+    index("owners_invitation_idx").on(table.invitationId),
+    check("owners_state_check", sql`${table.state} IN ('active', 'disabled', 'recovery-required')`),
+    check(
+      "owners_email_check",
+      sql`length(${table.email}) BETWEEN 3 AND 254 AND ${table.emailNormalized} = lower(btrim(${table.email}))`,
+    ),
+    check(
+      "owners_pseudonym_check",
+      sql`length(${table.pseudonym}) BETWEEN 1 AND 64 AND ${table.pseudonym} = btrim(${table.pseudonym})`,
+    ),
+    check("owners_role_check", sql`${table.role} IN ('administrator', 'member')`),
+    check(
+      "owners_origin_check",
+      sql`${table.origin} IN ('bootstrap', 'administrator', 'invitation', 'open')`,
+    ),
+    check(
+      "owners_bootstrap_is_administrator_check",
+      sql`(${table.origin} = 'bootstrap') = (${table.role} = 'administrator')`,
+    ),
+    check(
+      "owners_disabled_check",
+      sql`(${table.state} = 'disabled') = (${table.disabledAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+/** Private sign-up links managed by the administrator (feature 058). */
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey(),
+    installationId: uuid("installation_id")
+      .notNull()
+      .references(() => installations.id),
+    /** SHA-256 hex of the secret; the secret itself is never stored. */
+    secretHash: text("secret_hash").notNull().unique(),
+    label: text("label"),
+    maxUses: integer("max_uses"),
+    useCount: integer("use_count").notNull().default(0),
+    expiresAt: utc("expires_at"),
+    revokedAt: utc("revoked_at"),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references((): AnyPgColumn => owners.id, { onDelete: "cascade" }),
+    createdAt: utc("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    check("invitations_secret_hash_check", sql`${table.secretHash} ~ '^[0-9a-f]{64}$'`),
+    check(
+      "invitations_label_check",
+      sql`${table.label} IS NULL OR length(${table.label}) BETWEEN 1 AND 120`,
+    ),
+    check("invitations_max_uses_check", sql`${table.maxUses} IS NULL OR ${table.maxUses} >= 1`),
+    check("invitations_use_count_check", sql`${table.useCount} >= 0`),
+    check(
+      "invitations_uses_check",
+      sql`${table.maxUses} IS NULL OR ${table.useCount} <= ${table.maxUses}`,
+    ),
+    check(
+      "invitations_expiry_check",
+      sql`${table.expiresAt} IS NULL OR ${table.expiresAt} > ${table.createdAt}`,
+    ),
   ],
 );
 
@@ -848,6 +934,8 @@ export const securityAuditEvents = pgTable(
       .notNull()
       .references(() => installations.id),
     workspaceId: uuid("workspace_id"),
+    /** The account the event concerns; null for system events (feature 058). */
+    ownerId: uuid("owner_id").references((): AnyPgColumn => owners.id, { onDelete: "set null" }),
     eventType: text("event_type").notNull(),
     outcome: text("outcome").notNull(),
     actorClass: text("actor_class").notNull(),
@@ -867,6 +955,7 @@ export const securityAuditEvents = pgTable(
   (table) => [
     index("security_audit_events_occurred_idx").on(table.installationId, table.occurredAt),
     index("security_audit_events_type_idx").on(table.installationId, table.eventType),
+    index("security_audit_events_owner_idx").on(table.ownerId, table.occurredAt),
     check(
       "security_audit_events_outcome_check",
       sql`${table.outcome} IN ('success', 'failure', 'refused', 'started')`,

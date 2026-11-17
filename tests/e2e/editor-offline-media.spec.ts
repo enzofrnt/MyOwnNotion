@@ -95,7 +95,12 @@ test.describe("editor media offline", () => {
 
     // IndexedDB may expose routing IDs, never names, media types or bytes.
     const storedRows = await restarted.evaluate(async () => {
-      const request = indexedDB.open("myownnotion-local");
+      const request = indexedDB.open(
+        // Feature 058: one local database per account on this browser.
+        localStorage.getItem("myownnotion-last-account") === null
+          ? "myownnotion-local"
+          : `myownnotion-local-${localStorage.getItem("myownnotion-last-account")}`,
+      );
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

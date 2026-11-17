@@ -44,6 +44,8 @@ export function createOwnerPrincipalResolver(deps: OwnerPrincipalResolverDeps): 
         principal: {
           kind: "owner",
           ownerId: session.ownerId,
+          workspaceId: resolution.workspaceId,
+          role: resolution.role,
           sessionId: session.sessionId,
           deviceId: session.deviceId,
           recentAuthAt: session.recentAuthAt,

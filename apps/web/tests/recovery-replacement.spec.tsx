@@ -212,7 +212,9 @@ describe("recovery replacement ceremony", () => {
 
   async function renderSettings(api: SecurityApi): Promise<void> {
     await act(async () => {
-      root.render(<SecuritySettings api={api} currentSessionId={null} onSignedOut={vi.fn()} />);
+      root.render(
+        <SecuritySettings api={api} administrator currentSessionId={null} onSignedOut={vi.fn()} />,
+      );
       for (let index = 0; index < 4; index += 1) {
         await drainPromiseWork();
       }

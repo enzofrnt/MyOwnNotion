@@ -4,7 +4,6 @@
  * canonical schema with its deferred constraints.
  */
 
-import { readdir, readFile } from "node:fs/promises";
 import { applyMigrations, startDisposablePostgres } from "@myownnotion/test-utils";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -20,59 +19,32 @@ afterAll(async () => {
 });
 
 describe("reviewed SQL migrations", () => {
-  it("applies from an empty database", async () => {
+  it("applies the single baseline from an empty database (feature 058)", async () => {
     const applied = await applyMigrations(database.connectionString);
-    expect(applied).toContain("0001_initial");
-    expect(applied).toContain("0007_databases");
-    expect(applied).toContain("0008_page_operations");
-    expect(applied).toContain("0009_page_operation_compaction");
-    expect(applied).toContain("0010_page_operation_backups");
-    expect(applied).toContain("0011_page_operation_compaction_indexes");
-    expect(applied).toContain("0012_upload_attachment_parent");
-    expect(applied).toContain("0013_item_icons");
-    expect(applied).toContain("0018_bootstrap_password_setup");
-    expect(applied).toContain("0019_database_pages_views");
+    expect(applied).toEqual(["0001_baseline"]);
   });
 
-  it("refuses an old source without deleting it or recording migration 0019", async () => {
+  it("refuses a database built from the pre-baseline history and changes nothing", async () => {
     const legacy = await startDisposablePostgres();
     const client = new pg.Client({ connectionString: legacy.connectionString });
     await client.connect();
     try {
-      const migrationNames = (await readdir(new URL("../migrations/", import.meta.url)))
-        .filter((name) => name.endsWith(".sql") && name < "0019_database_pages_views.sql")
-        .sort();
-      for (const name of migrationNames) {
-        await client.query(
-          await readFile(new URL(`../migrations/${name}`, import.meta.url), "utf8"),
-        );
-      }
-      const workspaceId = "00000000-0000-7000-8000-0000000e0101";
-      const oldSourceId = "00000000-0000-7000-8000-0000000e0102";
-      await client.query("INSERT INTO workspaces (id, schema_version) VALUES ($1, 1)", [
-        workspaceId,
-      ]);
       await client.query(
-        "INSERT INTO databases (item_id, workspace_id, definition_version) VALUES ($1, $2, 1)",
-        [oldSourceId, workspaceId],
+        "CREATE TABLE schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",
       );
+      await client.query("INSERT INTO schema_migrations (version) VALUES ('0001_initial')");
       await expect(applyMigrations(legacy.connectionString)).rejects.toThrow(
-        "Legacy databases require an explicit development reset",
+        /recreate the development database/,
       );
-      const retained = await client.query<{ item_id: string }>(
-        "SELECT item_id FROM databases WHERE item_id = $1",
-        [oldSourceId],
+      const { rows } = await client.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM information_schema.tables WHERE table_schema = 'public'",
       );
-      expect(retained.rows).toEqual([{ item_id: oldSourceId }]);
-      const migrated = await client.query<{ version: string }>(
-        "SELECT version FROM schema_migrations WHERE version = '0019_database_pages_views'",
-      );
-      expect(migrated.rows).toHaveLength(0);
+      expect(rows[0]?.count).toBe("1");
     } finally {
       await client.end();
       await legacy.stop();
     }
-  }, 180_000);
+  });
 
   it("adds a nullable item icon with file and length guards", async () => {
     const client = new pg.Client({ connectionString: database.connectionString });
@@ -190,7 +162,7 @@ describe("reviewed SQL migrations", () => {
         entries_exists: boolean;
       }>(
         `SELECT
-           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0007_databases')
+           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0001_baseline')
              AS migration_recorded,
            to_regclass('public.databases') IS NOT NULL AS databases_exists,
            to_regclass('public.database_entries') IS NOT NULL AS entries_exists`,
@@ -229,15 +201,15 @@ describe("reviewed SQL migrations", () => {
         verified_backup_id_exists: boolean;
       }>(
         `SELECT
-           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0008_page_operations')
+           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0001_baseline')
              AS migration_recorded,
-           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0009_page_operation_compaction')
+           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0001_baseline')
              AS compaction_migration_recorded,
-           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0010_page_operation_backups')
+           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0001_baseline')
              AS backup_migration_recorded,
            EXISTS (
              SELECT 1 FROM schema_migrations
-              WHERE version = '0011_page_operation_compaction_indexes'
+              WHERE version = '0001_baseline'
            ) AS compaction_indexes_migration_recorded,
            to_regclass('public.page_operation_states') IS NOT NULL AS state_exists,
            to_regclass('public.page_operation_updates') IS NOT NULL AS updates_exists,
@@ -329,97 +301,6 @@ describe("reviewed SQL migrations", () => {
       await client.end();
     }
   });
-
-  it("upgrades a populated format-v2 fixture without activating or rewriting its page", async () => {
-    const legacy = await startDisposablePostgres();
-    const client = new pg.Client({ connectionString: legacy.connectionString });
-    await client.connect();
-    const workspaceId = "00000000-0000-7000-8000-000000100001";
-    const pageId = "00000000-0000-7000-8000-000000100002";
-    const mutationId = "00000000-0000-7000-8000-000000100003";
-    const revisionId = "00000000-0000-7000-8000-000000100004";
-    const legacyBody = { blocks: [{ type: "paragraph", content: [{ text: "offline history" }] }] };
-    try {
-      for (const migration of [
-        "0001_initial",
-        "0002_favourites",
-        "0003_files_and_offline",
-        "0004_revision_device",
-        "0005_backups",
-        "0006_installation_application_version",
-        "0007_databases",
-      ]) {
-        const sqlText = await readFile(
-          new URL(`../migrations/${migration}.sql`, import.meta.url),
-          "utf8",
-        );
-        await client.query(sqlText);
-      }
-      await client.query("BEGIN");
-      await client.query("SET CONSTRAINTS ALL DEFERRED");
-      await client.query(`INSERT INTO workspaces (id, schema_version) VALUES ($1, 2)`, [
-        workspaceId,
-      ]);
-      await client.query(
-        `INSERT INTO mutations
-           (id, workspace_id, command_type, status, accepted_at, result_revision_ids)
-         VALUES ($1, $2, 'item.create', 'accepted', now(), ARRAY[$3]::uuid[])`,
-        [mutationId, workspaceId, revisionId],
-      );
-      await client.query(
-        `INSERT INTO items (id, workspace_id, kind, name, current_revision_id)
-         VALUES ($1, $2, 'page', 'Legacy page', $3)`,
-        [pageId, workspaceId, revisionId],
-      );
-      await client.query(
-        `INSERT INTO revisions (id, item_id, mutation_id, snapshot, lineage_digest)
-         VALUES ($1, $2, $3, $4::jsonb, 'legacy-lineage')`,
-        [revisionId, pageId, mutationId, JSON.stringify({ document: legacyBody })],
-      );
-      await client.query(
-        `INSERT INTO page_documents (page_id, format, format_version, body)
-         VALUES ($1, 'myownnotion.document+json', 2, $2::jsonb)`,
-        [pageId, JSON.stringify(legacyBody)],
-      );
-      await client.query("COMMIT");
-
-      expect(await applyMigrations(legacy.connectionString)).toEqual([
-        "0008_page_operations",
-        "0009_page_operation_compaction",
-        "0010_page_operation_backups",
-        "0011_page_operation_compaction_indexes",
-        "0012_upload_attachment_parent",
-        "0013_item_icons",
-        "0014_full_backup_provenance",
-        "0015_protected_file_storage",
-        "0016_linked_databases",
-        "0017_mcp_access",
-        "0018_bootstrap_password_setup",
-        "0019_database_pages_views",
-        "0020_database_sources_per_origin",
-        "0021_database_entry_numbers",
-      ]);
-      const { rows } = await client.query<{
-        format_version: number;
-        body: unknown;
-        operation_count: string;
-      }>(
-        `SELECT d.format_version, d.body,
-                (SELECT count(*)::text FROM page_operation_states) AS operation_count
-           FROM page_documents d WHERE d.page_id = $1`,
-        [pageId],
-      );
-      expect(rows[0]).toEqual({
-        format_version: 2,
-        body: legacyBody,
-        operation_count: "0",
-      });
-    } finally {
-      await client.query("ROLLBACK").catch(() => undefined);
-      await client.end();
-      await legacy.stop();
-    }
-  }, 180_000);
 
   it("rolls back the whole database capability transaction on an identity violation", async () => {
     const client = new pg.Client({ connectionString: database.connectionString });

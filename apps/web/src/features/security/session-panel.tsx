@@ -116,6 +116,7 @@ export function SessionPanel(props: SessionPanelProps) {
           <Button
             size="compact"
             variant="secondary"
+            data-tone="destructive"
             onClick={() => {
               void revokeOthers();
             }}
@@ -165,7 +166,8 @@ export function SessionPanel(props: SessionPanelProps) {
                   <div className="security-settings__row-actions">
                     <Button
                       size="compact"
-                      variant={isCurrent ? "danger" : "secondary"}
+                      variant="secondary"
+                      data-tone="destructive"
                       onClick={() => {
                         void revoke(session.sessionId);
                       }}

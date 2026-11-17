@@ -8,6 +8,7 @@ import type { ItemKind, Uuid } from "@myownnotion/domain";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import { items, logicalFiles, pageDocuments, placements } from "../schema/index.ts";
+import { withinFence } from "../workspace-fence.ts";
 
 export interface ItemReadModel {
   readonly id: Uuid;
@@ -51,7 +52,7 @@ export async function readItems(
   const itemRows = await executor
     .select()
     .from(items)
-    .where(inArray(items.id, itemIds as Uuid[]));
+    .where(and(inArray(items.id, itemIds as Uuid[]), withinFence(items.workspaceId)));
   const placementRows = await executor
     .select()
     .from(placements)

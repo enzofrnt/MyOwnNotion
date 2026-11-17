@@ -1,3 +1,4 @@
+import type { Uuid } from "@myownnotion/domain";
 import {
   createGraphForceRuntime,
   DEFAULT_GRAPH_FORCES,
@@ -262,6 +263,7 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     return () => observer.disconnect();
   }, []);
   const topologyRef = useRef("");
+  const positionMemoryRef = useRef(new Map<Uuid, { x: number; y: number }>());
   const forcesKeyRef = useRef("");
   useEffect(() => {
     const nextKey = `${projection.nodes.map((node) => node.id).join(",")} ${projection.edges.map((edge) => edge.key).join(",")}`;
@@ -277,12 +279,28 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     }
     if (topologyChanged) {
       topologyRef.current = nextKey;
-      const created = createGraphForceRuntime(projection);
+      // Live update: an existing layout seeds the new one so nothing jumps, and
+      // the view is only fitted the first time (never re-centred under the person).
+      // Positions are remembered across filter changes too: a node hidden by a
+      // filter and shown again comes back where the person left it.
+      const previousLayout = runtimeRef.current === null ? null : layoutRef.current;
+      if (previousLayout !== null) {
+        for (const position of previousLayout.positions) {
+          positionMemoryRef.current.set(position.id, { x: position.x, y: position.y });
+        }
+      }
+      const seed = previousLayout === null ? undefined : positionMemoryRef.current;
+      const created = createGraphForceRuntime(projection, seed);
       runtimeRef.current = created;
-      const settled = created.settle(forces, 120);
+      const settled = created.settle(forces, seed === undefined ? 120 : 20);
       layoutRef.current = settled;
       const host = container.current;
-      if (host !== null && host.clientWidth >= 64 && host.clientHeight >= 64) {
+      if (
+        seed === undefined &&
+        host !== null &&
+        host.clientWidth >= 64 &&
+        host.clientHeight >= 64
+      ) {
         const width = host.clientWidth;
         const height = host.clientHeight;
         viewportRef.current = { width, height };

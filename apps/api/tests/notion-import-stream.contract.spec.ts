@@ -76,7 +76,7 @@ async function externalWrite() {
       env: {
         ...process.env,
         IMPORT_TEST_DATABASE: harness.postgres.connectionString,
-        IMPORT_TEST_WORKSPACE: harness.built.context.workspaceId,
+        IMPORT_TEST_WORKSPACE: harness.workspaceId,
       },
       stdio: "ignore",
     });

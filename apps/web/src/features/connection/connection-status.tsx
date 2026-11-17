@@ -23,6 +23,7 @@ import { useEffect, useState } from "react";
 import type { ContentApi } from "../../services/content-api.ts";
 import { FR_COPY } from "../../ui/copy/fr.ts";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
+import { SettingsPill } from "../settings/settings-card.tsx";
 
 /** The schema version this client was built against. */
 export const EXPECTED_SCHEMA_VERSION = 1;
@@ -96,18 +97,46 @@ export function ConnectionStatus({
   const shownHost = hostLabel ?? window.location.host;
 
   return (
-    <section className="connection-status" aria-label={FR_COPY.connection.label}>
-      <p data-testid="connection-server" className="muted">
-        {FR_COPY.connection.connectedTo} <code>{shownHost}</code>
-      </p>
-
-      <p data-testid="connection-reachability" data-state={reachability.kind} role="status">
-        {reachability.kind === "checking"
-          ? FR_COPY.connection.checking
-          : reachability.kind === "reachable"
-            ? FR_COPY.connection.reachable
-            : FR_COPY.connection.unreachable}
-      </p>
+    <section className="connection-status ui-settings-panel" aria-label={FR_COPY.connection.label}>
+      <div className="connection-status__row">
+        <div className="connection-status__copy">
+          <h2 className="connection-status__title">Serveur</h2>
+          <p data-testid="connection-server">
+            {FR_COPY.connection.connectedTo} <code>{shownHost}</code>
+          </p>
+        </div>
+        <span data-testid="connection-reachability" data-state={reachability.kind} role="status">
+          <SettingsPill
+            tone={
+              reachability.kind === "checking"
+                ? "neutral"
+                : reachability.kind === "reachable"
+                  ? "success"
+                  : "danger"
+            }
+            title={
+              reachability.kind === "checking"
+                ? FR_COPY.connection.checking
+                : reachability.kind === "reachable"
+                  ? FR_COPY.connection.reachable
+                  : FR_COPY.connection.unreachable
+            }
+          >
+            {reachability.kind === "checking"
+              ? "Vérification…"
+              : reachability.kind === "reachable"
+                ? "Disponible"
+                : "Injoignable"}
+          </SettingsPill>
+          <span className="ui-visually-hidden">
+            {reachability.kind === "checking"
+              ? FR_COPY.connection.checking
+              : reachability.kind === "reachable"
+                ? FR_COPY.connection.reachable
+                : FR_COPY.connection.unreachable}
+          </span>
+        </span>
+      </div>
 
       {desktopStatus === "read-only" ||
       desktopStatus === "incompatible" ||

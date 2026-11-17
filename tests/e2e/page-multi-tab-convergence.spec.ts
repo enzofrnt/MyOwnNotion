@@ -150,7 +150,12 @@ async function countSendingPageUpdates(page: Page): Promise<number> {
   return await page.evaluate(
     async () =>
       await new Promise<number>((resolve, reject) => {
-        const opening = indexedDB.open("myownnotion-local");
+        const opening = indexedDB.open(
+          // Feature 058: one local database per account on this browser.
+          localStorage.getItem("myownnotion-last-account") === null
+            ? "myownnotion-local"
+            : `myownnotion-local-${localStorage.getItem("myownnotion-last-account")}`,
+        );
         opening.onerror = () => reject(opening.error ?? new Error("local database unavailable"));
         opening.onsuccess = () => {
           const database = opening.result;

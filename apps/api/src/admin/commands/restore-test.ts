@@ -45,14 +45,22 @@ export async function restoreTestCommand(
           schemaVersion: workspace.schemaVersion,
         });
         const ownerId = generateUuidV7();
+        // A throwaway administrator: the rehearsal needs an account to own the
+        // restored workspace, never a real person's identity (feature 058).
         await rehearsal.handle.db.insert(schema.owners).values({
           id: ownerId,
           installationId: INSTALLATION_ID,
+          workspaceId: workspace.id,
+          email: "restore-rehearsal@invalid",
+          emailNormalized: "restore-rehearsal@invalid",
+          pseudonym: "Restore rehearsal",
+          role: "administrator",
+          origin: "bootstrap",
           state: "active",
         });
         await rehearsal.handle.db
           .update(schema.installations)
-          .set({ state: "ready", ownerId, workspaceId: workspace.id })
+          .set({ state: "ready", administratorId: ownerId })
           .where(eq(schema.installations.id, INSTALLATION_ID));
 
         const decoded = decodeBackupArchive(archive);

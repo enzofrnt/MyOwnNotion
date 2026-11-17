@@ -36,7 +36,7 @@ beforeEach(async () => {
 });
 
 function history() {
-  const service = harness.api.built.pageHistory;
+  const service = harness.api.built.forWorkspace(harness.api.workspaceId).pageHistory;
   if (service === undefined) throw new Error("page history service is unavailable");
   return service;
 }
@@ -551,7 +551,7 @@ describe("visible history consolidation", () => {
     await harness.api.built.database.db.transaction(async (tx) => {
       await tx.insert(schema.mutations).values({
         id: rogueMutationId,
-        workspaceId: harness.api.built.context.workspaceId,
+        workspaceId: harness.api.workspaceId,
         commandType: "page-operations.consolidated",
         status: "accepted",
         submittedAt: new Date(nowMs),

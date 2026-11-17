@@ -27,6 +27,59 @@ export interface McpPrincipal {
   readonly scope: McpScope;
 }
 type Executor = Database | Transaction;
+
+/**
+ * The workspace a bearer or exchange code belongs to (feature 058).
+ *
+ * Read before any workspace service is reached, so the request can be bound
+ * to the connection's own account. Null for anything unknown: the caller then
+ * answers exactly as an invalid credential.
+ */
+export async function findMcpWorkspace(
+  db: Database,
+  credential: { readonly kind: "bearer" | "exchange"; readonly secret: string },
+): Promise<string | null> {
+  const digest = mcpSecretDigest(credential.secret);
+  if (credential.kind === "bearer") {
+    const [row] = await db
+      .select({ workspaceId: schema.mcpConnections.workspaceId })
+      .from(schema.mcpConnections)
+      .where(eq(schema.mcpConnections.accessHash, digest));
+    return row?.workspaceId ?? null;
+  }
+  const [row] = await db
+    .select({ workspaceId: schema.mcpConnections.workspaceId })
+    .from(schema.mcpExchangeTokens)
+    .innerJoin(
+      schema.mcpConnections,
+      eq(schema.mcpConnections.id, schema.mcpExchangeTokens.connectionId),
+    )
+    .where(eq(schema.mcpExchangeTokens.secretHash, digest));
+  return row?.workspaceId ?? null;
+}
+
+/**
+ * Audits a credential that names no connection at all (feature 058).
+ *
+ * Such a credential belongs to no account, so the event goes to the
+ * installation-level trail the administrator reads, with nothing that could
+ * identify the secret.
+ */
+export async function recordUnknownMcpCredential(
+  audit: AuditService,
+  input: { installationId: string; kind: McpCredentialKind; correlationId: string },
+): Promise<void> {
+  await audit.record(
+    { installationId: input.installationId, correlationId: input.correlationId, actorClass: "mcp" },
+    {
+      eventType: input.kind === "exchange" ? "mcp.exchange-failed" : "mcp.authentication-failed",
+      outcome: "refused",
+      safeCode: "authentication_failed",
+      metadata: { credentialKind: input.kind, reason: "invalid" },
+    },
+  );
+}
+
 export class McpAccessService {
   constructor(
     readonly deps: {
@@ -45,12 +98,13 @@ export class McpAccessService {
       .select()
       .from(schema.installations)
       .where(eq(schema.installations.id, this.deps.installationId));
-    if (installation?.state !== "ready" || installation.workspaceId !== this.deps.workspaceId)
-      throw new McpAccessError("mcp.unavailable", 503);
+    if (installation?.state !== "ready") throw new McpAccessError("mcp.unavailable", 503);
+    // The account that owns this workspace (feature 058). A disabled or
+    // recovering account's connections stop at once, before any tool runs.
     const [owner] = await executor
       .select()
       .from(schema.owners)
-      .where(eq(schema.owners.id, installation.ownerId ?? "00000000-0000-0000-0000-000000000000"));
+      .where(eq(schema.owners.workspaceId, this.deps.workspaceId));
     if (owner?.state !== "active") throw new McpAccessError("mcp.unavailable", 503);
     await this.deps.assertReady(executor);
   }

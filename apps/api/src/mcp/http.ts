@@ -7,7 +7,13 @@ import { createMcpTools, type McpToolsDeps } from "./tools.ts";
 
 export function registerMcpHttp(
   app: FastifyInstance,
-  deps: Omit<McpToolsDeps, "principal" | "correlationId"> & { publicOrigin: string },
+  deps: Omit<McpToolsDeps, "principal" | "correlationId"> & {
+    publicOrigin: string;
+    installationId: string;
+    now: () => Date;
+    /** Binds the request to the bearer's own workspace; false when unknown. */
+    bindBearerWorkspace: (bearer: string) => Promise<boolean>;
+  },
 ) {
   app.route({
     method: ["GET", "POST", "DELETE"],
@@ -20,14 +26,18 @@ export function registerMcpHttp(
       const correlationId = requestContext(request).correlationId;
       try {
         const limit = await consumeRateLimit(deps.context.db, {
-          installationId: deps.access.deps.installationId,
+          installationId: deps.installationId,
           operation: "mcp.request",
           subject: request.ip,
-          now: deps.access.deps.now(),
+          now: deps.now(),
         });
         if (!limit.allowed) return reply.status(429).send({ code: "mcp.rate-limited" });
         const bearer =
           /^Bearer ([A-Za-z0-9_-]+)$/.exec(request.headers.authorization ?? "")?.[1] ?? "";
+        // Feature 058: the bearer's connection decides the workspace, before
+        // any tool or service of a workspace is reached.
+        if (!(await deps.bindBearerWorkspace(bearer)))
+          throw new McpAccessError("mcp.authentication-required", 401);
         const principal = await deps.access.authenticate(bearer, correlationId);
         const handler = createMcpHandler(
           () => createMcpTools({ ...deps, principal, correlationId }),

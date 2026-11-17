@@ -144,7 +144,7 @@ describe("page-document replacement (T058)", () => {
     const mutationId = generateUuidV7();
     await harness.built.database.db.insert(schema.mutations).values({
       id: mutationId,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       commandType: "page.document.replace",
       status: "rejected",
       failureCode: "page-operations.protocol-read-only",

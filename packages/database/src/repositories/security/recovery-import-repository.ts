@@ -103,6 +103,9 @@ export interface AdoptIdentityInput {
   readonly workspaceId: string;
   readonly workspaceSchemaVersion: number;
   readonly ownerId: string;
+  /** Who the adopted administrator is (feature 058), supplied by the operator. */
+  readonly administratorEmail: string;
+  readonly administratorPseudonym: string;
   /** The workspace root key from the kit, rewrapped under the target's key. */
   readonly wrappedRootKey: string;
   readonly rootKeyVersion: number;
@@ -168,9 +171,18 @@ export async function adoptSourceIdentity(
       set: { sourceLineageId: input.sourceLineageId, updatedAt: input.now },
     });
 
+  // The adopted identity is the administrator (feature 058). Its email and
+  // pseudonym are supplied by the operator running recovery: the kit carries
+  // keys, not personal data.
   await tx.insert(owners).values({
     id: input.ownerId,
     installationId: input.installationId,
+    workspaceId: input.workspaceId,
+    email: input.administratorEmail.trim(),
+    emailNormalized: input.administratorEmail.trim().toLowerCase(),
+    pseudonym: input.administratorPseudonym.trim(),
+    role: "administrator",
+    origin: "bootstrap",
     state: "active",
     createdAt: input.now,
   });
@@ -183,8 +195,7 @@ export async function adoptSourceIdentity(
     .update(installations)
     .set({
       state: "ready",
-      ownerId: input.ownerId,
-      workspaceId: input.workspaceId,
+      administratorId: input.ownerId,
       updatedAt: input.now,
     })
     .where(eq(installations.id, input.installationId));

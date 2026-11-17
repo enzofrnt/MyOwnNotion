@@ -323,7 +323,7 @@ describe("scoped MCP through the real official HTTP client", () => {
     });
     const item = await call(isolated.client, "read_item", { itemId: page.itemId });
     expect(JSON.stringify(item)).not.toContain(branchId);
-    await harness.api.built.context.search?.rebuild();
+    await harness.api.context.search?.rebuild();
     const searched = await call(client, "search", { query: "private", branchRootId: branchId });
     expect(searched.isError).toBe(false);
     expect(JSON.stringify(searched)).toContain("Permitted private text");
@@ -392,7 +392,7 @@ describe("scoped MCP through the real official HTTP client", () => {
       });
       expect(result.statusCode, result.body).toBe(201);
     }
-    await harness.api.built.context.search?.rebuild();
+    await harness.api.context.search?.rebuild();
     const scoped = await connect({
       actions: ["read", "search"],
       allContent: false,
@@ -704,7 +704,7 @@ describe("scoped MCP through the real official HTTP client", () => {
   });
   it("refuses editing a malformed protected document without rewriting its bytes", async () => {
     const { client } = await connect();
-    const content = harness.api.built.context.protectedContent;
+    const content = harness.api.context.protectedContent;
     if (content === undefined) throw new Error("Missing protected-content fixture");
     const invalidBody = {
       blocks: [
@@ -852,7 +852,7 @@ describe("scoped MCP through the real official HTTP client", () => {
     expect((await call(client, "search", { query: "Paginated" })).value.code).toBe(
       "mcp.branch-required",
     );
-    await harness.api.built.context.search?.rebuild();
+    await harness.api.context.search?.rebuild();
     const found: string[] = [];
     let cursor: string | undefined;
     do {
@@ -1195,20 +1195,25 @@ describe("scoped MCP through the real official HTTP client", () => {
       ).isError,
     ).toBe(true);
     expect((await call(client, "read_file", { itemId: branchId })).isError).toBe(true);
-    const search = harness.api.built.context.search;
+    const search = harness.api.context.search;
     if (search === undefined) throw new Error("Missing search fixture");
     vi.spyOn(search, "search").mockRejectedValueOnce(new Error("private unavailable query"));
     const unavailable = await call(client, "search", { query: "private unavailable query" });
     expect(unavailable.isError).toBe(true);
     expect(JSON.stringify(unavailable)).not.toContain("private unavailable query");
     vi.restoreAllMocks();
-    Object.defineProperty(harness.api.built.context, "search", { value: undefined });
+    const searchDescriptor = Object.getOwnPropertyDescriptor(harness.api.built.context, "search");
+    Object.defineProperty(harness.api.built.context, "search", {
+      configurable: true,
+      value: undefined,
+    });
     try {
       const disabled = await call(client, "search", { query: "private unavailable query" });
       expect(disabled.isError).toBe(true);
       expect(disabled.value.code).toBe("mcp.search-unavailable");
     } finally {
-      Object.defineProperty(harness.api.built.context, "search", { value: search });
+      if (searchDescriptor !== undefined)
+        Object.defineProperty(harness.api.built.context, "search", searchDescriptor);
     }
   });
 

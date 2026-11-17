@@ -90,7 +90,7 @@ describe("private files through authenticated HTTP", () => {
     });
     const count = async () =>
       (
-        await harness.built.context.db.execute(sql`
+        await harness.context.db.execute(sql`
       SELECT (SELECT count(*)::int FROM file_contents) AS contents,
         (SELECT count(*)::int FROM logical_files) AS files,
         (SELECT count(*)::int FROM mutations) AS mutations,
@@ -151,7 +151,7 @@ describe("private files through authenticated HTTP", () => {
 
   it("does not serve unverified content or substitute an unavailable protected filename", async () => {
     const id = await directImport();
-    const db = harness.built.context.db;
+    const db = harness.context.db;
     const { rows } = await db.execute<{ content_id: string; verified_at: Date }>(sql`
       SELECT l.content_id, c.verified_at FROM logical_files l JOIN file_contents c ON c.id=l.content_id WHERE l.item_id=${id}
     `);
@@ -168,7 +168,7 @@ describe("private files through authenticated HTTP", () => {
       sql`DELETE FROM protected_envelopes WHERE entity_id=${id} AND entity_type='file.metadata'`,
     );
     const missing = await owner({ method: "GET", url: `/v1/files/${id}/content` });
-    await harness.built.context.protectedContent?.writeFileMetadata(db, {
+    await harness.context.protectedContent?.writeFileMetadata(db, {
       kind: "file",
       id,
       recordVersion: 1,
@@ -374,7 +374,7 @@ describe("private files through authenticated HTTP", () => {
     try {
       const targetOwner = await authenticatedContent(target);
       const service = new BackupService({
-        context: harness.built.context,
+        context: harness.context,
         destination,
         applicationVersion: "0.1.0-test",
         seal: (source, filename) => sealBackupArchiveStream(archiveKey, source, filename),
@@ -385,8 +385,9 @@ describe("private files through authenticated HTTP", () => {
         archiveKey,
         await readFile(path.join(destinationRoot, outcome.name)),
       );
-      const { protectedContent, protectedFiles } = target.built.context;
-      const { pageOperationCrypto } = target.built;
+      const runtime = target.built.forWorkspace(target.workspaceId);
+      const { protectedContent, protectedFiles } = runtime;
+      const { pageOperationCrypto } = runtime;
       if (
         protectedContent === undefined ||
         protectedFiles === undefined ||
@@ -398,8 +399,8 @@ describe("private files through authenticated HTTP", () => {
           archive,
           createDatabaseRestoreTarget({
             tx,
-            workspaceId: target.built.context.workspaceId,
-            contentStore: target.built.context.contentStore,
+            workspaceId: target.workspaceId,
+            contentStore: target.context.contentStore,
             protectedContent,
             protectedFiles,
             pageOperationCrypto,

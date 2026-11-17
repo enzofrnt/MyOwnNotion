@@ -62,7 +62,7 @@ describe("revision retrieval", () => {
   it("410s when the snapshot has been pruned but the header survives", async () => {
     const page = await createItemViaApi(harness, { kind: "page", name: "Pruned page" });
     await editPage(page.itemId, page.revisionId, "supersede");
-    await harness.built.context.db
+    await harness.context.db
       .update(schema.revisions)
       .set({ snapshot: null })
       .where(eq(schema.revisions.id, page.revisionId));
@@ -153,7 +153,7 @@ describe("revision restoration", () => {
   it("410s when restoring an expired snapshot", async () => {
     const page = await createItemViaApi(harness, { kind: "page", name: "Expired source" });
     const v2 = await editPage(page.itemId, page.revisionId, "v2");
-    await harness.built.context.db
+    await harness.context.db
       .update(schema.revisions)
       .set({ snapshot: null })
       .where(eq(schema.revisions.id, page.revisionId));

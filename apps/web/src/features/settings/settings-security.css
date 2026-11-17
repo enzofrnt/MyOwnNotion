@@ -1,13 +1,24 @@
-/* Security document composition, including responsive states. This file owns these refinements. */
+/* Security document composition, including responsive states. This file owns these refinements.
+   Feature 058: the Account and Administration sections are the same kind of
+   document and share these rules rather than getting a second CSS owner. */
 /* —— Sécurité et appareils: a readable document, not a stack of loud cards —— */
 
 /* Width comes from the shared settings measure (settings.css), like every other section. */
-.settings-content[data-section="security"] {
+.settings-content:is(
+  [data-section="security"],
+  [data-section="account"],
+  [data-section="administration"]
+) {
   gap: var(--ui-space-8);
 }
 
 /* Server line: one quiet meta row above everything. */
-.settings-content[data-section="security"] .connection-status {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .connection-status {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -19,20 +30,43 @@
   line-height: 1.4;
 }
 
-.settings-content[data-section="security"] .connection-status > p {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .connection-status
+  > p {
   margin: 0;
 }
 
-.settings-content[data-section="security"] .connection-status code {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .connection-status
+  code {
   font-size: inherit;
   color: var(--ui-color-text);
 }
 
-.settings-content[data-section="security"] .connection-status .ui-async-state {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .connection-status
+  .ui-async-state {
   flex: 1 1 100%;
 }
 
-.settings-content[data-section="security"] .security-settings {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings {
   display: grid;
   gap: var(--ui-space-8);
   max-width: none;
@@ -80,13 +114,29 @@
 }
 
 /* Panneaux : plus de cartes, une section de document */
-.settings-content[data-section="security"] .ui-settings-panel,
-.settings-content[data-section="security"] .recovery-replacement-panel {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-settings-panel,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-replacement-panel {
   display: grid;
   gap: var(--ui-space-3);
 }
 
-.settings-content[data-section="security"] .ui-settings-panel > h2 {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-settings-panel
+  > h2 {
   margin: 0;
 }
 
@@ -106,7 +156,13 @@
 }
 
 .security-settings__panel-head h2,
-.settings-content[data-section="security"] .ui-settings-panel > h2 {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-settings-panel
+  > h2 {
   margin: 0;
   font-size: var(--ui-text-md);
   font-weight: 600;
@@ -126,9 +182,26 @@
 .security-settings__note,
 .security-note,
 .security-warning,
-.settings-content[data-section="security"] .mcp-panel p,
-.settings-content[data-section="security"] .mcp-panel small,
-.settings-content[data-section="security"] .key-rotation-panel__where {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .mcp-panel
+  p,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .mcp-panel
+  small,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .key-rotation-panel__where {
   margin: 0;
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-sm);
@@ -140,9 +213,24 @@
 }
 
 /* Lignes : label + méta à gauche, actions à droite, séparateur hairline */
-.settings-content[data-section="security"] .security-settings__rows,
-.settings-content[data-section="security"] .session-list,
-.settings-content[data-section="security"] .device-list {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__rows,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .session-list,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .device-list {
   display: grid;
   gap: 0;
   margin: 0;
@@ -150,8 +238,21 @@
   list-style: none;
 }
 
-.settings-content[data-section="security"] .security-settings__rows > li,
-.settings-content[data-section="security"] .ui-settings-panel > ul > li {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__rows
+  > li,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-settings-panel
+  > ul
+  > li {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -165,12 +266,23 @@
   border-radius: 0;
 }
 
-.settings-content[data-section="security"] .security-settings__rows > li:last-child {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__rows
+  > li:last-child {
   border-bottom: 0;
 }
 
 /* Rotation des clés : une ligne de document par politique, sans carte */
-.settings-content[data-section="security"] .key-rotation-panel__policies {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .key-rotation-panel__policies {
   display: grid;
   gap: 0;
   margin: 0;
@@ -178,24 +290,48 @@
   list-style: none;
 }
 
-.settings-content[data-section="security"] .key-rotation-panel__policies > li {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .key-rotation-panel__policies
+  > li {
   display: grid;
   gap: 0.15rem;
   padding: var(--ui-space-3) 0;
   border-bottom: 1px solid var(--settings-row-border);
 }
 
-.settings-content[data-section="security"] .key-rotation-panel__policies > li:last-child {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .key-rotation-panel__policies
+  > li:last-child {
   border-bottom: 0;
 }
 
-.settings-content[data-section="security"] .key-rotation-panel__policies h3 {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .key-rotation-panel__policies
+  h3 {
   margin: 0;
   font-size: var(--ui-text-sm);
   font-weight: 500;
 }
 
-.settings-content[data-section="security"] .key-rotation-panel__policies p {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .key-rotation-panel__policies
+  p {
   margin: 0;
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-xs);
@@ -222,8 +358,18 @@
 }
 
 .security-settings__row-meta,
-.settings-content[data-section="security"] .session-detail,
-.settings-content[data-section="security"] .device-detail {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .session-detail,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .device-detail {
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-xs);
   line-height: 1.4;
@@ -256,14 +402,24 @@
   justify-content: flex-start;
 }
 
-.settings-content[data-section="security"] .device-rename {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .device-rename {
   display: grid;
   gap: var(--ui-space-2);
   width: min(100%, 22rem);
 }
 
 /* Formulaires : champ + bouton sur une ligne quand possible */
-.settings-content[data-section="security"] .security-settings__inline-form {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__inline-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
@@ -271,16 +427,57 @@
   width: min(100%, 30rem);
 }
 
-.settings-content[data-section="security"] .security-settings__inline-form .ui-field {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__inline-form
+  .ui-field {
   min-width: 0;
 }
 
-.settings-content[data-section="security"] .security-settings input[type="password"] {
+/* The password section sets a password and its confirmation: one column, the
+   save action under the fields (feature 059). The two-column inline form is
+   still right for the single-field rows around it. */
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__password-form {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--ui-space-3);
+  width: min(100%, 30rem);
+}
+
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__password-form
+  > .ui-button {
+  justify-self: start;
+}
+
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings
+  input[type="password"] {
   width: 100%;
   max-width: none;
 }
 
-.settings-content[data-section="security"]
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
   .security-settings
   form:not(.security-settings__inline-form) {
   display: grid;
@@ -289,7 +486,11 @@
   width: min(100%, 22rem);
 }
 
-.settings-content[data-section="security"]
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
   .security-settings
   form:not(.security-settings__inline-form)
   .ui-button {
@@ -298,8 +499,18 @@
 
 /* Faits (kit, dates) : ligne clé/valeur compacte */
 .security-settings__facts,
-.settings-content[data-section="security"] .recovery-readiness-panel__facts,
-.settings-content[data-section="security"] .recovery-replacement-facts {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-readiness-panel__facts,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-replacement-facts {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ui-space-2) var(--ui-space-6);
@@ -308,40 +519,104 @@
 }
 
 .security-settings__facts > div,
-.settings-content[data-section="security"] .recovery-readiness-panel__facts > div,
-.settings-content[data-section="security"] .recovery-replacement-facts > div {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-readiness-panel__facts
+  > div,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-replacement-facts
+  > div {
   display: grid;
   gap: 0.1rem;
 }
 
 .security-settings__facts dt,
-.settings-content[data-section="security"] .recovery-readiness-panel__facts dt,
-.settings-content[data-section="security"] .recovery-replacement-facts dt {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-readiness-panel__facts
+  dt,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-replacement-facts
+  dt {
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-xs);
 }
 
 .security-settings__facts dd,
-.settings-content[data-section="security"] .recovery-readiness-panel__facts dd,
-.settings-content[data-section="security"] .recovery-replacement-facts dd {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-readiness-panel__facts
+  dd,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-replacement-facts
+  dd {
   margin: 0;
   overflow-wrap: anywhere;
 }
 
-.settings-content[data-section="security"] .recovery-revoke-actions {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-revoke-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ui-space-2);
 }
 
-.settings-content[data-section="security"] .recovery-readiness-panel > .ui-button,
-.settings-content[data-section="security"] .recovery-revoke > .ui-button {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-readiness-panel
+  > .ui-button,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .recovery-revoke
+  > .ui-button {
   justify-self: start;
 }
 
 /* États asynchrones restants (MCP, rotation) : texte calme, pas de bannière */
-.settings-content[data-section="security"] .ui-async-state,
-.settings-content[data-section="security"] .ui-async-state .ui-status {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status {
   color: var(--ui-color-text);
   background: transparent;
   border: 0;
@@ -350,33 +625,111 @@
   font-size: var(--ui-text-sm);
 }
 
-.settings-content[data-section="security"] .ui-async-state .ui-status {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status {
   padding: var(--ui-space-1) 0 var(--ui-space-1) var(--ui-space-3);
   border-left: 2px solid color-mix(in srgb, var(--ui-color-border) 70%, transparent);
 }
 
-.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="loading"],
-.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="syncing"],
-.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="pending"],
-.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="info"],
-.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="empty"],
-.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="unavailable"],
-.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="offline"],
-.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="success"] {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status[data-kind="loading"],
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status[data-kind="syncing"],
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status[data-kind="pending"],
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status[data-kind="info"],
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status[data-kind="empty"],
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status[data-kind="unavailable"],
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status[data-kind="offline"],
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status[data-kind="success"] {
   color: var(--ui-color-text-muted);
   border-left-color: color-mix(in srgb, var(--ui-color-text-muted) 40%, transparent);
 }
 
-.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="error"],
-.settings-content[data-section="security"] .ui-async-state .ui-status[data-kind="conflict"] {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status[data-kind="error"],
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status[data-kind="conflict"] {
   border-left-color: var(--ui-color-danger);
 }
 
-.settings-content[data-section="security"] .ui-async-state .ui-icon {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-icon {
   display: none;
 }
 
-.settings-content[data-section="security"] .ui-async-state .ui-status__title {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-async-state
+  .ui-status__title {
   font-weight: 500;
 }
 
@@ -386,8 +739,21 @@
     align-items: stretch;
   }
 
-  .settings-content[data-section="security"] .security-settings__rows > li,
-  .settings-content[data-section="security"] .ui-settings-panel > ul > li {
+  .settings-content:is(
+      [data-section="security"],
+      [data-section="account"],
+      [data-section="administration"]
+    )
+    .security-settings__rows
+    > li,
+  .settings-content:is(
+      [data-section="security"],
+      [data-section="account"],
+      [data-section="administration"]
+    )
+    .ui-settings-panel
+    > ul
+    > li {
     flex-direction: column;
     align-items: stretch;
   }
@@ -396,32 +762,68 @@
     justify-content: flex-start;
   }
 
-  .settings-content[data-section="security"] .security-settings__inline-form {
+  .settings-content:is(
+      [data-section="security"],
+      [data-section="account"],
+      [data-section="administration"]
+    )
+    .security-settings__inline-form {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .settings-content[data-section="security"] .security-settings__inline-form .ui-button {
+  .settings-content:is(
+      [data-section="security"],
+      [data-section="account"],
+      [data-section="administration"]
+    )
+    .security-settings__inline-form
+    .ui-button {
     justify-self: start;
   }
 }
 
-.settings-content[data-section="security"] .ui-settings-panel,
-.settings-content[data-section="security"] .recovery-replacement-panel {
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-}
-
-.settings-content[data-section="security"] .session-list,
-.settings-content[data-section="security"] .device-list,
-.settings-content[data-section="security"] .security-settings__rows {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .session-list,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .device-list,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__rows {
   gap: 0;
 }
 
-.settings-content[data-section="security"] .session-list > li,
-.settings-content[data-section="security"] .device-list > li,
-.settings-content[data-section="security"] .security-settings__rows > li {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .session-list
+  > li,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .device-list
+  > li,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__rows
+  > li {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -433,30 +835,76 @@
   border-radius: 0;
 }
 
-.settings-content[data-section="security"] .session-list > li:last-child,
-.settings-content[data-section="security"] .device-list > li:last-child,
-.settings-content[data-section="security"] .security-settings__rows > li:last-child {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .session-list
+  > li:last-child,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .device-list
+  > li:last-child,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__rows
+  > li:last-child {
   border-bottom: 0;
 }
 
-.settings-content[data-section="security"] .device-list > li {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .device-list
+  > li {
   align-items: flex-start;
 }
 
-.settings-content[data-section="security"] .device-list > li .security-settings__row-actions {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .device-list
+  > li
+  .security-settings__row-actions {
   padding-top: 0.1rem;
 }
 
-.settings-content[data-section="security"] .security-settings__note[data-kind="error"] {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__note[data-kind="error"] {
   color: var(--ui-color-danger-text);
 }
 
-.settings-content[data-section="security"] .security-settings__note[data-kind="success"] {
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .security-settings__note[data-kind="success"] {
   color: var(--ui-color-success);
 }
 
 /* Composition owns density, never the shared variant paint. */
-.settings-content[data-section="security"] .ui-button,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-button,
 .security-settings .ui-button {
   max-width: 100%;
   min-height: var(--ui-target-compact);
@@ -464,15 +912,99 @@
   white-space: normal;
 }
 
-.settings-content[data-section="security"] .ui-button__label,
+.settings-content:is(
+    [data-section="security"],
+    [data-section="account"],
+    [data-section="administration"]
+  )
+  .ui-button__label,
 .security-settings .ui-button__label {
   white-space: normal;
   overflow-wrap: anywhere;
 }
 
 @media (pointer: coarse) {
-  .settings-content[data-section="security"] .ui-button,
+  .settings-content:is(
+      [data-section="security"],
+      [data-section="account"],
+      [data-section="administration"]
+    )
+    .ui-button,
   .security-settings .ui-button {
     min-height: var(--ui-target);
+  }
+}
+
+/* —— Feature 058: Account and Administration documents —— */
+
+.account-settings__role {
+  color: var(--ui-color-text-muted);
+  font-weight: 400;
+}
+
+.account-settings__form {
+  display: grid;
+  gap: var(--ui-space-3);
+  max-width: 28rem;
+}
+
+.account-settings__form > .ui-button {
+  justify-self: start;
+}
+
+/* Registration mode: three choices, each with its consequence underneath,
+   so the administrator reads what a mode does before choosing it. */
+.administration__modes {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.administration__mode {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-3);
+  min-height: var(--ui-target);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-radius: var(--ui-radius-md);
+  cursor: pointer;
+}
+
+.administration__mode > span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.administration__mode input {
+  margin-top: 0.2rem;
+  accent-color: var(--ui-color-accent);
+}
+
+.administration__mode[data-selected="true"] {
+  background: color-mix(in srgb, var(--ui-color-text) 6%, transparent);
+}
+
+.administration__mode:focus-within {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+/* A new invitation link: shown once, selectable, never truncated. */
+.administration__link {
+  display: block;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-radius: var(--ui-radius-sm);
+  background: color-mix(in srgb, var(--ui-color-text) 6%, transparent);
+  font-size: var(--ui-text-xs);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+@media (max-width: 40rem) {
+  .settings-content:is([data-section="account"], [data-section="administration"])
+    .security-settings__panel-head {
+    flex-wrap: wrap;
   }
 }

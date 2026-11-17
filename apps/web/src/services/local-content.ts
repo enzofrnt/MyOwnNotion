@@ -1943,10 +1943,57 @@ export class LocalContentService {
 }
 
 let singleton: LocalContentService | null = null;
+let singletonAccount: string | null = null;
+
+/** Non-secret: which account this browser last opened, for offline starts. */
+const LAST_ACCOUNT_KEY = "myownnotion-last-account";
+
+function rememberedAccount(): string | null {
+  try {
+    return globalThis.localStorage?.getItem(LAST_ACCOUNT_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+let selectedAccount: string | null = rememberedAccount();
+
+/** One local database per account (feature 058); the legacy name before any. */
+export function localDatabaseNameFor(accountId: string | null): string {
+  return accountId === null ? "myownnotion-local" : `myownnotion-local-${accountId}`;
+}
+
+/**
+ * Points local content at the signed-in account (feature 058).
+ *
+ * Two accounts on one browser never share a local database: switching closes
+ * the previous account's projection (locking its decrypted state) and the next
+ * `localContent()` opens the other account's database.
+ */
+export function selectLocalAccount(accountId: string | null): void {
+  selectedAccount = accountId;
+  try {
+    if (accountId === null) globalThis.localStorage?.removeItem(LAST_ACCOUNT_KEY);
+    else globalThis.localStorage?.setItem(LAST_ACCOUNT_KEY, accountId);
+  } catch {
+    // Storage refused: the in-memory choice still holds for this page.
+  }
+  if (singleton !== null && singletonAccount !== accountId) {
+    void singleton.lockLocalData();
+    singleton = null;
+  }
+}
+
+/** Local content of one account, switching to it first when needed. */
+export function localContentFor(accountId: string | null): LocalContentService {
+  if (accountId !== null && accountId !== selectedAccount) selectLocalAccount(accountId);
+  return localContent();
+}
 
 export function localContent(): LocalContentService {
   if (singleton === null) {
-    singleton = new LocalContentService();
+    singleton = new LocalContentService(undefined, localDatabaseNameFor(selectedAccount));
+    singletonAccount = selectedAccount;
   }
   return singleton;
 }

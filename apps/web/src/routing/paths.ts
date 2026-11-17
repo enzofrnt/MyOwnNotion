@@ -1,11 +1,21 @@
 import { isUuid, type Uuid } from "@myownnotion/domain";
 
-export type SettingsRouteSection = "security" | "navigation" | "backups" | "storage-sync" | "trash";
+export type SettingsRouteSection =
+  | "account"
+  | "administration"
+  | "security"
+  | "navigation"
+  | "backups"
+  | "storage-sync"
+  | "trash";
 
 export type ApplicationDestination =
   | { readonly kind: "root"; readonly canonicalPath: "/" }
   | { readonly kind: "setup"; readonly canonicalPath: "/setup" }
   | { readonly kind: "login"; readonly canonicalPath: "/login" }
+  /** Open sign-up and invitation links (feature 058). */
+  | { readonly kind: "signup"; readonly canonicalPath: "/signup" }
+  | { readonly kind: "join"; readonly canonicalPath: "/join" }
   | { readonly kind: "notes"; readonly itemId: null; readonly canonicalPath: "/notes" }
   | { readonly kind: "note"; readonly itemId: Uuid; readonly canonicalPath: string }
   | { readonly kind: "graph"; readonly itemId: Uuid | null; readonly canonicalPath: string }
@@ -19,6 +29,8 @@ export type ApplicationDestination =
   | { readonly kind: "not-found"; readonly pathname: string; readonly reason: string };
 
 const SETTINGS_SECTIONS = new Set<SettingsRouteSection>([
+  "account",
+  "administration",
   "security",
   "navigation",
   "backups",
@@ -62,6 +74,8 @@ export function recognizeDestination(pathname: string): ApplicationDestination {
   if (canonicalCandidate === "/") return { kind: "root", canonicalPath: "/" };
   if (canonicalCandidate === "/setup") return { kind: "setup", canonicalPath: "/setup" };
   if (canonicalCandidate === "/login") return { kind: "login", canonicalPath: "/login" };
+  if (canonicalCandidate === "/signup") return { kind: "signup", canonicalPath: "/signup" };
+  if (canonicalCandidate === "/join") return { kind: "join", canonicalPath: "/join" };
   if (canonicalCandidate === "/notes") {
     return { kind: "notes", itemId: null, canonicalPath: "/notes" };
   }

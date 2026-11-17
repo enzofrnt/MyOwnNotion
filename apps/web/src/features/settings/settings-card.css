@@ -1,0 +1,409 @@
+/* Feature 061 — settings cards. One owner for card, row and pill chrome.
+   Scoped by class (no generic element selectors, L-009). */
+
+.settings-card {
+  --settings-card-pad: var(--ui-space-6);
+
+  display: grid;
+  min-width: 0;
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+}
+
+.settings-card[data-tone="danger"] {
+  border-color: color-mix(in srgb, var(--ui-color-danger) 55%, var(--ui-color-border));
+}
+
+.settings-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-4) var(--settings-card-pad);
+  border-bottom: 1px solid var(--ui-color-border);
+}
+
+.settings-card[data-tone="danger"] > .settings-card__header {
+  background: var(--ui-color-danger-soft);
+  border-radius: calc(var(--ui-radius-lg) - 1px) calc(var(--ui-radius-lg) - 1px) 0 0;
+}
+
+.settings-card__chip {
+  display: inline-grid;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  color: var(--ui-color-text-muted);
+  background: var(--ui-color-surface-sunken);
+  border-radius: var(--ui-radius-md);
+}
+
+.settings-card[data-tone="danger"] .settings-card__chip {
+  color: var(--ui-color-danger-text);
+  background: var(--ui-color-surface);
+}
+
+.settings-card__heading {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.settings-card__title {
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-text-md);
+  font-weight: 650;
+  line-height: var(--ui-leading-tight);
+}
+
+.settings-card__help {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.settings-card__aside {
+  flex: none;
+}
+
+.settings-card__body {
+  display: grid;
+  min-width: 0;
+  padding: var(--settings-card-pad);
+  gap: var(--ui-space-5);
+}
+
+/* Body made only of rows: rows own their padding and hairlines. */
+.settings-card__body[data-flush] {
+  padding: 0;
+  gap: 0;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-4) var(--ui-space-6);
+  flex-wrap: wrap;
+}
+
+.settings-card__body[data-flush] > .settings-row {
+  padding: var(--ui-space-4) var(--settings-card-pad);
+}
+
+.settings-card__body[data-flush] > .settings-row + .settings-row {
+  border-top: 1px solid var(--ui-color-border);
+}
+
+.settings-row__copy {
+  display: grid;
+  flex: 1 1 14rem;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.settings-row__label {
+  margin: 0;
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+}
+
+.settings-row__help {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  line-height: 1.45;
+}
+
+.settings-row__control {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.settings-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  flex-wrap: wrap;
+  padding: var(--ui-space-4) var(--settings-card-pad);
+  border-top: 1px solid var(--ui-color-border);
+}
+
+.settings-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem var(--ui-space-2);
+  color: var(--ui-color-text);
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--ui-color-surface-active);
+  border: 1px solid var(--ui-color-border-strong);
+  border-radius: var(--ui-radius-round);
+}
+
+.settings-pill[data-tone="success"] {
+  color: var(--ui-color-success);
+  background: var(--ui-color-success-soft);
+  border-color: color-mix(in srgb, var(--ui-color-success) 35%, transparent);
+}
+
+.settings-pill[data-tone="warning"] {
+  color: var(--ui-color-warning);
+  background: var(--ui-color-warning-soft);
+  border-color: color-mix(in srgb, var(--ui-color-warning) 35%, transparent);
+}
+
+.settings-pill[data-tone="danger"] {
+  color: var(--ui-color-danger-text);
+  background: var(--ui-color-danger-soft);
+  border-color: color-mix(in srgb, var(--ui-color-danger-text) 35%, transparent);
+}
+
+.settings-pill[data-tone="info"] {
+  color: var(--ui-color-accent-text);
+  background: var(--ui-color-accent-soft);
+  border-color: color-mix(in srgb, var(--ui-color-accent-text) 35%, transparent);
+}
+
+/* Compte: identity header + two-column fields. */
+.account-card__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+}
+
+.account-card__avatar {
+  display: inline-grid;
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  color: var(--ui-color-text-on-emphasis);
+  font-size: var(--ui-text-xl);
+  font-weight: 650;
+  background: var(--ui-color-accent-solid);
+  border-radius: var(--ui-radius-round);
+}
+
+.account-card__name {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.account-card__name strong {
+  overflow: hidden;
+  font-size: var(--ui-text-lg, var(--ui-text-md));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-card__email {
+  overflow: hidden;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-card__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--ui-space-4);
+}
+
+.account-card__form {
+  display: grid;
+}
+
+.account-card__form > .settings-card__body {
+  border-radius: 0;
+}
+
+.account-card__note {
+  margin: 0;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-size: var(--ui-text-sm);
+  border: 1px solid var(--ui-color-border-strong);
+  border-radius: var(--ui-radius-md);
+}
+
+.account-card__note[data-kind="error"] {
+  color: var(--ui-color-danger-text);
+  background: var(--ui-color-danger-soft);
+  border-color: color-mix(in srgb, var(--ui-color-danger-text) 35%, transparent);
+}
+
+.account-card__note[data-kind="success"] {
+  color: var(--ui-color-success);
+  background: var(--ui-color-success-soft);
+  border-color: color-mix(in srgb, var(--ui-color-success) 35%, transparent);
+}
+
+@media (max-width: 40rem) {
+  .settings-card {
+    --settings-card-pad: var(--ui-space-4);
+  }
+}
+
+.account-card {
+  display: grid;
+  gap: var(--ui-space-6);
+}
+
+.account-card__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Existing settings panels (security, backups, administration, trash…) share
+   the validated card look of `SettingsCard`: border, 12px radius, no shadow. */
+.settings-content .ui-settings-panel,
+.settings-content .panel {
+  padding: var(--ui-space-6);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+}
+
+.settings-content .ui-settings-panel > .security-settings__panel-head {
+  padding-bottom: var(--ui-space-4);
+  border-bottom: 1px solid var(--ui-color-border);
+}
+
+/* Group titles: a visible landmark above its cards, not a hairline. */
+.settings-content .security-group__eyebrow {
+  padding-bottom: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-text-sm);
+  letter-spacing: 0.04em;
+  border-bottom: 0;
+}
+
+.settings-content .security-group {
+  gap: var(--ui-space-3);
+}
+
+@media (max-width: 40rem) {
+  .settings-content .ui-settings-panel,
+  .settings-content .panel {
+    padding: var(--ui-space-4);
+  }
+}
+
+/* Sub-sections inside a card (backups, storage, page details): a hairline and
+   room, so each reads as its own stage like the MCP card. */
+.settings-content .ui-settings-panel h3 {
+  color: var(--ui-color-text);
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+}
+
+.full-backup-panel > section,
+.storage-panel > h3,
+.settings-page-details > .ui-section {
+  padding-top: var(--ui-space-5);
+  border-top: 1px solid var(--ui-color-border);
+}
+
+.full-backup-panel > section {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+
+.full-backup-panel > section > :is(h3, p) {
+  margin: 0;
+}
+
+.storage-panel > h3 {
+  margin: var(--ui-space-2) 0 0;
+}
+
+/* Portable exports: the same card, collapsed. */
+.portable-backup-details {
+  padding: var(--ui-space-4) var(--ui-space-6);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+}
+
+.portable-backup-details[open] {
+  padding-block: var(--ui-space-5);
+}
+
+@media (max-width: 40rem) {
+  .portable-backup-details {
+    padding-inline: var(--ui-space-4);
+  }
+}
+
+/* Section-level feedback (Sécurité) is a toast: it never inserts itself above
+   the content and pushes the page down (L-068). */
+.settings-content .security-settings__note[data-testid="security-message"] {
+  position: fixed;
+  z-index: var(--ui-layer-toast, var(--ui-layer-dialog));
+  bottom: var(--ui-space-6);
+  left: 50%;
+  width: max-content;
+  max-width: min(32rem, calc(100vw - 2 * var(--ui-space-4)));
+  margin: 0;
+  padding: var(--ui-space-3) var(--ui-space-4);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid var(--ui-color-border-strong);
+  border-radius: var(--ui-radius-md);
+  box-shadow: var(--ui-shadow-dialog);
+  transform: translateX(-50%);
+}
+
+/* One look for every destructive action in settings (owner: "toutes les suppressions
+   ne se ressemblent pas"): neutral at rest, red on hover/focus — L-021, L-069. */
+.settings-content .ui-button:is([data-variant="danger"], [data-tone="destructive"]) {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border-color: var(--ui-color-border-strong);
+}
+
+.settings-content
+  .ui-button:is([data-variant="danger"], [data-tone="destructive"]):is(:hover, :focus-visible):not(
+    :disabled
+  ) {
+  color: var(--ui-color-danger-text);
+  background: var(--ui-menu-item-danger-hover-bg);
+  border-color: var(--ui-color-danger-text);
+}
+
+/* Server connection: one row, host on the left, availability pill on the right. */
+.connection-status__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3) var(--ui-space-4);
+}
+
+.connection-status__copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.connection-status__title {
+  margin: 0;
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+}
+
+.connection-status__copy p {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+  overflow-wrap: anywhere;
+}

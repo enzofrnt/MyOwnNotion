@@ -17,6 +17,7 @@ import {
 } from "./app.ts";
 
 const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
+export const PAGE_OPERATION_WORKSPACE_ID = "018f2b7c-0000-7000-8000-0000000005a1" as Uuid;
 export const PAGE_OPERATION_OWNER_ID = "018f2b7c-0000-7000-8000-0000000000bb";
 export const PAGE_OPERATION_DEVICE_ID = "018f2b7c-0000-7000-8000-0000000000cc" as Uuid;
 const PASSWORD = "correct horse battery staple";
@@ -81,19 +82,19 @@ export async function createAuthenticatedPageOperationHarness(
         installations, protected_envelopes, changes, mutations, file_usages, logical_files,
         relationships, placements, revision_parents, page_documents, revisions, items CASCADE
     `);
+    // Feature 058: the suite's account owns its own workspace; name it once.
+    api.workspaceId = PAGE_OPERATION_WORKSPACE_ID;
     await createInstallation(api.built.database.db, {
       id: INSTALLATION_ID,
       sourceLineageId: INSTALLATION_ID,
       schemaVersion: 1,
     });
     await api.built.database.db.execute(sql`
-      INSERT INTO owners (id, installation_id, state)
-      VALUES (${PAGE_OPERATION_OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active')
+      WITH ws AS (INSERT INTO workspaces (id, schema_version) VALUES (${api.workspaceId}::uuid, 1) ON CONFLICT (id) DO UPDATE SET schema_version = workspaces.schema_version RETURNING id) INSERT INTO owners (id, installation_id, state, workspace_id, email, email_normalized, pseudonym, role, origin) SELECT ${PAGE_OPERATION_OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active', ws.id, ${PAGE_OPERATION_OWNER_ID}::uuid::text || '@example.test', ${PAGE_OPERATION_OWNER_ID}::uuid::text || '@example.test', 'Owner', 'administrator', 'bootstrap' FROM ws
     `);
     await api.built.database.db.execute(sql`
       UPDATE installations
-         SET state = 'ready', owner_id = ${PAGE_OPERATION_OWNER_ID}::uuid,
-             workspace_id = ${api.built.context.workspaceId}::uuid
+         SET state = 'ready', administrator_id = ${PAGE_OPERATION_OWNER_ID}::uuid
        WHERE id = ${INSTALLATION_ID}::uuid
     `);
     await api.built.database.db.execute(sql`
@@ -115,6 +116,7 @@ export async function createAuthenticatedPageOperationHarness(
       url: "/v1/auth/login/password",
       headers: currentProtocolHeaders(),
       payload: {
+        email: `${PAGE_OPERATION_OWNER_ID}@example.test`,
         password: PASSWORD,
         device: {
           deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",

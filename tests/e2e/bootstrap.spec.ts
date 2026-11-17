@@ -1,12 +1,12 @@
 /**
- * First-run bootstrap journeys (T028 / T135, feature 002).
+ * First launch (feature 058, US1) and passkey sign-in per account (US2).
  *
- * Operator flow: open → create passkey → create password → confirm. Recovery
- * kits are settings concerns after readiness.
+ * One form creates the administrator — email, pseudonym, password — and the
+ * workspace opens. A passkey is offered and can be skipped. Once an
+ * administrator exists, the setup screen is gone for everyone.
  *
- * **The ceremony needs a virtual authenticator, which only Chromium exposes
- * through CDP.** Journeys that drive a real passkey therefore skip on Firefox
- * and WebKit.
+ * **Passkey ceremonies need a virtual authenticator, which only Chromium
+ * exposes through CDP.** Those journeys skip on Firefox and WebKit.
  */
 
 import type { CDPSession, Page } from "@playwright/test";
@@ -16,6 +16,8 @@ import { readCommittedCounts, resetSecurityInstallation } from "./reset-installa
 test.beforeEach(async () => {
   await resetSecurityInstallation();
 });
+
+const PASSWORD = "acceptable passphrase for e2e";
 
 /** Installs a virtual authenticator that auto-approves user verification. */
 async function attachAuthenticator(page: Page): Promise<CDPSession> {
@@ -34,12 +36,21 @@ async function attachAuthenticator(page: Page): Promise<CDPSession> {
   return client;
 }
 
-async function completeBootstrap(page: Page): Promise<void> {
-  await page.getByTestId("begin-setup").click();
-  await expect(page.getByTestId("bootstrap-password")).toBeVisible({ timeout: 30_000 });
-  await page.getByTestId("bootstrap-password").fill("acceptable-passphrase");
-  await page.getByTestId("bootstrap-password-submit").click();
-  await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+async function fillAdministrator(page: Page, email = "admin@e2e.test"): Promise<void> {
+  await expect(page.getByTestId("bootstrap-form")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("bootstrap-email").fill(email);
+  await page.getByTestId("bootstrap-pseudonym").fill("Admin");
+  await page.getByTestId("bootstrap-password").fill(PASSWORD);
+  await page.getByTestId("bootstrap-password-confirm").fill(PASSWORD);
+  await page.getByTestId("bootstrap-submit").click();
+}
+
+/** The passkey offer appears where WebAuthn exists; other browsers go straight on. */
+async function skipPasskeyOffer(page: Page): Promise<void> {
+  const skip = page.getByTestId("bootstrap-skip-passkey");
+  const workspace = page.getByTestId("workspace-shell");
+  await expect(skip.or(workspace)).toBeVisible({ timeout: 30_000 });
+  if (await skip.isVisible()) await skip.click();
 }
 
 async function signOut(page: Page): Promise<void> {
@@ -59,134 +70,79 @@ async function signOut(page: Page): Promise<void> {
   await page.reload();
 }
 
-test.describe("the first-run gate", () => {
-  test("an installation with no owner shows setup, not the workspace", async ({ page }) => {
+test.describe("first launch", () => {
+  test("offers only the administrator form on a fresh installation", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByTestId("begin-setup")).toBeVisible();
+    await expect(page.getByTestId("bootstrap-form")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("bootstrap-submit")).toBeDisabled();
+    if (process.env["MYOWNNOTION_058_EVIDENCE"] === "1")
+      await page.screenshot({
+        path: `specs/058-multi-user-accounts/evidence/setup-${test.info().project.name}.png`,
+        fullPage: true,
+      });
     await expect(page.getByTestId("workspace-shell")).toHaveCount(0);
-  });
-
-  test("the page states the committed counts, and they are zero", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByTestId("owner-count")).toHaveText("0");
-    await expect(page.getByTestId("workspace-count")).toHaveText("0");
     expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
   });
 
-  test("setup is reachable and operable from the keyboard alone", async ({ page }) => {
-    await page.goto("/");
-    const begin = page.getByTestId("begin-setup");
-    await expect(begin).toBeVisible();
-    await begin.focus();
-    await expect(begin).toBeFocused();
-  });
-
-  test("the heading structure is navigable", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Configurer cette installation",
-    );
-    await expect(
-      page.getByRole("heading", { level: 2, name: "Créer la passkey du propriétaire" }),
-    ).toBeVisible();
-  });
-});
-
-test.describe("the full ceremony", () => {
-  test.beforeEach(({ browserName }) => {
-    test.skip(
-      browserName !== "chromium",
-      "a virtual authenticator is only available through Chromium's CDP",
-    );
-  });
-
-  test("a fresh install reaches 1/1 after passkey then password", async ({ page }) => {
-    await attachAuthenticator(page);
-    await page.goto("/");
-
-    await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("bootstrap-password")).toBeVisible({ timeout: 30_000 });
-
-    expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
-    await expect(page.getByTestId("owner-count")).toHaveText("0");
-
-    await page.getByTestId("bootstrap-password").fill("acceptable-passphrase");
-    await page.getByTestId("bootstrap-password-submit").click();
-
-    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
-    expect(await readCommittedCounts()).toEqual({ ownerCount: 1, workspaceCount: 1 });
-  });
-
-  test("the bootstrap passkey signs the same browser back into its own device", async ({
+  test("creates the administrator in under two minutes and opens the workspace", async ({
     page,
   }) => {
-    await attachAuthenticator(page);
+    const started = Date.now();
     await page.goto("/");
-    await completeBootstrap(page);
-    const bootstrapDeviceId = await page.evaluate(async () => {
-      const response = await fetch("/v1/auth/session", { credentials: "same-origin" });
-      return ((await response.json()) as { session: { deviceId: string } }).session.deviceId;
-    });
+    await fillAdministrator(page);
+    await skipPasskeyOffer(page);
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+    // SC-001: first launch completes well under two minutes.
+    expect(Date.now() - started).toBeLessThan(120_000);
+    expect(await readCommittedCounts()).toEqual({ ownerCount: 1, workspaceCount: 1 });
+  });
 
+  test("never shows the setup screen once an administrator exists", async ({ page }) => {
+    await page.goto("/");
+    await fillAdministrator(page);
+    await skipPasskeyOffer(page);
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
     await signOut(page);
-    await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+    await page.goto("/setup");
+    await expect(page.getByTestId("bootstrap-form")).toHaveCount(0);
+    await expect(
+      page.getByTestId("email-input").or(page.getByTestId("sign-in-passkey")),
+    ).toBeVisible({
       timeout: 30_000,
     });
-    await page.getByTestId("sign-in-passkey").click();
-    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
-    const loginDeviceId = await page.evaluate(async () => {
-      const response = await fetch("/v1/auth/session", { credentials: "same-origin" });
-      return ((await response.json()) as { session: { deviceId: string } }).session.deviceId;
-    });
-    expect(loginDeviceId).toBe(bootstrapDeviceId);
-  });
-
-  test("an interrupted attempt commits nothing and can be restarted", async ({ page }) => {
-    await attachAuthenticator(page);
-    await page.goto("/");
-    await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("bootstrap-password")).toBeVisible({ timeout: 30_000 });
-
-    await page.reload();
-
-    expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
-    await expect(page.getByTestId("begin-setup")).toBeVisible({ timeout: 30_000 });
-  });
-
-  test("once ownership commits, the workspace replaces setup on reload", async ({ page }) => {
-    await attachAuthenticator(page);
-    await page.goto("/");
-    await completeBootstrap(page);
-
-    await page.reload();
-    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("begin-setup")).toHaveCount(0);
-  });
-
-  test("a second browser can take over an incomplete attempt", async ({ page, context }) => {
-    await attachAuthenticator(page);
-    await page.goto("/");
-    await page.getByTestId("begin-setup").click();
-    await expect(page.getByTestId("bootstrap-password")).toBeVisible({ timeout: 30_000 });
-
-    const second = await context.newPage();
-    await attachAuthenticator(second);
-    await second.goto("/");
-    await completeBootstrap(second);
-
-    expect(await readCommittedCounts()).toEqual({ ownerCount: 1, workspaceCount: 1 });
-    await second.close();
   });
 });
 
-test.describe("responsive presentation", () => {
-  test("the setup call to action is reachable without horizontal scrolling", async ({ page }) => {
+test.describe("passkeys per account", () => {
+  test("adds a passkey at first launch and signs in with it alone", async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== "chromium", "virtual authenticators are a Chromium CDP feature");
+    await attachAuthenticator(page);
     await page.goto("/");
-    const begin = page.getByTestId("begin-setup");
-    await expect(begin).toBeVisible();
-    const box = await begin.boundingBox();
-    const width = page.viewportSize()?.width ?? 0;
-    expect(box).not.toBeNull();
-    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+    await fillAdministrator(page);
+    await page.getByTestId("bootstrap-add-passkey").click();
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+
+    await signOut(page);
+    await page.getByTestId("sign-in-passkey").click();
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("signs in with email and password after first launch", async ({ page }) => {
+    await page.goto("/");
+    await fillAdministrator(page, "Admin.Mixed@E2E.test");
+    await skipPasskeyOffer(page);
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+    await signOut(page);
+    const usePassword = page.getByTestId("use-password-instead");
+    await expect(usePassword.or(page.getByTestId("email-input"))).toBeVisible({ timeout: 30_000 });
+    if (await usePassword.isVisible()) await usePassword.click();
+    // Emails are case-insensitive identifiers.
+    await page.getByTestId("email-input").fill("admin.mixed@e2e.test");
+    await page.getByTestId("password-input").fill(PASSWORD);
+    await page.getByTestId("sign-in-password").click();
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
   });
 });

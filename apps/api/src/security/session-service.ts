@@ -24,6 +24,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   createSession,
   type Database,
+  findAccountById,
   findDevice,
   listSessions,
   type RevocationResult,
@@ -86,7 +87,13 @@ export interface IssuedSession {
 }
 
 export type SessionResolution =
-  | { readonly resolved: true; readonly session: SessionRecord }
+  | {
+      readonly resolved: true;
+      readonly session: SessionRecord;
+      /** The account's own workspace and role (feature 058). */
+      readonly workspaceId: string;
+      readonly role: "administrator" | "member";
+    }
   | { readonly resolved: false; readonly reason: "absent" | "rejected" | "device-revoked" };
 
 export class SessionService {
@@ -203,7 +210,17 @@ export class SessionService {
       // The session itself was verified. Its holder may learn that this
       // device lost access, but must never receive an authenticated principal.
       return { resolved: false, reason: "device-revoked" };
-    return { resolved: true, session: outcome.session };
+    // A disabled or recovering account's sessions stop at once (feature 058),
+    // exactly like an unknown cookie: the response must not say which.
+    const account = await findAccountById(this.#deps.db, outcome.session.ownerId);
+    if (account === null || account.state !== "active")
+      return { resolved: false, reason: "rejected" };
+    return {
+      resolved: true,
+      session: outcome.session,
+      workspaceId: account.workspaceId,
+      role: account.role,
+    };
   }
 
   async list(ownerId: string): Promise<readonly SessionRecord[]> {

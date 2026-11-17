@@ -23,7 +23,7 @@ it.each([false, true])(
   async (shared) => {
     const harness = await createProtectedFileHarness();
     try {
-      const { db, protectedFiles: files, workspaceId } = harness.built.context;
+      const { db, protectedFiles: files, workspaceId } = harness.context;
       if (files === undefined) throw new Error("Missing protected files");
       const originalBytes = Buffer.from("original retained private bytes");
       const filename = "historical-private-filename.txt";

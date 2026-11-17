@@ -286,6 +286,11 @@ export const SAFE_PROBLEM_CODES = [
   "protected_read_failed",
   "protected_write_failed",
   "internal_error",
+  // Accounts and registration (feature 058)
+  "already_initialized",
+  "registration_closed",
+  "invitation_unavailable",
+  "email_unavailable",
 ] as const;
 export type SafeProblemCode = (typeof SAFE_PROBLEM_CODES)[number];
 

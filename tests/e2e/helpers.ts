@@ -859,6 +859,8 @@ export async function convertItem(page: Page, itemName: string): Promise<void> {
 }
 
 type SettingsSection =
+  | "account"
+  | "administration"
   | "security"
   | "navigation"
   | "backups"

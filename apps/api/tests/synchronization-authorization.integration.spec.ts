@@ -63,7 +63,7 @@ beforeEach(async () => {
     schemaVersion: 1,
   });
   await harness.built.database.db.execute(
-    sql`INSERT INTO owners (id, installation_id, state) VALUES (${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active')`,
+    sql`WITH ws AS (INSERT INTO workspaces (id, schema_version) VALUES (gen_random_uuid(), 1) RETURNING id) INSERT INTO owners (id, installation_id, state, workspace_id, email, email_normalized, pseudonym, role, origin) SELECT ${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active', ws.id, ${OWNER_ID}::uuid::text || '@example.test', ${OWNER_ID}::uuid::text || '@example.test', 'Owner', 'member', 'administrator' FROM ws`,
   );
 });
 

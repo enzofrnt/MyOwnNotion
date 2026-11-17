@@ -46,7 +46,7 @@ async function exportArtifact(): Promise<{
     },
     { timeout: 5_000, interval: 25 },
   );
-  const [job] = await harness.built.context.db
+  const [job] = await harness.context.db
     .select()
     .from(schema.exports)
     .where(eq(schema.exports.id, exportId));
@@ -170,15 +170,15 @@ describe("structured canonical export (T074)", () => {
 describe("export status and artifacts", () => {
   it("resumes a pending export job left behind by a process restart", async () => {
     const exportId = generateUuidV7();
-    await harness.built.context.db.insert(schema.exports).values({
+    await harness.context.db.insert(schema.exports).values({
       id: exportId,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       status: "pending",
     });
 
-    await resumePendingExports(harness.built.context);
+    await resumePendingExports(harness.context);
 
-    const [row] = await harness.built.context.db
+    const [row] = await harness.context.db
       .select()
       .from(schema.exports)
       .where(eq(schema.exports.id, exportId));
@@ -188,18 +188,18 @@ describe("export status and artifacts", () => {
 
   it("finalizes a recovered job once when two processes discover it concurrently", async () => {
     const exportId = generateUuidV7();
-    await harness.built.context.db.insert(schema.exports).values({
+    await harness.context.db.insert(schema.exports).values({
       id: exportId,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       status: "pending",
     });
 
     await Promise.all([
-      resumePendingExports(harness.built.context),
-      resumePendingExports(harness.built.context),
+      resumePendingExports(harness.context),
+      resumePendingExports(harness.context),
     ]);
 
-    const [row] = await harness.built.context.db
+    const [row] = await harness.context.db
       .select()
       .from(schema.exports)
       .where(eq(schema.exports.id, exportId));
@@ -215,7 +215,7 @@ describe("export status and artifacts", () => {
 
   it("cleans unknown manifest properties before serving the digest-bound artifact", async () => {
     const exported = await exportArtifact();
-    await harness.built.context.db
+    await harness.context.db
       .update(schema.exports)
       .set({
         manifest: { ...exported.manifest, extra: "must not be serialized" },
@@ -238,7 +238,7 @@ describe("export status and artifacts", () => {
   it("refuses a manifest when its persisted digest diverges", async () => {
     const exported = await exportArtifact();
     const divergentDigest = exported.digest === "f".repeat(64) ? "e".repeat(64) : "f".repeat(64);
-    await harness.built.context.db
+    await harness.context.db
       .update(schema.exports)
       .set({ digest: divergentDigest })
       .where(eq(schema.exports.id, exported.exportId));
@@ -256,9 +256,9 @@ describe("export status and artifacts", () => {
 
   it("reports a pending job without a digest or download path", async () => {
     const exportId = generateUuidV7();
-    await harness.built.context.db.insert(schema.exports).values({
+    await harness.context.db.insert(schema.exports).values({
       id: exportId,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       status: "pending",
     });
     const response = await harness.built.app.inject({
@@ -286,7 +286,7 @@ describe("export status and artifacts", () => {
     const legacyManifest = {
       format: "myownnotion.export+json",
       formatVersion: 1,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       schemaVersion: 1,
       exportedAt: "2026-01-01T00:00:00.000Z",
       changeCursor: "",
@@ -302,15 +302,15 @@ describe("export status and artifacts", () => {
         revisions: 0,
       },
     };
-    await harness.built.context.db.insert(schema.exports).values([
+    await harness.context.db.insert(schema.exports).values([
       {
         id: pendingId,
-        workspaceId: harness.built.context.workspaceId,
+        workspaceId: harness.workspaceId,
         status: "pending",
       },
       {
         id: readyWithoutManifestId,
-        workspaceId: harness.built.context.workspaceId,
+        workspaceId: harness.workspaceId,
         status: "ready",
         ready: true,
         digest: "abc",
@@ -318,7 +318,7 @@ describe("export status and artifacts", () => {
       },
       {
         id: readyWithoutDigestId,
-        workspaceId: harness.built.context.workspaceId,
+        workspaceId: harness.workspaceId,
         status: "ready",
         ready: true,
         digest: null,
@@ -326,7 +326,7 @@ describe("export status and artifacts", () => {
       },
       {
         id: legacyManifestId,
-        workspaceId: harness.built.context.workspaceId,
+        workspaceId: harness.workspaceId,
         status: "ready",
         ready: true,
         digest: "a".repeat(64),

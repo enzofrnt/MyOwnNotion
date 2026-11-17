@@ -73,7 +73,8 @@ famille ; plusieurs classes de composition peuvent employer une primitive commun
 | `features/editor/editor.css` | BlockNote, slash menu, blocs, liens et chrome éditorial |
 | `features/editor/editor-table.css` | Tableau éditorial, resize/drag, rails et scrollport |
 | `features/settings/settings.css` | Shell et navigation des réglages, rubriques communes |
-| `features/settings/settings-security.css` | Document Sécurité, groupes, rangées et adaptations de ses panneaux |
+| `features/settings/settings-security.css` | Document Sécurité, groupes, rangées et adaptations de ses panneaux ; partagé par les documents Compte et Administration (058) |
+| `features/settings/settings-card.css` | Cartes de réglages (`SettingsCard`, `SettingsRow`, `SettingsPill`), chrome commun de tous les `.ui-settings-panel` / `.panel` sous `.settings-content`, sous-sections (061) |
 | `features/security/security.css` | Kit de récupération et parcours de remplacement/révocation |
 | `features/auth/auth.css` | Connexion, bootstrap, autorisation et connexion desktop |
 | `features/backup/backup.css` | Sauvegarde/restauration |
@@ -380,6 +381,10 @@ restent en place ; les nouveaux espacements communs utilisent l’échelle.
 - **Navigation** : outils `workspace-navigation__search/__graph`, rangées d’arbre
   et `navigation.css`. Icône + libellé à gauche, fond discret ; icônes de ligne
   révélées puis chrome seulement au survol du contrôle (L-001…008/L-013).
+- **Retour de formulaire** : `FormMessage` réserve une ligne (2 lignes de texte) et
+  `Field`/`PasswordField` acceptent `invalid` (bordure et libellé rouges). Une erreur ne
+  doit jamais décaler les champs ou l'action (connexion, inscription, installation,
+  confirmation d'identité) ; mesurer la position du bouton avant/après (061, `L-066`).
 - **Réglages** : `settings-content` et document Sécurité dans
   `settings-security.css`. Rangée `__row-main` avec libellé/aide puis
   `__row-actions`. Un document de sections, sans transformer chaque ligne en carte.
@@ -388,10 +393,29 @@ restent en place ; les nouveaux espacements communs utilisent l’échelle.
   gardent la peinture de leur variante ; les adaptations Sécurité règlent la
   géométrie et le retour à la ligne des libellés. Les détails de page séparent
   identité/relations et historique par un `gap` de section.
-- **Connexion** : `auth.css`, `.ui-auth-surface` et `.ui-auth-card` ; largeur
-  de formulaire 28 rem, gouttières de 16 px et sections transparentes. Le bootstrap
-  conserve une largeur supérieure pour ses instructions. Employer `Field` et
-  les variantes de boutons sans override général de leur peinture.
+- **Comptes (058, habillage 059)** : premier lancement, inscription et lien
+  d’invitation (`/setup`, `/signup`, `/join`) montent dans `AuthShell`
+  (`features/auth/auth-shell.tsx`) : une seule carte `.ui-auth-shell__card` sur le
+  canevas, mot-marque en typographie, un `h1`, un chapô, puis `.ui-auth-form`
+  (champs pleine largeur, action principale alignée à gauche). Les réglages
+  Compte et Administration réutilisent le document Sécurité ; les choix de
+  mode d’inscription sont des radios décrites (`.administration__mode`) et un
+  nouveau lien d’invitation n’est affiché qu’une fois, dans une modale avec copie.
+- **Connexion** : `auth.css` possède `.ui-auth-shell`, `.ui-auth-shell__*`,
+  `.ui-auth-step`, `.ui-auth-form`, `.ui-auth-separator` et `.ui-password-*` ;
+  le conteneur `.app-shell--auth` (même fichier) rend la page pleine hauteur
+  (`100dvh`) et centre la carte (28 rem max). Un seul niveau de surface : ne pas
+  réimbriquer `.ui-auth-card` dans les pages de compte (la page `Connexion desktop`
+  garde sa version sans cadre, scopée). Les champs passent par `Field` ; les mots
+  de passe par `PasswordField` partout où un mot de passe est créé (installation,
+  inscription, dialogues d’administration, réglages Sécurité) : bouton d’affichage
+  `aria-pressed`, bloc de robustesse repris de la surface de référence Giftlist
+  (cinq critères — longueur, minuscule, majuscule, chiffre, caractère spécial —,
+  échelle « très faible → très fort », compteur `x/5 règles`, `<meter>` natif),
+  et un champ de confirmation qui bloque la soumission en cas d’écart. Seul le
+  minimum contractuel de 12 caractères est exigé ; les quatre autres critères
+  restent des repères. Les descriptions des champs e-mail et mot de passe ont été
+  retirées (revue du 2026-11-17) : la liste de critères porte l’explication. Le bootstrap conserve ses instructions dans la carte, pas au-dessus.
 - **Recherche** : `search.css`, titre flexible avec `min-width: 0`, type non
   compressible et chemins qui reviennent à la ligne. Les libellés longs restent
   lisibles à 320 px sans repousser le type ni élargir le document.

@@ -47,12 +47,23 @@ export function registerSecurityAuditRoutes(
     },
     async (request, reply) => {
       reply.header("cache-control", "no-store");
-      if (deps.require(request, reply, {}) === null) return reply;
+      const owner = deps.require(request, reply, {});
+      if (owner === null) return reply;
       const query = request.query as { limit?: number };
       const events = await listAuditEvents(
         deps.db,
         { installationId: deps.installationId },
-        { limit: query.limit ?? 100, excludeActorClasses: ["mcp"] },
+        {
+          limit: query.limit ?? 100,
+          excludeActorClasses: ["mcp"],
+          // Each account reads its own trail; only the administrator also sees
+          // installation-level events that belong to no account (feature 058).
+          account: {
+            ownerId: owner.ownerId,
+            workspaceId: owner.workspaceId,
+            includeUnscoped: owner.role === "administrator",
+          },
+        },
       );
       return reply.status(200).send({
         events: events.map((event) => ({

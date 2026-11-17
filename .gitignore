@@ -101,3 +101,8 @@ Thumbs.db
 # Local tool binaries (shfmt) and the page-annotation spool; not repository content.
 .tools/
 .annotate/
+
+# Scratch caches written by local tooling (GitHub impact planner evidence,
+# Python bytecode from the vendored Spec Kit scripts). Never repository content.
+.tmp-gh-cache/
+.specify/scripts/python/__pycache__/

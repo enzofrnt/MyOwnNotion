@@ -127,7 +127,10 @@ export function UiLab({
         <div className="ui-lab__row">
           <LinkButton href="/__ui-lab?surface=login">Connexion</LinkButton>
           <LinkButton href="/__ui-lab?surface=setup">Première installation</LinkButton>
+          <LinkButton href="/__ui-lab?surface=signup">Créer un compte</LinkButton>
+          <LinkButton href="/__ui-lab?surface=join">Lien d’invitation</LinkButton>
           <LinkButton href="/__ui-lab?surface=connection">Adresse du serveur</LinkButton>
+          <LinkButton href="/__ui-lab?surface=settings-account">Réglages · Compte</LinkButton>
         </div>
       </section>
 

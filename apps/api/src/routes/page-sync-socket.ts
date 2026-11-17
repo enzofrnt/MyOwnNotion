@@ -20,6 +20,7 @@ import {
 } from "../security/realtime-authorization.ts";
 import type { RequestPrincipal } from "../security/request-context.ts";
 import { type SecurityConfig, trustedRealtimeOrigins } from "../security/security-config.ts";
+import { runInWorkspace } from "../workspace-scope.ts";
 
 type OwnerPrincipal = Extract<RequestPrincipal, { kind: "owner" }>;
 type PageSyncSessionFactory = (deps: PageSyncSessionDeps) => void;
@@ -152,7 +153,10 @@ export function registerPageSyncSocketRoutes(
           }),
         reauthorizeDevice: async () =>
           await reauthorizeRealtimeDevice({ db: deps.db, owner: principal }),
-        synchronize: async (input) => await synchronize(deps, input),
+        // Socket frames arrive outside the upgrade request's scope, so each
+        // one is bound explicitly to the account that opened the socket.
+        synchronize: async (input) =>
+          await runInWorkspace(principal.workspaceId, async () => await synchronize(deps, input)),
         observability: deps.observability,
       });
       for (const pending of pendingFrames.drain()) {

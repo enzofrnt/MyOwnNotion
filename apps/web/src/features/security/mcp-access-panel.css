@@ -86,8 +86,7 @@
   display: block;
 }
 .mcp-warning,
-.mcp-code,
-.mcp-reauth {
+.mcp-code {
   background: var(--ui-color-surface-sunken);
   border: 1px solid var(--ui-color-border);
   border-radius: var(--ui-radius-md);
@@ -176,4 +175,190 @@
   display: list-item;
   padding: 0;
   border: 0;
+}
+
+/* Feature 061: the MCP card reads as three stages (grant, inventory, journal),
+   each set off by a hairline, and the identity confirmation is a login-like modal. */
+/* The card header already carries the hairline above the list: no second one. */
+.mcp-panel > .mcp-audit {
+  padding-top: var(--ui-space-6);
+  border-top: 1px solid var(--ui-color-border);
+}
+
+.mcp-panel > .mcp-grant > h3,
+.mcp-panel > .mcp-inventory > h3 {
+  color: var(--ui-color-text);
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+}
+
+.mcp-reauth {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+.mcp-reauth-dialog .mcp-reauth .ui-button {
+  width: 100%;
+}
+
+@media (min-width: 40rem) {
+  .mcp-panel > .mcp-heading {
+    flex-wrap: nowrap;
+  }
+
+  .mcp-panel > .mcp-heading > div:first-child {
+    min-width: 0;
+  }
+}
+
+.mcp-reauth-dialog .ui-overlay__heading + .ui-overlay__description,
+.mcp-reauth-dialog .mcp-reauth {
+  margin-top: var(--ui-space-3);
+}
+
+/* Connections: one quiet row per access, hairlines between, actions on the right. */
+.mcp-panel .mcp-list {
+  gap: 0;
+}
+
+.mcp-panel .mcp-connection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3) var(--ui-space-6);
+  padding: var(--ui-space-4) 0;
+  border-top: 1px solid var(--ui-color-border);
+}
+
+.mcp-panel .mcp-connection:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.mcp-connection__main {
+  display: grid;
+  flex: 1 1 18rem;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.mcp-connection__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.mcp-connection__title strong {
+  color: var(--ui-color-text);
+  font-size: var(--ui-text-md);
+}
+
+.mcp-connection__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.mcp-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.mcp-grant-dialog .mcp-grant,
+.mcp-code-dialog,
+.mcp-reauth-dialog {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+/* The masked code: recognisable, never complete. Copy is the primary action. */
+.mcp-code__secret {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
+}
+
+.mcp-code__secret output {
+  flex: 1 1 10rem;
+  min-width: 0;
+  padding: var(--ui-space-3) var(--ui-space-4);
+  color: var(--ui-color-text);
+  font-family: var(--ui-font-mono);
+  letter-spacing: 0.06em;
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Reserved line: the copy confirmation never moves the dialog. */
+.mcp-code__status {
+  min-height: 1.5rem;
+}
+
+.mcp-code__how summary {
+  min-height: var(--ui-target-compact, 2rem);
+  cursor: pointer;
+}
+
+.mcp-code__how ol {
+  padding-inline-start: var(--ui-space-5);
+  display: grid;
+  gap: var(--ui-space-3);
+}
+
+/* Grant modal: compact. Two-column permissions, 32px rows, a footer that stays
+   in view so "Générer le code" never scrolls away. */
+.mcp-grant-dialog .mcp-grant {
+  gap: var(--ui-space-5);
+  margin-top: var(--ui-space-4);
+}
+
+.mcp-grant-dialog .mcp-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-1) var(--ui-space-4);
+}
+
+.mcp-grant-dialog .mcp-choices label,
+.mcp-grant-dialog .mcp-choice {
+  min-height: var(--ui-target-compact, 2rem);
+}
+
+.mcp-grant-dialog .mcp-grant .ui-field,
+.mcp-grant-dialog .mcp-grant .ui-field__control {
+  max-width: 100%;
+}
+
+.mcp-grant-dialog .mcp-dialog-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--ui-space-6));
+  margin: 0 calc(-1 * var(--ui-space-6)) calc(-1 * var(--ui-space-6));
+  padding: var(--ui-space-4) var(--ui-space-6);
+  background: var(--ui-color-surface-raised);
+  border-top: 1px solid var(--ui-color-border);
+}
+
+.mcp-grant-dialog .ui-overlay__description,
+.mcp-code-dialog .ui-overlay__description,
+.mcp-reauth-dialog .ui-overlay__description {
+  margin: var(--ui-space-2) 0 0;
+}
+
+@media (max-width: 40rem) {
+  .mcp-grant-dialog .mcp-choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The generic security form is 22rem wide; the grant modal uses its full width. */
+.settings-content[data-section] .security-settings .mcp-grant-dialog form.mcp-grant:not(.x) {
+  width: 100%;
 }

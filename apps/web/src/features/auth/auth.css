@@ -1,95 +1,316 @@
-/* Owner: features/auth/auth.css. See docs/design/ui-system.md before extending. */
-/* First-run setup (T033). Sized in relative units and single-column by
-   default so the flow works at a phone width without horizontal scrolling. */
-.bootstrap-page {
-  max-width: 42rem;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
+/* Owner: features/auth/auth.css — account surfaces (setup, sign-in, sign-up,
+   invitation), the auth shell and the password field (feature 059).
+   See docs/design/ui-system.md before extending. */
 
-.bootstrap-counts {
-  font-variant-numeric: tabular-nums;
+/* --- Auth shell ----------------------------------------------------------
+   The card is the only interactive surface on the page: everything outside it
+   is canvas. `min-height` keeps the card centred on short pages and lets long
+   ones scroll normally. */
+.app-shell--auth {
+  max-width: none;
   margin: 0;
+  padding: 0;
 }
 
-/* Reserves its line whether or not a message is present, so an announcement
-   does not shift the controls under the pointer or the focus ring. */
-.bootstrap-message {
-  min-height: 1.5rem;
-  margin: 0;
+.ui-auth-shell {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: clamp(var(--ui-space-6), 8vh, var(--ui-space-12)) var(--ui-space-4);
+  background:
+    radial-gradient(
+      42rem 24rem at 50% -12%,
+      color-mix(in srgb, var(--ui-color-accent-soft) 70%, transparent),
+      transparent 70%
+    ),
+    var(--ui-color-canvas);
 }
 
-.bootstrap-message:not(:empty) {
-  padding: 0.5rem 0.75rem;
-  border-left: 3px solid currentColor;
-}
-
-.login-page {
-  max-width: 28rem;
-  margin: 0 auto;
-  padding: clamp(var(--ui-space-8), 10vh, 6rem) var(--ui-space-4) var(--ui-space-12);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-/* The security document is styled by settings.css + settings-security.css
-   only (scoped on `.settings-content[data-section="security"]`). Do not add
-   `.security-settings` rules here: two owners produced conflicting layouts. */
-
-/* Reserves its line whether or not a message is present, so an announcement
-   does not shift the control under the pointer or the focus ring. */
-.login-message {
-  min-height: 1.5rem;
-  margin: 0;
-}
-
-.login-message:not(:empty) {
-  padding: 0.5rem 0.75rem;
-  border-left: 3px solid currentColor;
-}
-
-.login-page form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-4);
-  align-items: flex-start;
-}
-
-.login-page .ui-field {
+.ui-auth-shell__card {
+  display: grid;
   width: 100%;
+  max-width: 28rem;
+  min-width: 0;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-6);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-card-raised);
 }
 
-/* Every control stays reachable by thumb: these screens are used under
-   stress, often on a phone. */
-.ui-auth-surface > h1 {
+.ui-auth-shell__wordmark {
   margin: 0;
+  color: var(--ui-color-text-subtle);
+  font-size: var(--ui-text-xs);
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.ui-auth-shell__title {
+  margin: 0;
+  color: var(--ui-color-text);
   font-size: var(--ui-text-2xl);
   font-weight: 650;
   line-height: var(--ui-leading-tight);
 }
 
-.ui-auth-surface .ui-auth-card {
-  padding: var(--ui-space-5) 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-}
-
-.ui-auth-surface .ui-auth-card > h2 {
-  margin: 0;
-  font-size: var(--ui-text-md);
-  font-weight: 600;
-}
-
-.ui-auth-surface .ui-auth-card > p {
+.ui-auth-shell__lead {
   margin: 0;
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-sm);
   line-height: var(--ui-leading-normal);
+}
+
+.ui-auth-shell__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-4);
+}
+
+.ui-auth-shell__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-2);
+  padding-top: var(--ui-space-4);
+  border-top: 1px solid var(--ui-color-border);
+}
+
+/* One step of the flow (a form, a passkey offer): stacked, never a nested card. */
+.ui-auth-step {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-3);
+}
+
+.ui-auth-step > h2 {
+  margin: 0;
+  color: var(--ui-color-text);
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+}
+
+.ui-auth-step > p {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+  line-height: var(--ui-leading-normal);
+}
+
+/* Account forms: one column, full-width fields, the primary action left-aligned
+   under them so the card does not read as a full-width button stack. */
+.ui-auth-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ui-space-4);
+  margin-top: var(--ui-space-1);
+}
+
+.ui-auth-form .ui-field {
+  width: 100%;
+}
+
+/* One full-width primary per step, like the card's own field column: the
+   action never becomes a differently-sized button between states. */
+.ui-auth-form > .ui-button,
+.ui-auth-step > .ui-actions > .ui-button {
+  width: 100%;
+}
+
+.ui-auth-step > .ui-actions {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+.ui-auth-alternatives {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-2);
+}
+
+/* A labelled separation between the primary action and the alternative
+   credential, so the second one never reads as a second primary. */
+.ui-auth-separator {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--ui-space-3);
+  margin: 0;
+  color: var(--ui-color-text-subtle);
+  font-size: var(--ui-text-xs);
+}
+
+.ui-auth-separator::before,
+.ui-auth-separator::after {
+  content: "";
+  height: 1px;
+  background: var(--ui-color-border);
+}
+
+/* --- Password field ------------------------------------------------------ */
+
+.ui-password-field {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-2);
+}
+
+.ui-password-strength {
+  display: grid;
+  gap: var(--ui-space-1);
+}
+
+/* Native <meter> restyled as the strength bar: the element is the accessible
+   widget (min/max/value + label), the paint is ours. */
+.ui-password-strength__meter {
+  width: 100%;
+  height: 0.375rem;
+  appearance: none;
+  background: var(--ui-color-surface-sunken);
+  border: 0;
+  border-radius: var(--ui-radius-round);
+  overflow: hidden;
+  color: var(--ui-color-danger);
+}
+
+.ui-password-strength__meter::-webkit-meter-bar {
+  background: transparent;
+  border: 0;
+}
+
+.ui-password-strength__meter::-webkit-meter-optimum-value,
+.ui-password-strength__meter::-webkit-meter-suboptimum-value,
+.ui-password-strength__meter::-webkit-meter-even-less-good-value {
+  background: currentColor;
+  transition: background-color var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.ui-password-strength[data-level="1"] .ui-password-strength__meter {
+  color: var(--ui-color-danger);
+}
+
+.ui-password-strength[data-level="2"] .ui-password-strength__meter {
+  color: var(--ui-color-warning);
+}
+
+.ui-password-strength[data-level="3"] .ui-password-strength__meter {
+  color: var(--ui-color-accent);
+}
+
+.ui-password-strength[data-level="4"] .ui-password-strength__meter {
+  color: var(--ui-color-success);
+}
+
+.ui-password-strength__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+}
+
+.ui-password-strength__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-password-strength__level {
+  color: var(--ui-color-text);
+  font-weight: 600;
+}
+
+.ui-password-strength__rules {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--ui-text-xs);
+}
+
+.ui-password-strength__rules li {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  color: var(--ui-color-text-muted);
+}
+
+.ui-password-strength__rules li::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--ui-color-border-strong);
+  border-radius: var(--ui-radius-round);
+}
+
+.ui-password-strength__rules li[data-met="true"] {
+  color: var(--ui-color-text);
+}
+
+.ui-password-strength__rules li[data-met="true"]::before {
+  background: var(--ui-color-success);
+}
+
+.ui-password-strength__tag {
+  color: var(--ui-color-text-subtle);
+}
+
+.ui-password-strength__hint {
+  margin: 0;
+  color: var(--ui-color-text-subtle);
+  font-size: var(--ui-text-xs);
+  line-height: var(--ui-leading-normal);
+}
+
+/* --- Setup status -------------------------------------------------------- */
+
+.bootstrap-counts {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reserves its line whether or not a message is present, so an announcement
+   does not shift the controls under the pointer or the focus ring. */
+.bootstrap-message,
+.login-message {
+  min-height: 1.5rem;
+  margin: 0;
+}
+
+.bootstrap-message:not(:empty),
+.login-message:not(:empty) {
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid currentColor;
+}
+
+/* --- Desktop connection window (unchanged by feature 059) ---------------- */
+
+.desktop-connection-page {
+  display: grid;
+  max-width: 28rem;
+  gap: var(--ui-space-4);
+  margin: 0 auto;
+  padding: clamp(var(--ui-space-8), 10vh, 6rem) var(--ui-space-4) var(--ui-space-12);
+}
+
+.desktop-connection-page > p {
+  color: var(--ui-color-text-muted);
+}
+
+/* That page keeps its borderless panel; the card styling belongs to the web
+   account surfaces only. */
+.desktop-connection-page .ui-auth-card {
+  padding: var(--ui-space-5) 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .login-page button.link,
@@ -99,16 +320,4 @@
   border: none;
   text-decoration: underline;
   cursor: pointer;
-}
-
-.desktop-connection-page {
-  display: grid;
-  gap: var(--ui-space-4);
-  max-width: 28rem;
-  margin: 0 auto;
-  padding: clamp(var(--ui-space-8), 10vh, 6rem) var(--ui-space-4) var(--ui-space-12);
-}
-
-.desktop-connection-page > p {
-  color: var(--ui-color-text-muted);
 }
