@@ -182,6 +182,21 @@ test("a restore accepts newer offline work instead of replacing it", async ({
 
     await admin(["restore", "apply", "--id", backupId, "--yes"]);
     await second.context.close();
+    // The restore command returns once it has applied the archive, but the next
+    // steps depend on the *restored* state being what a reader now sees. Read it
+    // from a fresh device before this page reconnects: without this witness, a
+    // page that reconnects first silently keeps the pre-restore server text and
+    // the final assertion blames the wrong step.
+    verifier = await openSecondDevice(browser, baseURL);
+    await openWorkspace(verifier.page);
+    await selectItem(verifier.page, pageName);
+    await waitForEditorSettled(verifier.page);
+    await expect(verifier.page.locator('[data-testid="block-editor"]:visible')).not.toContainText(
+      "version serveur à restaurer",
+    );
+    await verifier.context.close();
+    verifier = null;
+
     await context.setOffline(false);
     await waitForSynchronized(page);
     await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(
