@@ -159,6 +159,43 @@ describe("every private route answers B for A's identifiers exactly as for nothi
     }
   });
 
+  it("builds B's canonical export without A's revisions making it incomplete", async () => {
+    // A's page has a revision. Before the export scoped revisions through their
+    // item, B's manifest referenced an item it deliberately did not contain, so
+    // the archive was refused as incomplete — and A's revision metadata travelled
+    // with B's backup.
+    const started = await bob({
+      method: "POST",
+      url: "/v1/export",
+      headers: idempotencyHeaders(),
+      payload: {},
+    });
+    expect(started.statusCode, started.body).toBe(202);
+    const exportId = started.json().exportId as string;
+    let status = "pending";
+    await expect
+      .poll(
+        async () => {
+          status = (await bob({ method: "GET", url: `/v1/export/${exportId}` })).json()
+            .status as string;
+          return status;
+        },
+        { timeout: 10_000, message: "the export left the pending state" },
+      )
+      .not.toBe("pending");
+    expect(status, "the export was produced, not refused").toBe("ready");
+    const artifact = await bob({ method: "GET", url: `/v1/export/${exportId}/artifact` });
+    expect(artifact.statusCode, artifact.body).toBe(200);
+    const manifest = artifact.json() as {
+      readonly items: readonly { readonly id: string }[];
+      readonly revisions: readonly { readonly id: string; readonly itemId: string }[];
+    };
+    const itemIds = new Set(manifest.items.map((item) => item.id));
+    expect(manifest.revisions.every((revision) => itemIds.has(revision.itemId))).toBe(true);
+    expect(artifact.body).not.toContain(ids["revision"] as string);
+    expect(artifact.body).not.toContain(ids["item"] as string);
+  });
+
   it("finds A's content for A, so the checks above are not vacuous", async () => {
     const own = await alice({ method: "GET", url: `/v1/items/${ids["item"]}` });
     expect(own.statusCode).toBe(200);
