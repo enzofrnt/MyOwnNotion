@@ -498,13 +498,30 @@ export async function openWorkspace(
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(shell).toBeVisible({ timeout: WORKSPACE_BOOT_TIMEOUT_MS });
     }
-    await expect(
-      page
-        .locator(
-          '[data-testid="active-item-title"], [data-testid="active-item-heading"], .entry-panel',
-        )
-        .first(),
-    ).toBeVisible({ timeout: WORKSPACE_BOOT_TIMEOUT_MS });
+    try {
+      await expect(
+        page
+          .locator(
+            '[data-testid="active-item-title"], [data-testid="active-item-heading"], .entry-panel',
+          )
+          .first(),
+      ).toBeVisible({ timeout: WORKSPACE_BOOT_TIMEOUT_MS });
+    } catch (error) {
+      // The application can refuse to boot and render its recovery state: that is
+      // a state, not a slow page. Name it, so a failed journey reports what the
+      // product actually said instead of "locator not visible". `workspace-state-offline`
+      // is a legitimate offline state and is deliberately not read here.
+      const refusal = await page
+        .getByTestId("workspace-state-error")
+        .innerText()
+        .catch(() => null);
+      if (refusal !== null) {
+        throw new Error(`workspace refused to boot: ${refusal.replace(/\s+/g, " ").trim()}`, {
+          cause: error,
+        });
+      }
+      throw error;
+    }
     // Wait for the initial load (tree or empty state) to settle. On a phone the
     // navigation is a closed modal drawer, so readiness is represented by the
     // settled content being attached rather than necessarily visible. Derived

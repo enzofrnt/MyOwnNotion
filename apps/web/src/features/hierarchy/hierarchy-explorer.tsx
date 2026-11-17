@@ -137,8 +137,13 @@ import {
   type StructuredHostKind,
   visibleWarmedPageIds,
 } from "./page-canvas-selection.ts";
-
 import { resolveLocalPageLinkTarget } from "./page-link-target.ts";
+import {
+  classifyWorkspaceBootFailure,
+  describeWorkspaceBootFailure,
+  workspaceBootFailureDetail,
+  workspaceBootFailureProblem,
+} from "./workspace-boot-failure.ts";
 
 type LoadState = "loading" | "ready" | "error";
 type LoadPhase = "initializing" | "reading-local" | "seeding" | "navigation" | "refreshing";
@@ -458,6 +463,8 @@ function HierarchyExplorerContent({
   trashedItemsRef.current = trashedItems;
   const [projectionRevision, setProjectionRevision] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  /** Why the boot failed, so the recovery text and the incident match the cause. */
+  const [bootFailure, setBootFailure] = useState<"storage" | "unexpected" | null>(null);
   const [loadPhase, setLoadPhase] = useState<LoadPhase>("initializing");
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [noticesOpen, setNoticesOpen] = useState(false);
@@ -831,12 +838,25 @@ function HierarchyExplorerContent({
         // collapse a branch the owner has just opened.
         setLoadState("ready");
       }
-    })().catch(() => {
-      if (!cancelled) setLoadState("error");
+    })().catch((error: unknown) => {
+      // The cause used to be discarded: every failure looked like a storage
+      // refusal and nothing reached the operator. Name it in the console, publish
+      // it as a typed incident, and keep internals out of the page.
+      console.error("workspace initialization failed", describeWorkspaceBootFailure(error), error);
+      if (cancelled) return;
+      const kind = classifyWorkspaceBootFailure(error);
+      setBootFailure(kind);
+      setProblem(workspaceBootFailureProblem(kind));
+      setLoadState("error");
     });
     const unsubscribeProjection = service.subscribeProjection(async (change) => {
-      await refresh(change).catch(() => {
-        if (!cancelled) setLoadState("error");
+      await refresh(change).catch((error: unknown) => {
+        console.error("workspace projection refresh failed", describeWorkspaceBootFailure(error));
+        if (cancelled) return;
+        const kind = classifyWorkspaceBootFailure(error);
+        setBootFailure(kind);
+        setProblem(workspaceBootFailureProblem(kind));
+        setLoadState("error");
       });
     });
     return () => {
@@ -2919,7 +2939,7 @@ function HierarchyExplorerContent({
       {loadState === "error" ? (
         <WorkspaceState
           kind="error"
-          detail="Le stockage local est inaccessible. Vérifiez l’accès au stockage et au coffre de cet appareil, puis réessayez. Vos données locales sont conservées."
+          detail={workspaceBootFailureDetail(bootFailure ?? "storage")}
           onRetry={() => window.location.reload()}
         />
       ) : (
