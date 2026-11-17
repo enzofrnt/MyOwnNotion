@@ -1956,6 +1956,87 @@ function rememberedAccount(): string | null {
   }
 }
 
+/**
+ * The durable copy of the account this device opened last.
+ *
+ * `localStorage` is a cache, not the proof. Chromium commits DOM storage on its
+ * own schedule, so a process killed between the write and that commit restarts
+ * with no remembered account — and an offline boot would then name the legacy
+ * store, which holds nothing on an account-scoped installation. The registry
+ * lives in the same IndexedDB that already carries the projection the offline
+ * promise depends on, so it survives exactly what the projection survives.
+ */
+const ACCOUNT_REGISTRY_DB = "myownnotion-local-accounts";
+const ACCOUNT_REGISTRY_STORE = "meta";
+const ACCOUNT_REGISTRY_KEY = "last-account";
+
+function openAccountRegistry(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(ACCOUNT_REGISTRY_DB, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(ACCOUNT_REGISTRY_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(request.error ?? new Error("the local account registry is unavailable"));
+  });
+}
+
+async function rememberAccountDurably(accountId: string | null): Promise<void> {
+  const db = await openAccountRegistry();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(ACCOUNT_REGISTRY_STORE, "readwrite");
+      const store = transaction.objectStore(ACCOUNT_REGISTRY_STORE);
+      if (accountId === null) store.delete(ACCOUNT_REGISTRY_KEY);
+      else store.put(accountId, ACCOUNT_REGISTRY_KEY);
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = transaction.onerror = () =>
+        reject(transaction.error ?? new Error("the local account registry write failed"));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function readRememberedAccountDurably(): Promise<string | null> {
+  const db = await openAccountRegistry();
+  try {
+    return await new Promise<string | null>((resolve, reject) => {
+      let remembered: string | null = null;
+      const transaction = db.transaction(ACCOUNT_REGISTRY_STORE, "readonly");
+      const request = transaction.objectStore(ACCOUNT_REGISTRY_STORE).get(ACCOUNT_REGISTRY_KEY);
+      request.onsuccess = () => {
+        remembered = typeof request.result === "string" ? request.result : null;
+      };
+      request.onerror = () =>
+        reject(request.error ?? new Error("the local account registry read failed"));
+      transaction.oncomplete = () => resolve(remembered);
+      transaction.onabort = transaction.onerror = () =>
+        reject(transaction.error ?? new Error("the local account registry read failed"));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Resumes the account this device holds before an offline boot names a store.
+ *
+ * The fast path is DOM storage; the durable registry answers when the process
+ * died before that write reached disk. `null` is a real answer: the workspace
+ * then has no local account to open and must not invent one.
+ */
+export async function resolveRememberedLocalAccount(): Promise<string | null> {
+  const remembered = rememberedAccount();
+  if (remembered !== null) return remembered;
+  try {
+    return await readRememberedAccountDurably();
+  } catch {
+    return null;
+  }
+}
+
 let selectedAccount: string | null = rememberedAccount();
 
 /** One local database per account (feature 058); the legacy name before any. */
@@ -1978,6 +2059,9 @@ export function selectLocalAccount(accountId: string | null): void {
   } catch {
     // Storage refused: the in-memory choice still holds for this page.
   }
+  // A refusal here must not fail the boot: the registry is the durability
+  // improvement, not a new precondition for opening an account's store.
+  void rememberAccountDurably(accountId).catch(() => undefined);
   if (singleton !== null && singletonAccount !== accountId) {
     void singleton.lockLocalData();
     singleton = null;

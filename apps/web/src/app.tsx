@@ -77,7 +77,12 @@ import {
 } from "./runtime/client-runtime.ts";
 import { createClientApis } from "./services/client-factory.ts";
 import { ContentApi } from "./services/content-api.ts";
-import { localContent, localContentFor, selectLocalAccount } from "./services/local-content.ts";
+import {
+  localContent,
+  localContentFor,
+  resolveRememberedLocalAccount,
+  selectLocalAccount,
+} from "./services/local-content.ts";
 import type { SecurityApi } from "./services/security-api.ts";
 
 declare const __MYOWNNOTION_E2E__: boolean;
@@ -185,7 +190,10 @@ export function App(props: AppProps = {}) {
   const [operationalProblem, setOperationalProblem] = useState<SafeError | null>(null);
   const [trashedItems, setTrashedItems] = useState<readonly ProjectedItem[]>([]);
   const [navigationProblem, setNavigationProblem] = useState<string | null>(null);
-  const localAccountId = account?.accountId ?? null;
+  // Which account's local store this workspace holds (feature 058). It is not
+  // derived from `account`: an offline boot has a local account to open but no
+  // server answer to describe it. It is resolved before the workspace mounts.
+  const [localAccountId, setLocalAccountId] = useState<string | null>(null);
   const contentService = useMemo(() => localContentFor(localAccountId), [localAccountId]);
   const workspaceReturn = useRef<{
     readonly focus: HTMLElement | null;
@@ -273,6 +281,7 @@ export function App(props: AppProps = {}) {
       // Local data follows the account before the workspace mounts (058).
       if (me.ok) selectLocalAccount(me.value.accountId);
       setAccount(me.ok ? me.value : null);
+      setLocalAccountId(me.ok ? me.value.accountId : null);
       setGate("workspace");
       return;
     }
@@ -287,11 +296,23 @@ export function App(props: AppProps = {}) {
     // request, so an offline browser can read what it already has and can
     // change nothing that reaches the server.
     if (session.problem.code === "service_unavailable") {
+      // The server cannot name the account, so the device must: this is the
+      // account whose local store holds the content the owner is looking at.
+      // Resolving it here, before the workspace mounts, is what keeps an
+      // offline start on the account's store instead of an empty legacy one
+      // (058). The fast store can be missing after an abrupt exit; the durable
+      // registry answers in that case.
+      const remembered = await resolveRememberedLocalAccount();
+      if (remembered !== null) {
+        selectLocalAccount(remembered);
+        setLocalAccountId(remembered);
+      }
       setGate("workspace");
       return;
     }
     setSessionId(null);
     setAccount(null);
+    setLocalAccountId(null);
     // Sign-up pages are reachable without a session (feature 058).
     const path = window.location.pathname;
     setGate(path === "/signup" || path === "/join" ? "signup" : "login");
@@ -447,6 +468,7 @@ export function App(props: AppProps = {}) {
   const onSignedOut = useCallback(() => {
     setSessionId(null);
     setAccount(null);
+    setLocalAccountId(null);
     workspaceReturn.current = null;
     setGate("login");
   }, []);
