@@ -1,0 +1,46 @@
+Running 1 browser projects, 1 at a time, each on its own database.
+FAIL  chromium-mobile  → .e2e-logs/chromium-mobile.log
+
+----- chromium-mobile (full log: .e2e-logs/chromium-mobile.log) -----
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('region', { name: /^Done \u00B7/ }).locator('.database-card').filter({ hasText: 'Beta visual-mwl5icfv-gis7m' })
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('region', { name: /^Done \u00B7/ }).locator('.database-card').filter({ hasText: 'Beta visual-mwl5icfv-gis7m' }) with timeout 15000ms
+      - waiting for getByRole('region', { name: /^Done \u00B7/ }).locator('.database-card').filter({ hasText: 'Beta visual-mwl5icfv-gis7m' })
+
+
+      147 |   await openBoardMoveMenu(page, page, beta, true);
+      148 |   await page.getByRole("menuitem", { name: "Done", exact: true }).press("Enter");
+    > 149 |   await expect(doneColumn.locator(".database-card").filter({ hasText: beta })).toBeVisible({
+          |                                                                               ^
+      150 |     timeout: 15_000,
+      151 |   });
+      152 |
+        at /private/tmp/myownnotion-main-reconciliation-a27f700d/tests/e2e/databases-visual-views.spec.ts:149:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/chromium-mobile/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/chromium-mobile/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/chromium-mobile/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/chromium-mobile/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:112:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts
+  1 passed (32.0s)
+error: "playwright" exited with code 1
+
+0/1 projects passed in 32s.
