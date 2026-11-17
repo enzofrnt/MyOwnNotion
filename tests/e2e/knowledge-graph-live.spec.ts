@@ -49,7 +49,10 @@ test("the open graph follows content changes live", async ({ page }) => {
   const third = uniqueName("LiveThird");
   await createRootItem(page, "page", third);
   const thirdId = await id(third);
-  // Creating a page opens it in a tab; going back to the graph tab must show it.
+  // Creating a page opens it in a tab. The editor navigation is committed after
+  // the creation returns, so switching to the graph tab first would be replaced
+  // by that pending navigation — wait for the new page's own address.
+  await expect(page).toHaveURL(new RegExp(thirdId));
   await page.getByTestId("open-tabs").getByRole("button", { name: "Graphe", exact: true }).click();
   await expect(page).toHaveURL("/graph");
   await expect(canvas.locator(`[data-graph-node="${thirdId}"]`)).toHaveCount(1, {
