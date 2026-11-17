@@ -40,7 +40,10 @@ async function admin(args: readonly string[]): Promise<Record<string, unknown>> 
   const backupRoot = process.env["MYOWNNOTION_BACKUP_ROOT"] ?? path.resolve(".dev-backups-e2e");
   const deploymentKey =
     process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"] ?? path.resolve("secrets", "deployment-key.e2e");
-  const { stdout } = await run("bun", ["apps/api/src/admin/admin-cli.ts", ...args, "--json"], {
+  // A refused command is reported with its own output: without it the failure
+  // reads "Command failed" and nothing else, which is exactly the diagnostic gap
+  // the wait-contract doctrine forbids.
+  const invocation = run("bun", ["apps/api/src/admin/admin-cli.ts", ...args, "--json"], {
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -53,6 +56,13 @@ async function admin(args: readonly string[]): Promise<Record<string, unknown>> 
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: deploymentKey,
     },
     maxBuffer: 4 * 1024 * 1024,
+  });
+  const { stdout } = await invocation.catch((error: unknown) => {
+    const failure = error as { readonly stderr?: string; readonly stdout?: string };
+    throw new Error(
+      `admin ${args.join(" ")} failed: ${(failure.stderr ?? "").trim() || (failure.stdout ?? "").trim() || "no output"}`,
+      { cause: error },
+    );
   });
   const line = stdout
     .trim()
