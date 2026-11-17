@@ -1,47 +1,29 @@
 import { createReactInlineContentSpec } from "@blocknote/react";
-import { useEffect } from "react";
+import { TextSelection } from "@tiptap/pm/state";
 import { EquationEditor } from "./custom-blocks/equation.tsx";
 import { MathPreview } from "./math.tsx";
 
 /**
  * The block that owns an inline equation.
  *
- * `updateInlineContent` replaces the ProseMirror node with `replaceWith`, so
- * the node view that held the caret is destroyed and a new one mounts. When
- * the replacement or that mount leaves the document selection pointing at a
- * removed node, the browser keeps the editor focused but drops every
- * keystroke until something else moves the caret — a journey that applied an
- * equation and typed immediately lost its text on Firefox.
+ * Two things keep the caret usable around this atom, both learned from a
+ * reproduced failure (feature 067): applying an equation and then typing lost
+ * every keystroke, in the same paragraph and in a blank one.
  *
- * The repair is deliberately narrow: it acts only while the editor holds
- * focus and only when the selection is dead (no range, or an anchor that is
- * no longer in the document). A live caret is never moved, so the owner's own
- * click still decides where they continue writing.
+ * 1. The expression is updated **in place** (`setNodeMarkup`) instead of being
+ *    replaced. Replacement re-maps the document and the selection to an atom
+ *    that no longer exists, so the browser keeps the editor focused while the
+ *    caret points nowhere.
+ * 2. After applying, focus deliberately returns to the editor, immediately
+ *    after the atom. The editor's own preview control sits in a
+ *    `contenteditable=false` boundary; leaving focus there sends the next keys
+ *    to a button instead of the document.
+ *
+ * An earlier frame-deferred "dead selection repair" was removed here: a probe
+ * showed it also fired during the transient moment between a click and
+ * ProseMirror's own selection write, moving the caret to the equation's block
+ * and swallowing what the owner typed in another paragraph.
  */
-function containingBlockId(
-  editor: { readonly prosemirrorState: { readonly doc: unknown } },
-  position: number,
-): string | null {
-  const doc = editor.prosemirrorState.doc as {
-    readonly content: { readonly size: number };
-    resolve(position: number): {
-      readonly depth: number;
-      node(depth: number): { readonly attrs: Record<string, unknown> };
-    };
-  };
-  const inside = Math.min(position + 1, doc.content.size);
-  try {
-    const resolved = doc.resolve(inside);
-    for (let depth = resolved.depth; depth > 0; depth -= 1) {
-      const id = resolved.node(depth).attrs["id"];
-      if (typeof id === "string" && id.length > 0) return id;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
 export const equationInlineContentSpec = createReactInlineContentSpec(
   {
     type: "inlineEquation",
@@ -53,39 +35,53 @@ export const equationInlineContentSpec = createReactInlineContentSpec(
     content: "none",
   } as const,
   {
-    render: ({ inlineContent, updateInlineContent, editor, getPos }) => {
-      useEffect(() => {
-        const repairDeadSelection = (): void => {
-          const selection = window.getSelection();
-          if (selection === null) return;
-          const anchor = selection.anchorNode;
-          if (selection.rangeCount > 0 && anchor !== null && anchor.isConnected) return;
-          if (!editor.prosemirrorView.hasFocus()) return;
-          const position = getPos();
-          if (position === undefined) return;
-          const blockId = containingBlockId(editor, position);
-          if (blockId === null || editor.getBlock(blockId) === undefined) return;
-          editor.setTextCursorPosition(blockId, "end");
-        };
-        // Mount happens during the replacement; one frame later the
-        // surrounding nodes and the browser's selection mapping have settled.
-        // No dependency list: every render of this node view follows an
-        // update, and the check is cheap and a no-op on a live caret.
-        const frame = requestAnimationFrame(repairDeadSelection);
-        return () => cancelAnimationFrame(frame);
-      });
+    render: ({ inlineContent, updateInlineContent, editor, getPos, node }) => {
+      const view = editor.prosemirrorView;
+      const liveNode = () => {
+        const position = getPos();
+        if (position === undefined) return null;
+        const current = view.state.doc.nodeAt(position);
+        if (current === null || current.type.name !== node.type.name) return null;
+        return { current, position };
+      };
+
+      const applyExpression = (expression: string) => {
+        const live = liveNode();
+        if (live === null) {
+          // The atom moved or disappeared: the supported replacement is the only
+          // remaining option, and it reports its own outcome.
+          updateInlineContent({
+            type: "inlineEquation",
+            props: { ...inlineContent.props, expression },
+          });
+          return;
+        }
+        view.dispatch(
+          view.state.tr.setNodeMarkup(live.position, undefined, {
+            ...live.current.attrs,
+            expression,
+          }),
+        );
+      };
+
+      /** Puts the caret just after the atom so the owner can keep writing. */
+      const focusAfterApply = () => {
+        const live = liveNode();
+        if (live === null) return;
+        const after = live.position + live.current.nodeSize;
+        view.dispatch(
+          view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(after), 1)),
+        );
+        view.focus();
+      };
 
       return (
         <EquationEditor
           inline
           expression={inlineContent.props.expression}
           editable={editor.isEditable}
-          onApply={(expression) =>
-            updateInlineContent({
-              type: "inlineEquation",
-              props: { ...inlineContent.props, expression },
-            })
-          }
+          onApply={applyExpression}
+          onApplied={focusAfterApply}
         />
       );
     },

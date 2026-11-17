@@ -78,6 +78,10 @@ test("edits math, preserves invalid source and supports history, slash and offli
   await inline.getByRole("button", { name: "Appliquer", exact: true }).click();
   const blankContent = editor.locator(`[data-id="${blank}"] .bn-block-content`).first();
   await blankContent.click();
+  // The editor adopts a pointer selection a frame or two after the click, and
+  // typing before that delivers the keys to the previous paragraph. Wait for the
+  // editor's own marker of a live caret in this block, then type (feature 067).
+  await expect(blankContent).toHaveAttribute("data-is-empty-and-focused", "true");
   await page.keyboard.type("/latex");
   await expect(blankContent).toContainText("/latex");
   await page.getByRole("option", { name: /^Équation/ }).click();
