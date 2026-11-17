@@ -203,6 +203,7 @@ function BoardCardMenu({
     entryId: Uuid,
     targetColumnId: Uuid | "missing",
     sourceColumnId: Uuid | "missing",
+    focusOrigin?: Element | null,
   ) => Promise<void>;
 }) {
   const actions = useContext(DatabaseEntryActionsContext);
@@ -362,7 +363,7 @@ function BoardCardMenu({
                   } else {
                     trigger?.focus({ preventScroll: true });
                   }
-                  void onMove(row.entryId as Uuid, target.id, column.id);
+                  void onMove(row.entryId as Uuid, target.id, column.id, triggerRef.current);
                 }}
               >
                 <span className="database-board-menu__destination">
@@ -423,6 +424,7 @@ function BoardCards({
     entryId: Uuid,
     targetColumnId: Uuid | "missing",
     sourceColumnId: Uuid | "missing",
+    focusOrigin?: Element | null,
   ) => Promise<void>;
 }) {
   const actions = useContext(DatabaseEntryActionsContext);
@@ -867,6 +869,7 @@ export function BoardView({
     entryId: Uuid,
     targetColumnId: Uuid | "missing",
     sourceColumnId: Uuid | "missing",
+    focusOrigin: Element | null = document.activeElement,
   ): Promise<void> => {
     if (pendingRef.current.has(entryId)) return;
     const update = boardMoveUpdate(axis, targetColumnId, sourceColumnId);
@@ -883,12 +886,11 @@ export function BoardView({
     pendingRef.current.add(entryId);
     setPendingEntryIds(new Set(pendingRef.current));
     setMoveError(false);
-    const origin = document.activeElement;
-    if (
-      origin?.closest(".database-card") !== null &&
-      origin?.closest(".database-card") !== undefined
-    )
-      pendingFocus.current = { entryId, columnId: targetColumnId, origin };
+    // The origin decides where focus returns once the rows refresh. It is passed
+    // explicitly when the caller defers its own focus (keyboard activation), so
+    // the reader of the card still lands on it in its new column.
+    if (focusOrigin !== null && focusOrigin.closest(".database-card") !== null)
+      pendingFocus.current = { entryId, columnId: targetColumnId, origin: focusOrigin };
     try {
       await onUpdateEntry(entryId, update);
       setAnnouncement(DATABASE_COPY.board.moved(row.title, target.label));

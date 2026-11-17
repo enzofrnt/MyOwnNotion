@@ -112,3 +112,17 @@ and the move running, and the journey passes.
   complete gate was not re-run for this repair batch; earlier reconciliation
   evidence covers the rest of the tree.
 - Firefox and WebKit ran in the pinned Linux image, as the local matrix requires.
+
+## CI follow-up (run 44178086203, commit 0f5f14b0)
+
+The first CI run after the repairs was red. Diagnosed per job:
+
+| Failure | Attribution | Action |
+| --- | --- | --- |
+| `database-multi-select-board.spec.ts:42` on chromium-desktop, chromium-mobile, Firefox and WebKit: `toBeFocused()` on the moved card | **introduced by the board repair**: deferring focus to the next frame removed the origin that `move()` reads from `document.activeElement`, so focus was never restored to the card in its new column | `move()` now takes the origin explicitly and the destination passes its card trigger; verified locally (multi-select board + visual views: 5 tests pass) |
+| `v1-surface-visuals` dark mobile security surface (chromium-mobile, linux) | stale linux baseline from the 061 settings work: an earlier copy had taken the file from a run where the mobile test was skipped | regenerated inside the pinned Linux runtime from a run where the test actually executes; the file now differs from the committed baseline |
+| `full-backup.integration` (2 timeouts, `57P01` admin shutdown) | not reproduced: 20/20 pass locally with the PG18 client | recorded as CI-environment evidence |
+| `realtime-sync-security-and-restore.spec.ts:138` (`backup run` command failed) | not reproduced: 3/3 pass locally | recorded as CI-environment evidence |
+| `desktop-offline-restart.spec.ts:80` on every desktop platform: workspace content never appears | pre-existing boot-refusal signature (the separate 063 handoff documents it on main); the pre-repair run 44171452099 already failed desktop jobs the same way | outside this batch; tracked by the 063 worktree |
+
+Assertions were not weakened; the board journey keeps its focus contract and now passes.
