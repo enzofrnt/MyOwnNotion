@@ -6,7 +6,7 @@
 while final `main` CI verification remains pending.
 **Input**: The owner requires usable MCP before V1.
 
-> **Superseded in part by [058 Multi-user accounts](../058-multi-user-accounts/spec.md)
+> **Superseded in part by [058 Multi-user accounts](../064-multi-user-accounts/spec.md)
 > (2026-11-16)**: the MCP access is per account: a connection reaches only its owner's
 > workspace, and settings list only the caller's connections.
 

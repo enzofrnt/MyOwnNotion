@@ -16,7 +16,7 @@ Sync Impact Report
 - Aligned in the same change:
   - `docs/product/product-canvas.md` sections 2, 3, 5, 6.1, 8, 26, 28.4, 32
     and 43
-  - `specs/058-multi-user-accounts/`
+  - `specs/064-multi-user-accounts/`
 - Follow-up TODOs: plan 058 must review earlier auth (single-owner bootstrap),
   MCP, sync, search, export, sharing and backup features for owner scoping.
 - Rationale: MAJOR. The owner explicitly removes the permanent single-user

@@ -1,6 +1,6 @@
 # Feature Specification: Settings visual refresh
 
-**Feature Branch**: `061-settings-visual-refresh`
+**Feature Branch**: `065-settings-visual-refresh`
 
 **Created**: 2026-11-17
 

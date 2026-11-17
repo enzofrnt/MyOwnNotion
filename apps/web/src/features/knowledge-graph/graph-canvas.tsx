@@ -265,7 +265,17 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
   const topologyRef = useRef("");
   const positionMemoryRef = useRef(new Map<Uuid, { x: number; y: number }>());
   const forcesKeyRef = useRef("");
+  const appliedLayoutRevision = useRef(0);
   useEffect(() => {
+    // Publish only after this projection's layout has actually been applied.
+    // A captured revision lets browser tests wait for this change, not a delay.
+    const acknowledgeLayout = () => {
+      appliedLayoutRevision.current += 1;
+      container.current?.setAttribute(
+        "data-layout-revision",
+        String(appliedLayoutRevision.current),
+      );
+    };
     const nextKey = `${projection.nodes.map((node) => node.id).join(",")} ${projection.edges.map((edge) => edge.key).join(",")}`;
     const topologyChanged = topologyRef.current !== nextKey || runtimeRef.current === null;
     const nextForcesKey = `${forces.centerForce}:${forces.repelForce}:${forces.linkForce}:${forces.linkDistance}`;
@@ -275,6 +285,7 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       // Parent re-rendered with a new projection object of the same topology —
       // do not restart the force loop (that flashes the last settled layout).
       paintRef.current();
+      acknowledgeLayout();
       return;
     }
     if (topologyChanged) {
@@ -332,6 +343,7 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     } else {
       paintRef.current();
     }
+    acknowledgeLayout();
     return () => {
       cancelAnimationFrame(loopRef.current);
       loopRef.current = 0;

@@ -1,6 +1,6 @@
 # Feature Specification: Live knowledge graph
 
-**Feature Branch**: `062-knowledge-graph-live` · **Created**: 2026-11-17 · **Status**: In progress
+**Feature Branch**: `066-knowledge-graph-live` · **Created**: 2026-11-17 · **Status**: In progress
 
 **Input**: Owner: "si le nom d'une page change, une page est créée, supprimée, et liens sont
 ajoutés… le graphe n'évolue pas en live ; je veux qu'il évolue en live."

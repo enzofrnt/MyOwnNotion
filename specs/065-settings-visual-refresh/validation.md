@@ -28,7 +28,7 @@ states; Firefox/WebKit; `checks:local`.
 
 ## Lot (files owned by this feature)
 
-New: `specs/061-settings-visual-refresh/**`, `apps/web/src/features/settings/settings-card.{tsx,css}`,
+New: `specs/065-settings-visual-refresh/**`, `apps/web/src/features/settings/settings-card.{tsx,css}`,
 `apps/web/src/ui/primitives/form-message.tsx`, `apps/web/src/ui/ui-lab-settings.tsx`.
 
 Modified only by 061: `.agents/skills/ui-quality/lessons.md`, `apps/web/src/global.css`,

@@ -748,7 +748,7 @@ validation explicite du propriétaire (correction vue ensemble).
   même fond que le corps ; PAS de bandeau teinté, PAS d'ombre, PAS de bleu
   décoratif : « too much » rejeté) ; bordure `border`, rayon 12 px ; états en
   `SettingsPill` avec texte ; actions destructives dans une carte `tone="danger"`.
-- Preuve : `specs/061-settings-visual-refresh/evidence/account-*.png`.
+- Preuve : `specs/065-settings-visual-refresh/evidence/account-*.png`.
 
 ### L-065 — Confirmation d'identité : modal près de l'action, pas un bloc en haut du panneau
 - Statut : candidate (retour propriétaire 2026-11-17, à valider sur le rendu)
@@ -759,7 +759,7 @@ validation explicite du propriétaire (correction vue ensemble).
   principale, séparateur « ou », `PasswordField` comme à la connexion) ; la
   saisie du formulaire est conservée ; le nom produit visible est « MCP », pas
   un libellé générique.
-- Preuve : `specs/061-settings-visual-refresh/evidence/mcp-reauth-{light,dark}.png`.
+- Preuve : `specs/065-settings-visual-refresh/evidence/mcp-reauth-{light,dark}.png`.
 
 ### L-066 — Erreur de formulaire : champs rouges + ligne réservée, jamais de décalage
 - Statut : candidate (retour propriétaire 2026-11-17)

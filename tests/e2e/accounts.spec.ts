@@ -20,7 +20,7 @@ const PASSWORD = "acceptable passphrase for e2e";
 async function evidence(page: Page, surface: string): Promise<void> {
   if (process.env["MYOWNNOTION_058_EVIDENCE"] !== "1") return;
   await page.screenshot({
-    path: `specs/058-multi-user-accounts/evidence/${surface}-${test.info().project.name}.png`,
+    path: `specs/064-multi-user-accounts/evidence/${surface}-${test.info().project.name}.png`,
     fullPage: true,
   });
 }

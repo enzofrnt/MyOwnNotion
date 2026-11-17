@@ -1,6 +1,6 @@
 # Tasks: Multi-user accounts
 
-**Input**: `specs/058-multi-user-accounts/` — spec.md, plan.md, research.md (D1–D11), data-model.md, contracts/http.md, quickstart.md
+**Input**: `specs/064-multi-user-accounts/` — spec.md, plan.md, research.md (D1–D11), data-model.md, contracts/http.md, quickstart.md
 **Tests**: required (constitution III): contract/integration per behavior, Playwright per UI journey.
 **UI**: every UI task follows the [UI quality skill](../../.agents/skills/ui-quality/SKILL.md) and [lessons](../../.agents/skills/ui-quality/lessons.md); `docs/design/ui-system.md` primitives.
 
@@ -8,9 +8,9 @@ Format: `- [ ] Tnnn [P?] [USn?] description (path)`.
 
 ## Phase 1: Setup
 
-- [x] T001 Read constitution 5.0.0 principle I, canvas §2/§5/§8/§26/§28.4/§32, specs 002, 006, 013, and plan.md of this feature; record in `specs/058-multi-user-accounts/tasks.md` notes any conflict found
+- [x] T001 Read constitution 5.0.0 principle I, canvas §2/§5/§8/§26/§28.4/§32, specs 002, 006, 013, and plan.md of this feature; record in `specs/064-multi-user-accounts/tasks.md` notes any conflict found
 - [x] T002a Add a "superseded in part by 058" note to `specs/002-owner-security-foundation/spec.md` and `specs/013-mcp-access/spec.md` (done during analyze remediation, D3)
-- [x] T002 Inventory every use of `context.workspaceId`, `installations.owner_id`, `installations.workspace_id` and single-owner assumptions (`grep -rn` across `apps/`, `packages/`, `tests/`) and paste the file list into `specs/058-multi-user-accounts/audit.md`
+- [x] T002 Inventory every use of `context.workspaceId`, `installations.owner_id`, `installations.workspace_id` and single-owner assumptions (`grep -rn` across `apps/`, `packages/`, `tests/`) and paste the file list into `specs/064-multi-user-accounts/audit.md`
 
 ## Phase 2: Foundational (blocks all stories)
 
@@ -49,7 +49,7 @@ Format: `- [ ] Tnnn [P?] [USn?] description (path)`.
 - T042 and T038 are covered by the API isolation suite (`apps/api/tests/account-isolation.contract.spec.ts`, MCP through the official client) and by `tests/e2e/accounts.spec.ts` (a member never sees the administrator's page); no separate MCP Playwright file was added.
 - T049/T055 share one document, *Réglages › Administration* (`administration-settings.tsx`), styled by the existing `settings-security.css` owner (L-009).
 - T058: specs 002 and 013 carry a "superseded in part by 058" note at the top; their bodies stay as the historical record of the single-owner design.
-- Visual evidence: `specs/058-multi-user-accounts/evidence/` (captured by the Playwright journeys with `MYOWNNOTION_058_EVIDENCE=1`, desktop and mobile projects).
+- Visual evidence: `specs/064-multi-user-accounts/evidence/` (captured by the Playwright journeys with `MYOWNNOTION_058_EVIDENCE=1`, desktop and mobile projects).
 - Passkey enrollment completion now validates an attestation (`WebAuthnRegistrationSchema`); the former schema expected an assertion and would have refused every enrollment.
 
 **Checkpoint**: one account works exactly as before, workspace now request-scoped.
@@ -64,7 +64,7 @@ Format: `- [ ] Tnnn [P?] [USn?] description (path)`.
 - [x] T021 [US1] Replace multi-step routes with `POST /v1/bootstrap` and expose `registrationMode` in `GET /v1/installation/status` in `apps/api/src/routes/bootstrap.ts`, `apps/api/src/routes/installation.ts`
 - [x] T022 [US1] Rewrite `apps/web/src/features/auth/bootstrap-page.tsx` (single form email/pseudonym/password, then optional "Add a passkey" step) — apply ui-quality states (empty, submitting, field error, already initialized, success)
 - [x] T023 [US1] Update e2e fixtures to the new bootstrap in `tests/e2e/global-setup.ts`, `tests/e2e/fixtures.ts`, `tests/e2e/helpers.ts`, `tests/e2e/reset-installation.ts`, `tests/e2e/desktop-workspace.ts`, `tests/e2e/desktop-electron.ts`
-- [x] T024 [US1] Playwright journey in `tests/e2e/bootstrap.spec.ts` (setup only screen, success, refusal once initialized, setup completed in < 2 min — SC-001) + visual evidence 320 px/desktop in `specs/058-multi-user-accounts/evidence/`
+- [x] T024 [US1] Playwright journey in `tests/e2e/bootstrap.spec.ts` (setup only screen, success, refusal once initialized, setup completed in < 2 min — SC-001) + visual evidence 320 px/desktop in `specs/064-multi-user-accounts/evidence/`
 
 ## Phase 4: US2 — Sign in with password or passkey (P1)
 
@@ -86,7 +86,7 @@ Format: `- [ ] Tnnn [P?] [USn?] description (path)`.
 - [x] T033 [US3] Isolation suite `apps/api/tests/account-isolation.contract.spec.ts`: enumerate Fastify routes, for every private route with an id param assert B gets the same 404 as a random id for A's ids; lists/search/graph/changes/export of B never contain A's data; fails if a private route has no isolation case
 - [x] T034 [P] [US3] Realtime isolation: B's change stream and page sync socket never receive A's events in `apps/api/tests/change-stream.contract.spec.ts`
 - [x] T035 [P] [US3] Search isolation (no hit, snippet or count) in `apps/api/tests/search.contract.spec.ts` (create if missing)
-- [x] T036 [US3] Fix every leak found by T033–T035 in the owning route/repository and record each in `specs/058-multi-user-accounts/audit.md`
+- [x] T036 [US3] Fix every leak found by T033–T035 in the owning route/repository and record each in `specs/064-multi-user-accounts/audit.md`
 - [x] T037 [US3] Public share pages expose neither owner email nor other content: assertion in `apps/api/tests/account-isolation.contract.spec.ts`
 - [x] T038 [US3] Playwright `tests/e2e/account-isolation.spec.ts`: A's page URL opened by B shows not found; search shows nothing
 
@@ -127,8 +127,8 @@ Format: `- [ ] Tnnn [P?] [USn?] description (path)`.
 
 - [x] T057 [P] Update `docs/development.md` (fresh DB required after baseline), `docs/design/ui-system.md` (new settings sections), root `package.json` description ("Single-owner" → "Self-hosted multi-account")
 - [x] T058 [P] Update remaining single-owner wording in the body of `specs/002-owner-security-foundation/` and `specs/013-mcp-access/` artifacts beyond the T002a note
-- [x] T059 Run `bun run checks:local` (cross-cutting change) and record evidence in `specs/058-multi-user-accounts/validation.md`
-- [x] T060 Run quickstart.md end to end and tick each journey in `specs/058-multi-user-accounts/validation.md` (journeys 1–8 automated in `tests/e2e/bootstrap.spec.ts`, `tests/e2e/accounts.spec.ts` and the API isolation suite; see validation.md)
+- [x] T059 Run `bun run checks:local` (cross-cutting change) and record evidence in `specs/064-multi-user-accounts/validation.md`
+- [x] T060 Run quickstart.md end to end and tick each journey in `specs/064-multi-user-accounts/validation.md` (journeys 1–8 automated in `tests/e2e/bootstrap.spec.ts`, `tests/e2e/accounts.spec.ts` and the API isolation suite; see validation.md)
 
 ## Dependencies
 

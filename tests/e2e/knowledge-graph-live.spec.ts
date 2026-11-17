@@ -11,7 +11,6 @@ import {
 
 /** Repro (062): the open graph must follow renames, creations, deletions and new links. */
 test("the open graph follows content changes live", async ({ page }) => {
-  test.slow();
   await openWorkspace(page);
   const first = uniqueName("LiveFirst");
   const second = uniqueName("LiveSecond");
@@ -104,7 +103,6 @@ test("the open graph follows content changes live", async ({ page }) => {
 });
 
 test("the open graph follows a rename made in another tab", async ({ page, context }) => {
-  test.slow();
   await openWorkspace(page);
   const name = uniqueName("CrossTab");
   await createRootItem(page, "page", name);
@@ -137,7 +135,8 @@ test("the open graph follows a rename made in another tab", async ({ page, conte
 test("toggling a filter keeps the current layout instead of starting a new view", async ({
   page,
 }) => {
-  test.slow();
+  // Freeze motion through the supported accessibility setting, not elapsed time.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await openWorkspace(page);
   const name = uniqueName("StableNode");
   await createRootItem(page, "page", name);
@@ -151,19 +150,30 @@ test("toggling a filter keeps the current layout instead of starting a new view"
   const isolated = page.getByRole("switch", { name: "Afficher les éléments isolés", exact: true });
   await isolated.focus();
   await page.keyboard.press("Space");
-  const node = page.getByTestId("knowledge-graph-canvas").locator(`[data-graph-node="${itemId}"]`);
+  const canvas = page.getByTestId("knowledge-graph-canvas");
+  const node = canvas.locator(`[data-graph-node="${itemId}"]`);
   await expect(node).toHaveCount(1);
-  await page.waitForTimeout(1_500);
+  await expect(canvas).toHaveAttribute("data-layout-revision", /[1-9]/);
   const zoomBefore = await page.getByLabel("Niveau de zoom").textContent();
   const before = await node.boundingBox();
 
   // Show then hide another relation type: a live change, not a new view.
   const hierarchy = page.getByRole("switch", { name: "Hiérarchie", exact: true });
   await hierarchy.focus();
+  const revisionBefore = Number(await canvas.getAttribute("data-layout-revision"));
   await page.keyboard.press("Space");
-  await page.waitForTimeout(800);
+  await expect
+    .poll(async () => Number(await canvas.getAttribute("data-layout-revision")), {
+      message: "the hierarchy-on projection has been applied to the layout",
+    })
+    .toBeGreaterThan(revisionBefore);
+  const revisionShown = Number(await canvas.getAttribute("data-layout-revision"));
   await page.keyboard.press("Space");
-  await page.waitForTimeout(1_500);
+  await expect
+    .poll(async () => Number(await canvas.getAttribute("data-layout-revision")), {
+      message: "the hierarchy-off projection has been applied to the layout",
+    })
+    .toBeGreaterThan(revisionShown);
 
   const after = await node.boundingBox();
   expect(await page.getByLabel("Niveau de zoom").textContent()).toBe(zoomBefore);

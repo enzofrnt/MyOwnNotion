@@ -5,7 +5,7 @@
 **Status**: Ready
 **Input**: Update the existing Owner Security Foundation feature while preserving the permanent single-owner boundary, feature-001 canonical identities, product-canvas scope and exclusions, and existing requirement IDs where practical.
 
-> **Superseded in part by [058 Multi-user accounts](../058-multi-user-accounts/spec.md)
+> **Superseded in part by [058 Multi-user accounts](../064-multi-user-accounts/spec.md)
 > (2026-11-16)**: the single-owner boundary, the multi-step bootstrap with
 > recovery-kit download and the owner-only identity no longer apply. Each
 > account owns one workspace; bootstrap creates the administrator. Remaining

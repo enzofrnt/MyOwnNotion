@@ -77,7 +77,7 @@ test.describe("first launch", () => {
     await expect(page.getByTestId("bootstrap-submit")).toBeDisabled();
     if (process.env["MYOWNNOTION_058_EVIDENCE"] === "1")
       await page.screenshot({
-        path: `specs/058-multi-user-accounts/evidence/setup-${test.info().project.name}.png`,
+        path: `specs/064-multi-user-accounts/evidence/setup-${test.info().project.name}.png`,
         fullPage: true,
       });
     await expect(page.getByTestId("workspace-shell")).toHaveCount(0);

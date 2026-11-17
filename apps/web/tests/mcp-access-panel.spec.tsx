@@ -68,14 +68,8 @@ async function fill(label: string, value: string) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
-/** Lets Ariakit finish its hide step (skipped under fake timers). */
-async function settle() {
-  if (vi.isFakeTimers()) return;
-  await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
-}
 async function click(node: HTMLElement) {
   await act(async () => node.click());
-  await settle();
 }
 async function submit() {
   await act(async () =>
@@ -83,7 +77,6 @@ async function submit() {
       .querySelector(".mcp-grant")
       ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
   );
-  await settle();
 }
 /** A dialog counts as present only while Ariakit shows it (it unmounts after its hide step). */
 function shown(testId: string) {
@@ -160,7 +153,10 @@ it("retains a refused draft and resumes the grant after fresh identity", async (
   expect(masked.startsWith("priv")).toBe(true);
   expect(masked).not.toContain("private-one-use-code");
   expect(container.textContent).not.toContain("private-one-use-code");
-  expect(shown("mcp-grant-dialog")).toBe(false);
+  await vi.waitFor(async () => {
+    await act(async () => undefined);
+    expect(shown("mcp-grant-dialog")).toBe(false);
+  });
   expect(container.textContent).toContain(
     'https://notes.example/mcp/exchange avec le corps JSON {"code":"CODE_TEMPORAIRE"}',
   );
@@ -195,7 +191,10 @@ it("clears the one-use code at expiry and ignores a late clipboard completion", 
   await submit();
   await click(button("Copier le token"));
   await act(async () => vi.advanceTimersByTime(600_001));
-  expect(shown("mcp-code")).toBe(false);
+  await vi.waitFor(async () => {
+    await act(async () => undefined);
+    expect(shown("mcp-code")).toBe(false);
+  });
   await act(async () => resolveCopy?.());
   expect(container.textContent).not.toContain("Token copié.");
   expect(container.textContent).toContain("Le token a expiré");
@@ -262,7 +261,10 @@ it("reports a refused revoke, then revokes on retry", async () => {
   await submit();
   // The code modal blocks the list; the person copies it, then closes it.
   await click(button("Terminé"));
-  expect(shown("mcp-code")).toBe(false);
+  await vi.waitFor(async () => {
+    await act(async () => undefined);
+    expect(shown("mcp-code")).toBe(false);
+  });
   api.revokeMcpConnection.mockResolvedValueOnce(failure("service_unavailable"));
   await click(button("Révoquer"));
   await click(
@@ -352,7 +354,10 @@ it("refresh clears consumed codes and labels safe audit outcomes without renderi
     }),
   );
   await click(button("Actualiser"));
-  expect(shown("mcp-code")).toBe(false);
+  await vi.waitFor(async () => {
+    await act(async () => undefined);
+    expect(shown("mcp-code")).toBe(false);
+  });
   expect(container.textContent).toContain("Code échangé · Autorisé");
   expect(container.textContent).toContain("Code refusé · Refusé");
   expect(container.textContent).toContain("Authentification refusée · Refusé");

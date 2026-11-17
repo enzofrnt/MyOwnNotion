@@ -110,7 +110,7 @@ Visual evidence at 320 px and desktop in `evidence/`.
 ## Project Structure
 
 ```text
-specs/058-multi-user-accounts/
+specs/064-multi-user-accounts/
 ├── spec.md  plan.md  research.md  data-model.md  quickstart.md
 ├── contracts/http.md
 ├── checklists/requirements.md

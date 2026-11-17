@@ -1,6 +1,6 @@
 # Implementation Plan: Settings visual refresh
 
-**Branch**: `061-settings-visual-refresh` (worked on top of the uncommitted 058/059 batch, like 059)
+**Branch**: `065-settings-visual-refresh` (worked on top of the uncommitted 058/059 batch, like 059)
 · **Date**: 2026-11-17 · **Spec**: [spec.md](spec.md)
 
 **Canvas sections**: settings are a destination of their own (product canvas), not part of the
