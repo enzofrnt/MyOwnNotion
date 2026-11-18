@@ -192,3 +192,21 @@ passes under coverage, but that command exits nonzero because full-project
 coverage thresholds cannot be met by the subset; it is not recorded as a green
 gate. Format, lint and monorepo types pass. The next CI must identify the failing
 close before a root-cause correction can be claimed.
+
+### Native loader EBADF (run 44268656918)
+
+The contract job now fails collecting `device-service.spec.ts`: Bun reports
+`EBADF reading` Drizzle's `pg-core/query-builders/select.js`. No assertion in that
+suite ran. Coverage, all five native desktop jobs and the restore lane pass on
+the same commit. These distinct filesystem failures do not establish a blobstore
+or socket cause.
+
+Linux arm64 probes did not establish a stale close from FileHandle streams or
+worker teardown; Linux amd64 emulation crashes even for a minimal Bun command.
+The next CI therefore preserves the original blocking gate and, only after its
+failure, runs a separate diagnostic capture under strace. This is not a gate retry:
+even a green diagnostic leaves the initial failure red. Only descriptor/path
+syscalls and raw read pointers/counts are captured, never decoded read buffers or
+exec/environment payloads. Each stream retains its last 64 MiB and is compressed
+for a group/attempt-specific artifact. Tracing can alter timing and cannot itself
+prove the cause; capture absence or non-reproduction is reported honestly.
