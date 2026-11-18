@@ -2043,7 +2043,41 @@ export async function resolveRememberedLocalAccount(): Promise<string | null> {
   const remembered = rememberedAccount();
   if (remembered !== null) return remembered;
   try {
-    return await readRememberedAccountDurably();
+    const durable = await readRememberedAccountDurably();
+    if (durable !== null) return durable;
+  } catch {
+    // A refused registry is not proof that the device holds no account: the
+    // account's own database is the last witness below.
+  }
+  return await discoverLocalAccountFromStores();
+}
+
+/** Names that the account stores actually exist on this device. */
+const ACCOUNT_STORE_PREFIX = `${localDatabaseNameFor("")}`;
+
+/**
+ * Finds the account whose store this device already holds.
+ *
+ * The remembered id is a record, not the truth: a crash in the milliseconds
+ * before it is written leaves the account's database as the only witness. One
+ * store is unambiguous. Several are not, and guessing there would open another
+ * account's content, so the answer is `null` — the workspace then states that it
+ * has nothing rather than showing somebody else's data.
+ */
+async function discoverLocalAccountFromStores(): Promise<string | null> {
+  const list = globalThis.indexedDB?.databases;
+  if (typeof list !== "function") return null;
+  try {
+    const names = (await list.call(globalThis.indexedDB))
+      .map((entry) => entry.name)
+      .filter(
+        (name): name is string =>
+          typeof name === "string" &&
+          name.startsWith(ACCOUNT_STORE_PREFIX) &&
+          name.length > ACCOUNT_STORE_PREFIX.length,
+      );
+    if (names.length !== 1) return null;
+    return names[0]?.slice(ACCOUNT_STORE_PREFIX.length) ?? null;
   } catch {
     return null;
   }
