@@ -2021,6 +2021,18 @@ async function readRememberedAccountDurably(): Promise<string | null> {
 }
 
 /**
+ * Records the account this device opened, durably, once its workspace is ready.
+ *
+ * Called after a successful boot rather than during it: the projection's own
+ * IndexedDB open must not compete with a second database on a runtime that can
+ * refuse storage under concurrent pressure (observed on WebKit). The write is
+ * still fire-and-forget, and a crash before it only leaves the previous value.
+ */
+export function rememberSelectedAccountDurably(): void {
+  void rememberAccountDurably(selectedAccount).catch(() => undefined);
+}
+
+/**
  * Resumes the account this device holds before an offline boot names a store.
  *
  * The fast path is DOM storage; the durable registry answers when the process
@@ -2059,9 +2071,9 @@ export function selectLocalAccount(accountId: string | null): void {
   } catch {
     // Storage refused: the in-memory choice still holds for this page.
   }
-  // A refusal here must not fail the boot: the registry is the durability
-  // improvement, not a new precondition for opening an account's store.
-  void rememberAccountDurably(accountId).catch(() => undefined);
+  // The durable copy is written by the workspace once its projection is ready,
+  // never during boot: a second IndexedDB database opening concurrently with the
+  // projection's own open is enough for WebKit to refuse the account's store.
   if (singleton !== null && singletonAccount !== accountId) {
     void singleton.lockLocalData();
     singleton = null;

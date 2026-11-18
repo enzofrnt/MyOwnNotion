@@ -60,6 +60,7 @@ import {
   type LocalContentService,
   type LocalProjectionChange,
   localContent,
+  rememberSelectedAccountDurably,
 } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { WorkspaceSearchService } from "../../services/search.ts";
@@ -837,6 +838,10 @@ function HierarchyExplorerContent({
         // navigation hydration has also completed, or that late hydration can
         // collapse a branch the owner has just opened.
         setLoadState("ready");
+        // Only now, with the account's projection open, record which account
+        // this device holds: the durable copy must not open a second database
+        // while the projection itself is being opened.
+        rememberSelectedAccountDurably();
       }
     })().catch((error: unknown) => {
       // The cause used to be discarded: every failure looked like a storage
