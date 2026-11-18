@@ -179,6 +179,19 @@ test("a restore accepts newer offline work instead of replacing it", async ({
     await expect(page.getByTestId("editor-sync-status")).toHaveAttribute("data-durable", "true");
     await appendText(second.page, " — version serveur à restaurer");
     await waitForSynchronized(second.page);
+    // The device's own queue being empty is not proof that the server holds this
+    // text: only an independent reader shows the committed state. Without this
+    // witness, a write still in flight lands *after* the restore and the journey
+    // blames the restore for a reader that legitimately saw newer work.
+    const committedReader = await openSecondDevice(browser, baseURL);
+    await openWorkspace(committedReader.page);
+    await selectItem(committedReader.page, pageName);
+    await waitForEditorSettled(committedReader.page);
+    await expect(
+      committedReader.page.locator('[data-testid="block-editor"]:visible'),
+      "the server holds this device's text before the restore runs",
+    ).toContainText("version serveur à restaurer");
+    await committedReader.context.close();
 
     await admin(["restore", "apply", "--id", backupId, "--yes"]);
     await second.context.close();
