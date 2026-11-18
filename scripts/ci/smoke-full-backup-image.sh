@@ -21,10 +21,11 @@ docker run -d --name "$full_postgres" --network "$full_network" \
 # applies its init scripts, and that server shuts down immediately afterwards;
 # a probe that stops there hands the first real statement to a closing server
 # ("the database system is shutting down"). Ask the server that will still be
-# there: the readiness witness is a query it answers.
+# there: the temporary server disables TCP, so only the final server can answer
+# this authenticated TCP query.
 full_ready=""
 for full_attempt in {1..30}; do
-    if full_ready="$(docker exec "$full_postgres" psql -U postgres -Atc 'SELECT 1' 2>&1)" && [[ "$full_ready" == "1" ]]; then
+    if full_ready="$(docker exec -e PGPASSWORD=myownnotion-dev "$full_postgres" psql -h 127.0.0.1 -U postgres -Atc 'SELECT 1' 2>&1)" && [[ "$full_ready" == "1" ]]; then
         break
     fi
     if [[ "$full_attempt" == 30 ]]; then

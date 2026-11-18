@@ -143,3 +143,19 @@ The journey supplies the workspace belonging to its authenticated account to bot
 backup and restore. The CLI integration suite passes all six tests with PG18 tools.
 The restored-reader probe no longer treats an absent editor as successful recovery.
 Final attribution of the CI failure remains pending the new browser and CI runs.
+
+### Removal of speculative CI workarounds
+
+- Removed whole-migration retries based on connection-error text. That text does
+  not identify a pre-write failure; the Windows reset was subsequently attributed
+  to pool shutdown. The first migration failure and its output are preserved.
+- The backup-image probe now authenticates over TCP. A Unix-socket `SELECT 1`
+  also succeeds on PostgreSQL's temporary initialization server, so the earlier
+  query-only change did not close the readiness race.
+- Controlled Docker experiment: hold an initialization hook at a file barrier;
+  the temporary server answers Unix `SELECT 1` while TCP refuses. Release the
+  hook; TCP `SELECT 1` and `CREATE DATABASE` both succeed. No assertion retries
+  or timing-based release determine the result.
+- Checks: shell gate (14 scripts), format, workspace contracts (27 files / 377
+  tests), lint and monorepo types. The pool-listener change still lacks a proven
+  attribution for the original EBADF; green CI alone does not prove that cause.
