@@ -208,6 +208,16 @@ test("a restore accepts newer offline work instead of replacing it", async ({
     // restored projection, which is rebuilt for the server to be consistent
     // again. Wait for that convergence instead of reading the previous
     // projection, and name what a reader still saw if it does not converge.
+    // What the *server* holds after the restore, read through its own API: the
+    // editor below renders a projection, and a disagreement between the two is
+    // exactly what distinguishes "the restore kept newer work" from "the reader
+    // saw a stale projection".
+    const serverItem = await verifier.page.evaluate(async () => {
+      const match = /\/notes\/([0-9a-f-]{36})/i.exec(window.location.pathname);
+      if (match === null) return "no item in the address";
+      const response = await fetch(`/v1/items/${match[1]}`);
+      return `${response.status} ${(await response.text()).slice(0, 600)}`;
+    });
     const restoredEditor = verifier.page.locator('[data-testid="block-editor"]:visible');
     await expect
       .poll(
@@ -216,7 +226,7 @@ test("a restore accepts newer offline work instead of replacing it", async ({
           return text.includes("version serveur à restaurer") ? text.slice(0, 400) : null;
         },
         {
-          message: "the reader stops seeing the pre-restore server text",
+          message: `the reader stops seeing the pre-restore server text; server item: ${serverItem}`,
           timeout: 20_000,
         },
       )
