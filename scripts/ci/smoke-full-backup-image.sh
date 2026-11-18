@@ -17,12 +17,19 @@ docker network create "$full_network" >/dev/null
 docker volume create "$full_volume" >/dev/null
 docker run -d --name "$full_postgres" --network "$full_network" \
     -e POSTGRES_PASSWORD=myownnotion-dev postgres:18 >/dev/null
+# `pg_isready` answers for the *temporary* server the image runs while it
+# applies its init scripts, and that server shuts down immediately afterwards;
+# a probe that stops there hands the first real statement to a closing server
+# ("the database system is shutting down"). Ask the server that will still be
+# there: the readiness witness is a query it answers.
+full_ready=""
 for full_attempt in {1..30}; do
-    if docker exec "$full_postgres" pg_isready -U postgres >/dev/null 2>&1; then
+    if full_ready="$(docker exec "$full_postgres" psql -U postgres -Atc 'SELECT 1' 2>&1)" && [[ "$full_ready" == "1" ]]; then
         break
     fi
     if [[ "$full_attempt" == 30 ]]; then
         echo 'The disposable PostgreSQL image did not become ready.' >&2
+        echo "$full_ready" >&2
         exit 1
     fi
     sleep 1
