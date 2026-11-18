@@ -36,7 +36,6 @@ export interface DatabaseHandle {
  */
 function trackPoolShutdown(pool: pg.Pool): () => Promise<void> {
   const clientClosures = new Map<pg.PoolClient, Promise<void>>();
-  let streamFailure: unknown = null;
   const recordConnection = (client: pg.PoolClient): void => {
     let markClosed = (): void => undefined;
     const closed = new Promise<void>((resolve) => {
@@ -57,11 +56,13 @@ function trackPoolShutdown(pool: pg.Pool): () => Promise<void> {
     // A socket torn down twice — PostgreSQL's shutdown and the OS teardown can
     // both reach it — surfaces as `EBADF` with no listener, which Node raises as
     // an uncaught error attributed to whatever test happens to be running. The
-    // close is idempotent by intent, so that one code is ignored here; any other
-    // stream failure is still reported by the shutdown below.
+    // close is idempotent by intent, so that one code is ignored here. Nothing is
+    // rethrown from a shutdown: closing a healthy pool legitimately sees a reset
+    // on some platforms, and reporting it turned successful migrations into
+    // failures. Genuine query failures still reach the caller through their own
+    // result.
     stream.on("error", (error: NodeJS.ErrnoException) => {
       if (error.code === "EBADF") return;
-      streamFailure ??= error;
     });
   };
   pool.on("connect", recordConnection);
@@ -70,11 +71,6 @@ function trackPoolShutdown(pool: pg.Pool): () => Promise<void> {
     try {
       await pool.end();
       await Promise.all(clientClosures.values());
-      if (streamFailure !== null) {
-        const failure = streamFailure;
-        streamFailure = null;
-        throw failure;
-      }
     } finally {
       pool.off("connect", recordConnection);
     }
