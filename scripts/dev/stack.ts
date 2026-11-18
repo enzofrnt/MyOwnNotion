@@ -174,8 +174,12 @@ function auditStacks(): number {
   const tempDirectories = readdirSync(temporaryRoot).filter((entry) =>
     entry.startsWith("myownnotion-e2e-web-"),
   );
+  // The audit must be checkable from a test: a repository running its own
+  // coverage writes `coverage/` while the contracts execute, which would make the
+  // audit red for a reason that has nothing to do with the checked state.
+  const auditRoot = process.env["MYOWNNOTION_STACK_AUDIT_ROOT"] ?? repoRoot;
   const artefacts = ["coverage", "playwright-report", "test-results", ".e2e-logs"].filter(
-    (directory) => existsSync(path.join(repoRoot, directory)),
+    (directory) => existsSync(path.join(auditRoot, directory)),
   );
 
   const allowed = new Set(["myownnotion-dev", "myownnotion"]);

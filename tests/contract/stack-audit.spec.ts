@@ -37,7 +37,15 @@ exit 2
   chmodSync(docker, 0o755);
   const result = spawnSync(process.execPath, [script, "--audit"], {
     cwd,
-    env: { ...process.env, PATH: `${cwd}:${process.env["PATH"]}` },
+    // Both roots are the test's own directory: the audit must judge the state it
+    // was given, never the developer's machine or the repository's own coverage
+    // output.
+    env: {
+      ...process.env,
+      PATH: `${cwd}:${process.env["PATH"]}`,
+      TMPDIR: cwd,
+      MYOWNNOTION_STACK_AUDIT_ROOT: cwd,
+    },
     encoding: "utf8",
     timeout: 20_000,
   });
@@ -88,7 +96,12 @@ describe("stack audit", () => {
     chmodSync(docker, 0o755);
     const result = spawnSync(process.execPath, [script, "--audit"], {
       cwd,
-      env: { ...process.env, PATH: `${cwd}:${process.env["PATH"]}` },
+      env: {
+        ...process.env,
+        PATH: `${cwd}:${process.env["PATH"]}`,
+        TMPDIR: cwd,
+        MYOWNNOTION_STACK_AUDIT_ROOT: cwd,
+      },
       encoding: "utf8",
       timeout: 20_000,
     });

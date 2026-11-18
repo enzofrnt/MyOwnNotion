@@ -522,7 +522,42 @@ export async function openWorkspace(
           cause: error,
         });
       }
-      throw error;
+      // Neither content nor a refusal: name the state the application is in, so a
+      // platform-specific boot problem says what it is instead of "element not
+      // found". Everything here is read from the page with a short bound and
+      // never changes what the journey asserts.
+      const bootState = await page
+        .evaluate(() => {
+          const state = document.querySelector(".workspace-state");
+          return {
+            shell: document.querySelector('[data-testid="workspace-shell"]') !== null,
+            workspaceState: state?.getAttribute("data-state") ?? null,
+            treeItems: document.querySelectorAll('[data-testid^="tree-item-"]').length,
+            body: document.body.innerText.replace(/\s+/g, " ").trim().slice(0, 300),
+          };
+        })
+        .catch((error: unknown) => ({ probe: String(error) }));
+      const storeNames = await page
+        .evaluate(async () => {
+          const databases = (
+            globalThis.indexedDB as IDBFactory & { databases?: () => Promise<IDBDatabaseInfo[]> }
+          ).databases;
+          if (databases === undefined) return "indexedDB.databases is unavailable";
+          try {
+            return (await databases.call(globalThis.indexedDB))
+              .map((database) => database.name ?? "")
+              .filter((name) => name.startsWith("myownnotion-local"))
+              .sort()
+              .join(",");
+          } catch (error) {
+            return `databases() failed: ${String(error)}`;
+          }
+        })
+        .catch((error: unknown) => `probe failed: ${String(error)}`);
+      throw new Error(
+        `workspace rendered neither content nor a refusal: ${JSON.stringify({ ...bootState, accountStores: storeNames })}`,
+        { cause: error },
+      );
     }
     // Wait for the initial load (tree or empty state) to settle. On a phone the
     // navigation is a closed modal drawer, so readiness is represented by the
