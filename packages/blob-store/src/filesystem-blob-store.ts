@@ -22,12 +22,45 @@ async function requireDirectory(directory: string): Promise<void> {
     throw new Error("Blob storage requires a real directory.");
 }
 
-async function syncDirectory(directory: string): Promise<void> {
-  const handle = await open(directory, constants.O_RDONLY | constants.O_NOFOLLOW);
+type DescriptorKind = "directory" | "staging file" | "stored file";
+
+/** Add the JS ownership boundary missing from native filesystem errors. */
+async function descriptorOperation<T>(
+  operation: "open" | "fsync" | "close",
+  kind: DescriptorKind,
+  filename: string,
+  fd: number | undefined,
+  run: () => Promise<T>,
+): Promise<T> {
   try {
-    await handle.sync();
+    return await run();
+  } catch (cause) {
+    const error = new Error(
+      `Blob storage ${kind} ${operation} failed (path=${JSON.stringify(filename)}, fd=${fd ?? "unopened"}): ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+    Object.assign(error, {
+      code: (cause as NodeJS.ErrnoException | null)?.code,
+      syscall: (cause as NodeJS.ErrnoException | null)?.syscall,
+      path: filename,
+      fd,
+    });
+    throw error;
+  }
+}
+
+async function closeDescriptor(handle: FileHandle, kind: DescriptorKind, filename: string) {
+  await descriptorOperation("close", kind, filename, handle.fd, () => handle.close());
+}
+
+async function syncDirectory(directory: string): Promise<void> {
+  const handle = await descriptorOperation("open", "directory", directory, undefined, () =>
+    open(directory, constants.O_RDONLY | constants.O_NOFOLLOW),
+  );
+  try {
+    await descriptorOperation("fsync", "directory", directory, handle.fd, () => handle.sync());
   } finally {
-    await handle.close();
+    await closeDescriptor(handle, "directory", directory);
   }
 }
 
@@ -81,7 +114,9 @@ export class FilesystemBlobStore implements BlobStore {
       `.tmp-${randomBytes(8).toString("hex")}`,
     );
     await options?.beforeWrite?.(hex);
-    const handle = await open(temporaryPath, "wx+", 0o600);
+    const handle = await descriptorOperation("open", "staging file", temporaryPath, undefined, () =>
+      open(temporaryPath, "wx+", 0o600),
+    );
     try {
       let offset = 0;
       while (offset < bytes.byteLength) {
@@ -90,7 +125,9 @@ export class FilesystemBlobStore implements BlobStore {
         offset += written.bytesWritten;
       }
       await verifyPersistedBlob(handle, hex, bytes.byteLength);
-      await handle.sync();
+      await descriptorOperation("fsync", "staging file", temporaryPath, handle.fd, () =>
+        handle.sync(),
+      );
       try {
         await link(temporaryPath, finalPath);
       } catch (error) {
@@ -101,7 +138,7 @@ export class FilesystemBlobStore implements BlobStore {
       await syncDirectory(directory);
     } finally {
       try {
-        await handle.close();
+        await closeDescriptor(handle, "staging file", temporaryPath);
       } finally {
         await rm(temporaryPath, { force: true });
         await syncDirectory(directory);
@@ -121,9 +158,8 @@ export class FilesystemBlobStore implements BlobStore {
       const filename = this.#pathFor(storageKey);
       await requireDirectory(this.#root);
       await requireDirectory(path.dirname(filename));
-      const handle = await open(
-        filename,
-        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+      const handle = await descriptorOperation("open", "stored file", filename, undefined, () =>
+        open(filename, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK),
       );
       try {
         const status = await handle.stat();
@@ -143,7 +179,7 @@ export class FilesystemBlobStore implements BlobStore {
         if (digestHex(bytes) !== storageKey) throw new Error("Stored blob digest mismatch.");
         return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
       } finally {
-        await handle.close();
+        await closeDescriptor(handle, "stored file", filename);
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {

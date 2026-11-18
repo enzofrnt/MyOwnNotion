@@ -173,3 +173,22 @@ not proof that the underlying loader failure has been repaired.
 - Checks: shell gate (14 scripts), format, workspace contracts (27 files / 377
   tests), lint and monorepo types. The pool-listener change still lacks a proven
   attribution for the original EBADF; green CI alone does not prove that cause.
+
+### EBADF recurrence (run 44266542546)
+
+Coverage job 134672993671 again fails the 65-object protected-file reference
+case with `EBADF: bad file descriptor, close`, without a JS ownership boundary.
+The socket-listener hypothesis did not repair this failure. Its unconditional
+no-op stream listener has been removed; pool lifecycle tests pass (3/3).
+
+Blobstore directory, staging-file and stored-file open/fsync/close failures now
+retain their cause/code/syscall and report path plus descriptor captured before
+close. No failure is suppressed. Three injected close-failure regressions fail
+against the original adapter and pass with the diagnostic context; all 64
+blobstore tests pass. A pinned Linux Bun probe performs 6,500 put/get operations
+with forced GC every 65 operations without reproducing EBADF. This is not proof
+of a runtime cause or of its repair. The isolated original integration assertion
+passes under coverage, but that command exits nonzero because full-project
+coverage thresholds cannot be met by the subset; it is not recorded as a green
+gate. Format, lint and monorepo types pass. The next CI must identify the failing
+close before a root-cause correction can be claimed.

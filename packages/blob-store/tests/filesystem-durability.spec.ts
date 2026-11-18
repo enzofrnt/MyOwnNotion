@@ -37,6 +37,56 @@ afterEach(async () => {
 });
 
 describe("durable immutable blob publication", () => {
+  it.each(["directory", "staging file", "stored file"] as const)(
+    "attributes a failed %s close without swallowing EBADF",
+    async (kind) => {
+      if (kind === "stored file") await blobs.put(payload);
+      const failure = Object.assign(new Error("EBADF: bad file descriptor, close"), {
+        code: "EBADF",
+        syscall: "close",
+      });
+      let failedPath: string | undefined;
+      let failedFd: number | undefined;
+      vi.mocked(open).mockImplementation(async (...args) => {
+        const handle = await actual.open(...args);
+        const filename = String(args[0]);
+        const matches =
+          kind === "directory"
+            ? filename === root
+            : kind === "staging file"
+              ? filename.includes(".tmp-")
+              : filename === path.join(root, "blobs", prefix, key);
+        if (matches && failedPath === undefined) {
+          failedPath = filename;
+          failedFd = handle.fd;
+          const close = handle.close.bind(handle);
+          vi.spyOn(handle, "close").mockImplementationOnce(async () => {
+            await close();
+            throw failure;
+          });
+        }
+        return handle;
+      });
+      const operation = kind === "stored file" ? blobs.get(key) : blobs.put(payload);
+      const error = await operation.then(
+        () => {
+          throw new Error("Expected the descriptor close to reject");
+        },
+        (error: unknown) => error,
+      );
+      expect(failedPath).toBeDefined();
+      expect(error).toMatchObject({
+        cause: failure,
+        code: "EBADF",
+        syscall: "close",
+        path: failedPath,
+        fd: failedFd,
+      });
+      expect((error as Error).message).toContain(`${kind} close failed`);
+      expect((error as Error).stack).toContain("filesystem-blob-store.ts");
+    },
+  );
+
   it("publishes concurrent identical writes with private modes and no staging leftovers", async () => {
     const results = await Promise.all(Array.from({ length: 8 }, () => blobs.put(payload)));
     expect(new Set(results.map((result) => result.storageKey))).toEqual(new Set([key]));
