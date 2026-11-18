@@ -76,6 +76,13 @@ comparaison. Une silhouette sans états ni preuve n'est pas terminée.
   [test quality skill](.agents/skills/test-quality/SKILL.md) with its
   [lessons journal](.agents/skills/test-quality/lessons.md) before writing or
   reviewing any test.
+- Run a multi-project suite through the parallel matrix command
+  (`bun run test:e2e:gate` or `test:e2e:local`), never project by project, and
+  never with `MYOWNNOTION_E2E_JOBS=1` to validate work. Every stack is isolated
+  and disposable; a session ends with `bun run stacks:audit` reporting no
+  ephemeral stack and no temporary database. The binding rules are in
+  [parallel execution and stack hygiene](docs/testing/parallel-stacks.md)
+  (constitution article IX).
 - Before every branch push, read the current gate inventory in
   `docs/development.md` and select checks from the changes since the last
   validated publication (the branch base for a first push). Run targeted

@@ -1,5 +1,17 @@
 <!--
 Sync Impact Report
+- Version change: 5.0.0 -> 5.1.0
+- Added principle: IX. Parallel, Isolated, Self-Cleaning Test Execution —
+  parallel matrix execution, per-stack isolation, ownership labels and a
+  verifiable empty state after every run.
+- Added: `docs/testing/parallel-stacks.md` (normative rules, reserved ports,
+  audit command, observed leak).
+- Rationale: MINOR. A new binding principle is added; no existing principle or
+  product invariant is relaxed.
+- Follow-up: feature plans and `tasks.md` test tasks reference the parallel run
+  command; agents run the stack audit before and after a work session.
+
+Previous report (5.0.0)
 - Version change: 4.1.0 -> 5.0.0
 - Modified principles:
   - I. User Ownership and Local Resilience -> the single-owner definition is
@@ -358,6 +370,33 @@ dependencies, and exclusions. If implementation evidence exposes a necessary
 change in product direction, agents MUST amend the canvas deliberately rather
 than letting documentation drift behind the code.
 
+### IX. Parallel, Isolated, Self-Cleaning Test Execution
+
+Verification MUST NOT be serialised by habit. A multi-project suite MUST be
+launched through the repository's matrix command, which runs projects in
+parallel with one isolated database, port block, blob root, backup root and
+artefact directory per stack. Running the corpus one project at a time is a
+defect of the suite or of the run, and MUST be justified in the feature's
+validation record with the failure it was reproducing. A raw single-file test
+invocation is a reproduction tool, never a gate.
+
+Every container, volume, network and database created for a feature or an
+investigation MUST carry an ownership label and an explicit stack name, MUST be
+disposable, and MUST NOT share a database, a port or a storage root with another
+stack. The only permitted long-lived stacks are the development stack and the
+official Compose project; a test run MUST NOT create either.
+
+A run MUST end in a verifiable empty state, not an intended one. Cleanup that
+depends on a `finally` block is insufficient because a forced kill skips it.
+After a run, a killed run or the end of a work session, the repository audit MUST
+report no ephemeral stack and no temporary database remains. A run that leaves a
+stack behind is a failed run even when every assertion passed. Reclaiming is
+explicit and scoped to one stack; a blanket prune that could delete another
+agent's work or the development data is forbidden.
+
+The normative rules, the reserved ports, the audit command and the observed leak
+that motivated this article are in `docs/testing/parallel-stacks.md`.
+
 ## Product and Technical Constraints
 
 - One installation hosts isolated accounts (principle I): each account owns exactly one canonical workspace; the only roles are administrator (the first-launch account, who also manages registration and accounts) and member. Multiple authorized *devices* per account and anonymous read-only access to deliberately shared content are in scope. Teams, shared private workspaces, a permission model between people on private content, and real-time co-editing between accounts are out of scope; introducing any of them requires a MAJOR amendment to this constitution before it is specified.
@@ -402,4 +441,4 @@ product invariant MUST amend the constitution in the same change. Feature-level
 detail MUST remain in the relevant feature directory rather than being copied
 into the constitution.
 
-**Version**: 5.0.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-11-16
+**Version**: 5.1.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-11-18

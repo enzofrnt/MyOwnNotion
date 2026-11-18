@@ -19,7 +19,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -135,7 +135,151 @@ function trustCaddy(): void {
   console.info("Import that certificate into your browser or system trust store, then reload.");
 }
 
+/**
+ * Reports the stacks that exist on this machine, and fails when an ephemeral one
+ * is still running.
+ *
+ * The two long-lived stacks (`myownnotion-dev`, `myownnotion`) are reported as
+ * allowed. Everything else is a stack somebody created for a feature or an
+ * investigation: it must carry the ownership labels, and it must not survive the
+ * session that created it. Reading only; reclaiming stays explicit and scoped so
+ * that no audit can delete another agent's work.
+ */
+function auditStacks(): number {
+  const ps = spawnSync(
+    "docker",
+    [
+      "ps",
+      "-a",
+      "--format",
+      '{{.Names}}\t{{.Label "com.docker.compose.project"}}\t{{.Label "com.myownnotion.stack"}}\t{{.Label "com.myownnotion.ephemeral"}}\t{{.Image}}\t{{.Status}}',
+    ],
+    { encoding: "utf8" },
+  );
+  if (ps.error) fail(`docker is not available: ${ps.error.message}`);
+  if (ps.status !== 0) fail(`docker ps failed: ${(ps.stderr ?? "").trim()}`);
+
+  // Containers are only one kind of leftover. Images built by the e2e matrix,
+  // temporary web builds and repository artefacts also accumulate, and none of
+  // them is visible in `docker ps`: a session that removed its containers can
+  // still have left gigabytes behind.
+  const count = (command: string[]): number => {
+    const result = spawnSync("docker", command, { encoding: "utf8" });
+    return (result.stdout ?? "").split("\n").filter((line) => line.trim().length > 0).length;
+  };
+  const e2eImages = count(["images", "myownnotion-e2e-playwright", "-q"]);
+  const dangling = count(["images", "-f", "dangling=true", "-q"]);
+  const volumes = count(["volume", "ls", "-q"]);
+  const temporaryRoot = process.env["TMPDIR"] ?? "/tmp";
+  const tempDirectories = readdirSync(temporaryRoot).filter((entry) =>
+    entry.startsWith("myownnotion-e2e-web-"),
+  );
+  const artefacts = ["coverage", "playwright-report", "test-results", ".e2e-logs"].filter(
+    (directory) => existsSync(path.join(repoRoot, directory)),
+  );
+
+  const allowed = new Set(["myownnotion-dev", "myownnotion"]);
+  const rows = (ps.stdout ?? "")
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map((line) => {
+      const [name = "", project = "", stack = "", ephemeral = "", image = "", status = ""] =
+        line.split("\t");
+      return { name, project, stack, ephemeral, image, status };
+    });
+
+  // Testcontainers starts its own reaper beside the containers it will remove;
+  // it terminates itself and owns nothing, so failing on it would make the audit
+  // red right after any disposable-database run.
+  const reaper = (row: { readonly name: string }): boolean =>
+    row.name.startsWith("testcontainers-ryuk-");
+  const ephemeral = rows.filter((row) =>
+    reaper(row) ? false : row.project !== "" ? !allowed.has(row.project) : row.name !== "",
+  );
+  // A project with nothing but a database is its own violation: it exists only
+  // because somebody wanted "just a postgres" for a few minutes and never closed
+  // it. Testing uses the matrix or a disposable database instead.
+  const servicesByProject = new Map<string, string[]>();
+  for (const row of rows) {
+    if (row.project === "" || allowed.has(row.project)) continue;
+    const services = servicesByProject.get(row.project) ?? [];
+    services.push(row.image.split(":")[0] ?? "");
+    servicesByProject.set(row.project, services);
+  }
+  const databaseOnly = [...servicesByProject.entries()]
+    .filter(([, images]) => images.length > 0 && images.every((image) => image === "postgres"))
+    .map(([project]) => project);
+  console.info(`${rows.length} container(s) on this machine:`);
+  for (const row of rows) {
+    const ownership =
+      row.project !== ""
+        ? allowed.has(row.project)
+          ? `allowed stack ${row.project}`
+          : `EPHEMERAL stack ${row.project}`
+        : "no compose project";
+    const labels =
+      row.stack === "" && row.ephemeral === ""
+        ? "unlabelled"
+        : `stack=${row.stack || "-"} ephemeral=${row.ephemeral || "-"}`;
+    console.info(`  ${row.name} | ${ownership} | ${labels} | ${row.image} | ${row.status}`);
+  }
+
+  const unlabelledEphemeral = ephemeral.filter(
+    (row) => row.project !== "" && row.ephemeral !== "true",
+  );
+  if (ephemeral.length > 0) {
+    console.error(
+      `\n${ephemeral.length} ephemeral stack(s) still exist. Reap them before the next run:`,
+    );
+    for (const row of ephemeral) {
+      const project = row.project === "" ? null : row.project;
+      console.error(
+        project === null
+          ? `  docker rm -f ${row.name}`
+          : `  docker compose -p ${project} down -v --remove-orphans`,
+      );
+    }
+    if (unlabelledEphemeral.length > 0) {
+      console.error(
+        `\n${unlabelledEphemeral.length} of them carry no com.myownnotion.ephemeral=true label; see docs/testing/parallel-stacks.md.`,
+      );
+    }
+  }
+  if (databaseOnly.length > 0) {
+    console.error(
+      `\n${databaseOnly.length} standalone database stack(s): ${databaseOnly.join(", ")}. A database is not a stack; use the matrix or a disposable database.`,
+    );
+  }
+  if (ephemeral.length > 0) return 1;
+  const leftovers = e2eImages + dangling + tempDirectories.length + artefacts.length;
+  console.info(`\nimages: ${e2eImages} e2e build(s), ${dangling} dangling | volumes: ${volumes}`);
+  console.info(
+    `temporary e2e roots: ${tempDirectories.length} | repository artefacts: ${artefacts.length === 0 ? "none" : artefacts.join(", ")}`,
+  );
+  if (leftovers > 0) {
+    console.error(
+      `\n${leftovers} build leftover(s). Reclaim them explicitly; a blanket prune is forbidden:`,
+    );
+    if (e2eImages > 0) {
+      console.error(
+        "  docker images 'myownnotion-e2e-playwright' -q | sort -u | xargs -r docker rmi -f",
+      );
+    }
+    if (dangling > 0) console.error("  docker image prune -f");
+    if (tempDirectories.length > 0) {
+      console.error(`  rm -rf ${temporaryRoot}/myownnotion-e2e-web-*`);
+    }
+    if (artefacts.length > 0) console.error(`  rm -rf ${artefacts.join(" ")}`);
+  }
+  if (ephemeral.length > 0 || leftovers > 0 || databaseOnly.length > 0) return 1;
+  console.info("\nNo ephemeral stack and no build leftover: parallel-stacks rules 5 and 6 hold.");
+  return 0;
+}
+
 const args = process.argv.slice(2);
+if (args.includes("--audit")) {
+  process.exit(auditStacks());
+}
 if (args.includes("--down")) {
   process.exit(compose(["down", "--remove-orphans"]));
 }
