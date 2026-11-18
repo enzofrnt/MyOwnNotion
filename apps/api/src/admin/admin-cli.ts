@@ -3,7 +3,9 @@
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { ContentStore, FilesystemBlobStore, PartialUploadStore } from "@myownnotion/blob-store";
-import { createDatabase, getOrCreateWorkspace, migrationInventory } from "@myownnotion/database";
+import { createDatabase, migrationInventory, schema } from "@myownnotion/database";
+import { isUuid, type Uuid } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
 import { APPLICATION_VERSION } from "../application-version.ts";
 import { openBackupArchive, sealBackupArchiveStream } from "../backup/archive-crypto.ts";
 import {
@@ -19,7 +21,7 @@ import { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import { loadDeploymentKey } from "../security/deployment-key.ts";
 import { runBackupAdminCommand } from "./backup-admin-commands.ts";
 import { type CommandResult, EXIT_CODES, exitCodeFor, renderResult } from "./command-output.ts";
-import { parseCommand, wantsJson } from "./command-parser.ts";
+import { CommandUsageError, parseCommand, wantsJson } from "./command-parser.ts";
 import { isFullBackupCommand, runFullBackupCommand } from "./full-backup-commands.ts";
 import { runCli as runSecurityCli } from "./security-cli.ts";
 
@@ -39,6 +41,9 @@ export const ADMIN_HELP = `myownnotion — local administration
 
 Restore apply shows the archive scope, makes a safety backup, and requires
 confirmation. With no terminal it refuses unless --yes was supplied.
+Workspace backup, restore and version commands accept --workspace-id UUID.
+It is required when more than one workspace exists; no workspace is created.
+Use backup full / restore full for installation-wide recovery.
 Secrets are read from mounted files and are never accepted as arguments.`;
 
 async function askForRestore(scope: {
@@ -89,7 +94,25 @@ export async function runAdminCli(
       typeof destinationOption === "string" ? destinationOption : undefined,
     );
     database = createDatabase(databaseUrl);
-    const workspace = await getOrCreateWorkspace(database.db);
+    const workspaceId = command.options["workspace-id"];
+    if (workspaceId !== undefined && (typeof workspaceId !== "string" || !isUuid(workspaceId))) {
+      throw new CommandUsageError("--workspace-id must be a UUID");
+    }
+    const candidates = await database.db
+      .select()
+      .from(schema.workspaces)
+      .where(workspaceId === undefined ? undefined : eq(schema.workspaces.id, workspaceId as Uuid))
+      .limit(2);
+    const candidate = candidates[0];
+    if (candidate === undefined) {
+      throw new CommandUsageError(
+        workspaceId === undefined ? "no workspace exists" : "--workspace-id does not exist",
+      );
+    }
+    if (candidates.length !== 1) {
+      throw new CommandUsageError("multiple workspaces exist; supply --workspace-id explicitly");
+    }
+    const workspace = { id: candidate.id as Uuid, schemaVersion: candidate.schemaVersion };
     const blobRoot = process.env["MYOWNNOTION_BLOB_ROOT"]?.trim() || "./.dev-blobs";
     const contentStore = new ContentStore(new FilesystemBlobStore(blobRoot));
     const deploymentKey = (): Buffer | null => {

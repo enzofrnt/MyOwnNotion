@@ -34,6 +34,7 @@ const VALUE_FLAGS = new Set([
   "target-directory",
   "id",
   "destination",
+  "workspace-id",
   "target",
   "source",
   "generation",

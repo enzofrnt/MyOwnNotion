@@ -126,3 +126,20 @@ The first CI run after the repairs was red. Diagnosed per job:
 | `desktop-offline-restart.spec.ts:80` on every desktop platform: workspace content never appears | pre-existing boot-refusal signature (the separate 063 handoff documents it on main); the pre-repair run 44171452099 already failed desktop jobs the same way | outside this batch; tracked by the 063 worktree |
 
 Assertions were not weakened; the board journey keeps its focus contract and now passes.
+
+## Correction of earlier CI attribution (2026-11-18)
+
+The desktop failure above was not established as inherited from main. Main's five
+native jobs passed; the account-scoped offline restart regression was subsequently
+reproduced and repaired with the durable local-account registry.
+
+The repeated restore failure was not proved to be a delayed write or a rebuilding
+projection. Inspection identified a deterministic wrong-target defect instead:
+the administration CLI selected the oldest workspace, while the CI lane contained
+several account workspaces. A regression with two workspaces returned success for
+an ambiguous request before the fix. The CLI now requires `--workspace-id` when
+selection is ambiguous, validates the target, and never creates an implicit target.
+The journey supplies the workspace belonging to its authenticated account to both
+backup and restore. The CLI integration suite passes all six tests with PG18 tools.
+The restored-reader probe no longer treats an absent editor as successful recovery.
+Final attribution of the CI failure remains pending the new browser and CI runs.

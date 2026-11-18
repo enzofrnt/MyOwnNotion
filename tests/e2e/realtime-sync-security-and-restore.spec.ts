@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { Locator, Page } from "@playwright/test";
+import { Client } from "pg";
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
@@ -170,7 +171,33 @@ test("a restore accepts newer offline work instead of replacing it", async ({
     await openWorkspace(second.page);
     await selectItem(second.page, pageName);
     await waitForEditorSettled(second.page);
-    const backup = await admin(["backup", "run"]);
+    // Resolve the scope from this browser's authenticated identity, never from
+    // workspace creation order in the lane's shared database.
+    const account = await page.evaluate(async () => {
+      const response = await fetch("/v1/me");
+      if (!response.ok) throw new Error(`authenticated account lookup failed: ${response.status}`);
+      return (await response.json()) as { accountId: string };
+    });
+    const database = new Client({
+      connectionString:
+        process.env["DATABASE_URL"] ??
+        "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion",
+    });
+    let workspaceId: string;
+    await database.connect();
+    try {
+      const result = await database.query<{ workspace_id: string }>(
+        "SELECT workspace_id FROM owners WHERE id = $1",
+        [account.accountId],
+      );
+      expect(result.rows).toHaveLength(1);
+      const row = result.rows[0];
+      if (row === undefined) throw new Error("authenticated account has no workspace");
+      workspaceId = row.workspace_id;
+    } finally {
+      await database.end();
+    }
+    const backup = await admin(["backup", "run", "--workspace-id", workspaceId]);
     const backupId = String(backup["backupId"] ?? "");
     expect(backupId).not.toBe("");
 
@@ -193,7 +220,7 @@ test("a restore accepts newer offline work instead of replacing it", async ({
     ).toContainText("version serveur à restaurer");
     await committedReader.context.close();
 
-    await admin(["restore", "apply", "--id", backupId, "--yes"]);
+    await admin(["restore", "apply", "--id", backupId, "--workspace-id", workspaceId, "--yes"]);
     await second.context.close();
     // The restore command returns once it has applied the archive, but the next
     // steps depend on the *restored* state being what a reader now sees. Read it
@@ -222,7 +249,7 @@ test("a restore accepts newer offline work instead of replacing it", async ({
     await expect
       .poll(
         async () => {
-          const text = await restoredEditor.innerText().catch(() => "");
+          const text = await restoredEditor.innerText();
           return text.includes("version serveur à restaurer") ? text.slice(0, 400) : null;
         },
         {
