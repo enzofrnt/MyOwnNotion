@@ -210,3 +210,28 @@ syscalls and raw read pointers/counts are captured, never decoded read buffers o
 exec/environment payloads. Each stream retains its last 64 MiB and is compressed
 for a group/attempt-specific artifact. Tracing can alter timing and cannot itself
 prove the cause; capture absence or non-reproduction is reported honestly.
+
+## Converged state (run 44299518129, commit 6bb6e0c2)
+
+The complete gate is green on the pull request: 44 jobs, no failure, and only
+`Publish commit-addressable images` skipped (it runs on `main`). Every browser
+lane passes on all five projects, all five native desktop jobs pass, and the API,
+unit, coverage, contract, security, image, recovery and performance jobs pass.
+
+Causes corrected in this convergence, each with the evidence that brought it:
+
+| Symptom | Cause established | Correction |
+| --- | --- | --- |
+| Restore journey failed only in CI | The administration CLI selected the oldest workspace while the lane held several account workspaces | `--workspace-id` is required when selection is ambiguous; the journey passes its own account's workspace to backup and restore |
+| `EBADF`/`ENOENT`/module-load failures in unrelated files | Reported honestly as unexplained: local probes (8 contract runs, 6,500 blob put/get with forced GC, FileHandle stream lifecycle, worker teardown) did not reproduce it | Speculative suppressions removed; descriptor context preserved; a failure-only syscall capture runs after a red gate without changing its verdict |
+| Coverage job failed by one branch | The diagnostic wrapper added an uncovered formatting path | A new open-failure test raised that file's branch coverage from 85.71% to 88.09% |
+| Browser lanes `cancelled` while working | A full-corpus lane measured up to 36 minutes against a 30-minute job budget | The lane budget is 45 minutes, bounded, with its release contract updated |
+| WebKit boot refusal after a reload | A second IndexedDB database opened while the account projection was opening | The durable record is written once the workspace is ready |
+| Desktop crash recovery failed on Windows ARM | The remembered account id can be lost before it is committed | The account's own store is the last witness: discovery reads the stores present, and refuses to guess when several exist |
+| Shell gate failed on a new helper | `shfmt -ci` indents `case` branches | Formatted with the gate's exact flags |
+| PostgreSQL smoke readiness | `pg_isready` answers for the temporary init server | Readiness is a query the surviving server answers over TCP, proven with a held init hook |
+
+Residual risk, stated rather than hidden: the intermittent filesystem failures
+were never reproduced, so their cause is unknown; the next occurrence is designed
+to leave syscall evidence. Two journeys were seen failing on the Windows ARM
+desktop job and on the WebKit lane before their fixes; both pass in the green run.
