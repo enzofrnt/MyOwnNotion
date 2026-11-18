@@ -45,6 +45,8 @@ function ownerContext(overrides: Partial<SecurityRequestContext> = {}): Security
   return createRequestContext({
     principal: {
       kind: "owner",
+      workspaceId: "018f2b7c-0000-7000-8000-0000000000aa",
+      role: "administrator",
       ownerId: "018f2b7c-0000-7000-8000-0000000000bb",
       sessionId: "018f2b7c-0000-7000-8000-0000000000cc",
       deviceId: "018f2b7c-0000-7000-8000-0000000000dd",
@@ -146,6 +148,8 @@ describe("principal resolution", () => {
         authenticated: true,
         principal: {
           kind: "owner",
+          workspaceId: "018f2b7c-0000-7000-8000-0000000000aa",
+          role: "administrator",
           ownerId: "o",
           sessionId: "s",
           deviceId: "d",

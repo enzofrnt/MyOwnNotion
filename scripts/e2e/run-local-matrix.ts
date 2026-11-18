@@ -325,6 +325,8 @@ function run(
 }
 
 async function migrate(stack: Stack): Promise<void> {
+  // A connection error can arrive after a migration committed, including during
+  // shutdown. Preserve the first failure; never rerun mutations based on text.
   const { code, output } = await run("bun", ["scripts/db/migrate.ts"], {
     DATABASE_URL: stack.databaseUrl,
     ...(stack.blobRoot === undefined ? {} : { MYOWNNOTION_BLOB_ROOT: stack.blobRoot }),

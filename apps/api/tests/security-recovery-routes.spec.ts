@@ -6,6 +6,8 @@ import { RecoveryKitError, type RecoveryKitService } from "../src/security/recov
 
 const OWNER = {
   kind: "owner" as const,
+  workspaceId: "018f2b7c-0000-7000-8000-0000000000aa",
+  role: "administrator" as const,
   ownerId: "owner-1",
   sessionId: "session-1",
   deviceId: "device-1",

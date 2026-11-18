@@ -14,6 +14,7 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   createSecurityIntegrationContext,
+  isCheckViolation,
   isUniqueViolation,
   type SecurityIntegrationContext,
   violatesConstraint,
@@ -70,12 +71,14 @@ async function promoteToReady(): Promise<void> {
     INSERT INTO workspaces (id, schema_version) VALUES (${WORKSPACE_ID}::uuid, 1)
   `);
   await context.handle.db.execute(sql`
-    INSERT INTO owners (id, installation_id, state)
-    VALUES (${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active')
+    INSERT INTO owners (id, installation_id, state, workspace_id, email, email_normalized,
+                        pseudonym, role, origin)
+    VALUES (${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active', ${WORKSPACE_ID}::uuid,
+            'admin@example.test', 'admin@example.test', 'Admin', 'administrator', 'bootstrap')
   `);
   await context.handle.db.execute(sql`
     UPDATE installations
-    SET state = 'ready', owner_id = ${OWNER_ID}::uuid, workspace_id = ${WORKSPACE_ID}::uuid
+    SET state = 'ready', administrator_id = ${OWNER_ID}::uuid
     WHERE id = ${INSTALLATION_ID}::uuid
   `);
 }
@@ -147,29 +150,23 @@ describe("installation singleton and committed counts", () => {
     await expect(insertUninitializedInstallation()).rejects.toSatisfy(isUniqueViolation);
   });
 
-  it("refuses an uninitialized installation that already claims an owner", async () => {
-    // The pre-confirmation workflow must be observable as 0/0; an owner here
-    // would mean a partial installation exists.
+  it("refuses an uninitialized installation that already names an administrator", async () => {
+    // The pre-confirmation workflow must be observable as 0/0.
+    await insertUninitializedInstallation();
+    await promoteToReady();
     await expect(
       context.handle.db.execute(sql`
-        INSERT INTO installations (id, source_lineage_id, state, owner_id, workspace_id, schema_version)
-        VALUES (${INSTALLATION_ID}::uuid, ${INSTALLATION_ID}::uuid, 'bootstrap-in-progress',
-                ${OWNER_ID}::uuid, ${WORKSPACE_ID}::uuid, 1)
+        UPDATE installations SET state = 'bootstrap-in-progress' WHERE id = ${INSTALLATION_ID}::uuid
       `),
     ).rejects.toSatisfy(violatesConstraint("installations_counts_check"));
   });
 
-  it("refuses a ready installation with an owner but no workspace", async () => {
+  it("refuses a ready installation without an administrator", async () => {
     await insertUninitializedInstallation();
-    await context.handle.db.execute(sql`
-      INSERT INTO owners (id, installation_id, state)
-      VALUES (${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active')
-    `);
     // A half-committed promotion: exactly what the atomic transaction prevents.
     await expect(
       context.handle.db.execute(sql`
-        UPDATE installations SET state = 'ready', owner_id = ${OWNER_ID}::uuid
-        WHERE id = ${INSTALLATION_ID}::uuid
+        UPDATE installations SET state = 'ready' WHERE id = ${INSTALLATION_ID}::uuid
       `),
     ).rejects.toSatisfy(violatesConstraint("installations_counts_check"));
   });
@@ -194,15 +191,33 @@ describe("installation singleton and committed counts", () => {
     }
   });
 
-  it("refuses a second owner", async () => {
+  it("accepts member accounts but refuses a second administrator (feature 058)", async () => {
     await insertUninitializedInstallation();
     await promoteToReady();
-    await expect(
+    const insertAccount = (id: string, email: string, role: string, origin: string) =>
       context.handle.db.execute(sql`
-        INSERT INTO owners (id, installation_id, state)
-        VALUES (${"018f2b7c-0000-7000-8000-0000000000cc"}::uuid, ${INSTALLATION_ID}::uuid, 'active')
-      `),
-    ).rejects.toSatisfy(isUniqueViolation);
+        WITH ws AS (INSERT INTO workspaces (id, schema_version) VALUES (gen_random_uuid(), 1) RETURNING id)
+        INSERT INTO owners (id, installation_id, state, workspace_id, email, email_normalized,
+                            pseudonym, role, origin)
+        SELECT ${id}::uuid, ${INSTALLATION_ID}::uuid, 'active', ws.id, ${email}, ${email},
+               'Someone', ${role}, ${origin} FROM ws
+      `);
+    await insertAccount("018f2b7c-0000-7000-8000-0000000000c1", "m@example.test", "member", "open");
+    await expect(
+      insertAccount(
+        "018f2b7c-0000-7000-8000-0000000000c2",
+        "a@example.test",
+        "administrator",
+        "bootstrap",
+      ),
+    ).rejects.toSatisfy(violatesConstraint("owners_single_administrator"));
+    await expect(
+      insertAccount("018f2b7c-0000-7000-8000-0000000000c3", "M@example.test ", "member", "open"),
+    ).rejects.toSatisfy(isCheckViolation);
+    await expect(
+      insertAccount("018f2b7c-0000-7000-8000-0000000000c4", "m@example.test", "member", "open"),
+    ).rejects.toSatisfy(violatesConstraint("owners_email_unique"));
+    expect(await context.committedCounts()).toEqual({ ownerCount: 2, workspaceCount: 2 });
   });
 });
 

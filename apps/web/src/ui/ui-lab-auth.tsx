@@ -1,9 +1,10 @@
 import { BootstrapPage } from "../features/auth/bootstrap-page.tsx";
 import { LoginPage } from "../features/auth/login-page.tsx";
+import { SignupPage } from "../features/auth/signup-page.tsx";
 import { DesktopConnectionPage } from "../features/connection/desktop-connection-page.tsx";
 import { SecurityApi } from "../services/security-api.ts";
 
-export type UiLabAuthSurface = "login" | "setup" | "connection";
+export type UiLabAuthSurface = "login" | "setup" | "signup" | "join" | "connection";
 
 // All actions reachable in these previews stop before a request or a native
 // credential ceremony. No owner credentials, installation or profile is used.
@@ -32,7 +33,11 @@ class PreviewSecurityApi extends SecurityApi {
     };
   }
 
-  override async start(): ReturnType<SecurityApi["start"]> {
+  override async bootstrap(): ReturnType<SecurityApi["bootstrap"]> {
+    return refusal;
+  }
+
+  override async signup(): ReturnType<SecurityApi["signup"]> {
     return refusal;
   }
 
@@ -57,6 +62,15 @@ export function UiLabAuthPreview({ surface }: { readonly surface: UiLabAuthSurfa
       </nav>
       {surface === "login" ? <LoginPage api={previewApi} onSignedIn={stayInPreview} /> : null}
       {surface === "setup" ? <BootstrapPage api={previewApi} onReady={stayInPreview} /> : null}
+      {surface === "signup" || surface === "join" ? (
+        <SignupPage
+          key={surface}
+          api={previewApi}
+          mode={surface === "join" ? "invitation" : "open"}
+          onSignedIn={stayInPreview}
+          onBackToLogin={stayInPreview}
+        />
+      ) : null}
       {surface === "connection" ? (
         window.myownnotionDesktop === undefined ? (
           <DesktopConnectionPage onConnected={stayInPreview} />

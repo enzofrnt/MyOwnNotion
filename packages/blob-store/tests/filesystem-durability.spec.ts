@@ -37,6 +37,81 @@ afterEach(async () => {
 });
 
 describe("durable immutable blob publication", () => {
+  it.each(["directory", "staging file", "stored file"] as const)(
+    "attributes a failed %s close without swallowing EBADF",
+    async (kind) => {
+      if (kind === "stored file") await blobs.put(payload);
+      const failure = Object.assign(new Error("EBADF: bad file descriptor, close"), {
+        code: "EBADF",
+        syscall: "close",
+      });
+      let failedPath: string | undefined;
+      let failedFd: number | undefined;
+      vi.mocked(open).mockImplementation(async (...args) => {
+        const handle = await actual.open(...args);
+        const filename = String(args[0]);
+        const matches =
+          kind === "directory"
+            ? filename === root
+            : kind === "staging file"
+              ? filename.includes(".tmp-")
+              : filename === path.join(root, "blobs", prefix, key);
+        if (matches && failedPath === undefined) {
+          failedPath = filename;
+          failedFd = handle.fd;
+          const close = handle.close.bind(handle);
+          vi.spyOn(handle, "close").mockImplementationOnce(async () => {
+            await close();
+            throw failure;
+          });
+        }
+        return handle;
+      });
+      const operation = kind === "stored file" ? blobs.get(key) : blobs.put(payload);
+      const error = await operation.then(
+        () => {
+          throw new Error("Expected the descriptor close to reject");
+        },
+        (error: unknown) => error,
+      );
+      expect(failedPath).toBeDefined();
+      expect(error).toMatchObject({
+        cause: failure,
+        code: "EBADF",
+        syscall: "close",
+        path: failedPath,
+        fd: failedFd,
+      });
+      expect((error as Error).message).toContain(`${kind} close failed`);
+      // The native message stays reachable through the cause chain.
+      expect((error as Error & { readonly cause: Error }).cause.message).toBe(
+        "EBADF: bad file descriptor, close",
+      );
+      expect((error as Error).stack).toContain("filesystem-blob-store.ts");
+    },
+  );
+
+  it("names an unopened descriptor when the open itself fails", async () => {
+    // A failed open owns no descriptor: the diagnostic must say so instead of
+    // reporting a number, and a non-Error rejection must still be described.
+    const failure = Object.assign(new Error("EACCES: permission denied, open"), {
+      code: "EACCES",
+      syscall: "open",
+    });
+    vi.mocked(open).mockRejectedValueOnce("opening refused");
+    const error = await blobs.put(payload).then(
+      () => {
+        throw new Error("Expected the open to reject");
+      },
+      (error: unknown) => error,
+    );
+    expect(error).toMatchObject({ code: undefined, syscall: undefined, fd: undefined });
+    expect((error as Error).message).toContain("fd=unopened");
+    expect((error as Error).message).toContain("opening refused");
+    vi.mocked(open).mockRejectedValueOnce(failure);
+    await expect(blobs.put(payload)).rejects.toThrow("EACCES: permission denied, open");
+  });
+
   it("publishes concurrent identical writes with private modes and no staging leftovers", async () => {
     const results = await Promise.all(Array.from({ length: 8 }, () => blobs.put(payload)));
     expect(new Set(results.map((result) => result.storageKey))).toEqual(new Set([key]));

@@ -34,6 +34,7 @@ const VALUE_FLAGS = new Set([
   "target-directory",
   "id",
   "destination",
+  "workspace-id",
   "target",
   "source",
   "generation",
@@ -46,6 +47,9 @@ const VALUE_FLAGS = new Set([
   "new-key-file",
   "revoke-generation",
   "kit-file",
+  // Feature 058: accounts are named by email; a pseudonym is display text.
+  "email",
+  "pseudonym",
 ]);
 
 /** Flags a caller might reach for to pass a secret inline. Always refused. */

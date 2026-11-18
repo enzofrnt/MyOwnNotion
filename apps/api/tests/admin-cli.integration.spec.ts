@@ -2,6 +2,9 @@ import { randomBytes } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { schema } from "@myownnotion/database";
+import { generateUuidV7 } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { runAdminCli } from "../src/admin/admin-cli.ts";
 import { EXIT_CODES } from "../src/admin/command-output.ts";
@@ -60,6 +63,7 @@ describe("the unified local administration entrypoint", () => {
     const output: string[] = [];
     expect(
       await runAdminCli(["backup", "full", "run", "--json"], (line) => output.push(line)),
+      output.join("\n"),
     ).toBe(EXIT_CODES.ok);
     const result = JSON.parse(output.at(-1) ?? "{}");
     expect(result).toMatchObject({ ok: true, data: { remote: "not-configured" } });
@@ -89,6 +93,46 @@ describe("the unified local administration entrypoint", () => {
       await runAdminCli(["backup", "verify", "--latest", "--json"], (line) => checked.push(line)),
     ).toBe(EXIT_CODES.ok);
     expect(JSON.parse(checked.at(-1) ?? "{}")).toMatchObject({ ok: true, code: 0 });
+  });
+
+  it("refuses ambiguous scope and backs up the explicitly selected later workspace", async () => {
+    const workspaceId = generateUuidV7();
+    await harness.context.db
+      .insert(schema.workspaces)
+      .values({ id: workspaceId, schemaVersion: 1 });
+    try {
+      const ambiguous: string[] = [];
+      expect(await runAdminCli(["backup", "run", "--json"], (line) => ambiguous.push(line))).toBe(
+        EXIT_CODES.usage,
+      );
+      expect(JSON.parse(ambiguous.at(-1) ?? "{}").message).toContain("--workspace-id");
+      const selected: string[] = [];
+      expect(
+        await runAdminCli(["backup", "run", "--workspace-id", workspaceId, "--json"], (line) =>
+          selected.push(line),
+        ),
+      ).toBe(EXIT_CODES.ok);
+      const backupId = JSON.parse(selected.at(-1) ?? "{}").data.backupId;
+      const records = await harness.context.db
+        .select()
+        .from(schema.backups)
+        .where(eq(schema.backups.id, backupId));
+      expect(records[0]?.workspaceId).toBe(workspaceId);
+      const missing: string[] = [];
+      expect(
+        await runAdminCli(["backup", "run", "--workspace-id", generateUuidV7(), "--json"], (line) =>
+          missing.push(line),
+        ),
+      ).toBe(EXIT_CODES.usage);
+      expect(JSON.parse(missing.at(-1) ?? "{}").message).toContain("does not exist");
+    } finally {
+      await harness.context.db
+        .delete(schema.backups)
+        .where(eq(schema.backups.workspaceId, workspaceId));
+      await harness.context.db
+        .delete(schema.workspaces)
+        .where(eq(schema.workspaces.id, workspaceId));
+    }
   });
 
   it("renders command and configuration errors with stable exit codes", async () => {

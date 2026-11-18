@@ -243,7 +243,7 @@ describe("operational sync refusals", () => {
     const headers = await harness.authenticate();
     const page = await harness.createLegacyPage();
     await activate(page, headers);
-    const protectedContent = harness.api.built.context.protectedContent;
+    const protectedContent = harness.api.context.protectedContent;
     if (protectedContent === undefined) throw new Error("Protected content is unavailable");
     const retained = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
       harness.api.built.database.db,

@@ -21,10 +21,10 @@ const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
 
 beforeAll(async () => {
   harness = await createApiHarness();
-  await createInstallation(harness.built.context.db, {
+  await createInstallation(harness.context.db, {
     id: INSTALLATION_ID,
     sourceLineageId: INSTALLATION_ID,
-    schemaVersion: harness.built.context.schemaVersion,
+    schemaVersion: harness.context.schemaVersion,
   });
 }, 180_000);
 
@@ -34,14 +34,14 @@ afterAll(async () => {
 
 describe("version inspect", () => {
   it("reports both versions, pending migrations and a matching verified backup", async () => {
-    await recordInitialApplicationVersion(harness.built.context.db, {
+    await recordInitialApplicationVersion(harness.context.db, {
       installationId: INSTALLATION_ID,
       applicationVersion: "0.1.0",
     });
     const backupId = generateUuidV7();
-    await recordBackup(harness.built.context.db, {
+    await recordBackup(harness.context.db, {
       id: backupId,
-      workspaceId: harness.built.context.workspaceId,
+      workspaceId: harness.workspaceId,
       cursor: "12",
       applicationVersion: "0.1.0",
       schemaVersion: 1,
@@ -52,18 +52,16 @@ describe("version inspect", () => {
       destination: "filesystem",
       remoteName: "version-inspect.bin",
     });
-    await recordVerification(harness.built.context.db, {
+    await recordVerification(harness.context.db, {
       id: generateUuidV7(),
       backupId,
       stage: "after-transfer",
       outcome: "passed",
     });
-    expect(await harness.built.context.db.select().from(schema.backupVerifications)).toEqual([
+    expect(await harness.context.db.select().from(schema.backupVerifications)).toEqual([
       expect.objectContaining({ backupId, stage: "after-transfer", outcome: "passed" }),
     ]);
-    expect(
-      await backupsWithVerification(harness.built.context.db, harness.built.context.workspaceId),
-    ).toEqual([
+    expect(await backupsWithVerification(harness.context.db, harness.workspaceId)).toEqual([
       expect.objectContaining({
         id: backupId,
         applicationVersion: "0.1.0",
@@ -72,8 +70,8 @@ describe("version inspect", () => {
     ]);
 
     const result = await versionInspectCommand({
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       runningVersion: "0.2.0",
       pendingMigrations: ["0007_example"],
     });
@@ -88,7 +86,7 @@ describe("version inspect", () => {
       verifiedBackupForRecordedVersion: true,
     });
 
-    await recordApplicationUpdate(harness.built.context.db, {
+    await recordApplicationUpdate(harness.context.db, {
       installationId: INSTALLATION_ID,
       from: "0.1.0",
       to: "sha-current",
@@ -96,8 +94,8 @@ describe("version inspect", () => {
       schemaVersion: 1,
     });
     const rollback = await versionInspectCommand({
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       runningVersion: "sha-current",
       pendingMigrations: [],
     });
@@ -112,8 +110,8 @@ describe("version inspect", () => {
 
   it("still exits successfully when there is no pending migration or backup", async () => {
     const result = await versionInspectCommand({
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       runningVersion: "sha-current",
       pendingMigrations: [],
     });
@@ -127,7 +125,7 @@ describe("version inspect", () => {
   it("distinguishes verified full recovery from portable exports and never invents image provenance", async () => {
     const backupId = generateUuidV7();
     const commit = "a".repeat(40);
-    await recordFullApplicationUpdate(harness.built.context.db, {
+    await recordFullApplicationUpdate(harness.context.db, {
       installationId: INSTALLATION_ID,
       from: null,
       to: `sha-${commit}`,
@@ -149,8 +147,8 @@ describe("version inspect", () => {
       remoteVerifiedAt: null,
     };
     const input = {
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       runningVersion: `sha-${commit}`,
       pendingMigrations: [],
     };

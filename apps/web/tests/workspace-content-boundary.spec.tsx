@@ -25,6 +25,7 @@ describe("workspace content boundary", () => {
     act(() =>
       root.render(
         <SettingsShell
+          administrator
           activeSection="local-data"
           onBack={() => undefined}
           onSectionChange={() => undefined}
@@ -48,12 +49,36 @@ describe("workspace content boundary", () => {
     expect(shell?.querySelector('[data-testid="local-data-content"]')).not.toBeNull();
   });
 
+  it("hides administrator-only sections from a member (feature 058)", () => {
+    act(() =>
+      root.render(
+        <SettingsShell
+          activeSection="account"
+          onBack={() => undefined}
+          onSectionChange={() => undefined}
+        >
+          <p>Compte</p>
+        </SettingsShell>,
+      ),
+    );
+    const shell = container.querySelector<HTMLElement>('[data-testid="settings-shell"]');
+    expect(shell?.querySelector('[data-testid="settings-nav-account"]')).not.toBeNull();
+    expect(shell?.querySelector('[data-testid="settings-nav-security"]')).not.toBeNull();
+    expect(shell?.querySelector('[data-testid="settings-nav-administration"]')).toBeNull();
+    expect(shell?.querySelector('[data-testid="settings-nav-backups"]')).toBeNull();
+  });
+
   it("moves focus into the destination and exposes explicit navigation and return actions", async () => {
     const onBack = vi.fn();
     const onSectionChange = vi.fn();
     await act(async () => {
       root.render(
-        <SettingsShell activeSection="security" onBack={onBack} onSectionChange={onSectionChange}>
+        <SettingsShell
+          administrator
+          activeSection="security"
+          onBack={onBack}
+          onSectionChange={onSectionChange}
+        >
           <p>Sécurité</p>
         </SettingsShell>,
       );

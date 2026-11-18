@@ -132,3 +132,34 @@ describe("relation-driven graph layout", () => {
     expect(runtime.snapshot()).toEqual({ width: 800, height: 520, positions: [] });
   });
 });
+
+describe("live layout (062)", () => {
+  it("keeps already placed nodes where they were and places a new node near its neighbour", () => {
+    const a = node("A");
+    const b = node("B");
+    const before = projectGraph(
+      normalizeGraphSource(source([a, b], [edge(a.id, b.id)])),
+      defaultGraphQuery({ kind: "workspace" }),
+    );
+    const first = createGraphForceRuntime(before).settle(DEFAULT_GRAPH_FORCES, 120);
+    const seed = new Map(first.positions.map((position) => [position.id, position]));
+
+    const c = node("C");
+    const after = projectGraph(
+      normalizeGraphSource(source([a, b, c], [edge(a.id, b.id), edge(a.id, c.id)])),
+      defaultGraphQuery({ kind: "workspace" }),
+    );
+    const seeded = createGraphForceRuntime(after, seed).snapshot();
+    const at = (id: string) => seeded.positions.find((position) => position.id === id);
+    const was = (id: string) => first.positions.find((position) => position.id === id);
+    expect(at(a.id)?.x).toBeCloseTo(was(a.id)?.x ?? Number.NaN, 0);
+    expect(at(b.id)?.y).toBeCloseTo(was(b.id)?.y ?? Number.NaN, 0);
+    const placedA = at(a.id);
+    const placedC = at(c.id);
+    expect(placedA).toBeDefined();
+    expect(placedC).toBeDefined();
+    expect(
+      Math.hypot((placedC?.x ?? 0) - (placedA?.x ?? 0), (placedC?.y ?? 0) - (placedA?.y ?? 0)),
+    ).toBeLessThan(60);
+  });
+});

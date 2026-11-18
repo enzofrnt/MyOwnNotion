@@ -2,7 +2,6 @@ import {
   closestCenter,
   DndContext,
   type DragEndEvent,
-  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
@@ -20,6 +19,7 @@ import { AppIcon } from "../../ui/icons.tsx";
 import { ItemIcon, type ItemIconKind } from "../../ui/item-icon.tsx";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger, Status } from "../../ui/primitives/index.ts";
 import { NavigationInlineCreate } from "../navigation/navigation-inline-create.tsx";
+import { ReadyKeyboardSensor } from "./ready-keyboard-sensor.ts";
 
 export interface FolderChild {
   readonly id: string;
@@ -261,7 +261,7 @@ export function FolderChildrenList({
 }: FolderChildrenListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, {
+    useSensor(ReadyKeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );

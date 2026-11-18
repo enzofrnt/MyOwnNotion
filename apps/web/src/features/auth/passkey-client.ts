@@ -81,6 +81,8 @@ export async function createOwnerPasskey(input: {
   readonly relyingPartyName: string;
   readonly userId: string;
   readonly userName: string;
+  /** Shown by the authenticator; defaults to `userName`. */
+  readonly displayName?: string;
 }): Promise<PasskeyResult> {
   if (typeof window === "undefined" || typeof window.PublicKeyCredential !== "function") {
     return { ok: false, failure: "unsupported" };
@@ -98,7 +100,7 @@ export async function createOwnerPasskey(input: {
         user: {
           id: new TextEncoder().encode(input.userId) as BufferSource,
           name: input.userName,
-          displayName: input.userName,
+          displayName: input.displayName ?? input.userName,
         },
         pubKeyCredParams: [
           { type: "public-key", alg: -7 }, // ES256

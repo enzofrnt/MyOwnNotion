@@ -270,6 +270,50 @@
     box-shadow var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
+/* Trailing control inside the field row (feature 059: password reveal). */
+.ui-field__control-row {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.ui-field__control-row input.ui-field__control {
+  padding-right: calc(var(--ui-target-compact) + var(--ui-space-2));
+}
+
+.ui-field__trailing {
+  position: absolute;
+  right: var(--ui-space-1);
+  display: flex;
+  align-items: center;
+}
+
+.ui-password-toggle {
+  display: inline-flex;
+  width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+}
+
+.ui-password-toggle:hover:not(:disabled) {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+
+.ui-password-toggle:focus-visible {
+  outline: 1px solid var(--ui-color-focus);
+  outline-offset: 1px;
+  box-shadow: var(--ui-focus-ring);
+}
+
 .ui-field[data-size="compact"] input.ui-field__control {
   min-height: var(--ui-target-compact);
   padding-block: 0.25rem;
@@ -1008,4 +1052,60 @@
   .ui-input-surface[data-size="compact"] {
     --ui-input-height: var(--ui-target);
   }
+}
+
+/* One reserved line for form feedback: no layout shift when it appears. */
+.ui-form-message-slot {
+  /* Two lines of --ui-text-sm: the longest refusal wraps in a narrow card. */
+  min-height: calc(var(--ui-text-sm) * 2.8);
+  margin-block: calc(-1 * var(--ui-space-1));
+}
+
+.ui-form-message {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-2);
+  margin: 0;
+  font-size: var(--ui-text-sm);
+  line-height: 1.4;
+}
+
+.ui-form-message[data-kind="error"] {
+  color: var(--ui-color-danger-text);
+}
+
+.ui-form-message[data-kind="info"] {
+  color: var(--ui-color-text-muted);
+}
+
+.ui-form-message > .ui-icon {
+  flex: none;
+  margin-top: 0.125rem;
+}
+
+.ui-field[data-invalid="true"] .ui-field__label {
+  color: var(--ui-color-danger-text);
+}
+
+.ui-field[data-invalid="true"] input.ui-field__control:focus-visible {
+  outline-color: var(--ui-color-danger-text);
+}
+
+/* Destructive action that stays neutral at rest and turns red on hover/focus (L-021):
+   the colour tells "this removes something" exactly when the pointer is on it. */
+.ui-button[data-tone="destructive"]:is(:hover, :focus-visible):not(:disabled) {
+  color: var(--ui-color-danger-text);
+  background: var(--ui-menu-item-danger-hover-bg);
+  border-color: var(--ui-color-danger-text);
+}
+
+/* A disabled field must read as locked, not as an empty field waiting for input. */
+.ui-field[data-disabled="true"] .ui-field__control,
+.ui-field[data-disabled="true"] .ui-password-toggle {
+  cursor: not-allowed;
+}
+
+.ui-field[data-disabled="true"] input.ui-field__control {
+  background: var(--ui-color-surface-sunken);
+  border-style: dashed;
 }

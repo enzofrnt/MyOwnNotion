@@ -22,10 +22,15 @@
 import { readFileSync } from "node:fs";
 import type { Database } from "@myownnotion/database";
 import {
-  findInstallation,
+  findAccountByEmail,
   findRotationPolicy,
   findRunningRotation,
+  listAccounts,
+  listAccountWorkspaceIds,
+  markAccountRecovered,
   readCounts,
+  revokeAllSessions,
+  setPassword,
 } from "@myownnotion/database";
 import { evaluateRotationPolicy, type KeyRotationPolicy } from "@myownnotion/domain";
 import type { RecoveryKit } from "@myownnotion/domain/security";
@@ -35,6 +40,7 @@ import {
   AdministrativeRecoveryService,
 } from "../security/administrative-recovery-service.ts";
 import { loadDeploymentKey } from "../security/deployment-key.ts";
+import { buildPasswordVersion } from "../security/password-service.ts";
 import { type CommandResult, EXIT_CODES } from "./command-output.ts";
 import {
   CommandUsageError,
@@ -77,6 +83,71 @@ export function readSecretFromDescriptor(fd: number): string {
     // The descriptor number is safe to report; whatever was on it is not.
     throw new CommandUsageError(`file descriptor ${fd} could not be read`);
   }
+}
+
+/** `security accounts list` — who has an account, changing nothing (feature 058). */
+export async function accountsListCommand(context: CommandContext): Promise<CommandResult> {
+  const accounts = await listAccounts(context.db);
+  return {
+    code: EXIT_CODES.ok,
+    message: `${accounts.length} account(s)`,
+    data: {
+      accounts: accounts.map((account) => ({
+        email: account.email,
+        pseudonym: account.pseudonym,
+        role: account.role,
+        state: account.state,
+        origin: account.origin,
+        createdAt: account.createdAt.toISOString(),
+      })),
+    },
+  };
+}
+
+/**
+ * `security accounts recover-access --email EMAIL --fd N [--yes | --dry-run]`
+ *
+ * The host operator's way back in when an account — the administrator's
+ * included — has lost every credential (feature 058). The new password is
+ * read from a file descriptor, never the command line. Every session of the
+ * account is revoked, and a disabled member stays disabled: re-enabling is the
+ * administrator's decision in the product, not a side effect of recovery.
+ */
+export async function recoverAccessCommand(
+  command: ParsedCommand,
+  context: CommandContext,
+): Promise<CommandResult> {
+  const email = requireOption(command, "email");
+  const account = await findAccountByEmail(context.db, email);
+  if (account === null) {
+    return { code: EXIT_CODES.refused, message: "no account uses that email" };
+  }
+  if (!shouldExecute(command)) {
+    return {
+      code: EXIT_CODES.ok,
+      message: `would set a new password for ${account.pseudonym} and sign every session out; nothing has been changed`,
+      data: { email: account.email, role: account.role, state: account.state },
+    };
+  }
+  const fd = Number.parseInt(requireOption(command, "fd"), 10);
+  if (!Number.isSafeInteger(fd) || fd < 0) throw new CommandUsageError("--fd must be a descriptor");
+  const password = readSecretFromDescriptor(fd);
+  const version = await buildPasswordVersion({ ownerId: account.id, password, now: context.now() });
+  await setPassword(context.db, {
+    id: version.id,
+    ownerId: account.id,
+    passwordHash: version.passwordHash,
+    hashAlgorithm: version.hashAlgorithm,
+    hashParameters: version.hashParameters,
+    now: version.createdAt,
+  });
+  await revokeAllSessions(context.db, { ownerId: account.id, now: context.now() });
+  await markAccountRecovered(context.db, account.id);
+  return {
+    code: EXIT_CODES.ok,
+    message: `a new password is set for ${account.pseudonym}; every session was signed out`,
+    data: { email: account.email },
+  };
 }
 
 /** `security status` — the installation at a glance, changing nothing. */
@@ -219,8 +290,10 @@ async function runDataKeyRotation(
   command: ParsedCommand,
   context: CommandContext,
 ): Promise<CommandResult> {
-  const installation = await findInstallation(context.db);
-  if (installation?.workspaceId == null) {
+  // Feature 058: every account has its own data keys under the one rotation
+  // policy, so a rotation sweeps every account workspace in turn.
+  const workspaceIds = await listAccountWorkspaceIds(context.db);
+  if (workspaceIds.length === 0) {
     return {
       code: EXIT_CODES.refused,
       message: "this installation has no workspace yet; there is nothing to rotate",
@@ -240,35 +313,42 @@ async function runDataKeyRotation(
       return null;
     }
   };
-  const runtime = createProtectedFileRuntime({
-    db: context.db,
-    journalDb: context.journalDb,
-    installationId: context.installationId,
-    workspaceId: installation.workspaceId,
-    deploymentKey,
-    now: context.now,
-    blobRoot: context.blobRoot ?? "./.dev-blobs",
-  });
-  return await rotationDataKeyCommand(
-    command,
-    {
+  let result: CommandResult | undefined;
+  for (const workspaceId of workspaceIds) {
+    const runtime = createProtectedFileRuntime({
       db: context.db,
+      journalDb: context.journalDb,
       installationId: context.installationId,
-      workspaceId: installation.workspaceId,
-      protectedFiles: runtime.files,
-      // Read on each call rather than captured once. A rotation that ran for
-      // hours on a key the operator has since unmounted would defeat the point
-      // of unmounting it.
+      workspaceId,
       deploymentKey,
       now: context.now,
-      audit: context.audit,
-    },
-    { execute: shouldExecute(command) },
-  );
+      blobRoot: context.blobRoot ?? "./.dev-blobs",
+    });
+    result = await rotationDataKeyCommand(
+      command,
+      {
+        db: context.db,
+        installationId: context.installationId,
+        workspaceId,
+        protectedFiles: runtime.files,
+        // Read on each call rather than captured once. A rotation that ran for
+        // hours on a key the operator has since unmounted would defeat the point
+        // of unmounting it.
+        deploymentKey,
+        now: context.now,
+        audit: context.audit,
+      },
+      { execute: shouldExecute(command) },
+    );
+    // Stop at the first workspace that did not complete: the operator must
+    // see that failure, not a later success that would hide it.
+    if (result.code !== EXIT_CODES.ok) return result;
+  }
+  return result as CommandResult;
 }
 
 /**
- * `security recovery import --kit-file PATH [--yes | --dry-run]`
+ * `security recovery import --kit-file PATH --email EMAIL [--pseudonym NAME] [--yes | --dry-run]`
  *
  * Local only, and that is FR-019 rather than an omission: the operation adopts
  * an entire installation's identity, and an HTTP route would put a bearer
@@ -334,7 +414,13 @@ async function runRecoveryImport(
   }
 
   try {
-    const result = await service.import(kit);
+    const result = await service.import(kit, {
+      administratorEmail: requireOption(command, "email"),
+      administratorPseudonym:
+        typeof command.options["pseudonym"] === "string"
+          ? command.options["pseudonym"]
+          : "Administrator",
+    });
     return {
       code: EXIT_CODES.ok,
       message:
@@ -367,6 +453,8 @@ export const KNOWN_COMMANDS = [
   "security rotation data-key",
   "security compatibility inspect",
   "security recovery import",
+  "security accounts list",
+  "security accounts recover-access",
 ] as const;
 
 /** Routes a parsed command, refusing anything not on the supported list. */
@@ -403,6 +491,10 @@ export async function runCommand(
       return compatibilityInspectCommand(command);
     case "security recovery import":
       return await runRecoveryImport(command, context);
+    case "security accounts list":
+      return await accountsListCommand(context);
+    case "security accounts recover-access":
+      return await recoverAccessCommand(command, context);
     default:
       // Listed rather than guessed. A tool that suggested the nearest match
       // and ran it would be worse than one that refuses.

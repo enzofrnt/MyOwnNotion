@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { Locator, Page } from "@playwright/test";
+import { Client } from "pg";
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
@@ -40,7 +41,10 @@ async function admin(args: readonly string[]): Promise<Record<string, unknown>> 
   const backupRoot = process.env["MYOWNNOTION_BACKUP_ROOT"] ?? path.resolve(".dev-backups-e2e");
   const deploymentKey =
     process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"] ?? path.resolve("secrets", "deployment-key.e2e");
-  const { stdout } = await run("bun", ["apps/api/src/admin/admin-cli.ts", ...args, "--json"], {
+  // A refused command is reported with its own output: without it the failure
+  // reads "Command failed" and nothing else, which is exactly the diagnostic gap
+  // the wait-contract doctrine forbids.
+  const invocation = run("bun", ["apps/api/src/admin/admin-cli.ts", ...args, "--json"], {
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -53,6 +57,13 @@ async function admin(args: readonly string[]): Promise<Record<string, unknown>> 
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: deploymentKey,
     },
     maxBuffer: 4 * 1024 * 1024,
+  });
+  const { stdout } = await invocation.catch((error: unknown) => {
+    const failure = error as { readonly stderr?: string; readonly stdout?: string };
+    throw new Error(
+      `admin ${args.join(" ")} failed: ${(failure.stderr ?? "").trim() || (failure.stdout ?? "").trim() || "no output"}`,
+      { cause: error },
+    );
   });
   const line = stdout
     .trim()
@@ -160,7 +171,33 @@ test("a restore accepts newer offline work instead of replacing it", async ({
     await openWorkspace(second.page);
     await selectItem(second.page, pageName);
     await waitForEditorSettled(second.page);
-    const backup = await admin(["backup", "run"]);
+    // Resolve the scope from this browser's authenticated identity, never from
+    // workspace creation order in the lane's shared database.
+    const account = await page.evaluate(async () => {
+      const response = await fetch("/v1/me");
+      if (!response.ok) throw new Error(`authenticated account lookup failed: ${response.status}`);
+      return (await response.json()) as { accountId: string };
+    });
+    const database = new Client({
+      connectionString:
+        process.env["DATABASE_URL"] ??
+        "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion",
+    });
+    let workspaceId: string;
+    await database.connect();
+    try {
+      const result = await database.query<{ workspace_id: string }>(
+        "SELECT workspace_id FROM owners WHERE id = $1",
+        [account.accountId],
+      );
+      expect(result.rows).toHaveLength(1);
+      const row = result.rows[0];
+      if (row === undefined) throw new Error("authenticated account has no workspace");
+      workspaceId = row.workspace_id;
+    } finally {
+      await database.end();
+    }
+    const backup = await admin(["backup", "run", "--workspace-id", workspaceId]);
     const backupId = String(backup["backupId"] ?? "");
     expect(backupId).not.toBe("");
 
@@ -169,9 +206,61 @@ test("a restore accepts newer offline work instead of replacing it", async ({
     await expect(page.getByTestId("editor-sync-status")).toHaveAttribute("data-durable", "true");
     await appendText(second.page, " — version serveur à restaurer");
     await waitForSynchronized(second.page);
+    // The device's own queue being empty is not proof that the server holds this
+    // text: only an independent reader shows the committed state. Without this
+    // witness, a write still in flight lands *after* the restore and the journey
+    // blames the restore for a reader that legitimately saw newer work.
+    const committedReader = await openSecondDevice(browser, baseURL);
+    await openWorkspace(committedReader.page);
+    await selectItem(committedReader.page, pageName);
+    await waitForEditorSettled(committedReader.page);
+    await expect(
+      committedReader.page.locator('[data-testid="block-editor"]:visible'),
+      "the server holds this device's text before the restore runs",
+    ).toContainText("version serveur à restaurer");
+    await committedReader.context.close();
 
-    await admin(["restore", "apply", "--id", backupId, "--yes"]);
+    await admin(["restore", "apply", "--id", backupId, "--workspace-id", workspaceId, "--yes"]);
     await second.context.close();
+    // The restore command returns once it has applied the archive, but the next
+    // steps depend on the *restored* state being what a reader now sees. Read it
+    // from a fresh device before this page reconnects: without this witness, a
+    // page that reconnects first silently keeps the pre-restore server text and
+    // the final assertion blames the wrong step.
+    verifier = await openSecondDevice(browser, baseURL);
+    await openWorkspace(verifier.page);
+    await selectItem(verifier.page, pageName);
+    await waitForEditorSettled(verifier.page);
+    // The restore writes the canonical state; what a client reads follows the
+    // restored projection, which is rebuilt for the server to be consistent
+    // again. Wait for that convergence instead of reading the previous
+    // projection, and name what a reader still saw if it does not converge.
+    // What the *server* holds after the restore, read through its own API: the
+    // editor below renders a projection, and a disagreement between the two is
+    // exactly what distinguishes "the restore kept newer work" from "the reader
+    // saw a stale projection".
+    const serverItem = await verifier.page.evaluate(async () => {
+      const match = /\/notes\/([0-9a-f-]{36})/i.exec(window.location.pathname);
+      if (match === null) return "no item in the address";
+      const response = await fetch(`/v1/items/${match[1]}`);
+      return `${response.status} ${(await response.text()).slice(0, 600)}`;
+    });
+    const restoredEditor = verifier.page.locator('[data-testid="block-editor"]:visible');
+    await expect
+      .poll(
+        async () => {
+          const text = await restoredEditor.innerText();
+          return text.includes("version serveur à restaurer") ? text.slice(0, 400) : null;
+        },
+        {
+          message: `the reader stops seeing the pre-restore server text; server item: ${serverItem}`,
+          timeout: 20_000,
+        },
+      )
+      .toBeNull();
+    await verifier.context.close();
+    verifier = null;
+
     await context.setOffline(false);
     await waitForSynchronized(page);
     await expect(page.locator('[data-testid="block-editor"]:visible')).toContainText(

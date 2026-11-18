@@ -28,6 +28,7 @@ import {
   revisionParents,
   revisions,
 } from "../schema/index.ts";
+import { itemWithinFence } from "../workspace-fence.ts";
 
 export interface InsertRevisionInput {
   readonly id: Uuid;
@@ -165,7 +166,11 @@ export async function getRevision(
   tx: Transaction,
   revisionId: Uuid,
 ): Promise<RevisionWithSnapshot | null> {
-  const rows = await tx.select().from(revisions).where(eq(revisions.id, revisionId)).limit(1);
+  const rows = await tx
+    .select()
+    .from(revisions)
+    .where(and(eq(revisions.id, revisionId), itemWithinFence(revisions.itemId)))
+    .limit(1);
   const row = rows[0];
   if (row === undefined) {
     return null;
@@ -196,7 +201,7 @@ export async function getRevisionHeaders(
   const rows = await tx
     .select()
     .from(revisions)
-    .where(inArray(revisions.id, revisionIds as Uuid[]));
+    .where(and(inArray(revisions.id, revisionIds as Uuid[]), itemWithinFence(revisions.itemId)));
   const parentRows = await tx
     .select()
     .from(revisionParents)

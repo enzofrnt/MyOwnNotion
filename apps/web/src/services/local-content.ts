@@ -1943,10 +1943,187 @@ export class LocalContentService {
 }
 
 let singleton: LocalContentService | null = null;
+let singletonAccount: string | null = null;
+
+/** Non-secret: which account this browser last opened, for offline starts. */
+const LAST_ACCOUNT_KEY = "myownnotion-last-account";
+
+function rememberedAccount(): string | null {
+  try {
+    return globalThis.localStorage?.getItem(LAST_ACCOUNT_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The durable copy of the account this device opened last.
+ *
+ * `localStorage` is a cache, not the proof. Chromium commits DOM storage on its
+ * own schedule, so a process killed between the write and that commit restarts
+ * with no remembered account — and an offline boot would then name the legacy
+ * store, which holds nothing on an account-scoped installation. The registry
+ * lives in the same IndexedDB that already carries the projection the offline
+ * promise depends on, so it survives exactly what the projection survives.
+ */
+const ACCOUNT_REGISTRY_DB = "myownnotion-local-accounts";
+const ACCOUNT_REGISTRY_STORE = "meta";
+const ACCOUNT_REGISTRY_KEY = "last-account";
+
+function openAccountRegistry(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(ACCOUNT_REGISTRY_DB, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(ACCOUNT_REGISTRY_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(request.error ?? new Error("the local account registry is unavailable"));
+  });
+}
+
+async function rememberAccountDurably(accountId: string | null): Promise<void> {
+  const db = await openAccountRegistry();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(ACCOUNT_REGISTRY_STORE, "readwrite");
+      const store = transaction.objectStore(ACCOUNT_REGISTRY_STORE);
+      if (accountId === null) store.delete(ACCOUNT_REGISTRY_KEY);
+      else store.put(accountId, ACCOUNT_REGISTRY_KEY);
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = transaction.onerror = () =>
+        reject(transaction.error ?? new Error("the local account registry write failed"));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function readRememberedAccountDurably(): Promise<string | null> {
+  const db = await openAccountRegistry();
+  try {
+    return await new Promise<string | null>((resolve, reject) => {
+      let remembered: string | null = null;
+      const transaction = db.transaction(ACCOUNT_REGISTRY_STORE, "readonly");
+      const request = transaction.objectStore(ACCOUNT_REGISTRY_STORE).get(ACCOUNT_REGISTRY_KEY);
+      request.onsuccess = () => {
+        remembered = typeof request.result === "string" ? request.result : null;
+      };
+      request.onerror = () =>
+        reject(request.error ?? new Error("the local account registry read failed"));
+      transaction.oncomplete = () => resolve(remembered);
+      transaction.onabort = transaction.onerror = () =>
+        reject(transaction.error ?? new Error("the local account registry read failed"));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Records the account this device opened, durably, once its workspace is ready.
+ *
+ * Called after a successful boot rather than during it: the projection's own
+ * IndexedDB open must not compete with a second database on a runtime that can
+ * refuse storage under concurrent pressure (observed on WebKit). The write is
+ * still fire-and-forget, and a crash before it only leaves the previous value.
+ */
+export function rememberSelectedAccountDurably(): void {
+  void rememberAccountDurably(selectedAccount).catch(() => undefined);
+}
+
+/**
+ * Resumes the account this device holds before an offline boot names a store.
+ *
+ * The fast path is DOM storage; the durable registry answers when the process
+ * died before that write reached disk. `null` is a real answer: the workspace
+ * then has no local account to open and must not invent one.
+ */
+export async function resolveRememberedLocalAccount(): Promise<string | null> {
+  const remembered = rememberedAccount();
+  if (remembered !== null) return remembered;
+  try {
+    const durable = await readRememberedAccountDurably();
+    if (durable !== null) return durable;
+  } catch {
+    // A refused registry is not proof that the device holds no account: the
+    // account's own database is the last witness below.
+  }
+  return await discoverLocalAccountFromStores();
+}
+
+/** Names that the account stores actually exist on this device. */
+const ACCOUNT_STORE_PREFIX = `${localDatabaseNameFor("")}`;
+
+/**
+ * Finds the account whose store this device already holds.
+ *
+ * The remembered id is a record, not the truth: a crash in the milliseconds
+ * before it is written leaves the account's database as the only witness. One
+ * store is unambiguous. Several are not, and guessing there would open another
+ * account's content, so the answer is `null` — the workspace then states that it
+ * has nothing rather than showing somebody else's data.
+ */
+async function discoverLocalAccountFromStores(): Promise<string | null> {
+  const list = globalThis.indexedDB?.databases;
+  if (typeof list !== "function") return null;
+  try {
+    const names = (await list.call(globalThis.indexedDB))
+      .map((entry) => entry.name)
+      .filter(
+        (name): name is string =>
+          typeof name === "string" &&
+          name.startsWith(ACCOUNT_STORE_PREFIX) &&
+          name.length > ACCOUNT_STORE_PREFIX.length,
+      );
+    if (names.length !== 1) return null;
+    return names[0]?.slice(ACCOUNT_STORE_PREFIX.length) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+let selectedAccount: string | null = rememberedAccount();
+
+/** One local database per account (feature 058); the legacy name before any. */
+export function localDatabaseNameFor(accountId: string | null): string {
+  return accountId === null ? "myownnotion-local" : `myownnotion-local-${accountId}`;
+}
+
+/**
+ * Points local content at the signed-in account (feature 058).
+ *
+ * Two accounts on one browser never share a local database: switching closes
+ * the previous account's projection (locking its decrypted state) and the next
+ * `localContent()` opens the other account's database.
+ */
+export function selectLocalAccount(accountId: string | null): void {
+  selectedAccount = accountId;
+  try {
+    if (accountId === null) globalThis.localStorage?.removeItem(LAST_ACCOUNT_KEY);
+    else globalThis.localStorage?.setItem(LAST_ACCOUNT_KEY, accountId);
+  } catch {
+    // Storage refused: the in-memory choice still holds for this page.
+  }
+  // The durable copy is written by the workspace once its projection is ready,
+  // never during boot: a second IndexedDB database opening concurrently with the
+  // projection's own open is enough for WebKit to refuse the account's store.
+  if (singleton !== null && singletonAccount !== accountId) {
+    void singleton.lockLocalData();
+    singleton = null;
+  }
+}
+
+/** Local content of one account, switching to it first when needed. */
+export function localContentFor(accountId: string | null): LocalContentService {
+  if (accountId !== null && accountId !== selectedAccount) selectLocalAccount(accountId);
+  return localContent();
+}
 
 export function localContent(): LocalContentService {
   if (singleton === null) {
-    singleton = new LocalContentService();
+    singleton = new LocalContentService(undefined, localDatabaseNameFor(selectedAccount));
+    singletonAccount = selectedAccount;
   }
   return singleton;
 }

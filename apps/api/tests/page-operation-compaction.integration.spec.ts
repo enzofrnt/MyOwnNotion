@@ -38,7 +38,7 @@ beforeEach(async () => {
 });
 
 function checkpoints() {
-  const service = harness.api.built.pageCheckpoints;
+  const service = harness.api.built.forWorkspace(harness.api.workspaceId).pageCheckpoints;
   if (service === undefined) throw new Error("page checkpoint service is unavailable");
   return service;
 }
@@ -335,7 +335,7 @@ describe("frontier-bounded compaction", () => {
     if (revisionId === null || revisionId === undefined) {
       throw new Error("the active page has no visible revision");
     }
-    const protectedContent = harness.api.built.context.protectedContent;
+    const protectedContent = harness.api.context.protectedContent;
     if (protectedContent === undefined) throw new Error("protected content is unavailable");
     const retained = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
       harness.api.built.database.db,
@@ -352,11 +352,11 @@ describe("frontier-bounded compaction", () => {
        WHERE entity_type = 'revision.snapshot' AND entity_id = ${revisionId}::uuid
     `);
 
-    const history = harness.api.built.pageHistory;
+    const history = harness.api.built.forWorkspace(harness.api.workspaceId).pageHistory;
     if (history === undefined) throw new Error("page history service is unavailable");
     const allowed = await harness.api.built.database.db.transaction((tx) =>
       history.historyAllowsCompaction(tx, {
-        workspaceId: harness.api.built.context.workspaceId,
+        workspaceId: harness.api.workspaceId,
         pageId: page.itemId,
         checkpointId: candidate.id as Uuid,
         throughPageSequence: candidate.throughPageSequence,
@@ -379,7 +379,7 @@ describe("frontier-bounded compaction", () => {
     if (revisionId === null || revisionId === undefined) {
       throw new Error("the active page has no visible revision");
     }
-    const protectedContent = harness.api.built.context.protectedContent;
+    const protectedContent = harness.api.context.protectedContent;
     if (protectedContent === undefined) throw new Error("protected content is unavailable");
     const retained = await protectedContent.readRevisionSnapshot<Record<string, unknown>>(
       harness.api.built.database.db,
@@ -406,7 +406,7 @@ describe("frontier-bounded compaction", () => {
     if (currentRevisionId === null || currentRevisionId === undefined) {
       throw new Error("the active page has no current revision");
     }
-    const history = harness.api.built.pageHistory;
+    const history = harness.api.built.forWorkspace(harness.api.workspaceId).pageHistory;
     if (history === undefined) throw new Error("page history service is unavailable");
     await expect(
       history.restoreRevision({
@@ -431,7 +431,7 @@ describe("frontier-bounded compaction", () => {
         (id, workspace_id, cursor, application_version, schema_version,
          record_format_version, byte_length, digest, reason)
       VALUES
-        (${backupId}::uuid, ${harness.api.built.context.workspaceId}::uuid, '0',
+        (${backupId}::uuid, ${harness.api.workspaceId}::uuid, '0',
          'compaction-test', 1, 1, 0, ${TEST_DIGEST}, 'manual')
     `);
     await harness.api.built.database.db.execute(sql`

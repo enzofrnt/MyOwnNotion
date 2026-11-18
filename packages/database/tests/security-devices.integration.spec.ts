@@ -55,10 +55,22 @@ afterAll(async () => {
 beforeEach(async () => {
   await context.handle.db.delete(schema.authorizedDevices);
   await context.handle.db
+    .insert(schema.workspaces)
+    .values({ id: ownerId, schemaVersion: 1 })
+    .onConflictDoNothing();
+  await context.handle.db
     .insert(schema.owners)
     .values({
       id: ownerId,
       installationId: context.installation.installationId,
+      // One workspace per account (feature 058); reusing the id keeps the
+      // fixture to one constant.
+      workspaceId: ownerId,
+      email: "device-owner@example.test",
+      emailNormalized: "device-owner@example.test",
+      pseudonym: "Device owner",
+      role: "member",
+      origin: "administrator",
       createdAt: context.clock.now(),
     })
     .onConflictDoNothing();

@@ -6,6 +6,7 @@ function peer(overrides: Partial<PageSyncHubPeer> = {}): PageSyncHubPeer {
   return {
     connectionId: generateUuidV7(),
     ownerId: generateUuidV7(),
+    workspaceId: "ws-a",
     deviceId: generateUuidV7(),
     sendPageAdvance: vi.fn(() => true),
     close: vi.fn(),
@@ -28,7 +29,7 @@ describe("PageSyncHub", () => {
     expect(first.close).toHaveBeenCalledWith(1001, "server-shutdown");
     expect(second.close).toHaveBeenCalledOnce();
     expect(hub.size).toBe(0);
-    hub.publish({ pageId: generateUuidV7(), latestPageSequence: 1 });
+    hub.publish({ workspaceId: "ws-a", pageId: generateUuidV7(), latestPageSequence: 1 });
     expect(first.sendPageAdvance).not.toHaveBeenCalled();
   });
 
@@ -38,12 +39,42 @@ describe("PageSyncHub", () => {
     const healthy = peer();
     hub.add(failed);
     hub.add(healthy);
-    const event = { pageId: generateUuidV7(), latestPageSequence: 9 };
+    const event = { workspaceId: "ws-a", pageId: generateUuidV7(), latestPageSequence: 9 };
 
     hub.publish(event);
 
     expect(failed.sendPageAdvance).toHaveBeenCalledWith(event);
     expect(healthy.sendPageAdvance).toHaveBeenCalledWith(event);
+    expect(hub.size).toBe(1);
+  });
+
+  it("never announces a page to another account's connections (feature 058)", () => {
+    const hub = new PageSyncHub();
+    const own = peer({ workspaceId: "ws-a" });
+    const other = peer({ workspaceId: "ws-b" });
+    hub.add(own);
+    hub.add(other);
+    const event = { workspaceId: "ws-a", pageId: generateUuidV7(), latestPageSequence: 3 };
+
+    hub.publish(event);
+
+    expect(own.sendPageAdvance).toHaveBeenCalledWith(event);
+    expect(other.sendPageAdvance).not.toHaveBeenCalled();
+    expect(hub.size).toBe(2);
+  });
+
+  it("closes every connection of one account and only that account", () => {
+    const hub = new PageSyncHub();
+    const owner = generateUuidV7();
+    const first = peer({ ownerId: owner });
+    const second = peer({ ownerId: owner });
+    const unrelated = peer();
+    for (const each of [first, second, unrelated]) hub.add(each);
+
+    expect(hub.closeOwner(owner, 4401, "account-revoked")).toBe(2);
+    expect(first.close).toHaveBeenCalledWith(4401, "account-revoked");
+    expect(second.close).toHaveBeenCalledWith(4401, "account-revoked");
+    expect(unrelated.close).not.toHaveBeenCalled();
     expect(hub.size).toBe(1);
   });
 

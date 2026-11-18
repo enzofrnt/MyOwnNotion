@@ -86,6 +86,8 @@ import {
   Underline,
   Undo2,
   Upload,
+  UserRound,
+  UsersRound,
   X,
   ZoomIn,
   ZoomOut,
@@ -226,6 +228,8 @@ export const APP_ICONS = {
   underline: Underline,
   undo: Undo2,
   upload: Upload,
+  user: UserRound,
+  users: UsersRound,
   zoomIn: ZoomIn,
   zoomOut: ZoomOut,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
@@ -330,6 +334,8 @@ export const APP_ICON_LABELS: Readonly<Record<AppIconName, string>> = {
   underline: "Souligné",
   undo: "Annuler",
   upload: "Importer",
+  user: "Compte",
+  users: "Utilisateurs",
   zoomIn: "Zoomer",
   zoomOut: "Dézoomer",
 };

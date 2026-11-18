@@ -3,6 +3,8 @@ import path from "node:path";
 import { ContentStore, PartialUploadStore } from "@myownnotion/blob-store";
 import {
   createDatabase,
+  findAccountByEmail,
+  findAdministrator,
   migrationInventory,
   schema,
   type Transaction,
@@ -25,6 +27,8 @@ export interface NotionTargetOptions {
   keyFile: string;
   backupRoot: string;
   migrationsDir?: string;
+  /** The account to import into (feature 058); the administrator when absent. */
+  accountEmail?: string;
 }
 export async function openNotionTarget(options: NotionTargetOptions) {
   await assertFullRestoreActivated(options.blobRoot);
@@ -40,18 +44,25 @@ export async function openNotionTarget(options: NotionTargetOptions) {
     const inventory = await migrationInventory(options.connectionString, { migrationsDir });
     if (inventory.pending.length) throw new NotionImportError("import.pending-migrations");
     const [installation] = await database.db.select().from(schema.installations).limit(1);
-    if (installation?.state !== "ready" || !installation.ownerId || !installation.workspaceId)
-      throw new NotionImportError("import.target-not-ready");
+    if (installation?.state !== "ready") throw new NotionImportError("import.target-not-ready");
+    // Feature 058: the import lands in one account's workspace — the one the
+    // operator names, or the administrator's.
+    const target =
+      options.accountEmail === undefined
+        ? await findAdministrator(database.db)
+        : await findAccountByEmail(database.db, options.accountEmail);
+    if (target === null) throw new NotionImportError("import.target-not-ready");
+    const targetAccount = target;
     const [workspace] = await database.db
       .select()
       .from(schema.workspaces)
-      .where(eq(schema.workspaces.id, installation.workspaceId));
+      .where(eq(schema.workspaces.id, targetAccount.workspaceId));
     if (!workspace) throw new NotionImportError("import.target-not-ready");
     const key = () => Buffer.from(loadDeploymentKey(options.keyFile).bytes);
     const runtime = createProtectedFileRuntime({
       db: database.db,
       journalDb: database.journalDb,
-      workspaceId: installation.workspaceId,
+      workspaceId: targetAccount.workspaceId,
       installationId: installation.id,
       blobRoot: options.blobRoot,
       deploymentKey: key,
@@ -64,7 +75,7 @@ export async function openNotionTarget(options: NotionTargetOptions) {
     const audit = new AuditService(database.db);
     const context: AppContext = {
       db: database.db,
-      workspaceId: installation.workspaceId as Uuid,
+      workspaceId: targetAccount.workspaceId as Uuid,
       schemaVersion: workspace.schemaVersion,
       contentStore: new ContentStore(runtime.blobs),
       partialUploads: new PartialUploadStore(options.blobRoot),
@@ -81,10 +92,10 @@ export async function openNotionTarget(options: NotionTargetOptions) {
       const [owner] = await tx
         .select()
         .from(schema.owners)
-        .where(eq(schema.owners.id, installation.ownerId ?? ""));
+        .where(eq(schema.owners.id, targetAccount.id));
       if (
         current?.state !== "ready" ||
-        current.workspaceId !== context.workspaceId ||
+        owner?.workspaceId !== context.workspaceId ||
         owner?.state !== "active"
       )
         throw new NotionImportError("import.target-not-ready");

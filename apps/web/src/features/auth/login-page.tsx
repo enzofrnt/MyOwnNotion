@@ -12,19 +12,23 @@
  * what to do next rather than what went wrong.
  */
 
-import { useCallback, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import type { SecurityApi } from "../../services/security-api.ts";
-import { AsyncState, Button, Field, FR_COPY } from "../../ui/index.ts";
+import { Button, Field, FormMessage, FR_COPY } from "../../ui/index.ts";
+import { AuthShell } from "./auth-shell.tsx";
 import { DesktopPasskeyGuidance, useDesktopPlatformPasskey } from "./desktop-passkey-guidance.tsx";
 import {
   passkeysAvailable,
   platformAuthenticatorAvailable,
   requestOwnerPasskey,
 } from "./passkey-client.ts";
+import { PasswordField } from "./password-field.tsx";
 
 export interface LoginPageProps {
   readonly api: SecurityApi;
   readonly onSignedIn: () => void;
+  /** Shown only when the installation lets anyone create an account. */
+  readonly onCreateAccount?: () => void;
 }
 
 type Mode = "passkey" | "password";
@@ -40,18 +44,31 @@ const REFUSED = FR_COPY.auth.login.refused;
 
 export function LoginPage(props: LoginPageProps) {
   const [mode, setMode] = useState<Mode>(passkeysAvailable() ? "passkey" : "password");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [openRegistration, setOpenRegistration] = useState(false);
+  const emailId = useId();
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const passwordId = useId();
   const desktopPlatformPasskey = useDesktopPlatformPasskey();
+
+  useEffect(() => {
+    let cancelled = false;
+    void props.api.status().then((status) => {
+      if (!cancelled && status.ok) setOpenRegistration(status.value.registrationMode === "open");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [props.api]);
 
   const signInWithPassword = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
       setBusy(true);
       setMessage(null);
-      const result = await props.api.loginWithPassword(password);
+      const result = await props.api.loginWithPassword(email, password);
       // Cleared whatever happened: a failed attempt must not leave the
       // password sitting in a form field for the next person at the machine.
       setPassword("");
@@ -65,7 +82,7 @@ export function LoginPage(props: LoginPageProps) {
       setBusy(false);
       props.onSignedIn();
     },
-    [password, props.api, props.onSignedIn],
+    [email, password, props.api, props.onSignedIn],
   );
 
   const signInWithPasskey = useCallback(async () => {
@@ -105,19 +122,27 @@ export function LoginPage(props: LoginPageProps) {
     props.onSignedIn();
   }, [props.api, props.onSignedIn]);
 
+  const failed = message !== null && message !== FR_COPY.auth.login.waiting;
+
   return (
-    <main className="login-page ui-auth-surface" aria-labelledby="login-heading">
-      <h1 id="login-heading">{FR_COPY.auth.login.title}</h1>
-
-      {message === null ? null : (
-        <AsyncState
-          compact
-          kind={busy ? "loading" : "error"}
-          title={message}
-          testId="login-message"
-        />
-      )}
-
+    <AuthShell
+      className="login-page ui-auth-surface"
+      headingId="login-heading"
+      title={FR_COPY.auth.login.title}
+      lead={FR_COPY.auth.login.lead}
+      footer={
+        openRegistration && props.onCreateAccount !== undefined ? (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={props.onCreateAccount}
+            data-testid="create-account"
+          >
+            {FR_COPY.accounts.login.createAccount}
+          </Button>
+        ) : undefined
+      }
+    >
       {mode === "passkey" ? (
         desktopPlatformPasskey === false ? (
           <section>
@@ -135,9 +160,12 @@ export function LoginPage(props: LoginPageProps) {
             </Button>
           </section>
         ) : (
-          <section className="ui-auth-card" aria-labelledby="passkey-heading">
+          <section className="ui-auth-step" aria-labelledby="passkey-heading">
             <h2 id="passkey-heading">{FR_COPY.auth.login.passkeyTitle}</h2>
             <p>{FR_COPY.auth.login.passkeyDescription}</p>
+            <FormMessage kind={failed ? "error" : "info"} testId="login-message">
+              {message}
+            </FormMessage>
             <Button
               type="button"
               variant="primary"
@@ -163,42 +191,60 @@ export function LoginPage(props: LoginPageProps) {
           </section>
         )
       ) : (
-        <section className="ui-auth-card" aria-labelledby="password-heading">
+        <section className="ui-auth-step" aria-labelledby="password-heading">
           <h2 id="password-heading">{FR_COPY.auth.login.passwordTitle}</h2>
-          <form onSubmit={signInWithPassword}>
+          <form onSubmit={signInWithPassword} className="ui-auth-form">
             <Field
+              id={emailId}
+              label={FR_COPY.accounts.login.emailLabel}
+              type="email"
+              autoComplete="username"
+              required
+              invalid={failed}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              disabled={busy}
+              data-testid="email-input"
+            />
+            <PasswordField
               id={passwordId}
               label={FR_COPY.auth.login.passwordLabel}
-              type="password"
               // The browser's own manager is the right place for this, and
               // `current-password` is what tells it so.
               autoComplete="current-password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={setPassword}
               disabled={busy}
-              data-testid="password-input"
+              invalid={failed}
+              testId="password-input"
             />
+            <FormMessage kind="error" testId="login-message">
+              {failed ? message : null}
+            </FormMessage>
             <Button type="submit" variant="primary" busy={busy} data-testid="sign-in-password">
               {FR_COPY.auth.login.passwordAction}
             </Button>
           </form>
           {passkeysAvailable() && desktopPlatformPasskey !== false ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setMode("passkey");
-                setMessage(null);
-              }}
-              data-testid="use-passkey-instead"
-            >
-              {FR_COPY.auth.login.usePasskey}
-            </Button>
+            <>
+              <p className="ui-auth-separator">{FR_COPY.auth.or}</p>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setMode("passkey");
+                  setMessage(null);
+                }}
+                data-testid="use-passkey-instead"
+              >
+                {FR_COPY.auth.login.usePasskey}
+              </Button>
+            </>
           ) : (
             <p className="login-note">{FR_COPY.auth.login.passwordOnly}</p>
           )}
         </section>
       )}
-    </main>
+    </AuthShell>
   );
 }

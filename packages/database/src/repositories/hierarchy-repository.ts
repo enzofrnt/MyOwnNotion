@@ -10,6 +10,7 @@ import type { CanonicalItem, HierarchyView, Placement, Uuid } from "@myownnotion
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
 import { items, placements } from "../schema/index.ts";
+import { withinFence } from "../workspace-fence.ts";
 
 type ItemRow = typeof items.$inferSelect;
 type PlacementRow = typeof placements.$inferSelect;
@@ -42,13 +43,21 @@ export function toPlacement(row: PlacementRow): Placement {
 }
 
 export async function getItem(tx: Transaction, itemId: Uuid): Promise<CanonicalItem | null> {
-  const rows = await tx.select().from(items).where(eq(items.id, itemId)).limit(1);
+  const rows = await tx
+    .select()
+    .from(items)
+    .where(and(eq(items.id, itemId), withinFence(items.workspaceId)))
+    .limit(1);
   const row = rows[0];
   return row === undefined ? null : toCanonicalItem(row);
 }
 
 export async function getPlacement(tx: Transaction, placementId: Uuid): Promise<Placement | null> {
-  const rows = await tx.select().from(placements).where(eq(placements.id, placementId)).limit(1);
+  const rows = await tx
+    .select()
+    .from(placements)
+    .where(and(eq(placements.id, placementId), withinFence(placements.workspaceId)))
+    .limit(1);
   const row = rows[0];
   return row === undefined ? null : toPlacement(row);
 }

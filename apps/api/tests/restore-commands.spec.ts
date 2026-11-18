@@ -80,9 +80,9 @@ async function seedBackup(): Promise<Uuid> {
   const name = `${id}.tar`;
   const bytes = checkedArchive();
   await destination.put(name, Readable.from(bytes), bytes.byteLength);
-  await recordBackup(harness.built.context.db, {
+  await recordBackup(harness.context.db, {
     id,
-    workspaceId: harness.built.context.workspaceId,
+    workspaceId: harness.workspaceId,
     cursor: "42",
     applicationVersion: "0.1.0",
     schemaVersion: 1,
@@ -93,7 +93,7 @@ async function seedBackup(): Promise<Uuid> {
     destination: destination.name,
     remoteName: name,
   });
-  await recordVerification(harness.built.context.db, {
+  await recordVerification(harness.context.db, {
     id: generateUuidV7(),
     backupId: id,
     stage: "after-transfer",
@@ -113,9 +113,9 @@ async function recordOnlyBackup(input: {
   if (input.remoteName !== undefined) {
     await destination.put(input.remoteName, Readable.from(bytes), bytes.byteLength);
   }
-  await recordBackup(harness.built.context.db, {
+  await recordBackup(harness.context.db, {
     id,
-    workspaceId: harness.built.context.workspaceId,
+    workspaceId: harness.workspaceId,
     cursor: "42",
     applicationVersion: "0.1.0",
     schemaVersion: 1,
@@ -128,7 +128,7 @@ async function recordOnlyBackup(input: {
       : { destination: destination.name, remoteName: input.remoteName }),
   });
   if (input.verified === true) {
-    await recordVerification(harness.built.context.db, {
+    await recordVerification(harness.context.db, {
       id: generateUuidV7(),
       backupId: id,
       stage: "after-transfer",
@@ -155,8 +155,8 @@ describe("recorded restoration commands", () => {
     const apply = vi.fn(async () => ({ restoredItemCount: 3, restoredFileCount: 1 }));
     const result = await runRestore(
       {
-        db: harness.built.context.db,
-        workspaceId: harness.built.context.workspaceId,
+        db: harness.context.db,
+        workspaceId: harness.workspaceId,
         destination,
         open: async (ciphertext) => ciphertext,
         installation: { schemaVersion: 1, recordFormatVersion: 1 },
@@ -174,28 +174,29 @@ describe("recorded restoration commands", () => {
 
     expect(result.code).toBe(0);
     expect(apply).toHaveBeenCalledOnce();
-    expect(
-      await lastTestRestoration(harness.built.context.db, harness.built.context.workspaceId),
-    ).toMatchObject({ outcome: "succeeded", restoredItemCount: 3 });
+    expect(await lastTestRestoration(harness.context.db, harness.workspaceId)).toMatchObject({
+      outcome: "succeeded",
+      restoredItemCount: 3,
+    });
   });
 
   it("assumes no consent when a destructive command has no terminal", async () => {
     const backupId = await seedBackup();
     const result = await restoreApplyCommand(
       {
-        db: harness.built.context.db,
-        workspaceId: harness.built.context.workspaceId,
+        db: harness.context.db,
+        workspaceId: harness.workspaceId,
         destination,
         open: async (ciphertext) => ciphertext,
         installation: { schemaVersion: 1, recordFormatVersion: 1 },
-        contentStore: harness.built.context.contentStore,
+        contentStore: harness.context.contentStore,
         safetyBackup: async () => randomUUID(),
       },
       { id: backupId, dryRun: false, yes: false, terminalAvailable: false },
     );
     expect(result.code).toBe(3);
     expect(result.message).toMatch(/not confirmed/i);
-    const attempts = await harness.built.context.db
+    const attempts = await harness.context.db
       .select()
       .from(schema.restorationAttempts)
       .where(eq(schema.restorationAttempts.backupId, backupId));
@@ -204,15 +205,15 @@ describe("recorded restoration commands", () => {
 
   it("a dry run validates but creates no restoration attempt and writes nothing", async () => {
     const backupId = await seedBackup();
-    const before = await harness.built.context.db.select().from(schema.restorationAttempts);
+    const before = await harness.context.db.select().from(schema.restorationAttempts);
     const result = await restoreApplyCommand(
       {
-        db: harness.built.context.db,
-        workspaceId: harness.built.context.workspaceId,
+        db: harness.context.db,
+        workspaceId: harness.workspaceId,
         destination,
         open: async (ciphertext) => ciphertext,
         installation: { schemaVersion: 1, recordFormatVersion: 1 },
-        contentStore: harness.built.context.contentStore,
+        contentStore: harness.context.contentStore,
         safetyBackup: async () => {
           throw new Error("a dry run must not create a safety backup");
         },
@@ -220,7 +221,7 @@ describe("recorded restoration commands", () => {
       { id: backupId, dryRun: true, yes: true, terminalAvailable: false },
     );
     expect(result.code).toBe(0);
-    expect(await harness.built.context.db.select().from(schema.restorationAttempts)).toHaveLength(
+    expect(await harness.context.db.select().from(schema.restorationAttempts)).toHaveLength(
       before.length,
     );
   });
@@ -229,9 +230,9 @@ describe("recorded restoration commands", () => {
     const backupId = await seedBackup();
     const result = await restoreTestCommand(
       {
-        db: harness.built.context.db,
+        db: harness.context.db,
         databaseUrl: harness.postgres.connectionString,
-        workspaceId: harness.built.context.workspaceId,
+        workspaceId: harness.workspaceId,
         destination,
         open: async (ciphertext) => ciphertext,
         installation: { schemaVersion: 1, recordFormatVersion: 1 },
@@ -247,8 +248,8 @@ describe("recorded restoration commands", () => {
   it("refuses an unknown or unverified backup before reading the destination", async () => {
     const unknown = await runRestore(
       {
-        db: harness.built.context.db,
-        workspaceId: harness.built.context.workspaceId,
+        db: harness.context.db,
+        workspaceId: harness.workspaceId,
         destination,
         open: async (ciphertext) => ciphertext,
         installation: { schemaVersion: 1, recordFormatVersion: 1 },
@@ -268,8 +269,8 @@ describe("recorded restoration commands", () => {
     const unverifiedId = await recordOnlyBackup({});
     const unverified = await runRestore(
       {
-        db: harness.built.context.db,
-        workspaceId: harness.built.context.workspaceId,
+        db: harness.context.db,
+        workspaceId: harness.workspaceId,
         destination,
         open: async (ciphertext) => ciphertext,
         installation: { schemaVersion: 1, recordFormatVersion: 1 },
@@ -310,8 +311,8 @@ describe("recorded restoration commands", () => {
       apply: async () => ({ restoredItemCount: 0, restoredFileCount: 0 }),
     });
     const deps = {
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       destination,
       open: async (ciphertext: Buffer) => ciphertext,
       installation: { schemaVersion: 1, recordFormatVersion: 1 },
@@ -329,8 +330,8 @@ describe("recorded restoration commands", () => {
   it("records key-access and application failures without throwing", async () => {
     const keyFailureId = await seedBackup();
     const common = {
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       destination,
       installation: { schemaVersion: 1, recordFormatVersion: 1 },
     };
@@ -371,12 +372,12 @@ describe("recorded restoration commands", () => {
     const backupId = await seedBackup();
     const result = await restoreApplyCommand(
       {
-        db: harness.built.context.db,
-        workspaceId: harness.built.context.workspaceId,
+        db: harness.context.db,
+        workspaceId: harness.workspaceId,
         destination,
         open: async (ciphertext) => ciphertext,
         installation: { schemaVersion: 1, recordFormatVersion: 1 },
-        contentStore: harness.built.context.contentStore,
+        contentStore: harness.context.contentStore,
         safetyBackup: async () => randomUUID(),
       },
       { id: backupId, dryRun: false, yes: true, terminalAvailable: false },
@@ -384,7 +385,7 @@ describe("recorded restoration commands", () => {
     expect(result.code).toBe(0);
     // The workspace was cleared and the archive's state written back in its
     // place, inside one transaction.
-    const attempts = await harness.built.context.db
+    const attempts = await harness.context.db
       .select()
       .from(schema.restorationAttempts)
       .where(eq(schema.restorationAttempts.backupId, backupId));
@@ -393,12 +394,12 @@ describe("recorded restoration commands", () => {
 
   it("asks on the terminal when no --yes was given, and obeys the answer", async () => {
     const deps = {
-      db: harness.built.context.db,
-      workspaceId: harness.built.context.workspaceId,
+      db: harness.context.db,
+      workspaceId: harness.workspaceId,
       destination,
       open: async (ciphertext: Buffer) => ciphertext,
       installation: { schemaVersion: 1, recordFormatVersion: 1 },
-      contentStore: harness.built.context.contentStore,
+      contentStore: harness.context.contentStore,
       safetyBackup: async () => randomUUID(),
     };
     const declinedId = await seedBackup();

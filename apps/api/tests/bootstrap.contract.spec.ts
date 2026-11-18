@@ -1,48 +1,23 @@
 /**
- * Bootstrap route contract (T024, feature 002).
+ * First launch (feature 058, US1).
  *
- * Drives the real Fastify app over a real PostgreSQL. What matters here is not
- * that the happy path works — it is that every response the client can observe
- * states the committed counts, and that the counts in the response agree with
- * the counts in the database at every step.
- *
- * The WebAuthn ceremony itself cannot be produced without an authenticator, so
- * credential verification is exercised through its failure path. That is the
- * more valuable direction anyway: a verifier that accepts a forged ceremony is
- * the defect worth catching, and the success path is covered by the browser
- * journeys.
+ * One form creates the administrator — email, pseudonym, password — signs them
+ * in, and makes the installation ready. Once that has happened, the bootstrap
+ * route refuses everyone, and two simultaneous first launches produce exactly
+ * one administrator.
  */
-
 import { createInstallation, readCounts } from "@myownnotion/database";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { loadSecurityConfig } from "../src/security/security-config.ts";
-import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
+import { type ApiHarness, createSecuredApiHarness } from "./helpers/app.ts";
+import { browserDevice } from "./helpers/content-owner.ts";
 
 let harness: ApiHarness;
 
 const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
-const CAPABILITY_HEADER = "x-bootstrap-capability";
-
-/**
- * The server's clock, under the test's control.
- *
- * Fixed rather than real so windows and expiries are deterministic, and
- * movable so the supersession journey can age an attempt out without waiting
- * a quarter of an hour.
- */
-const BASE_TIME = new Date("2026-03-01T00:00:00.000Z");
-const clock = { value: BASE_TIME };
 
 beforeAll(async () => {
-  harness = await createApiHarness({
-    security: loadSecurityConfig({
-      MYOWNNOTION_PUBLIC_ORIGIN: "http://127.0.0.1:5173",
-      MYOWNNOTION_API_HOST: "127.0.0.1",
-      MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
-    }),
-    now: () => clock.value,
-  });
+  harness = await createSecuredApiHarness();
 }, 180_000);
 
 afterAll(async () => {
@@ -50,12 +25,11 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  clock.value = BASE_TIME;
   await harness.built.database.db.execute(sql`
-    TRUNCATE security_audit_events, security_rate_limits, recovery_kits, recovery_epochs,
-      data_key_generations, sessions, authorized_devices, pending_bootstrap_credentials,
-      bootstrap_attempts, password_credential_versions, passkey_credentials, owners,
-      installations CASCADE
+    UPDATE installations SET state = 'uninitialized', administrator_id = NULL;
+    TRUNCATE security_audit_events, security_rate_limits, data_key_generations,
+      workspace_root_keys, sessions, authorized_devices, password_credential_versions,
+      passkey_credentials, invitations, owners, installations CASCADE
   `);
   await createInstallation(harness.built.database.db, {
     id: INSTALLATION_ID,
@@ -64,479 +38,115 @@ beforeEach(async () => {
   });
 });
 
-type InjectOptions = {
-  method: "GET" | "POST";
-  url: string;
-  headers?: Record<string, string>;
-  payload?: unknown;
-};
-
-function inject(options: InjectOptions) {
-  return harness.built.app.inject(options as never);
-}
-
-async function startBootstrap(clientNonce = "client-nonce-value-long-enough-22") {
-  return inject({
+function bootstrap(overrides: Record<string, unknown> = {}) {
+  return harness.built.app.inject({
     method: "POST",
     url: "/v1/bootstrap",
-    payload: { clientNonce },
+    payload: {
+      email: "Admin@Example.test",
+      pseudonym: "Admin",
+      password: "correct horse battery staple",
+      device: browserDevice(),
+      ...overrides,
+    },
   });
 }
 
-describe("installation status", () => {
-  it("answers before any installation work has happened", async () => {
-    const response = await inject({ method: "GET", url: "/v1/installation/status" });
-    expect(response.statusCode).toBe(200);
-    const body = response.json();
-    expect(body.ownerCount).toBe(0);
-    expect(body.workspaceCount).toBe(0);
-    expect(body.securityReady).toBe(false);
-  });
-
-  it("reports counts that match the database", async () => {
-    const body = (await inject({ method: "GET", url: "/v1/installation/status" })).json();
-    const counts = await readCounts(harness.built.database.db);
-    expect({ ownerCount: body.ownerCount, workspaceCount: body.workspaceCount }).toEqual(counts);
-  });
-
-  it("never reports ready while the deployment key is unavailable", async () => {
-    // The harness runs without a mounted key, so `securityReady` must be false
-    // whatever the installation state claims.
-    const body = (await inject({ method: "GET", url: "/v1/installation/status" })).json();
-    expect(body.securityReady).toBe(false);
-  });
-});
-
-describe("starting an attempt", () => {
-  it("returns the capability in the body and the counts as 0/0", async () => {
-    const response = await startBootstrap();
-    expect(response.statusCode).toBe(201);
-    const body = response.json();
-    expect(body.bootstrapState).toBe("started");
-    expect(body.installationState).toBe("uninitialized");
-    expect(body.ownerCount).toBe(0);
-    expect(body.workspaceCount).toBe(0);
-    expect(typeof body.capability).toBe("string");
-    expect(body.capability.length).toBeGreaterThanOrEqual(32);
-  });
-
-  it("never puts the capability in a header or a location", async () => {
-    // It belongs in the body alone; a header or URL would reach logs.
-    const response = await startBootstrap();
-    const serialisedHeaders = JSON.stringify(response.headers);
-    expect(serialisedHeaders).not.toContain(response.json().capability);
-  });
-
-  it("persists only a digest of the capability", async () => {
-    const capability = (await startBootstrap()).json().capability;
-    const rows = await harness.built.database.db.execute<{ capability_hash: string }>(
-      sql`SELECT capability_hash FROM bootstrap_attempts`,
-    );
-    // A leaked table dump must not yield a working capability.
-    expect(rows.rows[0]?.capability_hash).not.toBe(capability);
-    expect(rows.rows[0]?.capability_hash).not.toContain(capability);
-  });
-
-  it("lets a second attempt supersede the first while still 0/0", async () => {
-    await startBootstrap();
-    const second = await startBootstrap("another-client-nonce-value-22ch");
-    expect(second.statusCode).toBe(201);
-    expect(second.json().bootstrapState).toBe("started");
-  });
-
-  it("keeps the installation at 0/0 after starting", async () => {
-    await startBootstrap();
-    expect(await readCounts(harness.built.database.db)).toEqual({
-      ownerCount: 0,
-      workspaceCount: 0,
+describe("first launch", () => {
+  it("reports an uninitialized installation with no registration mode", async () => {
+    const status = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/installation/status",
     });
-  });
-
-  it("rejects a client nonce shorter than the contract allows", async () => {
-    const response = await inject({
-      method: "POST",
-      url: "/v1/bootstrap",
-      payload: { clientNonce: "tooshort" },
-    });
-    expect(response.statusCode).toBe(400);
-  });
-});
-
-describe("capability enforcement", () => {
-  it("refuses a request with no capability header", async () => {
-    const { attemptId } = (await startBootstrap()).json();
-    const response = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/credential`,
-      payload: { credential: {} },
-    });
-    expect(response.statusCode).toBe(403);
-    expect(response.json().code).toBe("bootstrap_capability_invalid");
-  });
-
-  it("refuses a forged capability", async () => {
-    const { attemptId } = (await startBootstrap()).json();
-    const response = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/credential`,
-      headers: { [CAPABILITY_HEADER]: "forged-capability-value-that-is-long" },
-      payload: { credential: {} },
-    });
-    expect(response.statusCode).toBe(403);
-  });
-
-  it("refuses a valid capability replayed against another attempt", async () => {
-    const { capability } = (await startBootstrap()).json();
-    const otherAttemptId = "018f2b7c-0000-7000-8000-0000000000ff";
-    const response = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${otherAttemptId}/credential`,
-      headers: { [CAPABILITY_HEADER]: capability },
-      payload: { credential: {} },
-    });
-    expect(response.statusCode).toBe(403);
-  });
-
-  it("gives the same answer for an unknown attempt as for a wrong capability", async () => {
-    // Distinguishing them would tell a caller whether an attempt exists.
-    const unknown = await inject({
-      method: "POST",
-      url: "/v1/bootstrap/018f2b7c-0000-7000-8000-0000000000ee/credential",
-      headers: { [CAPABILITY_HEADER]: "some-capability-value-long-enough-x" },
-      payload: { credential: {} },
-    });
-    const { attemptId } = (await startBootstrap()).json();
-    const wrong = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/credential`,
-      headers: { [CAPABILITY_HEADER]: "some-capability-value-long-enough-x" },
-      payload: { credential: {} },
-    });
-    expect(unknown.statusCode).toBe(wrong.statusCode);
-    expect(unknown.json().code).toBe(wrong.json().code);
-  });
-});
-
-describe("credential verification failures", () => {
-  it("refuses a forged ceremony with an indistinguishable code", async () => {
-    const { attemptId, capability } = (await startBootstrap()).json();
-    const response = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/credential`,
-      headers: { [CAPABILITY_HEADER]: capability },
-      payload: { credential: { id: "x", rawId: "x", type: "public-key", response: {} } },
-    });
-    expect(response.statusCode).toBe(401);
-    expect(response.json().code).toBe("authentication_failed");
-  });
-
-  it("leaves the installation at 0/0 after a failed ceremony", async () => {
-    const { attemptId, capability } = (await startBootstrap()).json();
-    await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/credential`,
-      headers: { [CAPABILITY_HEADER]: capability },
-      payload: { credential: { id: "x", rawId: "x", type: "public-key", response: {} } },
-    });
-    expect(await readCounts(harness.built.database.db)).toEqual({
-      ownerCount: 0,
-      workspaceCount: 0,
-    });
-  });
-
-  it("consumes the challenge so a failed ceremony cannot be retried", async () => {
-    const { attemptId, capability } = (await startBootstrap()).json();
-    const payload = { credential: { id: "x", rawId: "x", type: "public-key", response: {} } };
-    const first = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/credential`,
-      headers: { [CAPABILITY_HEADER]: capability },
-      payload,
-    });
-    const second = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/credential`,
-      headers: { [CAPABILITY_HEADER]: capability },
-      payload,
-    });
-    expect(first.statusCode).toBe(401);
-    expect(second.statusCode).toBe(401);
-  });
-
-  it("records the failure in the audit trail", async () => {
-    const { attemptId, capability } = (await startBootstrap()).json();
-    await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/credential`,
-      headers: { [CAPABILITY_HEADER]: capability },
-      payload: { credential: { id: "x", rawId: "x", type: "public-key", response: {} } },
-    });
-    const rows = await harness.built.database.db.execute<{ event_type: string; outcome: string }>(
-      sql`SELECT event_type, outcome FROM security_audit_events ORDER BY occurred_at`,
-    );
-    const types = rows.rows.map((row) => row.event_type);
-    expect(types).toContain("bootstrap.started");
-    expect(types).toContain("bootstrap.credential-verified");
-    expect(
-      rows.rows.find((row) => row.event_type === "bootstrap.credential-verified")?.outcome,
-    ).toBe("failure");
-  });
-});
-
-describe("problem bodies", () => {
-  it("carries a correlation ID and nothing else specific", async () => {
-    const response = await inject({
-      method: "POST",
-      url: "/v1/bootstrap/018f2b7c-0000-7000-8000-0000000000ee/credential",
-      headers: { [CAPABILITY_HEADER]: "some-capability-value-long-enough-x" },
-      payload: { credential: {} },
-    });
-    const body = response.json();
-    expect(body.correlationId).toBeTypeOf("string");
-    expect(Object.keys(body).sort()).toEqual(
-      ["code", "correlationId", "status", "title", "type"].sort(),
-    );
-  });
-
-  it("never echoes the presented capability", async () => {
-    const forged = "forged-capability-value-that-is-long";
-    const { attemptId } = (await startBootstrap()).json();
-    const response = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/credential`,
-      headers: { [CAPABILITY_HEADER]: forged },
-      payload: { credential: {} },
-    });
-    expect(JSON.stringify(response.json())).not.toContain(forged);
-  });
-});
-
-describe("the routes that follow credential verification", () => {
-  // A real WebAuthn ceremony cannot be produced without an authenticator, so
-  // these attempts never reach `credential-verified`. Their refusal paths are
-  // still worth pinning.
-
-  async function startedAttempt() {
-    const body = (await startBootstrap()).json();
-    return { attemptId: body.attemptId as string, capability: body.capability as string };
-  }
-
-  it("refuses a password before a credential is verified", async () => {
-    const { attemptId, capability } = await startedAttempt();
-    const response = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/password`,
-      headers: { [CAPABILITY_HEADER]: capability },
-      payload: { password: "acceptable-passphrase-here" },
-    });
-    expect(response.statusCode).toBe(409);
-    expect(response.json().code).toBe("conflict");
-  });
-
-  it("refuses a download before any kit exists", async () => {
-    const { attemptId, capability } = await startedAttempt();
-    const response = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/recovery/download`,
-      headers: { [CAPABILITY_HEADER]: capability },
-    });
-    expect(response.statusCode).toBe(409);
-    expect(response.json().code).toBe("conflict");
-  });
-
-  it("refuses a regeneration before a credential is verified", async () => {
-    const { attemptId, capability } = await startedAttempt();
-    const response = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/recovery/regenerate`,
-      headers: { [CAPABILITY_HEADER]: capability },
-    });
-    expect(response.statusCode).toBe(409);
-  });
-
-  it("refuses confirmation before password is set", async () => {
-    const { attemptId, capability } = await startedAttempt();
-    const response = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/recovery/confirm`,
-      headers: { [CAPABILITY_HEADER]: capability },
-      payload: {
-        device: {
-          deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
-          name: "Test browser",
-          platform: "Test platform",
-        },
-      },
-    });
-    expect(response.statusCode).toBe(409);
-    expect(await readCounts(harness.built.database.db)).toEqual({
-      ownerCount: 0,
-      workspaceCount: 0,
-    });
-  });
-
-  it("rejects a confirmation body without a device claim", async () => {
-    const { attemptId, capability } = await startedAttempt();
-    const response = await inject({
-      method: "POST",
-      url: `/v1/bootstrap/${attemptId}/recovery/confirm`,
-      headers: { [CAPABILITY_HEADER]: capability },
-      payload: { storedOffline: true },
-    });
-    expect(response.statusCode).toBe(400);
-  });
-
-  it("requires the capability on every follow-up route", async () => {
-    const { attemptId } = await startedAttempt();
-    for (const path of [
-      "password",
-      "recovery/download",
-      "recovery/regenerate",
-      "recovery/confirm",
-    ]) {
-      const response = await inject({
-        method: "POST",
-        url: `/v1/bootstrap/${attemptId}/${path}`,
-        payload:
-          path === "password"
-            ? { password: "acceptable-passphrase-here" }
-            : {
-                device: {
-                  deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
-                  name: "Test browser",
-                  platform: "Test platform",
-                },
-              },
-      });
-      expect(response.statusCode, path).toBe(403);
-    }
-  });
-});
-
-/**
- * Puts the installation into the committed state without running the ceremony,
- * which cannot be produced without an authenticator.
- *
- * It binds the *existing* workspace rather than inserting one. `workspaces`
- * carries a `UNIQUE ((true))` singleton index and feature 001 creates the row
- * at API startup, so an insert here silently does nothing and the binding would
- * dangle. `readCounts` joins through the binding, so a dangling one reports
- * zero and the invariant refuses — which is the behaviour we want, but not the
- * state this test is about.
- */
-async function fabricateCommittedOwnership(): Promise<void> {
-  const ownerId = "018f2b7c-0000-7000-8000-0000000000bb";
-  const [workspace] = await harness.built.database.db
-    .execute(sql`SELECT id FROM workspaces LIMIT 1`)
-    .then((result) => (result as unknown as { rows: { id: string }[] }).rows ?? []);
-  expect(workspace?.id, "feature 001 must have created the canonical workspace").toBeTruthy();
-  await harness.built.database.db.execute(sql`
-    INSERT INTO owners (id, installation_id, state)
-    VALUES (${ownerId}::uuid, ${INSTALLATION_ID}::uuid, 'active')
-  `);
-  await harness.built.database.db.execute(sql`
-    UPDATE installations
-    SET state = 'ready', owner_id = ${ownerId}::uuid, workspace_id = ${workspace?.id}::uuid
-  `);
-}
-
-describe("the bootstrap surface closes after ownership commits", () => {
-  it("refuses every bootstrap route once an owner exists", async () => {
-    // Leaving the surface open is the most direct route to a second owner.
-    await fabricateCommittedOwnership();
-
-    const response = await startBootstrap();
-    expect(response.statusCode).toBe(409);
-    expect(response.json().code).toBe("bootstrap_unavailable");
-  });
-
-  it("reports 1/1 and a ready state once ownership is committed", async () => {
-    await fabricateCommittedOwnership();
-    const body = (await inject({ method: "GET", url: "/v1/installation/status" })).json();
-    expect(body.state).toBe("ready");
-    expect(body.ownerCount).toBe(1);
-    expect(body.workspaceCount).toBe(1);
-    // Still not `securityReady`: the deployment key is not mounted here.
-    expect(body.securityReady).toBe(false);
-  });
-});
-
-describe("status with no installation row at all", () => {
-  it("answers uninitialized rather than 404", async () => {
-    // The first-run page needs a definite answer, not a status it must
-    // interpret.
-    await harness.built.database.db.execute(sql`TRUNCATE installations CASCADE`);
-    const response = await inject({ method: "GET", url: "/v1/installation/status" });
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
+    expect(status.statusCode).toBe(200);
+    expect(status.json()).toMatchObject({
       state: "uninitialized",
       ownerCount: 0,
       workspaceCount: 0,
-      recoveryReady: false,
-      securityReady: false,
+    });
+    expect(status.json()).not.toHaveProperty("registrationMode");
+  });
+
+  it("creates the administrator, signs them in and makes the installation ready", async () => {
+    const response = await bootstrap();
+    expect(response.statusCode).toBe(201);
+    const body = response.json();
+    expect(body.account).toMatchObject({
+      email: "Admin@Example.test",
+      pseudonym: "Admin",
+      role: "administrator",
+    });
+    expect(body.csrfToken).toEqual(expect.any(String));
+    expect(response.headers["set-cookie"]).toBeDefined();
+    // The password is accepted and never returned.
+    expect(response.body).not.toContain("correct horse");
+
+    const status = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/installation/status",
+    });
+    expect(status.json()).toMatchObject({
+      state: "ready",
+      ownerCount: 1,
+      workspaceCount: 1,
+      registrationMode: "closed",
+    });
+
+    const cookie = String(response.headers["set-cookie"]).split(";")[0] as string;
+    const me = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/me",
+      headers: { cookie },
+    });
+    expect(me.json()).toMatchObject({ role: "administrator", pseudonym: "Admin" });
+  });
+
+  it("refuses a second first launch once an administrator exists", async () => {
+    expect((await bootstrap()).statusCode).toBe(201);
+    const second = await bootstrap({ email: "intruder@example.test" });
+    expect(second.statusCode).toBe(409);
+    expect(second.json().code).toBe("already_initialized");
+    expect(await readCounts(harness.built.database.db)).toEqual({
+      ownerCount: 1,
+      workspaceCount: 1,
     });
   });
-});
 
-describe("a binding that points at no workspace", () => {
-  it("refuses rather than trusting the column", async () => {
-    // `installations.workspace_id` carries no foreign key on purpose: protected
-    // records must survive a migration that scrubs plaintext rows. The join in
-    // `readCounts` is what keeps that decision safe — a binding pointing
-    // nowhere counts zero, the invariant breaks, and the route fails closed
-    // instead of reporting a workspace that does not exist.
-    await harness.built.database.db.execute(sql`
-      INSERT INTO owners (id, installation_id, state)
-      VALUES (${"018f2b7c-0000-7000-8000-0000000000cc"}::uuid, ${INSTALLATION_ID}::uuid, 'active')
-    `);
-    await harness.built.database.db.execute(sql`
-      UPDATE installations
-      SET state = 'ready',
-          owner_id = ${"018f2b7c-0000-7000-8000-0000000000cc"}::uuid,
-          workspace_id = ${"018f2b7c-0000-7000-8000-00000000dead"}::uuid
-    `);
-    const response = await inject({ method: "GET", url: "/v1/installation/status" });
-    expect(response.statusCode).toBe(500);
-    // And it says nothing about what it found.
-    expect(response.body).not.toContain("workspace_id");
-  });
-});
-
-describe("an abandoned attempt does not lock the installation out", () => {
-  const claim = (nonce: string) =>
-    inject({ method: "POST", url: "/v1/bootstrap", payload: { clientNonce: nonce.repeat(24) } });
-
-  it("lets a second claim supersede a live first attempt", async () => {
-    expect((await claim("n")).statusCode).toBe(201);
-    const second = await claim("m");
-    expect(second.statusCode).toBe(201);
+  it("lets exactly one of two simultaneous first launches win", async () => {
+    const [first, second] = await Promise.all([
+      bootstrap({ email: "first@example.test" }),
+      bootstrap({ email: "second@example.test" }),
+    ]);
+    const codes = [first.statusCode, second.statusCode].sort();
+    expect(codes[0]).toBe(201);
+    expect(codes[1]).toBeGreaterThanOrEqual(409);
+    expect(await readCounts(harness.built.database.db)).toEqual({
+      ownerCount: 1,
+      workspaceCount: 1,
+    });
   });
 
-  it("lets a new claim supersede one that has been left alone", async () => {
-    const first = await claim("n");
-    expect(first.statusCode).toBe(201);
-
-    clock.value = new Date(BASE_TIME.getTime() + 16 * 60_000);
-    const later = await claim("p");
-    expect(later.statusCode).toBe(201);
-    expect(later.json().attemptId).not.toBe(first.json().attemptId);
+  it("validates the form and creates nothing on a refusal", async () => {
+    for (const overrides of [{ email: "not-an-email" }, { pseudonym: "" }, { password: "short" }]) {
+      const response = await bootstrap(overrides);
+      expect(response.statusCode, JSON.stringify(overrides)).toBe(400);
+    }
+    expect(await readCounts(harness.built.database.db)).toEqual({
+      ownerCount: 0,
+      workspaceCount: 0,
+    });
   });
 
-  it("records the supersession, so a takeover is distinguishable from a first claim", async () => {
-    await claim("n");
-    await claim("p");
-
-    const events = await harness.built.database.db.execute(
-      sql`SELECT event_type FROM security_audit_events WHERE event_type = 'bootstrap.interrupted'`,
+  it("records the creation in the administrator's audit trail without the password", async () => {
+    await bootstrap();
+    const events = await harness.built.database.db.execute<{
+      event_type: string;
+      metadata: unknown;
+    }>(
+      sql`SELECT event_type, metadata FROM security_audit_events WHERE event_type = 'account.created'`,
     );
-    expect((events as unknown as { rows: unknown[] }).rows).toHaveLength(1);
-  });
-
-  it("still refuses every claim once ownership is committed", async () => {
-    await fabricateCommittedOwnership();
-    clock.value = new Date(BASE_TIME.getTime() + 60 * 60_000);
-    const response = await claim("n");
-    expect(response.statusCode).toBe(409);
-    expect(response.json().code).toBe("bootstrap_unavailable");
+    expect(events.rows).toHaveLength(1);
+    expect(JSON.stringify(events.rows)).not.toContain("correct horse");
+    expect(events.rows[0]?.metadata).toEqual({ origin: "bootstrap" });
   });
 });

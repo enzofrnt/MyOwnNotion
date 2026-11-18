@@ -172,8 +172,28 @@ jobs:
         if: needs.impact.outputs.unit_mode != 'none'
         with:
           name: test-impact-plan
-      - if: needs.impact.outputs.unit_mode != 'none'
+      - id: original-tests
+        if: needs.impact.outputs.unit_mode != 'none'
         run: bun run ci:test:affected --plan test-impact.json --group unit
+      # Evidence capture only, not retry-to-green: original-tests stays failed.
+      - name: Diagnostic rerun of failed unit group under strace
+        if: failure() && steps.original-tests.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          # Explicit Ubuntu amd64 runner prerequisite; failure is not a fix.
+          sudo apt-get update && sudo apt-get install -y strace || echo "strace installation failed; helper will report capture inability if unavailable."
+          timeout --signal=TERM --kill-after=30s 18m bash scripts/ci/trace-filesystem-failure.sh unit
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && steps.original-tests.outcome == 'failure'
+        continue-on-error: true
+        with:
+          name: filesystem-trace-unit-attempt-${{ github.run_attempt }}
+          path: |
+            filesystem-trace-unit/*.gz
+            filesystem-trace-unit/status.txt
+          if-no-files-found: warn
+          retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && needs.impact.outputs.unit_mode == 'full'
         with:
@@ -253,8 +273,28 @@ jobs:
         if: needs.impact.outputs.contract_mode != 'none'
         with:
           name: test-impact-plan
-      - if: needs.impact.outputs.contract_mode != 'none'
+      - id: original-tests
+        if: needs.impact.outputs.contract_mode != 'none'
         run: bun run ci:test:affected --plan test-impact.json --group contract
+      # Evidence capture only, not retry-to-green: original-tests stays failed.
+      - name: Diagnostic rerun of failed contract group under strace
+        if: failure() && steps.original-tests.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          # Explicit Ubuntu amd64 runner prerequisite; failure is not a fix.
+          sudo apt-get update && sudo apt-get install -y strace || echo "strace installation failed; helper will report capture inability if unavailable."
+          timeout --signal=TERM --kill-after=30s 18m bash scripts/ci/trace-filesystem-failure.sh contract
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && steps.original-tests.outcome == 'failure'
+        continue-on-error: true
+        with:
+          name: filesystem-trace-contract-attempt-${{ github.run_attempt }}
+          path: |
+            filesystem-trace-contract/*.gz
+            filesystem-trace-contract/status.txt
+          if-no-files-found: warn
+          retention-days: 14
 
   security-tests:
     name: Owner security test suites
@@ -291,9 +331,12 @@ jobs:
     name: Playwright journeys (${{ matrix.project }} ${{ matrix.lane }})
     runs-on: ubuntu-24.04
     needs: impact
-    # A healthy lane takes about a quarter of an hour. A hung one must not hold
-    # the run for the six-hour default.
-    timeout-minutes: 30
+    # A lane carrying a small selected diff takes ten to fifteen minutes. A
+    # change broad enough to select the whole browser corpus doubles that: the
+    # measured lanes reached thirty minutes, and a thirty-minute budget cancelled
+    # them mid-journey, which reads as a failed lane while no assertion failed.
+    # A hung lane still cannot hold the run for the six-hour default.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

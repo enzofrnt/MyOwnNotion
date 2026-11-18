@@ -28,10 +28,14 @@ import {
 } from "@myownnotion/database";
 import { redact, type SafeProblemCode } from "@myownnotion/domain";
 import type { FastifyBaseLogger } from "fastify";
+import { boundWorkspaceId } from "../workspace-scope.ts";
 
 export interface AuditContext {
   readonly installationId: string;
+  /** Defaults to the workspace bound to the current request (feature 058). */
   readonly workspaceId?: string;
+  /** The account the event concerns, when it is not the bound one. */
+  readonly ownerId?: string;
   readonly correlationId: string;
   readonly actorClass: AuditActorClass;
 }
@@ -69,14 +73,18 @@ export class AuditService {
     context: AuditContext,
     input: RecordEventInput,
   ): Promise<void> {
+    // An event raised while serving a signed-in account belongs to that
+    // account's trail, even when the caller did not name the workspace.
+    const workspaceId = context.workspaceId ?? boundWorkspaceId() ?? undefined;
     await appendAuditEvent(
       tx,
       {
         installationId: context.installationId,
-        ...(context.workspaceId === undefined ? {} : { workspaceId: context.workspaceId }),
+        ...(workspaceId === undefined ? {} : { workspaceId }),
       },
       {
         id: randomUUID(),
+        ...(context.ownerId === undefined ? {} : { ownerId: context.ownerId }),
         eventType: input.eventType,
         outcome: input.outcome,
         actorClass: context.actorClass,

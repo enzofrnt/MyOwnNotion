@@ -2,16 +2,27 @@
  * Contract-test harness: the real Fastify app over a disposable migrated
  * PostgreSQL and a temporary blob root, driven through app.inject.
  */
-import { mkdtempSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { generateUuidV7, PROTOCOL_VERSION, type Uuid } from "@myownnotion/domain";
 import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
 import { type BuildAppOptions, type BuiltApp, buildApp } from "../../src/app.ts";
+import type { AppContext } from "../../src/context.ts";
+import { loadSecurityConfig } from "../../src/security/security-config.ts";
 
 export interface ApiHarness {
   readonly built: BuiltApp;
+  /**
+   * The workspace the suite works in (feature 058): the unsecured app's single
+   * workspace, or the account created by `authenticatedContent`. There is no
+   * ambient workspace in a secured app, so suites name it explicitly.
+   */
+  workspaceId: Uuid;
+  /** The app context bound to `workspaceId`, for direct service and repository use. */
+  readonly context: AppContext;
   readonly postgres: DisposablePostgres;
   readonly blobRoot: string;
   readonly requestHeaders?: Record<string, string>;
@@ -56,6 +67,7 @@ export async function createApiHarness(options: ApiHarnessOptions = {}): Promise
       ? {}
       : { pageCheckpointRetention: options.pageCheckpointRetention }),
   });
+  let workspaceOverride: Uuid | null = null;
   if (options.clientProtocol !== "manual") {
     const clientProtocol = String(options.clientProtocol ?? PROTOCOL_VERSION);
     built.app.addHook("onRequest", (request, _reply, done) => {
@@ -67,6 +79,25 @@ export async function createApiHarness(options: ApiHarnessOptions = {}): Promise
     built,
     postgres,
     blobRoot,
+    get workspaceId(): Uuid {
+      const id = workspaceOverride ?? built.unsecuredWorkspaceId;
+      if (id === null)
+        throw new Error(
+          "this suite has no workspace yet: create an account with authenticatedContent",
+        );
+      return id;
+    },
+    set workspaceId(value: Uuid) {
+      workspaceOverride = value;
+    },
+    get context(): AppContext {
+      const id = workspaceOverride ?? built.unsecuredWorkspaceId;
+      if (id === null)
+        throw new Error(
+          "this suite has no workspace yet: create an account with authenticatedContent",
+        );
+      return built.contextFor(id);
+    },
     close: async () => {
       await built.close();
       await postgres.stop();
@@ -139,4 +170,33 @@ export async function createItemViaApi(
     revisionId: body.revisionIds[0] as Uuid,
     placementId: body.item.placements[0]?.id as Uuid,
   };
+}
+
+/**
+ * A secured harness with a real mounted deployment key (feature 058): the
+ * configuration every account-level suite needs, since an account cannot be
+ * given keys — and therefore cannot exist — without one.
+ */
+export async function createSecuredApiHarness(
+  options: Omit<ApiHarnessOptions, "security"> = {},
+): Promise<ApiHarness> {
+  const keyDirectory = mkdtempSync(path.join(os.tmpdir(), "mon-key-"));
+  const keyFile = path.join(keyDirectory, "deployment-key");
+  writeFileSync(keyFile, randomBytes(32).toString("base64"), { encoding: "utf8", mode: 0o600 });
+  const harness = await createApiHarness({
+    ...options,
+    security: loadSecurityConfig({
+      MYOWNNOTION_PUBLIC_ORIGIN: "http://127.0.0.1:5173",
+      MYOWNNOTION_API_HOST: "127.0.0.1",
+      MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
+      MYOWNNOTION_DEPLOYMENT_KEY_FILE: keyFile,
+    }),
+  });
+  const close = harness.close;
+  return Object.assign(harness, {
+    close: async () => {
+      await close();
+      await rm(keyDirectory, { recursive: true, force: true });
+    },
+  });
 }

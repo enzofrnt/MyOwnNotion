@@ -40,7 +40,12 @@ async function releasePageBodyFromDevice(page: Page, name: string): Promise<void
   await page.evaluate(
     async ({ id }) => {
       await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open("myownnotion-local");
+        const request = indexedDB.open(
+          // Feature 058: one local database per account on this browser.
+          localStorage.getItem("myownnotion-last-account") === null
+            ? "myownnotion-local"
+            : `myownnotion-local-${localStorage.getItem("myownnotion-last-account")}`,
+        );
         request.onerror = () => reject(request.error ?? new Error("local database unavailable"));
         request.onsuccess = () => {
           const database = request.result;

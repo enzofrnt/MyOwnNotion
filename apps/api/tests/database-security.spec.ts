@@ -332,7 +332,7 @@ describe("structured security sentinels", () => {
     };
     const backupKey = randomBytes(32);
     const outcome = await new BackupService({
-      context: harness.built.context,
+      context: harness.context,
       destination,
       applicationVersion: "0.1.0-security-test",
       seal: async (plaintext, sealedPath) =>

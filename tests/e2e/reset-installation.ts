@@ -56,7 +56,6 @@ const SECURITY_TABLES = [
   "password_credential_versions",
   "passkey_credentials",
   "lifecycle_events",
-  "owners",
 ] as const;
 
 const MAX_RESET_ATTEMPTS = 5;
@@ -150,7 +149,7 @@ async function resetSecurityInstallationOnce(): Promise<void> {
     const { rows } = await client.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
-      [[...SECURITY_TABLES, "installations"]],
+      [[...SECURITY_TABLES, "invitations", "owners", "installations"]],
     );
     const present = new Set(rows.map((row) => row.table_name));
     const missing = [...SECURITY_TABLES, "installations"].filter((table) => !present.has(table));
@@ -166,7 +165,7 @@ async function resetSecurityInstallationOnce(): Promise<void> {
     transactionOpen = true;
     // Released before the child rows go, so no foreign key blocks the truncate.
     await client.query(
-      `UPDATE installations SET state = 'uninitialized', owner_id = NULL, workspace_id = NULL`,
+      `UPDATE installations SET state = 'uninitialized', administrator_id = NULL, registration_mode = 'closed'`,
     );
     // `installations` is deliberately kept. The API creates that row once at
     // startup, the way a real deployment does, and nothing recreates it — so
@@ -179,6 +178,12 @@ async function resetSecurityInstallationOnce(): Promise<void> {
     await client.query(
       `TRUNCATE ${SECURITY_TABLES.map((table) => `"${table}"`).join(", ")} CASCADE`,
     );
+    // Accounts last, and deleted rather than truncated (feature 058):
+    // `installations.administrator_id` references `owners`, so a TRUNCATE
+    // CASCADE would take the installation row with it — and so would
+    // truncating `invitations`, which `owners.invitation_id` references.
+    await client.query(`DELETE FROM invitations`);
+    await client.query(`DELETE FROM owners`);
     await client.query("COMMIT");
     transactionOpen = false;
   } catch (error) {
@@ -279,9 +284,11 @@ export async function readCommittedCounts(): Promise<{
       async (client) => {
         const { rows } = await client.query<{ owner_count: string; workspace_count: string }>(
           `SELECT
-             (SELECT count(*) FROM owners)::text AS owner_count,
+             (SELECT count(*) FROM owners o
+                JOIN installations i ON i.administrator_id = o.id)::text AS owner_count,
              (SELECT count(*) FROM workspaces w
-                JOIN installations i ON i.workspace_id = w.id)::text AS workspace_count`,
+                JOIN owners o ON o.workspace_id = w.id
+                JOIN installations i ON i.administrator_id = o.id)::text AS workspace_count`,
         );
         const row = rows[0];
         return {
@@ -307,38 +314,51 @@ export async function readCommittedCounts(): Promise<{
  * the real flow; everything else starts from an installation that already has
  * an owner, which is what an installation looks like in use.
  */
+/** The seeded administrator's sign-in identifier (feature 058). */
+export const E2E_OWNER_EMAIL = "owner@e2e.test";
+
 async function seedCommittedOwnerOnce(): Promise<void> {
   const client = boundedSetupClient("myownnotion-e2e-owner-seed");
   const deadline = armSetupDeadline(client);
   try {
     await client.connect();
-    const { rows: installations } = await client.query<{ id: string; owner_id: string | null }>(
-      `SELECT id, owner_id FROM installations LIMIT 1`,
-    );
+    const { rows: installations } = await client.query<{
+      id: string;
+      administrator_id: string | null;
+    }>(`SELECT id, administrator_id FROM installations LIMIT 1`);
     const installation = installations[0];
-    if (installation === undefined || installation.owner_id !== null) {
+    if (installation === undefined || installation.administrator_id !== null) {
       // No installation row yet (the API has not started), or ownership is
       // already committed. Either way there is nothing to seed.
       return;
     }
-    const { rows: workspaces } = await client.query<{ id: string }>(
-      `SELECT id FROM workspaces LIMIT 1`,
-    );
-    const workspaceId = workspaces[0]?.id;
-    if (workspaceId === undefined) {
-      return;
-    }
     await client.query("BEGIN");
     try {
+      // Feature 058: the seeded owner is the administrator account and owns
+      // its own workspace — the oldest one nobody owns, so content created by
+      // earlier journeys stays reachable, or a fresh one.
+      const { rows: workspaces } = await client.query<{ id: string }>(
+        `SELECT w.id FROM workspaces w
+          WHERE NOT EXISTS (SELECT 1 FROM owners o WHERE o.workspace_id = w.id)
+          ORDER BY w.created_at LIMIT 1`,
+      );
+      const workspaceId = workspaces[0]?.id ?? randomUUID();
+      if (workspaces[0] === undefined) {
+        await client.query(`INSERT INTO workspaces (id, schema_version) VALUES ($1, 1)`, [
+          workspaceId,
+        ]);
+      }
       // `owners.id` has no default: the application always supplies it.
       const ownerId = randomUUID();
       await client.query(
-        `INSERT INTO owners (id, installation_id, state) VALUES ($1, $2, 'active')`,
-        [ownerId, installation.id],
+        `INSERT INTO owners (id, installation_id, state, workspace_id, email, email_normalized,
+                             pseudonym, role, origin)
+         VALUES ($1, $2, 'active', $3, $4, $4, 'Propriétaire', 'administrator', 'bootstrap')`,
+        [ownerId, installation.id, workspaceId, E2E_OWNER_EMAIL],
       );
       await client.query(
-        `UPDATE installations SET state = 'ready', owner_id = $1, workspace_id = $2 WHERE id = $3`,
-        [ownerId, workspaceId, installation.id],
+        `UPDATE installations SET state = 'ready', administrator_id = $1 WHERE id = $2`,
+        [ownerId, installation.id],
       );
       // A device, because a session is bound to one and sign-in refuses without
       // an active one.

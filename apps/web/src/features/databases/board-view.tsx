@@ -203,6 +203,7 @@ function BoardCardMenu({
     entryId: Uuid,
     targetColumnId: Uuid | "missing",
     sourceColumnId: Uuid | "missing",
+    focusOrigin?: Element | null,
   ) => Promise<void>;
 }) {
   const actions = useContext(DatabaseEntryActionsContext);
@@ -228,6 +229,9 @@ function BoardCardMenu({
       setActionPending(false);
     }
   };
+  const firstSelectableDestinationIndex = columns.findIndex(
+    (target) => !pending && target.id !== column.id,
+  );
   return (
     <MenuRoot
       open={open}
@@ -332,21 +336,34 @@ function BoardCardMenu({
         {error === null ? null : <p role="alert">{error}</p>}
         {moving ? <MenuLabel>{DATABASE_COPY.board.moveTo}</MenuLabel> : null}
         {moving
-          ? columns.map((target) => (
+          ? columns.map((target, index) => (
               <MenuItem
                 key={target.id}
+                // Opening this step by keyboard replaces the focused item, so the
+                // destinations must take focus themselves: otherwise a keyboard
+                // user reaches a list that ignores Enter, and the move never runs.
+                autoFocus={index === firstSelectableDestinationIndex}
                 disabled={pending || target.id === column.id}
                 data-board-destination={target.id}
                 shortcut={
                   target.id === column.id ? <AppIcon name="check" size="small" /> : undefined
                 }
-                onClick={() => {
+                onClick={(event) => {
                   // Return to the card before moving: its origin survives portal focus,
                   // and BoardView can return to the destination once rows refresh.
                   choosingDestination.current = true;
                   setOpen(false);
-                  triggerRef.current?.focus({ preventScroll: true });
-                  void onMove(row.entryId as Uuid, target.id, column.id);
+                  const trigger = triggerRef.current;
+                  if (event.detail === 0) {
+                    // Keyboard activation: this very Enter would otherwise land on
+                    // the trigger that just received focus and reopen the menu,
+                    // cancelling the move the person asked for. Return focus once
+                    // the activation that closed the menu has finished.
+                    requestAnimationFrame(() => trigger?.focus({ preventScroll: true }));
+                  } else {
+                    trigger?.focus({ preventScroll: true });
+                  }
+                  void onMove(row.entryId as Uuid, target.id, column.id, triggerRef.current);
                 }}
               >
                 <span className="database-board-menu__destination">
@@ -407,6 +424,7 @@ function BoardCards({
     entryId: Uuid,
     targetColumnId: Uuid | "missing",
     sourceColumnId: Uuid | "missing",
+    focusOrigin?: Element | null,
   ) => Promise<void>;
 }) {
   const actions = useContext(DatabaseEntryActionsContext);
@@ -851,6 +869,7 @@ export function BoardView({
     entryId: Uuid,
     targetColumnId: Uuid | "missing",
     sourceColumnId: Uuid | "missing",
+    focusOrigin: Element | null = document.activeElement,
   ): Promise<void> => {
     if (pendingRef.current.has(entryId)) return;
     const update = boardMoveUpdate(axis, targetColumnId, sourceColumnId);
@@ -867,12 +886,11 @@ export function BoardView({
     pendingRef.current.add(entryId);
     setPendingEntryIds(new Set(pendingRef.current));
     setMoveError(false);
-    const origin = document.activeElement;
-    if (
-      origin?.closest(".database-card") !== null &&
-      origin?.closest(".database-card") !== undefined
-    )
-      pendingFocus.current = { entryId, columnId: targetColumnId, origin };
+    // The origin decides where focus returns once the rows refresh. It is passed
+    // explicitly when the caller defers its own focus (keyboard activation), so
+    // the reader of the card still lands on it in its new column.
+    if (focusOrigin !== null && focusOrigin.closest(".database-card") !== null)
+      pendingFocus.current = { entryId, columnId: targetColumnId, origin: focusOrigin };
     try {
       await onUpdateEntry(entryId, update);
       setAnnouncement(DATABASE_COPY.board.moved(row.title, target.label));

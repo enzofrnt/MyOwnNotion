@@ -142,7 +142,7 @@ describe("a blocked installation is still readable", () => {
 
     expect((await policies().health()).writesAllowed).toBe(false);
 
-    const protectedContent = harness.built.context.protectedContent;
+    const protectedContent = harness.context.protectedContent;
     expect(protectedContent).toBeDefined();
     expect(await protectedContent?.readItemName(harness.built.database.db, pageId)).toBe(SECRET);
   });
@@ -339,7 +339,7 @@ describe("a wrapping-key rotation leaves the content alone", () => {
     );
     expect((before as unknown as { rows: unknown[] }).rows.length).toBeGreaterThan(0);
 
-    const keys = harness.built.context.protectedContent;
+    const keys = harness.context.protectedContent;
     expect(keys).toBeDefined();
 
     // Rewrap under a new deployment key.

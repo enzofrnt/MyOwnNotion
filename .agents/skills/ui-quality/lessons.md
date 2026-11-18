@@ -738,3 +738,80 @@ validation explicite du propriétaire (correction vue ensemble).
 - Preuve : evidence/emoji-clear-before.png, emoji-clear-hover-far-before.png,
   emoji-clear-after-dark.png, emoji-clear-after-light.png ; 24→18 px, survol
   du texte = opacité 0, focus clavier = visible.
+
+### L-064 — Réglages : une carte par sujet, anatomie identique
+- Statut : validée (retour propriétaire, 2026-11-17 : « beaucoup mieux » puis dosage allégé validé)
+- Surface : `features/settings/settings-card.{tsx,css}`, onglet Compte
+- Anti-pattern : panneaux aplatis (fond transparent, filets à 45 %) ; titre et
+  texte nus sur le canevas, aucun groupe reconnaissable.
+- Règle : un sujet = une `SettingsCard` (en-tête icône grise + titre + aide, filet dessous,
+  même fond que le corps ; PAS de bandeau teinté, PAS d'ombre, PAS de bleu
+  décoratif : « too much » rejeté) ; bordure `border`, rayon 12 px ; états en
+  `SettingsPill` avec texte ; actions destructives dans une carte `tone="danger"`.
+- Preuve : `specs/065-settings-visual-refresh/evidence/account-*.png`.
+
+### L-065 — Confirmation d'identité : modal près de l'action, pas un bloc en haut du panneau
+- Statut : candidate (retour propriétaire 2026-11-17, à valider sur le rendu)
+- Surface : `features/security/mcp-access-panel.tsx`
+- Anti-pattern : afficher la demande de mot de passe en tête d'un long panneau
+  alors que l'action a été déclenchée tout en bas (invisible sans remonter).
+- Règle : une confirmation d'identité est une modal (passkey en action
+  principale, séparateur « ou », `PasswordField` comme à la connexion) ; la
+  saisie du formulaire est conservée ; le nom produit visible est « MCP », pas
+  un libellé générique.
+- Preuve : `specs/065-settings-visual-refresh/evidence/mcp-reauth-{light,dark}.png`.
+
+### L-066 — Erreur de formulaire : champs rouges + ligne réservée, jamais de décalage
+- Statut : candidate (retour propriétaire 2026-11-17)
+- Surface : `FormMessage` (ui/primitives), `Field invalid`, connexion, inscription,
+  installation, modal de confirmation MCP
+- Anti-pattern : insérer un bloc d'erreur au-dessus du formulaire (la carte grandit,
+  les champs et le bouton sautent) ; erreur en texte seul sans état rouge.
+- Règle : l'erreur passe par `invalid` (bordure et libellé rouges) + `FormMessage`
+  dont l'emplacement (2 lignes) est toujours réservé ; mesurer la position du
+  bouton avant/après l'erreur (écart 0).
+- Preuve : evidence/mcp-reauth-error.png, login-error.png (hauteur de carte identique).
+
+### L-067 — Formulaire long dans une carte : modal + liste en premier
+- Statut : candidate (retour propriétaire 2026-11-17)
+- Surface : `mcp-access-panel.tsx`
+- Règle : la carte montre d'abord la liste (lignes avec pastille d'état, résumé,
+  actions à droite) ; la création est une modal à pied d'actions collant ; un
+  secret à usage unique s'affiche masqué avec « Copier » comme action principale.
+- Preuve : evidence/mcp-list-*.png, mcp-grant-modal-*.png, mcp-code-modal-*.png.
+
+### L-068 — Décalage de page causé par un message : interdit (leçon majeure)
+- Statut : validée (exigence propriétaire 2026-11-17, signalée à trois reprises : modal
+  de confirmation, connexion, ajout de passkey)
+- Surfaces : tout formulaire, panneau de réglages et modal.
+- Anti-pattern : monter conditionnellement un bloc d'erreur / succès / « reconnectez-vous »
+  **au-dessus** du contenu (`{notice && <p/>}` en tête de section ou de carte). La page
+  descend sous le pointeur, le bouton cliqué se déplace, l'utilisateur perd sa place.
+  Variante : renvoyer l'utilisateur ailleurs (« reconnectez-vous d'abord ») au lieu de
+  traiter l'étape là où il est.
+- Règle :
+  1. Une erreur liée à un champ → `invalid` sur le champ + `FormMessage` dont la place
+     est **toujours réservée** juste au-dessus de l'action.
+  2. Un retour de niveau section (succès, échec d'opération) → toast fixe (hors flux),
+     auto-retiré en cas de succès ; jamais inséré au-dessus du contenu.
+  3. Une étape manquante (confirmation d'identité récente…) → modal sur place puis
+     **reprise automatique** de l'action ; jamais un message « refaites ceci ailleurs ».
+  4. Vérifier : mesurer la position du bouton déclencheur et la hauteur du conteneur avant
+     et après le message ; l'écart doit être 0 (ou `scrollWidth`/`top` identiques).
+  5. `rg "\{notice === null \? null"`/`{message && ` dans une PR UI = signal à auditer.
+- Preuve : evidence/mcp-reauth-error.png (0 px), login-error.png (carte 584 px avant/après),
+  `ReauthDialog` (`features/security/reauth-dialog.tsx`), toast `security-message`.
+
+### L-069 — Toutes les actions destructives se ressemblent
+- Statut : validée (retour propriétaire 2026-11-17 : « tous les boutons de suppression ne se
+  ressemblent pas » — Retirer passkey, Se déconnecter, Révoquer, Supprimer)
+- Anti-pattern : mélanger `variant="danger"` (rouge au repos), `secondary` neutre sans
+  signal, et rouge seulement pour la session courante.
+- Règle : dans une surface, une seule apparence destructive — neutre au repos, rouge
+  (texte, bordure, voile `--ui-menu-item-danger-hover-bg`) au survol/focus. Dans les réglages
+  `variant="danger"` et `data-tone="destructive"` partagent ce rendu (`settings-card.css`).
+  Le rouge au repos reste réservé au bouton de confirmation d'une modal destructive.
+  Un champ désactivé doit se lire verrouillé (fond enfoncé, bordure pointillée, curseur
+  interdit), pas comme un champ vide.
+- Preuve : evidence/sessions-rest.png, sessions-hover.png, passkey-remove-hover.png,
+  password-locked.png.

@@ -6,6 +6,10 @@
 while final `main` CI verification remains pending.
 **Input**: The owner requires usable MCP before V1.
 
+> **Superseded in part by [058 Multi-user accounts](../064-multi-user-accounts/spec.md)
+> (2026-11-16)**: the MCP access is per account: a connection reaches only its owner's
+> workspace, and settings list only the caller's connections.
+
 ## Product direction and clarification
 
 Canvas sections 6, 26, 28–30, 35, 42, 47 and 49 govern this feature. The owner's

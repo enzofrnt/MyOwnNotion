@@ -51,7 +51,6 @@ export function registerInstallationRoutes(
       updateRequestContext(request, {
         installationState: record?.state ?? null,
         installationId: record?.id ?? null,
-        workspaceId: record?.workspaceId ?? null,
         deploymentKeyAvailable: key.available,
       });
       if (!key.available) {
@@ -96,6 +95,7 @@ export function registerInstallationRoutes(
           activeKit.authorizationState === "active" &&
           activeKit.deliveryState === "confirmed",
         securityReady: status.state === "ready" && context.deploymentKeyAvailable,
+        ...(initialized ? { registrationMode: status.registrationMode } : {}),
         ownerCount: initialized ? 1 : 0,
         workspaceCount: initialized ? 1 : 0,
       });

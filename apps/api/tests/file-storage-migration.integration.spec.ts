@@ -43,7 +43,7 @@ const v0SourceBackup = (backupId: string) => ({
 it("protects a historical content identity in place without merging references or retiring its source", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const bytes = Buffer.from("historical shared and retained content");
     const raw = await files.deps.blobs.put(bytes);
@@ -86,7 +86,7 @@ it("protects a historical content identity in place without merging references o
 it("refuses truncated or substituted historical bytes and leaves the legacy row recoverable", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const bytes = Buffer.from("original migration payload");
     const raw = await files.deps.blobs.put(bytes);
@@ -126,7 +126,7 @@ it("refuses truncated or substituted historical bytes and leaves the legacy row 
 it("preserves an acknowledged legacy upload prefix and resumes at exactly that offset", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files, workspaceId } = harness.built.context;
+    const { db, protectedFiles: files, workspaceId } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const uploads = new ProtectedUploadService(files);
     const bytes = Buffer.from("acknowledged private prefix");
@@ -185,7 +185,7 @@ it("preserves an acknowledged legacy upload prefix and resumes at exactly that o
 it("inventories legacy prefixes, unacknowledged tails and temporary orphans without recopying protected chunks", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files, workspaceId } = harness.built.context;
+    const { db, protectedFiles: files, workspaceId } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const legacyBytes = Buffer.from("historical complete file");
     const blob = await files.deps.blobs.put(legacyBytes);
@@ -250,14 +250,14 @@ it("refuses symlinked or malformed historical sources instead of reading outside
     const link = join(directory, ".tmp-0123456789abcdef");
     await symlink(target, link);
     await expect(
-      inventoryLegacyFileSources(harness.built.context.db, harness.blobRoot),
+      inventoryLegacyFileSources(harness.context.db, harness.blobRoot),
     ).rejects.toThrow();
     await rm(link);
     await rm(target);
     await writeFile(join(directory, "unexpected.txt"), "unknown path");
-    await expect(
-      inventoryLegacyFileSources(harness.built.context.db, harness.blobRoot),
-    ).rejects.toThrow("path");
+    await expect(inventoryLegacyFileSources(harness.context.db, harness.blobRoot)).rejects.toThrow(
+      "path",
+    );
   } finally {
     await rm(target, { force: true });
     await harness.close();
@@ -267,7 +267,7 @@ it("refuses symlinked or malformed historical sources instead of reading outside
 it("blocks existing HTTP writers and a new server until the transaction-local migration resumes", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const page = await createItemViaApi(harness, { kind: "page", name: "pre-transition" });
     const [envelope] = await db.select().from(schema.protectedEnvelopes).limit(1);
@@ -344,7 +344,7 @@ it("blocks existing HTTP writers and a new server until the transaction-local mi
 it("requires source backup evidence and resumes atomic publication without losing orphan recovery references", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const contentId = generateUuidV7();
     const original = Buffer.from("checkpoint-preserved original bytes");
@@ -491,7 +491,7 @@ it("requires source backup evidence and resumes atomic publication without losin
 it("refuses to start when source-backup authentication returns no evidence", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const records = new ProtectedRecordService({
       db,
@@ -517,7 +517,7 @@ it("refuses to start when source-backup authentication returns no evidence", asy
 it("upgrades an authenticated V1 inventory before resuming, without re-inventorying its sources", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const contentId = generateUuidV7();
     const original = Buffer.from("V1 checkpoint source");
@@ -612,7 +612,7 @@ it.each([
 ] as const)("refuses a V1 transition on %s", async (failure) => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const backupId = generateUuidV7();
     const source = {
@@ -693,7 +693,7 @@ it.each([
 it("resumes a V1 inventory from an authenticated modern source", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const databaseId = generateUuidV7();
     const created = await harness.owner({
@@ -833,7 +833,7 @@ it("resumes a V1 inventory from an authenticated modern source", async () => {
 it("upgrades the original ce06 V1 inventory with missing metadata before resuming", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     await createItemViaApi(harness, { kind: "page", name: "ce06 historical page" });
     const original = Buffer.from("ce06 historical file");
@@ -939,7 +939,7 @@ it.each<StorageMigrationBoundary>([
 ])("resumes the complete storage transition after interruption at %s", async (boundary) => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files, workspaceId } = harness.built.context;
+    const { db, protectedFiles: files, workspaceId } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const bytes = Buffer.from("retirement sentinel: shared historical original");
     const raw = await files.deps.blobs.put(bytes);
@@ -1038,7 +1038,7 @@ it.each(["ciphertext", "key", "retirement-io"] as const)(
   async (failure) => {
     const harness = await createProtectedFileHarness();
     try {
-      const { db, protectedFiles: files } = harness.built.context;
+      const { db, protectedFiles: files } = harness.context;
       if (files === undefined) throw new Error("Missing protected runtime");
       const original = Buffer.from("source retained until a replacement can actually be recovered");
       const raw = await files.deps.blobs.put(original);
@@ -1117,7 +1117,7 @@ it.each(["ciphertext", "key", "retirement-io"] as const)(
 it("refuses final success if a retired checkpoint disappears, then resumes after its recovery", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const raw = await files.deps.blobs.put(Buffer.from("retired checkpoint inventory"));
     await db

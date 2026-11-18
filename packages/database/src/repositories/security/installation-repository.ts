@@ -28,6 +28,7 @@ import { count, eq } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { owners, workspaces } from "../../schema/index.ts";
 import { installations } from "../../schema/security/index.ts";
+import { insertAccount } from "./account-repository.ts";
 import {
   isUniqueViolation,
   SecurityRepositoryError,
@@ -39,8 +40,10 @@ export interface InstallationRecord {
   readonly id: string;
   readonly sourceLineageId: string;
   readonly state: InstallationState;
-  readonly ownerId: string | null;
-  readonly workspaceId: string | null;
+  /** The first-launch account (feature 058); null until promotion. */
+  readonly administratorId: string | null;
+  /** Who may create an account (feature 058). */
+  readonly registrationMode: RegistrationMode;
   readonly schemaVersion: number;
   readonly applicationVersion: string | null;
   readonly previousApplicationVersion: string | null;
@@ -56,13 +59,15 @@ export interface InstallationStatus extends InstallationRecord {
 
 type Executor = Database | Transaction;
 
+export type RegistrationMode = "closed" | "invitation" | "open";
+
 function toRecord(row: typeof installations.$inferSelect): InstallationRecord {
   return {
     id: row.id,
     sourceLineageId: row.sourceLineageId,
     state: row.state as InstallationState,
-    ownerId: row.ownerId,
-    workspaceId: row.workspaceId,
+    administratorId: row.administratorId,
+    registrationMode: row.registrationMode as RegistrationMode,
     schemaVersion: row.schemaVersion,
     applicationVersion: row.applicationVersion,
     previousApplicationVersion: row.previousApplicationVersion,
@@ -139,6 +144,17 @@ export async function recordApplicationUpdate(
     .where(eq(installations.id, input.installationId));
 }
 
+/** Sets who may create accounts (feature 058). */
+export async function setRegistrationMode(
+  executor: Executor,
+  input: { readonly installationId: string; readonly mode: RegistrationMode },
+): Promise<void> {
+  await executor
+    .update(installations)
+    .set({ registrationMode: input.mode, updatedAt: new Date() })
+    .where(eq(installations.id, input.installationId));
+}
+
 /** Reads the singleton, or null before the installation row exists. */
 export async function findInstallation(executor: Executor): Promise<InstallationRecord | null> {
   const rows = await executor.select().from(installations).limit(1);
@@ -176,11 +192,18 @@ export async function requireInstallation(executor: Executor): Promise<Installat
  * invariant, exactly as a missing binding does.
  */
 export async function readCounts(executor: Executor): Promise<InstallationCounts> {
-  const [ownerRows] = await executor.select({ value: count() }).from(owners);
+  // Feature 058: the pair now describes the *administrator* the installation
+  // is bound to and that administrator's workspace. Member accounts are not
+  // part of the initialization invariant; they can only exist after it.
+  const [ownerRows] = await executor
+    .select({ value: count() })
+    .from(owners)
+    .innerJoin(installations, eq(installations.administratorId, owners.id));
   const [workspaceRows] = await executor
     .select({ value: count() })
     .from(workspaces)
-    .innerJoin(installations, eq(installations.workspaceId, workspaces.id));
+    .innerJoin(owners, eq(owners.workspaceId, workspaces.id))
+    .innerJoin(installations, eq(installations.administratorId, owners.id));
   const ownerCount = ownerRows?.value ?? 0;
   const workspaceCount = workspaceRows?.value ?? 0;
 
@@ -313,6 +336,9 @@ export interface PromoteOwnershipInput {
   readonly ownerId: string;
   readonly workspaceId: string;
   readonly workspaceSchemaVersion: number;
+  /** The administrator's identity (feature 058). */
+  readonly email: string;
+  readonly pseudonym: string;
   /** State to land in; `ready` normally, `recovery-required` after adoption. */
   readonly state: Extract<InstallationState, "ready" | "recovery-required">;
 }
@@ -352,9 +378,14 @@ export async function promoteOwnership(
         .values({ id: input.workspaceId, schemaVersion: input.workspaceSchemaVersion });
     }
 
-    await tx.insert(owners).values({
+    await insertAccount(tx, {
       id: input.ownerId,
       installationId: record.id,
+      workspaceId: input.workspaceId,
+      email: input.email,
+      pseudonym: input.pseudonym,
+      role: "administrator",
+      origin: "bootstrap",
       state: input.state === "ready" ? "active" : "recovery-required",
     });
 
@@ -362,8 +393,7 @@ export async function promoteOwnership(
       .update(installations)
       .set({
         state: input.state,
-        ownerId: input.ownerId,
-        workspaceId: input.workspaceId,
+        administratorId: input.ownerId,
         updatedAt: new Date(),
       })
       .where(eq(installations.id, record.id));

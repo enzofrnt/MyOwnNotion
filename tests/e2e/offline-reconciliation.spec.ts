@@ -37,6 +37,44 @@ async function setDeviceOffline(page: Page, offline: boolean): Promise<void> {
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(!offline);
 }
 
+/**
+ * Reads the durable record of which local account this device opened last.
+ *
+ * Feature 058 names each account's local store after the account id. The DOM
+ * store is only its fast copy: Chromium commits `localStorage` on its own
+ * schedule, so a process killed between the write and the commit restarts with
+ * no remembered id — the exact state this journey reproduces on purpose. The
+ * record the next boot reads must therefore be committed before the fast copy
+ * is removed; this reads it as the application wrote it.
+ */
+async function durableLocalAccount(page: Page): Promise<string | null> {
+  return await page.evaluate(async () => {
+    const opened = await new Promise<IDBDatabase | null>((resolve) => {
+      const request = indexedDB.open("myownnotion-local-accounts", 1);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore("meta");
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    });
+    if (opened === null) return null;
+    try {
+      return await new Promise<string | null>((resolve) => {
+        let remembered: string | null = null;
+        const transaction = opened.transaction("meta", "readonly");
+        const request = transaction.objectStore("meta").get("last-account");
+        request.onsuccess = () => {
+          remembered = typeof request.result === "string" ? request.result : null;
+        };
+        transaction.oncomplete = () => resolve(remembered);
+        transaction.onabort = transaction.onerror = () => resolve(null);
+      });
+    } finally {
+      opened.close();
+    }
+  });
+}
+
 test.describe("offline continuity (US6)", () => {
   test("loaded content stays readable and editable offline, then reconciles once", async ({
     page,
@@ -85,6 +123,46 @@ test.describe("offline continuity (US6)", () => {
     await expect(page.getByTestId("mutation-status-empty")).toBeVisible();
     await returnToWorkspace(page);
     await ensureNavigationRowVisible(page, offlineItem);
+  });
+
+  /**
+   * Feature 058 regression: an offline start must open the account's local
+   * store, not the empty legacy one.
+   *
+   * The account was remembered in `localStorage`, which is a cache: Chromium
+   * commits it on its own schedule, and the packaged desktop crash journey
+   * (`desktop-offline-restart.spec.ts`) restarts after a `SIGKILL` with that
+   * write gone. This journey produces the same post-death state without a
+   * native host — the durable projection and queue stay, the remembered id is
+   * removed — and proves the offline workspace still finds the content.
+   */
+  test("an offline reload resumes the account's local content when the remembered id was not committed", async ({
+    page,
+  }) => {
+    await openWorkspace(page);
+    const loaded = uniqueName("ResumedOffline");
+    await createRootItem(page, "folder", loaded);
+    await waitForSynchronized(page);
+
+    // Precondition: the device committed which account owns the local content.
+    const accountId = await page.evaluate(() => localStorage.getItem("myownnotion-last-account"));
+    expect(accountId, "the account is remembered for this device").not.toBeNull();
+    await expect
+      .poll(() => durableLocalAccount(page), {
+        message: "the device records its local account durably",
+        timeout: 15_000,
+      })
+      .toBe(accountId);
+
+    // Simulate a process that died before DOM storage reached disk.
+    await page.evaluate(() => localStorage.removeItem("myownnotion-last-account"));
+    await blockWorkspaceApi(page);
+    await page.reload();
+    await expect(page.getByTestId("workspace-shell")).toBeVisible();
+
+    // An empty fallback store renders its offline state instead of the tree.
+    await ensureNavigationRowVisible(page, loaded);
+    await expect(page.getByTestId("workspace-state-offline")).toHaveCount(0);
   });
 
   test("a legacy offline branch joins the operational page without replacing either edit", async ({

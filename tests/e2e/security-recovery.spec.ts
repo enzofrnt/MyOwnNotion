@@ -59,7 +59,11 @@ async function seedActiveKit(): Promise<void> {
       id: string;
       source_lineage_id: string;
       workspace_id: string | null;
-    }>(`SELECT id, source_lineage_id, workspace_id FROM installations LIMIT 1`);
+    }>(
+      // Feature 058: the kit belongs to the administrator's workspace.
+      `SELECT i.id, i.source_lineage_id, o.workspace_id
+         FROM installations i LEFT JOIN owners o ON o.id = i.administrator_id LIMIT 1`,
+    );
     const installation = rows[0];
     if (installation === undefined || installation.workspace_id === null) {
       return;
@@ -141,6 +145,7 @@ async function openSecurity(page: import("@playwright/test").Page): Promise<void
   if (!(await page.getByTestId("password-input").isVisible())) {
     await page.getByTestId("use-password-instead").click();
   }
+  await page.getByTestId("email-input").fill("owner@e2e.test");
   await page.getByTestId("password-input").fill(PASSWORD);
   await page.getByTestId("sign-in-password").click();
   await expect(page.getByTestId("workspace-shell")).toBeVisible({

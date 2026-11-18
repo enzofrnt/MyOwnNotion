@@ -175,3 +175,42 @@ jamais d'une intuition.
   (`tests/e2e/waits/observation.ts`) ; la correction de
   `sampleCssTransition` est proposée en suivi, hors du périmètre de la feature
   061, avec ses huit sites d'appel à revalider.
+
+### L-009 — Une dépendance qui écoute en différé perd la première entrée
+- Statut : validée (feature 067)
+- Surface : `@dnd-kit/core` 6.3.1, `KeyboardSensor` ; parcours
+  `workspace-tabs-folder.spec.ts` ; correctif local
+  `apps/web/src/features/workspace/ready-keyboard-sensor.ts`.
+- Symptôme : après avoir soulevé un élément au clavier, la première flèche est
+  perdue ; l'écran annonce pourtant déjà un survol. Échec reproduit sur `main`
+  vierge, donc pas une régression de la branche.
+- Anti-pattern : conclure « droppables non mesurés » (ou attendre un délai) sur
+  la foi d'un attribut comme `data-dragging`, qui ne dit que « cet identifiant est
+  actif », jamais « le capteur écoute ».
+- Règle : vérifier *qui* enregistre l'écouteur et *quand*. `attach()` appelle
+  `handleStart()` puis enregistre le keydown dans un `setTimeout` non suivi : la
+  touche suivante peut tomber dans ce trou, même avec une géométrie complète.
+  Enregistrer l'écouteur de façon synchrone et ignorer l'événement d'activation
+  par identité (sinon l'Espace de levée dépose aussitôt), en dédupliquant les
+  événements parce que l'enregistrement différé de la bibliothèque ajoute le même
+  gestionnaire ensuite. Un patch de dépendance n'est pas une option : le contrat
+  d'outillage refuse `patchedDependencies` dans le lockfile.
+- Preuve : `apps/web/tests/keyboard-sensor-readiness.spec.ts` échoue sans le
+  correctif (« must accept the first direction after lift », 0 appel) et passe
+  avec ; il prouve aussi le dépôt unique, l'annulation et l'absence d'action
+  après la fin.
+
+### L-010 — Un clic d'éditeur n'est pas une sélection avant que l'éditeur ne l'adopte
+- Statut : validée (feature 067)
+- Surface : éditeur BlockNote/ProseMirror ; parcours
+  `editor-math-contents.spec.ts`.
+- Symptôme : cliquer un paragraphe vide puis taper immédiatement perd la frappe ;
+  le texte atterrit dans le paragraphe précédent.
+- Anti-pattern : constater le curseur DOM dans le bon bloc et en conclure que la
+  frappe y ira ; ou attendre un délai « le temps que ça se stabilise ».
+- Règle : attendre le marqueur que l'éditeur écrit lui-même quand il adopte la
+  sélection (`data-is-empty-and-focused="true"` sur le bloc), puis taper. Un
+  filet de réparation différé dans le composant ne doit pas déplacer un curseur
+  vivant : il a volé un curseur légitime pendant la transition clic → sélection.
+- Preuve : sonde instrumentée (curseur par bloc à chaque étape), mesure du
+  marqueur image par image (deux images), puis parcours vert sur les cinq moteurs.

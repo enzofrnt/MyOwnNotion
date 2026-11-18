@@ -203,7 +203,12 @@ async function releaseEntryValuesFromDevice(page: Page, entryId: string): Promis
   await page.evaluate(
     async ({ id }) =>
       await new Promise<void>((resolve, reject) => {
-        const opening = indexedDB.open("myownnotion-local");
+        const opening = indexedDB.open(
+          // Feature 058: one local database per account on this browser.
+          localStorage.getItem("myownnotion-last-account") === null
+            ? "myownnotion-local"
+            : `myownnotion-local-${localStorage.getItem("myownnotion-last-account")}`,
+        );
         opening.onerror = () => reject(opening.error ?? new Error("IndexedDB did not open"));
         opening.onsuccess = () => {
           const database = opening.result;
@@ -240,7 +245,12 @@ async function localConflictDiagnostics(page: Page): Promise<unknown> {
   return await page.evaluate(
     async () =>
       await new Promise<unknown>((resolve, reject) => {
-        const opening = indexedDB.open("myownnotion-local");
+        const opening = indexedDB.open(
+          // Feature 058: one local database per account on this browser.
+          localStorage.getItem("myownnotion-last-account") === null
+            ? "myownnotion-local"
+            : `myownnotion-local-${localStorage.getItem("myownnotion-last-account")}`,
+        );
         opening.onerror = () => reject(opening.error ?? new Error("IndexedDB did not open"));
         opening.onsuccess = () => {
           const database = opening.result;

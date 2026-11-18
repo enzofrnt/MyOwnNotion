@@ -116,7 +116,7 @@ describe("protected reusable database resources", () => {
     expect((await owner({ method: "GET", url: `/v1/items/${entryId}` })).json().placements).toEqual(
       [expect.objectContaining({ parentItemId: databaseId })],
     );
-    const context = harness.built.context;
+    const context = harness.context;
     const manifest = await context.db.transaction((tx) => buildManifestInTransaction(context, tx));
     expect(validateCanonicalExport(manifest)).toEqual([]);
     expect(manifest.databases.find((row) => row.databaseId === databaseId)?.sourceId).toBe(

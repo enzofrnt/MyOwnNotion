@@ -45,16 +45,28 @@ describe("local authentication previews", () => {
     expect(storage).not.toHaveBeenCalled();
   });
 
-  it("shows first-run status without contacting or configuring an installation", async () => {
+  it("shows the administrator form without contacting or configuring an installation", async () => {
     const request = vi.spyOn(globalThis, "fetch");
     const storage = vi.spyOn(Storage.prototype, "setItem");
     await act(async () => root.render(<UiLabAuthPreview surface="setup" />));
-    expect(container.querySelector('[data-testid="begin-setup"]')).not.toBeNull();
-    await act(async () =>
-      container.querySelector<HTMLButtonElement>('[data-testid="begin-setup"]')?.click(),
-    );
-    expect(container.querySelector('[data-testid="bootstrap-password"]')).toBeNull();
+    expect(container.querySelector('[data-testid="bootstrap-form"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="bootstrap-email"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="bootstrap-pseudonym"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="bootstrap-password"]')).not.toBeNull();
     expect(request).not.toHaveBeenCalled();
     expect(storage).not.toHaveBeenCalled();
+  });
+
+  it("previews open sign-up and an invitation link without a request (feature 058)", async () => {
+    const request = vi.spyOn(globalThis, "fetch");
+    await act(async () => root.render(<UiLabAuthPreview surface="signup" />));
+    expect(container.querySelector('[data-testid="signup-form"]')).not.toBeNull();
+    await act(async () => root.render(<UiLabAuthPreview surface="join" />));
+    // No fragment: the page says the link is incomplete and keeps the form inert.
+    expect(container.querySelector('[data-testid="signup-message"]')).not.toBeNull();
+    expect(
+      container.querySelector<HTMLButtonElement>('[data-testid="signup-submit"]')?.disabled,
+    ).toBe(true);
+    expect(request).not.toHaveBeenCalled();
   });
 });

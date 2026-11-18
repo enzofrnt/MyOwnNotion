@@ -19,10 +19,14 @@ import type {
   SecurityApi,
 } from "../../services/security-api.ts";
 import { FR_COPY } from "../../ui/copy/index.ts";
-import { Button, Field } from "../../ui/primitives/index.ts";
+import { Button, FormMessage } from "../../ui/primitives/index.ts";
+import { enrollAccountPasskey } from "../auth/passkey-enrollment.ts";
+import { PasswordField } from "../auth/password-field.tsx";
+import { assessPassword, PASSWORD_MINIMUM_LENGTH } from "../auth/password-strength.ts";
 import { DevicePanel } from "./device-panel.tsx";
 import { KeyRotationPanel } from "./key-rotation-panel.tsx";
 import { McpAccessPanel } from "./mcp-access-panel.tsx";
+import { ReauthDialog } from "./reauth-dialog.tsx";
 import { saveKitBlob } from "./recovery-kit-panel.tsx";
 import { RecoveryReadinessPanel } from "./recovery-readiness-panel.tsx";
 import {
@@ -45,6 +49,12 @@ export interface SecuritySettingsProps {
   readonly currentDeviceId?: string | null;
   readonly onSignedOut: () => void;
   readonly onReauthenticated?: () => void;
+  /**
+   * Recovery kits and key rotation belong to the installation, so only its
+   * administrator sees them (feature 058). Members keep their own sign-in,
+   * sessions, devices and assistants.
+   */
+  readonly administrator?: boolean;
 }
 
 interface SecurityNotice {
@@ -55,7 +65,10 @@ interface SecurityNotice {
 export function SecuritySettings(props: SecuritySettingsProps) {
   const [passkeys, setPasskeys] = useState<readonly PasskeyViewDto[]>([]);
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [notice, setNotice] = useState<SecurityNotice | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [currentPasswordError, setCurrentPasswordError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [rotation, setRotation] = useState<RotationStatusView | null>(null);
@@ -80,6 +93,12 @@ export function SecuritySettings(props: SecuritySettingsProps) {
     // context, not the reason the owner came to this screen; an error banner
     // over their passkeys because a status read failed would be the tail
     // wagging the dog.
+    if (props.administrator !== true) {
+      setRotation(null);
+      setRecovery(null);
+      setLoading(false);
+      return;
+    }
     const rotationResult = await props.api.rotationStatus();
     setRotation(rotationResult.ok ? rotationResult.value : null);
     // Left null on failure rather than defaulted. The panel reads null as
@@ -127,19 +146,74 @@ export function SecuritySettings(props: SecuritySettingsProps) {
       setRecovery(null);
     }
     setLoading(false);
-  }, [props.api, replacementConsumedKitId]);
+  }, [props.api, props.administrator, replacementConsumedKitId]);
+
+  // An action interrupted by `recent_authentication_required`, resumed after the modal.
+  const [pendingIdentity, setPendingIdentity] = useState<
+    | { readonly kind: "add-passkey" }
+    | { readonly kind: "remove-passkey"; readonly credentialId: string }
+    | null
+  >(null);
+
+  const addPasskey = useCallback(async () => {
+    setBusy(true);
+    setNotice(null);
+    const outcome = await enrollAccountPasskey(props.api, {
+      label: FR_COPY.accounts.passkeyOffer.label,
+    });
+    setBusy(false);
+    if (!outcome.ok) {
+      if (outcome.reason === "reauthenticate") {
+        // Ask for the password right here, then resume the enrollment.
+        setPendingIdentity({ kind: "add-passkey" });
+        return;
+      }
+      setNotice({ kind: "error", message: FR_COPY.accounts.passkeyOffer.failed });
+      return;
+    }
+    setNotice({ kind: "success", message: FR_COPY.accounts.passkeyOffer.added });
+    await refresh();
+  }, [props.api, refresh]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // A success toast leaves on its own; an error stays until the next action.
+  useEffect(() => {
+    if (notice?.kind !== "success") return;
+    const timer = window.setTimeout(() => setNotice(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   const savePassword = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
       setBusy(true);
       setNotice(null);
+      if (password !== passwordConfirm) {
+        setBusy(false);
+        return;
+      }
+      setCurrentPasswordError(null);
+      // The current password comes first: it proves the change is wanted by the
+      // account holder and refreshes the session, so no "sign in again" detour.
+      const proof = await props.api.reauthenticateWithPassword(currentPassword);
+      if (!proof.ok) {
+        setCurrentPasswordError(
+          proof.problem.code === "rate_limited"
+            ? FR_COPY.auth.login.rateLimited
+            : proof.problem.code === "service_unavailable"
+              ? "Le serveur est inaccessible. Vérifiez la connexion puis réessayez."
+              : "Mot de passe actuel incorrect.",
+        );
+        setBusy(false);
+        return;
+      }
+      setCurrentPassword("");
       const result = await props.api.setPassword(password);
       setPassword("");
+      setPasswordConfirm("");
       if (!result.ok) {
         setNotice({
           kind: "error",
@@ -156,7 +230,7 @@ export function SecuritySettings(props: SecuritySettingsProps) {
       setNotice({ kind: "success", message: FR_COPY.security.password.saved });
       setBusy(false);
     },
-    [password, props.api],
+    [currentPassword, password, passwordConfirm, props.api],
   );
 
   const removePasskey = useCallback(
@@ -164,15 +238,18 @@ export function SecuritySettings(props: SecuritySettingsProps) {
       setBusy(true);
       setNotice(null);
       const result = await props.api.removePasskey(credentialId);
+      if (!result.ok && result.problem.code === "recent_authentication_required") {
+        setBusy(false);
+        setPendingIdentity({ kind: "remove-passkey", credentialId });
+        return;
+      }
       if (!result.ok) {
         setNotice({
           kind: "error",
           message:
             result.problem.code === "conflict"
               ? FR_COPY.security.passkeys.removeOnly
-              : result.problem.code === "recent_authentication_required"
-                ? FR_COPY.security.recentAuthentication
-                : FR_COPY.security.passkeys.removeFailed,
+              : FR_COPY.security.passkeys.removeFailed,
         });
         setBusy(false);
         return;
@@ -308,8 +385,10 @@ export function SecuritySettings(props: SecuritySettingsProps) {
         <a href="#passkeys-heading">Connexion</a>
         <a href="#sessions-heading">Sessions</a>
         <a href="#devices-heading">Appareils</a>
-        <a href="#mcp-heading">Assistants</a>
-        <a href="#recovery-readiness-heading">Récupération</a>
+        <a href="#mcp-heading">MCP</a>
+        {props.administrator === true ? (
+          <a href="#recovery-readiness-heading">Récupération</a>
+        ) : null}
       </nav>
 
       {notice === null ? null : (
@@ -334,6 +413,17 @@ export function SecuritySettings(props: SecuritySettingsProps) {
                 Les clés enregistrées sur vos appareils pour ouvrir cet espace.
               </p>
             </div>
+            <Button
+              size="compact"
+              variant="secondary"
+              busy={busy}
+              onClick={() => {
+                void addPasskey();
+              }}
+              data-testid="add-passkey"
+            >
+              {FR_COPY.accounts.passkeyOffer.action}
+            </Button>
           </header>
           {loading ? (
             <p className="security-settings__quiet" role="status">
@@ -354,6 +444,7 @@ export function SecuritySettings(props: SecuritySettingsProps) {
                     <Button
                       size="compact"
                       variant="secondary"
+                      data-tone="destructive"
                       onClick={() => {
                         void removePasskey(passkey.credentialId);
                       }}
@@ -381,22 +472,60 @@ export function SecuritySettings(props: SecuritySettingsProps) {
               <p className="security-settings__lead">{FR_COPY.security.password.description}</p>
             </div>
           </header>
-          <form onSubmit={savePassword} className="security-settings__inline-form">
-            <Field
-              type="password"
+          <form
+            onSubmit={savePassword}
+            className="security-settings__inline-form security-settings__password-form"
+          >
+            <PasswordField
+              id="security-current-password"
+              autoComplete="current-password"
+              label="Mot de passe actuel"
+              value={currentPassword}
+              onChange={(value) => {
+                setCurrentPassword(value);
+                setCurrentPasswordError(null);
+              }}
+              disabled={busy}
+              invalid={currentPasswordError !== null}
+              testId="current-password-input"
+            />
+            <FormMessage testId="current-password-message">{currentPasswordError}</FormMessage>
+            <PasswordField
+              id="security-new-password"
               autoComplete="new-password"
-              minLength={12}
+              minLength={PASSWORD_MINIMUM_LENGTH}
+              showStrength
               label={FR_COPY.security.password.label}
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              disabled={busy}
-              data-testid="new-password-input"
+              onChange={setPassword}
+              disabled={busy || currentPassword.length === 0}
+              testId="new-password-input"
+            />
+            <PasswordField
+              id="security-new-password-confirm"
+              autoComplete="new-password"
+              label={FR_COPY.accounts.bootstrap.passwordConfirmLabel}
+              value={passwordConfirm}
+              onChange={setPasswordConfirm}
+              disabled={busy || currentPassword.length === 0}
+              testId="new-password-confirm"
+              error={
+                passwordConfirm.length > 0 && password !== passwordConfirm
+                  ? FR_COPY.accounts.bootstrap.passwordMismatch
+                  : undefined
+              }
             />
             <Button
               type="submit"
               size="compact"
               variant="secondary"
               busy={busy}
+              disabled={
+                busy ||
+                currentPassword.length === 0 ||
+                !assessPassword(password).meetsMinimum ||
+                password !== passwordConfirm
+              }
               data-testid="save-password"
             >
               {FR_COPY.security.password.save}
@@ -421,49 +550,69 @@ export function SecuritySettings(props: SecuritySettingsProps) {
       </div>
 
       <div className="security-group">
-        <p className="security-group__eyebrow">Assistants</p>
+        <p className="security-group__eyebrow">MCP</p>
 
         <McpAccessPanel api={props.api} onReauthenticated={props.onReauthenticated} />
       </div>
 
-      <div className="security-group">
-        <p className="security-group__eyebrow">Récupération</p>
+      {props.administrator !== true ? null : (
+        <div className="security-group">
+          <p className="security-group__eyebrow">Récupération</p>
 
-        <RecoveryReadinessPanel
-          status={recovery}
-          busy={busy}
-          loading={loading}
-          onPrepareReplacement={prepareReplacement}
-          onRevoke={revokeRecovery}
-        />
-
-        {replacement === null ? null : (
-          <RecoveryReplacementPanel
-            key={replacement.kitId}
-            kit={replacement}
-            delivery={
-              replacementConsumedKitId === replacement.kitId
-                ? ("download-consumed" satisfies RecoveryReplacementDelivery)
-                : "downloadable"
-            }
-            downloadSaved={replacementSavedKitId === replacement.kitId}
+          <RecoveryReadinessPanel
+            status={recovery}
             busy={busy}
-            {...(replacementNotice === null
-              ? {}
-              : { message: { kind: replacementNotice.kind, text: replacementNotice.message } })}
-            onDownload={downloadReplacement}
-            onConfirm={confirmReplacement}
+            loading={loading}
+            onPrepareReplacement={prepareReplacement}
+            onRevoke={revokeRecovery}
           />
-        )}
 
-        {rotation !== null && (
-          <KeyRotationPanel
-            policies={rotation.policies}
-            running={rotation.running}
-            writesAllowed={rotation.writesAllowed}
-          />
-        )}
-      </div>
+          {replacement === null ? null : (
+            <RecoveryReplacementPanel
+              key={replacement.kitId}
+              kit={replacement}
+              delivery={
+                replacementConsumedKitId === replacement.kitId
+                  ? ("download-consumed" satisfies RecoveryReplacementDelivery)
+                  : "downloadable"
+              }
+              downloadSaved={replacementSavedKitId === replacement.kitId}
+              busy={busy}
+              {...(replacementNotice === null
+                ? {}
+                : { message: { kind: replacementNotice.kind, text: replacementNotice.message } })}
+              onDownload={downloadReplacement}
+              onConfirm={confirmReplacement}
+            />
+          )}
+
+          {rotation !== null && (
+            <KeyRotationPanel
+              policies={rotation.policies}
+              running={rotation.running}
+              writesAllowed={rotation.writesAllowed}
+            />
+          )}
+        </div>
+      )}
+      <ReauthDialog
+        api={props.api}
+        open={pendingIdentity !== null}
+        testId="security-reauth"
+        description={
+          pendingIdentity?.kind === "remove-passkey"
+            ? "Retirer une passkey demande une confirmation récente. Le retrait reprend dès que vous êtes confirmé."
+            : "Ajouter une passkey demande une confirmation récente. L’ajout reprend dès que vous êtes confirmé."
+        }
+        onCancel={() => setPendingIdentity(null)}
+        onConfirmed={() => {
+          const pending = pendingIdentity;
+          setPendingIdentity(null);
+          props.onReauthenticated?.();
+          if (pending?.kind === "add-passkey") void addPasskey();
+          else if (pending?.kind === "remove-passkey") void removePasskey(pending.credentialId);
+        }}
+      />
     </section>
   );
 }

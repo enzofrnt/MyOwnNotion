@@ -8,11 +8,19 @@ export function EquationEditor({
   expression,
   editable,
   onApply,
+  onApplied,
   inline = false,
 }: {
   readonly expression: string;
   readonly editable: boolean;
   readonly onApply: (source: string) => void;
+  /**
+   * Runs after a successful apply, once the editor surface has been restored.
+   * An inline owner uses it to put the caret back in the document; the preview
+   * control lives in a `contenteditable=false` boundary and would otherwise keep
+   * the next keystrokes for itself.
+   */
+  readonly onApplied?: () => void;
   readonly inline?: boolean;
 }) {
   const [editing, setEditing] = useState(expression === "");
@@ -32,6 +40,9 @@ export function EquationEditor({
   const apply = () => {
     onApply(draft);
     close();
+    // After close(): close focuses the preview button, which would otherwise own
+    // the keyboard. Cancelling never continues writing, so it keeps that focus.
+    onApplied?.();
   };
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: noneditable boundary prevents editor selection; child controls handle all actions.

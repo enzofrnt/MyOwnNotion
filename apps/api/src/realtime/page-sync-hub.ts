@@ -6,6 +6,7 @@ import type { PageAdvanceEvent } from "./page-advance-notifier.ts";
 export interface PageSyncHubPeer {
   readonly connectionId: Uuid;
   readonly ownerId: string;
+  readonly workspaceId: string;
   readonly deviceId: string;
   sendPageAdvance(event: PageAdvanceEvent): boolean;
   close(code: number, reason: string): void;
@@ -28,6 +29,8 @@ export class PageSyncHub {
 
   publish(event: PageAdvanceEvent): void {
     for (const peer of [...this.#peers.values()]) {
+      // Another account's connection never learns that a page id advanced.
+      if (peer.workspaceId !== event.workspaceId) continue;
       if (!peer.sendPageAdvance(event)) this.#peers.delete(peer.connectionId);
     }
   }
@@ -36,6 +39,16 @@ export class PageSyncHub {
     const matches = [...this.#peers.values()].filter(
       (peer) => peer.ownerId === ownerId && peer.deviceId === deviceId,
     );
+    for (const peer of matches) {
+      this.#peers.delete(peer.connectionId);
+      peer.close(code, reason);
+    }
+    return matches.length;
+  }
+
+  /** Closes every connection of an account (disabled, reset or deleted). */
+  closeOwner(ownerId: string, code: number, reason: string): number {
+    const matches = [...this.#peers.values()].filter((peer) => peer.ownerId === ownerId);
     for (const peer of matches) {
       this.#peers.delete(peer.connectionId);
       peer.close(code, reason);

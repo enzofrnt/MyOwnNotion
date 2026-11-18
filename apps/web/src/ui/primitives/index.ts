@@ -5,6 +5,7 @@ export * from "./confirm-dialog.tsx";
 export * from "./dialog.tsx";
 export * from "./drawer.tsx";
 export * from "./field.tsx";
+export * from "./form-message.tsx";
 export * from "./input-surface.tsx";
 export * from "./live-region.tsx";
 export * from "./menu.tsx";

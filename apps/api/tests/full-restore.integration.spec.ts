@@ -19,7 +19,6 @@ import {
   readFullRestoreState,
 } from "../src/backup/full/restore-state.ts";
 import { FullBackupService } from "../src/backup/full/service.ts";
-import { hashPassword } from "../src/security/password-service.ts";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
 import {
   type ApiHarness,
@@ -38,6 +37,7 @@ let protectedFileId: string;
 let mcpAccessToken: string;
 let mcpPendingCode: string;
 const password = "correct horse battery staple";
+let administratorEmail = "";
 const protectedBytes = Buffer.from("Authenticated attachment after complete recovery");
 const key = randomBytes(32);
 const attachment = Buffer.from("Private full recovery attachment\n");
@@ -59,11 +59,8 @@ beforeAll(async () => {
   });
   const authenticated = await authenticatedContent(harness);
   oldHeaders = authenticated.headers;
-  const credential = await hashPassword(password);
-  await harness.built.database.db.execute(sql`
-    INSERT INTO password_credential_versions(id, owner_id, password_hash, hash_algorithm, state)
-    SELECT gen_random_uuid(), id, ${credential.encoded}, 'scrypt', 'active' FROM owners
-  `);
+  // The administrator's own password is the one recovery signs in with.
+  administratorEmail = authenticated.email;
   const upload = await authenticated({
     method: "POST",
     url: "/v1/uploads",
@@ -268,9 +265,11 @@ describe("full restore and explicit security activation", () => {
             })
           ).statusCode,
         ).toBe(401);
-        expect(await built.context.protectedContent?.readItemName(built.database.db, pageId)).toBe(
-          "Private complete recovery page",
-        );
+        expect(
+          await built
+            .contextFor(harness.workspaceId)
+            .protectedContent?.readItemName(built.database.db, pageId),
+        ).toBe("Private complete recovery page");
         expect(
           (
             await built.app.inject({
@@ -285,6 +284,7 @@ describe("full restore and explicit security activation", () => {
           url: "/v1/auth/login/password",
           headers: currentProtocolHeaders(),
           payload: {
+            email: administratorEmail,
             password,
             device: {
               deviceBindingId: `web-${randomUUID()}`,
@@ -525,7 +525,7 @@ describe("full restore and explicit security activation", () => {
         await client.connect();
         try {
           await client.query(
-            "DELETE FROM schema_migrations WHERE version = '0014_full_backup_provenance'",
+            "INSERT INTO schema_migrations (version) VALUES ('0002_drifted_after_restore')",
           );
         } finally {
           await client.end();

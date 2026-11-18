@@ -13,6 +13,7 @@
  * looking at the screen.
  */
 import type { ProjectedItem } from "@myownnotion/client-core";
+import type { MeDto } from "@myownnotion/contracts";
 import type { SafeError, Uuid } from "@myownnotion/domain";
 import {
   type ComponentType,
@@ -26,6 +27,7 @@ import {
 import { type NavigateOptions, useLocation, useNavigate } from "react-router-dom";
 import { BootstrapPage, type BootstrapPageProps } from "./features/auth/bootstrap-page.tsx";
 import { LoginPage } from "./features/auth/login-page.tsx";
+import { SignupPage } from "./features/auth/signup-page.tsx";
 import { BackupPanel } from "./features/backup/backup-panel.tsx";
 import { FullBackupPanel } from "./features/backup/full-backup-panel.tsx";
 import {
@@ -42,7 +44,13 @@ import { NotFoundPage } from "./features/routing/not-found-page.tsx";
 import { DesktopDiagnostics } from "./features/security/desktop-diagnostics.tsx";
 import { DesktopVaultStatus } from "./features/security/desktop-vault-status.tsx";
 import { SecuritySettings } from "./features/security/security-settings.tsx";
-import { type SettingsSection, SettingsShell } from "./features/settings/settings-shell.tsx";
+import { AccountSettings } from "./features/settings/account-settings.tsx";
+import { AdministrationSettings } from "./features/settings/administration-settings.tsx";
+import {
+  ADMINISTRATOR_SECTIONS,
+  type SettingsSection,
+  SettingsShell,
+} from "./features/settings/settings-shell.tsx";
 import { WorkspaceManagementSettings } from "./features/settings/workspace-management-settings.tsx";
 import { DesktopUpdatePanel } from "./features/update/desktop-update-panel.tsx";
 import {
@@ -69,7 +77,12 @@ import {
 } from "./runtime/client-runtime.ts";
 import { createClientApis } from "./services/client-factory.ts";
 import { ContentApi } from "./services/content-api.ts";
-import { localContent } from "./services/local-content.ts";
+import {
+  localContent,
+  localContentFor,
+  resolveRememberedLocalAccount,
+  selectLocalAccount,
+} from "./services/local-content.ts";
 import type { SecurityApi } from "./services/security-api.ts";
 
 declare const __MYOWNNOTION_E2E__: boolean;
@@ -83,7 +96,7 @@ if (typeof __MYOWNNOTION_E2E__ !== "undefined" && __MYOWNNOTION_E2E__) {
   });
 }
 
-type Gate = "checking" | "bootstrap" | "login" | "workspace";
+type Gate = "checking" | "bootstrap" | "login" | "signup" | "workspace";
 const BACKUP_STATUS_POLL_MS = 15 * 60 * 1000;
 
 function settingsSectionFromDestination(
@@ -170,12 +183,18 @@ export function App(props: AppProps = {}) {
   const SetupPage = props.bootstrap ?? BootstrapPage;
   const [gate, setGate] = useState<Gate>("checking");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  /** The signed-in account (feature 058): pseudonym, role, email. */
+  const [account, setAccount] = useState<MeDto | null>(null);
   const [workspaceBackupStale, setWorkspaceBackupStale] = useState(false);
   const [activeItem, setActiveItem] = useState<ProjectedItem | null>(null);
   const [operationalProblem, setOperationalProblem] = useState<SafeError | null>(null);
   const [trashedItems, setTrashedItems] = useState<readonly ProjectedItem[]>([]);
   const [navigationProblem, setNavigationProblem] = useState<string | null>(null);
-  const contentService = useMemo(() => localContent(), []);
+  // Which account's local store this workspace holds (feature 058). It is not
+  // derived from `account`: an offline boot has a local account to open but no
+  // server answer to describe it. It is resolved before the workspace mounts.
+  const [localAccountId, setLocalAccountId] = useState<string | null>(null);
+  const contentService = useMemo(() => localContentFor(localAccountId), [localAccountId]);
   const workspaceReturn = useRef<{
     readonly focus: HTMLElement | null;
     readonly path: string;
@@ -258,6 +277,11 @@ export function App(props: AppProps = {}) {
     const session = await securityApi.currentSession();
     if (session.ok) {
       setSessionId(session.value.session.sessionId);
+      const me = await securityApi.me();
+      // Local data follows the account before the workspace mounts (058).
+      if (me.ok) selectLocalAccount(me.value.accountId);
+      setAccount(me.ok ? me.value : null);
+      setLocalAccountId(me.ok ? me.value.accountId : null);
       setGate("workspace");
       return;
     }
@@ -272,11 +296,26 @@ export function App(props: AppProps = {}) {
     // request, so an offline browser can read what it already has and can
     // change nothing that reaches the server.
     if (session.problem.code === "service_unavailable") {
+      // The server cannot name the account, so the device must: this is the
+      // account whose local store holds the content the owner is looking at.
+      // Resolving it here, before the workspace mounts, is what keeps an
+      // offline start on the account's store instead of an empty legacy one
+      // (058). The fast store can be missing after an abrupt exit; the durable
+      // registry answers in that case.
+      const remembered = await resolveRememberedLocalAccount();
+      if (remembered !== null) {
+        selectLocalAccount(remembered);
+        setLocalAccountId(remembered);
+      }
       setGate("workspace");
       return;
     }
     setSessionId(null);
-    setGate("login");
+    setAccount(null);
+    setLocalAccountId(null);
+    // Sign-up pages are reachable without a session (feature 058).
+    const path = window.location.pathname;
+    setGate(path === "/signup" || path === "/join" ? "signup" : "login");
   }, [securityApi]);
 
   useEffect(() => {
@@ -428,6 +467,8 @@ export function App(props: AppProps = {}) {
 
   const onSignedOut = useCallback(() => {
     setSessionId(null);
+    setAccount(null);
+    setLocalAccountId(null);
     workspaceReturn.current = null;
     setGate("login");
   }, []);
@@ -556,7 +597,7 @@ export function App(props: AppProps = {}) {
 
   if (desktopOnboarding) {
     return (
-      <div className="app-shell">
+      <div className="app-shell app-shell--auth">
         <DesktopConnectionPage onConnected={() => setDesktopOnboarding(false)} />
       </div>
     );
@@ -574,7 +615,7 @@ export function App(props: AppProps = {}) {
 
   if (gate === "bootstrap") {
     return (
-      <div className="app-shell">
+      <div className="app-shell app-shell--auth">
         <SetupPage api={securityApi} onReady={onSignedIn} />
       </div>
     );
@@ -582,8 +623,35 @@ export function App(props: AppProps = {}) {
 
   if (gate === "login") {
     return (
-      <div className="app-shell">
-        <LoginPage api={securityApi} onSignedIn={onSignedIn} />
+      <div className="app-shell app-shell--auth">
+        <LoginPage
+          api={securityApi}
+          onSignedIn={onSignedIn}
+          onCreateAccount={() => {
+            navigateSafely("/signup");
+            setGate("signup");
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (gate === "signup") {
+    return (
+      <div className="app-shell app-shell--auth">
+        <SignupPage
+          key={destination.kind === "join" ? "join" : "signup"}
+          api={securityApi}
+          mode={destination.kind === "join" ? "invitation" : "open"}
+          onSignedIn={() => {
+            navigateSafely("/notes");
+            onSignedIn();
+          }}
+          onBackToLogin={() => {
+            navigateSafely("/login");
+            setGate("login");
+          }}
+        />
       </div>
     );
   }
@@ -622,11 +690,28 @@ export function App(props: AppProps = {}) {
 
       {settingsSection === null ? null : (
         <SettingsShell
+          administrator={account?.role === "administrator"}
           activeSection={settingsSection}
           onBack={returnToWorkspace}
           onSectionChange={changeSettingsSection}
         >
-          {settingsSection === "security" ? (
+          {settingsSection !== null &&
+          ADMINISTRATOR_SECTIONS.has(settingsSection) &&
+          account?.role !== "administrator" ? (
+            <NotFoundPage onReturn={() => navigateSafely("/notes")} />
+          ) : settingsSection === "account" ? (
+            <AccountSettings
+              api={securityApi}
+              account={account}
+              onAccountChange={setAccount}
+              onSignedOut={onSignedOut}
+            />
+          ) : settingsSection === "administration" ? (
+            <AdministrationSettings
+              api={securityApi}
+              currentAccountId={account?.accountId ?? null}
+            />
+          ) : settingsSection === "security" ? (
             <>
               {/* Trust information belongs to the security destination, not
                   alongside the owner's current note. */}
@@ -644,6 +729,7 @@ export function App(props: AppProps = {}) {
               <DesktopUpdatePanel />
               <SecuritySettings
                 api={securityApi}
+                administrator={account?.role === "administrator"}
                 currentSessionId={sessionId}
                 onReauthenticated={onSignedIn}
                 onSignedOut={onSignedOut}

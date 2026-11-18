@@ -32,14 +32,14 @@ afterAll(async () => {
 
 function service(history?: ConstructorParameters<typeof PageOperationService>[0]["history"]) {
   const built = harness.api.built;
-  const { protectedContent, rotationPolicies } = built.context;
-  const crypto = built.pageOperationCrypto;
+  const { protectedContent, rotationPolicies } = harness.api.context;
+  const crypto = built.forWorkspace(harness.api.workspaceId).pageOperationCrypto;
   if (protectedContent === undefined || rotationPolicies === undefined || crypto === undefined) {
     throw new Error("The authenticated operational runtime is unavailable");
   }
   return new PageOperationService({
     db: built.database.db,
-    workspaceId: built.context.workspaceId,
+    workspaceId: harness.api.workspaceId,
     crypto,
     protectedContent,
     rotationPolicies,
@@ -299,7 +299,7 @@ describe("retained operational replay guards", () => {
   it("refuses a temporarily unavailable retained payload without changing its receipt", async () => {
     const page = await activePage();
     await append(page);
-    const crypto = harness.api.built.pageOperationCrypto;
+    const crypto = harness.api.built.forWorkspace(harness.api.workspaceId).pageOperationCrypto;
     if (crypto === undefined) throw new Error("Missing operational crypto");
     vi.spyOn(crypto, "openBytesMany").mockResolvedValueOnce(new Map());
     await refusesReplay(page.itemId);
@@ -321,7 +321,7 @@ describe("retained operational replay guards", () => {
     const child = page.author.transact([
       { type: "replace-text", blockId: accepted.blockId, from: 0, to: 7, text: "Later" },
     ]);
-    const crypto = harness.api.built.pageOperationCrypto;
+    const crypto = harness.api.built.forWorkspace(harness.api.workspaceId).pageOperationCrypto;
     if (crypto === undefined) throw new Error("Missing operational crypto");
     await harness.api.built.database.db.transaction(async (tx) => {
       const envelope = await crypto.sealBytes(tx, "update", child.updateBytes);
@@ -413,7 +413,7 @@ describe("retained operational replay guards", () => {
     "does not dismiss a real delete/edit ambiguity whose protected details are %s",
     async (scenario) => {
       const page = await ambiguousPage();
-      const crypto = harness.api.built.pageOperationCrypto;
+      const crypto = harness.api.built.forWorkspace(harness.api.workspaceId).pageOperationCrypto;
       if (crypto === undefined) throw new Error("Missing operational crypto");
       if (scenario === "missing") {
         const open = crypto.openBytesMany.bind(crypto);

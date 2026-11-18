@@ -151,6 +151,31 @@ export const FR_COPY = {
     },
   },
   auth: {
+    /** Separates the primary credential action from its alternative. */
+    or: "ou",
+    password: {
+      show: "Afficher le mot de passe",
+      hide: "Masquer le mot de passe",
+      strengthLabel: "Robustesse",
+      /** Same five-step scale as the design system's password meter. */
+      levelLabels: {
+        0: "Très faible",
+        1: "Faible",
+        2: "Moyen",
+        3: "Fort",
+        4: "Très fort",
+      },
+      /** `{passed}` and `{total}` are filled by the meter. */
+      counter: "{passed}/{total} règles",
+      criteria: {
+        length: "Au moins {count} caractères",
+        lowercase: "Une minuscule",
+        uppercase: "Une majuscule",
+        digit: "Un chiffre",
+        special: "Un caractère spécial",
+      },
+      requiredTag: "requis",
+    },
     bootstrap: {
       title: "Configurer cette installation",
       owners: "Propriétaires",
@@ -196,6 +221,7 @@ export const FR_COPY = {
     },
     login: {
       title: "Se connecter",
+      lead: "Connectez-vous pour retrouver vos notes. Elles restent privées : personne d’autre ne peut les lire.",
       refused: "La connexion a échoué. Vérifiez votre passkey ou votre mot de passe et réessayez.",
       rateLimited: "Trop de tentatives. Attendez quelques minutes avant de réessayer.",
       waiting: "Confirmation par votre appareil…",
@@ -209,6 +235,152 @@ export const FR_COPY = {
       usePasskey: "Utiliser la passkey",
       passwordOnly:
         "Ce navigateur ne peut pas utiliser les passkeys. Connectez-vous avec votre mot de passe.",
+    },
+  },
+  accounts: {
+    bootstrap: {
+      title: "Créer le compte administrateur",
+      description:
+        "Ce compte gère l’installation : il crée les autres comptes et choisit qui peut s’inscrire. Vos notes restent privées, y compris pour lui.",
+      emailLabel: "Adresse e-mail",
+      pseudonymLabel: "Pseudo",
+      pseudonymHint: "Le nom affiché dans l’application.",
+      passwordLabel: "Mot de passe",
+      passwordConfirmLabel: "Confirmer le mot de passe",
+      passwordMismatch: "Les mots de passe ne correspondent pas.",
+      invalidPassword:
+        "Le mot de passe doit contenir au moins 12 caractères et être confirmé à l’identique.",
+      action: "Créer le compte",
+      checking: "Vérification de l’installation…",
+      unavailableTitle: "Installation indisponible",
+      unavailable: "L’installation ne répond pas. Vérifiez que le serveur est démarré.",
+      alreadyInitialized:
+        "Cette installation a déjà un administrateur. Connectez-vous avec votre compte.",
+      degraded:
+        "La clé de déploiement de l’installation est indisponible : aucun compte ne peut être créé. Vérifiez la configuration du serveur.",
+      failed: "Le compte n’a pas pu être créé. Réessayez.",
+    },
+    passkeyOffer: {
+      title: "Ajouter une passkey",
+      description:
+        "Une passkey vous connecte sans mot de passe, avec la biométrie ou le code de cet appareil. Vous pourrez aussi l’ajouter plus tard dans les réglages.",
+      action: "Ajouter une passkey",
+      later: "Plus tard",
+      added: "Passkey ajoutée.",
+      failed: "La passkey n’a pas été ajoutée. Vous pouvez réessayer ou continuer.",
+      label: "Passkey de cet appareil",
+    },
+    signup: {
+      title: "Créer un compte",
+      joinTitle: "Rejoindre cette installation",
+      description: "Votre espace sera privé : personne d’autre ne verra vos notes.",
+      action: "Créer mon compte",
+      closed: "La création de compte est fermée sur cette installation.",
+      invitationUnavailable:
+        "Ce lien d’invitation n’est plus utilisable. Demandez un nouveau lien à l’administrateur.",
+      invitationMissing:
+        "Ce lien d’invitation est incomplet. Ouvrez le lien exact reçu de l’administrateur.",
+      emailUnavailable: "Cette adresse ne peut pas être utilisée. Essayez-en une autre.",
+      failed: "Le compte n’a pas pu être créé. Réessayez.",
+      backToLogin: "J’ai déjà un compte",
+    },
+    login: {
+      emailLabel: "Adresse e-mail",
+      createAccount: "Créer un compte",
+    },
+    account: {
+      title: "Compte",
+      lead: "Votre identité sur cette installation.",
+      profileTitle: "Profil",
+      profileLead:
+        "Ce que les autres membres voient de vous, et l’adresse qui sert à vous connecter.",
+      sessionTitle: "Session",
+      sessionLead: "Votre connexion sur cet appareil.",
+      signOutLabel: "Fermer la session",
+      signOutHelp: "Vous devrez vous reconnecter pour rouvrir l’espace de travail.",
+      pseudonymLabel: "Pseudo",
+      emailLabel: "Adresse e-mail",
+      save: "Enregistrer",
+      saved: "Compte mis à jour.",
+      emailUnavailable: "Cette adresse est déjà utilisée par un autre compte.",
+      reauthenticate:
+        "Pour changer l’adresse e-mail, reconnectez-vous d’abord (sécurité renforcée).",
+      failed: "Le compte n’a pas pu être mis à jour.",
+      role: { administrator: "Administrateur", member: "Membre" },
+      signOut: "Se déconnecter",
+    },
+    administration: {
+      usersTitle: "Utilisateurs",
+      usersLead: "Les comptes de cette installation. Vous ne voyez jamais leurs notes.",
+      loading: "Chargement des comptes…",
+      loadFailed: "Les comptes n’ont pas pu être chargés.",
+      create: "Créer un compte",
+      createTitle: "Nouveau compte",
+      createAction: "Créer",
+      created: "Compte créé. Transmettez-lui son mot de passe par un canal sûr.",
+      disable: "Désactiver",
+      enable: "Réactiver",
+      resetPassword: "Nouveau mot de passe",
+      resetTitle: "Définir un nouveau mot de passe",
+      resetDone: "Mot de passe remplacé ; ses sessions ont été fermées.",
+      delete: "Supprimer",
+      deleteTitle: "Supprimer ce compte ?",
+      deleteDescription:
+        "Le compte et toutes ses notes, fichiers et accès MCP sont supprimés définitivement. Tapez son adresse e-mail pour confirmer.",
+      deleteConfirmLabel: "Adresse e-mail du compte",
+      deleteAction: "Supprimer définitivement",
+      deleted: "Compte supprimé.",
+      actionFailed: "L’action n’a pas abouti. Reconnectez-vous si la session est ancienne.",
+      you: "vous",
+      origin: {
+        bootstrap: "Premier lancement",
+        administrator: "Créé par l’administrateur",
+        invitation: "Invitation",
+        open: "Inscription libre",
+      },
+      state: { active: "Actif", disabled: "Désactivé", "recovery-required": "Récupération" },
+      registrationTitle: "Inscription",
+      registrationLead: "Qui peut créer un compte sur cette installation.",
+      modes: {
+        closed: {
+          label: "Fermée",
+          description: "Seul l’administrateur crée les comptes.",
+        },
+        invitation: {
+          label: "Sur invitation",
+          description: "Les personnes qui ont un lien privé créent leur compte.",
+        },
+        open: {
+          label: "Ouverte",
+          description: "Toute personne qui atteint l’installation peut créer un compte.",
+        },
+      },
+      modeSaved: "Mode d’inscription enregistré.",
+      invitationsTitle: "Liens d’invitation",
+      invitationsLead: "Chaque lien est privé, utilisable un nombre limité de fois et révocable.",
+      invitationsInactive:
+        "Les liens ne fonctionnent que lorsque l’inscription est sur invitation.",
+      noInvitation: "Aucun lien pour l’instant.",
+      createInvitation: "Créer un lien",
+      labelLabel: "Nom du lien (optionnel)",
+      maxUsesLabel: "Utilisations maximales",
+      expiresLabel: "Expire dans (jours)",
+      unlimited: "Illimité",
+      newLinkTitle: "Lien créé",
+      newLinkNotice:
+        "Copiez-le maintenant : il ne sera plus jamais affiché. Partagez-le uniquement avec les personnes invitées.",
+      copy: "Copier le lien",
+      copied: "Lien copié.",
+      revoke: "Révoquer",
+      uses: (used: number, max: number | null) =>
+        max === null ? `${used} utilisation(s)` : `${used} / ${max} utilisation(s)`,
+      invitationState: {
+        active: "Actif",
+        revoked: "Révoqué",
+        expired: "Expiré",
+        exhausted: "Épuisé",
+      },
+      createdAccounts: "Comptes créés",
     },
   },
   search: {

@@ -38,7 +38,12 @@ async function indexedDbContents(page: Page): Promise<string> {
   return await page.evaluate(
     async () =>
       await new Promise<string>((resolve, reject) => {
-        const opening = indexedDB.open("myownnotion-local");
+        const opening = indexedDB.open(
+          // Feature 058: one local database per account on this browser.
+          localStorage.getItem("myownnotion-last-account") === null
+            ? "myownnotion-local"
+            : `myownnotion-local-${localStorage.getItem("myownnotion-last-account")}`,
+        );
         opening.onerror = () => reject(opening.error ?? new Error("IndexedDB did not open"));
         opening.onsuccess = () => {
           const database = opening.result;

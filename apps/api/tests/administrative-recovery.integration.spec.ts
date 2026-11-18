@@ -32,6 +32,9 @@ import {
 import { KeyHierarchy } from "../src/security/key-hierarchy.ts";
 import { ProtectedRecordService } from "../src/security/protected-record-service.ts";
 
+/** The adopted administrator's identity, which the operator supplies (feature 058). */
+const ADOPTED = { administratorEmail: "admin@example.test", administratorPseudonym: "Admin" };
+
 let postgres: DisposablePostgres;
 let handle: DatabaseHandle;
 
@@ -130,7 +133,7 @@ describe("what an import refuses", () => {
   it("refuses a target that already holds notes", async () => {
     await seedOccupiedTarget();
 
-    await expect(service().import(makeKit())).rejects.toThrow(/not empty/i);
+    await expect(service().import(makeKit(), ADOPTED)).rejects.toThrow(/not empty/i);
   });
 
   it("leaves the occupied target exactly as it found it", async () => {
@@ -138,7 +141,7 @@ describe("what an import refuses", () => {
     const before = await handle.db.select().from(schema.items);
 
     await service()
-      .import(makeKit())
+      .import(makeKit(), ADOPTED)
       .catch(() => undefined);
 
     // The refusal is only worth anything if it happens before any write. An
@@ -158,7 +161,19 @@ describe("what an import refuses", () => {
       sourceLineageId: installationId,
       schemaVersion: 1,
     });
-    await handle.db.insert(schema.owners).values({ id: ownerId, installationId, state: "active" });
+    const workspaceId = generateUuidV7();
+    await handle.db.insert(schema.workspaces).values({ id: workspaceId, schemaVersion: 1 });
+    await handle.db.insert(schema.owners).values({
+      id: ownerId,
+      installationId,
+      workspaceId,
+      email: "existing@example.test",
+      emailNormalized: "existing@example.test",
+      pseudonym: "Existing",
+      role: "member",
+      origin: "administrator",
+      state: "active",
+    });
     await handle.db.insert(schema.authorizedDevices).values({
       id: deviceId,
       ownerId,
@@ -179,7 +194,7 @@ describe("what an import refuses", () => {
     const devices = await handle.db.select().from(schema.authorizedDevices);
     const sessions = await handle.db.select().from(schema.sessions);
     const installations = await handle.db.select().from(schema.installations);
-    await expect(service().import(makeKit())).rejects.toThrow(/not empty/i);
+    await expect(service().import(makeKit(), ADOPTED)).rejects.toThrow(/not empty/i);
     expect(await handle.db.select().from(schema.authorizedDevices)).toEqual(devices);
     expect(await handle.db.select().from(schema.sessions)).toEqual(sessions);
     expect(await handle.db.select().from(schema.installations)).toEqual(installations);
@@ -203,12 +218,12 @@ describe("what an import refuses", () => {
     // The kit belongs to another installation, or the wrong key is mounted.
     // The message says both, because from here they are indistinguishable and
     // the operator can tell them apart.
-    await expect(service().import(foreign)).rejects.toThrow(/does not open/i);
+    await expect(service().import(foreign, ADOPTED)).rejects.toThrow(/does not open/i);
   });
 
   it("refuses when no deployment key is mounted", async () => {
     key.available = false;
-    await expect(service().import(makeKit())).rejects.toThrow(/no deployment key/i);
+    await expect(service().import(makeKit(), ADOPTED)).rejects.toThrow(/no deployment key/i);
   });
 
   it("reports every blocker at once rather than the first", async () => {
@@ -254,7 +269,7 @@ describe("inspecting changes nothing", () => {
 
 describe("what an import adopts", () => {
   it("takes the source's identity verbatim", async () => {
-    const result = await service().import(makeKit());
+    const result = await service().import(makeKit(), ADOPTED);
 
     // Regenerating any of these produces a machine holding the same notes and
     // denying it is the same installation — and feature-001's canonical
@@ -270,7 +285,7 @@ describe("what an import adopts", () => {
   });
 
   it("installs a root key the hierarchy can open", async () => {
-    const result = await service().import(makeKit());
+    const result = await service().import(makeKit(), ADOPTED);
 
     // The whole point: after the import, the ordinary read path reaches the
     // same root key the source used, so restored records open.
@@ -285,7 +300,7 @@ describe("what an import adopts", () => {
   });
 
   it("produces an installation that can seal and open a record", async () => {
-    const result = await service().import(makeKit());
+    const result = await service().import(makeKit(), ADOPTED);
     const hierarchy = new KeyHierarchy({
       db: handle.db,
       installationId: result.installationId,
@@ -318,7 +333,7 @@ describe("what an import adopts", () => {
   });
 
   it("trusts no device from the source", async () => {
-    const result = await service().import(makeKit());
+    const result = await service().import(makeKit(), ADOPTED);
 
     // A restore usually happens because something went wrong. Re-authorizing a
     // device costs a minute; the alternative is silently trusting hardware
@@ -329,7 +344,7 @@ describe("what an import adopts", () => {
   });
 
   it("reports that the target was empty before it started", async () => {
-    const result = await service().import(makeKit());
+    const result = await service().import(makeKit(), ADOPTED);
     // Evidence, not decoration: an operator asked to certify a restore needs
     // to be able to say what the machine held beforehand.
     expect(targetIsEmpty(result.occupancyBefore)).toBe(true);
@@ -338,10 +353,10 @@ describe("what an import adopts", () => {
 
 describe("importing twice", () => {
   it("refuses the second time, because the target is no longer empty", async () => {
-    await service().import(makeKit());
+    await service().import(makeKit(), ADOPTED);
 
     // The same rule that protects a live installation protects a restored one
     // from being restored over.
-    await expect(service().import(makeKit())).rejects.toThrow(AdministrativeRecoveryError);
+    await expect(service().import(makeKit(), ADOPTED)).rejects.toThrow(AdministrativeRecoveryError);
   });
 });

@@ -24,6 +24,8 @@ vi.mock("@myownnotion/database", async (importOriginal) => ({
 const NOW = new Date("2026-08-19T12:00:00.000Z");
 const owner = {
   kind: "owner" as const,
+  workspaceId: "018f2b7c-0000-7000-8000-0000000000aa",
+  role: "administrator" as const,
   ownerId: "owner",
   sessionId: "session",
   deviceId: "device",

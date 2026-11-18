@@ -28,6 +28,8 @@ function createApp(input: { owner: boolean; search: SearchService["search"] }) {
         principal: input.owner
           ? {
               kind: "owner",
+              workspaceId: "018f2b7c-0000-7000-8000-0000000000aa",
+              role: "administrator",
               ownerId: "owner",
               sessionId: "session",
               deviceId: "device",

@@ -137,6 +137,7 @@ async function openSecurity(page: import("@playwright/test").Page): Promise<void
   if (!(await page.getByTestId("password-input").isVisible())) {
     await page.getByTestId("use-password-instead").click();
   }
+  await page.getByTestId("email-input").fill("owner@e2e.test");
   await page.getByTestId("password-input").fill(PASSWORD);
   await page.getByTestId("sign-in-password").click();
   await expect(page.getByTestId("workspace-shell")).toBeVisible({

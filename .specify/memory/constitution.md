@@ -1,5 +1,29 @@
 <!--
 Sync Impact Report
+- Version change: 4.1.0 -> 5.0.0
+- Modified principles:
+  - I. User Ownership and Local Resilience -> the single-owner definition is
+    replaced by isolated multi-account installations: an administrator created
+    at first launch, further accounts per the administrator-chosen registration
+    mode (closed, invitation, open), strict per-account content isolation
+    including MCP.
+  - VI. Practical and Predictable Experience -> wording no longer assumes a
+    single owner; accessibility scope unchanged.
+  - VIII. Canonical Product Direction -> the permanent single-user boundary
+    becomes isolated accounts with administrator and member roles only.
+- Added sections: none
+- Removed sections: none
+- Aligned in the same change:
+  - `docs/product/product-canvas.md` sections 2, 3, 5, 6.1, 8, 26, 28.4, 32
+    and 43
+  - `specs/064-multi-user-accounts/`
+- Follow-up TODOs: plan 058 must review earlier auth (single-owner bootstrap),
+  MCP, sync, search, export, sharing and backup features for owner scoping.
+- Rationale: MAJOR. The owner explicitly removes the permanent single-user
+  invariant. Pre-release data is disposable; the migration history is reset to
+  one clean baseline during 058.
+
+Previous report (4.0.0 -> 4.1.0)
 - Version change: 4.0.0 -> 4.1.0
 - Modified principles:
   - III. Incremental, Verifiable Delivery -> a test waits for a verifiable state
@@ -21,6 +45,7 @@ Sync Impact Report
   obligation and gives its reusable guidance a home the agents actually consult:
   the constitution, a maintained skill next to `ui-quality`, and the feature
   artifacts. No product behaviour changes.
+
 
 Previous report (3.4.0 -> 4.0.0)
 - Version change: 3.4.0 -> 4.0.0
@@ -219,7 +244,7 @@ Previous report (1.1.1 -> 1.2.0)
 
 Users MUST retain meaningful control of their knowledge. Core reading and editing flows MUST remain available without a network connection once data is present locally. Data MUST be exportable in documented, durable formats. Cloud services may enhance synchronization and sharing, but MUST NOT be the only path to a user's content.
 
-Throughout this constitution, "user" means the single owner of one installation. Plural wording refers to owners of separate installations, never to multiple accounts inside one workspace.
+One installation hosts several user accounts. The first account, created at first launch, is the installation administrator. Every user owns a strictly private workspace: no user, including the administrator, can read, search, synchronize, export, or grant MCP access to another user's private content through the product. Account creation beyond the administrator follows the registration mode the administrator chooses (closed, invitation, or open). The product does not provide teams, shared private workspaces, roles beyond administrator and member, or private co-editing between accounts. Operator-level actions on the host (secrets, backups, recovery commands) remain outside this in-product isolation.
 
 ### II. One Spec, Any Agent
 
@@ -282,12 +307,12 @@ The system MUST start with the smallest architecture that satisfies the approved
 
 Core interactive features MUST support coherent keyboard operation, readable
 focus states, clear control labels, and predictable mouse and touch behavior.
-The product is a personal single-owner application and does not target formal
+The product is a personal, self-hosted application for a small number of private accounts and does not target formal
 accessibility certification, specialized assistive-technology support, or
 exhaustive WCAG conformance unless the owner explicitly adds that scope in a
 later constitution amendment. Editing, navigation, saving, and synchronization
 states MUST remain understandable and MUST avoid silent data loss. Performance
-targets MUST be measurable from the owner's perspective.
+targets MUST be measurable from the user's perspective.
 
 ### VII. Reproducible Toolchains and Enforced Quality
 
@@ -335,7 +360,7 @@ than letting documentation drift behind the code.
 
 ## Product and Technical Constraints
 
-- The product is permanently single-user: one installation has exactly one owner and exactly one canonical workspace. There are no additional accounts, no user management, no roles, and no permission model between people. Multiple authorized *devices* belonging to that one owner, and anonymous read-only access to deliberately shared content, are in scope; multi-user accounts, teams, and real-time co-editing are out of scope permanently. Any feature that would introduce a second identity with its own content requires a MAJOR amendment to this constitution before it is specified.
+- One installation hosts isolated accounts (principle I): each account owns exactly one canonical workspace; the only roles are administrator (the first-launch account, who also manages registration and accounts) and member. Multiple authorized *devices* per account and anonymous read-only access to deliberately shared content are in scope. Teams, shared private workspaces, a permission model between people on private content, and real-time co-editing between accounts are out of scope; introducing any of them requires a MAJOR amendment to this constitution before it is specified.
 - The first usable release prioritizes workspaces, hierarchical pages, block editing, links, backlinks, search, reliable persistence, and installable Electron hosts for Windows, macOS, and Linux that reuse the Web client against the self-hosted server. First-release desktop downloads cover exactly five OS/architecture targets: Windows x64, Windows ARM64, macOS Apple Silicon, Linux x64, and Linux ARM64. Windows and macOS each publish one installer per target. Each Linux architecture publishes three packages — AppImage, deb, and rpm — as GitHub downloads, not through an application store or package repository. A universal or multi-OS bundle is not an acceptable first-release artefact. iOS clients remain a later release.
 - Advanced databases, canvas, public sharing, plugins, MCP, Notion import, and real-time collaboration MUST be delivered as separate specs rather than folded into the core feature.
 - Tiptap is the initial editor candidate, but the selected editor architecture MUST preserve a documented internal content model and export path.
@@ -377,4 +402,4 @@ product invariant MUST amend the constitution in the same change. Feature-level
 detail MUST remain in the relevant feature directory rather than being copied
 into the constitution.
 
-**Version**: 4.1.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-11-16
+**Version**: 5.0.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-11-16

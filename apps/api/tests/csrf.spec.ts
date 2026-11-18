@@ -31,6 +31,8 @@ function ownerContext(sessionId = SESSION_ID): SecurityRequestContext {
   return createRequestContext({
     principal: {
       kind: "owner",
+      workspaceId: "018f2b7c-0000-7000-8000-0000000000aa",
+      role: "administrator",
       ownerId: "018f2b7c-0000-7000-8000-0000000000bb",
       sessionId,
       deviceId: "018f2b7c-0000-7000-8000-0000000000cc",

@@ -53,7 +53,11 @@ export function WorkspaceManagementSettings({
     };
 
     return (
-      <section aria-labelledby="trash-settings-heading" data-testid="trash-settings">
+      <section
+        className="ui-settings-panel"
+        aria-labelledby="trash-settings-heading"
+        data-testid="trash-settings"
+      >
         <h2 id="trash-settings-heading">Éléments supprimés</h2>
         <p className="muted">
           Les éléments restent récupérables pendant leur durée de rétention. Leur contenu n’est pas
@@ -101,7 +105,11 @@ export function WorkspaceManagementSettings({
 
   if (activeItem === null) {
     return (
-      <section aria-labelledby="page-settings-heading" data-testid="page-details-settings">
+      <section
+        className="ui-settings-panel"
+        aria-labelledby="page-settings-heading"
+        data-testid="page-details-settings"
+      >
         <h2 id="page-settings-heading">Page actuelle</h2>
         <p className="muted">Ouvrez une page ou un dossier avant de consulter ses détails.</p>
       </section>
@@ -110,7 +118,7 @@ export function WorkspaceManagementSettings({
 
   return (
     <section
-      className="settings-page-details"
+      className="settings-page-details ui-settings-panel"
       aria-labelledby="page-settings-heading"
       data-testid="page-details-settings"
     >

@@ -156,7 +156,7 @@ describe("file import (T059)", () => {
         expect(refused.body).not.toContain("private-conflict-file");
         expect(refused.body).not.toContain("forced publication conflict");
         expect(conflict).toHaveBeenCalledOnce();
-        const rolledBack = await harness.built.context.db.execute(sql`
+        const rolledBack = await harness.context.db.execute(sql`
         SELECT (SELECT count(*) FROM mutations WHERE id = ${mutationId}) AS mutations,
           (SELECT count(*) FROM file_contents WHERE id = ${rolledBackContentId}) AS contents
       `);
@@ -181,7 +181,7 @@ describe("file import (T059)", () => {
         expect(foreignReplay.statusCode).toBe(409);
         expect(foreignReplay.json()).toMatchObject({ code: "mutation.rejected" });
         expect(conflict).toHaveBeenCalledTimes(2);
-        const acceptedOnce = await harness.built.context.db.execute(sql`
+        const acceptedOnce = await harness.context.db.execute(sql`
         SELECT count(*) AS count FROM mutations WHERE id = ${mutationId}
       `);
         expect(acceptedOnce.rows[0]).toEqual({ count: "1" });
@@ -412,7 +412,7 @@ describe("what uses a file (feature 005, FR-005)", () => {
     expect(body.usages[0]?.usedByName).toBe("Usage host");
     expect(body.usages[0]?.usedByItemId).toBe(page.itemId);
     expect(body.usages[0]?.usageKind).toBe("attachment");
-    await harness.built.context.db.execute(sql`
+    await harness.context.db.execute(sql`
       DELETE FROM protected_envelopes
       WHERE entity_type = 'item.name' AND entity_id = ${page.itemId}
     `);

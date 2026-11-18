@@ -40,6 +40,35 @@ function migrationFiles(migrationsDir: string, throughVersion?: string): string[
     .filter((file) => throughVersion === undefined || file.replace(/\.sql$/, "") <= throughVersion);
 }
 
+/**
+ * Refused before any file is applied: a database recording a version that no
+ * reviewed file carries any more.
+ *
+ * Feature 058 replaced the whole pre-release history with `0001_baseline`.
+ * A development database built from that history is not upgraded — its data
+ * is disposable — and applying the baseline on top of it would collide with
+ * every existing table, so the runner says what to do instead.
+ */
+export class PreBaselineDatabaseError extends Error {
+  constructor(readonly unknownVersions: readonly string[]) {
+    super(
+      `this database records migrations that no longer exist (${unknownVersions.join(", ")}). ` +
+        "The migration history was reset to 0001_baseline before the first release (feature 058); " +
+        "recreate the development database (for example `docker compose down -v`) and start again.",
+    );
+    this.name = "PreBaselineDatabaseError";
+  }
+}
+
+async function assertNoPreBaselineHistory(client: pg.Client, migrationsDir: string): Promise<void> {
+  const known = new Set(migrationFiles(migrationsDir).map((file) => file.replace(/\.sql$/, "")));
+  const { rows } = await client.query<{ version: string }>(
+    "SELECT version FROM schema_migrations ORDER BY version",
+  );
+  const unknown = rows.map((row) => row.version).filter((version) => !known.has(version));
+  if (unknown.length > 0) throw new PreBaselineDatabaseError(unknown);
+}
+
 /** Lists reviewed and applied versions without changing the database. */
 export async function migrationInventory(
   connectionString: string,
@@ -86,6 +115,7 @@ export async function migrate(
        )`,
     );
     const files = migrationFiles(migrationsDir, options.throughVersion);
+    await assertNoPreBaselineHistory(client, migrationsDir);
     for (const file of files) {
       const version = file.replace(/\.sql$/, "");
       const { rowCount } = await client.query(

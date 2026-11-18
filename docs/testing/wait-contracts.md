@@ -138,5 +138,18 @@ cannot see every disguised wait — a review still asks what each wait proves.
   still restores the composer before asserting, because the press may legitimately
   dismiss it (`.agents/skills/test-quality/lessons.md` L-001).
 - The folder keyboard-drag journey (`workspace-tabs-folder.spec.ts`, CI run
-  43706222653) still moves after `data-dragging` without a witness that dnd-kit
-  measured its droppables; no reliable signal was found.
+  43706222653) moved after `data-dragging`, which only means "this id is the
+  active one" and never proved that the keyboard sensor could accept the next
+  key. Feature 067 found the actual gap: `@dnd-kit/core` 6.3.1 attached its
+  document keydown listener in an untracked `setTimeout`, so a fast direction
+  after activation was lost, with or without measured geometry. The local sensor
+  (`ready-keyboard-sensor.ts`) registers it synchronously and ignores the
+  activation event
+  by identity, deduplicating events because the library's deferred registration
+  still adds the same handler;
+  `apps/web/tests/keyboard-sensor-readiness.spec.ts` holds the red/green proof.
+- A pointer selection inside an editor is not effective when the DOM caret
+  moves: BlockNote marks the empty block `data-is-empty-and-focused` only once
+  ProseMirror has adopted the selection, and typing before that reaches the
+  previous paragraph. A journey that clicks a block and immediately types must
+  wait for that marker (feature 067, `lessons.md` L-010).

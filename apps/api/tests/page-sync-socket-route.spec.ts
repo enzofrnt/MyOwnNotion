@@ -24,6 +24,8 @@ class FakeServerSocket extends EventEmitter {
 function owner(): Extract<RequestPrincipal, { kind: "owner" }> {
   return {
     kind: "owner",
+    workspaceId: "018f2b7c-0000-7000-8000-0000000000aa",
+    role: "administrator",
     ownerId: generateUuidV7(),
     sessionId: generateUuidV7(),
     deviceId: generateUuidV7(),

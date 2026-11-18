@@ -30,7 +30,7 @@ it("keeps A recovery operational after real A→B wrapping rotation while writin
   try {
     await harness.reset();
     await harness.createLegacyPage("Synthetic historical recovery page");
-    const { db, workspaceId } = harness.api.built.context;
+    const { db, workspaceId } = harness.api.context;
     const keys = (database: typeof db, key: Buffer) =>
       new KeyHierarchy({
         db: database,
@@ -258,9 +258,9 @@ it("keeps A recovery operational after real A→B wrapping rotation while writin
         await expect(
           keys(restoredApp.context.db, keyA).dataKey(restoredApp.context.db, { writable: false }),
         ).rejects.toThrow();
-        expect(JSON.stringify(await buildManifest(restoredApp.context))).toContain(
-          "Synthetic historical recovery page",
-        );
+        expect(
+          JSON.stringify(await buildManifest(restoredApp.contextFor(harness.api.workspaceId))),
+        ).toContain("Synthetic historical recovery page");
         expect((await restoredApp.app.inject({ method: "GET", url: "/health" })).statusCode).toBe(
           200,
         );

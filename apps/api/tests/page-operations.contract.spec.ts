@@ -78,14 +78,15 @@ beforeEach(async () => {
     sourceLineageId: INSTALLATION_ID,
     schemaVersion: 1,
   });
-  const workspaceId = harness.built.context.workspaceId;
+  // Feature 058: the suite names its account workspace before seeding it.
+  harness.workspaceId = "018f2b7c-0000-7000-8000-0000000005b1" as Uuid;
+  const workspaceId = harness.workspaceId;
   await harness.built.database.db.execute(sql`
-    INSERT INTO owners (id, installation_id, state)
-    VALUES (${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active')
+    WITH ws AS (INSERT INTO workspaces (id, schema_version) VALUES (${workspaceId}::uuid, 1) ON CONFLICT (id) DO UPDATE SET schema_version = workspaces.schema_version RETURNING id) INSERT INTO owners (id, installation_id, state, workspace_id, email, email_normalized, pseudonym, role, origin) SELECT ${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active', ws.id, ${OWNER_ID}::uuid::text || '@example.test', ${OWNER_ID}::uuid::text || '@example.test', 'Owner', 'administrator', 'bootstrap' FROM ws
   `);
   await harness.built.database.db.execute(sql`
     UPDATE installations
-       SET state = 'ready', owner_id = ${OWNER_ID}::uuid, workspace_id = ${workspaceId}::uuid
+       SET state = 'ready', administrator_id = ${OWNER_ID}::uuid
      WHERE id = ${INSTALLATION_ID}::uuid
   `);
   await harness.built.database.db.execute(sql`
@@ -113,6 +114,7 @@ async function authenticate(): Promise<Record<string, string>> {
     url: "/v1/auth/login/password",
     headers: currentProtocolHeaders(),
     payload: {
+      email: `${OWNER_ID}@example.test`,
       password: PASSWORD,
       device: {
         deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",

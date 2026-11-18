@@ -1,0 +1,590 @@
+{
+  "screenshots": [
+    {
+      "surface": "setup",
+      "viewport": "1440",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/setup-1440-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 821
+      },
+      "shellMinHeight": "900px",
+      "h1": ["Créer le compte administrateur"],
+      "docScrollWidth": 1440,
+      "docClientWidth": 1440,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 917,
+      "viewportHeight": 900
+    },
+    {
+      "surface": "setup",
+      "viewport": "1440",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/setup-1440-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 821
+      },
+      "shellMinHeight": "900px",
+      "h1": ["Créer le compte administrateur"],
+      "docScrollWidth": 1440,
+      "docClientWidth": 1440,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 917,
+      "viewportHeight": 900
+    },
+    {
+      "surface": "setup",
+      "viewport": "768",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/setup-768-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 798
+      },
+      "shellMinHeight": "1024px",
+      "h1": ["Créer le compte administrateur"],
+      "docScrollWidth": 768,
+      "docClientWidth": 768,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1024,
+      "viewportHeight": 1024
+    },
+    {
+      "surface": "setup",
+      "viewport": "768",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/setup-768-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 798
+      },
+      "shellMinHeight": "1024px",
+      "h1": ["Créer le compte administrateur"],
+      "docScrollWidth": 768,
+      "docClientWidth": 768,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1024,
+      "viewportHeight": 1024
+    },
+    {
+      "surface": "setup",
+      "viewport": "390",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/setup-390-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 358,
+        "height": 792
+      },
+      "shellMinHeight": "844px",
+      "h1": ["Créer le compte administrateur"],
+      "docScrollWidth": 390,
+      "docClientWidth": 390,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 888,
+      "viewportHeight": 844
+    },
+    {
+      "surface": "setup",
+      "viewport": "390",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/setup-390-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 358,
+        "height": 792
+      },
+      "shellMinHeight": "844px",
+      "h1": ["Créer le compte administrateur"],
+      "docScrollWidth": 390,
+      "docClientWidth": 390,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 888,
+      "viewportHeight": 844
+    },
+    {
+      "surface": "login",
+      "viewport": "1440",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/login-1440-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 369
+      },
+      "shellMinHeight": "900px",
+      "h1": ["Se connecter"],
+      "docScrollWidth": 1440,
+      "docClientWidth": 1440,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 951,
+      "viewportHeight": 900
+    },
+    {
+      "surface": "login",
+      "viewport": "1440",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/login-1440-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 369
+      },
+      "shellMinHeight": "900px",
+      "h1": ["Se connecter"],
+      "docScrollWidth": 1440,
+      "docClientWidth": 1440,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 951,
+      "viewportHeight": 900
+    },
+    {
+      "surface": "login",
+      "viewport": "768",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/login-768-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 358
+      },
+      "shellMinHeight": "1024px",
+      "h1": ["Se connecter"],
+      "docScrollWidth": 768,
+      "docClientWidth": 768,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1075,
+      "viewportHeight": 1024
+    },
+    {
+      "surface": "login",
+      "viewport": "768",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/login-768-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 358
+      },
+      "shellMinHeight": "1024px",
+      "h1": ["Se connecter"],
+      "docScrollWidth": 768,
+      "docClientWidth": 768,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1075,
+      "viewportHeight": 1024
+    },
+    {
+      "surface": "login",
+      "viewport": "390",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/login-390-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 358,
+        "height": 355
+      },
+      "shellMinHeight": "844px",
+      "h1": ["Se connecter"],
+      "docScrollWidth": 390,
+      "docClientWidth": 390,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 925,
+      "viewportHeight": 844
+    },
+    {
+      "surface": "login",
+      "viewport": "390",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/login-390-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 358,
+        "height": 355
+      },
+      "shellMinHeight": "844px",
+      "h1": ["Se connecter"],
+      "docScrollWidth": 390,
+      "docClientWidth": 390,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 925,
+      "viewportHeight": 844
+    },
+    {
+      "surface": "signup",
+      "viewport": "1440",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/signup-1440-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 798
+      },
+      "shellMinHeight": "900px",
+      "h1": ["Créer un compte"],
+      "docScrollWidth": 1440,
+      "docClientWidth": 1440,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 951,
+      "viewportHeight": 900
+    },
+    {
+      "surface": "signup",
+      "viewport": "1440",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/signup-1440-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 798
+      },
+      "shellMinHeight": "900px",
+      "h1": ["Créer un compte"],
+      "docScrollWidth": 1440,
+      "docClientWidth": 1440,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 951,
+      "viewportHeight": 900
+    },
+    {
+      "surface": "signup",
+      "viewport": "768",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/signup-768-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 786
+      },
+      "shellMinHeight": "1024px",
+      "h1": ["Créer un compte"],
+      "docScrollWidth": 768,
+      "docClientWidth": 768,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1075,
+      "viewportHeight": 1024
+    },
+    {
+      "surface": "signup",
+      "viewport": "768",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/signup-768-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 786
+      },
+      "shellMinHeight": "1024px",
+      "h1": ["Créer un compte"],
+      "docScrollWidth": 768,
+      "docClientWidth": 768,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1075,
+      "viewportHeight": 1024
+    },
+    {
+      "surface": "signup",
+      "viewport": "390",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/signup-390-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 358,
+        "height": 803
+      },
+      "shellMinHeight": "844px",
+      "h1": ["Créer un compte"],
+      "docScrollWidth": 390,
+      "docClientWidth": 390,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 980,
+      "viewportHeight": 844
+    },
+    {
+      "surface": "signup",
+      "viewport": "390",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/signup-390-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 358,
+        "height": 803
+      },
+      "shellMinHeight": "844px",
+      "h1": ["Créer un compte"],
+      "docScrollWidth": 390,
+      "docClientWidth": 390,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 980,
+      "viewportHeight": 844
+    },
+    {
+      "surface": "join",
+      "viewport": "1440",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/join-1440-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 923
+      },
+      "shellMinHeight": "900px",
+      "h1": ["Rejoindre cette installation"],
+      "docScrollWidth": 1440,
+      "docClientWidth": 1440,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1070,
+      "viewportHeight": 900
+    },
+    {
+      "surface": "join",
+      "viewport": "1440",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/join-1440-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 923
+      },
+      "shellMinHeight": "900px",
+      "h1": ["Rejoindre cette installation"],
+      "docScrollWidth": 1440,
+      "docClientWidth": 1440,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1070,
+      "viewportHeight": 900
+    },
+    {
+      "surface": "join",
+      "viewport": "768",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/join-768-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 863
+      },
+      "shellMinHeight": "1024px",
+      "h1": ["Rejoindre cette installation"],
+      "docScrollWidth": 768,
+      "docClientWidth": 768,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1075,
+      "viewportHeight": 1024
+    },
+    {
+      "surface": "join",
+      "viewport": "768",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/join-768-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 448,
+        "height": 863
+      },
+      "shellMinHeight": "1024px",
+      "h1": ["Rejoindre cette installation"],
+      "docScrollWidth": 768,
+      "docClientWidth": 768,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1075,
+      "viewportHeight": 1024
+    },
+    {
+      "surface": "join",
+      "viewport": "390",
+      "theme": "light",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/join-390-light.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 358,
+        "height": 933
+      },
+      "shellMinHeight": "844px",
+      "h1": ["Rejoindre cette installation"],
+      "docScrollWidth": 390,
+      "docClientWidth": 390,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1110,
+      "viewportHeight": 844
+    },
+    {
+      "surface": "join",
+      "viewport": "390",
+      "theme": "dark",
+      "file": "/Users/enzofournet/Git/MyOwnNotion/specs/059-auth-shell-ui/evidence/join-390-dark.png",
+      "consoleErrors": [],
+      "card": {
+        "width": 358,
+        "height": 933
+      },
+      "shellMinHeight": "844px",
+      "h1": ["Rejoindre cette installation"],
+      "docScrollWidth": 390,
+      "docClientWidth": 390,
+      "outsideControlCount": 0,
+      "outsideControlNames": [],
+      "pageScrollHeight": 1110,
+      "viewportHeight": 844
+    }
+  ],
+  "checks": {
+    "password": {
+      "short": {
+        "meter": {
+          "value": "1",
+          "label": "Robustesse : Très faible, 1/5 règles"
+        },
+        "level": "Robustesse : Très faible",
+        "ruleMet": "false",
+        "toggleLabel": "Afficher le mot de passe",
+        "togglePressed": "false",
+        "inputType": "password",
+        "focused": "ui-field__control"
+      },
+      "revealed": {
+        "meter": {
+          "value": "1",
+          "label": "Robustesse : Très faible, 1/5 règles"
+        },
+        "level": "Robustesse : Très faible",
+        "ruleMet": "false",
+        "toggleLabel": "Masquer le mot de passe",
+        "togglePressed": "true",
+        "inputType": "text",
+        "focused": "ui-password-toggle"
+      },
+      "long": {
+        "meter": {
+          "value": "4",
+          "label": "Robustesse : Fort, 4/5 règles"
+        },
+        "level": "Robustesse : Fort",
+        "ruleMet": "true",
+        "toggleLabel": "Masquer le mot de passe",
+        "togglePressed": "true",
+        "inputType": "text",
+        "focused": "ui-field__control"
+      },
+      "hiddenAgain": {
+        "meter": {
+          "value": "4",
+          "label": "Robustesse : Fort, 4/5 règles"
+        },
+        "level": "Robustesse : Fort",
+        "ruleMet": "true",
+        "toggleLabel": "Afficher le mot de passe",
+        "togglePressed": "false",
+        "inputType": "password",
+        "focused": "ui-password-toggle"
+      },
+      "focusedAfterTab": {
+        "tag": "BUTTON",
+        "className": "ui-password-toggle",
+        "label": "Afficher le mot de passe",
+        "pressed": "false"
+      },
+      "afterEnter": {
+        "label": "Masquer le mot de passe",
+        "pressed": "true",
+        "focused": "ui-password-toggle",
+        "inputType": "text"
+      }
+    },
+    "narrow320": {
+      "docScrollWidth": 320,
+      "clientWidth": 320,
+      "cardWidth": 288,
+      "cardInset": 16
+    },
+    "contrast-light": {
+      "wordmark": {
+        "color": "rgb(119, 114, 106)",
+        "background": "rgb(255, 255, 255)"
+      },
+      "title": {
+        "color": "rgb(39, 37, 33)",
+        "background": "rgb(255, 255, 255)"
+      },
+      "lead": {
+        "color": "rgb(102, 98, 91)",
+        "background": "rgb(255, 255, 255)"
+      },
+      "label": {
+        "color": "rgb(39, 37, 33)",
+        "background": "rgb(255, 255, 255)"
+      },
+      "description": {
+        "color": "rgb(102, 98, 91)",
+        "background": "rgb(255, 255, 255)"
+      },
+      "card": {
+        "color": "rgb(39, 37, 33)",
+        "background": "rgb(255, 255, 255)"
+      },
+      "shell": {
+        "color": "rgb(39, 37, 33)",
+        "background": "rgb(251, 250, 248)"
+      }
+    },
+    "contrast-dark": {
+      "wordmark": {
+        "color": "rgb(170, 166, 158)",
+        "background": "rgb(32, 32, 32)"
+      },
+      "title": {
+        "color": "rgb(240, 239, 237)",
+        "background": "rgb(32, 32, 32)"
+      },
+      "lead": {
+        "color": "rgb(188, 186, 182)",
+        "background": "rgb(32, 32, 32)"
+      },
+      "label": {
+        "color": "rgb(240, 239, 237)",
+        "background": "rgb(32, 32, 32)"
+      },
+      "description": {
+        "color": "rgb(188, 186, 182)",
+        "background": "rgb(32, 32, 32)"
+      },
+      "card": {
+        "color": "rgb(240, 239, 237)",
+        "background": "rgb(32, 32, 32)"
+      },
+      "shell": {
+        "color": "rgb(240, 239, 237)",
+        "background": "rgb(25, 25, 25)"
+      }
+    }
+  }
+}

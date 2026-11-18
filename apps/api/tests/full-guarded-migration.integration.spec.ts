@@ -5,7 +5,6 @@ import { join } from "node:path";
 import {
   createDatabase,
   findInstallation,
-  migrate,
   migrationInventory,
   readStorageTransition,
   schema,
@@ -13,11 +12,9 @@ import {
 } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { type DisposablePostgres, startDisposablePostgres } from "@myownnotion/test-utils";
-import { eq } from "drizzle-orm";
-import pg from "pg";
+import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runCli } from "../src/admin/security-cli.ts";
-import { VerifiedFullArchive } from "../src/backup/full/archive.ts";
 import { FullBackupReceipts } from "../src/backup/full/receipts.ts";
 import { FullBackupService } from "../src/backup/full/service.ts";
 import { runGuardedMigrations } from "../src/backup/guarded-migration.ts";
@@ -92,7 +89,15 @@ describe("complete backup before the first migration mutation", () => {
   it("refuses a source containing a migration unknown to the requested build", async () => {
     const { input } = await fixture();
     await runGuardedMigrations(input);
-    await rm(join(input.migrationsDir, "0014_full_backup_provenance.sql"));
+    // A database written by a later build records a version this one lacks.
+    const writer = createDatabase(input.connectionString);
+    try {
+      await writer.db.execute(
+        sql`INSERT INTO schema_migrations (version) VALUES ('0002_from_a_later_build')`,
+      );
+    } finally {
+      await writer.close();
+    }
     await expect(runGuardedMigrations({ ...input, runningVersion: "0.2.0" })).rejects.toThrow(
       "migrations unknown to this build",
     );
@@ -113,63 +118,8 @@ describe("complete backup before the first migration mutation", () => {
         throw new Error("No prior deployment key exists");
       },
     });
-    expect(applied).toContain("0014_full_backup_provenance");
+    expect(applied).toContain("0001_baseline");
     await expect(readdir(input.backupRoot)).rejects.toMatchObject({ code: "ENOENT" });
-  });
-
-  it("leaves a source older than 0006 untouched on backup failure, then preserves its V0/unknown provenance", async () => {
-    const { input, directory, key } = await fixture();
-    await migrate(input.connectionString, {
-      migrationsDir: input.migrationsDir,
-      throughVersion: "0001_initial",
-    });
-    const before = await migrationInventory(input.connectionString, {
-      migrationsDir: input.migrationsDir,
-    });
-    await expect(
-      runGuardedMigrations({ ...input, deploymentKey: () => Buffer.alloc(3) }),
-    ).rejects.toThrow("No migration or schema bootstrap");
-    expect(
-      (await migrationInventory(input.connectionString, { migrationsDir: input.migrationsDir }))
-        .applied,
-    ).toEqual(before.applied);
-    const client = new pg.Client({ connectionString: input.connectionString });
-    await client.connect();
-    try {
-      expect(
-        (await client.query("SELECT to_regclass('public.backups') AS relation")).rows[0].relation,
-      ).toBeNull();
-    } finally {
-      await client.end();
-    }
-    await runGuardedMigrations(input);
-    const receipts = await new FullBackupReceipts(input.backupRoot, () => key).list();
-    expect(receipts).toHaveLength(1);
-    expect(receipts[0]?.sourceVersion).toBeNull();
-    const archive = await VerifiedFullArchive.open(
-      join(input.backupRoot, `${receipts[0]?.backupId}.monfull`),
-      key,
-      directory,
-    );
-    try {
-      expect(archive.manifest.source).toMatchObject({
-        applicationVersion: null,
-        appliedMigrations: ["0001_initial"],
-      });
-    } finally {
-      await archive.close();
-    }
-    const handle = createDatabase(input.connectionString);
-    try {
-      expect(await findInstallation(handle.db)).toMatchObject({
-        applicationVersion: "0.1.0",
-        previousApplicationVersion: null,
-        previousFullBackupId: receipts[0]?.backupId,
-        previousBackupId: null,
-      });
-    } finally {
-      await handle.close();
-    }
   });
 
   it("retains a recoverable source archive and original version if a later migration fails", async () => {
@@ -231,7 +181,7 @@ it.each(["missing", "corrupted"] as const)(
     try {
       await harness.reset();
       await harness.createLegacyPage("Historical metadata to preserve");
-      const { db, protectedFiles: files } = harness.api.built.context;
+      const { db, protectedFiles: files } = harness.api.context;
       if (files === undefined) throw new Error("Missing protected runtime");
       const bytes = Buffer.from("legacy bytes survive guarded upgrade interruption");
       const raw = await files.deps.blobs.put(bytes);
@@ -339,7 +289,7 @@ it("resumes the original A archive with B after actual wrapping rotation during 
   try {
     await harness.reset();
     await harness.createLegacyPage("Historical key migration sentinel");
-    const { db, protectedFiles: files, workspaceId } = harness.api.built.context;
+    const { db, protectedFiles: files, workspaceId } = harness.api.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const bytes = Buffer.from("Original readable file survives wrapping and storage migration");
     const raw = await files.deps.blobs.put(bytes);

@@ -42,11 +42,8 @@ export const workspaces = pgTable(
     schemaVersion: integer("schema_version").notNull(),
   },
   (table) => [
-    // Exactly one canonical workspace per installation (FR-001): a unique
-    // index on a constant expression admits at most one row, so a concurrent
-    // second bootstrap fails loudly instead of inserting a stray workspace.
-    // Added in migration 0002_workspace_singleton.sql.
-    uniqueIndex("workspaces_singleton_idx").on(sql`(true)`),
+    // One workspace per account since feature 058 (owners.workspace_id is
+    // unique); the former singleton index is gone.
     check("workspaces_schema_version_check", sql`${table.schemaVersion} >= 1`),
   ],
 );

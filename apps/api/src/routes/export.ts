@@ -122,8 +122,25 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
     filesByItem.set(row.itemId, { ...row, ...metadata, sha256: digest });
   }
 
-  const revisionRows = await tx.select().from(schema.revisions);
-  const parentRows = await tx.select().from(schema.revisionParents);
+  // Revisions and their parent edges are scoped through the item they belong to.
+  // Reading them unscoped mixed every account's history into one export: the
+  // manifest then referenced items it deliberately did not contain, so the
+  // archive was refused as incomplete — and another account's revision metadata
+  // leaked into the backup.
+  const revisionRows = await tx
+    .select({ revision: schema.revisions })
+    .from(schema.revisions)
+    .innerJoin(schema.items, eq(schema.items.id, schema.revisions.itemId))
+    .where(eq(schema.items.workspaceId, context.workspaceId))
+    .then((rows) => rows.map((row) => row.revision));
+  const revisionIds = revisionRows.map((row) => row.id);
+  const parentRows =
+    revisionIds.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(schema.revisionParents)
+          .where(inArray(schema.revisionParents.revisionId, revisionIds));
   const parentsByRevision = new Map<string, Uuid[]>();
   for (const edge of parentRows) {
     const list = parentsByRevision.get(edge.revisionId) ?? [];

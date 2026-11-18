@@ -1,0 +1,476 @@
+
+Running 352 tests using 1 worker
+
+  ✓    1 [chromium-mobile] › tests/e2e/accessibility.spec.ts:45:2 › accessibility (all viewports/browsers) › the hierarchy is a semantic ARIA tree with labelled controls (2.6s)
+  ✓    2 [chromium-mobile] › tests/e2e/accessibility.spec.ts:79:2 › accessibility (all viewports/browsers) › interactive elements expose visible focus (1.7s)
+  ✓    3 [chromium-mobile] › tests/e2e/accessibility.spec.ts:93:2 › accessibility (all viewports/browsers) › keyboard-only operation: create, select, and navigate (1.3s)
+  ✓    4 [chromium-mobile] › tests/e2e/accessibility.spec.ts:130:2 › accessibility (all viewports/browsers) › the layout stays operable at the current viewport (2.1s)
+  ✓    5 [chromium-mobile] › tests/e2e/accessibility.spec.ts:176:2 › automated accessibility audit › the workspace has no critical or serious violations (1.3s)
+  ✓    6 [chromium-mobile] › tests/e2e/accessibility.spec.ts:187:2 › automated accessibility audit › the editor has no critical or serious violations (2.0s)
+  ✓    7 [chromium-mobile] › tests/e2e/accessibility.spec.ts:206:2 › automated accessibility audit › the search dialog has no critical or serious violations (1.4s)
+  ✓    8 [chromium-mobile] › tests/e2e/accessibility.spec.ts:222:2 › automated accessibility audit › the conversion confirmation has no critical or serious violations (3.2s)
+  ✓    9 [chromium-mobile] › tests/e2e/accessibility.spec.ts:257:2 › automated accessibility audit › the backup status and restoration invitation have no critical or serious violations (1.9s)
+  ✓   10 [chromium-mobile] › tests/e2e/accessibility.spec.ts:322:2 › the file surfaces (feature 005) › the attachment list has no critical or serious violations (3.2s)
+  ✓   11 [chromium-mobile] › tests/e2e/accessibility.spec.ts:327:2 › the file surfaces (feature 005) › the deletion confirmation has no critical or serious violations (3.2s)
+  ✓   12 [chromium-mobile] › tests/e2e/accessibility.spec.ts:337:2 › the file surfaces (feature 005) › the storage panel has no critical or serious violations (1.6s)
+  ✓   13 [chromium-mobile] › tests/e2e/accessibility.spec.ts:344:2 › the file surfaces (feature 005) › the preview frame is labelled for assistive technology (3.0s)
+  ✓   14 [chromium-mobile] › tests/e2e/accessibility.spec.ts:379:2 › synchronization accessibility (feature 006) › the connection state is announced politely, not as an alert (1.9s)
+  ✓   15 [chromium-mobile] › tests/e2e/accessibility.spec.ts:401:2 › accessibility audit runtime (feature 059) › a role query followed by an ARIA reference read keeps the page alive (147ms)
+  ✓   16 [chromium-mobile] › tests/e2e/accessibility.spec.ts:435:2 › structured database view accessibility (feature 009) › all five views pass axe and visual movement has a named keyboard equivalent (9.8s)
+  -   17 [chromium-mobile] › tests/e2e/accessibility.spec.ts:521:2 › desktop host accessibility (feature 014) › desktop onboarding and update surfaces stay in the Playwright corpus
+  ✓   18 [chromium-mobile] › tests/e2e/accounts.spec.ts:81:0 › the administrator creates an account whose holder sees only their own space (4.4s)
+  ✓   19 [chromium-mobile] › tests/e2e/accounts.spec.ts:110:0 › an invitation link counts its uses, lists its accounts and stops when revoked (5.4s)
+  ✓   20 [chromium-mobile] › tests/e2e/accounts.spec.ts:162:0 › open registration offers sign-up on the sign-in screen (3.0s)
+  ✓   21 [chromium-mobile] › tests/e2e/accounts.spec.ts:180:0 › a disabled account is signed out and cannot sign back in (4.3s)
+  ✓   22 [chromium-mobile] › tests/e2e/authentication.spec.ts:101:2 › the sign-in gate › an owner with no session sees sign-in, not the workspace (1.1s)
+  ✓   23 [chromium-mobile] › tests/e2e/authentication.spec.ts:107:2 › the sign-in gate › offers the passkey first and the password as the alternative (1.1s)
+  ✓   24 [chromium-mobile] › tests/e2e/authentication.spec.ts:128:2 › the sign-in gate › a browser without passkey support opens on the password form (1.1s)
+  ✓   25 [chromium-mobile] › tests/e2e/authentication.spec.ts:151:2 › the sign-in gate › signing in still works without passkey support (1.2s)
+  ✓   26 [chromium-mobile] › tests/e2e/authentication.spec.ts:165:2 › the sign-in gate › the password field is reachable and operable from the keyboard (1.1s)
+  ✓   27 [chromium-mobile] › tests/e2e/authentication.spec.ts:177:2 › signing in › a correct password opens the workspace (1.3s)
+  ✓   28 [chromium-mobile] › tests/e2e/authentication.spec.ts:184:2 › signing in › two isolated profiles get distinct devices and each profile reuses its own (6.4s)
+  ✓   29 [chromium-mobile] › tests/e2e/authentication.spec.ts:237:2 › signing in › a wrong password says what to do, not what was wrong (1.3s)
+  ✓   30 [chromium-mobile] › tests/e2e/authentication.spec.ts:247:2 › signing in › clears the field after a failure (1.3s)
+  ✓   31 [chromium-mobile] › tests/e2e/authentication.spec.ts:257:2 › signing in › the session survives a reload (2.3s)
+  ✓   32 [chromium-mobile] › tests/e2e/authentication.spec.ts:278:2 › signing in › the session cookie is not readable from JavaScript (1.2s)
+  ✓   33 [chromium-mobile] › tests/e2e/authentication.spec.ts:291:2 › the security screen › lists this browser's session and marks it (1.4s)
+  ✓   34 [chromium-mobile] › tests/e2e/authentication.spec.ts:298:2 › the security screen › states plainly that there is no password reset (1.5s)
+  ✓   35 [chromium-mobile] › tests/e2e/authentication.spec.ts:311:2 › the security screen › signing out returns to the sign-in page (2.3s)
+  ✓   36 [chromium-mobile] › tests/e2e/authentication.spec.ts:321:2 › the security screen › a signed-out session does not come back on reload (3.1s)
+  ✓   37 [chromium-mobile] › tests/e2e/authentication.spec.ts:335:2 › the security screen › offers no way to sign out elsewhere when this is the only session (2.2s)
+  ✓   38 [chromium-mobile] › tests/e2e/authentication.spec.ts:346:2 › responsive and assistive presentation › the sign-in control fits the viewport without horizontal scrolling (1.7s)
+  ✓   39 [chromium-mobile] › tests/e2e/authentication.spec.ts:356:2 › responsive and assistive presentation › the heading structure is navigable (1.1s)
+  ✓   40 [chromium-mobile] › tests/e2e/backup.spec.ts:145:0 › a verified backup is visible, and becomes a plain warning after 26 hours (4.6s)
+  ✓   41 [chromium-mobile] › tests/e2e/backup.spec.ts:240:0 › the owner can rehearse the latest backup without touching the live workspace (2.7s)
+  ✓   42 [chromium-mobile] › tests/e2e/block-editor.spec.ts:147:2 › writing with Markdown-style shortcuts › `# ` becomes a heading and leaves no shortcut characters behind (1.7s)
+  ✓   43 [chromium-mobile] › tests/e2e/block-editor.spec.ts:160:2 › writing with Markdown-style shortcuts › `- ` becomes a bulleted list item (2.8s)
+  ✓   44 [chromium-mobile] › tests/e2e/block-editor.spec.ts:172:2 › writing with Markdown-style shortcuts › `> ` becomes a quote (1.7s)
+  ✓   45 [chromium-mobile] › tests/e2e/block-editor.spec.ts:184:2 › the contextual BlockNote controls › inserts and transforms five durable block types through distinct paths (4.5s)
+  ✓   46 [chromium-mobile] › tests/e2e/block-editor.spec.ts:256:2 › the contextual BlockNote controls › formats a selection and creates a durable internal page link in two actions (4.7s)
+  ✓   47 [chromium-mobile] › tests/e2e/block-editor.spec.ts:323:2 › operational undo › undoes and redoes one contextual block transaction (2.9s)
+  ✓   48 [chromium-mobile] › tests/e2e/block-editor.spec.ts:343:2 › operational undo › moves a contiguous multi-block selection as one undoable gesture (2.3s)
+  ✓   49 [chromium-mobile] › tests/e2e/block-editor.spec.ts:369:2 › operational undo › duplicates a contiguous multi-block selection as one undoable gesture (2.1s)
+  ✓   50 [chromium-mobile] › tests/e2e/block-editor.spec.ts:395:2 › the document survives › a reload, exactly as it was left (3.1s)
+  ✓   51 [chromium-mobile] › tests/e2e/block-editor.spec.ts:420:2 › a block this client does not recognise › is shown as unrenderable and kept unchanged through an edit (2.7s)
+  ✓   52 [chromium-mobile] › tests/e2e/block-editor.spec.ts:474:2 › a page written before the block editor existed › opens editable with its content intact and activates before the first gesture (2.8s)
+  ✓   53 [chromium-mobile] › tests/e2e/block-editor.spec.ts:581:2 › shows a blue reading-column preview during native block drag with another editor hidden (4.9s)
+  ✓   54 [chromium-mobile] › tests/e2e/block-editor.spec.ts:581:2 › shows a blue reading-column preview during native block drag with another editor hidden at 320px (6.7s)
+  ✓   55 [chromium-mobile] › tests/e2e/bootstrap.spec.ts:74:2 › first launch › offers only the administrator form on a fresh installation (1.1s)
+  ✓   56 [chromium-mobile] › tests/e2e/bootstrap.spec.ts:87:2 › first launch › creates the administrator in under two minutes and opens the workspace (1.4s)
+  ✓   57 [chromium-mobile] › tests/e2e/bootstrap.spec.ts:100:2 › first launch › never shows the setup screen once an administrator exists (2.3s)
+  ✓   58 [chromium-mobile] › tests/e2e/bootstrap.spec.ts:117:2 › passkeys per account › adds a passkey at first launch and signs in with it alone (2.3s)
+  ✓   59 [chromium-mobile] › tests/e2e/bootstrap.spec.ts:133:2 › passkeys per account › signs in with email and password after first launch (2.5s)
+  ✓   60 [chromium-mobile] › tests/e2e/code-block-ui.spec.ts:89:0 › code stays colored, editable and confined in both themes at desktop and 320 px (4.3s)
+  ✓   61 [chromium-mobile] › tests/e2e/code-block-ui.spec.ts:175:0 › copy writes exact plain source with stable semantic activation and visible refusal/retry (2.0s)
+  ✓   62 [chromium-mobile] › tests/e2e/code-block-ui.spec.ts:224:0 › code retains composition, incoming owner-device edits and language across offline reload (7.4s)
+  ✓   63 [chromium-mobile] › tests/e2e/conflict-resolution.spec.ts:65:2 › a device that is merely behind (FR-011) › produces no conflict when it catches up (4.6s)
+  ✓   64 [chromium-mobile] › tests/e2e/conflict-resolution.spec.ts:116:2 › concurrent edits to the same paragraph (US3) › converge automatically and preserve both offline additions (6.9s)
+  ✓   65 [chromium-mobile] › tests/e2e/connection-trust.spec.ts:29:2 › what the owner is told about the connection › names the server it is talking to (1.3s)
+  ✓   66 [chromium-mobile] › tests/e2e/connection-trust.spec.ts:39:2 › what the owner is told about the connection › says whether the server is reachable (1.2s)
+  ✓   67 [chromium-mobile] › tests/e2e/connection-trust.spec.ts:48:2 › what the owner is told about the connection › says the work is kept locally when the server is gone (1.7s)
+  ✓   68 [chromium-mobile] › tests/e2e/connection-trust.spec.ts:63:2 › what the owner is told about the connection › does not warn about the supported local default (1.2s)
+  ✓   69 [chromium-mobile] › tests/e2e/database-entry-properties.spec.ts:15:0 › configures entry properties directly, shares symbols, and preserves independent property order (9.0s)
+  ✓   70 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:21:0 › converts a card without editorial history locally while workspace requests are held (4.3s)
+  ✓   71 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:82:0 › keeps conversion confirmation immediate and returns to the card without a pointer selection outline (4.8s)
+  ✓   72 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:147:0 › cancels a pressed property action outside its button and activates exactly once from the keyboard (1.9s)
+  ✓   73 [chromium-mobile] › tests/e2e/database-form-lifecycle.spec.ts:196:0 › preserves a composing dirty field while another device updates an untouched property (5.9s)
+  ✓   74 [chromium-mobile] › tests/e2e/database-multi-select-board.spec.ts:17:0 › keeps the next view menu open while the entry peek finishes closing (2.6s)
+  ✓   75 [chromium-mobile] › tests/e2e/database-multi-select-board.spec.ts:42:0 › multi-select Kanban preserves other memberships across moves, hidden axis, reload and offline (16.1s)
+  ✓   76 [chromium-mobile] › tests/e2e/database-multi-select-board.spec.ts:230:0 › Kanban destination menus expose pending and refused moves without false success (2.6s)
+  ✓   77 [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:13:2 › database full flow pins original headers and reads 1000 cards/rows through the page (5.7s)
+  ✓   78 [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:13:2 › database inline flow pins original headers and reads 1000 cards/rows through the page (5.0s)
+  ✓   79 [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:183:0 › column creation blocks pending duplicates and permits retry after refusal (2.1s)
+  ✓   80 [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:206:0 › keeps Nouvel élément below the edited card, creates successive durable entries and uses full column colors (5.4s)
+  ✓   81 [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:279:0 › production content colors keep distinct surfaces and readable text in both themes (1.2s)
+  ✓   82 [chromium-mobile] › tests/e2e/database-page-flow.spec.ts:359:0 › creates canonical pages and folders in multi-select columns, reloads and queues offline (6.7s)
+  ✓   83 [chromium-mobile] › tests/e2e/database-relations-rollups.spec.ts:230:0 › configured relation to an empty source persists and computes 10 + 20 = 30, formula 60 (12.4s)
+  ✓   84 [chromium-mobile] › tests/e2e/database-relations-rollups.spec.ts:379:0 › relation and rollup isolate a second source in the same database container (9.7s)
+  -   85 [chromium-mobile] › tests/e2e/database-relations-rollups.spec.ts:463:0 › a two-way relation shows on both sides and reads the same link
+  ✓   86 [chromium-mobile] › tests/e2e/databases-offline-sync.spec.ts:283:2 › structured offline convergence (US5) › survives restart, merges compatible fields, and resolves a same-field conflict (17.2s)
+  ✓   87 [chromium-mobile] › tests/e2e/databases-offline-sync.spec.ts:483:2 › structured offline convergence (US5) › measures live structured propagation and states partial offline coverage (7.0s)
+  ✓   88 [chromium-mobile] › tests/e2e/databases-pages-views.spec.ts:25:0 › database creation replaces the navigation drawer and cancellation returns to it (1.4s)
+  ✓   89 [chromium-mobile] › tests/e2e/databases-pages-views.spec.ts:41:0 › a database is a navigable owner with direct page and folder entries (4.2s)
+  ✓   90 [chromium-mobile] › tests/e2e/databases-pages-views.spec.ts:94:0 › a page can create a child database without a footer insertion control (2.0s)
+  ✓   91 [chromium-mobile] › tests/e2e/databases-pages-views.spec.ts:115:0 › views can use different sources while the owner's original source remains recoverable (6.5s)
+  ✓   92 [chromium-mobile] › tests/e2e/databases-pages-views.spec.ts:181:0 › the slash commands create one inline block or one full-page child link (5.2s)
+  ✓   93 [chromium-mobile] › tests/e2e/databases-pages-views.spec.ts:239:0 › item links navigate to folders and database owners without integrating their sources (4.9s)
+  ✓   94 [chromium-mobile] › tests/e2e/databases-pages-views.spec.ts:282:0 › a linked block shares its source and warns after its owner is trashed (5.3s)
+  ✓   95 [chromium-mobile] › tests/e2e/databases-schema.spec.ts:30:0 › creates a typed database whose entry and relations keep canonical page identities (15.6s)
+  ✓   96 [chromium-mobile] › tests/e2e/databases-schema.spec.ts:106:0 › trashes and restores the owner with the same direct entry pages (3.1s)
+  ✓   97 [chromium-mobile] › tests/e2e/databases-security.spec.ts:97:0 › keeps structured content out of local storage, addresses and diagnostics (4.0s)
+  ✓   98 [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:36:2 › keeps a property action stable while a new database opens (2.5s)
+  ✓   99 [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:36:2 › keeps a property action stable while a new database opens and permits cancellation (1.9s)
+  ✓  100 [chromium-mobile] › tests/e2e/databases-tasks.spec.ts:133:0 › tracks one task page through roles, notes, relations, search and an independent checkbox (14.7s)
+  ✓  101 [chromium-mobile] › tests/e2e/databases-views.spec.ts:22:0 › persists table/list filters, sorts, groups, columns and focus on two browsers (17.7s)
+  ✓  102 [chromium-mobile] › tests/e2e/databases-views.spec.ts:297:0 › property editing from the view settings keeps the panel mounted (4.5s)
+  ✓  103 [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:66:0 › preserves native property input across a remote projection before input delivery (6.0s)
+  ✘  104 [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:112:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts (24.1s)
+  -  105 [chromium-mobile] › tests/e2e/desktop-accessibility.spec.ts:12:0 › onboarding preserves keyboard focus and has no serious accessibility violations
+  -  106 [chromium-mobile] › tests/e2e/desktop-accessibility.spec.ts:33:0 › workspace and security including native update controls have no serious accessibility violations
+  -  107 [chromium-mobile] › tests/e2e/desktop-connection-errors.spec.ts:7:0 › refuses unsupported schemes and remote HTTP before connecting
+  -  108 [chromium-mobile] › tests/e2e/desktop-device-revocation.spec.ts:14:0 › revocation blocks protected access after offline work without deleting its queue
+  -  109 [chromium-mobile] › tests/e2e/desktop-native-journey.spec.ts:9:0 › native file selection returns chosen bytes and blocks dangerous external links
+  -  110 [chromium-mobile] › tests/e2e/desktop-offline-restart.spec.ts:45:0 › recovers a durable offline creation after process death and reconciles it once
+  -  111 [chromium-mobile] › tests/e2e/desktop-onboarding.spec.ts:10:0 › onboarding preserves an authenticated profile and its page after restart
+  -  112 [chromium-mobile] › tests/e2e/desktop-update-journey.spec.ts:15:0 › an unsigned package refuses update installation through the real bridge
+  -  113 [chromium-mobile] › tests/e2e/desktop-update-journey.spec.ts:33:0 › signed update UI defers, rejects corrupt bytes and retries a verified native handoff
+  ✓  114 [chromium-mobile] › tests/e2e/devices.spec.ts:122:2 › what the inventory shows › lists the owner's devices (1.5s)
+  ✓  115 [chromium-mobile] › tests/e2e/devices.spec.ts:127:2 › what the inventory shows › says a never-used device has never been used (1.4s)
+  ✓  116 [chromium-mobile] › tests/e2e/devices.spec.ts:136:2 › what the inventory shows › does not expose the device binding identifier (1.4s)
+  ✓  117 [chromium-mobile] › tests/e2e/devices.spec.ts:144:2 › renaming a device › takes effect without asking for a fresh sign-in (1.5s)
+  ✓  118 [chromium-mobile] › tests/e2e/devices.spec.ts:159:2 › revoking a device › says what revoking cannot undo (1.6s)
+  ✓  119 [chromium-mobile] › tests/e2e/devices.spec.ts:173:2 › revoking a device › still says the device lost its access (1.5s)
+  ✓  120 [chromium-mobile] › tests/e2e/devices.spec.ts:182:2 › revoking a device › offers no further action on a revoked device (1.6s)
+  ✓  121 [chromium-mobile] › tests/e2e/devices.spec.ts:199:2 › asking a device to sign in again › is presented as separate from revoking (1.5s)
+  ✓  122 [chromium-mobile] › tests/e2e/devices.spec.ts:214:2 › responsive presentation › the inventory is reachable without horizontal scrolling (1.4s)
+  ✓  123 [chromium-mobile] › tests/e2e/editor-caret.spec.ts:5:2 › keeps an empty editable line visible and focused with the active light styles (1.7s)
+  ✓  124 [chromium-mobile] › tests/e2e/editor-caret.spec.ts:5:2 › keeps an empty editable line visible and focused with the active dark styles (1.7s)
+  ✘  125 [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:18:0 › edits math, preserves invalid source and supports history, slash and offline navigation (13.8s)
+  ✓  126 [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:100:0 › updates both contents projections, scrolls nested headings and leaves no stale outline (4.3s)
+  ✓  127 [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:266:0 › keeps typing in the document right after applying an inline equation (1.7s)
+  ✓  128 [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:313:0 › keeps list values aligned and property names out of visual rows at narrow widths (4.2s)
+  ✓  129 [chromium-mobile] › tests/e2e/editor-offline-media.spec.ts:28:2 › editor media offline › a file dropped offline becomes a durable reference with an honest transfer state (6.1s)
+  -  130 [chromium-mobile] › tests/e2e/editor-performance.spec.ts:54:2 › a document of 500 blocks › opens and becomes editable within 2 seconds (SC-007)
+  -  131 [chromium-mobile] › tests/e2e/editor-performance.spec.ts:86:2 › a document of 500 blocks › keeps typing responsive at the 95th percentile (SC-007)
+  ✓  132 [chromium-mobile] › tests/e2e/editor-suggestion-menu.spec.ts:6:4 › keeps slash options reachable by keyboard and pointer at 320px in light (3.3s)
+  ✓  133 [chromium-mobile] › tests/e2e/editor-suggestion-menu.spec.ts:6:4 › keeps slash options reachable by keyboard and pointer at 1280px in light (3.2s)
+  ✓  134 [chromium-mobile] › tests/e2e/editor-suggestion-menu.spec.ts:6:4 › keeps slash options reachable by keyboard and pointer at 320px in dark (3.4s)
+  ✓  135 [chromium-mobile] › tests/e2e/editor-suggestion-menu.spec.ts:6:4 › keeps slash options reachable by keyboard and pointer at 1280px in dark (3.2s)
+  ✓  136 [chromium-mobile] › tests/e2e/file-preview.spec.ts:25:2 › keeps attachment actions stable during a late usage update in light (4.1s)
+  ✓  137 [chromium-mobile] › tests/e2e/file-preview.spec.ts:25:2 › keeps attachment actions stable during a late usage update in dark (3.3s)
+  ✓  138 [chromium-mobile] › tests/e2e/file-preview.spec.ts:183:2 › a preview cannot reach the workspace › script inside a previewed file cannot read the page around it (3.0s)
+  ✓  139 [chromium-mobile] › tests/e2e/file-preview.spec.ts:228:2 › a preview cannot reach the workspace › the frame never carries allow-same-origin (2.8s)
+  ✓  140 [chromium-mobile] › tests/e2e/file-preview.spec.ts:241:2 › what is previewed and what is not › an image opens inside the application (2.8s)
+  ✓  141 [chromium-mobile] › tests/e2e/file-preview.spec.ts:254:2 › what is previewed and what is not › an unrecognised type states name, type and size, and offers a download (2.8s)
+  ✓  142 [chromium-mobile] › tests/e2e/file-preview.spec.ts:272:2 › deferred diagram support › keeps a Draw.io file downloadable without loading an external editor (3.1s)
+  ✓  143 [chromium-mobile] › tests/e2e/file-transfer.spec.ts:25:2 › a transfer that is interrupted › continues from the offset the server holds, not from zero (159ms)
+  ✓  144 [chromium-mobile] › tests/e2e/file-transfer.spec.ts:62:2 › a transfer that is interrupted › refuses a chunk from the wrong offset instead of accepting it silently (80ms)
+  ✓  145 [chromium-mobile] › tests/e2e/file-transfer.spec.ts:84:2 › a transfer that is interrupted › a partial transfer never appears in the tree (1.1s)
+  ✓  146 [chromium-mobile] › tests/e2e/file-transfer.spec.ts:102:2 › a transfer that is interrupted › states the limit when a file is too large, before sending anything (89ms)
+  ✓  147 [chromium-mobile] › tests/e2e/files.spec.ts:27:2 › canonical files (US2) › opens the paperclip continuation progressively without resizing its page row (2.2s)
+  ✓  148 [chromium-mobile] › tests/e2e/files.spec.ts:72:2 › canonical files (US2) › imports an attachment, lists it discreetly, and replaces content copy-on-write (2.9s)
+  ✓  149 [chromium-mobile] › tests/e2e/files.spec.ts:120:2 › canonical files (US2) › keeps a hierarchy file under a page distinct from that page's attachments (3.2s)
+  ✓  150 [chromium-mobile] › tests/e2e/files.spec.ts:190:2 › canonical files (US2) › removing an embedded block hides its attachment but preserves retained file bytes (4.4s)
+  ✓  151 [chromium-mobile] › tests/e2e/files.spec.ts:256:2 › what a page says about its files (US1) › states type, size, location, availability and sync state for each file (2.7s)
+  ✓  152 [chromium-mobile] › tests/e2e/files.spec.ts:286:2 › what a page says about its files (US1) › names what uses a file, and each usage opens (5.1s)
+  ✓  153 [chromium-mobile] › tests/e2e/files.spec.ts:324:2 › what a page says about its files (US1) › says so plainly when a page carries no files (2.7s)
+  ✓  154 [chromium-mobile] › tests/e2e/files.spec.ts:336:2 › what a page says about its files (US1) › continues the selected row without resizing it (2.5s)
+  ✓  155 [chromium-mobile] › tests/e2e/files.spec.ts:362:2 › moving, renaming and deleting a file (US2) › a rename leaves every reference resolving (4.2s)
+  ✓  156 [chromium-mobile] › tests/e2e/files.spec.ts:391:2 › moving, renaming and deleting a file (US2) › deleting a file in use names what would break, and declining changes nothing (2.9s)
+  ✓  157 [chromium-mobile] › tests/e2e/files.spec.ts:427:2 › moving, renaming and deleting a file (US2) › confirming sends the file to the trash, where it can be recovered (4.5s)
+  ✓  158 [chromium-mobile] › tests/e2e/full-backup-ui.spec.ts:8:2 › complete backup settings preserve keyboard rehearsal at 320px in dark mode (1.9s)
+  ✓  159 [chromium-mobile] › tests/e2e/full-backup-ui.spec.ts:8:2 › complete backup settings preserve keyboard rehearsal at 1280px in light mode (2.0s)
+  ✓  160 [chromium-mobile] › tests/e2e/full-backup-ui.spec.ts:95:0 › an absent complete backup stays explicit even with portable exports, and cannot trigger a rehearsal (1.8s)
+  ✓  161 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:26:2 › hierarchy organization (US1) › a creation choice answers a click from the first frame its menu is open (2.3s)
+  ✓  162 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:71:2 › hierarchy organization (US1) › creates, nests, reorders, moves, and rejects cycles (4.2s)
+  ✓  163 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:103:2 › hierarchy organization (US1) › reorders siblings with persistent explicit order (4.0s)
+  ✓  164 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:144:2 › hierarchy organization (US1) › reorders siblings by dragging the row without a sidebar handle (2.6s)
+  ✓  165 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:214:4 › hierarchy organization (US1) › creates page and folder children from the compact in-row actions at 1280px light (3.9s)
+  ✓  166 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:214:4 › hierarchy organization (US1) › creates page and folder children from the compact in-row actions at 320px light (4.9s)
+  ✓  167 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:214:4 › hierarchy organization (US1) › creates page and folder children from the compact in-row actions at 1280px dark (4.3s)
+  ✓  168 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:214:4 › hierarchy organization (US1) › creates page and folder children from the compact in-row actions at 320px dark (4.7s)
+  ✓  169 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:367:2 › hierarchy organization (US1) › rotates one chevron while descendants open and close progressively (2.1s)
+  ✓  170 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:412:2 › hierarchy organization (US1) › turns a page back into a leaf after its last child moves away (2.4s)
+  ✓  171 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:428:2 › hierarchy organization (US1) › keeps one emoji identity and stable branch geometry (4.3s)
+  ✓  172 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:527:2 › hierarchy organization (US1) › trashes a branch into the 30-day trash and restores it (3.3s)
+  ✓  173 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:566:2 › hierarchy organization (US1) › keyboard navigation moves selection through the tree (2.6s)
+  ✓  174 [chromium-mobile] › tests/e2e/hierarchy.spec.ts:592:2 › hierarchy organization (US1) › opens the same item actions from right click and the keyboard (1.8s)
+  ✓  175 [chromium-mobile] › tests/e2e/interrupted-mutations.spec.ts:26:2 › interrupted mutations (US4) › a mutation interrupted mid-submission is neither lost nor duplicated (4.5s)
+  ✓  176 [chromium-mobile] › tests/e2e/interrupted-mutations.spec.ts:64:2 › interrupted mutations (US4) › an invalid change reports an explicit rejection without partial state (2.8s)
+  ✓  177 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:57:2 › turning a folder into a page › keeps every child and gains somewhere to write (3.5s)
+  ✓  178 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:91:2 › turning a folder into a page › the converted page accepts and keeps content (3.4s)
+  ✓  179 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:118:2 › turning a page into a folder › converts an empty page without warning about content it does not have (2.1s)
+  ✓  180 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:134:2 › turning a page into a folder › warns before destroying content, naming what goes and for how long it can be undone (2.6s)
+  ✓  181 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:159:2 › turning a page into a folder › declining leaves the page exactly as it was (2.9s)
+  ✓  182 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:181:2 › turning a page into a folder › accepting destroys the content and keeps every child (3.3s)
+  -  183 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:210:2 › the confirmation as a dialog › closes on Escape and returns focus to the control that opened it
+  ✓  184 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:240:2 › the confirmation as a dialog › is announced as an alert dialog (3.1s)
+  ✓  185 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:258:2 › at a narrow viewport › the confirmation is readable on a phone (2.9s)
+  ✓  186 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:277:2 › the two relations a page has › hierarchy children and content attachments never appear in the same list (2.6s)
+  ✓  187 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:307:2 › the two relations a page has › a folder offers no attachments panel at all (1.6s)
+  ✓  188 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:320:2 › the two relations a page has › converting a page to a folder takes its attachments panel with it (2.5s)
+  ✓  189 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:338:2 › order and placement › a conversion leaves sibling order untouched (2.6s)
+  ✓  190 [chromium-mobile] › tests/e2e/item-conversion.spec.ts:361:2 › offline › a conversion made offline reaches the server once it returns (2.6s)
+  ✓  191 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:75:2 › moving through the tree › arrows move the selection and focus together (2.1s)
+  ✓  192 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:95:2 › moving through the tree › Home and End jump to the ends (2.2s)
+  ✓  193 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:112:2 › moving through the tree › typing a letter jumps to the next item starting with it (2.2s)
+  ✓  194 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:128:2 › expanding and collapsing › right expands, left collapses, and the children appear and disappear (3.2s)
+  ✓  195 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:148:2 › expanding and collapsing › left on a closed child branch moves focus and selection to its parent (3.4s)
+  ✓  196 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:185:2 › expanding and collapsing › a leaf declares no expanded state at all (2.0s)
+  -  197 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:198:2 › the tree as one tab stop › Tab leaves the tree rather than walking through every row
+  ✓  198 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:224:2 › acting on an item from the keyboard › a menu opens, moves and closes with focus returned to its trigger (2.2s)
+  ✓  199 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:246:2 › acting on an item from the keyboard › the item menu keeps reordering available without a drag handle (2.9s)
+  -  200 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:283:2 › acting on an item from the keyboard › F2 starts a rename
+  -  201 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:306:2 › acting on an item from the keyboard › Delete asks before trashing, and declining changes nothing
+  ✓  202 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:334:2 › what a branch says when it has nothing to show › the workspace says it is empty before anything exists (1.3s)
+  ✓  203 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:345:2 › what a branch says when it has nothing to show › an opened folder with nothing in it says so (2.2s)
+  ✓  204 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:355:2 › what a branch says when it has nothing to show › offline, the same branch says the content is not on this device (1.8s)
+  ✓  205 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:377:2 › what a branch says when it has nothing to show › after a failed command, the branch says it could not be loaded (3.4s)
+  ✓  206 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:402:2 › what a branch says when it has nothing to show › the four states are distinguishable from one another (1.8s)
+  ✓  207 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:419:2 › navigation actions without shortcut sections › a page can be marked as a favourite without adding a sidebar shortcut (2.5s)
+  ✓  208 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:444:2 › navigation actions without shortcut sections › unmarking clears the favourite action (2.8s)
+  ✓  209 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:467:2 › navigation actions without shortcut sections › recent pages remain reachable through the tree without a recents section (2.5s)
+  ✓  210 [chromium-mobile] › tests/e2e/keyboard-navigation.spec.ts:485:2 › navigation actions without shortcut sections › settings are reachable from the sidebar (1.7s)
+  ✓  211 [chromium-mobile] › tests/e2e/knowledge-graph-live.spec.ts:13:0 › the open graph follows content changes live (3.6s)
+  ✓  212 [chromium-mobile] › tests/e2e/knowledge-graph-live.spec.ts:105:0 › the open graph follows a rename made in another tab (3.8s)
+  ✓  213 [chromium-mobile] › tests/e2e/knowledge-graph-live.spec.ts:135:0 › toggling a filter keeps the current layout instead of starting a new view (2.5s)
+  ✓  214 [chromium-mobile] › tests/e2e/knowledge-graph.spec.ts:13:0 › the content graph stays distinct from folders and supports ten pointer journeys (13.3s)
+  ✓  215 [chromium-mobile] › tests/e2e/knowledge-graph.spec.ts:220:0 › backlinks, local graph, global filters and offline restart stay coherent (6.3s)
+  ✓  216 [chromium-mobile] › tests/e2e/legacy-sync-self-healing.spec.ts:14:0 › five retained page conflicts self-heal while persistent storage remains a separate advisory (5.9s)
+  ✓  217 [chromium-mobile] › tests/e2e/linked-databases.spec.ts:20:0 › keeps entry activation and cancellation intact while another device updates a column (6.6s)
+  ✓  218 [chromium-mobile] › tests/e2e/linked-databases.spec.ts:118:0 › loads beyond 1000 canonical entries using a visible cursor action (33.3s)
+live propagation observed in 390ms
+  ✓  219 [chromium-mobile] › tests/e2e/live-sync.spec.ts:31:2 › live synchronization (US1) › a change made on one device reaches another without it asking (3.7s)
+  ✓  220 [chromium-mobile] › tests/e2e/live-sync.spec.ts:67:2 › live synchronization (US1) › a rename made elsewhere replaces the old row rather than adding one (3.1s)
+  ✓  221 [chromium-mobile] › tests/e2e/live-sync.spec.ts:105:2 › catching up after an absence (US2) › a device that was away receives every change it missed (1.6s)
+  ✓  222 [chromium-mobile] › tests/e2e/mcp-access.spec.ts:20:0 › owner grants a branch, exchanges once and revokes a real assistant (2.7s)
+  ✓  223 [chromium-mobile] › tests/e2e/mcp-access.spec.ts:119:0 › refused authorization preserves the scope, retries, and keeps codes out of storage (2.9s)
+  ✓  224 [chromium-mobile] › tests/e2e/mcp-access.spec.ts:187:0 › stale owner confirms a real password and the grant resumes (1.8s)
+  ✓  225 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:53:2 › at 320 pixels › the workspace does not scroll sideways (1.5s)
+  ✓  226 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:63:2 › at 320 pixels › the editor does not scroll sideways, even with a long unbroken word (2.3s)
+  ✓  227 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:84:2 › at 320 pixels › US1 can be completed at this width (2.1s)
+  ✓  228 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:109:2 › at 320 pixels › the save state stays readable (3.5s)
+  ✓  229 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:121:2 › at 320 pixels › controls stay big enough to hit with a thumb (1.8s)
+  ✓  230 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:136:2 › at 320 pixels › wide tables and inline media stay inside the page canvas (1.9s)
+  ✓  231 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:180:2 › at 200 percent zoom › the core writing surface keeps every control reachable (1.7s)
+  ✓  232 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:201:2 › the collapsible tree › can be hidden and shown again on a phone (1.7s)
+  ✓  233 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:222:2 › the collapsible tree › closes on Escape and gives focus back to the control (2.0s)
+  ✓  234 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:239:2 › the collapsible tree › declares whether it is open (1.2s)
+  ✓  235 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:247:2 › the collapsible tree › stays out of the way on a desktop (1.1s)
+  ✓  236 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:259:2 › the file surfaces at 320 pixels › the attachment list and the storage panel do not scroll sideways (2.6s)
+  ✓  237 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:281:2 › the file surfaces at 320 pixels › the deletion confirmation fits on a phone (2.8s)
+  ✓  238 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:308:2 › backup and recovery at 320 pixels › the status, warning and restoration action stay inside the viewport (1.4s)
+  ✓  239 [chromium-mobile] › tests/e2e/narrow-viewport.spec.ts:336:2 › live synchronization on a phone (feature 006) › the connection state does not widen the page (2.0s)
+  ✓  240 [chromium-mobile] › tests/e2e/offline-availability.spec.ts:29:2 › what the owner asks to keep › a branch can be marked, and the marking is stated rather than implied (1.9s)
+  ✓  241 [chromium-mobile] › tests/e2e/offline-availability.spec.ts:52:2 › what the owner asks to keep › the marking survives a reload, because it is content and not a device preference (3.0s)
+  ✓  242 [chromium-mobile] › tests/e2e/offline-availability.spec.ts:82:2 › what the owner asks to keep › a marked branch opens with no network (2.4s)
+  ✓  243 [chromium-mobile] › tests/e2e/offline-availability.spec.ts:115:2 › what this device says it is holding › states a breakdown and whether the browser promised to keep it (1.4s)
+  ✓  244 [chromium-mobile] › tests/e2e/offline-availability.spec.ts:129:2 › what this device says it is holding › offers unlimited as its own choice rather than a very large number (1.3s)
+  ✓  245 [chromium-mobile] › tests/e2e/offline-availability.spec.ts:139:2 › what this device says it is holding › an unsent change is still there after the limit is lowered (2.7s)
+  ✓  246 [chromium-mobile] › tests/e2e/offline-reconciliation.spec.ts:41:2 › offline continuity (US6) › loaded content stays readable and editable offline, then reconciles once (6.2s)
+  ✓  247 [chromium-mobile] › tests/e2e/offline-reconciliation.spec.ts:90:2 › offline continuity (US6) › a legacy offline branch joins the operational page without replacing either edit (6.7s)
+  ✓  248 [chromium-mobile] › tests/e2e/page-ambiguity.spec.ts:77:0 › delete/edit ambiguity survives restart and restores the edited block (6.5s)
+  ✓  249 [chromium-mobile] › tests/e2e/page-autosave-recovery.spec.ts:23:2 › autosave under abrupt exit › a hard reload right after typing keeps every acknowledged character (2.9s)
+  ✓  250 [chromium-mobile] › tests/e2e/page-autosave-recovery.spec.ts:53:2 › autosave under abrupt exit › edits from a closed tab reappear when the workspace reopens (3.1s)
+  ✓  251 [chromium-mobile] › tests/e2e/page-links.spec.ts:85:0 › links to another page without nesting it, including a descendant (8.9s)
+  ✓  252 [chromium-mobile] › tests/e2e/page-links.spec.ts:209:0 › edits and removes a page link from its context menu without deleting text or targets (5.8s)
+  ✓  253 [chromium-mobile] › tests/e2e/page-links.spec.ts:270:0 › creates, validates, edits, and removes a full-line Web bookmark (4.1s)
+  ✓  254 [chromium-mobile] › tests/e2e/page-links.spec.ts:330:0 › keeps page and Web actions separate and shows a caret on an empty line (2.7s)
+  ✓  255 [chromium-mobile] › tests/e2e/page-links.spec.ts:386:0 › never resurrects a page link after its whole line is deleted and rewritten (5.0s)
+  ✓  256 [chromium-mobile] › tests/e2e/page-links.spec.ts:443:0 › /page creates one linked subpage under the current page (3.8s)
+  ✓  257 [chromium-mobile] › tests/e2e/page-multi-device-convergence.spec.ts:189:2 › offline page convergence reconnecting A first (5.8s)
+  ✓  258 [chromium-mobile] › tests/e2e/page-multi-device-convergence.spec.ts:189:2 › offline page convergence reconnecting B first (6.1s)
+  ✓  259 [chromium-mobile] › tests/e2e/page-multi-device-convergence.spec.ts:279:0 › independent offline block moves converge without loss or a conflict (6.9s)
+  ✓  260 [chromium-mobile] › tests/e2e/page-multi-device-convergence.spec.ts:345:0 › a restarted device drains a closed page without reopening it (8.1s)
+  ✓  261 [chromium-mobile] › tests/e2e/page-multi-tab-convergence.spec.ts:175:0 › same-origin tabs adopt offline edits and recover a crashed sender (5.2s)
+  ✓  262 [chromium-mobile] › tests/e2e/page-protocol-migration.spec.ts:112:2 › page protocol migration › uses operational updates from the first normal online edit (2.0s)
+  ✓  263 [chromium-mobile] › tests/e2e/page-protocol-migration.spec.ts:181:2 › page protocol migration › acknowledges a pending v2 replacement before convergent activation (3.6s)
+  ✓  264 [chromium-mobile] › tests/e2e/page-scroll-restoration.spec.ts:40:2 › scroll restoration › coming back to a long page restores the remembered neighbourhood (4.3s)
+  ✓  265 [chromium-mobile] › tests/e2e/progressive-startup.spec.ts:234:2 › progressive startup (feature 040) › a fresh device opens current roots before 300 descendants finish, then searches the final data (23.1s)
+  ✓  266 [chromium-mobile] › tests/e2e/progressive-startup.spec.ts:478:2 › progressive startup (feature 040) › cached content appears before a slow feed and preserves concurrent local work through restart (11.2s)
+  ✓  267 [chromium-mobile] › tests/e2e/protected-files.spec.ts:18:0 › protects a UI attachment and preserves its loaded preview through offline and reconnect (2.8s)
+  ✓  268 [chromium-mobile] › tests/e2e/protected-files.spec.ts:75:0 › resumes protected chunks after reload, renames one canonical file and reads an authenticated crossing range (2.5s)
+  ✓  269 [chromium-mobile] › tests/e2e/protocol-compatibility.spec.ts:21:2 › an out-of-date client (FR-018 to FR-020) › is refused the write with the version to update to, and keeps reading (1.2s)
+  ✓  270 [chromium-mobile] › tests/e2e/protocol-compatibility.spec.ts:73:2 › a revoked device (FR-021) › stops synchronizing and says so, without being asked to (3.1s)
+realtime-propagation-ms=[308,315,313]
+  ✓  271 [chromium-mobile] › tests/e2e/realtime-page-sync.spec.ts:83:0 › connected devices exchange text, marks and block order without reload or replacement (5.0s)
+  ✓  272 [chromium-mobile] › tests/e2e/realtime-sync-security-and-restore.spec.ts:68:0 › revoking a device closes all of its live page sockets immediately (3.6s)
+  ✓  273 [chromium-mobile] › tests/e2e/realtime-sync-security-and-restore.spec.ts:115:0 › the same-origin proxy reconnects the page socket after a network interruption (1.7s)
+  -  274 [chromium-mobile] › tests/e2e/realtime-sync-security-and-restore.spec.ts:138:0 › a restore accepts newer offline work instead of replacing it
+  ✓  275 [chromium-mobile] › tests/e2e/relationships.spec.ts:33:2 › stable identity and relationships (US3) › relates two items; the relation survives rename and reports trash diagnostics (4.4s)
+  ✓  276 [chromium-mobile] › tests/e2e/revision-restore.spec.ts:20:2 › revision history (US5) › restores retained content as a new descendant revision (3.0s)
+  ✓  277 [chromium-mobile] › tests/e2e/revision-restore.spec.ts:55:2 › revision history (US5) › a stale head yields an explicit conflict instead of silent overwrite (5.7s)
+  ✓  278 [chromium-mobile] › tests/e2e/rich-page.spec.ts:35:2 › rich page composition › composes advanced blocks, keeps them across a reload and stores them durably (5.0s)
+  ✓  279 [chromium-mobile] › tests/e2e/routing.spec.ts:15:0 › page, folder, database and entry URLs survive identity changes and history (4.6s)
+  ✓  280 [chromium-mobile] › tests/e2e/routing.spec.ts:86:0 › unknown and malformed deep links never reopen the previous note (2.4s)
+  ✓  281 [chromium-mobile] › tests/e2e/routing.spec.ts:100:0 › browser history restores five successive note destinations in order (3.0s)
+  ✓  282 [chromium-mobile] › tests/e2e/routing.spec.ts:125:0 › a direct local note reloads without the API and an absent identity stays explicit (3.0s)
+  ✓  283 [chromium-mobile] › tests/e2e/save-state.spec.ts:52:2 › the honest states › settles on synchronized once the server has confirmed (2.6s)
+  ✓  284 [chromium-mobile] › tests/e2e/save-state.spec.ts:63:2 › the honest states › never says synchronized before the server has confirmed (2.2s)
+  ✓  285 [chromium-mobile] › tests/e2e/save-state.spec.ts:90:2 › the honest states › says the work is kept on this device while offline (2.1s)
+  ✓  286 [chromium-mobile] › tests/e2e/save-state.spec.ts:111:2 › the honest states › resolves to synchronized once the connection returns (3.3s)
+  ✓  287 [chromium-mobile] › tests/e2e/save-state.spec.ts:136:2 › what survives an unexpected close › the last completed edit is there when the application reopens (3.2s)
+  ✓  288 [chromium-mobile] › tests/e2e/save-state.spec.ts:164:2 › as assistive technology sees it › is a polite live region rather than an interruption (1.7s)
+  ✓  289 [chromium-mobile] › tests/e2e/save-state.spec.ts:175:2 › as assistive technology sees it › says more than a colour (2.1s)
+  ✓  290 [chromium-mobile] › tests/e2e/save-state.spec.ts:214:2 › when the server refuses the write › keeps the work durable and readable while sending is refused (2.4s)
+  ✓  291 [chromium-mobile] › tests/e2e/search-offline.spec.ts:105:2 › offline workspace search (US2) › finds pending local work, states released coverage, and deduplicates after reconnect (4.2s)
+  ✓  292 [chromium-mobile] › tests/e2e/search.spec.ts:51:2 › workspace search (US1) › finds ranked titles, page text and files, opens an identity, and explains no result (6.7s)
+  ✓  293 [chromium-mobile] › tests/e2e/search.spec.ts:124:2 › workspace search (US1) › accepts 512 Unicode characters and explicitly refuses the 513th (1.4s)
+  ✓  294 [chromium-mobile] › tests/e2e/search.spec.ts:148:2 › workspace search refinement (US3) › filters by type and current branch and remains keyboard-operable at narrow widths (3.0s)
+  ✓  295 [chromium-mobile] › tests/e2e/search.spec.ts:211:2 › workspace search refinement (US3) › loads an opaque next page without losing the selected result (1.9s)
+  ✓  296 [chromium-mobile] › tests/e2e/search.spec.ts:267:2 › workspace search freshness (US4) › propagates an accepted identity into search on another connected device (2.9s)
+  ✓  297 [chromium-mobile] › tests/e2e/search.spec.ts:309:2 › workspace search freshness (US4) › replaces stale title, path and body data across lifecycle changes (6.3s)
+  ✓  298 [chromium-mobile] › tests/e2e/search.spec.ts:386:2 › workspace search freshness (US4) › keeps reliable local results visible while the complete index rebuilds (1.7s)
+  ✓  299 [chromium-mobile] › tests/e2e/security-content-regression.spec.ts:34:2 › content survives the security foundation (T108) › a page created behind the gate is readable after a reload (2.6s)
+  ✓  300 [chromium-mobile] › tests/e2e/security-content-regression.spec.ts:49:2 › content survives the security foundation (T108) › a hierarchy of sealed titles keeps its shape and its order (3.7s)
+  ✓  301 [chromium-mobile] › tests/e2e/security-content-regression.spec.ts:72:2 › content survives the security foundation (T108) › renaming a sealed title takes effect and persists (1.7s)
+  ✓  302 [chromium-mobile] › tests/e2e/security-content-regression.spec.ts:99:2 › content survives the security foundation (T108) › the workspace loads without a rotation policy blocking it (1.7s)
+  ✓  303 [chromium-mobile] › tests/e2e/security-content-regression.spec.ts:112:2 › content survives the security foundation (T108) › nothing on the page exposes key material (1.5s)
+  ✓  304 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:276:2 › an installation with no kit › says so, in those words (1.4s)
+  ✓  305 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:285:2 › an installation with no kit › says what it would cost (1.4s)
+  ✓  306 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:294:2 › an installation with a kit › says the owner has one (1.4s)
+  ✓  307 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:302:2 › an installation with a kit › still requires the deployment key, and says so (1.4s)
+  ✓  308 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:313:2 › the deployment-key requirement › appears whether or not a kit exists (1.4s)
+  ✓  309 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:322:2 › replacing a kit › says the existing kit keeps working (1.4s)
+  ✓  310 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:333:2 › replacing a kit › offers the control without performing anything on load (1.5s)
+  ✓  311 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:343:2 › replacing a kit › downloads one compatible JSON artifact and atomically supersedes the old kit (1.8s)
+  ✓  312 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:421:2 › replacing a kit › refuses a second download without leaking the consumed artifact (1.5s)
+  ✓  313 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:440:2 › replacing a kit › requires the visible two-step revocation and shows its code (1.6s)
+  ✓  314 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:455:2 › replacing a kit › keeps a consumed pending state after reload without making it active (2.5s)
+  ✓  315 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:488:2 › at a narrow viewport › the readiness statement is readable on a phone (1.4s)
+  ✓  316 [chromium-mobile] › tests/e2e/security-recovery.spec.ts:496:2 › at a narrow viewport › the replacement confirmation remains usable without overflow (1.5s)
+  ✓  317 [chromium-mobile] › tests/e2e/security-rotation.spec.ts:160:2 › a healthy installation › shows both keys without alarming anyone (1.5s)
+  ✓  318 [chromium-mobile] › tests/e2e/security-rotation.spec.ts:181:2 › a healthy installation › never uses the schema's words for the keys (1.4s)
+  ✓  319 [chromium-mobile] › tests/e2e/security-rotation.spec.ts:199:2 › an overdue key › counts the days until saving pauses (1.4s)
+  ✓  320 [chromium-mobile] › tests/e2e/security-rotation.spec.ts:214:2 › a blocked installation › says the notes are still readable (1.5s)
+  ✓  321 [chromium-mobile] › tests/e2e/security-rotation.spec.ts:228:2 › a blocked installation › says what restores saving (1.5s)
+  ✓  322 [chromium-mobile] › tests/e2e/security-rotation.spec.ts:242:2 › a blocked installation › still serves the workspace behind the warning (1.5s)
+  ✓  323 [chromium-mobile] › tests/e2e/security-rotation.spec.ts:260:2 › a failed rotation › says nothing was lost (1.4s)
+  ✓  324 [chromium-mobile] › tests/e2e/security-rotation.spec.ts:277:2 › where rotation happens › says it is run on the host, not from this screen (1.4s)
+  ✓  325 [chromium-mobile] › tests/e2e/security-rotation.spec.ts:294:2 › at a narrow viewport › the warning is readable on a phone (1.4s)
+  ✓  326 [chromium-mobile] › tests/e2e/touch-and-motion.spec.ts:15:2 › touch and non-hover alternatives › item actions are tappable without hover and their menu stays in the viewport (1.7s)
+  ✓  327 [chromium-mobile] › tests/e2e/touch-and-motion.spec.ts:53:2 › touch and non-hover alternatives › the block context menu has a keyboard alternative and restores the editor focus (1.8s)
+  ✓  328 [chromium-mobile] › tests/e2e/touch-and-motion.spec.ts:78:2 › reduced motion › motion is suppressed while the save status remains visible (1.5s)
+  -  329 [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:45:0 › matches the light search surface
+  -  330 [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:78:0 › matches the dark empty-database surface
+  ✓  331 [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:122:2 › matches the light mobile navigation surface (1.3s)
+  ✓  332 [chromium-mobile] › tests/e2e/v1-surface-visuals.spec.ts:122:2 › matches the dark mobile security surface (1.3s)
+  ✓  333 [chromium-mobile] › tests/e2e/wait-witnesses.spec.ts:57:0 › the navigation witness fails when the selection is never committed (14.0s)
+  ✓  334 [chromium-mobile] › tests/e2e/wait-witnesses.spec.ts:83:0 › the navigation witness resolves after the write's transaction completes (2.5s)
+  ✓  335 [chromium-mobile] › tests/e2e/wait-witnesses.spec.ts:110:0 › the definition and entry witnesses fail when the gesture wrote nothing (16.1s)
+  ✓  336 [chromium-mobile] › tests/e2e/workspace-settings-boundary.spec.ts:34:0 › settings stay outside the document and returning restores item, focus and scroll (4.1s)
+  ✓  337 [chromium-mobile] › tests/e2e/workspace-settings-boundary.spec.ts:126:0 › the narrow settings navigation keeps its own horizontal scroll boundary down to 320px (1.4s)
+  -  338 [chromium-mobile] › tests/e2e/workspace-shell-visual.spec.ts:156:2 › matches the controlled light shell reference
+  -  339 [chromium-mobile] › tests/e2e/workspace-shell-visual.spec.ts:172:2 › matches the controlled light settings reference
+  -  340 [chromium-mobile] › tests/e2e/workspace-shell-visual.spec.ts:156:2 › matches the controlled dark shell reference
+  -  341 [chromium-mobile] › tests/e2e/workspace-shell-visual.spec.ts:172:2 › matches the controlled dark settings reference
+  ✓  342 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:22:0 › welcomes an empty workspace on a page-shaped canvas and opens its first page (1.8s)
+  ✓  343 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:43:0 › recovers the same local page after an explicit storage initialization refusal (3.9s)
+  ✓  344 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:90:0 › keeps settings visible while a long navigation tree scrolls on desktop and mobile (4.6s)
+  -  345 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:170:2 › focused workspace shell › collapses and restores the desktop sidebar through a real intermediate width
+  ✓  346 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:226:2 › focused workspace shell › keeps identity, path and device context coherent through mutations and reload (3.5s)
+  ✓  347 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:296:2 › focused workspace shell › uses a modal touch drawer and returns focus when it closes (1.6s)
+  ✓  348 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:325:2 › focused workspace shell › keeps retired shortcut sections absent after reload (2.5s)
+  ✓  349 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:346:2 › focused workspace shell › edits the page title in the document without remounting the editor (1.6s)
+  ✓  350 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:381:2 › focused workspace shell › edits a folder title and emoji from the main canvas (1.7s)
+  ✓  351 [chromium-mobile] › tests/e2e/workspace-shell.spec.ts:409:2 › focused workspace shell › expands a folder on click and opens it on double-click (3.6s)
+  ✘  352 [chromium-mobile] › tests/e2e/workspace-tabs-folder.spec.ts:28:0 › keeps tabs, a deep path and folder ordering coherent at desktop and phone widths (18.4s)
+
+
+  1) [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:112:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('region', { name: /^Done \u00B7/ }).locator('.database-card').filter({ hasText: 'Beta visual-mwl50sqx-nwxvp' })
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('region', { name: /^Done \u00B7/ }).locator('.database-card').filter({ hasText: 'Beta visual-mwl50sqx-nwxvp' }) with timeout 15000ms
+      - waiting for getByRole('region', { name: /^Done \u00B7/ }).locator('.database-card').filter({ hasText: 'Beta visual-mwl50sqx-nwxvp' })
+
+
+      147 |   await openBoardMoveMenu(page, page, beta, true);
+      148 |   await page.getByRole("menuitem", { name: "Done", exact: true }).press("Enter");
+    > 149 |   await expect(doneColumn.locator(".database-card").filter({ hasText: beta })).toBeVisible({
+          |                                                                               ^
+      150 |     timeout: 15_000,
+      151 |   });
+      152 |
+        at /Users/enzofournet/Git/MyOwnNotion/tests/e2e/databases-visual-views.spec.ts:149:79
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/chromium-mobile/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/chromium-mobile/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/chromium-mobile/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/chromium-mobile/databases-visual-views-use-562f5-keyboard-and-narrow-layouts-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:18:0 › edits math, preserves invalid source and supports history, slash and offline navigation
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('[data-testid="block-editor"]:visible').locator('[data-id="01a1eb2c-4c86-7001-96b9-dba0c75302be"] .bn-block-content').first()
+    Expected substring: "/latex"
+    Received string:    ""
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "toContainText" locator('[data-testid="block-editor"]:visible').locator('[data-id="01a1eb2c-4c86-7001-96b9-dba0c75302be"] .bn-block-content').first() with timeout 10000ms
+      - waiting for locator('[data-testid="block-editor"]:visible').locator('[data-id="01a1eb2c-4c86-7001-96b9-dba0c75302be"] .bn-block-content').first()
+        - locator resolved to <div class="bn-block-content" data-content-type="paragraph">…</div>
+        23 × unexpected value ""
+           - locator resolved to <div class="bn-block-content" data-content-type="paragraph" data-is-empty-and-focused="true">…</div>
+        - unexpected value ""
+
+
+      80 |   await blankContent.click();
+      81 |   await page.keyboard.type("/latex");
+    > 82 |   await expect(blankContent).toContainText("/latex");
+         |                             ^
+      83 |   await page.getByRole("option", { name: /^Équation/ }).click();
+      84 |   await editor.getByRole("textbox", { name: "Source LaTeX" }).fill("a^2+b^2=c^2");
+      85 |   await editor.getByRole("button", { name: "Appliquer", exact: true }).click();
+        at /Users/enzofournet/Git/MyOwnNotion/tests/e2e/editor-math-contents.spec.ts:82:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/chromium-mobile/editor-math-contents-edits-98f2f-lash-and-offline-navigation-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/chromium-mobile/editor-math-contents-edits-98f2f-lash-and-offline-navigation-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/chromium-mobile/editor-math-contents-edits-98f2f-lash-and-offline-navigation-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/chromium-mobile/editor-math-contents-edits-98f2f-lash-and-offline-navigation-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium-mobile] › tests/e2e/workspace-tabs-folder.spec.ts:28:0 › keeps tabs, a deep path and folder ordering coherent at desktop and phone widths
+
+    Error: expect(received).not.toBeNull()
+
+    Received: null
+
+    Call Log:
+    - Timeout 10000ms exceeded while waiting on the predicate
+
+      236 |       }),
+      237 |     )
+    > 238 |     .not.toBeNull();
+          |         ^
+      239 |   await page.keyboard.down("Space");
+      240 |   await expect(firstRow).not.toHaveAttribute("data-dragging", "true");
+      241 |   await page.keyboard.up("Space");
+        at /Users/enzofournet/Git/MyOwnNotion/tests/e2e/workspace-tabs-folder.spec.ts:238:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/chromium-mobile/workspace-tabs-folder-keep-99012-at-desktop-and-phone-widths-chromium-mobile/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/chromium-mobile/workspace-tabs-folder-keep-99012-at-desktop-and-phone-widths-chromium-mobile/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/chromium-mobile/workspace-tabs-folder-keep-99012-at-desktop-and-phone-widths-chromium-mobile/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/chromium-mobile/workspace-tabs-folder-keep-99012-at-desktop-and-phone-widths-chromium-mobile/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [chromium-mobile] › tests/e2e/databases-visual-views.spec.ts:112:0 › uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts
+    [chromium-mobile] › tests/e2e/editor-math-contents.spec.ts:18:0 › edits math, preserves invalid source and supports history, slash and offline navigation
+    [chromium-mobile] › tests/e2e/workspace-tabs-folder.spec.ts:28:0 › keeps tabs, a deep path and folder ordering coherent at desktop and phone widths
+  25 skipped
+  324 passed (19.9m)
+error: "playwright" exited with code 1

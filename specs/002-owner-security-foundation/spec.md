@@ -5,6 +5,12 @@
 **Status**: Ready
 **Input**: Update the existing Owner Security Foundation feature while preserving the permanent single-owner boundary, feature-001 canonical identities, product-canvas scope and exclusions, and existing requirement IDs where practical.
 
+> **Superseded in part by [058 Multi-user accounts](../064-multi-user-accounts/spec.md)
+> (2026-11-16)**: the single-owner boundary, the multi-step bootstrap with
+> recovery-kit download and the owner-only identity no longer apply. Each
+> account owns one workspace; bootstrap creates the administrator. Remaining
+> requirements apply per account.
+
 ## Product Direction, Dependencies, and Scope
 
 This feature specifies the security foundation for the single-owner installation described by product-canvas sections 5 (owner boundary), 8 (authentication and sessions), 9 (authorized devices), 28 (encryption and key management), 29 (security and privacy), 34 (administrative commands), 35 (observability and audit), 36–41 (official self-hosted deployment and delivery), and roadmap feature 002.

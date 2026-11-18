@@ -171,7 +171,12 @@ export class AdministrativeRecoveryService {
    */
   async import(
     kit: RecoveryKit,
-    options: { ownerId?: string } = {},
+    options: {
+      ownerId?: string;
+      /** The adopted administrator's identity (feature 058). */
+      administratorEmail: string;
+      administratorPseudonym: string;
+    },
   ): Promise<RecoveryImportResult> {
     const key = this.#deps.deploymentKey();
     if (key === null) {
@@ -225,6 +230,8 @@ export class AdministrativeRecoveryService {
           workspaceId: workspaceIdOf(kit),
           workspaceSchemaVersion: 1,
           ownerId,
+          administratorEmail: options.administratorEmail,
+          administratorPseudonym: options.administratorPseudonym,
           wrappedRootKey: encodeWrapped(wrapped),
           rootKeyVersion: 1,
           wrappingKeyVersionId,

@@ -120,7 +120,11 @@ for (const cancel of [false, true]) {
       // the composer and then asserts the guarantee that matters: the name
       // typed before the cancelled press is still there.
       await ensureNewPropertyComposer(page);
-      await expect(name).toHaveValue("Notes");
+      const restoredDraft = await name.inputValue();
+      await expect(
+        name,
+        `the composer's draft after a cancelled press, got: ${JSON.stringify(restoredDraft)}`,
+      ).toHaveValue("Notes");
       await expect(createdColumns).toHaveCount(0);
       await type.focus();
       await page.keyboard.press("Enter");

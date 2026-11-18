@@ -284,6 +284,23 @@
       }
     },
     {
+      "test": "tests/e2e/accounts.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/accounts.ts",
+          "apps/api/src/security/account-service.ts",
+          "apps/api/src/workspace-scope.ts",
+          "apps/web/src/features/auth/signup-page.tsx",
+          "apps/web/src/features/settings/account-settings.tsx",
+          "apps/web/src/features/settings/administration-settings.tsx",
+          "packages/database/src/repositories/security/account-repository.ts",
+          "packages/database/src/workspace-fence.ts"
+        ],
+        "prefixes": [],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/authentication.spec.ts",
       "owners": {
         "exact": [
@@ -346,9 +363,11 @@
       "test": "tests/e2e/bootstrap.spec.ts",
       "owners": {
         "exact": [
-          "apps/api/src/routes/bootstrap.ts",
+          "apps/api/src/routes/accounts.ts",
           "apps/api/src/routes/installation.ts",
-          "apps/web/src/features/auth/bootstrap-page.tsx"
+          "apps/api/src/security/account-service.ts",
+          "apps/web/src/features/auth/bootstrap-page.tsx",
+          "apps/web/src/features/auth/passkey-enrollment.ts"
         ],
         "prefixes": ["apps/api/src/security/bootstrap-", "packages/domain/src/security/bootstrap"],
         "suffixes": []
@@ -689,6 +708,17 @@
     },
     {
       "test": "tests/e2e/knowledge-graph.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/services/local-content.ts",
+          "packages/client-core/src/local-store/local-repository.ts"
+        ],
+        "prefixes": ["apps/web/src/features/knowledge-graph/", "packages/graph/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/knowledge-graph-live.spec.ts",
       "owners": {
         "exact": [
           "apps/web/src/services/local-content.ts",

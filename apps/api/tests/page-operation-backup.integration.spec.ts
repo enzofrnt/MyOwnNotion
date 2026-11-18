@@ -31,6 +31,7 @@ import { loadSecurityConfig } from "../src/security/security-config.ts";
 import {
   type AuthenticatedPageOperationHarness,
   createAuthenticatedPageOperationHarness,
+  PAGE_OPERATION_OWNER_ID,
 } from "./helpers/authenticated-page-operations.ts";
 
 let harness: AuthenticatedPageOperationHarness;
@@ -122,14 +123,14 @@ async function sync(input: {
 }
 
 function checkpoints() {
-  const service = harness.api.built.pageCheckpoints;
+  const service = harness.api.built.forWorkspace(harness.api.workspaceId).pageCheckpoints;
   if (service === undefined) throw new Error("page checkpoint service is unavailable");
   return service;
 }
 
 function backupRuntime(destination: FilesystemDestination) {
   return new BackupService({
-    context: harness.api.built.context,
+    context: harness.api.context,
     destination,
     applicationVersion: "0.1.0-operation-test",
     seal: async (plaintext, sealedPath) =>
@@ -142,8 +143,8 @@ function backupRuntime(destination: FilesystemDestination) {
 
 async function produceBackup(destination: FilesystemDestination) {
   const result = await runBackupCommand({
-    db: harness.api.built.context.db,
-    workspaceId: harness.api.built.context.workspaceId,
+    db: harness.api.context.db,
+    workspaceId: harness.api.workspaceId,
     service: backupRuntime(destination),
     destination,
   });
@@ -162,13 +163,13 @@ async function produceBackup(destination: FilesystemDestination) {
 async function rehearseBackup(destination: FilesystemDestination, backupId: string) {
   const result = await restoreTestCommand(
     {
-      db: harness.api.built.context.db,
+      db: harness.api.context.db,
       databaseUrl: harness.api.postgres.connectionString,
-      workspaceId: harness.api.built.context.workspaceId,
+      workspaceId: harness.api.workspaceId,
       destination,
       open: async (ciphertext) => ciphertext,
       installation: {
-        schemaVersion: harness.api.built.context.schemaVersion,
+        schemaVersion: harness.api.context.schemaVersion,
         recordFormatVersion: 1,
       },
     },
@@ -178,7 +179,9 @@ async function rehearseBackup(destination: FilesystemDestination, backupId: stri
 }
 
 async function restoreBackup(archive: Buffer) {
-  const pageOperationCrypto = harness.api.built.pageOperationCrypto;
+  const pageOperationCrypto = harness.api.built.forWorkspace(
+    harness.api.workspaceId,
+  ).pageOperationCrypto;
   if (pageOperationCrypto === undefined) {
     throw new Error("page operation crypto is unavailable");
   }
@@ -187,13 +190,12 @@ async function restoreBackup(archive: Buffer) {
       archive,
       createDatabaseRestoreTarget({
         tx,
-        workspaceId: harness.api.built.context.workspaceId,
-        contentStore: harness.api.built.context.contentStore,
-        prepare: async () =>
-          await clearWorkspaceForRestore(tx, harness.api.built.context.workspaceId),
-        ...(harness.api.built.context.protectedContent === undefined
+        workspaceId: harness.api.workspaceId,
+        contentStore: harness.api.context.contentStore,
+        prepare: async () => await clearWorkspaceForRestore(tx, harness.api.workspaceId),
+        ...(harness.api.context.protectedContent === undefined
           ? {}
-          : { protectedContent: harness.api.built.context.protectedContent }),
+          : { protectedContent: harness.api.context.protectedContent }),
         pageOperationCrypto,
       }),
     );
@@ -440,7 +442,9 @@ describe("operational backup and restore", () => {
     };
     if (tampered.pages[0] === undefined) throw new Error("the archived page is missing");
     tampered.pages[0].canonicalDigest = "0".repeat(64);
-    const archiveService = harness.api.built.pageOperationArchive;
+    const archiveService = harness.api.built.forWorkspace(
+      harness.api.workspaceId,
+    ).pageOperationArchive;
     if (archiveService === undefined) throw new Error("page operation archive is unavailable");
     await expect(
       archiveService.verify(
@@ -625,6 +629,7 @@ it("round-trips every SQL table in a full archive and accepts an offline replica
       method: "POST",
       url: "/v1/auth/login/password",
       payload: {
+        email: `${PAGE_OPERATION_OWNER_ID}@example.test`,
         password: "correct horse battery staple",
         device: {
           deviceBindingId: absentBinding,

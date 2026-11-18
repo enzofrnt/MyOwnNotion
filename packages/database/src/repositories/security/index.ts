@@ -6,8 +6,8 @@
  * append-only audit repository every later phase writes through.
  */
 
+export * from "./account-repository.ts";
 export * from "./audit-repository.ts";
-export * from "./bootstrap-repository.ts";
 export * from "./credential-repository.ts";
 export * from "./device-repository.ts";
 export * from "./file-storage-transition-repository.ts";

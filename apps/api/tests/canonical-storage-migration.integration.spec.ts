@@ -27,7 +27,7 @@ const v0SourceBackup = (backupId: string) => ({
 it("migrates authored legacy placeholder names without confusing them with scrub state", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedContent: content, protectedFiles: files } = harness.built.context;
+    const { db, protectedContent: content, protectedFiles: files } = harness.context;
     if (content === undefined || files === undefined) throw new Error("Missing protected runtime");
     const page = await createItemViaApi(harness, {
       kind: "page",
@@ -200,7 +200,7 @@ it("migrates authored legacy placeholder names without confusing them with scrub
 it("revalidates retired canonical metadata before completing the transition", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const page = await createItemViaApi(harness, { kind: "page", name: "Completion guard" });
     const records = new ProtectedRecordService({
@@ -297,7 +297,7 @@ it("revalidates retired canonical metadata before completing the transition", as
 it("migrates an authored legacy protected payload in a page and retained snapshot", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedContent: content, protectedFiles: files } = harness.built.context;
+    const { db, protectedContent: content, protectedFiles: files } = harness.context;
     if (content === undefined || files === undefined) throw new Error("Missing protected runtime");
     const page = await createItemViaApi(harness, { kind: "page", name: "Legacy payload page" });
     const snapshot = await content.readRevisionSnapshot<Record<string, unknown>>(
@@ -367,7 +367,7 @@ it("migrates an authored legacy protected payload in a page and retained snapsho
 it("migrates authored legacy protected relationship metadata", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedContent: content, protectedFiles: files } = harness.built.context;
+    const { db, protectedContent: content, protectedFiles: files } = harness.context;
     if (content === undefined || files === undefined) throw new Error("Missing protected runtime");
     const source = await createItemViaApi(harness, { kind: "page", name: "Legacy source" });
     const target = await createItemViaApi(harness, { kind: "page", name: "Legacy target" });
@@ -443,7 +443,7 @@ it.each(["missing", "modern"] as const)(
   async (provenance) => {
     const harness = await createProtectedFileHarness();
     try {
-      const { db, protectedContent: content, protectedFiles: files } = harness.built.context;
+      const { db, protectedContent: content, protectedFiles: files } = harness.context;
       if (content === undefined || files === undefined)
         throw new Error("Missing protected runtime");
       const page = await createItemViaApi(harness, { kind: "page", name: "Provenance guard" });
@@ -498,7 +498,7 @@ it.each(["missing", "modern"] as const)(
 it("resumes private historical metadata backfill without replacing authoritative envelopes with stale readable copies", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const page = await createItemViaApi(harness, {
       kind: "page",
@@ -662,7 +662,7 @@ it("resumes private historical metadata backfill without replacing authoritative
 it("protects historical database definitions, views and entry values while retaining their current API representation", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedFiles: files } = harness.built.context;
+    const { db, protectedFiles: files } = harness.context;
     if (files === undefined) throw new Error("Missing protected runtime");
     const databaseId = generateUuidV7();
     const propertyId = generateUuidV7();
@@ -836,7 +836,7 @@ it("protects historical database definitions, views and entry values while retai
 it("refuses unavailable canonical identities and damaged retained snapshots before sealing anything", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedContent: content } = harness.built.context;
+    const { db, protectedContent: content } = harness.context;
     if (content === undefined) throw new Error("Missing protected content");
     for (const category of ["item", "revision", "relationship", "export"] as const) {
       await expect(
@@ -906,7 +906,7 @@ it("refuses unavailable canonical identities and damaged retained snapshots befo
 it("protects export descriptors only if both their captured and replacement values agree", async () => {
   const harness = await createProtectedFileHarness();
   try {
-    const { db, protectedContent: content, workspaceId } = harness.built.context;
+    const { db, protectedContent: content, workspaceId } = harness.context;
     if (content === undefined) throw new Error("Missing protected content");
     const entityId = generateUuidV7();
     const manifest = { filename: "private exported descriptor", files: [] };
