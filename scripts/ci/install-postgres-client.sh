@@ -29,7 +29,9 @@ Components: main
 Signed-By: /usr/share/keyrings/myownnotion-postgresql.asc
 EOF
 apt-get update
-apt-get install -y --no-install-recommends "postgresql-client-18=${pg_package}" "libpq5=${pg_package}"
+# Pin the dump/restore tools, not their shared library: the client package
+# declares the minimum compatible libpq5 and APT can keep a newer one installed.
+apt-get install -y --no-install-recommends "postgresql-client-18=${pg_package}"
 /usr/lib/postgresql/18/bin/pg_dump --version
 /usr/lib/postgresql/18/bin/pg_restore --version
 rm -rf /var/lib/apt/lists/*
