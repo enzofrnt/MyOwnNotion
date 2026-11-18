@@ -332,11 +332,12 @@ jobs:
     runs-on: ubuntu-24.04
     needs: impact
     # A lane carrying a small selected diff takes ten to fifteen minutes. A
-    # change broad enough to select the whole browser corpus doubles that: the
-    # measured lanes reached thirty minutes, and a thirty-minute budget cancelled
-    # them mid-journey, which reads as a failed lane while no assertion failed.
-    # A hung lane still cannot hold the run for the six-hour default.
-    timeout-minutes: 45
+    # change broad enough to select the whole browser corpus doubles that, and a
+    # loaded runner doubles it again: measured lanes reached thirty minutes, then
+    # forty-five on two separate runs, each time cancelled mid-journey and read as
+    # a failed lane while no assertion failed. A hung lane still cannot hold the
+    # run for the six-hour default.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:

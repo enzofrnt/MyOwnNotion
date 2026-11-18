@@ -264,9 +264,10 @@ describe("affected test topology", () => {
     );
     const block = /\n {2}e2e:\n([\s\S]*?)\n {2}build:\n/.exec(ci)?.[1] ?? "";
     expect(block).toContain("fail-fast: false");
-    // A full-corpus lane measured thirty minutes; the budget must not cancel a
-    // lane that is still working through its journeys.
-    expect(block).toContain("timeout-minutes: 45");
+    // Full-corpus lanes measured thirty and then forty-five minutes on loaded
+    // runners; the budget must not cancel a lane still working through its
+    // journeys.
+    expect(block).toContain("timeout-minutes: 60");
   });
 
   it("merges the lane reports and accounts for every journey in a blocking job", () => {
