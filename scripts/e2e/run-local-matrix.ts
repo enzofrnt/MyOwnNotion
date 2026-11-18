@@ -324,18 +324,36 @@ function run(
   });
 }
 
+/**
+ * Provisioning resilience, not test resilience.
+ *
+ * The freshly created per-stack database is reached while the CI database
+ * service is still settling: on the Windows runners the first connection is
+ * regularly reset (`read ECONNRESET`) before a single statement runs. A setup
+ * migration that never got a session is retried a bounded number of times; an
+ * actual migration failure (a statement, a schema verdict) is never retried and
+ * still fails the run with its own output.
+ */
+const TRANSIENT_PROVISIONING_ERROR = /ECONNRESET|ECONNREFUSED|57P01|terminating connection/i;
+const MIGRATION_ATTEMPTS = 4;
+
 async function migrate(stack: Stack): Promise<void> {
-  const { code, output } = await run("bun", ["scripts/db/migrate.ts"], {
-    DATABASE_URL: stack.databaseUrl,
-    ...(stack.blobRoot === undefined ? {} : { MYOWNNOTION_BLOB_ROOT: stack.blobRoot }),
-    ...(stack.backupRoot === undefined ? {} : { MYOWNNOTION_BACKUP_ROOT: stack.backupRoot }),
-    ...(stack.deploymentKeyFile === undefined
-      ? {}
-      : { MYOWNNOTION_DEPLOYMENT_KEY_FILE: stack.deploymentKeyFile }),
-  });
-  if (code !== 0) {
-    throw new Error(`migrating ${stack.databaseName} failed:\n${output}`);
+  let lastOutput = "";
+  for (let attempt = 1; attempt <= MIGRATION_ATTEMPTS; attempt += 1) {
+    const { code, output } = await run("bun", ["scripts/db/migrate.ts"], {
+      DATABASE_URL: stack.databaseUrl,
+      ...(stack.blobRoot === undefined ? {} : { MYOWNNOTION_BLOB_ROOT: stack.blobRoot }),
+      ...(stack.backupRoot === undefined ? {} : { MYOWNNOTION_BACKUP_ROOT: stack.backupRoot }),
+      ...(stack.deploymentKeyFile === undefined
+        ? {}
+        : { MYOWNNOTION_DEPLOYMENT_KEY_FILE: stack.deploymentKeyFile }),
+    });
+    if (code === 0) return;
+    lastOutput = output;
+    if (!TRANSIENT_PROVISIONING_ERROR.test(output) || attempt === MIGRATION_ATTEMPTS) break;
+    await Bun.sleep(500 * attempt);
   }
+  throw new Error(`migrating ${stack.databaseName} failed:\n${lastOutput}`);
 }
 
 async function buildWebApplication(): Promise<void> {
