@@ -6,11 +6,11 @@ set -uo pipefail
 umask 077
 
 case "${1:-}" in
-unit | contract) group=$1 ;;
-*)
-    echo "Expected failed original group: unit or contract" >&2
-    exit 2
-    ;;
+    unit | contract) group=$1 ;;
+    *)
+        echo "Expected failed original group: unit or contract" >&2
+        exit 2
+        ;;
 esac
 out="filesystem-trace-$group"
 mkdir -p "$out"
