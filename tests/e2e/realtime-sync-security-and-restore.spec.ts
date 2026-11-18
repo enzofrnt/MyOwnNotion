@@ -191,9 +191,23 @@ test("a restore accepts newer offline work instead of replacing it", async ({
     await openWorkspace(verifier.page);
     await selectItem(verifier.page, pageName);
     await waitForEditorSettled(verifier.page);
-    await expect(verifier.page.locator('[data-testid="block-editor"]:visible')).not.toContainText(
-      "version serveur à restaurer",
-    );
+    // The restore writes the canonical state; what a client reads follows the
+    // restored projection, which is rebuilt for the server to be consistent
+    // again. Wait for that convergence instead of reading the previous
+    // projection, and name what a reader still saw if it does not converge.
+    const restoredEditor = verifier.page.locator('[data-testid="block-editor"]:visible');
+    await expect
+      .poll(
+        async () => {
+          const text = await restoredEditor.innerText().catch(() => "");
+          return text.includes("version serveur à restaurer") ? text.slice(0, 400) : null;
+        },
+        {
+          message: "the reader stops seeing the pre-restore server text",
+          timeout: 20_000,
+        },
+      )
+      .toBeNull();
     await verifier.context.close();
     verifier = null;
 
