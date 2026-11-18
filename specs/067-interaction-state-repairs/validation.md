@@ -142,7 +142,21 @@ selection is ambiguous, validates the target, and never creates an implicit targ
 The journey supplies the workspace belonging to its authenticated account to both
 backup and restore. The CLI integration suite passes all six tests with PG18 tools.
 The restored-reader probe no longer treats an absent editor as successful recovery.
-Final attribution of the CI failure remains pending the new browser and CI runs.
+CI run 44262119733 (commit 290c62fd, including the target-selection fix)
+passes chromium-desktop lane 2/2, which contains the restoration journey. All
+five native desktop jobs and the container scan also pass. The combined local
+API/workspace contracts pass 165 files / 1,937 tests. This CI run instead fails
+before collecting `write-guarantees.spec.ts`: Vite's native `realpath` reports
+ENOENT after its file stat succeeded. No assertion in that suite ran. The cause
+of that loader failure is not established; the earlier EBADF attribution remains
+unproved. A CI-only Vitest reporter now records independent lstat/stat/native
+realpath/realpath metadata for the failed module and parent paths, without file
+contents. Metadata is sampled after the collection error, not atomically at the
+failing syscall. Four contract tests include a real child with an ENOENT import:
+it emits exactly one diagnostic and still exits 1, like the default reporter.
+No suite is retried or skipped, and reporter errors cannot replace the original
+failure. Format, lint and monorepo types pass. The next CI is diagnostic evidence,
+not proof that the underlying loader failure has been repaired.
 
 ### Removal of speculative CI workarounds
 
