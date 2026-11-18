@@ -19,6 +19,7 @@ import {
   canonicalExportString,
   canonicalStructuredDataString,
 } from "@myownnotion/domain";
+import type { Page } from "@playwright/test";
 import pg from "pg";
 import { sealBackupArchive } from "../../apps/api/src/backup/archive-crypto.ts";
 import { encodeBackupArchive } from "../../apps/api/src/backup/archive-format.ts";
@@ -34,15 +35,43 @@ function connectionString(): string {
   );
 }
 
-async function seedVerifiedBackup(checkedAt: Date): Promise<void> {
+/**
+ * The workspace this browser is actually signed in to.
+ *
+ * Feature 058 gives every account its own workspace, and a lane runs several
+ * account journeys before this file. Resolving the workspace with `LIMIT 1`
+ * therefore seeds a backup into somebody else's workspace: the server rehearses
+ * the signed-in account's workspace, finds no verified backup and refuses with
+ * "no such backup" — a failure that looks like the rehearsal is broken.
+ */
+async function signedInWorkspaceId(page: Page): Promise<string> {
+  const account = await page.evaluate(async () => {
+    const response = await fetch("/v1/me");
+    if (!response.ok) throw new Error(`authenticated account lookup failed: ${response.status}`);
+    return (await response.json()) as { accountId: string };
+  });
   const client = new pg.Client({ connectionString: connectionString() });
   await client.connect();
   try {
-    const workspace = await client.query<{ id: string }>("SELECT id FROM workspaces LIMIT 1");
-    const workspaceId = workspace.rows[0]?.id;
+    const owner = await client.query<{ workspace_id: string }>(
+      "SELECT workspace_id FROM owners WHERE id = $1",
+      [account.accountId],
+    );
+    const workspaceId = owner.rows[0]?.workspace_id;
     if (workspaceId === undefined) {
-      throw new Error("the backup journey has no workspace to protect");
+      throw new Error("the signed-in account has no workspace to protect");
     }
+    return workspaceId;
+  } finally {
+    await client.end();
+  }
+}
+
+async function seedVerifiedBackup(page: Page, checkedAt: Date): Promise<void> {
+  const workspaceId = await signedInWorkspaceId(page);
+  const client = new pg.Client({ connectionString: connectionString() });
+  await client.connect();
+  try {
     const backupId = randomUUID();
     const remoteName = `seeded-${backupId}.tar`;
     const canonicalManifest = buildCanonicalExport({
@@ -145,9 +174,9 @@ async function makeLastVerificationStale(): Promise<void> {
 test("a verified backup is visible, and becomes a plain warning after 26 hours", async ({
   page,
 }, testInfo) => {
-  await seedVerifiedBackup(new Date());
-  await (await fullBackupSetup()).service.run("manual");
   await openWorkspace(page);
+  await seedVerifiedBackup(page, new Date());
+  await (await fullBackupSetup()).service.run("manual");
 
   await openSettingsSection(page, "backups");
   await expect(page.getByTestId("full-backup-local-status")).toContainText(
@@ -240,9 +269,9 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
 test("the owner can rehearse the latest backup without touching the live workspace", async ({
   page,
 }) => {
-  await seedVerifiedBackup(new Date());
-  await (await fullBackupSetup()).service.run("manual");
   await openWorkspace(page);
+  await seedVerifiedBackup(page, new Date());
+  await (await fullBackupSetup()).service.run("manual");
   await openSettingsSection(page, "backups");
 
   await page.getByTestId("run-full-rehearsal").click();
