@@ -15,7 +15,7 @@
   "dependencies": {
     "@myownnotion/database": "workspace:*",
     "@myownnotion/domain": "workspace:*",
-    "@testcontainers/postgresql": "^11.11.1",
+    "@testcontainers/postgresql": "^12.2.1",
     "fast-check": "^4.10.2",
     "pg": "^8.23.1"
   },
