@@ -2063,21 +2063,27 @@ const ACCOUNT_STORE_PREFIX = `${localDatabaseNameFor("")}`;
  * store is unambiguous. Several are not, and guessing there would open another
  * account's content, so the answer is `null` — the workspace then states that it
  * has nothing rather than showing somebody else's data.
+ *
+ * Only a store *named after an account id* counts. The account registry itself
+ * shares the prefix (`myownnotion-local-accounts`), and counting it made a device
+ * with one account look like a device with two: discovery then refused to choose
+ * and the offline start opened the empty legacy store.
  */
+const ACCOUNT_ID_SUFFIX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function discoverLocalAccountFromStores(): Promise<string | null> {
   const list = globalThis.indexedDB?.databases;
   if (typeof list !== "function") return null;
   try {
-    const names = (await list.call(globalThis.indexedDB))
+    const accounts = (await list.call(globalThis.indexedDB))
       .map((entry) => entry.name)
-      .filter(
-        (name): name is string =>
-          typeof name === "string" &&
-          name.startsWith(ACCOUNT_STORE_PREFIX) &&
-          name.length > ACCOUNT_STORE_PREFIX.length,
-      );
-    if (names.length !== 1) return null;
-    return names[0]?.slice(ACCOUNT_STORE_PREFIX.length) ?? null;
+      .filter((name): name is string => typeof name === "string")
+      // `ACCOUNT_STORE_PREFIX` already ends with the separator.
+      .filter((name) => name.startsWith(ACCOUNT_STORE_PREFIX))
+      .map((name) => name.slice(ACCOUNT_STORE_PREFIX.length))
+      .filter((suffix) => ACCOUNT_ID_SUFFIX.test(suffix));
+    if (accounts.length !== 1) return null;
+    return accounts[0] ?? null;
   } catch {
     return null;
   }

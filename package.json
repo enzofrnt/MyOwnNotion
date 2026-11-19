@@ -73,7 +73,9 @@
     "notion:extract": "bun scripts/notion-lab/extract.ts",
     "notion:parity:capture": "bun scripts/notion-parity/capture.ts",
     "notion:parity:compare": "bun scripts/notion-parity/compare.ts",
-    "notion:parity:verify": "bun scripts/notion-parity/verify.ts"
+    "notion:parity:verify": "bun scripts/notion-parity/verify.ts",
+    "stacks:audit": "bun scripts/dev/stack.ts --audit",
+    "dev:stack:audit": "bun scripts/dev/stack.ts --audit"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

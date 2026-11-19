@@ -214,3 +214,28 @@ jamais d'une intuition.
   vivant : il a volé un curseur légitime pendant la transition clic → sélection.
 - Preuve : sonde instrumentée (curseur par bloc à chaque étape), mesure du
   marqueur image par image (deux images), puis parcours vert sur les cinq moteurs.
+
+### L-011 — Lancer une suite projet par projet fabrique des stacks orphelines
+- Statut : validée (session 2026-11-18, PR #213) ; norme promue dans la
+  constitution, article IX, et `docs/testing/parallel-stacks.md`.
+- Surface : exécution locale des parcours (`run-local-matrix.ts`,
+  `test-e2e-local.sh`), Compose, PostgreSQL.
+- Symptôme : une seule session de travail a laissé quatre projets Compose
+  (`myownnotion`, `myownnotion-dev`, `mn059-investigation`, `myownnotion-057-e2e`),
+  quatre serveurs PostgreSQL, vingt volumes, quatre réseaux, un conteneur
+  `oven/bun` sans projet et deux bases abandonnées
+  (`myownnotion_e2e_lane_repro`, `mon_e2e_chromium_desktop_e06251`).
+- Anti-pattern : lancer `--project chromium-desktop` fichier par fichier « pour
+  aller plus vite », ou `MYOWNNOTION_E2E_JOBS=1` pour valider un correctif. Chaque
+  lancement recrée une stack, mais rien ne la nomme, ne la date ni ne la ferme ;
+  le nettoyage en `finally` ne survit pas à un `SIGKILL`.
+- Règle : une suite multi-projets se lance par `bun run test:e2e:gate`
+  (parallèle, `MYOWNNOTION_E2E_JOBS` ≥ 2) ; `=1` est réservé à la reproduction
+  d'un échec nommé, consignée dans `validation.md`. Toute stack porte
+  `com.myownnotion.stack` et `com.myownnotion.ephemeral=true`, avec un nom de
+  projet Compose explicite. Une session se termine par `bun run stacks:audit`,
+  qui échoue tant qu'une stack éphémère existe.
+- Preuve : l'audit, exécuté sur la machine, nomme les trois stacks éphémères et
+  sort en code 1 ; ses contrats (`tests/contract/stack-audit.spec.ts`) pilotent un
+  `docker` contrôlé et vérifient l'échec, les commandes de récupération exactes et
+  l'impossibilité d'un audit muet.

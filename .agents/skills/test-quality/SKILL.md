@@ -57,6 +57,24 @@ Un vert local répété ne réfute pas un échec CI : cela prouve seulement que 
 fenêtre est rare. Chercher la même signature dans les preuves conservées, puis
 l'état qui a changé (L-004, L-005). Une relance verte n'est pas une correction.
 
+## Exécution parallèle et hygiène des stacks
+
+Norme opposable : [`docs/testing/parallel-stacks.md`](../../../docs/testing/parallel-stacks.md)
+(constitution, article IX). En résumé vérifiable :
+
+- Une suite multi-projets se lance par `bun run test:e2e:gate` (ou
+  `test:e2e:local`), jamais projet par projet. `MYOWNNOTION_E2E_JOBS=1` est
+  réservé à la reproduction d'un échec nommé, et cette usage se consigne dans
+  `validation.md`.
+- Chaque stack possède sa base, son bloc de ports, ses racines de stockage et son
+  répertoire d'artefacts. Deux stacks ne partagent rien.
+- Tout conteneur, volume, réseau ou base créé pour une feature porte
+  `com.myownnotion.stack=<feature>-<slug>` et `com.myownnotion.ephemeral=true`,
+  avec un nom de projet Compose explicite.
+- Une session se termine par `bun run stacks:audit` : aucune stack éphémère, aucune
+  base temporaire. Un run qui laisse une stack derrière lui est un run en échec,
+  même si toutes ses assertions passent.
+
 ## Checklist de revue
 
 - [ ] Chaque attente observe un état écrit par le code qui achève l'opération.
@@ -68,3 +86,5 @@ l'état qui a changé (L-004, L-005). Une relance verte n'est pas une correction
       par une barrière contrôlée, pas par la chance.
 - [ ] Une injection ou une mutation rend le test rouge avec le bon message.
 - [ ] Si le test touche un menu portail ou une saisie, L-001 et L-002 ont été lues.
+- [ ] La validation vient de la commande matrice parallèle, pas d'un projet isolé,
+      et `bun run stacks:audit` ne rapporte aucune stack éphémère.

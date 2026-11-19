@@ -503,10 +503,17 @@ substitutes for the behavioral layers.
 | `bun run test:coverage` | Maintained unit/integration/contract code under coverage thresholds | **yes** |
 | `bun run test:performance` | 10,000-item / 1,000-operation suites | **yes** |
 | `bun run db:test-migrations` | Alias of `test:migration`, kept for existing scripts | **yes** |
+| `bun run stacks:audit` | Reports every container and fails while an ephemeral stack survives | yes |
 
 ¹ `tests/contract/export.spec.ts` needs PostgreSQL, so it fails inside
 `test:unit` when Docker is unavailable. Everything else in that command runs
 without it.
+
+Run the matrix, never one project at a time; each project gets its own database,
+ports and artefact directory. Stacks are isolated, labelled and reaped under the
+rules in [parallel execution and stack hygiene](testing/parallel-stacks.md)
+(constitution article IX), and `bun run stacks:audit` must report no ephemeral
+stack before a run and at the end of a work session.
 
 ### The browser matrix locally
 
