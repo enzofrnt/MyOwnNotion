@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@myownnotion/domain": "workspace:*",
-    "loro-crdt": "1.17.1"
+    "loro-crdt": "1.18.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

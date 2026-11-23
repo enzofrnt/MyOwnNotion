@@ -13,7 +13,7 @@
     "admin": "bun src/admin/admin-cli.ts"
   },
   "dependencies": {
-    "@fastify/multipart": "^10.1.8",
+    "@fastify/multipart": "^10.1.9",
     "@fastify/websocket": "^11.3.7",
     "@modelcontextprotocol/server": "2.4.0",
     "@myownnotion/blob-store": "workspace:*",
@@ -24,9 +24,9 @@
     "@simplewebauthn/server": "^13.3.2",
     "@sinclair/typebox": "^0.34.41",
     "drizzle-orm": "^0.45.4",
-    "fast-json-stringify": "7.3.4",
+    "fast-json-stringify": "7.3.6",
     "fastify": "^5.12.8",
-    "loro-crdt": "1.17.1",
+    "loro-crdt": "1.18.0",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "pino-pretty": "^13.2.0",
